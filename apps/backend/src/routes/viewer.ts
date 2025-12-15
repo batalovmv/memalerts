@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
-import { activateMemeLimiter } from '../middleware/rateLimit';
-import { viewerController } from '../controllers/viewerController';
+import { authenticate } from '../middleware/auth.js';
+import { activateMemeLimiter } from '../middleware/rateLimit.js';
+import { viewerController } from '../controllers/viewerController.js';
 
 export const viewerRoutes = Router();
 

@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
+import { AuthRequest } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
 import { createSubmissionSchema } from '../shared';
 import path from 'path';
 

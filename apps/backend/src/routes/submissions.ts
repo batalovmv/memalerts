@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
-import { uploadLimiter, upload } from '../middleware/upload';
-import { submissionController } from '../controllers/submissionController';
+import { authenticate } from '../middleware/auth.js';
+import { uploadLimiter, upload } from '../middleware/upload.js';
+import { submissionController } from '../controllers/submissionController.js';
 
 export const submissionRoutes = Router();
 
