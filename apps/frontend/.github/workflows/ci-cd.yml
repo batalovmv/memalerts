@@ -8,6 +8,7 @@ on:
       - 'overlay/**'
       - '.github/workflows/ci-cd.yml'
       - 'package.json'
+      - 'pnpm-lock.yaml'
       - 'vite.config.ts'
       - 'tsconfig.json'
   pull_request:
@@ -17,6 +18,7 @@ on:
       - 'overlay/**'
       - '.github/workflows/ci-cd.yml'
       - 'package.json'
+      - 'pnpm-lock.yaml'
       - 'vite.config.ts'
       - 'tsconfig.json'
 
