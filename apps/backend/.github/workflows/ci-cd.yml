@@ -110,7 +110,7 @@ jobs:
           source: "src,prisma,package.json,tsconfig.json,.github"
           target: "/opt/memalerts-backend"
           strip_components: 0
-          rm: false
+          rm: true
 
       - name: Configure server (sudo setup)
         uses: appleboy/ssh-action@v1.0.0

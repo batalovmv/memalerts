@@ -260,10 +260,20 @@ fi
 sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
 rm -f /tmp/memalerts-nginx.conf
 
-# Verify the config file doesn't have SSL
-if grep -q "ssl_certificate" /etc/nginx/sites-available/memalerts; then
-    echo "ERROR: New config file contains SSL! This should not happen."
+# Verify the config file was created
+if [ ! -f /etc/nginx/sites-available/memalerts ]; then
+    echo "ERROR: Failed to create nginx config file!"
     exit 1
+fi
+
+# Only check for Let's Encrypt SSL if not using Cloudflare (Cloudflare cert is OK)
+if [ "$USE_CLOUDFLARE_CERT" != true ]; then
+    if grep -qE "ssl_certificate.*letsencrypt|ssl_certificate.*/etc/letsencrypt" /etc/nginx/sites-available/memalerts; then
+        echo "ERROR: New config file contains Let's Encrypt SSL! This should not happen."
+        exit 1
+    fi
+else
+    echo "✅ Config file created (Cloudflare SSL is expected)"
 fi
 
 # Enable site
