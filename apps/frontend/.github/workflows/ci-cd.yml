@@ -141,47 +141,24 @@ jobs:
             
             # Always setup/update nginx configuration
             echo "Setting up/updating nginx configuration..."
-            cd /opt/memalerts-backend || cd /opt
-            if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
-              chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
+            if [ -f /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
+              chmod +x /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
-                echo "Nginx setup failed. Check logs above."
-                exit 1
-              }
-            elif [ -f .github/scripts/setup-nginx-full.sh ]; then
-              chmod +x .github/scripts/setup-nginx-full.sh
-              export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
-              export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+              sudo -E /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
             else
-              echo "Nginx setup script not found!"
+              echo "Nginx setup script not found at /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh"
+              echo "Checking for script in alternative locations..."
+              find /opt -name "setup-nginx-full.sh" 2>/dev/null || echo "Script not found anywhere"
               exit 1
             fi
             
             # Ensure frontend directory exists
             mkdir -p /opt/memalerts-frontend/dist
             
-            # Update nginx config if domain changed
-            if [ -f /etc/nginx/sites-available/memalerts ] && [ -n "${{ secrets.DOMAIN }}" ]; then
-              # Check if domain needs updating
-              CURRENT_DOMAIN=$(grep -oP 'server_name \K[^;]+' /etc/nginx/sites-available/memalerts | head -1)
-              if [ "$CURRENT_DOMAIN" != "${{ secrets.DOMAIN }}" ] && [ "$CURRENT_DOMAIN" != "${{ secrets.DOMAIN }} www.${{ secrets.DOMAIN }}" ]; then
-                echo "Domain changed, updating nginx config..."
-                cd /opt/memalerts-backend || cd /opt
-                if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
-                  chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                  export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
-                  export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-                  sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN }} 3001 2>&1 || true
-                fi
-              fi
-            fi
-            
-            # Reload nginx
+            # Reload nginx (already configured above)
             sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
 
