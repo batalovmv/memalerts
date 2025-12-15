@@ -1,9 +1,9 @@
 import { Express } from 'express';
-import { authRoutes } from './auth';
-import { viewerRoutes } from './viewer';
-import { submissionRoutes } from './submissions';
-import { adminRoutes } from './admin';
-import { webhookRoutes } from './webhooks';
+import { authRoutes } from './auth.js';
+import { viewerRoutes } from './viewer.js';
+import { submissionRoutes } from './submissions.js';
+import { adminRoutes } from './admin.js';
+import { webhookRoutes } from './webhooks.js';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
