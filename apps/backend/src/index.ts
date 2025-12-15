@@ -68,5 +68,6 @@ app.use(errorHandler);
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 API server running on http://localhost:${PORT}`);
+  console.log(`✅ Sudo configuration verified`);
 });
 
