@@ -12,8 +12,8 @@ echo "Setting up nginx for domain: $DOMAIN"
 # Install nginx and certbot if not installed
 if ! command -v nginx &> /dev/null; then
     echo "Installing nginx..."
-    apt-get update
-    apt-get install -y nginx certbot python3-certbot-nginx
+    sudo apt-get update
+    sudo apt-get install -y nginx certbot python3-certbot-nginx
 fi
 
 # Create nginx configuration
@@ -85,16 +85,16 @@ if [ ! -f /opt/memalerts-frontend/dist/index.html ]; then
 fi
 
 # Enable site
-ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
 
 # Test nginx configuration
-nginx -t
+sudo nginx -t
 
 # Get SSL certificate
 if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Getting SSL certificate for domain: $DOMAIN"
-    certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN || {
+    sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN || {
         echo "Warning: Could not get SSL certificate. You may need to configure it manually."
     }
 else
@@ -102,8 +102,8 @@ else
 fi
 
 # Reload nginx
-systemctl reload nginx
-systemctl enable nginx
+sudo systemctl reload nginx
+sudo systemctl enable nginx
 
 echo "Nginx configured successfully!"
 echo "Frontend should be accessible at: https://$DOMAIN"
