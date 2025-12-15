@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
 import { login } from '../lib/auth';
-import toast from 'react-hot-toast';
 
 export default function Landing() {
   const { user, loading } = useAppSelector((state) => state.auth);
