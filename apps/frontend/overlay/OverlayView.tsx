@@ -21,7 +21,7 @@ export default function OverlayView() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
   const [current, setCurrent] = useState<QueuedActivation | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const scale = parseFloat(searchParams.get('scale') || '1');
@@ -190,16 +190,20 @@ export default function OverlayView() {
           src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${current.fileUrl}`}
           autoPlay
           muted={false}
-          volume={volume}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
+          onLoadedData={(e) => {
+            e.currentTarget.volume = volume;
+          }}
         />
       )}
       {current.type === 'audio' && (
         <audio
           ref={audioRef}
           src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${current.fileUrl}`}
-          volume={volume}
           autoPlay
+          onLoadedData={(e) => {
+            e.currentTarget.volume = volume;
+          }}
         />
       )}
     </div>
