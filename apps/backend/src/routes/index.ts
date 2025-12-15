@@ -12,6 +12,7 @@ export function setupRoutes(app: Express) {
 
   app.use('/auth', authRoutes);
   app.use('/webhooks', webhookRoutes);
+  app.use('/channels', viewerRoutes);
   app.use('/me', viewerRoutes);
   app.use('/wallet', viewerRoutes);
   app.use('/memes', viewerRoutes);

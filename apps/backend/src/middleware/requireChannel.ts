@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthRequest } from './auth';
+import { AuthRequest } from './auth.js';
 
 export function requireChannel(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.channelId) {

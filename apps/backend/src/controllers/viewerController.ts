@@ -5,6 +5,38 @@ import { activateMemeSchema } from '../shared/index.js';
 import { Server } from 'socket.io';
 
 export const viewerController = {
+  getChannelBySlug: async (req: any, res: Response) => {
+    const { slug } = req.params;
+
+    const channel = await prisma.channel.findUnique({
+      where: { slug },
+      include: {
+        _count: {
+          select: {
+            memes: { where: { status: 'approved' } },
+            users: true,
+          },
+        },
+      },
+    });
+
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    res.json({
+      id: channel.id,
+      slug: channel.slug,
+      name: channel.name,
+      coinPerPointRatio: channel.coinPerPointRatio,
+      createdAt: channel.createdAt,
+      stats: {
+        memesCount: channel._count.memes,
+        usersCount: channel._count.users,
+      },
+    });
+  },
+
   getMe: async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: req.userId! },
@@ -40,15 +72,29 @@ export const viewerController = {
   },
 
   getMemes: async (req: AuthRequest, res: Response) => {
-    const channelId = req.channelId || req.query.channelId as string;
+    const channelSlug = req.query.channelSlug as string | undefined;
+    const channelId = req.channelId || (req.query.channelId as string | undefined);
 
-    if (!channelId) {
-      return res.status(400).json({ error: 'Channel ID required' });
+    let targetChannelId: string | null = null;
+
+    if (channelSlug) {
+      const channel = await prisma.channel.findUnique({
+        where: { slug: channelSlug },
+        select: { id: true },
+      });
+      if (!channel) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+      targetChannelId = channel.id;
+    } else if (channelId) {
+      targetChannelId = channelId;
+    } else {
+      return res.status(400).json({ error: 'Channel ID or slug required' });
     }
 
     const memes = await prisma.meme.findMany({
       where: {
-        channelId,
+        channelId: targetChannelId,
         status: 'approved',
       },
       orderBy: {

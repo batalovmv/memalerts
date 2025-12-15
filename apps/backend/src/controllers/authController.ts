@@ -69,30 +69,31 @@ export const authController = {
       });
 
       if (!user) {
-        // Check if this is the first user or channel owner
-        const existingChannels = await prisma.channel.findMany();
-        const isFirstUser = existingChannels.length === 0;
+        // Check if channel exists for this Twitch user
+        let channel = await prisma.channel.findUnique({
+          where: { twitchChannelId: twitchUser.id },
+        });
 
-        // For MVP: if first user, create channel and make them streamer
-        // Otherwise, assign to first channel or create new one
         let channelId = null;
         let role = 'viewer';
 
-        if (isFirstUser) {
-          const channel = await prisma.channel.create({
+        if (!channel) {
+          // Create new channel for this streamer
+          channel = await prisma.channel.create({
             data: {
               twitchChannelId: twitchUser.id,
               slug: twitchUser.login.toLowerCase(),
               name: twitchUser.display_name,
             },
           });
-          channelId = channel.id;
-          role = 'streamer';
+          role = 'streamer'; // First user who creates channel is streamer
         } else {
-          // Assign to first channel for MVP
-          const firstChannel = existingChannels[0];
-          channelId = firstChannel.id;
+          // Channel exists - check if this user is the owner
+          // If channel's twitchChannelId matches user's twitchUserId, they are the streamer
+          role = 'streamer'; // User owns this channel
         }
+        
+        channelId = channel.id;
 
         user = await prisma.user.create({
           data: {

@@ -50,6 +50,6 @@ export const upload = multer({
 });
 
 // Re-export rate limiter for uploads
-export { uploadLimiter } from './rateLimit';
+export { uploadLimiter } from './rateLimit.js';
 
 

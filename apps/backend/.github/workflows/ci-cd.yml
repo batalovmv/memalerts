@@ -4,14 +4,18 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'apps/api/**'
-      - 'packages/shared/**'
-      - '.github/workflows/backend-ci-cd.yml'
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - '.github/workflows/ci-cd.yml'
   pull_request:
     branches: [main, develop]
     paths:
-      - 'apps/api/**'
-      - 'packages/shared/**'
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'tsconfig.json'
 
 env:
   NODE_VERSION: '20'
@@ -54,9 +58,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared package
-        run: cd src/shared && pnpm install && pnpm build
-
       - name: Generate Prisma Client
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/memalerts_test?schema=public
@@ -97,25 +98,74 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared package
-        run: cd src/shared && pnpm install && pnpm build
-
       - name: Build API
         run: pnpm build
+
+      - name: Create/Update .env file on VPS
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /opt/memalerts-backend
+            
+            # Determine callback URL - use explicit secret if set, otherwise construct from DOMAIN
+            if [ -n "${{ secrets.TWITCH_CALLBACK_URL }}" ]; then
+              CALLBACK_URL="${{ secrets.TWITCH_CALLBACK_URL }}"
+            elif [ -n "${{ secrets.DOMAIN }}" ]; then
+              CALLBACK_URL="https://${{ secrets.DOMAIN }}/auth/twitch/callback"
+            else
+              # Fallback to IP (not recommended for production)
+              CALLBACK_URL="https://155.212.172.136/auth/twitch/callback"
+            fi
+            
+            # Create .env file with actual values
+            cat > .env << EOF
+            # Database
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            
+            # Server
+            PORT=3001
+            NODE_ENV=production
+            
+            # JWT
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=7d
+            
+            # Twitch OAuth
+            TWITCH_CLIENT_ID=${{ secrets.TWITCH_CLIENT_ID }}
+            TWITCH_CLIENT_SECRET=${{ secrets.TWITCH_CLIENT_SECRET }}
+            TWITCH_CALLBACK_URL=$CALLBACK_URL
+            
+            # Twitch EventSub
+            TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
+            
+            # CORS
+            WEB_URL=${{ secrets.WEB_URL }}
+            OVERLAY_URL=${{ secrets.OVERLAY_URL }}
+            
+            # File Upload
+            MAX_FILE_SIZE=10485760
+            UPLOAD_DIR=./uploads
+            EOF
+            
+            # Ensure uploads directory exists
+            mkdir -p uploads uploads/memes
+            chmod -R 755 uploads
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             cd /opt/memalerts-backend
             git pull origin main
             pnpm install --frozen-lockfile --production
-            cd src/shared && pnpm install && pnpm build
-            cd ../..
             pnpm build
             pnpm prisma generate
             pnpm prisma migrate deploy

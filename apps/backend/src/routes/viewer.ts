@@ -5,6 +5,10 @@ import { viewerController } from '../controllers/viewerController.js';
 
 export const viewerRoutes = Router();
 
+// Public route - get channel by slug (no auth required)
+viewerRoutes.get('/:slug', viewerController.getChannelBySlug);
+
+// Protected routes - require authentication
 viewerRoutes.use(authenticate);
 
 viewerRoutes.get('/me', viewerController.getMe);

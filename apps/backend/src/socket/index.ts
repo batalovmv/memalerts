@@ -11,7 +11,7 @@ export function setupSocketIO(io: Server) {
 
     socket.on('activation:ackDone', async (data: { activationId: string }) => {
       // Update activation status
-      const { prisma } = await import('../lib/prisma');
+      const { prisma } = await import('../lib/prisma.js');
       try {
         await prisma.memeActivation.update({
           where: { id: data.activationId },
