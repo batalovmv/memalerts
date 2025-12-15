@@ -7,24 +7,35 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: 'Validation error',
+      message: 'Validation failed',
       details: err.errors,
     });
   }
 
   if (err.name === 'UnauthorizedError' || err.message === 'Unauthorized') {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Unauthorized',
+    });
   }
 
   if (err.message === 'Forbidden') {
-    return res.status(403).json({ error: 'Forbidden' });
+    return res.status(403).json({ 
+      error: 'Forbidden',
+      message: 'Forbidden',
+    });
   }
 
   if (err.message === 'Not Found') {
-    return res.status(404).json({ error: 'Not Found' });
+    return res.status(404).json({ 
+      error: 'Not Found',
+      message: 'Not Found',
+    });
   }
 
   res.status(500).json({
     error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
   });
 }
 

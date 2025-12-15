@@ -14,9 +14,24 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+// Get allowed origins from env or use defaults
+const getAllowedOrigins = () => {
+  const origins: string[] = [];
+  if (process.env.WEB_URL) origins.push(process.env.WEB_URL);
+  if (process.env.OVERLAY_URL) origins.push(process.env.OVERLAY_URL);
+  if (process.env.DOMAIN) {
+    origins.push(`https://${process.env.DOMAIN}`);
+    origins.push(`https://www.${process.env.DOMAIN}`);
+  }
+  if (origins.length === 0) {
+    origins.push('http://localhost:5173', 'http://localhost:5174');
+  }
+  return origins;
+};
+
 const io = new Server(httpServer, {
   cors: {
-    origin: [process.env.WEB_URL || 'http://localhost:5173', process.env.OVERLAY_URL || 'http://localhost:5174'],
+    origin: getAllowedOrigins(),
     credentials: true,
   },
 });
@@ -27,7 +42,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(
   cors({
-    origin: [process.env.WEB_URL || 'http://localhost:5173', process.env.OVERLAY_URL || 'http://localhost:5174'],
+    origin: getAllowedOrigins(),
     credentials: true,
   })
 );
