@@ -106,12 +106,12 @@ jobs:
           username: ${{ secrets.VPS_USER || 'deploy' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "."
+          source: "src,prisma,package.json,tsconfig.json,.github"
           target: "/opt/memalerts-backend"
           strip_components: 0
           rm: false
 
-      - name: Configure server (sudo and git)
+      - name: Configure server (sudo setup)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -119,25 +119,18 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            # Configure sudo for deploy user (one-time setup)
+            # Configure sudo for deploy user (one-time setup - requires root access)
             if ! sudo -n true 2>/dev/null; then
-              echo "Attempting to configure sudo (may require root password first time)..."
-              echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/nginx, /bin/systemctl, /usr/sbin/nginx, /usr/bin/certbot, /usr/bin/apt-get, /usr/sbin/nginx, /usr/bin/nginx" | sudo tee /etc/sudoers.d/deploy-nginx > /dev/null 2>&1 || {
-                echo "Note: sudo configuration requires manual setup. Run on server:"
-                echo "echo '$USER ALL=(ALL) NOPASSWD: /usr/bin/nginx, /bin/systemctl, /usr/sbin/nginx, /usr/bin/certbot, /usr/bin/apt-get' | sudo tee /etc/sudoers.d/deploy-nginx"
+              echo "=========================================="
+              echo "SUDO CONFIGURATION REQUIRED"
+              echo "Please run on server as root:"
+              echo "echo 'deploy ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/deploy"
+              echo "sudo chmod 0440 /etc/sudoers.d/deploy"
+              echo "=========================================="
+              # Try to configure anyway (will fail if no root access)
+              echo "deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/deploy > /dev/null 2>&1 && sudo chmod 0440 /etc/sudoers.d/deploy || {
+                echo "Could not configure sudo automatically. Please configure manually."
               }
-            fi
-            
-            # Configure git to use SSH for GitHub (if needed)
-            if [ -d /opt/memalerts-backend/.git ]; then
-              cd /opt/memalerts-backend
-              git config --global --add safe.directory /opt/memalerts-backend || true
-              # Change remote to SSH if it's HTTPS
-              CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo "")
-              if [[ "$CURRENT_REMOTE" == https://github.com/* ]]; then
-                REPO_PATH=$(echo "$CURRENT_REMOTE" | sed 's|https://github.com/||' | sed 's|\.git$||')
-                git remote set-url origin "git@github.com:$REPO_PATH.git" || true
-              fi
             fi
 
       - name: Create/Update .env file on VPS
@@ -202,12 +195,15 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            # Configure sudo for deploy user (if not already done)
+            # Configure sudo without password for deploy user (if not already configured)
             if ! sudo -n true 2>/dev/null; then
               echo "Configuring sudo for deploy user..."
-              echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/nginx, /bin/systemctl, /usr/sbin/nginx, /usr/bin/certbot, /usr/bin/apt-get" | sudo tee /etc/sudoers.d/deploy-nginx > /dev/null 2>&1 || {
-                echo "Could not configure sudo. Please run manually:"
-                echo "echo '$USER ALL=(ALL) NOPASSWD: /usr/bin/nginx, /bin/systemctl, /usr/sbin/nginx, /usr/bin/certbot, /usr/bin/apt-get' | sudo tee /etc/sudoers.d/deploy-nginx"
+              # Try to configure sudo - this requires root access
+              echo "deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/deploy > /dev/null 2>&1 && sudo chmod 0440 /etc/sudoers.d/deploy || {
+                echo "Warning: Could not configure sudo automatically."
+                echo "Please run on server as root:"
+                echo "echo 'deploy ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/deploy"
+                echo "sudo chmod 0440 /etc/sudoers.d/deploy"
               }
             fi
             
@@ -245,6 +241,7 @@ jobs:
             # Code is already copied via SCP, no need for git pull
             echo "Code deployed via SCP"
             
+            # Install dependencies
             pnpm install --production
             pnpm build
             pnpm prisma generate

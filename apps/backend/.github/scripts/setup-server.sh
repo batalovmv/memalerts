@@ -38,6 +38,11 @@ if ! id "deploy" &>/dev/null; then
     echo "User 'deploy' created"
 fi
 
+# Configure sudo without password for deploy user
+echo "deploy ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/deploy
+chmod 0440 /etc/sudoers.d/deploy
+echo "Sudo configured for deploy user"
+
 # Create application directory
 mkdir -p /opt/memalerts-backend
 chown deploy:deploy /opt/memalerts-backend
