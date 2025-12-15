@@ -26,8 +26,17 @@ if ! command -v nginx &> /dev/null; then
     sudo apt-get install -y nginx certbot python3-certbot-nginx
 fi
 
-# Create nginx configuration - start with HTTP only
-cat > /etc/nginx/sites-available/memalerts << EOF
+# Remove old configuration if it exists and has SSL (to avoid errors)
+if [ -f /etc/nginx/sites-available/memalerts ]; then
+    if grep -q "ssl_certificate" /etc/nginx/sites-available/memalerts; then
+        echo "Removing old SSL configuration..."
+        sudo rm -f /etc/nginx/sites-available/memalerts
+        sudo rm -f /etc/nginx/sites-enabled/memalerts
+    fi
+fi
+
+# Create nginx configuration - start with HTTP only (no SSL)
+cat > /tmp/memalerts-nginx.conf << EOF
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
@@ -80,13 +89,21 @@ if [ ! -f /opt/memalerts-frontend/dist/index.html ]; then
   echo "<!DOCTYPE html><html><head><title>MemAlerts</title></head><body><h1>Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend/dist/index.html
 fi
 
+# Copy configuration to nginx directory
+sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
+rm -f /tmp/memalerts-nginx.conf
+
 # Enable site
 sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 
 # Test nginx configuration (HTTP only for now)
+echo "Testing nginx configuration..."
 sudo nginx -t || {
-    echo "Warning: Nginx configuration test failed, but continuing..."
+    echo "Error: Nginx configuration test failed!"
+    echo "Configuration file:"
+    sudo cat /etc/nginx/sites-available/memalerts
+    exit 1
 }
 
 # Start/reload nginx with HTTP config first
