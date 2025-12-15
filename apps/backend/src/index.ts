@@ -39,11 +39,18 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(helmet());
+// Configure helmet to allow cookies
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false, // Disable CSP for now to avoid cookie issues
+  })
+);
 app.use(
   cors({
     origin: getAllowedOrigins(),
     credentials: true,
+    exposedHeaders: ['Set-Cookie'],
   })
 );
 app.use(express.json());

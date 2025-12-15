@@ -11,6 +11,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const token = req.cookies.token;
 
   if (!token) {
+    console.log('No token cookie found. Cookies:', req.cookies);
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -25,6 +26,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     req.channelId = decoded.channelId;
     next();
   } catch (error) {
+    console.error('JWT verification failed:', error);
     return res.status(401).json({ error: 'Unauthorized' });
   }
 }

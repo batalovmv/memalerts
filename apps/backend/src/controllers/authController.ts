@@ -153,10 +153,17 @@ export const authController = {
         path: '/', // Ensure cookie is available for all paths
       };
 
-      // Set domain if in production with a domain
-      if (isProduction && process.env.DOMAIN) {
-        cookieOptions.domain = process.env.DOMAIN;
-      }
+      // Don't set domain explicitly - let browser handle it
+      // Setting domain explicitly can cause issues with cookie setting
+      // Browser will automatically set it to the current domain
+
+      console.log('Setting cookie with options:', {
+        httpOnly: cookieOptions.httpOnly,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        path: cookieOptions.path,
+        maxAge: cookieOptions.maxAge,
+      });
 
       res.cookie('token', token, cookieOptions);
 
