@@ -27,42 +27,41 @@ if ! command -v nginx &> /dev/null; then
 fi
 
 # Stop nginx completely before reconfiguring
-if systemctl is-active --quiet nginx; then
-    echo "Stopping nginx before reconfiguration..."
-    sudo systemctl stop nginx || true
-    sleep 1
-fi
+echo "Stopping nginx..."
+sudo systemctl stop nginx 2>/dev/null || true
+sleep 2
 
-# Remove ALL old configurations to start fresh
-echo "Removing old nginx configurations..."
-sudo rm -f /etc/nginx/sites-available/memalerts
-sudo rm -f /etc/nginx/sites-enabled/memalerts
+# Remove ALL configurations that might have SSL
+echo "Removing ALL nginx site configurations..."
+sudo rm -f /etc/nginx/sites-available/memalerts*
+sudo rm -f /etc/nginx/sites-enabled/memalerts*
 sudo rm -f /etc/nginx/sites-enabled/default
 
-# Check and remove ANY configurations that reference our domain (including SSL)
-echo "Checking for all configurations with our domain..."
-for config_file in /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*; do
-    if [ -f "$config_file" ] && grep -q "twitchmemes.ru" "$config_file" 2>/dev/null; then
-        echo "Removing configuration with our domain from: $config_file"
-        sudo rm -f "$config_file"
-        # Also remove from sites-enabled if it's a symlink
-        sudo rm -f "/etc/nginx/sites-enabled/$(basename "$config_file")" 2>/dev/null || true
+# Check ALL config files for SSL references to our domain
+echo "Scanning all nginx configs for SSL references..."
+find /etc/nginx/sites-available /etc/nginx/sites-enabled -type f 2>/dev/null | while read config_file; do
+    if [ -f "$config_file" ]; then
+        if grep -q "twitchmemes.ru\|ssl_certificate.*live/twitchmemes.ru" "$config_file" 2>/dev/null; then
+            echo "Found and removing: $config_file"
+            sudo rm -f "$config_file"
+            # Remove symlink if exists
+            sudo rm -f "/etc/nginx/sites-enabled/$(basename "$config_file")" 2>/dev/null || true
+        fi
     fi
 done
 
-# Also check for any SSL configurations created by certbot
-if [ -d /etc/letsencrypt/renewal ]; then
-    if [ -f /etc/letsencrypt/renewal/twitchmemes.ru.conf ]; then
-        echo "Found certbot renewal config, but certificates don't exist yet"
-        echo "This is OK - we'll get certificates after nginx is running"
-    fi
+# Also check main nginx.conf for includes that might have SSL
+if grep -q "include.*sites-enabled.*twitchmemes\|ssl_certificate.*twitchmemes" /etc/nginx/nginx.conf 2>/dev/null; then
+    echo "Warning: Found SSL references in main nginx.conf"
 fi
 
-# Remove any certbot-created nginx configs if they exist
-if [ -f /etc/nginx/sites-available/memalerts-le-ssl.conf ] || [ -f /etc/nginx/sites-enabled/memalerts-le-ssl.conf ]; then
-    echo "Removing certbot-created SSL configs..."
-    sudo rm -f /etc/nginx/sites-available/memalerts-le-ssl.conf
-    sudo rm -f /etc/nginx/sites-enabled/memalerts-le-ssl.conf
+# Verify no SSL configs remain
+echo "Verifying cleanup..."
+if sudo nginx -t 2>&1 | grep -q "ssl_certificate.*twitchmemes.ru"; then
+    echo "ERROR: Still found SSL references after cleanup!"
+    echo "Searching for remaining SSL configs..."
+    sudo grep -r "ssl_certificate.*twitchmemes.ru" /etc/nginx/ 2>/dev/null || true
+    echo "Trying to continue anyway..."
 fi
 
 # Create nginx configuration - start with HTTP only (no SSL)
@@ -148,44 +147,52 @@ NGINX_TEST_OUTPUT=$(sudo nginx -t 2>&1)
 NGINX_TEST_STATUS=$?
 
 if [ $NGINX_TEST_STATUS -ne 0 ]; then
-    echo "Error: Nginx configuration test failed!"
+    echo "ERROR: Nginx configuration test failed!"
     echo "Test output:"
     echo "$NGINX_TEST_OUTPUT"
     
     # Check if error is about SSL certificate
     if echo "$NGINX_TEST_OUTPUT" | grep -q "ssl_certificate.*twitchmemes.ru"; then
-        echo "Found SSL certificate error. Searching for all SSL references..."
-        sudo grep -r "ssl_certificate.*twitchmemes.ru" /etc/nginx/ 2>/dev/null || echo "No SSL references found in grep"
+        echo "SSL certificate error detected. Performing deep cleanup..."
         
-        # List all nginx config files
-        echo "All nginx config files:"
-        sudo find /etc/nginx -name "*.conf" -o -name "*memalerts*" 2>/dev/null | while read file; do
-            echo "Checking: $file"
-            if sudo grep -q "twitchmemes.ru" "$file" 2>/dev/null; then
-                echo "Found reference in: $file"
-                sudo cat "$file"
+        # Remove ALL configs again
+        sudo rm -f /etc/nginx/sites-available/memalerts*
+        sudo rm -f /etc/nginx/sites-enabled/memalerts*
+        
+        # Find and remove any file with SSL reference
+        sudo find /etc/nginx -type f -name "*.conf" 2>/dev/null | while read file; do
+            if sudo grep -q "ssl_certificate.*twitchmemes.ru" "$file" 2>/dev/null; then
+                echo "Removing SSL config from: $file"
+                # Try to remove just SSL lines, or remove file if it's a site config
+                if [[ "$file" == *"sites-"* ]]; then
+                    sudo rm -f "$file"
+                else
+                    echo "Warning: SSL reference in main config file: $file"
+                fi
             fi
         done
         
-        echo "Removing all nginx configs and trying again..."
-        sudo rm -f /etc/nginx/sites-available/memalerts
-        sudo rm -f /etc/nginx/sites-enabled/memalerts
-        
-        # Recreate config
+        # Recreate clean HTTP config
         sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
         sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/memalerts
         
         # Test again
+        echo "Retesting after deep cleanup..."
         if ! sudo nginx -t; then
-            echo "Still failing after cleanup. Exiting."
+            echo "FATAL: Still failing after deep cleanup!"
+            echo "Remaining config files:"
+            sudo ls -la /etc/nginx/sites-available/ /etc/nginx/sites-enabled/ 2>/dev/null || true
             exit 1
         fi
     else
+        echo "Non-SSL configuration error:"
         echo "Configuration file:"
         sudo cat /etc/nginx/sites-available/memalerts || echo "Config file not found"
         exit 1
     fi
 fi
+
+echo "✅ Nginx configuration test passed!"
 
 # Start nginx with HTTP config first
 echo "Starting nginx with HTTP configuration..."
@@ -197,38 +204,67 @@ sudo systemctl start nginx || {
 sudo systemctl enable nginx
 
 # Get SSL certificate (certbot will automatically update config to HTTPS)
-# Only try if domain is not an IP and nginx is running successfully
+# This is REQUIRED for HTTPS
 if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    # Check if nginx is running
-    if systemctl is-active --quiet nginx; then
-        echo "Getting SSL certificate for domain: $DOMAIN"
-        echo "Note: Domain DNS must be pointing to this server for certbot to work"
-        # Wait a moment for nginx to be fully ready
-        sleep 3
+    # Verify nginx is running on HTTP first
+    if ! systemctl is-active --quiet nginx; then
+        echo "ERROR: Nginx is not running after HTTP setup!"
+        exit 1
+    fi
+    
+    echo "=========================================="
+    echo "Getting SSL certificate for HTTPS"
+    echo "Domain: $DOMAIN"
+    echo "=========================================="
+    
+    # Wait for nginx to be fully ready
+    sleep 3
+    
+    # Get SSL certificate - certbot will automatically:
+    # 1. Get certificate from Let's Encrypt
+    # 2. Update nginx config to use HTTPS
+    # 3. Add redirect from HTTP to HTTPS
+    echo "Running certbot to get SSL certificate..."
+    CERTBOT_OUTPUT=$(sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN --redirect 2>&1)
+    CERTBOT_STATUS=$?
+    
+    if [ $CERTBOT_STATUS -eq 0 ]; then
+        echo "✅ SSL certificate obtained successfully!"
+        echo "Certbot output:"
+        echo "$CERTBOT_OUTPUT"
         
-        # Try to get certificate, but don't fail if it doesn't work
-        sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN --redirect 2>&1 || {
-            echo "Could not get SSL certificate. This is normal if:"
-            echo "  1. Domain DNS is not fully propagated yet"
-            echo "  2. Domain is not pointing to this server"
-            echo "  3. Port 80 is not accessible from internet"
-            echo ""
-            echo "Nginx is running on HTTP. You can get SSL certificate later by running:"
-            echo "sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
-            echo ""
-            echo "For now, site is accessible via HTTP at: http://$DOMAIN"
-        }
-        
-        # Only reload if certbot succeeded (it updates the config automatically)
-        if [ -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
-            echo "SSL certificate obtained successfully, reloading nginx..."
-            sudo systemctl reload nginx || true
+        # Certbot automatically updated nginx config, test it
+        echo "Testing updated nginx configuration with SSL..."
+        if sudo nginx -t; then
+            echo "✅ SSL configuration is valid, reloading nginx..."
+            sudo systemctl reload nginx
+            echo "✅ HTTPS is now enabled!"
+            echo "Site is accessible at: https://$DOMAIN"
+        else
+            echo "WARNING: SSL config test failed after certbot"
+            echo "Nginx is still running on HTTP"
         fi
     else
-        echo "Nginx is not running, skipping SSL certificate setup"
+        echo "❌ Could not get SSL certificate"
+        echo "Certbot output:"
+        echo "$CERTBOT_OUTPUT"
+        echo ""
+        echo "Possible reasons:"
+        echo "  1. Domain DNS is not fully propagated"
+        echo "  2. Domain is not pointing to this server IP"
+        echo "  3. Port 80 is not accessible from internet"
+        echo "  4. Cloudflare proxy is enabled (should be DNS-only for certbot)"
+        echo ""
+        echo "Nginx is running on HTTP. To get SSL certificate manually, run:"
+        echo "sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+        echo ""
+        echo "IMPORTANT: If using Cloudflare, make sure:"
+        echo "  - DNS record is 'DNS only' (gray cloud), not 'Proxied' (orange cloud)"
+        echo "  - Or use Cloudflare Origin Certificate instead"
     fi
 else
-    echo "Domain is an IP address. Skipping SSL certificate. For HTTPS, use a domain name."
+    echo "Domain is an IP address. Cannot get SSL certificate for IP."
+    echo "Use a domain name for HTTPS support."
 fi
 
 echo "Nginx configured successfully!"
