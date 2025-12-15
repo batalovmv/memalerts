@@ -125,22 +125,35 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            # Configure sudo for deploy user (one-time setup - requires root access)
+            if ! sudo -n true 2>/dev/null; then
+              echo "=========================================="
+              echo "SUDO CONFIGURATION REQUIRED"
+              echo "Please run on server as root:"
+              echo "echo 'deploy ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/deploy"
+              echo "sudo chmod 0440 /etc/sudoers.d/deploy"
+              echo "=========================================="
+              # Try to configure anyway (will fail if no root access)
+              echo "deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/deploy > /dev/null 2>&1 && sudo chmod 0440 /etc/sudoers.d/deploy || {
+                echo "Could not configure sudo automatically. Please configure manually."
+              }
+            fi
+            
             # Setup nginx if not configured
             if [ ! -f /etc/nginx/sites-enabled/memalerts ]; then
               echo "Setting up nginx for the first time..."
               cd /opt/memalerts-backend || cd /opt
               if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
                 chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                sudo memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || {
-                  echo "Full nginx setup failed, trying basic setup..."
-                  if [ -f memalerts-backend/.github/scripts/setup-nginx.sh ]; then
-                    chmod +x memalerts-backend/.github/scripts/setup-nginx.sh
-                    sudo memalerts-backend/.github/scripts/setup-nginx.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || true
-                  fi
+                sudo -n memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+                  echo "Nginx setup requires sudo password. Please run manually on server:"
+                  echo "cd /opt/memalerts-backend && sudo .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001"
                 }
               elif [ -f .github/scripts/setup-nginx-full.sh ]; then
                 chmod +x .github/scripts/setup-nginx-full.sh
-                sudo .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || true
+                sudo -n .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+                  echo "Nginx setup requires sudo password"
+                }
               fi
             fi
             
@@ -156,11 +169,11 @@ jobs:
                 cd /opt/memalerts-backend || cd /opt
                 if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
                   chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                  sudo memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN }} 3001 || true
+                  sudo -n memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN }} 3001 2>&1 || true
                 fi
               fi
             fi
             
             # Reload nginx
-            sudo nginx -t && sudo systemctl reload nginx || sudo systemctl restart nginx
+            sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
 
