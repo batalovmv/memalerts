@@ -19,14 +19,24 @@ export const authController = {
   },
 
   handleTwitchCallback: async (req: AuthRequest, res: Response) => {
-    const { code } = req.query;
+    const { code, error } = req.query;
+
+    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error });
+
+    if (error) {
+      console.error('Twitch OAuth error:', error);
+      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${error}`);
+    }
 
     if (!code) {
+      console.error('No code in callback');
       const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-      return res.redirect(`${redirectUrl}/?error=auth_failed`);
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_code`);
     }
 
     try {
+      console.log('Exchanging code for token...');
       // Exchange code for token
       const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
         method: 'POST',
@@ -43,12 +53,16 @@ export const authController = {
       });
 
       const tokenData = await tokenResponse.json();
+      console.log('Token response status:', tokenResponse.status);
+      console.log('Token response keys:', Object.keys(tokenData));
 
       if (!tokenData.access_token) {
         console.error('No access token received from Twitch:', tokenData);
         const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-        return res.redirect(`${redirectUrl}/?error=auth_failed`);
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
       }
+
+      console.log('Access token received, fetching user info...');
 
       // Get user info from Twitch
       const userResponse = await fetch('https://api.twitch.tv/helix/users', {
@@ -59,13 +73,18 @@ export const authController = {
       });
 
       const userData = await userResponse.json();
-      const twitchUser = userData.data[0];
+      console.log('User response status:', userResponse.status);
+      console.log('User data:', userData);
+
+      const twitchUser = userData.data?.[0];
 
       if (!twitchUser) {
         console.error('No user data received from Twitch:', userData);
         const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-        return res.redirect(`${redirectUrl}/?error=auth_failed`);
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
       }
+
+      console.log('Twitch user found:', twitchUser.login);
 
       // Find or create user
       let user = await prisma.user.findUnique({
@@ -131,6 +150,7 @@ export const authController = {
         });
       }
 
+      console.log('User created/found, generating JWT...');
       // Generate JWT
       const token = jwt.sign(
         {
@@ -163,18 +183,23 @@ export const authController = {
         sameSite: cookieOptions.sameSite,
         path: cookieOptions.path,
         maxAge: cookieOptions.maxAge,
+        isProduction,
       });
 
       res.cookie('token', token, cookieOptions);
 
       // Redirect to dashboard or home if WEB_URL is not set
       const redirectUrl = process.env.WEB_URL || (isProduction ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-      console.log('Redirecting to:', redirectUrl);
+      console.log('Auth successful, redirecting to:', `${redirectUrl}/dashboard`);
       res.redirect(`${redirectUrl}/dashboard`);
     } catch (error) {
       console.error('Auth error:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-      res.redirect(`${redirectUrl}/?error=auth_failed`);
+      res.redirect(`${redirectUrl}/?error=auth_failed&reason=exception`);
     }
   },
 
