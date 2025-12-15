@@ -9,6 +9,16 @@ BACKEND_PORT="${2:-3001}"
 
 echo "Setting up nginx for domain: $DOMAIN"
 
+# Verify sudo works without password
+if ! sudo -n true 2>/dev/null; then
+    echo "Error: sudo requires password. Please configure sudo without password first:"
+    echo "echo 'deploy ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/deploy"
+    echo "sudo chmod 0440 /etc/sudoers.d/deploy"
+    exit 1
+fi
+
+echo "✅ Sudo configuration verified"
+
 # Install nginx and certbot if not installed
 if ! command -v nginx &> /dev/null; then
     echo "Installing nginx..."
