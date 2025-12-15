@@ -49,4 +49,7 @@ export const upload = multer({
   fileFilter,
 });
 
+// Re-export rate limiter for uploads
+export { uploadLimiter } from './rateLimit';
+
 
