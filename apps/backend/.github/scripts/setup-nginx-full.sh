@@ -39,20 +39,30 @@ sudo rm -f /etc/nginx/sites-available/memalerts
 sudo rm -f /etc/nginx/sites-enabled/memalerts
 sudo rm -f /etc/nginx/sites-enabled/default
 
-# Check and remove any SSL configurations that reference our domain
-echo "Checking for SSL configurations..."
+# Check and remove ANY configurations that reference our domain (including SSL)
+echo "Checking for all configurations with our domain..."
 for config_file in /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*; do
-    if [ -f "$config_file" ] && grep -q "ssl_certificate.*twitchmemes.ru\|server_name.*twitchmemes.ru" "$config_file" 2>/dev/null; then
-        echo "Removing SSL configuration from: $config_file"
+    if [ -f "$config_file" ] && grep -q "twitchmemes.ru" "$config_file" 2>/dev/null; then
+        echo "Removing configuration with our domain from: $config_file"
         sudo rm -f "$config_file"
         # Also remove from sites-enabled if it's a symlink
         sudo rm -f "/etc/nginx/sites-enabled/$(basename "$config_file")" 2>/dev/null || true
     fi
 done
 
-# Verify nginx config is clean (no SSL references to our domain)
-if sudo nginx -t 2>&1 | grep -q "ssl_certificate.*twitchmemes.ru"; then
-    echo "Warning: Still found SSL references, but continuing with new config..."
+# Also check for any SSL configurations created by certbot
+if [ -d /etc/letsencrypt/renewal ]; then
+    if [ -f /etc/letsencrypt/renewal/twitchmemes.ru.conf ]; then
+        echo "Found certbot renewal config, but certificates don't exist yet"
+        echo "This is OK - we'll get certificates after nginx is running"
+    fi
+fi
+
+# Remove any certbot-created nginx configs if they exist
+if [ -f /etc/nginx/sites-available/memalerts-le-ssl.conf ] || [ -f /etc/nginx/sites-enabled/memalerts-le-ssl.conf ]; then
+    echo "Removing certbot-created SSL configs..."
+    sudo rm -f /etc/nginx/sites-available/memalerts-le-ssl.conf
+    sudo rm -f /etc/nginx/sites-enabled/memalerts-le-ssl.conf
 fi
 
 # Create nginx configuration - start with HTTP only (no SSL)
@@ -187,19 +197,36 @@ sudo systemctl start nginx || {
 sudo systemctl enable nginx
 
 # Get SSL certificate (certbot will automatically update config to HTTPS)
+# Only try if domain is not an IP and nginx is running successfully
 if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Getting SSL certificate for domain: $DOMAIN"
-    echo "Note: Domain must be pointing to this server for certbot to work"
-    # Wait a moment for nginx to start
-    sleep 2
-    sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN --redirect || {
-        echo "Warning: Could not get SSL certificate. This is normal if:"
-        echo "  1. Domain DNS is not configured yet"
-        echo "  2. Domain is not pointing to this server"
-        echo "You can run manually later: sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
-    }
-    # Reload nginx after certbot updates config
-    sudo systemctl reload nginx || true
+    # Check if nginx is running
+    if systemctl is-active --quiet nginx; then
+        echo "Getting SSL certificate for domain: $DOMAIN"
+        echo "Note: Domain DNS must be pointing to this server for certbot to work"
+        # Wait a moment for nginx to be fully ready
+        sleep 3
+        
+        # Try to get certificate, but don't fail if it doesn't work
+        sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN --redirect 2>&1 || {
+            echo "Could not get SSL certificate. This is normal if:"
+            echo "  1. Domain DNS is not fully propagated yet"
+            echo "  2. Domain is not pointing to this server"
+            echo "  3. Port 80 is not accessible from internet"
+            echo ""
+            echo "Nginx is running on HTTP. You can get SSL certificate later by running:"
+            echo "sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+            echo ""
+            echo "For now, site is accessible via HTTP at: http://$DOMAIN"
+        }
+        
+        # Only reload if certbot succeeded (it updates the config automatically)
+        if [ -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
+            echo "SSL certificate obtained successfully, reloading nginx..."
+            sudo systemctl reload nginx || true
+        fi
+    else
+        echo "Nginx is not running, skipping SSL certificate setup"
+    fi
 else
     echo "Domain is an IP address. Skipping SSL certificate. For HTTPS, use a domain name."
 fi
