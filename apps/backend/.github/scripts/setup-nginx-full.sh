@@ -26,10 +26,19 @@ if ! command -v nginx &> /dev/null; then
     sudo apt-get install -y nginx certbot python3-certbot-nginx
 fi
 
+# Stop nginx if it's running with broken SSL config
+if systemctl is-active --quiet nginx; then
+    echo "Checking nginx configuration..."
+    if ! sudo nginx -t 2>/dev/null; then
+        echo "Nginx has broken configuration, stopping it..."
+        sudo systemctl stop nginx || true
+    fi
+fi
+
 # Remove old configuration if it exists and has SSL (to avoid errors)
 if [ -f /etc/nginx/sites-available/memalerts ]; then
     if grep -q "ssl_certificate" /etc/nginx/sites-available/memalerts; then
-        echo "Removing old SSL configuration..."
+        echo "Removing old SSL configuration (certificates not available yet)..."
         sudo rm -f /etc/nginx/sites-available/memalerts
         sudo rm -f /etc/nginx/sites-enabled/memalerts
     fi
