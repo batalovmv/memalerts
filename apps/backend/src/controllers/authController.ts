@@ -86,68 +86,113 @@ export const authController = {
 
       console.log('Twitch user found:', twitchUser.login);
 
-      // Find or create user
+      // Find or create user with proper error handling
       let user = await prisma.user.findUnique({
         where: { twitchUserId: twitchUser.id },
         include: { wallet: true, channel: true },
       });
 
       if (!user) {
-        // Check if channel exists for this Twitch user
-        let channel = await prisma.channel.findUnique({
-          where: { twitchChannelId: twitchUser.id },
-        });
+        console.log('User not found, creating new user...');
+        try {
+          // Use transaction to ensure atomicity
+          user = await prisma.$transaction(async (tx) => {
+            // Check if channel exists for this Twitch user
+            let channel = await tx.channel.findUnique({
+              where: { twitchChannelId: twitchUser.id },
+            });
 
-        let channelId = null;
-        let role = 'viewer';
+            let channelId = null;
+            let role = 'viewer';
 
-        if (!channel) {
-          // Create new channel for this streamer
-          channel = await prisma.channel.create({
+            if (!channel) {
+              // Create new channel for this streamer
+              // Use upsert to handle race conditions
+              const slug = twitchUser.login.toLowerCase();
+              channel = await tx.channel.upsert({
+                where: { twitchChannelId: twitchUser.id },
+                update: {},
+                create: {
+                  twitchChannelId: twitchUser.id,
+                  slug: slug,
+                  name: twitchUser.display_name,
+                },
+              });
+              role = 'streamer'; // First user who creates channel is streamer
+              console.log('Created new channel:', channel.slug);
+            } else {
+              // Channel exists - user owns this channel
+              role = 'streamer';
+              console.log('Found existing channel:', channel.slug);
+            }
+            
+            channelId = channel.id;
+
+            // Create user with wallet
+            const newUser = await tx.user.create({
+              data: {
+                twitchUserId: twitchUser.id,
+                displayName: twitchUser.display_name,
+                role,
+                channelId,
+                wallet: {
+                  create: {
+                    balance: 0,
+                  },
+                },
+              },
+              include: {
+                wallet: true,
+                channel: true,
+              },
+            });
+
+            console.log('Created new user:', newUser.id);
+            return newUser;
+          });
+        } catch (error: any) {
+          console.error('Error creating user:', error);
+          // If user was created in a previous attempt, try to find it
+          if (error.code === 'P2002') {
+            console.log('User or channel already exists, trying to find user...');
+            user = await prisma.user.findUnique({
+              where: { twitchUserId: twitchUser.id },
+              include: { wallet: true, channel: true },
+            });
+            if (!user) {
+              throw new Error('Failed to create or find user');
+            }
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        console.log('User found:', user.id);
+      }
+
+      // Ensure wallet exists
+      if (!user.wallet) {
+        console.log('Wallet missing, creating wallet...');
+        try {
+          await prisma.wallet.create({
             data: {
-              twitchChannelId: twitchUser.id,
-              slug: twitchUser.login.toLowerCase(),
-              name: twitchUser.display_name,
+              userId: user.id,
+              balance: 0,
             },
           });
-          role = 'streamer'; // First user who creates channel is streamer
-        } else {
-          // Channel exists - check if this user is the owner
-          // If channel's twitchChannelId matches user's twitchUserId, they are the streamer
-          role = 'streamer'; // User owns this channel
+          user = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { wallet: true, channel: true },
+          });
+          console.log('Wallet created');
+        } catch (error: any) {
+          console.error('Error creating wallet:', error);
+          // Wallet might have been created by another request, try to fetch user again
+          user = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { wallet: true, channel: true },
+          });
         }
-        
-        channelId = channel.id;
-
-        user = await prisma.user.create({
-          data: {
-            twitchUserId: twitchUser.id,
-            displayName: twitchUser.display_name,
-            role,
-            channelId,
-            wallet: {
-              create: {
-                balance: 0,
-              },
-            },
-          },
-          include: {
-            wallet: true,
-            channel: true,
-          },
-        });
-      } else if (!user.wallet) {
-        // Create wallet if missing
-        await prisma.wallet.create({
-          data: {
-            userId: user.id,
-            balance: 0,
-          },
-        });
-        user = await prisma.user.findUnique({
-          where: { id: user.id },
-          include: { wallet: true, channel: true },
-        });
       }
 
       console.log('User created/found, generating JWT...');
