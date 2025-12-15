@@ -4,14 +4,21 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'apps/web/**'
-      - 'apps/overlay/**'
-      - '.github/workflows/frontend-ci-cd.yml'
+      - 'src/**'
+      - 'overlay/**'
+      - '.github/workflows/ci-cd.yml'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
   pull_request:
     branches: [main, develop]
     paths:
-      - 'apps/web/**'
-      - 'apps/overlay/**'
+      - 'src/**'
+      - 'overlay/**'
+      - '.github/workflows/ci-cd.yml'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
 
 env:
   NODE_VERSION: '20'
@@ -46,12 +53,12 @@ jobs:
         run: cd overlay && pnpm lint || true
 
       - name: Build Web
-        run: pnpm build
+        run: pnpm build:web
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
 
       - name: Build Overlay
-        run: cd overlay && pnpm build
+        run: pnpm build:overlay
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
 
@@ -80,12 +87,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Web
-        run: pnpm build
+        run: pnpm build:web
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Build Overlay
-        run: cd overlay && pnpm build
+        run: pnpm build:overlay
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 

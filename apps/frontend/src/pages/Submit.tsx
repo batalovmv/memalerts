@@ -1,21 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { createSubmission } from '../store/slices/submissionsSlice';
 import toast from 'react-hot-toast';
+import type { MemeType } from '../types';
 
 export default function Submit() {
-  const { user } = useAuth();
+  const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [loading, setLoading] = useState<boolean>(false);
+  const [formData, setFormData] = useState<{
+    title: string;
+    type: MemeType;
+    notes: string;
+  }>({
     title: '',
-    type: 'image' as 'image' | 'gif' | 'video' | 'audio',
+    type: 'image',
     notes: '',
   });
   const [file, setFile] = useState<File | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!file) {
       toast.error('Please select a file');
@@ -32,20 +44,19 @@ export default function Submit() {
         formDataToSend.append('notes', formData.notes);
       }
 
-      await api.post('/submissions', formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
+      await dispatch(createSubmission(formDataToSend)).unwrap();
       toast.success('Submission created! Waiting for approval.');
       navigate('/dashboard');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to submit meme');
+    } catch (error) {
+      toast.error('Failed to submit meme');
     } finally {
       setLoading(false);
     }
   };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -86,7 +97,7 @@ export default function Submit() {
             <select
               value={formData.type}
               onChange={(e) =>
-                setFormData({ ...formData, type: e.target.value as any })
+                setFormData({ ...formData, type: e.target.value as MemeType })
               }
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
             >
@@ -134,5 +145,3 @@ export default function Submit() {
     </div>
   );
 }
-
-

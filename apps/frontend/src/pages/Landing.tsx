@@ -1,19 +1,12 @@
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useAppSelector } from '../store/hooks';
+import { login } from '../lib/auth';
 import toast from 'react-hot-toast';
 
 export default function Landing() {
-  const { user, loading, login } = useAuth();
+  const { user, loading } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
-  useEffect(() => {
-    const error = searchParams.get('error');
-    if (error) {
-      toast.error('Authentication failed. Please try again.');
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -46,5 +39,3 @@ export default function Landing() {
     </div>
   );
 }
-
-

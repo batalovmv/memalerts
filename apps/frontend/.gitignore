@@ -1,7 +1,10 @@
 node_modules/
 dist/
+overlay/dist/
 build/
 .env
 .env*.local
 *.log
 .DS_Store
+.cache/
+.vite/

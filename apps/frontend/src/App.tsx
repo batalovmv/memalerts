@@ -1,14 +1,22 @@
+import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useAppDispatch } from './store/hooks';
+import { fetchUser } from './store/slices/authSlice';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Submit from './pages/Submit';
 import Admin from './pages/Admin';
-import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    dispatch(fetchUser());
+  }, [dispatch]);
+
   return (
-    <AuthProvider>
+    <>
       <Toaster position="top-right" />
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -16,7 +24,7 @@ function App() {
         <Route path="/submit" element={<Submit />} />
         <Route path="/admin" element={<Admin />} />
       </Routes>
-    </AuthProvider>
+    </>
   );
 }
 

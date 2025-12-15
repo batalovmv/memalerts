@@ -1,60 +1,52 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { logout, fetchUser } from '../store/slices/authSlice';
+import { fetchMemes, activateMeme } from '../store/slices/memesSlice';
 import toast from 'react-hot-toast';
-
-interface Meme {
-  id: string;
-  title: string;
-  type: string;
-  fileUrl: string;
-  priceCoins: number;
-  durationMs: number;
-}
+import type { Meme } from '../types';
 
 export default function Dashboard() {
-  const { user, loading, logout, refreshUser } = useAuth();
+  const { user, loading: authLoading } = useAppSelector((state) => state.auth);
+  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [memes, setMemes] = useState<Meme[]>([]);
-  const [loadingMemes, setLoadingMemes] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       navigate('/');
     }
-  }, [user, loading, navigate]);
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
     if (user) {
-      loadMemes();
+      dispatch(fetchMemes({ channelId: user.channelId }));
     }
-  }, [user]);
+  }, [user, dispatch]);
 
-  const loadMemes = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
-      const response = await api.get('/memes', {
-        params: { channelId: user?.channelId },
-      });
-      setMemes(response.data);
+      await dispatch(logout()).unwrap();
+      navigate('/');
     } catch (error) {
-      toast.error('Failed to load memes');
-    } finally {
-      setLoadingMemes(false);
+      toast.error('Failed to logout');
     }
   };
 
-  const handleActivate = async (memeId: string) => {
+  const handleActivate = async (memeId: string): Promise<void> => {
     try {
-      const response = await api.post(`/memes/${memeId}/activate`);
+      await dispatch(activateMeme(memeId)).unwrap();
       toast.success('Meme activated!');
-      await refreshUser(); // Refresh user data including wallet balance
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to activate meme');
+      await dispatch(fetchUser()).unwrap();
+      if (user) {
+        await dispatch(fetchMemes({ channelId: user.channelId })).unwrap();
+      }
+    } catch (error) {
+      toast.error('Failed to activate meme');
     }
   };
 
-  if (loading || !user) {
+  if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading...</div>
@@ -87,7 +79,7 @@ export default function Dashboard() {
                 </button>
               ) : null}
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="text-sm text-red-600 hover:text-red-800"
               >
                 Logout
@@ -111,13 +103,13 @@ export default function Dashboard() {
         </div>
 
         <h2 className="text-2xl font-bold mb-4">Available Memes</h2>
-        {loadingMemes ? (
+        {memesLoading ? (
           <div className="text-center py-8">Loading memes...</div>
         ) : memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500">No memes available yet.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {memes.map((meme) => (
+            {memes.map((meme: Meme) => (
               <div key={meme.id} className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="p-4">
                   <h3 className="font-semibold text-lg mb-2">{meme.title}</h3>
@@ -149,4 +141,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

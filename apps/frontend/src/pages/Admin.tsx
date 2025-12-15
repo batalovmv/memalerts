@@ -1,108 +1,74 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
+import { fetchMemes } from '../store/slices/memesSlice';
 import toast from 'react-hot-toast';
+import type { Meme } from '../types';
 
-interface Submission {
-  id: string;
-  title: string;
-  type: string;
-  fileUrlTemp: string;
-  notes: string | null;
-  status: string;
-  submitter: {
-    id: string;
-    displayName: string;
-  };
-  createdAt: string;
-}
-
-interface Meme {
-  id: string;
-  title: string;
-  type: string;
-  fileUrl: string;
-  priceCoins: number;
-  durationMs: number;
-  status: string;
-}
+type TabType = 'submissions' | 'memes' | 'settings';
 
 export default function Admin() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAppSelector((state) => state.auth);
+  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { memes } = useAppSelector((state) => state.memes);
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [memes, setMemes] = useState<Meme[]>([]);
-  const [activeTab, setActiveTab] = useState<'submissions' | 'memes' | 'settings'>('submissions');
+  const [activeTab, setActiveTab] = useState<TabType>('submissions');
 
   useEffect(() => {
-    if (!loading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
+    if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
       navigate('/dashboard');
     }
-  }, [user, loading, navigate]);
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin')) {
-      loadSubmissions();
-      loadMemes();
+      dispatch(fetchSubmissions({ status: 'pending' }));
+      dispatch(fetchMemes({ channelId: user.channelId }));
     }
-  }, [user]);
+  }, [user, dispatch]);
 
-  const loadSubmissions = async () => {
-    try {
-      const response = await api.get('/admin/submissions', {
-        params: { status: 'pending' },
-      });
-      setSubmissions(response.data);
-    } catch (error) {
-      toast.error('Failed to load submissions');
+  const handleApprove = async (submissionId: string): Promise<void> => {
+    const priceCoinsStr = prompt('Enter price in coins:');
+    const durationMsStr = prompt('Enter duration in milliseconds:');
+
+    if (!priceCoinsStr || !durationMsStr) return;
+
+    const priceCoins = parseInt(priceCoinsStr, 10);
+    const durationMs = parseInt(durationMsStr, 10);
+
+    if (isNaN(priceCoins) || isNaN(durationMs)) {
+      toast.error('Invalid input');
+      return;
     }
-  };
-
-  const loadMemes = async () => {
-    try {
-      const response = await api.get('/admin/memes');
-      setMemes(response.data);
-    } catch (error) {
-      toast.error('Failed to load memes');
-    }
-  };
-
-  const handleApprove = async (submissionId: string) => {
-    const priceCoins = prompt('Enter price in coins:');
-    const durationMs = prompt('Enter duration in milliseconds:');
-
-    if (!priceCoins || !durationMs) return;
 
     try {
-      await api.post(`/admin/submissions/${submissionId}/approve`, {
-        priceCoins: parseInt(priceCoins),
-        durationMs: parseInt(durationMs),
-      });
+      await dispatch(approveSubmission({ submissionId, priceCoins, durationMs })).unwrap();
       toast.success('Submission approved!');
-      loadSubmissions();
-      loadMemes();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to approve submission');
+      dispatch(fetchSubmissions({ status: 'pending' }));
+      if (user) {
+        dispatch(fetchMemes({ channelId: user.channelId }));
+      }
+    } catch (error) {
+      toast.error('Failed to approve submission');
     }
   };
 
-  const handleReject = async (submissionId: string) => {
+  const handleReject = async (submissionId: string): Promise<void> => {
     const moderatorNotes = prompt('Enter rejection reason:');
     if (!moderatorNotes) return;
 
     try {
-      await api.post(`/admin/submissions/${submissionId}/reject`, {
-        moderatorNotes,
-      });
+      await dispatch(rejectSubmission({ submissionId, moderatorNotes })).unwrap();
       toast.success('Submission rejected');
-      loadSubmissions();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to reject submission');
+      dispatch(fetchSubmissions({ status: 'pending' }));
+    } catch (error) {
+      toast.error('Failed to reject submission');
     }
   };
 
-  if (loading || !user) {
+  if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading...</div>
@@ -164,7 +130,9 @@ export default function Admin() {
 
         {activeTab === 'submissions' && (
           <div className="space-y-4">
-            {submissions.length === 0 ? (
+            {submissionsLoading ? (
+              <div className="text-center py-8">Loading submissions...</div>
+            ) : submissions.length === 0 ? (
               <div className="text-center py-8 text-gray-500">No pending submissions</div>
             ) : (
               submissions.map((submission) => (
@@ -202,13 +170,15 @@ export default function Admin() {
 
         {activeTab === 'memes' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {memes.map((meme) => (
+            {memes.map((meme: Meme) => (
               <div key={meme.id} className="bg-white rounded-lg shadow p-4">
                 <h3 className="font-semibold mb-2">{meme.title}</h3>
                 <p className="text-sm text-gray-600 mb-2">
                   {meme.priceCoins} coins • {meme.durationMs}ms
                 </p>
-                <p className="text-xs text-gray-500">Status: {meme.status}</p>
+                {meme.status && (
+                  <p className="text-xs text-gray-500">Status: {meme.status}</p>
+                )}
               </div>
             ))}
           </div>
@@ -223,5 +193,3 @@ export default function Admin() {
     </div>
   );
 }
-
-
