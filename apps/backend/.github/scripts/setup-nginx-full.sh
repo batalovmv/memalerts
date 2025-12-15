@@ -39,11 +39,20 @@ sudo rm -f /etc/nginx/sites-available/memalerts
 sudo rm -f /etc/nginx/sites-enabled/memalerts
 sudo rm -f /etc/nginx/sites-enabled/default
 
-# Verify nginx config is clean (no SSL references)
-if [ -f /etc/nginx/nginx.conf ]; then
-    if grep -q "ssl_certificate.*twitchmemes.ru" /etc/nginx/nginx.conf 2>/dev/null; then
-        echo "Warning: Found SSL references in main nginx.conf, but continuing..."
+# Check and remove any SSL configurations that reference our domain
+echo "Checking for SSL configurations..."
+for config_file in /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*; do
+    if [ -f "$config_file" ] && grep -q "ssl_certificate.*twitchmemes.ru\|server_name.*twitchmemes.ru" "$config_file" 2>/dev/null; then
+        echo "Removing SSL configuration from: $config_file"
+        sudo rm -f "$config_file"
+        # Also remove from sites-enabled if it's a symlink
+        sudo rm -f "/etc/nginx/sites-enabled/$(basename "$config_file")" 2>/dev/null || true
     fi
+done
+
+# Verify nginx config is clean (no SSL references to our domain)
+if sudo nginx -t 2>&1 | grep -q "ssl_certificate.*twitchmemes.ru"; then
+    echo "Warning: Still found SSL references, but continuing with new config..."
 fi
 
 # Create nginx configuration - start with HTTP only (no SSL)
@@ -104,19 +113,68 @@ fi
 sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
 rm -f /tmp/memalerts-nginx.conf
 
+# Verify the config file doesn't have SSL
+if grep -q "ssl_certificate" /etc/nginx/sites-available/memalerts; then
+    echo "ERROR: New config file contains SSL! This should not happen."
+    exit 1
+fi
+
 # Enable site
 sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 
+# Double check no SSL configs are enabled
+echo "Verifying no SSL configs are enabled..."
+for enabled_file in /etc/nginx/sites-enabled/*; do
+    if [ -f "$enabled_file" ] && grep -q "ssl_certificate.*twitchmemes.ru" "$enabled_file" 2>/dev/null; then
+        echo "WARNING: Found SSL config in enabled file: $enabled_file"
+        sudo rm -f "$enabled_file"
+    fi
+done
+
 # Test nginx configuration (HTTP only for now)
 echo "Testing nginx configuration..."
-if ! sudo nginx -t; then
+NGINX_TEST_OUTPUT=$(sudo nginx -t 2>&1)
+NGINX_TEST_STATUS=$?
+
+if [ $NGINX_TEST_STATUS -ne 0 ]; then
     echo "Error: Nginx configuration test failed!"
-    echo "Configuration file:"
-    sudo cat /etc/nginx/sites-available/memalerts || echo "Config file not found"
-    echo "Checking for SSL references..."
-    sudo grep -r "ssl_certificate.*twitchmemes.ru" /etc/nginx/ 2>/dev/null || echo "No SSL references found"
-    exit 1
+    echo "Test output:"
+    echo "$NGINX_TEST_OUTPUT"
+    
+    # Check if error is about SSL certificate
+    if echo "$NGINX_TEST_OUTPUT" | grep -q "ssl_certificate.*twitchmemes.ru"; then
+        echo "Found SSL certificate error. Searching for all SSL references..."
+        sudo grep -r "ssl_certificate.*twitchmemes.ru" /etc/nginx/ 2>/dev/null || echo "No SSL references found in grep"
+        
+        # List all nginx config files
+        echo "All nginx config files:"
+        sudo find /etc/nginx -name "*.conf" -o -name "*memalerts*" 2>/dev/null | while read file; do
+            echo "Checking: $file"
+            if sudo grep -q "twitchmemes.ru" "$file" 2>/dev/null; then
+                echo "Found reference in: $file"
+                sudo cat "$file"
+            fi
+        done
+        
+        echo "Removing all nginx configs and trying again..."
+        sudo rm -f /etc/nginx/sites-available/memalerts
+        sudo rm -f /etc/nginx/sites-enabled/memalerts
+        
+        # Recreate config
+        sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
+        sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/memalerts
+        
+        # Test again
+        if ! sudo nginx -t; then
+            echo "Still failing after cleanup. Exiting."
+            exit 1
+        fi
+    else
+        echo "Configuration file:"
+        sudo cat /etc/nginx/sites-available/memalerts || echo "Config file not found"
+        exit 1
+    fi
 fi
 
 # Start nginx with HTTP config first
