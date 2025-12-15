@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 
 // Simple Twitch OAuth implementation (you can replace with passport-twitch-new)
@@ -133,7 +133,7 @@ export const authController = {
           channelId: user!.channelId,
         },
         process.env.JWT_SECRET!,
-        { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as string }
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
       );
 
       // Set httpOnly cookie
