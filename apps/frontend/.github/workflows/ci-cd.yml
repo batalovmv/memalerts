@@ -141,18 +141,40 @@ jobs:
             
             # Always setup/update nginx configuration
             echo "Setting up/updating nginx configuration..."
-            if [ -f /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
-              chmod +x /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh
+            
+            # Wait for backend script to be available (in case frontend deploys before backend)
+            SCRIPT_PATH=""
+            for i in {1..10}; do
+              if [ -f /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
+                SCRIPT_PATH="/opt/memalerts-backend/.github/scripts/setup-nginx-full.sh"
+                break
+              fi
+              echo "Waiting for backend script... (attempt $i/10)"
+              sleep 2
+            done
+            
+            # If still not found, try to find it
+            if [ -z "$SCRIPT_PATH" ]; then
+              echo "Script not found at expected location, searching..."
+              FOUND_SCRIPT=$(find /opt -name "setup-nginx-full.sh" 2>/dev/null | head -1)
+              if [ -n "$FOUND_SCRIPT" ]; then
+                SCRIPT_PATH="$FOUND_SCRIPT"
+                echo "Found script at: $SCRIPT_PATH"
+              fi
+            fi
+            
+            if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
+              chmod +x "$SCRIPT_PATH"
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+              sudo -E "$SCRIPT_PATH" ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
             else
-              echo "Nginx setup script not found at /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh"
-              echo "Checking for script in alternative locations..."
-              find /opt -name "setup-nginx-full.sh" 2>/dev/null || echo "Script not found anywhere"
+              echo "ERROR: Nginx setup script not found!"
+              echo "Expected location: /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh"
+              echo "Please ensure backend has been deployed first."
               exit 1
             fi
             
