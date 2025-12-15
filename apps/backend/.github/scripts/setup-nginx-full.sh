@@ -40,20 +40,7 @@ server {
     root /opt/memalerts-frontend/dist;
     index index.html;
 
-    # API proxy
-    location /api/ {
-        proxy_pass http://localhost:$BACKEND_PORT/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-    }
-
-    # Backend routes (auth, webhooks, etc.)
+    # Backend routes (auth, webhooks, etc.) - proxy first
     location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
@@ -90,6 +77,12 @@ server {
     }
 }
 EOF
+
+# Ensure frontend directory exists
+mkdir -p /opt/memalerts-frontend/dist
+if [ ! -f /opt/memalerts-frontend/dist/index.html ]; then
+  echo "<!DOCTYPE html><html><head><title>MemAlerts</title></head><body><h1>Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend/dist/index.html
+fi
 
 # Enable site
 ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/
