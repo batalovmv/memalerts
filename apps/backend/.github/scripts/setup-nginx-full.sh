@@ -31,57 +31,73 @@ echo "Stopping nginx..."
 sudo systemctl stop nginx 2>/dev/null || true
 sleep 2
 
-# Remove ALL configurations that might have SSL
+# NUCLEAR OPTION: Remove ALL site configurations first
 echo "Removing ALL nginx site configurations..."
-sudo rm -f /etc/nginx/sites-available/memalerts*
-sudo rm -f /etc/nginx/sites-enabled/memalerts*
+sudo rm -f /etc/nginx/sites-available/*
+sudo rm -f /etc/nginx/sites-enabled/*
 sudo rm -f /etc/nginx/sites-enabled/default
 
-# Aggressively find and remove ALL configs with SSL references to our domain or Let's Encrypt
+# Find and remove ALL configs with SSL references to our domain or Let's Encrypt
 echo "Scanning ALL nginx configs for SSL references..."
-find /etc/nginx -type f \( -name "*.conf" -o -name "*memalerts*" \) 2>/dev/null | while read config_file; do
-    if [ -f "$config_file" ]; then
+find /etc/nginx -type f -name "*.conf" 2>/dev/null | while read config_file; do
+    if [ -f "$config_file" ] && [ "$config_file" != "/etc/nginx/nginx.conf" ]; then
         # Check for any SSL reference to our domain or Let's Encrypt path
-        if grep -qE "twitchmemes\.ru|ssl_certificate.*live/twitchmemes|ssl_certificate.*letsencrypt.*twitchmemes" "$config_file" 2>/dev/null; then
+        if grep -qE "twitchmemes\.ru|ssl_certificate.*live/twitchmemes|ssl_certificate.*letsencrypt.*twitchmemes|/etc/letsencrypt/live/twitchmemes" "$config_file" 2>/dev/null; then
             echo "Found SSL reference in: $config_file"
-            # If it's a site config, remove it completely
-            if [[ "$config_file" == *"sites-available"* ]] || [[ "$config_file" == *"sites-enabled"* ]]; then
-                echo "Removing site config: $config_file"
-                sudo rm -f "$config_file"
-                # Remove symlink if exists
-                sudo rm -f "/etc/nginx/sites-enabled/$(basename "$config_file")" 2>/dev/null || true
-            else
-                # For other configs, try to comment out SSL lines
-                echo "Warning: SSL reference in non-site config: $config_file"
-                echo "You may need to manually check this file"
-            fi
+            echo "Removing: $config_file"
+            sudo rm -f "$config_file"
         fi
     fi
 done
 
-# Also remove any certbot-created configs
+# Check main nginx.conf for includes or SSL references
+echo "Checking main nginx.conf..."
+if sudo grep -qE "twitchmemes\.ru|ssl_certificate.*live/twitchmemes|ssl_certificate.*letsencrypt.*twitchmemes" /etc/nginx/nginx.conf 2>/dev/null; then
+    echo "WARNING: Found SSL references in main nginx.conf!"
+    echo "This is unusual. Main config should not have domain-specific SSL."
+    # Try to backup and create clean main config
+    sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%s)
+    # Remove SSL lines from main config (be careful here)
+    sudo sed -i '/ssl_certificate.*twitchmemes/d' /etc/nginx/nginx.conf 2>/dev/null || true
+fi
+
+# Remove any certbot-created configs and renewal configs
 echo "Removing certbot-created configs..."
 sudo rm -f /etc/nginx/sites-available/*-le-ssl.conf
 sudo rm -f /etc/nginx/sites-enabled/*-le-ssl.conf
+sudo rm -f /etc/nginx/conf.d/*twitchmemes* 2>/dev/null || true
 
-# Double check - list all remaining configs
+# List all remaining configs for debugging
 echo "Remaining nginx configs:"
 sudo ls -la /etc/nginx/sites-available/ /etc/nginx/sites-enabled/ 2>/dev/null || true
+echo "Configs in conf.d:"
+sudo ls -la /etc/nginx/conf.d/ 2>/dev/null || true
 
 # Verify no SSL configs remain by testing nginx
 echo "Verifying cleanup by testing nginx config..."
 NGINX_TEST=$(sudo nginx -t 2>&1)
-if echo "$NGINX_TEST" | grep -q "ssl_certificate.*twitchmemes\|ssl_certificate.*letsencrypt.*twitchmemes"; then
-    echo "ERROR: Still found SSL references after cleanup!"
-    echo "Nginx test output:"
+NGINX_TEST_STATUS=$?
+
+if [ $NGINX_TEST_STATUS -ne 0 ]; then
+    echo "Nginx test failed. Output:"
     echo "$NGINX_TEST"
-    echo ""
-    echo "Searching for remaining SSL configs..."
-    sudo grep -r "ssl_certificate.*twitchmemes\|ssl_certificate.*letsencrypt.*twitchmemes" /etc/nginx/ 2>/dev/null || true
-    echo ""
-    echo "Attempting to remove all site configs and continue..."
-    sudo rm -f /etc/nginx/sites-available/*
-    sudo rm -f /etc/nginx/sites-enabled/*
+    
+    if echo "$NGINX_TEST" | grep -qE "ssl_certificate.*twitchmemes|ssl_certificate.*letsencrypt.*twitchmemes|/etc/letsencrypt/live/twitchmemes"; then
+        echo "ERROR: Still found SSL references after cleanup!"
+        echo ""
+        echo "Searching for remaining SSL configs..."
+        sudo grep -rE "ssl_certificate.*twitchmemes|ssl_certificate.*letsencrypt.*twitchmemes|/etc/letsencrypt/live/twitchmemes" /etc/nginx/ 2>/dev/null || true
+        echo ""
+        echo "NUCLEAR OPTION: Removing ALL configs in conf.d and sites..."
+        sudo rm -f /etc/nginx/conf.d/*
+        sudo rm -f /etc/nginx/sites-available/*
+        sudo rm -f /etc/nginx/sites-enabled/*
+        echo "All site configs removed. Will create fresh config."
+    else
+        echo "Nginx test failed for non-SSL reason. Continuing anyway..."
+    fi
+else
+    echo "✅ Nginx config test passed - no SSL errors found"
 fi
 
 # Check if Cloudflare Origin Certificate is provided via environment
