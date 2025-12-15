@@ -8,7 +8,7 @@ on:
       - 'prisma/**'
       - 'package.json'
       - 'tsconfig.json'
-      - '.github/workflows/ci-cd.yml'
+      - '.github/**'
   pull_request:
     branches: [main, develop]
     paths:
@@ -16,6 +16,7 @@ on:
       - 'prisma/**'
       - 'package.json'
       - 'tsconfig.json'
+      - '.github/**'
 
 env:
   NODE_VERSION: '20'
