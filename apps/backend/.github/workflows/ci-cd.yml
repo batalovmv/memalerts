@@ -164,6 +164,9 @@ jobs:
             PORT=3001
             NODE_ENV=production
             
+            # Domain (for CORS and callbacks)
+            DOMAIN=${{ secrets.DOMAIN || 'twitchmemes.ru' }}
+            
             # JWT
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             JWT_EXPIRES_IN=7d
@@ -251,5 +254,48 @@ jobs:
             pnpm build
             pnpm prisma generate
             pnpm prisma migrate deploy
-            pm2 restart memalerts-api || pm2 start dist/index.js --name memalerts-api
+            
+            # Stop existing process if running
+            pm2 stop memalerts-api 2>/dev/null || true
+            pm2 delete memalerts-api 2>/dev/null || true
+            
+            # Start backend with PM2
+            echo "Starting backend with PM2..."
+            pm2 start dist/index.js --name memalerts-api --update-env
+            
+            # Save PM2 configuration
+            pm2 save
+            
+            # Wait for backend to start
+            sleep 5
+            
+            # Check if backend is running
+            if pm2 list | grep -q "memalerts-api.*online"; then
+              echo "✅ Backend is running"
+              echo "PM2 status:"
+              pm2 list | grep memalerts-api
+              echo ""
+              echo "Recent logs:"
+              pm2 logs memalerts-api --lines 30 --nostream
+              
+              # Test if backend is responding
+              echo ""
+              echo "Testing backend health endpoint..."
+              sleep 2
+              curl -f http://localhost:3001/health || {
+                echo "❌ Backend health check failed"
+                echo "Full logs:"
+                pm2 logs memalerts-api --lines 50 --nostream
+                exit 1
+              }
+              echo "✅ Backend health check passed"
+            else
+              echo "❌ Backend failed to start"
+              echo "PM2 status:"
+              pm2 list
+              echo ""
+              echo "Full logs:"
+              pm2 logs memalerts-api --lines 100 --nostream
+              exit 1
+            fi
 
