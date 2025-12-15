@@ -249,11 +249,30 @@ jobs:
             # Code is already copied via SCP, no need for git pull
             echo "Code deployed via SCP"
             
-            # Install dependencies
-            pnpm install --production
+            # Install all dependencies (including devDependencies for build)
+            echo "Installing dependencies..."
+            pnpm install
+            
+            # Build the project
+            echo "Building project..."
             pnpm build
+            
+            # Generate Prisma client
+            echo "Generating Prisma client..."
             pnpm prisma generate
+            
+            # Run migrations
+            echo "Running database migrations..."
             pnpm prisma migrate deploy
+            
+            # Verify dist directory exists
+            if [ ! -f dist/index.js ]; then
+              echo "❌ Build failed: dist/index.js not found"
+              echo "Checking dist directory:"
+              ls -la dist/ 2>/dev/null || echo "dist directory does not exist"
+              exit 1
+            fi
+            echo "✅ Build successful: dist/index.js exists"
             
             # Stop existing process if running
             pm2 stop memalerts-api 2>/dev/null || true
