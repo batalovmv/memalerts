@@ -31,7 +31,8 @@ export default function OverlayView() {
   useEffect(() => {
     if (!channelSlug) return;
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const envUrl = import.meta.env.VITE_API_URL;
+    const apiUrl = envUrl || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3001');
     const newSocket = io(apiUrl, {
       transports: ['websocket'],
     });

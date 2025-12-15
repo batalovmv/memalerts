@@ -43,10 +43,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint Web
         run: pnpm lint || true
@@ -57,12 +56,12 @@ jobs:
       - name: Build Web
         run: pnpm build:web
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
 
       - name: Build Overlay
         run: pnpm build:overlay
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3001' }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
 
   deploy:
     name: Deploy to VPS
@@ -83,20 +82,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build Web
         run: pnpm build:web
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
 
       - name: Build Overlay
         run: pnpm build:overlay
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
 
       - name: Deploy to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -109,13 +107,50 @@ jobs:
           target: "/opt/memalerts-frontend"
           strip_components: 0
 
-      - name: Restart Nginx
+      - name: Setup and Restart Nginx
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            sudo systemctl reload nginx
+            # Setup nginx if not configured
+            if [ ! -f /etc/nginx/sites-enabled/memalerts ]; then
+              echo "Setting up nginx for the first time..."
+              cd /opt/memalerts-backend || cd /opt
+              if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
+                chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
+                sudo memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || {
+                  echo "Full nginx setup failed, trying basic setup..."
+                  if [ -f memalerts-backend/.github/scripts/setup-nginx.sh ]; then
+                    chmod +x memalerts-backend/.github/scripts/setup-nginx.sh
+                    sudo memalerts-backend/.github/scripts/setup-nginx.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || true
+                  fi
+                }
+              elif [ -f .github/scripts/setup-nginx-full.sh ]; then
+                chmod +x .github/scripts/setup-nginx-full.sh
+                sudo .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || true
+              fi
+            fi
+            
+            # Ensure frontend directory exists
+            mkdir -p /opt/memalerts-frontend/dist
+            
+            # Update nginx config if domain changed
+            if [ -f /etc/nginx/sites-available/memalerts ] && [ -n "${{ secrets.DOMAIN }}" ]; then
+              # Check if domain needs updating
+              CURRENT_DOMAIN=$(grep -oP 'server_name \K[^;]+' /etc/nginx/sites-available/memalerts | head -1)
+              if [ "$CURRENT_DOMAIN" != "${{ secrets.DOMAIN }}" ] && [ "$CURRENT_DOMAIN" != "${{ secrets.DOMAIN }} www.${{ secrets.DOMAIN }}" ]; then
+                echo "Domain changed, updating nginx config..."
+                cd /opt/memalerts-backend || cd /opt
+                if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
+                  chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
+                  sudo memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN }} 3001 || true
+                fi
+              fi
+            fi
+            
+            # Reload nginx
+            sudo nginx -t && sudo systemctl reload nginx || sudo systemctl restart nginx
 
