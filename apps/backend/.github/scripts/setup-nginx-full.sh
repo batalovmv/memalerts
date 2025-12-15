@@ -26,21 +26,23 @@ if ! command -v nginx &> /dev/null; then
     sudo apt-get install -y nginx certbot python3-certbot-nginx
 fi
 
-# Stop nginx if it's running with broken SSL config
+# Stop nginx completely before reconfiguring
 if systemctl is-active --quiet nginx; then
-    echo "Checking nginx configuration..."
-    if ! sudo nginx -t 2>/dev/null; then
-        echo "Nginx has broken configuration, stopping it..."
-        sudo systemctl stop nginx || true
-    fi
+    echo "Stopping nginx before reconfiguration..."
+    sudo systemctl stop nginx || true
+    sleep 1
 fi
 
-# Remove old configuration if it exists and has SSL (to avoid errors)
-if [ -f /etc/nginx/sites-available/memalerts ]; then
-    if grep -q "ssl_certificate" /etc/nginx/sites-available/memalerts; then
-        echo "Removing old SSL configuration (certificates not available yet)..."
-        sudo rm -f /etc/nginx/sites-available/memalerts
-        sudo rm -f /etc/nginx/sites-enabled/memalerts
+# Remove ALL old configurations to start fresh
+echo "Removing old nginx configurations..."
+sudo rm -f /etc/nginx/sites-available/memalerts
+sudo rm -f /etc/nginx/sites-enabled/memalerts
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Verify nginx config is clean (no SSL references)
+if [ -f /etc/nginx/nginx.conf ]; then
+    if grep -q "ssl_certificate.*twitchmemes.ru" /etc/nginx/nginx.conf 2>/dev/null; then
+        echo "Warning: Found SSL references in main nginx.conf, but continuing..."
     fi
 fi
 
@@ -108,15 +110,22 @@ sudo rm -f /etc/nginx/sites-enabled/default
 
 # Test nginx configuration (HTTP only for now)
 echo "Testing nginx configuration..."
-sudo nginx -t || {
+if ! sudo nginx -t; then
     echo "Error: Nginx configuration test failed!"
     echo "Configuration file:"
-    sudo cat /etc/nginx/sites-available/memalerts
+    sudo cat /etc/nginx/sites-available/memalerts || echo "Config file not found"
+    echo "Checking for SSL references..."
+    sudo grep -r "ssl_certificate.*twitchmemes.ru" /etc/nginx/ 2>/dev/null || echo "No SSL references found"
+    exit 1
+fi
+
+# Start nginx with HTTP config first
+echo "Starting nginx with HTTP configuration..."
+sudo systemctl start nginx || {
+    echo "Failed to start nginx, checking status..."
+    sudo systemctl status nginx || true
     exit 1
 }
-
-# Start/reload nginx with HTTP config first
-sudo systemctl restart nginx || sudo systemctl start nginx
 sudo systemctl enable nginx
 
 # Get SSL certificate (certbot will automatically update config to HTTPS)
