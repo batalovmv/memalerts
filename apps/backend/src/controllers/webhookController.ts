@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
-import { twitchRedemptionEventSchema } from '../shared';
+import { twitchRedemptionEventSchema } from '../shared/index.js';
 
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {

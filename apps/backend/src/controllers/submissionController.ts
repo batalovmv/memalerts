@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
-import { createSubmissionSchema } from '../shared';
+import { createSubmissionSchema } from '../shared/index.js';
 import path from 'path';
 
 export const submissionController = {
