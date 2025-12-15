@@ -145,17 +145,17 @@ jobs:
               cd /opt/memalerts-backend || cd /opt
               if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
                 chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}" \
-                CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}" \
-                sudo -n -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+                export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+                export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+                sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
                   echo "Nginx setup requires sudo password. Please run manually on server:"
                   echo "cd /opt/memalerts-backend && sudo .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001"
                 }
               elif [ -f .github/scripts/setup-nginx-full.sh ]; then
                 chmod +x .github/scripts/setup-nginx-full.sh
-                CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}" \
-                CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}" \
-                sudo -n -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+                export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+                export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+                sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
                   echo "Nginx setup requires sudo password"
                 }
               fi
@@ -173,9 +173,9 @@ jobs:
                 cd /opt/memalerts-backend || cd /opt
                 if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
                   chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                  CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}" \
-                  CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}" \
-                  sudo -n -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN }} 3001 2>&1 || true
+                  export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+                  export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+                  sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN }} 3001 2>&1 || true
                 fi
               fi
             fi
