@@ -6,7 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'overlay/**'
-      - '.github/workflows/ci-cd.yml'
+      - '.github/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'vite.config.ts'
@@ -16,7 +16,7 @@ on:
     paths:
       - 'src/**'
       - 'overlay/**'
-      - '.github/workflows/ci-cd.yml'
+      - '.github/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'vite.config.ts'
