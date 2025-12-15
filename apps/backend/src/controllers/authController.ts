@@ -22,7 +22,8 @@ export const authController = {
     const { code } = req.query;
 
     if (!code) {
-      return res.redirect(`${process.env.WEB_URL}/?error=auth_failed`);
+      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      return res.redirect(`${redirectUrl}/?error=auth_failed`);
     }
 
     try {
@@ -44,7 +45,9 @@ export const authController = {
       const tokenData = await tokenResponse.json();
 
       if (!tokenData.access_token) {
-        return res.redirect(`${process.env.WEB_URL}/?error=auth_failed`);
+        console.error('No access token received from Twitch:', tokenData);
+        const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+        return res.redirect(`${redirectUrl}/?error=auth_failed`);
       }
 
       // Get user info from Twitch
@@ -59,7 +62,9 @@ export const authController = {
       const twitchUser = userData.data[0];
 
       if (!twitchUser) {
-        return res.redirect(`${process.env.WEB_URL}/?error=auth_failed`);
+        console.error('No user data received from Twitch:', userData);
+        const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+        return res.redirect(`${redirectUrl}/?error=auth_failed`);
       }
 
       // Find or create user
@@ -138,17 +143,31 @@ export const authController = {
       );
 
       // Set httpOnly cookie
-      res.cookie('token', token, {
+      // Use secure in production (HTTPS) and lax sameSite for OAuth redirects
+      const isProduction = process.env.NODE_ENV === 'production';
+      const cookieOptions: any = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction, // Only send over HTTPS in production
+        sameSite: 'lax', // Changed from 'strict' to allow OAuth redirects
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+        path: '/', // Ensure cookie is available for all paths
+      };
 
-      res.redirect(`${process.env.WEB_URL}/dashboard`);
+      // Set domain if in production with a domain
+      if (isProduction && process.env.DOMAIN) {
+        cookieOptions.domain = process.env.DOMAIN;
+      }
+
+      res.cookie('token', token, cookieOptions);
+
+      // Redirect to dashboard or home if WEB_URL is not set
+      const redirectUrl = process.env.WEB_URL || (isProduction ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      console.log('Redirecting to:', redirectUrl);
+      res.redirect(`${redirectUrl}/dashboard`);
     } catch (error) {
       console.error('Auth error:', error);
-      res.redirect(`${process.env.WEB_URL}/?error=auth_failed`);
+      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      res.redirect(`${redirectUrl}/?error=auth_failed`);
     }
   },
 
