@@ -214,7 +214,9 @@ jobs:
               cd /opt/memalerts-backend || cd /opt
               if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
                 chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                sudo -n memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || {
+                CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}" \
+                CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}" \
+                sudo -n -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || {
                   echo "Full nginx setup failed, trying basic setup..."
                   if [ -f memalerts-backend/.github/scripts/setup-nginx.sh ]; then
                     chmod +x memalerts-backend/.github/scripts/setup-nginx.sh
@@ -223,7 +225,9 @@ jobs:
                 }
               elif [ -f .github/scripts/setup-nginx-full.sh ]; then
                 chmod +x .github/scripts/setup-nginx-full.sh
-                sudo -n .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || true
+                CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}" \
+                CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}" \
+                sudo -n -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || true
               fi
             else
               echo "Nginx already configured"

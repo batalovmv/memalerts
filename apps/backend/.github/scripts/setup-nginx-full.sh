@@ -64,11 +64,51 @@ if sudo nginx -t 2>&1 | grep -q "ssl_certificate.*twitchmemes.ru"; then
     echo "Trying to continue anyway..."
 fi
 
-# Create nginx configuration - start with HTTP only (no SSL)
-cat > /tmp/memalerts-nginx.conf << EOF
+# Check if Cloudflare Origin Certificate is provided via environment
+USE_CLOUDFLARE_CERT=false
+if [ -n "$CLOUDFLARE_CERT" ] && [ -n "$CLOUDFLARE_KEY" ]; then
+    USE_CLOUDFLARE_CERT=true
+    echo "Using Cloudflare Origin Certificate"
+    
+    # Create certificate directory
+    sudo mkdir -p /etc/nginx/ssl
+    
+    # Save certificate and key
+    echo "$CLOUDFLARE_CERT" | sudo tee /etc/nginx/ssl/cloudflare-origin.crt > /dev/null
+    echo "$CLOUDFLARE_KEY" | sudo tee /etc/nginx/ssl/cloudflare-origin.key > /dev/null
+    
+    # Set proper permissions
+    sudo chmod 644 /etc/nginx/ssl/cloudflare-origin.crt
+    sudo chmod 600 /etc/nginx/ssl/cloudflare-origin.key
+    sudo chown root:root /etc/nginx/ssl/cloudflare-origin.*
+    
+    echo "✅ Cloudflare Origin Certificate installed"
+fi
+
+# Create nginx configuration
+if [ "$USE_CLOUDFLARE_CERT" = true ]; then
+    # Configuration with Cloudflare Origin Certificate (HTTPS)
+    cat > /tmp/memalerts-nginx.conf << EOF
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name $DOMAIN www.$DOMAIN;
+
+    # Cloudflare Origin Certificate
+    ssl_certificate /etc/nginx/ssl/cloudflare-origin.crt;
+    ssl_certificate_key /etc/nginx/ssl/cloudflare-origin.key;
+    
+    # SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
 
     # Frontend static files
     root /opt/memalerts-frontend/dist;
@@ -111,6 +151,16 @@ server {
     }
 }
 EOF
+else
+    # Configuration without SSL (HTTP only, will get Let's Encrypt later)
+    cat > /tmp/memalerts-nginx.conf << EOF
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+
+    # Frontend static files
+    root /opt/memalerts-frontend/dist;
+    index index.html;
 
 # Ensure frontend directory exists
 mkdir -p /opt/memalerts-frontend/dist
@@ -203,9 +253,8 @@ sudo systemctl start nginx || {
 }
 sudo systemctl enable nginx
 
-# Get SSL certificate (certbot will automatically update config to HTTPS)
-# This is REQUIRED for HTTPS
-if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+# Get SSL certificate via Let's Encrypt (only if not using Cloudflare cert)
+if [ "$USE_CLOUDFLARE_CERT" != true ] && [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # Verify nginx is running on HTTP first
     if ! systemctl is-active --quiet nginx; then
         echo "ERROR: Nginx is not running after HTTP setup!"
@@ -213,7 +262,7 @@ if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     fi
     
     echo "=========================================="
-    echo "Getting SSL certificate for HTTPS"
+    echo "Getting Let's Encrypt SSL certificate for HTTPS"
     echo "Domain: $DOMAIN"
     echo "=========================================="
     
@@ -249,20 +298,13 @@ if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "Certbot output:"
         echo "$CERTBOT_OUTPUT"
         echo ""
-        echo "Possible reasons:"
-        echo "  1. Domain DNS is not fully propagated"
-        echo "  2. Domain is not pointing to this server IP"
-        echo "  3. Port 80 is not accessible from internet"
-        echo "  4. Cloudflare proxy is enabled (should be DNS-only for certbot)"
-        echo ""
         echo "Nginx is running on HTTP. To get SSL certificate manually, run:"
         echo "sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
-        echo ""
-        echo "IMPORTANT: If using Cloudflare, make sure:"
-        echo "  - DNS record is 'DNS only' (gray cloud), not 'Proxied' (orange cloud)"
-        echo "  - Or use Cloudflare Origin Certificate instead"
     fi
-else
+elif [ "$USE_CLOUDFLARE_CERT" = true ]; then
+    echo "✅ Using Cloudflare Origin Certificate - HTTPS is configured!"
+    echo "Site is accessible at: https://$DOMAIN"
+elif [[ $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Domain is an IP address. Cannot get SSL certificate for IP."
     echo "Use a domain name for HTTPS support."
 fi
