@@ -87,14 +87,24 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build Web
-        run: pnpm build:web
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
+        run: |
+          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
+            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:web
+          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            VITE_API_URL="https://${{ secrets.DOMAIN }}" pnpm build:web
+          else
+            pnpm build:web
+          fi
 
       - name: Build Overlay
-        run: pnpm build:overlay
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
+        run: |
+          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
+            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:overlay
+          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            VITE_API_URL="https://${{ secrets.DOMAIN }}" pnpm build:overlay
+          else
+            pnpm build:overlay
+          fi
 
       - name: Deploy to VPS
         uses: appleboy/scp-action@v0.1.7
