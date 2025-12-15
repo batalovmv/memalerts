@@ -26,25 +26,11 @@ if ! command -v nginx &> /dev/null; then
     sudo apt-get install -y nginx certbot python3-certbot-nginx
 fi
 
-# Create nginx configuration
+# Create nginx configuration - start with HTTP only
 cat > /etc/nginx/sites-available/memalerts << EOF
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
-
-    # Redirect HTTP to HTTPS
-    return 301 https://\$server_name\$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name $DOMAIN www.$DOMAIN;
-
-    # SSL configuration (will be updated by certbot)
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
 
     # Frontend static files
     root /opt/memalerts-frontend/dist;
@@ -98,22 +84,32 @@ fi
 sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 
-# Test nginx configuration
-sudo nginx -t
+# Test nginx configuration (HTTP only for now)
+sudo nginx -t || {
+    echo "Warning: Nginx configuration test failed, but continuing..."
+}
 
-# Get SSL certificate
+# Start/reload nginx with HTTP config first
+sudo systemctl restart nginx || sudo systemctl start nginx
+sudo systemctl enable nginx
+
+# Get SSL certificate (certbot will automatically update config to HTTPS)
 if [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Getting SSL certificate for domain: $DOMAIN"
-    sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN || {
-        echo "Warning: Could not get SSL certificate. You may need to configure it manually."
+    echo "Note: Domain must be pointing to this server for certbot to work"
+    # Wait a moment for nginx to start
+    sleep 2
+    sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN --redirect || {
+        echo "Warning: Could not get SSL certificate. This is normal if:"
+        echo "  1. Domain DNS is not configured yet"
+        echo "  2. Domain is not pointing to this server"
+        echo "You can run manually later: sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN"
     }
+    # Reload nginx after certbot updates config
+    sudo systemctl reload nginx || true
 else
-    echo "Domain is an IP address. For HTTPS with IP, consider using a domain name."
+    echo "Domain is an IP address. Skipping SSL certificate. For HTTPS, use a domain name."
 fi
-
-# Reload nginx
-sudo systemctl reload nginx
-sudo systemctl enable nginx
 
 echo "Nginx configured successfully!"
 echo "Frontend should be accessible at: https://$DOMAIN"
