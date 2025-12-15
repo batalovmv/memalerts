@@ -139,26 +139,28 @@ jobs:
               }
             fi
             
-            # Setup nginx if not configured
-            if [ ! -f /etc/nginx/sites-enabled/memalerts ]; then
-              echo "Setting up nginx for the first time..."
-              cd /opt/memalerts-backend || cd /opt
-              if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
-                chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
-                export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
-                export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-                sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
-                  echo "Nginx setup requires sudo password. Please run manually on server:"
-                  echo "cd /opt/memalerts-backend && sudo .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001"
-                }
-              elif [ -f .github/scripts/setup-nginx-full.sh ]; then
-                chmod +x .github/scripts/setup-nginx-full.sh
-                export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
-                export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-                sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
-                  echo "Nginx setup requires sudo password"
-                }
-              fi
+            # Always setup/update nginx configuration
+            echo "Setting up/updating nginx configuration..."
+            cd /opt/memalerts-backend || cd /opt
+            if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
+              chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
+              export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+              export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+              sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+                echo "Nginx setup failed. Check logs above."
+                exit 1
+              }
+            elif [ -f .github/scripts/setup-nginx-full.sh ]; then
+              chmod +x .github/scripts/setup-nginx-full.sh
+              export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+              export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+                echo "Nginx setup failed. Check logs above."
+                exit 1
+              }
+            else
+              echo "Nginx setup script not found!"
+              exit 1
             fi
             
             # Ensure frontend directory exists
