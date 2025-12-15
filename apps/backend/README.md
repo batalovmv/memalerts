@@ -187,6 +187,18 @@ pnpm dev
 - `DOMAIN` - Доменное имя (используется для автоматического построения CALLBACK_URL)
 - `TWITCH_CALLBACK_URL` - Явный URL для callback (если не указан, строится из DOMAIN)
 
+### Cloudflare Origin Certificate (рекомендуется для HTTPS)
+
+Если вы используете Cloudflare с прокси (оранжевое облако), добавьте:
+
+- `CLOUDFLARE_ORIGIN_CERT` - Cloudflare Origin Certificate (полный сертификат с BEGIN/END)
+- `CLOUDFLARE_ORIGIN_KEY` - Cloudflare Origin Private Key (полный ключ с BEGIN/END)
+
+**Важно:** 
+- Если вы добавите эти секреты, скрипт автоматически настроит HTTPS с Cloudflare сертификатом
+- Если не добавите - будет использован Let's Encrypt (требует DNS-only режим в Cloudflare, серое облако)
+- Cloudflare Origin Certificate работает с прокси (оранжевое облако) и не требует доступа к серверу из интернета
+
 ### Локальная разработка (.env)
 
 ```env
