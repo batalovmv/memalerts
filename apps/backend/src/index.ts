@@ -8,7 +8,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes/index.js';
-import { errorHandler } from './middleware/errorHandler';
+import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
 
