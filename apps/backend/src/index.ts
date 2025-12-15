@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { setupSocketIO } from './socket';
+import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
 
