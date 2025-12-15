@@ -211,6 +211,45 @@ server {
     root /opt/memalerts-frontend/dist;
     index index.html;
 
+    # Backend routes (auth, webhooks, etc.) - proxy first
+    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health) {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+
+    # WebSocket support for Socket.IO
+    location /socket.io/ {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Frontend routes
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+fi
+
 # Ensure frontend directory exists
 mkdir -p /opt/memalerts-frontend/dist
 if [ ! -f /opt/memalerts-frontend/dist/index.html ]; then
