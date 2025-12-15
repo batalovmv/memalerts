@@ -66,9 +66,13 @@ fi
 
 # Check if Cloudflare Origin Certificate is provided via environment
 USE_CLOUDFLARE_CERT=false
-if [ -n "$CLOUDFLARE_CERT" ] && [ -n "$CLOUDFLARE_KEY" ]; then
+echo "Checking for Cloudflare Origin Certificate..."
+echo "CLOUDFLARE_CERT length: ${#CLOUDFLARE_CERT}"
+echo "CLOUDFLARE_KEY length: ${#CLOUDFLARE_KEY}"
+
+if [ -n "$CLOUDFLARE_CERT" ] && [ -n "$CLOUDFLARE_KEY" ] && [ "${#CLOUDFLARE_CERT}" -gt 100 ] && [ "${#CLOUDFLARE_KEY}" -gt 100 ]; then
     USE_CLOUDFLARE_CERT=true
-    echo "Using Cloudflare Origin Certificate"
+    echo "✅ Using Cloudflare Origin Certificate"
     
     # Create certificate directory
     sudo mkdir -p /etc/nginx/ssl
@@ -82,7 +86,16 @@ if [ -n "$CLOUDFLARE_CERT" ] && [ -n "$CLOUDFLARE_KEY" ]; then
     sudo chmod 600 /etc/nginx/ssl/cloudflare-origin.key
     sudo chown root:root /etc/nginx/ssl/cloudflare-origin.*
     
-    echo "✅ Cloudflare Origin Certificate installed"
+    # Verify files were created
+    if [ -f /etc/nginx/ssl/cloudflare-origin.crt ] && [ -f /etc/nginx/ssl/cloudflare-origin.key ]; then
+        echo "✅ Cloudflare Origin Certificate installed successfully"
+    else
+        echo "❌ Failed to create certificate files"
+        USE_CLOUDFLARE_CERT=false
+    fi
+else
+    echo "⚠️  Cloudflare Origin Certificate not provided or invalid"
+    echo "Will use Let's Encrypt instead (requires DNS-only mode)"
 fi
 
 # Create nginx configuration
