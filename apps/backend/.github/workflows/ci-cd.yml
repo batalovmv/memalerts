@@ -282,8 +282,18 @@ jobs:
             echo "✅ Build successful: dist/index.js exists"
             
             # Stop existing process if running
+            echo "Stopping existing PM2 process..."
             pm2 stop memalerts-api 2>/dev/null || true
             pm2 delete memalerts-api 2>/dev/null || true
+            
+            # Kill any process using port 3001
+            echo "Checking for processes on port 3001..."
+            PID=$(lsof -ti:3001 2>/dev/null || true)
+            if [ -n "$PID" ]; then
+              echo "Killing process $PID on port 3001..."
+              kill -9 $PID 2>/dev/null || true
+              sleep 2
+            fi
             
             # Start backend with PM2
             echo "Starting backend with PM2..."
