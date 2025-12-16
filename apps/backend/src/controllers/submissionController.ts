@@ -74,18 +74,31 @@ export const submissionController = {
       // #endregion
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:70',message:'Starting getOrCreateTags',data:{tagsCount:body.tags?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:76',message:'Starting getOrCreateTags',data:{tagsCount:body.tags?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
 
-      // Get or create tags (optimize by batching)
-      const tagIds = await getOrCreateTags(body.tags || []);
+      // Get or create tags with timeout protection
+      let tagIds: string[] = [];
+      try {
+        const tagsPromise = getOrCreateTags(body.tags || []);
+        const tagsTimeout = new Promise<string[]>((resolve) => {
+          setTimeout(() => {
+            console.warn('Tags creation timeout, proceeding without tags');
+            resolve([]); // Proceed without tags if timeout
+          }, 5000); // 5 second timeout for tags
+        });
+        tagIds = await Promise.race([tagsPromise, tagsTimeout]);
+      } catch (error: any) {
+        console.warn('Error creating tags, proceeding without tags:', error.message);
+        tagIds = []; // Proceed without tags on error
+      }
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:73',message:'Tags created, starting DB submission',data:{tagIdsCount:tagIds.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:91',message:'Tags processed, starting DB submission',data:{tagIdsCount:tagIds.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
 
-      // Create submission
-      const submission = await prisma.memeSubmission.create({
+      // Create submission with timeout protection
+      const submissionPromise = prisma.memeSubmission.create({
         data: {
           channelId,
           submitterUserId: req.userId!,
@@ -94,11 +107,11 @@ export const submissionController = {
           fileUrlTemp: `/uploads/${req.file.filename}`,
           notes: body.notes || null,
           status: 'pending',
-          tags: {
+          tags: tagIds.length > 0 ? {
             create: tagIds.map((tagId) => ({
               tagId,
             })),
-          },
+          } : undefined,
         },
         include: {
           tags: {
@@ -108,6 +121,12 @@ export const submissionController = {
           },
         },
       });
+      
+      const submissionTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Submission creation timeout')), 10000); // 10 second timeout
+      });
+      
+      const submission = await Promise.race([submissionPromise, submissionTimeout]) as any;
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:98',message:'Submission created, sending response',data:{submissionId:submission.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
