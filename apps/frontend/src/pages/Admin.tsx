@@ -58,11 +58,8 @@ export default function Admin() {
   };
 
   const handleReject = async (submissionId: string): Promise<void> => {
-    const moderatorNotes = prompt('Enter rejection reason:');
-    if (!moderatorNotes) return;
-
     try {
-      await dispatch(rejectSubmission({ submissionId, moderatorNotes })).unwrap();
+      await dispatch(rejectSubmission({ submissionId, moderatorNotes: null })).unwrap();
       toast.success('Submission rejected');
       dispatch(fetchSubmissions({ status: 'pending' }));
     } catch (error) {

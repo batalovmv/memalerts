@@ -81,12 +81,12 @@ export const approveSubmission = createAsyncThunk<
 
 export const rejectSubmission = createAsyncThunk<
   void,
-  { submissionId: string; moderatorNotes: string },
+  { submissionId: string; moderatorNotes?: string | null },
   { rejectValue: ApiError }
 >('submissions/rejectSubmission', async ({ submissionId, moderatorNotes }, { rejectWithValue }) => {
   try {
     await api.post(`/admin/submissions/${submissionId}/reject`, {
-      moderatorNotes,
+      moderatorNotes: moderatorNotes || null,
     });
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
