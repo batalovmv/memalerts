@@ -57,6 +57,13 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
+// #region agent log - log all requests before routing
+app.use((req, res, next) => {
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:beforeRoutes', message: 'Request before routing', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl, cookies: Object.keys(req.cookies || {}), cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run4', hypothesisId: 'E' }) }).catch(() => {});
+  next();
+});
+// #endregion
+
 // Static files
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 app.use('/uploads', express.static(path.join(process.cwd(), uploadDir)));
