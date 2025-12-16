@@ -616,6 +616,8 @@ export const adminController = {
       }
 
       // Handle reward enable/disable
+      let coinIconUrl: string | null = null;
+      
       if (body.rewardEnabled !== undefined) {
         if (body.rewardEnabled) {
           // Enable reward - create or update in Twitch
@@ -696,8 +698,6 @@ export const adminController = {
               // Continue even if deletion fails
             }
           }
-
-          let coinIconUrl: string | null = null;
           
           if (existingRewardId) {
             // Update existing reward
