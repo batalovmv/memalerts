@@ -249,6 +249,13 @@ jobs:
             # Code is already copied via SCP, no need for git pull
             echo "Code deployed via SCP"
             
+            # Setup database if needed
+            if [ -f .github/scripts/setup-database.sh ]; then
+              echo "Setting up database..."
+              chmod +x .github/scripts/setup-database.sh
+              sudo .github/scripts/setup-database.sh || echo "Database setup script failed, continuing..."
+            fi
+            
             # Install all dependencies (including devDependencies for build)
             echo "Installing dependencies..."
             pnpm install
