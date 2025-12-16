@@ -95,12 +95,17 @@ export const webhookController = {
 
       console.log('Timestamp valid, processing event...');
 
-    // Handle redemption event
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:42',message:'Checking event type',data:{subscriptionType:req.body?.subscription?.type,isRedemptionEvent:req.body?.subscription?.type === 'channel.channel_points_custom_reward_redemption.add'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-    // #endregion
-    
-    if (req.body.subscription?.type === 'channel.channel_points_custom_reward_redemption.add') {
+      // Handle redemption event
+      console.log('Checking event type:', {
+        subscriptionType: req.body?.subscription?.type,
+        isRedemptionEvent: req.body?.subscription?.type === 'channel.channel_points_custom_reward_redemption.add',
+      });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:42',message:'Checking event type',data:{subscriptionType:req.body?.subscription?.type,isRedemptionEvent:req.body?.subscription?.type === 'channel.channel_points_custom_reward_redemption.add'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      // #endregion
+      
+      if (req.body.subscription?.type === 'channel.channel_points_custom_reward_redemption.add') {
+        console.log('Redemption event detected, processing...');
       try {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:46',message:'Processing redemption event',data:{hasEvent:!!req.body.event,eventRewardId:req.body.event?.reward?.id,eventUserId:req.body.event?.user_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
