@@ -10,6 +10,15 @@ export interface AuthRequest extends Request {
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.cookies.token;
 
+  console.log('Authenticate middleware called:', {
+    path: req.path,
+    method: req.method,
+    cookies: req.cookies,
+    cookieHeader: req.headers.cookie,
+    origin: req.headers.origin,
+    referer: req.headers.referer,
+  });
+
   if (!token) {
     console.log('No token cookie found. Cookies:', req.cookies);
     console.log('Request headers:', {
@@ -17,7 +26,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       origin: req.headers.origin,
       referer: req.headers.referer,
     });
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized', message: 'No token cookie found' });
   }
 
   try {
@@ -29,10 +38,11 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     req.userId = decoded.userId;
     req.userRole = decoded.role;
     req.channelId = decoded.channelId;
+    console.log('Authentication successful:', { userId: decoded.userId, role: decoded.role });
     next();
   } catch (error) {
     console.error('JWT verification failed:', error);
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized', message: 'Invalid token' });
   }
 }
 
