@@ -455,3 +455,8 @@ echo "Nginx configured successfully!"
 echo "Frontend should be accessible at: https://$DOMAIN"
 echo "API should be accessible at: https://$DOMAIN (same domain)"
 
+# Explicitly reload nginx after config creation to ensure it's active
+echo "Reloading Nginx after config creation..."
+sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
+echo "✅ Nginx reloaded successfully"
+
