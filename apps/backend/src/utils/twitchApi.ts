@@ -244,7 +244,33 @@ export async function getChannelRewards(
 }
 
 /**
+ * Get app access token for EventSub subscriptions
+ */
+async function getAppAccessToken(): Promise<string> {
+  const response = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: process.env.TWITCH_CLIENT_ID!,
+      client_secret: process.env.TWITCH_CLIENT_SECRET!,
+      grant_type: 'client_credentials',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to get app access token: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
+/**
  * Create EventSub subscription for channel point reward redemptions
+ * Note: EventSub subscriptions require app access token, not user access token
  */
 export async function createEventSubSubscription(
   userId: string,
@@ -252,10 +278,8 @@ export async function createEventSubSubscription(
   webhookUrl: string,
   secret: string
 ): Promise<any> {
-  const accessToken = await getValidAccessToken(userId);
-  if (!accessToken) {
-    throw new Error('No valid access token available');
-  }
+  // Use app access token for EventSub subscriptions
+  const accessToken = await getAppAccessToken();
 
   const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
     method: 'POST',

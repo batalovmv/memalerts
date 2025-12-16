@@ -121,19 +121,15 @@ export const webhookController = {
             });
           }
 
-          // Calculate coins - use rewardCoins if set, otherwise use coinPerPointRatio
+          // Calculate coins - use rewardCoins (fixed value per redemption)
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:99',message:'Processing reward redemption',data:{rewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,rewardCost:event.reward.cost,rewardCoins:channel.rewardCoins,coinPerPointRatio:channel.coinPerPointRatio},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:99',message:'Processing reward redemption',data:{rewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,rewardCost:event.reward.cost,rewardCoins:channel.rewardCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
           // #endregion
           
-          let coinsGranted: number;
-          if (channel.rewardCoins !== null && channel.rewardCoins !== undefined) {
-            // Use fixed rewardCoins value
-            coinsGranted = channel.rewardCoins;
-          } else {
-            // Fallback to coinPerPointRatio calculation
-            coinsGranted = Math.floor(event.reward.cost * channel.coinPerPointRatio);
-          }
+          // Use rewardCoins if set, otherwise default to 1
+          const coinsGranted = channel.rewardCoins !== null && channel.rewardCoins !== undefined 
+            ? channel.rewardCoins 
+            : 1;
           
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:109',message:'Coins calculated',data:{coinsGranted,userId:user.id,channelId:channel.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
