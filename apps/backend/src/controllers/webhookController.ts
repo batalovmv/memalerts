@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
 import { twitchRedemptionEventSchema } from '../shared/index.js';
+import { Server } from 'socket.io';
 
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
@@ -185,7 +186,7 @@ export const webhookController = {
           // #endregion
 
           // Atomic transaction: create redemption + update wallet
-          await prisma.$transaction(async (tx) => {
+          const updatedWallet = await prisma.$transaction(async (tx) => {
             await tx.redemption.create({
               data: {
                 channelId: channel.id,
@@ -197,7 +198,7 @@ export const webhookController = {
               },
             });
 
-            await tx.wallet.update({
+            const wallet = await tx.wallet.update({
               where: { 
                 userId_channelId: {
                   userId: user!.id,
@@ -210,7 +211,28 @@ export const webhookController = {
                 },
               },
             });
+            
+            return wallet;
           });
+          
+          // Emit wallet update event via Socket.IO
+          try {
+            const io: Server = req.app.get('io');
+            // Emit to user-specific room and channel room
+            io.to(`user:${user.id}`).emit('wallet:updated', {
+              userId: user.id,
+              channelId: channel.id,
+              balance: updatedWallet.balance,
+            });
+            io.to(`channel:${channel.slug}`).emit('wallet:updated', {
+              userId: user.id,
+              channelId: channel.id,
+              balance: updatedWallet.balance,
+            });
+          } catch (error) {
+            console.error('Error emitting wallet update:', error);
+            // Don't fail the request if Socket.IO emit fails
+          }
           
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:151',message:'Redemption processed successfully',data:{rewardId:event.reward.id,userId:user.id,coinsGranted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});

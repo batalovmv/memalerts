@@ -761,9 +761,20 @@ export const adminController = {
             );
             body.rewardIdForCoins = rewardResponse.data[0].id;
             
-            // Extract image URL from reward response
+            // Extract image URL from reward response or fetch details
             if (rewardResponse?.data?.[0]?.image?.url_1x || rewardResponse?.data?.[0]?.image?.url_2x || rewardResponse?.data?.[0]?.image?.url_4x) {
               coinIconUrl = rewardResponse.data[0].image.url_1x || rewardResponse.data[0].image.url_2x || rewardResponse.data[0].image.url_4x;
+            } else {
+              // If image not in response, fetch reward details
+              try {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
+                const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, body.rewardIdForCoins);
+                if (rewardDetails?.data?.[0]?.image?.url_1x || rewardDetails?.data?.[0]?.image?.url_2x || rewardDetails?.data?.[0]?.image?.url_4x) {
+                  coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
+                }
+              } catch (error) {
+                console.error('Error fetching reward details for icon:', error);
+              }
             }
           }
           

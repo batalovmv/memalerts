@@ -9,6 +9,11 @@ export function setupSocketIO(io: Server) {
       console.log(`Client ${socket.id} joined channel:${channelSlug}`);
     });
 
+    socket.on('join:user', (userId: string) => {
+      socket.join(`user:${userId}`);
+      console.log(`Client ${socket.id} joined user:${userId}`);
+    });
+
     socket.on('activation:ackDone', async (data: { activationId: string }) => {
       // Update activation status
       const { prisma } = await import('../lib/prisma.js');
