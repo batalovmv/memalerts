@@ -575,19 +575,6 @@ function ChannelSettings() {
           </p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('admin.coinPerPointRatio')}
-          </label>
-          <input
-            type="number"
-            step="0.1"
-            value={settings.coinPerPointRatio}
-            onChange={(e) => setSettings({ ...settings, coinPerPointRatio: e.target.value })}
-            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-          />
-        </div>
-
         <div className="border-t border-secondary/30 pt-4 mt-4">
           <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-3 gap-4">
