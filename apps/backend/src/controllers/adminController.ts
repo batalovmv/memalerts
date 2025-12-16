@@ -4,6 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
+import { ZodError } from 'zod';
+import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
 import path from 'path';
 
@@ -135,15 +137,21 @@ export const adminController = {
           // If error is about MemeSubmissionTag table, retry without tags
           if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
             console.warn('MemeSubmissionTag table not found, fetching submission without tags');
-            submission = await tx.memeSubmission.findUnique({
-              where: { id },
-            });
-            // Add empty tags array to match expected structure
-            if (submission) {
-              submission.tags = [];
+            try {
+              submission = await tx.memeSubmission.findUnique({
+                where: { id },
+              });
+              // Add empty tags array to match expected structure
+              if (submission) {
+                submission.tags = [];
+              }
+            } catch (retryError: any) {
+              console.error('Error fetching submission without tags:', retryError);
+              throw new Error('Failed to fetch submission');
             }
           } else {
-            throw error;
+            console.error('Error fetching submission:', error);
+            throw new Error('Failed to fetch submission');
           }
         }
 
@@ -236,12 +244,17 @@ export const adminController = {
         const priceCoins = body.priceCoins || STANDARD_PRICE_COINS;
 
         // Update submission
-        await tx.memeSubmission.update({
-          where: { id },
-          data: {
-            status: 'approved',
-          },
-        });
+        try {
+          await tx.memeSubmission.update({
+            where: { id },
+            data: {
+              status: 'approved',
+            },
+          });
+        } catch (error: any) {
+          console.error('Error updating submission status:', error);
+          throw new Error('Failed to update submission status');
+        }
 
         // Create meme with tags (only if we have tagIds)
         const memeData: any = {
@@ -266,18 +279,35 @@ export const adminController = {
           };
         }
 
-        const meme = await tx.meme.create({
-          data: memeData,
-          include: tagIds.length > 0 ? {
-            tags: {
-              include: {
-                tag: true,
+        try {
+          const meme = await tx.meme.create({
+            data: memeData,
+            include: tagIds.length > 0 ? {
+              tags: {
+                include: {
+                  tag: true,
+                },
               },
-            },
-          } : undefined,
-        });
+            } : undefined,
+          });
 
-        return meme;
+          return meme;
+        } catch (error: any) {
+          console.error('Error creating meme:', error);
+          // Check if it's a constraint violation or other Prisma error
+          if (error instanceof PrismaClientKnownRequestError) {
+            if (error.code === 'P2002') {
+              throw new Error('Meme with this data already exists');
+            }
+            if (error.code === 'P2003') {
+              throw new Error('Invalid reference in meme data');
+            }
+          }
+          throw new Error('Failed to create meme');
+        }
+      }, {
+        timeout: 30000, // 30 second timeout for transaction
+        maxWait: 10000, // 10 second max wait for transaction to start
       });
 
       // If this is an imported meme, start background download and update
@@ -308,10 +338,65 @@ export const adminController = {
 
       res.json(result);
     } catch (error: any) {
+      console.error('Error in approveSubmission:', error);
+
+      // Don't send response if headers already sent
+      if (res.headersSent) {
+        console.error('Error occurred after response was sent in approveSubmission');
+        return;
+      }
+
+      // Handle validation errors (ZodError)
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          error: 'Validation error',
+          message: 'Validation failed',
+          details: error.errors,
+        });
+      }
+
+      // Handle Prisma errors
+      if (error instanceof PrismaClientKnownRequestError || error instanceof PrismaClientUnknownRequestError) {
+        console.error('Prisma error in approveSubmission:', error.message);
+        
+        // Handle transaction aborted error (25P02)
+        if (error.message?.includes('current transaction is aborted') || error.message?.includes('25P02')) {
+          return res.status(500).json({
+            error: 'Database transaction error',
+            message: 'Transaction was aborted. Please try again.',
+          });
+        }
+
+        // Handle other Prisma errors
+        return res.status(500).json({
+          error: 'Database error',
+          message: 'An error occurred while processing the request. Please try again.',
+        });
+      }
+
+      // Handle specific error messages
       if (error.message === 'Submission not found' || error.message === 'Submission already processed') {
         return res.status(400).json({ error: error.message });
       }
-      throw error;
+
+      if (error.message === 'Uploaded file not found') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      // Handle file operation errors
+      if (error.message?.includes('Hash calculation timeout') || error.message?.includes('file')) {
+        console.error('File operation error in approveSubmission:', error.message);
+        return res.status(500).json({
+          error: 'File operation error',
+          message: 'An error occurred while processing the file. Please try again.',
+        });
+      }
+
+      // Handle all other errors
+      return res.status(500).json({
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred while processing the request',
+      });
     }
   },
 
