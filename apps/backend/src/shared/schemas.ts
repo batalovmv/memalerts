@@ -21,8 +21,8 @@ export const importMemeSchema = z.object({
 });
 
 export const approveSubmissionSchema = z.object({
-  priceCoins: z.number().int().positive(),
-  durationMs: z.number().int().positive(),
+  priceCoins: z.number().int().positive().optional().default(100), // Standard price: 100 coins
+  durationMs: z.number().int().positive().optional().default(15000), // Standard duration: 15 seconds (15000ms)
   tags: z.array(z.string().min(1).max(50)).optional().default([]), // Tags to apply to approved meme
 });
 

@@ -274,35 +274,88 @@ export const submissionController = {
         return res.status(400).json({ error: 'Source URL must be from memalerts.com or cdns.memealerts.com' });
       }
 
-      // Get or create tags
-      const tagIds = await getOrCreateTags(body.tags || []);
+      // Get or create tags with timeout protection (same as createSubmission)
+      let tagIds: string[] = [];
+      try {
+        const tagsPromise = getOrCreateTags(body.tags || []);
+        const tagsTimeout = new Promise<string[]>((resolve) => {
+          setTimeout(() => {
+            console.warn('Tags creation timeout, proceeding without tags');
+            resolve([]); // Proceed without tags if timeout
+          }, 5000); // 5 second timeout for tags
+        });
+        tagIds = await Promise.race([tagsPromise, tagsTimeout]);
+      } catch (error: any) {
+        console.warn('Error creating tags, proceeding without tags:', error.message);
+        tagIds = []; // Proceed without tags on error
+      }
 
-      // Create submission with imported URL
-      const submission = await prisma.memeSubmission.create({
-        data: {
-          channelId,
-          submitterUserId: req.userId!,
-          title: body.title,
-          type: 'video', // Imported memes are treated as video
-          fileUrlTemp: body.sourceUrl, // Store source URL temporarily
-          sourceUrl: body.sourceUrl,
-          notes: body.notes || null,
-          status: 'pending',
-          tags: {
-            create: tagIds.map((tagId) => ({
-              tagId,
-            })),
-          },
-        },
-        include: {
+      // Create submission with imported URL (with timeout protection)
+      const submissionData: any = {
+        channelId,
+        submitterUserId: req.userId!,
+        title: body.title,
+        type: 'video', // Imported memes are treated as video
+        fileUrlTemp: body.sourceUrl, // Store source URL temporarily
+        sourceUrl: body.sourceUrl,
+        notes: body.notes || null,
+        status: 'pending',
+      };
+
+      // Only add tags if we have tagIds
+      if (tagIds.length > 0) {
+        submissionData.tags = {
+          create: tagIds.map((tagId) => ({
+            tagId,
+          })),
+        };
+      }
+
+      const submissionPromise = prisma.memeSubmission.create({
+        data: submissionData,
+        include: tagIds.length > 0 ? {
           tags: {
             include: {
               tag: true,
             },
           },
-        },
+        } : undefined,
       });
+      
+      const submissionTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Submission creation timeout')), 10000); // 10 second timeout
+      });
+      
+      let submission: any;
+      try {
+        submission = await Promise.race([submissionPromise, submissionTimeout]);
+      } catch (dbError: any) {
+        // If error is about MemeSubmissionTag table, retry without tags
+        if (dbError?.code === 'P2021' && dbError?.meta?.table === 'public.MemeSubmissionTag') {
+          console.warn('MemeSubmissionTag table not found, creating submission without tags');
+          submission = await prisma.memeSubmission.create({
+            data: {
+              channelId,
+              submitterUserId: req.userId!,
+              title: body.title,
+              type: 'video',
+              fileUrlTemp: body.sourceUrl,
+              sourceUrl: body.sourceUrl,
+              notes: body.notes || null,
+              status: 'pending',
+            },
+          });
+        } else if (dbError?.message === 'Submission creation timeout') {
+          return res.status(408).json({ 
+            error: 'Request timeout', 
+            message: 'Submission creation timed out. Please try again.' 
+          });
+        } else {
+          throw dbError;
+        }
+      }
 
+      // Send response immediately after creating submission
       res.status(201).json(submission);
     } catch (error) {
       throw error;

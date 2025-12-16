@@ -3,9 +3,12 @@ import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
-import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference } from '../utils/fileHash.js';
+import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
+import { getVideoMetadata } from '../utils/videoValidator.js';
 import fs from 'fs';
 import path from 'path';
+
+const MAX_DURATION_SECONDS = 15; // 15 seconds max
 
 export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -144,13 +147,23 @@ export const adminController = {
           throw new Error('Submission already processed');
         }
 
-        // Determine fileUrl: use sourceUrl if imported, otherwise handle deduplication
+        // Determine fileUrl: handle deduplication for both uploaded and imported files
         let finalFileUrl: string;
         let fileHash: string | null = null;
         
         if (submission.sourceUrl) {
-          // Imported meme - use sourceUrl directly (no deduplication for external URLs)
-          finalFileUrl = submission.sourceUrl;
+          // Imported meme - download, calculate hash, and perform deduplication
+          try {
+            const result = await downloadAndDeduplicateFile(submission.sourceUrl);
+            finalFileUrl = result.filePath;
+            fileHash = result.fileHash;
+            console.log(`Imported file deduplication: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${fileHash}`);
+          } catch (error: any) {
+            console.error('Failed to download and deduplicate imported file:', error.message);
+            // Fallback to using sourceUrl directly if download fails
+            finalFileUrl = submission.sourceUrl;
+            console.warn('Using sourceUrl directly as fallback');
+          }
         } else {
           // Uploaded file - check if already deduplicated or perform deduplication
           const filePath = path.join(process.cwd(), submission.fileUrlTemp);
@@ -192,6 +205,48 @@ export const adminController = {
         
         const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
 
+        // Determine duration: try to get from video if uploaded, otherwise use standard/default
+        let durationMs = body.durationMs || 15000; // Default: 15 seconds (15000ms)
+        const STANDARD_DURATION_MS = 15000; // 15 seconds max
+        const STANDARD_PRICE_COINS = 100; // Standard price: 100 coins
+        
+        // For uploaded files, try to get actual video duration (with timeout protection)
+        if (!submission.sourceUrl && finalFileUrl && !finalFileUrl.startsWith('http')) {
+          try {
+            const filePath = path.join(process.cwd(), finalFileUrl);
+            if (fs.existsSync(filePath)) {
+              // Try to get video metadata with timeout
+              const metadataPromise = getVideoMetadata(filePath);
+              const timeoutPromise = new Promise<{ duration: number }>((resolve) => {
+                setTimeout(() => {
+                  console.warn('Video metadata timeout, using standard duration');
+                  resolve({ duration: 0 });
+                }, 5000); // 5 second timeout
+              });
+              
+              const metadata = await Promise.race([metadataPromise, timeoutPromise]);
+              
+              if (metadata && metadata.duration > 0) {
+                // Convert seconds to milliseconds and cap at 15 seconds
+                const durationSeconds = Math.min(metadata.duration, MAX_DURATION_SECONDS);
+                durationMs = Math.round(durationSeconds * 1000);
+              } else {
+                // Use standard duration if metadata unavailable
+                durationMs = STANDARD_DURATION_MS;
+              }
+            }
+          } catch (error: any) {
+            console.warn('Failed to get video duration, using standard:', error.message);
+            durationMs = STANDARD_DURATION_MS;
+          }
+        } else {
+          // For imported memes, use standard duration
+          durationMs = STANDARD_DURATION_MS;
+        }
+
+        // Use standard price if not provided
+        const priceCoins = body.priceCoins || STANDARD_PRICE_COINS;
+
         // Update submission
         await tx.memeSubmission.update({
           where: { id },
@@ -207,8 +262,8 @@ export const adminController = {
           type: submission.type,
           fileUrl: finalFileUrl,
           fileHash: fileHash, // Store hash for deduplication tracking
-          durationMs: body.durationMs,
-          priceCoins: body.priceCoins,
+          durationMs,
+          priceCoins,
           status: 'approved',
           createdByUserId: submission.submitterUserId,
           approvedByUserId: req.userId!,
@@ -301,6 +356,11 @@ export const adminController = {
           select: {
             id: true,
             displayName: true,
+            channel: {
+              select: {
+                slug: true,
+              },
+            },
           },
         },
         approvedBy: {
