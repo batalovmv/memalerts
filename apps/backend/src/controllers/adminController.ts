@@ -750,7 +750,7 @@ export const adminController = {
                 // If image not in response, fetch reward details
                 try {
                   await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
-                  const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, body.rewardIdForCoins);
+                  const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, body.rewardIdForCoins ?? undefined);
                   if (rewardDetails?.data?.[0]?.image?.url_1x || rewardDetails?.data?.[0]?.image?.url_2x || rewardDetails?.data?.[0]?.image?.url_4x) {
                     coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                   }
@@ -780,7 +780,7 @@ export const adminController = {
               // If image not in response, fetch reward details
               try {
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
-                const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, body.rewardIdForCoins);
+                const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, body.rewardIdForCoins ?? undefined);
                 if (rewardDetails?.data?.[0]?.image?.url_1x || rewardDetails?.data?.[0]?.image?.url_2x || rewardDetails?.data?.[0]?.image?.url_4x) {
                   coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                 }
