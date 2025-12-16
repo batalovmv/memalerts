@@ -165,7 +165,8 @@ server {
 
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
-    location = /me {
+    # Use ^~ prefix to prevent regex matching and ensure highest priority
+    location ^~ /me {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -233,7 +234,8 @@ server {
 
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
-    location = /me {
+    # Use ^~ prefix to prevent regex matching and ensure highest priority
+    location ^~ /me {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -457,10 +459,12 @@ echo "API should be accessible at: https://$DOMAIN (same domain)"
 
 # Verify that /me location is in the config
 echo "Verifying /me location in config..."
-if grep -q "location = /me" /etc/nginx/sites-available/memalerts; then
-    echo "✅ Found 'location = /me' in config"
+if grep -q "location.*/me" /etc/nginx/sites-available/memalerts; then
+    echo "✅ Found 'location ... /me' in config"
+    echo "Location block:"
+    sudo grep -A 10 "location.*/me" /etc/nginx/sites-available/memalerts || true
 else
-    echo "❌ ERROR: 'location = /me' NOT found in config!"
+    echo "❌ ERROR: 'location ... /me' NOT found in config!"
     echo "Config file contents:"
     sudo cat /etc/nginx/sites-available/memalerts | grep -A 10 "location" || true
     exit 1

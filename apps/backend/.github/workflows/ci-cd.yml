@@ -225,10 +225,12 @@ jobs:
               }
               # Verify /me location is in config
               echo "Verifying /me location in Nginx config..."
-              if sudo grep -q "location = /me" /etc/nginx/sites-available/memalerts; then
-                echo "✅ Found 'location = /me' in config"
+              if sudo grep -q "location.*/me" /etc/nginx/sites-available/memalerts; then
+                echo "✅ Found 'location ... /me' in config"
+                echo "Location block:"
+                sudo grep -A 10 "location.*/me" /etc/nginx/sites-available/memalerts || true
               else
-                echo "❌ ERROR: 'location = /me' NOT found in config!"
+                echo "❌ ERROR: 'location ... /me' NOT found in config!"
                 echo "Config file location block:"
                 sudo grep -A 10 "location" /etc/nginx/sites-available/memalerts || true
                 exit 1
