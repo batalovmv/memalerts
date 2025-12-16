@@ -252,11 +252,27 @@ export const authController = {
         isProduction,
       });
 
+      // Set cookie
       res.cookie('token', token, cookieOptions);
+      
+      // Verify cookie was set in response
+      const setCookieHeader = res.getHeader('Set-Cookie');
+      console.log('Set-Cookie header:', setCookieHeader);
+      
+      if (!setCookieHeader) {
+        console.error('WARNING: Set-Cookie header is not set!');
+      }
 
       // Redirect to dashboard or home if WEB_URL is not set
       const redirectUrl = process.env.WEB_URL || (isProduction ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
       console.log('Auth successful, redirecting to:', `${redirectUrl}/dashboard`);
+      console.log('Cookie should be set. Response headers:', {
+        'Set-Cookie': res.getHeader('Set-Cookie'),
+      });
+      
+      // Set cookie again explicitly before redirect to ensure it's sent
+      res.cookie('token', token, cookieOptions);
+      
       res.redirect(`${redirectUrl}/dashboard`);
     } catch (error) {
       console.error('Auth error:', error);
