@@ -1,19 +1,21 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { store } from './store';
-import App from './App';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.tsx';
+import { store } from './store/index.ts';
+import { ThemeProvider } from './contexts/ThemeContext.tsx';
+import './i18n/config';
 import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
     <Provider store={store}>
       <BrowserRouter>
-        <App />
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
       </BrowserRouter>
     </Provider>
-  </React.StrictMode>
+  </StrictMode>,
 );
-
-

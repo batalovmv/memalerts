@@ -4,10 +4,11 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
 import { fetchMemes } from '../store/slices/memesSlice';
 import UserMenu from '../components/UserMenu';
+import VideoPreview from '../components/VideoPreview';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
 
-type TabType = 'submissions' | 'memes' | 'settings';
+type TabType = 'submissions' | 'memes' | 'settings' | 'wallets' | 'promotions' | 'statistics';
 
 export default function Admin() {
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -121,6 +122,38 @@ export default function Admin() {
             >
               Channel Settings
             </button>
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('wallets')}
+                className={`pb-2 px-4 ${
+                  activeTab === 'wallets'
+                    ? 'border-b-2 border-purple-600 text-purple-600'
+                    : 'text-gray-600'
+                }`}
+              >
+                Wallet Management
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('promotions')}
+              className={`pb-2 px-4 ${
+                activeTab === 'promotions'
+                  ? 'border-b-2 border-purple-600 text-purple-600'
+                  : 'text-gray-600'
+              }`}
+            >
+              Promotions
+            </button>
+            <button
+              onClick={() => setActiveTab('statistics')}
+              className={`pb-2 px-4 ${
+                activeTab === 'statistics'
+                  ? 'border-b-2 border-purple-600 text-purple-600'
+                  : 'text-gray-600'
+              }`}
+            >
+              Statistics
+            </button>
           </div>
         </div>
 
@@ -134,7 +167,7 @@ export default function Admin() {
               submissions.map((submission) => (
                 <div key={submission.id} className="bg-white rounded-lg shadow p-6">
                   <div className="flex justify-between items-start mb-4">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-lg">{submission.title}</h3>
                       <p className="text-sm text-gray-600">
                         By {submission.submitter.displayName} • {submission.type}
@@ -142,8 +175,30 @@ export default function Admin() {
                       {submission.notes && (
                         <p className="text-sm text-gray-500 mt-2">{submission.notes}</p>
                       )}
+                      {submission.tags && submission.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {submission.tags.map((tagItem, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs"
+                            >
+                              {tagItem.tag.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  
+                  {/* Video Preview */}
+                  <div className="mb-4">
+                    <VideoPreview 
+                      src={submission.fileUrlTemp} 
+                      title={submission.title}
+                      className="w-full"
+                    />
+                  </div>
+                  
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleApprove(submission.id)}
@@ -181,11 +236,338 @@ export default function Admin() {
         )}
 
         {activeTab === 'settings' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-600">Channel settings coming soon...</p>
-          </div>
+          <ChannelSettings />
+        )}
+
+        {activeTab === 'wallets' && user?.role === 'admin' && (
+          <WalletManagement />
+        )}
+
+        {activeTab === 'promotions' && (
+          <PromotionManagement />
+        )}
+
+        {activeTab === 'statistics' && (
+          <ChannelStatistics />
         )}
       </main>
+    </div>
+  );
+}
+
+// Wallet Management Component (Admin only)
+function WalletManagement() {
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adjusting, setAdjusting] = useState<string | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState('');
+
+  useEffect(() => {
+    fetchWallets();
+  }, []);
+
+  const fetchWallets = async () => {
+    try {
+      setLoading(true);
+      const { api } = await import('../lib/api');
+      const response = await api.get('/admin/wallets');
+      setWallets(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to load wallets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdjust = async (userId: string, channelId: string) => {
+    const amount = parseInt(adjustAmount, 10);
+    if (isNaN(amount) || amount === 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    try {
+      setAdjusting(`${userId}-${channelId}`);
+      const { api } = await import('../lib/api');
+      await api.post(`/admin/wallets/${userId}/${channelId}/adjust`, { amount });
+      toast.success(`Balance ${amount > 0 ? 'increased' : 'decreased'} by ${Math.abs(amount)}`);
+      setAdjustAmount('');
+      fetchWallets();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to adjust balance');
+    } finally {
+      setAdjusting(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading wallets...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold mb-4">All Wallets</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left p-2">User</th>
+                <th className="text-left p-2">Channel</th>
+                <th className="text-left p-2">Balance</th>
+                <th className="text-left p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wallets.map((wallet) => (
+                <tr key={wallet.id} className="border-b">
+                  <td className="p-2">{wallet.user.displayName}</td>
+                  <td className="p-2">{wallet.channel.name}</td>
+                  <td className="p-2 font-bold">{wallet.balance} coins</td>
+                  <td className="p-2">
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="number"
+                        value={adjusting === `${wallet.userId}-${wallet.channelId}` ? adjustAmount : ''}
+                        onChange={(e) => setAdjustAmount(e.target.value)}
+                        placeholder="Amount"
+                        className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
+                        disabled={adjusting !== null && adjusting !== `${wallet.userId}-${wallet.channelId}`}
+                      />
+                      <button
+                        onClick={() => handleAdjust(wallet.userId, wallet.channelId)}
+                        disabled={adjusting !== null}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+                      >
+                        {adjusting === `${wallet.userId}-${wallet.channelId}` ? 'Adjusting...' : 'Adjust'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {wallets.length === 0 && (
+          <div className="text-center py-8 text-gray-500">No wallets found</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Promotion Management Component
+function PromotionManagement() {
+  const { user } = useAppSelector((state) => state.auth);
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    discountPercent: '',
+    startDate: '',
+    endDate: '',
+  });
+
+  useEffect(() => {
+    fetchPromotions();
+  }, []);
+
+  const fetchPromotions = async () => {
+    try {
+      setLoading(true);
+      const { api } = await import('../lib/api');
+      const response = await api.get('/admin/promotions');
+      setPromotions(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to load promotions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { api } = await import('../lib/api');
+      await api.post('/admin/promotions', {
+        name: formData.name,
+        discountPercent: parseFloat(formData.discountPercent),
+        startDate: new Date(formData.startDate).toISOString(),
+        endDate: new Date(formData.endDate).toISOString(),
+      });
+      toast.success('Promotion created!');
+      setShowCreateForm(false);
+      setFormData({ name: '', discountPercent: '', startDate: '', endDate: '' });
+      fetchPromotions();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to create promotion');
+    }
+  };
+
+  const handleToggleActive = async (id: string, currentActive: boolean) => {
+    try {
+      const { api } = await import('../lib/api');
+      await api.patch(`/admin/promotions/${id}`, { isActive: !currentActive });
+      toast.success(`Promotion ${!currentActive ? 'activated' : 'deactivated'}`);
+      fetchPromotions();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update promotion');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this promotion?')) return;
+    try {
+      const { api } = await import('../lib/api');
+      await api.delete(`/admin/promotions/${id}`);
+      toast.success('Promotion deleted');
+      fetchPromotions();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete promotion');
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading promotions...</div>;
+  }
+
+  const now = new Date();
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">Promotions</h2>
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+          >
+            {showCreateForm ? 'Cancel' : 'Create Promotion'}
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <form onSubmit={handleCreate} className="mb-6 p-4 bg-gray-50 rounded-lg space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Discount Percent (0-100)
+              </label>
+              <input
+                type="number"
+                value={formData.discountPercent}
+                onChange={(e) => setFormData({ ...formData, discountPercent: e.target.value })}
+                required
+                min="0"
+                max="100"
+                step="0.1"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <input
+                  type="datetime-local"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <input
+                  type="datetime-local"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+            >
+              Create
+            </button>
+          </form>
+        )}
+
+        <div className="space-y-4">
+          {promotions.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No promotions yet</div>
+          ) : (
+            promotions.map((promo) => {
+              const startDate = new Date(promo.startDate);
+              const endDate = new Date(promo.endDate);
+              const isCurrentlyActive = promo.isActive && now >= startDate && now <= endDate;
+              
+              return (
+                <div
+                  key={promo.id}
+                  className={`p-4 border rounded-lg ${
+                    isCurrentlyActive ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-lg">{promo.name}</h3>
+                      <p className="text-purple-600 font-bold">{promo.discountPercent}% discount</p>
+                      <p className="text-sm text-gray-600">
+                        {startDate.toLocaleString()} - {endDate.toLocaleString()}
+                      </p>
+                      <div className="flex gap-2 mt-2">
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            promo.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {promo.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        {isCurrentlyActive && (
+                          <span className="px-2 py-1 rounded text-xs bg-green-200 text-green-900">
+                            Currently Running
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleToggleActive(promo.id, promo.isActive)}
+                        className={`px-3 py-1 rounded text-sm ${
+                          promo.isActive
+                            ? 'bg-yellow-600 hover:bg-yellow-700'
+                            : 'bg-green-600 hover:bg-green-700'
+                        } text-white`}
+                      >
+                        {promo.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(promo.id)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 }

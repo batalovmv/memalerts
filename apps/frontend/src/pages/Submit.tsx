@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createSubmission } from '../store/slices/submissionsSlice';
 import UserMenu from '../components/UserMenu';
+import TagInput from '../components/TagInput';
 import toast from 'react-hot-toast';
 
 export default function Submit() {
@@ -15,10 +16,12 @@ export default function Submit() {
     title: string;
     notes: string;
     sourceUrl?: string;
+    tags?: string[];
   }>({
     title: '',
     notes: '',
     sourceUrl: '',
+    tags: [],
   });
   const [file, setFile] = useState<File | null>(null);
 
@@ -37,6 +40,40 @@ export default function Submit() {
         return;
       }
 
+      // Validate file size (50MB max)
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File size exceeds 50MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+        return;
+      }
+
+      // Validate video duration (15 seconds max)
+      // We'll validate this on backend, but show a warning here
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      
+      const durationCheck = new Promise<number>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          window.URL.revokeObjectURL(video.src);
+          resolve(video.duration);
+        };
+        video.onerror = () => {
+          window.URL.revokeObjectURL(video.src);
+          reject(new Error('Failed to load video metadata'));
+        };
+        video.src = URL.createObjectURL(file);
+      });
+
+      try {
+        const duration = await durationCheck;
+        if (duration > 15) {
+          toast.error(`Video duration exceeds 15 seconds. Current duration: ${duration.toFixed(2)}s`);
+          return;
+        }
+      } catch (error) {
+        console.warn('Could not check video duration on frontend, will validate on backend');
+      }
+
       setLoading(true);
       try {
         const formDataToSend = new FormData();
@@ -46,12 +83,16 @@ export default function Submit() {
         if (formData.notes) {
           formDataToSend.append('notes', formData.notes);
         }
+        // Add tags as JSON string (backend will parse it)
+        if (formData.tags && formData.tags.length > 0) {
+          formDataToSend.append('tags', JSON.stringify(formData.tags));
+        }
 
         await dispatch(createSubmission(formDataToSend)).unwrap();
         toast.success('Submission created! Waiting for approval.');
         navigate('/dashboard');
-      } catch (error) {
-        toast.error('Failed to submit meme');
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to submit meme');
       } finally {
         setLoading(false);
       }
@@ -62,8 +103,10 @@ export default function Submit() {
         return;
       }
 
-      if (!formData.sourceUrl.includes('memalerts.com')) {
-        toast.error('URL must be from memalerts.com');
+      const isValidUrl = formData.sourceUrl.includes('memalerts.com') || 
+                        formData.sourceUrl.includes('cdns.memealerts.com');
+      if (!isValidUrl) {
+        toast.error('URL must be from memalerts.com or cdns.memealerts.com');
         return;
       }
 
@@ -74,6 +117,7 @@ export default function Submit() {
           title: formData.title,
           sourceUrl: formData.sourceUrl,
           notes: formData.notes || null,
+          tags: formData.tags || [],
         });
         toast.success('Meme import submitted! Waiting for approval.');
         navigate('/dashboard');
@@ -169,12 +213,34 @@ export default function Submit() {
                 value={formData.sourceUrl || ''}
                 onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
                 required
-                placeholder="https://memalerts.com/..."
+                placeholder="https://cdns.memealerts.com/.../alert_orig.webm"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               />
-              <p className="text-sm text-gray-500 mt-1">Enter the URL of the meme from memalerts.com</p>
+              <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-gray-700 font-medium mb-1">How to copy video URL:</p>
+                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
+                  <li>Go to memalerts.com and find the video</li>
+                  <li>Right-click on the video</li>
+                  <li>Select "Copy video address" or "Copy video URL"</li>
+                  <li>Paste the URL here</li>
+                </ol>
+                <p className="text-xs text-gray-500 mt-2">
+                  Example: https://cdns.memealerts.com/p/.../alert_orig.webm
+                </p>
+              </div>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tags (optional)
+            </label>
+            <TagInput
+              tags={formData.tags || []}
+              onChange={(tags) => setFormData({ ...formData, tags })}
+              placeholder="Add tags to help categorize your meme..."
+            />
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

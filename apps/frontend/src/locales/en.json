@@ -1,0 +1,113 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "submit": "Submit",
+    "search": "Search",
+    "filter": "Filter"
+  },
+  "nav": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "admin": "Admin Panel",
+    "submit": "Submit Meme",
+    "logout": "Logout",
+    "myChannel": "My Channel"
+  },
+  "landing": {
+    "title": "Channel Points Mem Alerts",
+    "subtitle": "Spend your Twitch channel points to activate memes on stream!",
+    "login": "Login with Twitch",
+    "terms": "By continuing, you agree to our Terms of Service and Privacy Policy."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "wallet": "Your Wallet",
+    "balance": "coins",
+    "noWallets": "No wallets found.",
+    "availableMemes": "Available Memes",
+    "noMemes": "No memes available yet.",
+    "insufficientCoins": "Insufficient coins",
+    "activate": "Activate",
+    "profileLink": "Your Channel Profile Link",
+    "copyLink": "Copy Link",
+    "linkCopied": "Link copied!"
+  },
+  "submit": {
+    "title": "Submit a Meme",
+    "uploadVideo": "Upload Video",
+    "import": "Import from memalerts.com",
+    "titleLabel": "Title",
+    "videoFile": "Video File",
+    "onlyVideos": "Only video files are allowed",
+    "maxDuration": "Maximum 15 seconds",
+    "maxSize": "Maximum 50MB",
+    "memalertsUrl": "memalerts.com URL",
+    "howToCopy": "How to copy video URL:",
+    "copyInstructions": [
+      "Go to memalerts.com and find the video",
+      "Right-click on the video",
+      "Select \"Copy video address\" or \"Copy video URL\"",
+      "Paste the URL here"
+    ],
+    "tags": "Tags (optional)",
+    "addTags": "Add tags to help categorize your meme...",
+    "notes": "Notes (optional)",
+    "submitting": "Submitting...",
+    "submitted": "Submission created! Waiting for approval.",
+    "importSubmitted": "Meme import submitted! Waiting for approval."
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "pendingSubmissions": "Pending Submissions",
+    "allMemes": "All Memes",
+    "channelSettings": "Channel Settings",
+    "walletManagement": "Wallet Management",
+    "promotions": "Promotions",
+    "statistics": "Statistics",
+    "approve": "Approve",
+    "reject": "Reject",
+    "enterPrice": "Enter price in coins:",
+    "enterDuration": "Enter duration in milliseconds:",
+    "rejectionReason": "Enter rejection reason:",
+    "noSubmissions": "No pending submissions",
+    "noMemes": "No memes available yet"
+  },
+  "profile": {
+    "balanceFor": "Your Balance for",
+    "coins": "coins",
+    "redeemPoints": "Redeem channel points on Twitch to earn coins!",
+    "topUp": "Top Up Balance (Coming Soon)",
+    "submitMeme": "Submit a Meme",
+    "availableMemes": "Available Memes",
+    "noMemes": "No memes available yet.",
+    "insufficientCoins": "Insufficient coins",
+    "activate": "Activate"
+  },
+  "search": {
+    "title": "Mem Alerts - Search",
+    "placeholder": "Search memes by title...",
+    "minPrice": "Min Price",
+    "maxPrice": "Max Price",
+    "sortBy": "Sort By",
+    "sortDate": "Date",
+    "sortPrice": "Price",
+    "sortPopularity": "Popularity",
+    "order": "Order",
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "filterByTags": "Filter by Tags",
+    "noResults": "No memes found matching your criteria",
+    "enterQuery": "Enter a search query or select tags to find memes"
+  },
+  "footer": {
+    "madeBy": "Made by",
+    "author": "Баталов Михаил"
+  }
+}
+

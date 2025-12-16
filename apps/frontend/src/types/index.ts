@@ -36,11 +36,17 @@ export interface Meme {
   durationMs: number;
   status?: MemeStatus;
   channelId?: string;
+  tags?: Array<{ tag: Tag }>;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface Tag {
+  id: string;
+  name: string;
+}
 
 export interface Submission {
   id: string;
@@ -50,6 +56,7 @@ export interface Submission {
   notes: string | null;
   status: SubmissionStatus;
   moderatorNotes?: string | null;
+  tags?: Array<{ tag: Tag }>;
   submitter: {
     id: string;
     displayName: string;

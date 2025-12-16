@@ -124,9 +124,23 @@ export default function StreamerProfile() {
     );
   }
 
+  // Apply custom colors if available
+  const customStyles: React.CSSProperties = {};
+  if (channelInfo?.primaryColor) {
+    customStyles['--primary-color' as any] = channelInfo.primaryColor;
+  }
+  if (channelInfo?.secondaryColor) {
+    customStyles['--secondary-color' as any] = channelInfo.secondaryColor;
+  }
+  if (channelInfo?.accentColor) {
+    customStyles['--accent-color' as any] = channelInfo.accentColor;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900" style={customStyles}>
+      <nav className="bg-white dark:bg-gray-800 shadow-sm" style={{
+        backgroundColor: channelInfo?.primaryColor || undefined,
+      }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold">Mem Alerts</h1>
@@ -177,19 +191,22 @@ export default function StreamerProfile() {
         {channelInfo.memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500">No memes available yet.</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {channelInfo.memes.map((meme: Meme) => (
-              <div key={meme.id} className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2">{meme.title}</h3>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm text-gray-600">
-                      {meme.type.toUpperCase()}
-                    </span>
-                    <span className="text-lg font-bold text-purple-600">
-                      {meme.priceCoins} coins
-                    </span>
-                  </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {channelInfo.memes.map((meme: Meme) => (
+                     <div key={meme.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                       <div className="p-4">
+                         <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
+                         <div className="flex items-center justify-between mb-4">
+                           <span className="text-sm text-gray-600 dark:text-gray-400">
+                             {meme.type.toUpperCase()}
+                           </span>
+                           <span 
+                             className="text-lg font-bold"
+                             style={{ color: channelInfo.accentColor || '#9333ea' }}
+                           >
+                             {meme.priceCoins} coins
+                           </span>
+                         </div>
                   {user ? (
                     <button
                       onClick={() => handleActivate(meme.id)}

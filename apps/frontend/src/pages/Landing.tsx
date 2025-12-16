@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '../store/hooks';
 import { login } from '../lib/auth';
 import UserMenu from '../components/UserMenu';
@@ -7,6 +8,7 @@ import UserMenu from '../components/UserMenu';
 export default function Landing() {
   const { user, loading } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!loading && user) {
@@ -35,17 +37,25 @@ export default function Landing() {
       )}
       <div className="flex items-center justify-center min-h-screen">
         <div className="max-w-md w-full bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 text-center">
-          <h1 className="text-4xl font-bold text-white mb-4">Channel Points Mem Alerts</h1>
+          <h1 className="text-4xl font-bold text-white mb-4">{t('landing.title')}</h1>
           <p className="text-white/80 mb-8">
-            Spend your Twitch channel points to activate memes on stream!
+            {t('landing.subtitle')}
           </p>
           {!user && (
-            <button
-              onClick={login}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              Login with Twitch
-            </button>
+            <>
+              <button
+                onClick={login}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-4"
+              >
+                {t('landing.login')}
+              </button>
+              <p className="text-white/60 text-xs">
+                {t('landing.terms')}{' '}
+                <a href="/terms" className="underline hover:text-white">
+                  {t('landing.terms')}
+                </a>
+              </p>
+            </>
           )}
         </div>
       </div>
