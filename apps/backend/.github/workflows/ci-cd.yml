@@ -223,6 +223,17 @@ jobs:
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
+              # Verify /me location is in config
+              echo "Verifying /me location in Nginx config..."
+              if sudo grep -q "location = /me" /etc/nginx/sites-available/memalerts; then
+                echo "✅ Found 'location = /me' in config"
+              else
+                echo "❌ ERROR: 'location = /me' NOT found in config!"
+                echo "Config file location block:"
+                sudo grep -A 10 "location" /etc/nginx/sites-available/memalerts || true
+                exit 1
+              fi
+              
               # Ensure nginx is reloaded after config changes
               echo "Reloading nginx to apply configuration..."
               sudo nginx -t && sudo systemctl reload nginx || {
