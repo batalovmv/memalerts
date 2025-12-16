@@ -133,50 +133,31 @@ export const adminController = {
       // #endregion
       const result = await prisma.$transaction(async (tx) => {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:123',message:'inside transaction',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:123',message:'inside transaction',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
         // #endregion
-        // Try to get submission with tags first
+        // Get submission WITHOUT tags to avoid transaction abort if MemeSubmissionTag table doesn't exist
+        // The table may not exist on production, so we fetch without tags from the start
         let submission: any;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:127',message:'before findUnique submission (no tags)',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         try {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:126',message:'before findUnique submission',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           submission = await tx.memeSubmission.findUnique({
             where: { id },
-            include: {
-              tags: {
-                include: {
-                  tag: true,
-                },
-              },
-            },
           });
+          // Add empty tags array to match expected structure
+          if (submission) {
+            submission.tags = [];
+          }
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:136',message:'after findUnique submission success',data:{submissionFound:!!submission,submissionId:submission?.id,status:submission?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:136',message:'after findUnique submission success',data:{submissionFound:!!submission,submissionId:submission?.id,status:submission?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
           // #endregion
         } catch (error: any) {
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:137',message:'error in findUnique submission',data:{errorMessage:error?.message,errorCode:error?.code,errorName:error?.name,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:137',message:'error in findUnique submission',data:{errorMessage:error?.message,errorCode:error?.code,errorName:error?.name,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
           // #endregion
-          // If error is about MemeSubmissionTag table, retry without tags
-          if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
-            console.warn('MemeSubmissionTag table not found, fetching submission without tags');
-            try {
-              submission = await tx.memeSubmission.findUnique({
-                where: { id },
-              });
-              // Add empty tags array to match expected structure
-              if (submission) {
-                submission.tags = [];
-              }
-            } catch (retryError: any) {
-              console.error('Error fetching submission without tags:', retryError);
-              throw new Error('Failed to fetch submission');
-            }
-          } else {
-            console.error('Error fetching submission:', error);
-            throw new Error('Failed to fetch submission');
-          }
+          console.error('Error fetching submission:', error);
+          throw new Error('Failed to fetch submission');
         }
 
         if (!submission || submission.channelId !== channelId) {
