@@ -43,14 +43,23 @@ export const upload = multer({
     fileSize: MAX_FILE_SIZE,
   },
   fileFilter,
-  // Add onError handler to catch multer errors
-  onError: (err, next) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.ts:45',message:'Multer error',data:{error:err.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    next(err);
-  },
 });
+
+// Wrap multer middleware to add error logging
+export const uploadWithLogging = (req: any, res: any, next: any) => {
+  upload.single('file')(req, res, (err: any) => {
+    if (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.ts:45',message:'Multer error',data:{error:err.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      return next(err);
+    }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'upload.ts:52',message:'Multer file processed',data:{filename:req.file?.filename,size:req.file?.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    next();
+  });
+};
 
 // Re-export rate limiter for uploads
 export { uploadLimiter } from './rateLimit.js';
