@@ -195,13 +195,20 @@ export const authController = {
         }
       }
 
+      // Ensure user exists
+      if (!user) {
+        console.error('User is null after creation/fetch');
+        const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_null`);
+      }
+
       console.log('User created/found, generating JWT...');
       // Generate JWT
       const token = jwt.sign(
         {
-          userId: user!.id,
-          role: user!.role,
-          channelId: user!.channelId,
+          userId: user.id,
+          role: user.role,
+          channelId: user.channelId,
         },
         process.env.JWT_SECRET!,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
