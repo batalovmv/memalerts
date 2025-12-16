@@ -38,6 +38,16 @@ const io = new Server(httpServer, {
 
 const PORT = process.env.PORT || 3001;
 
+// Configure HTTP server timeouts to prevent hanging requests
+// Timeout for inactive connections (5 minutes for file uploads)
+httpServer.timeout = 300000; // 5 minutes
+httpServer.keepAliveTimeout = 65000; // 65 seconds
+httpServer.headersTimeout = 66000; // 66 seconds (must be > keepAliveTimeout)
+httpServer.on('timeout', (socket) => {
+  console.error('HTTP server timeout - closing socket');
+  socket.destroy();
+});
+
 // Middleware
 // Configure helmet to allow cookies
 app.use(
@@ -57,6 +67,22 @@ app.use(
 app.use(express.json({ limit: '100mb' }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// Request timeout middleware for long-running requests (like file uploads)
+app.use((req, res, next) => {
+  // Set timeout for requests (5 minutes for file uploads)
+  const REQUEST_TIMEOUT = 300000; // 5 minutes
+  req.setTimeout(REQUEST_TIMEOUT, () => {
+    if (!res.headersSent) {
+      console.error(`Request timeout: ${req.method} ${req.path}`);
+      res.status(408).json({ 
+        error: 'Request timeout', 
+        message: 'Request timed out. Please try again.' 
+      });
+    }
+  });
+  next();
+});
 
 
 // Static files

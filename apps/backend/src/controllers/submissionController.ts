@@ -136,11 +136,49 @@ export const submissionController = {
       res.status(201).json(submission);
     } catch (error: any) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:101',message:'Error in createSubmission',data:{error:error?.message,stack:error?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:error',message:'Error in createSubmission',data:{error:error?.message,stack:error?.stack,name:error?.name,code:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       
-      console.error('Error in createSubmission:', error);
-      throw error;
+      console.error('Error in createSubmission:', {
+        message: error?.message,
+        name: error?.name,
+        code: error?.code,
+        stack: error?.stack,
+        hasFile: !!req.file,
+        fileSize: req.file?.size,
+        channelId: req.channelId,
+        userId: req.userId,
+      });
+
+      // Clean up uploaded file if it exists and error occurred
+      if (req.file) {
+        try {
+          const filePath = path.join(process.cwd(), req.file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log('Cleaned up uploaded file after error:', req.file.filename);
+          }
+        } catch (cleanupError) {
+          console.error('Failed to clean up file after error:', cleanupError);
+        }
+      }
+
+      // Handle specific error types
+      if (error?.message === 'Submission creation timeout') {
+        return res.status(408).json({ 
+          error: 'Request timeout', 
+          message: 'Submission creation timed out. Please try again.' 
+        });
+      }
+
+      // If response hasn't been sent, send error response
+      if (!res.headersSent) {
+        // Re-throw to let error handler middleware handle it
+        throw error;
+      } else {
+        // Response already sent, just log the error
+        console.error('Error occurred after response was sent');
+      }
     }
   },
 
