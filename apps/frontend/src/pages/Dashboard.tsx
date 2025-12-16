@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { logout, fetchUser } from '../store/slices/authSlice';
+import { fetchUser } from '../store/slices/authSlice';
 import { fetchMemes, activateMeme } from '../store/slices/memesSlice';
+import UserMenu from '../components/UserMenu';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
 
@@ -19,19 +20,17 @@ export default function Dashboard() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (user && user.channelId) {
       dispatch(fetchMemes({ channelId: user.channelId }));
-    }
-  }, [user, dispatch]);
-
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await dispatch(logout()).unwrap();
+    } else if (user && user.role === 'streamer') {
+      // If user is streamer but no channelId, redirect to home
       navigate('/');
-    } catch (error) {
-      toast.error('Failed to logout');
+    } else if (user && user.role !== 'streamer') {
+      // If user is not streamer, redirect to home
+      navigate('/');
     }
-  };
+  }, [user, dispatch, navigate]);
+
 
   const handleActivate = async (memeId: string): Promise<void> => {
     try {
@@ -60,47 +59,57 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold">Mem Alerts</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
-                {user.displayName} ({user.wallet?.balance || 0} coins)
-              </span>
-              <button
-                onClick={() => navigate('/submit')}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Submit Meme
-              </button>
-              {user.role === 'streamer' || user.role === 'admin' ? (
-                <button
-                  onClick={() => navigate('/admin')}
-                  className="text-sm text-purple-600 hover:text-purple-800"
-                >
-                  Admin
-                </button>
-              ) : null}
-              <button
-                onClick={handleLogout}
-                className="text-sm text-red-600 hover:text-red-800"
-              >
-                Logout
-              </button>
-            </div>
+            <UserMenu />
           </div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold mb-2">Your Wallet</h2>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold text-purple-600">
-              {user.wallet?.balance || 0} coins
+        {user.channelId && (
+          <>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Your Profile Link</h2>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center gap-4">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`https://twitchmemes.ru/channel/${user.channel?.slug || ''}`}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
+                  />
+                  <button
+                    onClick={async () => {
+                      const url = `https://twitchmemes.ru/channel/${user.channel?.slug || ''}`;
+                      try {
+                        await navigator.clipboard.writeText(url);
+                        toast.success('Link copied to clipboard!');
+                      } catch (error) {
+                        toast.error('Failed to copy link');
+                      }
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Share this link so others can submit memes and activate them on your channel!
+                </p>
+              </div>
             </div>
-            <p className="text-gray-600 mt-2">
-              Redeem channel points on Twitch to earn coins!
-            </p>
-          </div>
-        </div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Your Wallet</h2>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-3xl font-bold text-purple-600">
+                  {user.wallets?.find(w => w.channelId === user.channelId)?.balance || 0} coins
+                </div>
+                <p className="text-gray-600 mt-2">
+                  Redeem channel points on Twitch to earn coins!
+                </p>
+              </div>
+            </div>
+          </>
+        )}
 
         <h2 className="text-2xl font-bold mb-4">Available Memes</h2>
         {memesLoading ? (
@@ -124,11 +133,13 @@ export default function Dashboard() {
                   <button
                     onClick={() => handleActivate(meme.id)}
                     disabled={
-                      !user.wallet || user.wallet.balance < meme.priceCoins
+                      !user.channelId || !user.wallets || 
+                      (user.wallets.find(w => w.channelId === user.channelId)?.balance || 0) < meme.priceCoins
                     }
                     className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
                   >
-                    {!user.wallet || user.wallet.balance < meme.priceCoins
+                    {!user.channelId || !user.wallets || 
+                     (user.wallets.find(w => w.channelId === user.channelId)?.balance || 0) < meme.priceCoins
                       ? 'Insufficient coins'
                       : 'Activate'}
                   </button>

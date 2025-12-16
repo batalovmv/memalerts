@@ -2,7 +2,16 @@ export type UserRole = 'viewer' | 'streamer' | 'admin';
 
 export interface Wallet {
   id: string;
+  userId: string;
+  channelId: string;
   balance: number;
+  updatedAt?: string;
+}
+
+export interface Channel {
+  id: string;
+  slug: string;
+  name: string;
 }
 
 export interface User {
@@ -10,7 +19,8 @@ export interface User {
   displayName: string;
   role: UserRole;
   channelId: string | null;
-  wallet: Wallet | null;
+  channel?: Channel;
+  wallets?: Wallet[];
 }
 
 export type MemeType = 'image' | 'gif' | 'video' | 'audio';

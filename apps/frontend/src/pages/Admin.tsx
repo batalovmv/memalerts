@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
 import { fetchMemes } from '../store/slices/memesSlice';
+import UserMenu from '../components/UserMenu';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
 
@@ -82,12 +83,7 @@ export default function Admin() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold">Admin Panel</h1>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              Back to Dashboard
-            </button>
+            <UserMenu />
           </div>
         </div>
       </nav>

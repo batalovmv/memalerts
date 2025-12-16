@@ -5,6 +5,7 @@ import { useAppDispatch } from './store/hooks';
 import { fetchUser } from './store/slices/authSlice';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
+import StreamerProfile from './pages/StreamerProfile';
 import Submit from './pages/Submit';
 import Admin from './pages/Admin';
 
@@ -21,6 +22,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/channel/:slug" element={<StreamerProfile />} />
         <Route path="/submit" element={<Submit />} />
         <Route path="/admin" element={<Admin />} />
       </Routes>

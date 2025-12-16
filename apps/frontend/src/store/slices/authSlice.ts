@@ -19,7 +19,19 @@ export const fetchUser = createAsyncThunk<User, void, { rejectValue: ApiError }>
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get<User>('/me');
-      return response.data;
+      const user = response.data;
+      
+      // If user has channelId, fetch channel info to get slug
+      if (user.channelId) {
+        try {
+          // We need to get channel slug - this will be done via a separate call
+          // For now, we'll fetch it when needed in components
+        } catch (error) {
+          // Ignore error, slug will be fetched when needed
+        }
+      }
+      
+      return user;
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: ApiError; status?: number } };
       return rejectWithValue({
@@ -54,9 +66,12 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    updateWalletBalance: (state, action: PayloadAction<number>) => {
-      if (state.user?.wallet) {
-        state.user.wallet.balance = action.payload;
+    updateWalletBalance: (state, action: PayloadAction<{ channelId: string; balance: number }>) => {
+      if (state.user?.wallets) {
+        const wallet = state.user.wallets.find(w => w.channelId === action.payload.channelId);
+        if (wallet) {
+          wallet.balance = action.payload.balance;
+        }
       }
     },
   },
