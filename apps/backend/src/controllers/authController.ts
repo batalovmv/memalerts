@@ -251,9 +251,20 @@ export const authController = {
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
+        // Log Prisma errors in detail
+        if (error.message.includes('P2002') || error.message.includes('Unique constraint')) {
+          console.error('Database unique constraint violation - user or channel may already exist');
+        }
+        if (error.message.includes('P2003') || error.message.includes('Foreign key constraint')) {
+          console.error('Database foreign key constraint violation');
+        }
       }
+      // Log error as JSON for better debugging
+      console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      
       const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-      res.redirect(`${redirectUrl}/?error=auth_failed&reason=exception`);
+      const errorReason = error instanceof Error ? encodeURIComponent(error.message.substring(0, 100)) : 'unknown';
+      res.redirect(`${redirectUrl}/?error=auth_failed&reason=exception&details=${errorReason}`);
     }
   },
 
