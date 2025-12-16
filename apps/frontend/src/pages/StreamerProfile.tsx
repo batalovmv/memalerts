@@ -41,18 +41,40 @@ export default function StreamerProfile() {
 
     const loadChannelData = async () => {
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:42',message:'loadChannelData started',data:{slug,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         // Load channel info and memes
         const channelResponse = await api.get<ChannelInfo>(`/channels/${slug}`);
         setChannelInfo(channelResponse.data);
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:48',message:'Channel loaded',data:{channelId:channelResponse.data.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         // If user is logged in, load their wallet for this channel
         if (user) {
           try {
-            const walletResponse = await api.get<Wallet>(`/channels/${slug}/wallet`);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:52',message:'Loading wallet',data:{slug,userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            
+            const walletResponse = await api.get<Wallet>(`/channels/${slug}/wallet`, {
+              timeout: 10000, // 10 second timeout
+            });
             setWallet(walletResponse.data);
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:58',message:'Wallet loaded',data:{walletId:walletResponse.data.id,balance:walletResponse.data.balance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
           } catch (error: any) {
-            // If wallet doesn't exist, it will be created with 0 balance
-            if (error.response?.status === 404) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:62',message:'Wallet load error',data:{error:error?.message,status:error?.response?.status,code:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            
+            // If wallet doesn't exist or times out, set default wallet
+            if (error.response?.status === 404 || error.code === 'ECONNABORTED' || error.response?.status === 504) {
               setWallet({
                 id: '',
                 userId: user.id,
@@ -60,9 +82,21 @@ export default function StreamerProfile() {
                 balance: 0,
               });
             }
+            // Don't show error for wallet - it's not critical for page display
+            console.warn('Failed to load wallet:', error);
           }
         }
+        
+        setLoading(false);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:77',message:'loadChannelData completed',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
       } catch (error: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StreamerProfile.tsx:81',message:'Channel load error',data:{error:error?.message,status:error?.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         console.error('Error loading channel:', error);
         if (error.response?.status === 404) {
           toast.error('Channel not found');
