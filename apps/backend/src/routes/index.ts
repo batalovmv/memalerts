@@ -20,9 +20,12 @@ export function setupRoutes(app: Express) {
   app.use('/auth', authRoutes);
   app.use('/webhooks', webhookRoutes);
   app.use('/channels', viewerRoutes);
-  app.use('/me', viewerRoutes);
-  app.use('/wallet', viewerRoutes);
-  app.use('/memes', viewerRoutes);
+  // /me, /wallet, /memes need to be handled directly, not through viewerRoutes
+  // because viewerRoutes has /:slug which would conflict
+  app.get('/me', authenticate, viewerController.getMe);
+  app.get('/wallet', authenticate, viewerController.getWallet);
+  app.get('/memes', authenticate, viewerController.getMemes);
+  app.post('/memes/:id/activate', authenticate, activateMemeLimiter, viewerController.activateMeme);
   app.use('/submissions', submissionRoutes);
   app.use('/admin', adminRoutes);
 }
