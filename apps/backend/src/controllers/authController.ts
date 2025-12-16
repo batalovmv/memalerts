@@ -188,10 +188,12 @@ export const authController = {
         } catch (error: any) {
           console.error('Error creating wallet:', error);
           // Wallet might have been created by another request, try to fetch user again
-          user = await prisma.user.findUnique({
-            where: { id: user.id },
-            include: { wallet: true, channel: true },
-          });
+          if (user) {
+            user = await prisma.user.findUnique({
+              where: { id: user.id },
+              include: { wallet: true, channel: true },
+            });
+          }
         }
       }
 
