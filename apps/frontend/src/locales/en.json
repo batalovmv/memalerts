@@ -148,6 +148,7 @@
     "failedToUpdatePromotion": "Failed to update promotion",
     "failedToDeletePromotion": "Failed to delete promotion",
     "failedToSaveSettings": "Failed to save settings",
+    "requiresReauth": "You need to log out and log in again to enable Twitch rewards. This is required to get the necessary permissions.",
     "failedToLoadStatistics": "Failed to load statistics",
     "channel": "Channel",
     "balance": "Balance",

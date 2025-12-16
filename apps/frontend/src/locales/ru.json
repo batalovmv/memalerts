@@ -148,6 +148,7 @@
     "failedToUpdatePromotion": "Не удалось обновить акцию",
     "failedToDeletePromotion": "Не удалось удалить акцию",
     "failedToSaveSettings": "Не удалось сохранить настройки",
+    "requiresReauth": "Вам нужно выйти и войти снова, чтобы включить награды Twitch. Это необходимо для получения необходимых разрешений.",
     "failedToLoadStatistics": "Не удалось загрузить статистику",
     "channel": "Канал",
     "balance": "Баланс",

@@ -463,7 +463,18 @@ function ChannelSettings() {
       // Refresh channel colors
       window.location.reload();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings');
+      const errorMessage = error.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
+      toast.error(errorMessage);
+      
+      // If requires reauth, show special message
+      if (error.response?.data?.requiresReauth) {
+        setTimeout(() => {
+          if (window.confirm(t('admin.requiresReauth') || 'You need to log out and log in again to enable Twitch rewards. Log out now?')) {
+            // Logout and redirect to login
+            window.location.href = '/';
+          }
+        }, 2000);
+      }
     } finally {
       setLoading(false);
     }
