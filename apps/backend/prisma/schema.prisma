@@ -37,6 +37,7 @@ model User {
   id          String    @id @default(uuid())
   twitchUserId String   @unique
   displayName String
+  profileImageUrl String?  // Twitch profile image URL
   role        String    // viewer, streamer, admin
   channelId   String?
   twitchAccessToken String?  // Twitch OAuth access token for API calls

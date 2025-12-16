@@ -198,6 +198,7 @@ export const authController = {
               data: {
                 twitchUserId: twitchUser.id,
                 displayName: twitchUser.display_name,
+                profileImageUrl: twitchUser.profile_image_url || null,
                 role,
                 channelId,
                 twitchAccessToken: tokenData.access_token,
@@ -239,6 +240,8 @@ export const authController = {
               data: {
                 twitchAccessToken: tokenData.access_token,
                 twitchRefreshToken: tokenData.refresh_token || null,
+                profileImageUrl: twitchUser.profile_image_url || null,
+                displayName: twitchUser.display_name,
               },
               include: { wallets: true, channel: true },
             });
@@ -260,6 +263,8 @@ export const authController = {
           data: {
             twitchAccessToken: tokenData.access_token,
             twitchRefreshToken: tokenData.refresh_token || null,
+            profileImageUrl: twitchUser.profile_image_url || null,
+            displayName: twitchUser.display_name,
           },
           include: { wallets: true, channel: true },
         });

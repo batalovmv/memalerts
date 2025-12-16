@@ -26,6 +26,15 @@ export const viewerController = {
               createdAt: true,
             },
           },
+          users: {
+            where: { role: 'streamer' },
+            take: 1,
+            select: {
+              id: true,
+              displayName: true,
+              profileImageUrl: true,
+            },
+          },
           _count: {
             select: {
               memes: { where: { status: 'approved' } },
@@ -39,6 +48,7 @@ export const viewerController = {
         return res.status(404).json({ error: 'Channel not found' });
       }
 
+      const owner = channel.users?.[0] || null;
       res.json({
         id: channel.id,
         slug: channel.slug,
@@ -54,6 +64,11 @@ export const viewerController = {
         accentColor: (channel as any).accentColor ?? null,
         createdAt: channel.createdAt,
         memes: channel.memes,
+        owner: owner ? {
+          id: owner.id,
+          displayName: owner.displayName,
+          profileImageUrl: owner.profileImageUrl,
+        } : null,
         stats: {
           memesCount: channel._count.memes,
           usersCount: channel._count.users,
@@ -142,6 +157,7 @@ export const viewerController = {
     res.json({
       id: user.id,
       displayName: user.displayName,
+      profileImageUrl: user.profileImageUrl || null,
       role: user.role,
       channelId: user.channelId,
       channel: user.channel,
