@@ -195,14 +195,15 @@ export const authController = {
 
       // Ensure wallet exists for user's channel (if user has a channel)
       if (user && user.channelId) {
-        const existingWallet = user.wallets?.find(w => w.channelId === user.channelId);
+        const userChannelId = user.channelId; // Store to avoid null check issues
+        const existingWallet = user.wallets?.find(w => w.channelId === userChannelId);
         if (!existingWallet) {
           console.log('Wallet missing for channel, creating wallet...');
           try {
             await prisma.wallet.create({
               data: {
                 userId: user.id,
-                channelId: user.channelId,
+                channelId: userChannelId,
                 balance: 0,
               },
             });
