@@ -240,6 +240,16 @@ export default function Admin() {
               return (
                 <div key={meme.id} className="bg-white rounded-lg shadow p-4">
                   <h3 className="font-semibold mb-2">{meme.title}</h3>
+                  
+                  {/* Video Preview */}
+                  <div className="mb-4">
+                    <VideoPreview 
+                      src={meme.fileUrl} 
+                      title={meme.title}
+                      className="w-full"
+                    />
+                  </div>
+                  
                   <p className="text-sm text-gray-600 mb-2">
                     {meme.priceCoins} coins • {meme.durationMs}ms
                   </p>
