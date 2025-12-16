@@ -14,12 +14,6 @@ import {
   deleteChannelReward,
   getChannelRewards,
 } from '../utils/twitchApi.js';
-import {
-  createChannelReward,
-  updateChannelReward,
-  deleteChannelReward,
-  getChannelRewards,
-} from '../utils/twitchApi.js';
 
 export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
