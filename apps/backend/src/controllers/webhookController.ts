@@ -49,26 +49,51 @@ export const webhookController = {
         return res.status(200).json({ message: 'Missing signature headers - may be challenge verification' });
       }
 
-    const hmacMessage = messageId + messageTimestamp + JSON.stringify(req.body);
-    const hmac = crypto
-      .createHmac('sha256', process.env.TWITCH_EVENTSUB_SECRET!)
-      .update(hmacMessage)
-      .digest('hex');
-    const expectedSignature = 'sha256=' + hmac;
+      console.log('Validating HMAC signature...');
+      const hmacMessage = messageId + messageTimestamp + JSON.stringify(req.body);
+      const hmac = crypto
+        .createHmac('sha256', process.env.TWITCH_EVENTSUB_SECRET!)
+        .update(hmacMessage)
+        .digest('hex');
+      const expectedSignature = 'sha256=' + hmac;
 
-    if (messageSignature !== expectedSignature) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:32',message:'Invalid signature',data:{messageSignature:messageSignature.substring(0,20)+'...',expectedSignature:expectedSignature.substring(0,20)+'...'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
-      return res.status(403).json({ error: 'Invalid signature' });
-    }
+      console.log('HMAC validation:', {
+        messageSignaturePrefix: messageSignature.substring(0, 20),
+        expectedSignaturePrefix: expectedSignature.substring(0, 20),
+        match: messageSignature === expectedSignature,
+      });
 
-    // Check timestamp (should be within 10 minutes)
-    const timestamp = parseInt(messageTimestamp, 10);
-    const now = Date.now();
-    if (Math.abs(now - timestamp) > 10 * 60 * 1000) {
-      return res.status(403).json({ error: 'Request too old' });
-    }
+      if (messageSignature !== expectedSignature) {
+        console.error('Invalid signature!', {
+          received: messageSignature.substring(0, 30),
+          expected: expectedSignature.substring(0, 30),
+        });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:32',message:'Invalid signature',data:{messageSignature:messageSignature.substring(0,20)+'...',expectedSignature:expectedSignature.substring(0,20)+'...'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+        // #endregion
+        return res.status(403).json({ error: 'Invalid signature' });
+      }
+
+      console.log('HMAC signature valid, checking timestamp...');
+      // Check timestamp (should be within 10 minutes)
+      // Twitch sends timestamp as ISO string, convert to milliseconds
+      const timestamp = new Date(messageTimestamp).getTime();
+      const now = Date.now();
+      const timeDiff = Math.abs(now - timestamp);
+      console.log('Timestamp check:', {
+        timestamp,
+        now,
+        timeDiff,
+        timeDiffMinutes: timeDiff / 1000 / 60,
+        isValid: timeDiff <= 10 * 60 * 1000,
+      });
+      
+      if (timeDiff > 10 * 60 * 1000) {
+        console.error('Request too old!', { timeDiff, timeDiffMinutes: timeDiff / 1000 / 60 });
+        return res.status(403).json({ error: 'Request too old' });
+      }
+
+      console.log('Timestamp valid, processing event...');
 
     // Handle redemption event
     // #region agent log
