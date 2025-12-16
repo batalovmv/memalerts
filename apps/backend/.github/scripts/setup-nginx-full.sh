@@ -455,6 +455,17 @@ echo "Nginx configured successfully!"
 echo "Frontend should be accessible at: https://$DOMAIN"
 echo "API should be accessible at: https://$DOMAIN (same domain)"
 
+# Verify that /me location is in the config
+echo "Verifying /me location in config..."
+if grep -q "location = /me" /etc/nginx/sites-available/memalerts; then
+    echo "✅ Found 'location = /me' in config"
+else
+    echo "❌ ERROR: 'location = /me' NOT found in config!"
+    echo "Config file contents:"
+    sudo cat /etc/nginx/sites-available/memalerts | grep -A 10 "location" || true
+    exit 1
+fi
+
 # Explicitly reload nginx after config creation to ensure it's active
 echo "Reloading Nginx after config creation..."
 sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
