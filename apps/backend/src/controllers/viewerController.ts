@@ -11,12 +11,7 @@ export const viewerController = {
 
     const channel = await prisma.channel.findUnique({
       where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        coinPerPointRatio: true,
-        createdAt: true,
+      include: {
         memes: {
           where: { status: 'approved' },
           orderBy: { createdAt: 'desc' },
@@ -48,9 +43,9 @@ export const viewerController = {
       slug: channel.slug,
       name: channel.name,
       coinPerPointRatio: channel.coinPerPointRatio,
-      primaryColor: (channel as any).primaryColor || null,
-      secondaryColor: (channel as any).secondaryColor || null,
-      accentColor: (channel as any).accentColor || null,
+      primaryColor: (channel as any).primaryColor ?? null,
+      secondaryColor: (channel as any).secondaryColor ?? null,
+      accentColor: (channel as any).accentColor ?? null,
       createdAt: channel.createdAt,
       memes: channel.memes,
       stats: {

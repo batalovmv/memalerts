@@ -101,20 +101,7 @@ export const authController = {
       // Find or create user with proper error handling
       let user = await prisma.user.findUnique({
         where: { twitchUserId: twitchUser.id },
-        include: { 
-          wallets: true, 
-          channel: {
-            select: {
-              id: true,
-              slug: true,
-              name: true,
-              twitchChannelId: true,
-              rewardIdForCoins: true,
-              coinPerPointRatio: true,
-              createdAt: true,
-            },
-          },
-        },
+        include: { wallets: true, channel: true },
       });
 
       if (!user) {
