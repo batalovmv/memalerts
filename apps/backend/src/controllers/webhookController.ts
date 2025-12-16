@@ -96,8 +96,23 @@ export const webhookController = {
             });
           }
 
-          // Calculate coins
-          const coinsGranted = Math.floor(event.reward.cost * channel.coinPerPointRatio);
+          // Calculate coins - use rewardCoins if set, otherwise use coinPerPointRatio
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:99',message:'Processing reward redemption',data:{rewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,rewardCost:event.reward.cost,rewardCoins:channel.rewardCoins,coinPerPointRatio:channel.coinPerPointRatio},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+          // #endregion
+          
+          let coinsGranted: number;
+          if (channel.rewardCoins !== null && channel.rewardCoins !== undefined) {
+            // Use fixed rewardCoins value
+            coinsGranted = channel.rewardCoins;
+          } else {
+            // Fallback to coinPerPointRatio calculation
+            coinsGranted = Math.floor(event.reward.cost * channel.coinPerPointRatio);
+          }
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:109',message:'Coins calculated',data:{coinsGranted,userId:user.id,channelId:channel.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+          // #endregion
 
           // Atomic transaction: create redemption + update wallet
           await prisma.$transaction(async (tx) => {

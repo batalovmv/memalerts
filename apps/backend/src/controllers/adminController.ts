@@ -715,11 +715,15 @@ export const adminController = {
       }
 
       // Update channel in database
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:681',message:'Updating channel in DB',data:{channelId,rewardEnabled:body.rewardEnabled,rewardIdForCoins:body.rewardIdForCoins,rewardCost:body.rewardCost,rewardCoins:body.rewardCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      
       const updatedChannel = await prisma.channel.update({
         where: { id: channelId },
         data: {
           rewardIdForCoins: body.rewardIdForCoins !== undefined ? body.rewardIdForCoins : channel.rewardIdForCoins,
-          coinPerPointRatio: body.coinPerPointRatio ?? channel.coinPerPointRatio,
+          coinPerPointRatio: body.coinPerPointRatio !== undefined ? body.coinPerPointRatio : channel.coinPerPointRatio,
           rewardEnabled: body.rewardEnabled !== undefined ? body.rewardEnabled : channel.rewardEnabled,
           rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : channel.rewardTitle,
           rewardCost: body.rewardCost !== undefined ? body.rewardCost : channel.rewardCost,
@@ -729,6 +733,10 @@ export const adminController = {
           accentColor: body.accentColor !== undefined ? body.accentColor : channel.accentColor,
         },
       });
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:697',message:'Channel updated in DB',data:{channelId:updatedChannel.id,rewardEnabled:updatedChannel.rewardEnabled,rewardIdForCoins:updatedChannel.rewardIdForCoins,rewardCost:updatedChannel.rewardCost,rewardCoins:updatedChannel.rewardCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
 
       res.json(updatedChannel);
     } catch (error: any) {
