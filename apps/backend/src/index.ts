@@ -72,16 +72,29 @@ app.use('/uploads', express.static(path.join(process.cwd(), uploadDir)));
 app.set('io', io);
 
 // Routes
-// #region agent log
+setupRoutes(app);
+
+// #region agent log - catch all unmatched routes
 app.use((req, res, next) => {
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:beforeRoutes', message: 'Request received by Express', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'C' }) }).catch(() => {});
-  next();
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:unmatchedRoute', message: 'Unmatched route - 404', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl, cookies: Object.keys(req.cookies || {}), cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run6', hypothesisId: 'J' }) }).catch(() => {});
+  // #endregion
+  console.log('Unmatched route:', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
+  res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
 });
 // #endregion
-setupRoutes(app);
 
 // Socket.IO
 setupSocketIO(io);
+
+// #region agent log - catch all unmatched routes (before error handler)
+app.use((req, res, next) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:unmatchedRoute', message: 'Unmatched route - 404', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl, cookies: Object.keys(req.cookies || {}), cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run6', hypothesisId: 'J' }) }).catch(() => {});
+  // #endregion
+  console.log('Unmatched route:', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
+  res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
+});
 
 // Error handler
 app.use(errorHandler);
