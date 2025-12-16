@@ -164,8 +164,22 @@ server {
     index index.html;
 
     # Backend routes (auth, webhooks, etc.) - proxy first
-    # Note: /me must be matched before /dashboard to avoid conflicts
-    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health|socket\.io) {
+    # Use exact match for /me to ensure it's caught before location /
+    location = /me {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+    }
+    
+    # Other backend routes
+    location ~ ^/(auth|webhooks|channels|wallet|memes|submissions|admin|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -218,8 +232,22 @@ server {
     index index.html;
 
     # Backend routes (auth, webhooks, etc.) - proxy first
-    # Note: /me must be matched before /dashboard to avoid conflicts
-    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health|socket\.io) {
+    # Use exact match for /me to ensure it's caught before location /
+    location = /me {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+    }
+    
+    # Other backend routes
+    location ~ ^/(auth|webhooks|channels|wallet|memes|submissions|admin|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
