@@ -106,16 +106,34 @@ export const adminController = {
       const body = approveSubmissionSchema.parse(req.body);
 
       const result = await prisma.$transaction(async (tx) => {
-        const submission = await tx.memeSubmission.findUnique({
-          where: { id },
-          include: {
-            tags: {
-              include: {
-                tag: true,
+        // Try to get submission with tags first
+        let submission: any;
+        try {
+          submission = await tx.memeSubmission.findUnique({
+            where: { id },
+            include: {
+              tags: {
+                include: {
+                  tag: true,
+                },
               },
             },
-          },
-        });
+          });
+        } catch (error: any) {
+          // If error is about MemeSubmissionTag table, retry without tags
+          if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
+            console.warn('MemeSubmissionTag table not found, fetching submission without tags');
+            submission = await tx.memeSubmission.findUnique({
+              where: { id },
+            });
+            // Add empty tags array to match expected structure
+            if (submission) {
+              submission.tags = [];
+            }
+          } else {
+            throw error;
+          }
+        }
 
         if (!submission || submission.channelId !== channelId) {
           throw new Error('Submission not found');
@@ -153,11 +171,14 @@ export const adminController = {
         }
 
         // Get tags: use tags from body if provided, otherwise use tags from submission
+        // Handle case when tags table doesn't exist
         const tagNames = body.tags && body.tags.length > 0
           ? body.tags
-          : submission.tags?.map((st) => st.tag.name) || [];
+          : (submission.tags && Array.isArray(submission.tags) && submission.tags.length > 0
+              ? submission.tags.map((st: any) => st.tag?.name || st.tag).filter(Boolean)
+              : []);
         
-        const tagIds = await getOrCreateTags(tagNames);
+        const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
 
         // Update submission
         await tx.memeSubmission.update({
@@ -167,31 +188,37 @@ export const adminController = {
           },
         });
 
-        // Create meme with tags
+        // Create meme with tags (only if we have tagIds)
+        const memeData: any = {
+          channelId: submission.channelId,
+          title: submission.title,
+          type: submission.type,
+          fileUrl: finalFileUrl,
+          durationMs: body.durationMs,
+          priceCoins: body.priceCoins,
+          status: 'approved',
+          createdByUserId: submission.submitterUserId,
+          approvedByUserId: req.userId!,
+        };
+
+        // Only add tags if we have tagIds
+        if (tagIds.length > 0) {
+          memeData.tags = {
+            create: tagIds.map((tagId) => ({
+              tagId,
+            })),
+          };
+        }
+
         const meme = await tx.meme.create({
-          data: {
-            channelId: submission.channelId,
-            title: submission.title,
-            type: submission.type,
-            fileUrl: finalFileUrl,
-            durationMs: body.durationMs,
-            priceCoins: body.priceCoins,
-            status: 'approved',
-            createdByUserId: submission.submitterUserId,
-            approvedByUserId: req.userId!,
-            tags: {
-              create: tagIds.map((tagId) => ({
-                tagId,
-              })),
-            },
-          },
-          include: {
+          data: memeData,
+          include: tagIds.length > 0 ? {
             tags: {
               include: {
                 tag: true,
               },
             },
-          },
+          } : undefined,
         });
 
         return meme;
