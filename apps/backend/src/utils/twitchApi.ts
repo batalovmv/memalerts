@@ -52,15 +52,14 @@ export async function refreshAccessToken(userId: string): Promise<string | null>
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: user.twitchRefreshToken,
         client_id: process.env.TWITCH_CLIENT_ID!,
         client_secret: process.env.TWITCH_CLIENT_SECRET!,
+        grant_type: 'refresh_token',
+        refresh_token: user.twitchRefreshToken,
       }),
     });
 
     if (!response.ok) {
-      console.error('Failed to refresh token:', await response.text());
       return null;
     }
 
@@ -71,7 +70,7 @@ export async function refreshAccessToken(userId: string): Promise<string | null>
       where: { id: userId },
       data: {
         twitchAccessToken: tokenData.access_token,
-        twitchRefreshToken: tokenData.refresh_token || user.twitchRefreshToken,
+        twitchRefreshToken: tokenData.refresh_token || null,
       },
     });
 
@@ -83,11 +82,11 @@ export async function refreshAccessToken(userId: string): Promise<string | null>
 }
 
 /**
- * Make authenticated request to Twitch API
+ * Make a request to Twitch API with automatic token refresh
  */
-export async function twitchApiRequest(
+async function twitchApiRequest(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
+  method: string,
   userId: string,
   body?: any
 ): Promise<any> {
@@ -96,24 +95,10 @@ export async function twitchApiRequest(
   // #endregion
 
   let accessToken = await getValidAccessToken(userId);
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:78',message:'Got access token result',data:{hasToken:!!accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-
   if (!accessToken) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:81',message:'No token, attempting refresh',data:{userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     // Try to refresh
     accessToken = await refreshAccessToken(userId);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:85',message:'Refresh token result',data:{hasToken:!!accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     if (!accessToken) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:88',message:'No valid token after refresh, throwing error',data:{userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       throw new Error('No valid access token available');
     }
   }
@@ -122,25 +107,25 @@ export async function twitchApiRequest(
   const options: RequestInit = {
     method,
     headers: {
-      'Client-Id': process.env.TWITCH_CLIENT_ID!,
-      Authorization: `Bearer ${accessToken}`,
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
   };
 
-  if (body && (method === 'POST' || method === 'PATCH')) {
+  if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(url, options);
+  let response = await fetch(url, options);
 
-  // If unauthorized, try refreshing token once
+  // If 401, try refreshing token once
   if (response.status === 401) {
     accessToken = await refreshAccessToken(userId);
     if (accessToken) {
       options.headers = {
         ...options.headers,
-        Authorization: `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${accessToken}`,
       };
       const retryResponse = await fetch(url, options);
       if (!retryResponse.ok) {
@@ -175,7 +160,7 @@ export async function createChannelReward(
     {
       title,
       cost,
-      prompt: prompt || `Get ${cost} coins for this channel!`,
+      prompt: prompt || title,
       is_enabled: true,
       is_user_input_required: false,
     }
@@ -189,12 +174,7 @@ export async function updateChannelReward(
   userId: string,
   broadcasterId: string,
   rewardId: string,
-  updates: {
-    title?: string;
-    cost?: number;
-    is_enabled?: boolean;
-    prompt?: string;
-  }
+  updates: any
 ): Promise<any> {
   return twitchApiRequest(
     `channel_points/custom_rewards?broadcaster_id=${broadcasterId}&id=${rewardId}`,
@@ -304,9 +284,37 @@ export async function createEventSubSubscription(
 
   if (!response.ok) {
     const errorText = await response.text();
+    // If subscription already exists, that's fine - return success
+    if (response.status === 409 && errorText.includes('already exists')) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:308',message:'Subscription already exists, treating as success',data:{broadcasterId,webhookUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
+      // #endregion
+      return { data: [{ id: 'existing', status: 'enabled' }] };
+    }
     throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   return response.json();
 }
 
+/**
+ * Get existing EventSub subscriptions for a broadcaster
+ */
+export async function getEventSubSubscriptions(broadcasterId: string): Promise<any> {
+  const accessToken = await getAppAccessToken();
+
+  const response = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?user_id=${broadcasterId}`, {
+    method: 'GET',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  return response.json();
+}

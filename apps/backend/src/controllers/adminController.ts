@@ -14,6 +14,7 @@ import {
   deleteChannelReward,
   getChannelRewards,
   createEventSubSubscription,
+  getEventSubSubscriptions,
 } from '../utils/twitchApi.js';
 
 export const adminController = {
@@ -752,23 +753,58 @@ export const adminController = {
               ? 'https://twitchmemes.ru'
               : (process.env.API_URL || 'http://localhost:3001');
             const webhookUrl = `${apiUrl}/webhooks/twitch/eventsub`;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:750',message:'Creating EventSub subscription',data:{userId,channelId:channel.twitchChannelId,webhookUrl,apiUrl,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-            // #endregion
-            const subscriptionResult = await createEventSubSubscription(
-              userId,
-              channel.twitchChannelId,
-              webhookUrl,
-              process.env.TWITCH_EVENTSUB_SECRET!
-            );
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:762',message:'EventSub subscription created successfully',data:{subscriptionId:subscriptionResult?.data?.[0]?.id,status:subscriptionResult?.data?.[0]?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-            // #endregion
+            
+            // Check existing subscriptions first
+            try {
+              const existingSubs = await getEventSubSubscriptions(channel.twitchChannelId);
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:750',message:'Checked existing subscriptions',data:{userId,channelId:channel.twitchChannelId,subscriptionsCount:existingSubs?.data?.length || 0,subscriptions:existingSubs?.data?.map((s:any)=>({id:s.id,type:s.type,status:s.status}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
+              // #endregion
+              
+              // Check if we already have an active subscription for this event type
+              const hasActiveSubscription = existingSubs?.data?.some((sub: any) => 
+                sub.type === 'channel.channel_points_custom_reward_redemption.add' && 
+                (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending')
+              );
+              
+              if (hasActiveSubscription) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:758',message:'Active subscription already exists, skipping creation',data:{channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
+                // #endregion
+                // Subscription already exists and is active, skip creation
+              } else {
+                // Create new subscription
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:763',message:'Creating EventSub subscription',data:{userId,channelId:channel.twitchChannelId,webhookUrl,apiUrl,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+                // #endregion
+                const subscriptionResult = await createEventSubSubscription(
+                  userId,
+                  channel.twitchChannelId,
+                  webhookUrl,
+                  process.env.TWITCH_EVENTSUB_SECRET!
+                );
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:771',message:'EventSub subscription created successfully',data:{subscriptionId:subscriptionResult?.data?.[0]?.id,status:subscriptionResult?.data?.[0]?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+                // #endregion
+              }
+            } catch (checkError: any) {
+              // If check fails, try to create anyway
+              console.error('Error checking subscriptions, will try to create:', checkError);
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:777',message:'Error checking subscriptions, creating new',data:{error:checkError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
+              // #endregion
+              const subscriptionResult = await createEventSubSubscription(
+                userId,
+                channel.twitchChannelId,
+                webhookUrl,
+                process.env.TWITCH_EVENTSUB_SECRET!
+              );
+            }
           } catch (error: any) {
             // Log but don't fail - subscription might already exist
             console.error('Error creating EventSub subscription:', error);
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:768',message:'EventSub subscription error',data:{error:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:789',message:'EventSub subscription error',data:{error:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
             // #endregion
           }
         } else {
