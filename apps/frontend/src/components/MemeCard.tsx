@@ -7,7 +7,7 @@ interface MemeCardProps {
   isOwner?: boolean;
 }
 
-export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardProps) {
+export default function MemeCard({ meme, onClick }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
   const [hasUserInteracted, setHasUserInteracted] = useState(false);

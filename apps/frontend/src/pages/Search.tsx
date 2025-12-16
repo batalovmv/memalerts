@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '../store/hooks';
 import { api } from '../lib/api';
 import Header from '../components/Header';
 import type { Meme, Tag } from '../types';
@@ -9,7 +8,6 @@ import { useDebounce } from '../hooks/useDebounce';
 
 export default function Search() {
   const { t } = useTranslation();
-  const { user } = useAppSelector((state) => state.auth);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions } from '../store/slices/submissionsSlice';
@@ -21,7 +21,6 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
   const { submissions } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const location = useLocation();
   const params = useParams<{ slug: string }>();
   
   const [wallet, setWallet] = useState<Wallet | null>(null);

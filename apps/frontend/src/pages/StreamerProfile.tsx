@@ -132,7 +132,7 @@ export default function StreamerProfile() {
   }
 
   // Check if current user is the owner of this channel
-  const isOwner = user && user.channelId === channelInfo?.id;
+  const isOwner = !!(user && user.channelId === channelInfo?.id);
 
   // Apply custom colors if available
   const customStyles: Record<string, string> = {};
@@ -180,7 +180,7 @@ export default function StreamerProfile() {
                   setSelectedMeme(meme);
                   setIsModalOpen(true);
                 }}
-                isOwner={false}
+                isOwner={isOwner}
               />
             ))}
           </div>
@@ -204,7 +204,7 @@ export default function StreamerProfile() {
               }).catch(() => {});
             }
           }}
-          isOwner={false}
+          isOwner={isOwner}
           mode="viewer"
           onActivate={handleActivate}
           walletBalance={wallet?.balance}

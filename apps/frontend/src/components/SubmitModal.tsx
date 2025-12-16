@@ -293,7 +293,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug }: SubmitModa
                   <div className="mt-2 p-3 bg-accent/10 rounded-lg border border-accent/20">
                     <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">{t('submit.howToCopy')}</p>
                     <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
-                      {t('submit.copyInstructions', { returnObjects: true }).map((instruction: string, index: number) => (
+                      {(t('submit.copyInstructions', { returnObjects: true }) as string[]).map((instruction: string, index: number) => (
                         <li key={index}>{instruction}</li>
                       ))}
                     </ol>
