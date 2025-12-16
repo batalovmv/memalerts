@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions } from '../store/slices/submissionsSlice';
+import { updateWalletBalance } from '../store/slices/authSlice';
 import { api } from '../lib/api';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
@@ -47,7 +48,7 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
     }
   }, [user, dispatch]);
 
-  // Load wallet balance
+  // Load wallet balance and auto-refresh
   useEffect(() => {
     if (!user) {
       setWallet(null);
@@ -64,6 +65,10 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
               timeout: 10000,
             });
             setWallet(walletResponse.data);
+            // Update Redux store if channelId matches
+            if (channelId && walletResponse.data.channelId === channelId) {
+              dispatch(updateWalletBalance({ channelId, balance: walletResponse.data.balance }));
+            }
           } catch (error: any) {
             if (error.response?.status === 404 || error.code === 'ECONNABORTED') {
               // Wallet doesn't exist yet, set default
@@ -92,8 +97,16 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
       }
     };
 
+    // Load immediately
     loadWallet();
-  }, [user, currentChannelSlug, channelId]);
+
+    // Auto-refresh every 3 seconds
+    const interval = setInterval(() => {
+      loadWallet();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [user, currentChannelSlug, channelId, dispatch]);
 
   const handlePendingSubmissionsClick = () => {
     navigate('/settings?tab=submissions');
