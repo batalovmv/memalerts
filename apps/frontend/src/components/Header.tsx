@@ -6,7 +6,6 @@ import { fetchSubmissions } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
-import toast from 'react-hot-toast';
 import type { Wallet } from '../types';
 
 interface HeaderProps {
