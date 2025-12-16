@@ -1,11 +1,44 @@
 #!/bin/bash
 # Script to setup database and user for memalerts
+# Automatically extracts credentials from DATABASE_URL in .env
 
 set -e
 
-DB_NAME="memalerts"
-DB_USER="memalerts_user"
-DB_PASSWORD="14ypanxPtHNnwIoHhwCB"
+# Check if .env exists
+if [ ! -f /opt/memalerts-backend/.env ]; then
+    echo "❌ .env file not found at /opt/memalerts-backend/.env"
+    echo "Cannot setup database without DATABASE_URL"
+    exit 1
+fi
+
+# Source .env to get DATABASE_URL
+cd /opt/memalerts-backend
+source .env
+
+if [ -z "$DATABASE_URL" ]; then
+    echo "❌ DATABASE_URL is not set in .env"
+    exit 1
+fi
+
+# Extract database credentials from DATABASE_URL
+# Format: postgresql://user:password@host:port/database?schema=public
+DB_USER=$(echo $DATABASE_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
+DB_PASSWORD=$(echo $DATABASE_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+DB_NAME=$(echo $DATABASE_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
+
+if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_NAME" ]; then
+    echo "❌ Cannot parse DATABASE_URL. Expected format: postgresql://user:password@host:port/database?schema=public"
+    echo "Current DATABASE_URL: ${DATABASE_URL:0:50}..."
+    exit 1
+fi
+
+echo "Extracted from DATABASE_URL:"
+echo "  User: $DB_USER"
+echo "  Host: ${DB_HOST:-localhost}"
+echo "  Port: ${DB_PORT:-5432}"
+echo "  Database: $DB_NAME"
 
 echo "Setting up PostgreSQL database for memalerts..."
 
@@ -17,7 +50,7 @@ if ! systemctl is-active --quiet postgresql; then
 fi
 
 # Create user if it doesn't exist
-echo "Creating database user..."
+echo "Creating database user '$DB_USER'..."
 sudo -u postgres psql << EOF
 DO \$\$
 BEGIN
@@ -25,8 +58,8 @@ BEGIN
         CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';
         RAISE NOTICE 'User $DB_USER created';
     ELSE
-        RAISE NOTICE 'User $DB_USER already exists';
-        -- Update password in case it changed
+        RAISE NOTICE 'User $DB_USER already exists, updating password...';
+        -- Update password in case it changed in DATABASE_URL
         ALTER USER $DB_USER WITH PASSWORD '$DB_PASSWORD';
     END IF;
 END
