@@ -402,6 +402,10 @@ function ChannelSettings() {
   const [settings, setSettings] = useState({
     rewardIdForCoins: '',
     coinPerPointRatio: '1.0',
+    rewardEnabled: false,
+    rewardTitle: '',
+    rewardCost: '',
+    rewardCoins: '',
     primaryColor: '',
     secondaryColor: '',
     accentColor: '',
@@ -423,6 +427,10 @@ function ChannelSettings() {
         setSettings({
           rewardIdForCoins: response.data.rewardIdForCoins || '',
           coinPerPointRatio: String(response.data.coinPerPointRatio || '1.0'),
+          rewardEnabled: response.data.rewardEnabled || false,
+          rewardTitle: response.data.rewardTitle || '',
+          rewardCost: response.data.rewardCost ? String(response.data.rewardCost) : '',
+          rewardCoins: response.data.rewardCoins ? String(response.data.rewardCoins) : '',
           primaryColor: response.data.primaryColor || '',
           secondaryColor: response.data.secondaryColor || '',
           accentColor: response.data.accentColor || '',
@@ -441,11 +449,17 @@ function ChannelSettings() {
       await api.patch('/admin/channel/settings', {
         rewardIdForCoins: settings.rewardIdForCoins || null,
         coinPerPointRatio: parseFloat(settings.coinPerPointRatio) || 1.0,
+        rewardEnabled: settings.rewardEnabled,
+        rewardTitle: settings.rewardTitle || null,
+        rewardCost: settings.rewardCost ? parseInt(settings.rewardCost, 10) : null,
+        rewardCoins: settings.rewardCoins ? parseInt(settings.rewardCoins, 10) : null,
         primaryColor: settings.primaryColor || null,
         secondaryColor: settings.secondaryColor || null,
         accentColor: settings.accentColor || null,
       });
       toast.success(t('admin.settingsSaved'));
+      // Reload settings to get updated rewardId
+      await loadSettings();
       // Refresh channel colors
       window.location.reload();
     } catch (error: any) {
@@ -459,17 +473,96 @@ function ChannelSettings() {
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelSettings')}</h2>
       <form onSubmit={handleSave} className="space-y-4">
+        {/* Reward Toggle */}
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-secondary/20">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('admin.enableReward')}
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.enableRewardDescription')}
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.rewardEnabled}
+                onChange={(e) => setSettings({ ...settings, rewardEnabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          {settings.rewardEnabled && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.rewardTitle')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.rewardTitle}
+                  onChange={(e) => setSettings({ ...settings, rewardTitle: e.target.value })}
+                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  placeholder={t('admin.rewardTitlePlaceholder')}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.rewardCost')}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.rewardCost}
+                    onChange={(e) => setSettings({ ...settings, rewardCost: e.target.value })}
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="100"
+                    required={settings.rewardEnabled}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.rewardCostDescription')}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.rewardCoins')}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.rewardCoins}
+                    onChange={(e) => setSettings({ ...settings, rewardCoins: e.target.value })}
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="100"
+                    required={settings.rewardEnabled}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.rewardCoinsDescription')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('admin.rewardIdForCoins')}
+            {t('admin.rewardIdForCoins')} ({t('admin.autoGenerated')})
           </label>
           <input
             type="text"
             value={settings.rewardIdForCoins}
-            onChange={(e) => setSettings({ ...settings, rewardIdForCoins: e.target.value })}
-            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-            placeholder="Twitch reward ID"
+            readOnly
+            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
+            placeholder={t('admin.rewardIdPlaceholder')}
           />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {t('admin.rewardIdDescription')}
+          </p>
         </div>
 
         <div>
