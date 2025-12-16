@@ -718,8 +718,9 @@ export const adminController = {
               );
               body.rewardIdForCoins = existingRewardId;
               
-              // Fetch reward details to get image URL
+              // Fetch reward details to get image URL (wait a bit for Twitch to process)
               try {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
                 const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, existingRewardId);
                 if (rewardDetails?.data?.[0]?.image?.url_1x || rewardDetails?.data?.[0]?.image?.url_2x || rewardDetails?.data?.[0]?.image?.url_4x) {
                   coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
