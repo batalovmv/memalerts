@@ -184,7 +184,7 @@ export default function MemeModal({ meme, isOpen, onClose, onUpdate, isOwner }: 
               </svg>
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
@@ -235,7 +235,7 @@ export default function MemeModal({ meme, isOpen, onClose, onUpdate, isOwner }: 
                 )}
               </button>
             </div>
-          </div>
+          </section>
 
           {/* Info Section - Right */}
           <aside className="w-80 border-l bg-gray-50 overflow-y-auto" aria-label="Meme information">
@@ -346,7 +346,7 @@ export default function MemeModal({ meme, isOpen, onClose, onUpdate, isOwner }: 
                 </>
               )}
             </div>
-          </div>
+          </aside>
         </div>
       </div>
     </div>
