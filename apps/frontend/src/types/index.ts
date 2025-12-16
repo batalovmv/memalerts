@@ -17,6 +17,7 @@ export interface Channel {
 export interface User {
   id: string;
   displayName: string;
+  profileImageUrl?: string | null;
   role: UserRole;
   channelId: string | null;
   channel?: Channel;

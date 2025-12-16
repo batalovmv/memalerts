@@ -21,6 +21,11 @@ interface ChannelInfo {
   accentColor?: string | null;
   createdAt: string;
   memes: Meme[];
+  owner?: {
+    id: string;
+    displayName: string;
+    profileImageUrl?: string | null;
+  } | null;
   stats: {
     memesCount: number;
     usersCount: number;
@@ -159,11 +164,25 @@ export default function StreamerProfile() {
         {/* Channel Header */}
         <div className="mb-8 border-b border-secondary/30 pb-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
-              <div className="mt-4 flex gap-4 text-sm">
-                <span className="text-accent font-semibold">{channelInfo.stats.memesCount} {t('profile.memes')}</span>
-                <span className="text-accent font-semibold">{channelInfo.stats.usersCount} {t('profile.users')}</span>
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              {channelInfo.owner?.profileImageUrl ? (
+                <img 
+                  src={channelInfo.owner.profileImageUrl} 
+                  alt={channelInfo.owner.displayName}
+                  className="w-20 h-20 rounded-lg object-cover border-2 border-secondary/30"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl border-2 border-secondary/30">
+                  {channelInfo.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
+                <div className="mt-4 flex gap-4 text-sm">
+                  <span className="text-accent font-semibold">{channelInfo.stats.memesCount} {t('profile.memes')}</span>
+                  <span className="text-accent font-semibold">{channelInfo.stats.usersCount} {t('profile.users')}</span>
+                </div>
               </div>
             </div>
             {/* Submit Meme Button - only show when logged in and not owner */}

@@ -64,11 +64,6 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
-  // Get balance for user's channel if available
-  const userBalance = user.channelId && user.wallets
-    ? user.wallets.find(w => w.channelId === user.channelId)?.balance || 0
-    : 0;
-
   // Determine displayed role based on context
   // Show "streamer" only when viewing own profile, "viewer" when viewing someone else's profile
   const getDisplayRole = (): string => {
@@ -100,14 +95,19 @@ export default function UserMenu() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
-        {/* Avatar placeholder - will be replaced with Twitch avatar later */}
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
-          {user.displayName.charAt(0).toUpperCase()}
-        </div>
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.displayName}</span>
-        {userBalance > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">({userBalance} {t('profile.coins')})</span>
+        {/* Avatar */}
+        {user.profileImageUrl ? (
+          <img 
+            src={user.profileImageUrl} 
+            alt={user.displayName}
+            className="w-8 h-8 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
+            {user.displayName.charAt(0).toUpperCase()}
+          </div>
         )}
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.displayName}</span>
         <svg
           className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
@@ -123,9 +123,17 @@ export default function UserMenu() {
           {/* User info header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
-                {user.displayName.charAt(0).toUpperCase()}
-              </div>
+              {user.profileImageUrl ? (
+                <img 
+                  src={user.profileImageUrl} 
+                  alt={user.displayName}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
               <div>
                 <div className="font-medium text-gray-900 dark:text-white">{user.displayName}</div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">{displayRole}</div>
