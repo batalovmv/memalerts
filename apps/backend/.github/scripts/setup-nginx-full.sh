@@ -209,8 +209,26 @@ server {
         proxy_read_timeout 300s;
     }
     
+    # Admin routes - increased timeouts for approval operations
+    location ~ ^/admin {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        # Increased timeouts for admin operations (2 minutes)
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+    
     # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|admin|uploads|health|socket\.io) {
+    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -311,8 +329,26 @@ server {
         proxy_read_timeout 300s;
     }
     
+    # Admin routes - increased timeouts for approval operations
+    location ~ ^/admin {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        # Increased timeouts for admin operations (2 minutes)
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+    
     # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|admin|uploads|health|socket\.io) {
+    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;

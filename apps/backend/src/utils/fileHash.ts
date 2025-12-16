@@ -212,8 +212,8 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
 
     const file = fs.createWriteStream(tempFilePath);
     
-    // Set timeout (30 seconds)
-    const timeout = 30000;
+    // Set timeout (20 seconds for faster response)
+    const timeout = 20000;
     let timeoutId: NodeJS.Timeout;
 
     const request = client.get(url, (response) => {
@@ -285,8 +285,8 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
 export async function downloadAndDeduplicateFile(
   url: string
 ): Promise<{ filePath: string; fileHash: string | null; isNew: boolean }> {
-  // Wrap entire operation in timeout (60 seconds total)
-  const operationTimeout = 60000;
+  // Wrap entire operation in timeout (40 seconds total for background operations)
+  const operationTimeout = 40000;
   
   const operationPromise = (async () => {
     // Download file

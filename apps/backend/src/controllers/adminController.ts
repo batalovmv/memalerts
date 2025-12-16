@@ -109,6 +109,17 @@ export const adminController = {
     try {
       const body = approveSubmissionSchema.parse(req.body);
 
+      // Get submission first to check if it's imported (has sourceUrl)
+      let submissionForBackground: any;
+      try {
+        submissionForBackground = await prisma.memeSubmission.findUnique({
+          where: { id },
+          select: { sourceUrl: true },
+        });
+      } catch (error) {
+        // Ignore, will check in transaction
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         // Try to get submission with tags first
         let submission: any;
@@ -152,18 +163,9 @@ export const adminController = {
         let fileHash: string | null = null;
         
         if (submission.sourceUrl) {
-          // Imported meme - download, calculate hash, and perform deduplication
-          try {
-            const result = await downloadAndDeduplicateFile(submission.sourceUrl);
-            finalFileUrl = result.filePath;
-            fileHash = result.fileHash;
-            console.log(`Imported file deduplication: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${fileHash}`);
-          } catch (error: any) {
-            console.error('Failed to download and deduplicate imported file:', error.message);
-            // Fallback to using sourceUrl directly if download fails
-            finalFileUrl = submission.sourceUrl;
-            console.warn('Using sourceUrl directly as fallback');
-          }
+          // Imported meme - use sourceUrl temporarily, download will happen in background
+          // This prevents timeout issues - we approve immediately and download async
+          finalFileUrl = submission.sourceUrl;
         } else {
           // Uploaded file - check if already deduplicated or perform deduplication
           const filePath = path.join(process.cwd(), submission.fileUrlTemp);
@@ -291,6 +293,32 @@ export const adminController = {
 
         return meme;
       });
+
+      // If this is an imported meme, start background download and update
+      if (submissionForBackground?.sourceUrl && result) {
+        const memeId = result.id;
+        const sourceUrl = submissionForBackground.sourceUrl;
+        
+        // Start background download and deduplication (don't await - fire and forget)
+        // This will update the meme's fileUrl once download completes
+        downloadAndDeduplicateFile(sourceUrl).then((downloadResult) => {
+          // Update meme with local file path after download completes
+          prisma.meme.update({
+            where: { id: memeId },
+            data: {
+              fileUrl: downloadResult.filePath,
+              fileHash: downloadResult.fileHash,
+            },
+          }).then(() => {
+            console.log(`Background download completed for meme ${memeId}: ${downloadResult.isNew ? 'new file' : 'duplicate found'}, hash: ${downloadResult.fileHash}`);
+          }).catch((err) => {
+            console.error(`Failed to update meme ${memeId} after background download:`, err);
+          });
+        }).catch((error: any) => {
+          console.error(`Background download failed for meme ${result.id}:`, error.message);
+          // File will continue using sourceUrl - that's okay, it will work
+        });
+      }
 
       res.json(result);
     } catch (error: any) {
