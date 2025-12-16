@@ -4,11 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
-import { getVideoMetadata } from '../utils/videoValidator.js';
 import fs from 'fs';
 import path from 'path';
-
-const MAX_DURATION_SECONDS = 15; // 15 seconds max
 
 export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -179,18 +176,25 @@ export const adminController = {
             fileHash = existingHash;
             await incrementFileHashReference(existingHash);
           } else if (fs.existsSync(filePath)) {
-            // File exists but not in FileHash - calculate hash and deduplicate
+            // File exists but not in FileHash - calculate hash and deduplicate with timeout
             try {
-              const hash = await calculateFileHash(filePath);
+              // Add timeout for hash calculation to prevent hanging
+              const hashPromise = calculateFileHash(filePath);
+              const hashTimeout = new Promise<string>((_, reject) => {
+                setTimeout(() => reject(new Error('Hash calculation timeout')), 10000); // 10 second timeout
+              });
+              
+              const hash = await Promise.race([hashPromise, hashTimeout]);
               const stats = await getFileStats(filePath);
               const result = await findOrCreateFileHash(filePath, hash, stats.mimeType, stats.size);
               finalFileUrl = result.filePath;
               fileHash = hash;
               console.log(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
             } catch (error: any) {
-              console.error('File hash calculation failed during approve:', error);
-              // Fallback to original path
+              console.error('File hash calculation failed during approve:', error.message);
+              // Fallback to original path - don't fail the approval
               finalFileUrl = submission.fileUrlTemp;
+              fileHash = null;
             }
           } else {
             throw new Error('Uploaded file not found');
@@ -198,55 +202,37 @@ export const adminController = {
         }
 
         // Get tags: use tags from body if provided, otherwise use tags from submission
-        // Handle case when tags table doesn't exist
+        // Handle case when tags table doesn't exist - with timeout protection
         const tagNames = body.tags && body.tags.length > 0
           ? body.tags
           : (submission.tags && Array.isArray(submission.tags) && submission.tags.length > 0
               ? submission.tags.map((st: any) => st.tag?.name || st.tag).filter(Boolean)
               : []);
         
-        const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
-
-        // Determine duration: try to get from video if uploaded, otherwise use standard/default
-        let durationMs = body.durationMs || 15000; // Default: 15 seconds (15000ms)
-        const STANDARD_DURATION_MS = 15000; // 15 seconds max
-        const STANDARD_PRICE_COINS = 100; // Standard price: 100 coins
-        
-        // For uploaded files, try to get actual video duration (with timeout protection)
-        if (!submission.sourceUrl && finalFileUrl && !finalFileUrl.startsWith('http')) {
+        let tagIds: string[] = [];
+        if (tagNames.length > 0) {
           try {
-            const filePath = path.join(process.cwd(), finalFileUrl);
-            if (fs.existsSync(filePath)) {
-              // Try to get video metadata with timeout
-              const metadataPromise = getVideoMetadata(filePath);
-              const timeoutPromise = new Promise<{ duration: number }>((resolve) => {
-                setTimeout(() => {
-                  console.warn('Video metadata timeout, using standard duration');
-                  resolve({ duration: 0 });
-                }, 5000); // 5 second timeout
-              });
-              
-              const metadata = await Promise.race([metadataPromise, timeoutPromise]);
-              
-              if (metadata && metadata.duration > 0) {
-                // Convert seconds to milliseconds and cap at 15 seconds
-                const durationSeconds = Math.min(metadata.duration, MAX_DURATION_SECONDS);
-                durationMs = Math.round(durationSeconds * 1000);
-              } else {
-                // Use standard duration if metadata unavailable
-                durationMs = STANDARD_DURATION_MS;
-              }
-            }
+            const tagsPromise = getOrCreateTags(tagNames);
+            const tagsTimeout = new Promise<string[]>((resolve) => {
+              setTimeout(() => {
+                console.warn('Tags creation timeout, proceeding without tags');
+                resolve([]);
+              }, 3000); // 3 second timeout for tags
+            });
+            tagIds = await Promise.race([tagsPromise, tagsTimeout]);
           } catch (error: any) {
-            console.warn('Failed to get video duration, using standard:', error.message);
-            durationMs = STANDARD_DURATION_MS;
+            console.warn('Error creating tags, proceeding without tags:', error.message);
+            tagIds = [];
           }
-        } else {
-          // For imported memes, use standard duration
-          durationMs = STANDARD_DURATION_MS;
         }
 
-        // Use standard price if not provided
+        // Use standard values - skip video metadata to avoid hanging
+        const STANDARD_DURATION_MS = 15000; // 15 seconds (15000ms)
+        const STANDARD_PRICE_COINS = 100; // Standard price: 100 coins
+        
+        // Always use standard duration - skip video metadata to prevent hanging
+        // Video duration validation happens on upload, so we can trust the file is valid
+        const durationMs = body.durationMs || STANDARD_DURATION_MS;
         const priceCoins = body.priceCoins || STANDARD_PRICE_COINS;
 
         // Update submission
