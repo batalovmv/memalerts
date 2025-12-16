@@ -11,7 +11,15 @@ export const viewerController = {
 
     const channel = await prisma.channel.findUnique({
       where: { slug },
-      include: {
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        coinPerPointRatio: true,
+        primaryColor: true,
+        secondaryColor: true,
+        accentColor: true,
+        createdAt: true,
         memes: {
           where: { status: 'approved' },
           orderBy: { createdAt: 'desc' },
