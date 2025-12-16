@@ -68,9 +68,8 @@ export default function StreamerProfile() {
           toast.error('Channel not found');
           navigate('/');
         } else {
-          toast.error('Failed to load channel');
+          toast.error(error.response?.data?.error || 'Failed to load channel');
         }
-      } finally {
         setLoading(false);
       }
     };

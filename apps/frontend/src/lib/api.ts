@@ -17,6 +17,7 @@ const getApiUrl = () => {
 export const api = axios.create({
   baseURL: getApiUrl(),
   withCredentials: true,
+  timeout: 300000, // 5 minutes timeout for file uploads
 });
 
 api.interceptors.response.use(

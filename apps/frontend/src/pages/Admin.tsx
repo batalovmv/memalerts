@@ -161,8 +161,21 @@ export default function Admin() {
           <div className="space-y-4">
             {submissionsLoading ? (
               <div className="text-center py-8">Loading submissions...</div>
+            ) : submissionsError ? (
+              <div className="text-center py-8">
+                <p className="text-red-600 dark:text-red-400 mb-4">{submissionsError}</p>
+                <button
+                  onClick={() => dispatch(fetchSubmissions({ status: 'pending' }))}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                >
+                  Retry
+                </button>
+              </div>
             ) : submissions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No pending submissions</div>
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <p>No pending submissions</p>
+                <p className="text-sm mt-2">All submissions have been reviewed.</p>
+              </div>
             ) : (
               submissions.map((submission) => (
                 <div key={submission.id} className="bg-white rounded-lg shadow p-6">
@@ -635,6 +648,7 @@ function ChannelStatistics() {
 function PromotionManagement() {
   const [promotions, setPromotions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -650,11 +664,14 @@ function PromotionManagement() {
   const fetchPromotions = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { api } = await import('../lib/api');
       const response = await api.get('/admin/promotions');
       setPromotions(response.data);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load promotions');
+      const errorMessage = error.response?.data?.error || 'Failed to load promotions';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -704,6 +721,20 @@ function PromotionManagement() {
 
   if (loading) {
     return <div className="text-center py-8">Loading promotions...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+        <button
+          onClick={fetchPromotions}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   const now = new Date();

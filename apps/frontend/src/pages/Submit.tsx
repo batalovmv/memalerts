@@ -24,6 +24,7 @@ export default function Submit() {
     tags: [],
   });
   const [file, setFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   useEffect(() => {
     if (!user) {
@@ -75,6 +76,7 @@ export default function Submit() {
       }
 
       setLoading(true);
+      setUploadProgress(0);
       try {
         const formDataToSend = new FormData();
         formDataToSend.append('file', file);
@@ -88,13 +90,27 @@ export default function Submit() {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
         }
 
-        await dispatch(createSubmission(formDataToSend)).unwrap();
+        // Use axios directly for upload progress tracking
+        const { api } = await import('../lib/api');
+        await api.post('/submissions', formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percentCompleted);
+            }
+          },
+        });
+        
         toast.success('Submission created! Waiting for approval.');
         navigate('/dashboard');
       } catch (error: any) {
-        toast.error(error.message || 'Failed to submit meme');
+        toast.error(error.response?.data?.error || error.message || 'Failed to submit meme');
       } finally {
         setLoading(false);
+        setUploadProgress(0);
       }
     } else {
       // Import mode
@@ -254,12 +270,20 @@ export default function Submit() {
             />
           </div>
 
+          {loading && uploadProgress > 0 && (
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+              <div
+                className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
           >
-            {loading ? 'Submitting...' : 'Submit'}
+            {loading ? (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Submitting...') : 'Submit'}
           </button>
         </form>
       </main>
