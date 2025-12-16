@@ -27,7 +27,7 @@ export const approveSubmissionSchema = z.object({
 });
 
 export const rejectSubmissionSchema = z.object({
-  moderatorNotes: z.string().max(1000),
+  moderatorNotes: z.string().max(1000).optional().nullable(),
 });
 
 export const updateMemeSchema = z.object({

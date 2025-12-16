@@ -71,6 +71,7 @@ model Meme {
   title           String
   type            String    // image, gif, video, audio
   fileUrl         String
+  fileHash        String?   // SHA-256 hash for deduplication
   durationMs      Int
   priceCoins      Int
   status          String    // pending, approved, rejected
@@ -83,10 +84,12 @@ model Meme {
   approvedBy    User?           @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   activations   MemeActivation[]
   tags          MemeTag[]
+  fileHashRef   FileHash?       @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
 
   @@index([channelId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([fileHash])
 }
 
 model MemeSubmission {
@@ -217,6 +220,19 @@ model Promotion {
   @@index([channelId])
   @@index([isActive])
   @@index([startDate, endDate])
+}
+
+model FileHash {
+  hash           String   @id // SHA-256 hash
+  filePath       String   // Path to physical file
+  referenceCount Int      @default(1) // Number of references to this file
+  fileSize       BigInt   // File size in bytes
+  mimeType       String   // MIME type of the file
+  createdAt      DateTime @default(now())
+
+  memes Meme[]
+
+  @@index([referenceCount])
 }
 
 

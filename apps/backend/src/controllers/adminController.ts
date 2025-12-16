@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
+import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference } from '../utils/fileHash.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -143,28 +144,39 @@ export const adminController = {
           throw new Error('Submission already processed');
         }
 
-        // Determine fileUrl: use sourceUrl if imported, otherwise move uploaded file
+        // Determine fileUrl: use sourceUrl if imported, otherwise handle deduplication
         let finalFileUrl: string;
+        let fileHash: string | null = null;
         
         if (submission.sourceUrl) {
-          // Imported meme - use sourceUrl directly
+          // Imported meme - use sourceUrl directly (no deduplication for external URLs)
           finalFileUrl = submission.sourceUrl;
         } else {
-          // Uploaded file - move from temp to permanent location
-          const tempPath = path.join(process.cwd(), submission.fileUrlTemp);
-          const fileName = path.basename(submission.fileUrlTemp);
-          const permanentPath = path.join(process.cwd(), 'uploads', 'memes', fileName);
-
-          // Ensure memes directory exists
-          const memesDir = path.join(process.cwd(), 'uploads', 'memes');
-          if (!fs.existsSync(memesDir)) {
-            fs.mkdirSync(memesDir, { recursive: true });
-          }
-
-          // Move file
-          if (fs.existsSync(tempPath)) {
-            fs.renameSync(tempPath, permanentPath);
-            finalFileUrl = `/uploads/memes/${fileName}`;
+          // Uploaded file - check if already deduplicated or perform deduplication
+          const filePath = path.join(process.cwd(), submission.fileUrlTemp);
+          
+          // Check if file already exists in FileHash (was deduplicated during upload)
+          const existingHash = await getFileHashByPath(submission.fileUrlTemp);
+          
+          if (existingHash) {
+            // File was already deduplicated - use existing path and increment reference
+            finalFileUrl = submission.fileUrlTemp;
+            fileHash = existingHash;
+            await incrementFileHashReference(existingHash);
+          } else if (fs.existsSync(filePath)) {
+            // File exists but not in FileHash - calculate hash and deduplicate
+            try {
+              const hash = await calculateFileHash(filePath);
+              const stats = await getFileStats(filePath);
+              const result = await findOrCreateFileHash(filePath, hash, stats.mimeType, stats.size);
+              finalFileUrl = result.filePath;
+              fileHash = hash;
+              console.log(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
+            } catch (error: any) {
+              console.error('File hash calculation failed during approve:', error);
+              // Fallback to original path
+              finalFileUrl = submission.fileUrlTemp;
+            }
           } else {
             throw new Error('Uploaded file not found');
           }
@@ -194,6 +206,7 @@ export const adminController = {
           title: submission.title,
           type: submission.type,
           fileUrl: finalFileUrl,
+          fileHash: fileHash, // Store hash for deduplication tracking
           durationMs: body.durationMs,
           priceCoins: body.priceCoins,
           status: 'approved',
@@ -260,15 +273,11 @@ export const adminController = {
         where: { id },
         data: {
           status: 'rejected',
-          moderatorNotes: body.moderatorNotes,
+          moderatorNotes: body.moderatorNotes || null,
         },
       });
 
-      // Optionally delete temp file
-      const tempPath = path.join(process.cwd(), submission.fileUrlTemp);
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath);
-      }
+      // Don't delete file on reject - keep it for potential future use
 
       res.json(updated);
     } catch (error) {

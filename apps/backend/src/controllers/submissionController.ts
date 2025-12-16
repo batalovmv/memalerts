@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { createSubmissionSchema, importMemeSchema } from '../shared/index.js';
 import { validateVideo } from '../utils/videoValidator.js';
 import { getOrCreateTags } from '../utils/tags.js';
+import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../utils/fileHash.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -70,8 +71,24 @@ export const submissionController = {
       }
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:58',message:'File size check passed, skipping validation',data:{fileSize:req.file.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:58',message:'File size check passed, starting deduplication',data:{fileSize:req.file.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
+
+      // Calculate file hash and perform deduplication
+      let finalFilePath: string;
+      let fileHash: string | null = null;
+      try {
+        const hash = await calculateFileHash(filePath);
+        const stats = await getFileStats(filePath);
+        const result = await findOrCreateFileHash(filePath, hash, stats.mimeType, stats.size);
+        finalFilePath = result.filePath;
+        fileHash = hash;
+        console.log(`File deduplication: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
+      } catch (error: any) {
+        console.error('File hash calculation failed, using original path:', error);
+        // Fallback to original path if hash calculation fails
+        finalFilePath = `/uploads/${req.file.filename}`;
+      }
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:76',message:'Starting getOrCreateTags',data:{tagsCount:body.tags?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
@@ -104,7 +121,7 @@ export const submissionController = {
         submitterUserId: req.userId!,
         title: body.title,
         type: 'video', // Force video type
-        fileUrlTemp: `/uploads/${req.file.filename}`,
+        fileUrlTemp: finalFilePath, // Use deduplicated file path
         notes: body.notes || null,
         status: 'pending',
       };
