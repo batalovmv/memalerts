@@ -9,11 +9,69 @@ export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
     const { slug } = req.params;
 
-    const channel = await prisma.channel.findUnique({
-      where: { slug },
-      include: {
-        memes: {
-          where: { status: 'approved' },
+    try {
+      const channel = await prisma.channel.findUnique({
+        where: { slug },
+        include: {
+          memes: {
+            where: { status: 'approved' },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              fileUrl: true,
+              durationMs: true,
+              priceCoins: true,
+              createdAt: true,
+            },
+          },
+          _count: {
+            select: {
+              memes: { where: { status: 'approved' } },
+              users: true,
+            },
+          },
+        },
+      });
+
+      if (!channel) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+
+      res.json({
+        id: channel.id,
+        slug: channel.slug,
+        name: channel.name,
+        coinPerPointRatio: channel.coinPerPointRatio,
+        primaryColor: (channel as any).primaryColor ?? null,
+        secondaryColor: (channel as any).secondaryColor ?? null,
+        accentColor: (channel as any).accentColor ?? null,
+        createdAt: channel.createdAt,
+        memes: channel.memes,
+        stats: {
+          memesCount: channel._count.memes,
+          usersCount: channel._count.users,
+        },
+      });
+    } catch (error: any) {
+      // If error is about missing columns, try query without color fields
+      if (error.message && error.message.includes('does not exist')) {
+        const channel = await prisma.$queryRaw`
+          SELECT id, slug, name, "coinPerPointRatio", "createdAt"
+          FROM "Channel"
+          WHERE slug = ${slug}
+        ` as any[];
+        
+        if (!channel || channel.length === 0) {
+          return res.status(404).json({ error: 'Channel not found' });
+        }
+        
+        const memes = await prisma.meme.findMany({
+          where: {
+            channelId: channel[0].id,
+            status: 'approved',
+          },
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,
@@ -24,35 +82,37 @@ export const viewerController = {
             priceCoins: true,
             createdAt: true,
           },
-        },
-        _count: {
-          select: {
-            memes: { where: { status: 'approved' } },
-            users: true,
+        });
+        
+        const memesCount = await prisma.meme.count({
+          where: {
+            channelId: channel[0].id,
+            status: 'approved',
           },
-        },
-      },
-    });
-
-    if (!channel) {
-      return res.status(404).json({ error: 'Channel not found' });
+        });
+        
+        const usersCount = await prisma.user.count({
+          where: { channelId: channel[0].id },
+        });
+        
+        return res.json({
+          id: channel[0].id,
+          slug: channel[0].slug,
+          name: channel[0].name,
+          coinPerPointRatio: channel[0].coinPerPointRatio,
+          primaryColor: null,
+          secondaryColor: null,
+          accentColor: null,
+          createdAt: channel[0].createdAt,
+          memes,
+          stats: {
+            memesCount,
+            usersCount,
+          },
+        });
+      }
+      throw error;
     }
-
-    res.json({
-      id: channel.id,
-      slug: channel.slug,
-      name: channel.name,
-      coinPerPointRatio: channel.coinPerPointRatio,
-      primaryColor: (channel as any).primaryColor ?? null,
-      secondaryColor: (channel as any).secondaryColor ?? null,
-      accentColor: (channel as any).accentColor ?? null,
-      createdAt: channel.createdAt,
-      memes: channel.memes,
-      stats: {
-        memesCount: channel._count.memes,
-        usersCount: channel._count.users,
-      },
-    });
   },
 
   getMe: async (req: AuthRequest, res: Response) => {
