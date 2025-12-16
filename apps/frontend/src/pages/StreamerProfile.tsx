@@ -174,9 +174,7 @@ export default function StreamerProfile() {
 
         {/* Memes List */}
         <h2 className="text-2xl font-bold mb-4">Available Memes</h2>
-        {memesLoading ? (
-          <div className="text-center py-8">Loading memes...</div>
-        ) : channelInfo.memes.length === 0 ? (
+        {channelInfo.memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500">No memes available yet.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
