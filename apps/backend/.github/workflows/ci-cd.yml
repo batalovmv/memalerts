@@ -223,6 +223,12 @@ jobs:
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
+              # Ensure nginx is reloaded after config changes
+              echo "Reloading nginx to apply configuration..."
+              sudo nginx -t && sudo systemctl reload nginx || {
+                echo "Failed to reload nginx"
+                exit 1
+              }
             elif [ -f .github/scripts/setup-nginx-full.sh ]; then
               chmod +x .github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
