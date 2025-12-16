@@ -591,7 +591,7 @@ function ChannelStatistics() {
               </tr>
             </thead>
             <tbody>
-              {stats.userSpending.map((item: any, index: number) => (
+              {stats.userSpending.map((item: any) => (
                 <tr key={item.user.id} className="border-b">
                   <td className="p-2">{item.user.displayName}</td>
                   <td className="p-2">{item.activationsCount}</td>
