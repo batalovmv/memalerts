@@ -448,7 +448,7 @@ function ChannelSettings() {
       const { api } = await import('../lib/api');
       await api.patch('/admin/channel/settings', {
         rewardIdForCoins: settings.rewardIdForCoins || null,
-        coinPerPointRatio: parseFloat(settings.coinPerPointRatio) || 1.0,
+        coinPerPointRatio: 1.0, // Legacy field, not used anymore
         rewardEnabled: settings.rewardEnabled,
         rewardTitle: settings.rewardTitle || null,
         rewardCost: settings.rewardCost ? parseInt(settings.rewardCost, 10) : null,
