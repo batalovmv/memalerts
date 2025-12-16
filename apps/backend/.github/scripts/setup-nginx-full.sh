@@ -212,6 +212,9 @@ server {
     }
 
     # Frontend routes
+    # IMPORTANT: This must come AFTER all backend routes
+    # try_files will try to find the file, and if not found, serve index.html
+    # This should NOT match /me because location = /me has higher priority
     location / {
         try_files \$uri \$uri/ /index.html;
     }
@@ -283,6 +286,9 @@ server {
     }
 
     # Frontend routes
+    # IMPORTANT: This must come AFTER all backend routes
+    # try_files will try to find the file, and if not found, serve index.html
+    # This should NOT match /me because location = /me has higher priority
     location / {
         try_files \$uri \$uri/ /index.html;
     }
