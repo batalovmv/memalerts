@@ -9,6 +9,10 @@ import fs from 'fs';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:11',message:'createSubmission started',data:{hasFile:!!req.file,channelId:req.channelId,userId:req.userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     if (!req.file) {
       return res.status(400).json({ error: 'File is required' });
     }
@@ -24,6 +28,10 @@ export const submissionController = {
       if (!req.file.mimetype.startsWith('video/')) {
         return res.status(400).json({ error: 'Only video files are allowed' });
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:28',message:'File validated as video',data:{mimetype:req.file.mimetype,filename:req.file.filename},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       // Parse tags from FormData (they come as JSON string)
       const bodyData = { ...req.body };
@@ -42,6 +50,10 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video type is allowed' });
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:45',message:'Starting video validation',data:{filePath:req.file.path},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
       // Validate video file (duration and size) with timeout protection
       const filePath = path.join(process.cwd(), req.file.path);
       
@@ -51,10 +63,14 @@ export const submissionController = {
         setTimeout(() => {
           console.warn('Video validation timeout, allowing upload to proceed');
           resolve({ valid: true }); // Allow upload if validation times out
-        }, 8000); // 8 second timeout for validation
+        }, 5000); // Reduced to 5 second timeout for validation
       });
       
       const validation = await Promise.race([validationPromise, timeoutPromise]);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:58',message:'Video validation completed',data:{valid:validation.valid,error:validation.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       
       if (!validation.valid) {
         // Delete uploaded file if validation fails
@@ -66,8 +82,16 @@ export const submissionController = {
         return res.status(400).json({ error: validation.error || 'Video validation failed' });
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:70',message:'Starting getOrCreateTags',data:{tagsCount:body.tags?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
       // Get or create tags (optimize by batching)
       const tagIds = await getOrCreateTags(body.tags || []);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:73',message:'Tags created, starting DB submission',data:{tagIdsCount:tagIds.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       // Create submission
       const submission = await prisma.memeSubmission.create({
@@ -94,9 +118,18 @@ export const submissionController = {
         },
       });
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:98',message:'Submission created, sending response',data:{submissionId:submission.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
       // Send response immediately after creating submission
       res.status(201).json(submission);
-    } catch (error) {
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:101',message:'Error in createSubmission',data:{error:error?.message,stack:error?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      console.error('Error in createSubmission:', error);
       throw error;
     }
   },
