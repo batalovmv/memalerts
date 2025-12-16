@@ -15,30 +15,83 @@ export const adminController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    const submissions = await prisma.memeSubmission.findMany({
-      where: {
-        channelId,
-        ...(status ? { status } : {}),
-      },
-      include: {
-        tags: {
-          include: {
-            tag: true,
+    try {
+      // Try to get submissions with tags first
+      const submissionsPromise = prisma.memeSubmission.findMany({
+        where: {
+          channelId,
+          ...(status ? { status } : {}),
+        },
+        include: {
+          tags: {
+            include: {
+              tag: true,
+            },
+          },
+          submitter: {
+            select: {
+              id: true,
+              displayName: true,
+            },
           },
         },
-        submitter: {
-          select: {
-            id: true,
-            displayName: true,
-          },
+        orderBy: {
+          createdAt: 'desc',
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+      });
 
-    res.json(submissions);
+      // Add timeout protection
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database query timeout')), 10000); // 10 seconds
+      });
+
+      let submissions;
+      try {
+        submissions = await Promise.race([submissionsPromise, timeoutPromise]);
+      } catch (error: any) {
+        // If error is about MemeSubmissionTag table, retry without tags
+        if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
+          console.warn('MemeSubmissionTag table not found, fetching submissions without tags');
+          submissions = await prisma.memeSubmission.findMany({
+            where: {
+              channelId,
+              ...(status ? { status } : {}),
+            },
+            include: {
+              submitter: {
+                select: {
+                  id: true,
+                  displayName: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          });
+          // Add empty tags array to match expected structure
+          submissions = submissions.map((s: any) => ({ ...s, tags: [] }));
+        } else if (error?.message === 'Database query timeout') {
+          return res.status(408).json({ 
+            error: 'Request timeout', 
+            message: 'Database query timed out. Please try again.' 
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      res.json(submissions);
+    } catch (error: any) {
+      console.error('Error in getSubmissions:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Internal server error',
+          message: 'Failed to fetch submissions',
+          details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        });
+      }
+    }
   },
 
   approveSubmission: async (req: AuthRequest, res: Response) => {
