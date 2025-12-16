@@ -16,9 +16,6 @@ export const viewerController = {
         slug: true,
         name: true,
         coinPerPointRatio: true,
-        primaryColor: true,
-        secondaryColor: true,
-        accentColor: true,
         createdAt: true,
         memes: {
           where: { status: 'approved' },
@@ -51,9 +48,9 @@ export const viewerController = {
       slug: channel.slug,
       name: channel.name,
       coinPerPointRatio: channel.coinPerPointRatio,
-      primaryColor: channel.primaryColor,
-      secondaryColor: channel.secondaryColor,
-      accentColor: channel.accentColor,
+      primaryColor: (channel as any).primaryColor || null,
+      secondaryColor: (channel as any).secondaryColor || null,
+      accentColor: (channel as any).accentColor || null,
       createdAt: channel.createdAt,
       memes: channel.memes,
       stats: {
