@@ -101,7 +101,7 @@ export const authController = {
       // Find or create user with proper error handling
       let user = await prisma.user.findUnique({
         where: { twitchUserId: twitchUser.id },
-        include: { wallet: true, channel: true },
+        include: { wallets: true, channel: true },
       });
 
       if (!user) {
@@ -140,27 +140,38 @@ export const authController = {
             
             channelId = channel.id;
 
-            // Create user with wallet
+            // Create user
             const newUser = await tx.user.create({
               data: {
                 twitchUserId: twitchUser.id,
                 displayName: twitchUser.display_name,
                 role,
                 channelId,
-                wallet: {
-                  create: {
-                    balance: 0,
-                  },
-                },
               },
               include: {
-                wallet: true,
+                wallets: true,
                 channel: true,
               },
             });
 
+            // Create wallet for this channel if channelId exists
+            if (channelId) {
+              await tx.wallet.create({
+                data: {
+                  userId: newUser.id,
+                  channelId: channelId,
+                  balance: 0,
+                },
+              });
+            }
+
+            // Fetch user with wallets after creation
+            const userWithWallets = await tx.user.findUnique({
+              where: { id: newUser.id },
+              include: { wallets: true, channel: true },
+            });
             console.log('Created new user:', newUser.id);
-            return newUser;
+            return userWithWallets!;
           });
         } catch (error: any) {
           console.error('Error creating user:', error);
@@ -169,7 +180,7 @@ export const authController = {
             console.log('User or channel already exists, trying to find user...');
             user = await prisma.user.findUnique({
               where: { twitchUserId: twitchUser.id },
-              include: { wallet: true, channel: true },
+              include: { wallets: true, channel: true },
             });
             if (!user) {
               throw new Error('Failed to create or find user');
@@ -182,29 +193,33 @@ export const authController = {
         console.log('User found:', user.id);
       }
 
-      // Ensure wallet exists
-      if (!user.wallet) {
-        console.log('Wallet missing, creating wallet...');
-        try {
-          await prisma.wallet.create({
-            data: {
-              userId: user.id,
-              balance: 0,
-            },
-          });
-          user = await prisma.user.findUnique({
-            where: { id: user.id },
-            include: { wallet: true, channel: true },
-          });
-          console.log('Wallet created');
-        } catch (error: any) {
-          console.error('Error creating wallet:', error);
-          // Wallet might have been created by another request, try to fetch user again
-          if (user) {
+      // Ensure wallet exists for user's channel (if user has a channel)
+      if (user && user.channelId) {
+        const existingWallet = user.wallets?.find(w => w.channelId === user.channelId);
+        if (!existingWallet) {
+          console.log('Wallet missing for channel, creating wallet...');
+          try {
+            await prisma.wallet.create({
+              data: {
+                userId: user.id,
+                channelId: user.channelId,
+                balance: 0,
+              },
+            });
             user = await prisma.user.findUnique({
               where: { id: user.id },
-              include: { wallet: true, channel: true },
+              include: { wallets: true, channel: true },
             });
+            console.log('Wallet created for channel');
+          } catch (error: any) {
+            console.error('Error creating wallet:', error);
+            if (user) {
+              // Wallet might have been created by another request, try to fetch user again
+              user = await prisma.user.findUnique({
+                where: { id: user.id },
+                include: { wallets: true, channel: true },
+              });
+            }
           }
         }
       }
@@ -264,12 +279,20 @@ export const authController = {
         console.error('WARNING: Set-Cookie header is not set!');
       }
 
-      // Redirect to dashboard or home if WEB_URL is not set
+      // Redirect to user's profile if streamer, otherwise to home
       const redirectUrl = process.env.WEB_URL || (isProduction ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
-      console.log('Auth successful, redirecting to:', `${redirectUrl}/dashboard`);
+      
+      let redirectPath = '/';
+      if (user.role === 'streamer' && user.channel?.slug) {
+        redirectPath = `/channel/${user.channel.slug}`;
+      } else if (user.role === 'streamer') {
+        redirectPath = '/dashboard';
+      }
+      
+      console.log('Auth successful, redirecting to:', `${redirectUrl}${redirectPath}`);
       
       // Use 302 redirect (temporary) to ensure cookie is sent
-      res.status(302).redirect(`${redirectUrl}/dashboard`);
+      res.status(302).redirect(`${redirectUrl}${redirectPath}`);
     } catch (error) {
       console.error('Auth error:', error);
       if (error instanceof Error) {

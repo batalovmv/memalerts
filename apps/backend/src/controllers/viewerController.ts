@@ -11,6 +11,19 @@ export const viewerController = {
     const channel = await prisma.channel.findUnique({
       where: { slug },
       include: {
+        memes: {
+          where: { status: 'approved' },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            fileUrl: true,
+            durationMs: true,
+            priceCoins: true,
+            createdAt: true,
+          },
+        },
         _count: {
           select: {
             memes: { where: { status: 'approved' } },
@@ -30,6 +43,7 @@ export const viewerController = {
       name: channel.name,
       coinPerPointRatio: channel.coinPerPointRatio,
       createdAt: channel.createdAt,
+      memes: channel.memes,
       stats: {
         memesCount: channel._count.memes,
         usersCount: channel._count.users,
@@ -41,8 +55,14 @@ export const viewerController = {
     const user = await prisma.user.findUnique({
       where: { id: req.userId! },
       include: {
-        wallet: true,
-        channel: true,
+        wallets: true,
+        channel: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -55,17 +75,73 @@ export const viewerController = {
       displayName: user.displayName,
       role: user.role,
       channelId: user.channelId,
-      wallet: user.wallet,
+      channel: user.channel,
+      wallets: user.wallets,
     });
   },
 
   getWallet: async (req: AuthRequest, res: Response) => {
+    const channelId = req.query.channelId as string | undefined;
+    
+    if (!channelId) {
+      return res.status(400).json({ error: 'Channel ID is required' });
+    }
+
     const wallet = await prisma.wallet.findUnique({
-      where: { userId: req.userId! },
+      where: { 
+        userId_channelId: {
+          userId: req.userId!,
+          channelId: channelId,
+        }
+      },
     });
 
     if (!wallet) {
-      return res.status(404).json({ error: 'Wallet not found' });
+      // Return wallet with 0 balance if not found
+      return res.json({
+        id: '',
+        userId: req.userId!,
+        channelId: channelId,
+        balance: 0,
+        updatedAt: new Date(),
+      });
+    }
+
+    res.json(wallet);
+  },
+
+  getWalletForChannel: async (req: AuthRequest, res: Response) => {
+    const { slug } = req.params;
+    
+    // Find channel by slug
+    const channel = await prisma.channel.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Find or create wallet for this user and channel
+    let wallet = await prisma.wallet.findUnique({
+      where: {
+        userId_channelId: {
+          userId: req.userId!,
+          channelId: channel.id,
+        }
+      },
+    });
+
+    if (!wallet) {
+      // Create wallet with 0 balance if it doesn't exist
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: req.userId!,
+          channelId: channel.id,
+          balance: 0,
+        },
+      });
     }
 
     res.json(wallet);
@@ -114,14 +190,6 @@ export const viewerController = {
 
       // Get user wallet and meme in transaction
       const result = await prisma.$transaction(async (tx) => {
-        const wallet = await tx.wallet.findUnique({
-          where: { userId: req.userId! },
-        });
-
-        if (!wallet) {
-          throw new Error('Wallet not found');
-        }
-
         const meme = await tx.meme.findUnique({
           where: { id: parsed.memeId },
           include: { channel: true },
@@ -135,13 +203,39 @@ export const viewerController = {
           throw new Error('Meme is not approved');
         }
 
+        // Find or create wallet for this user and channel
+        let wallet = await tx.wallet.findUnique({
+          where: {
+            userId_channelId: {
+              userId: req.userId!,
+              channelId: meme.channelId,
+            }
+          },
+        });
+
+        if (!wallet) {
+          // Create wallet with 0 balance if it doesn't exist
+          wallet = await tx.wallet.create({
+            data: {
+              userId: req.userId!,
+              channelId: meme.channelId,
+              balance: 0,
+            },
+          });
+        }
+
         if (wallet.balance < meme.priceCoins) {
           throw new Error('Insufficient balance');
         }
 
         // Deduct coins and create activation
         const updatedWallet = await tx.wallet.update({
-          where: { id: wallet.id },
+          where: { 
+            userId_channelId: {
+              userId: req.userId!,
+              channelId: meme.channelId,
+            }
+          },
           data: {
             balance: {
               decrement: meme.priceCoins,

@@ -8,7 +8,13 @@ export const userRoleSchema = z.enum(['viewer', 'streamer', 'admin']);
 
 export const createSubmissionSchema = z.object({
   title: z.string().min(1).max(200),
-  type: memeTypeSchema,
+  type: z.literal('video'), // Only video allowed
+  notes: z.string().max(500).optional().nullable(),
+});
+
+export const importMemeSchema = z.object({
+  title: z.string().min(1).max(200),
+  sourceUrl: z.string().url(), // URL from memalerts.com
   notes: z.string().max(500).optional().nullable(),
 });
 

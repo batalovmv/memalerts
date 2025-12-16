@@ -21,23 +21,19 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  // Only allow video files
   const allowedMimes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
     'video/mp4',
     'video/webm',
-    'audio/mpeg',
-    'audio/mp3',
-    'audio/wav',
-    'audio/ogg',
+    'video/quicktime',
+    'video/x-msvideo', // .avi
+    'video/x-matroska', // .mkv
   ];
 
-  if (allowedMimes.includes(file.mimetype)) {
+  if (allowedMimes.includes(file.mimetype) || file.mimetype.startsWith('video/')) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only images, videos, and audio files are allowed.'));
+    cb(new Error('Invalid file type. Only video files are allowed.'));
   }
 };
 

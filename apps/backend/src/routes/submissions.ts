@@ -8,6 +8,7 @@ export const submissionRoutes = Router();
 submissionRoutes.use(authenticate);
 
 submissionRoutes.post('/', uploadLimiter, upload.single('file'), submissionController.createSubmission);
+submissionRoutes.post('/import', submissionController.importMeme);
 submissionRoutes.get('/mine', submissionController.getMySubmissions);
 
 

@@ -17,6 +17,7 @@ model Channel {
   createdAt         DateTime @default(now())
 
   users         User[]
+  wallets       Wallet[]
   memes         Meme[]
   submissions   MemeSubmission[]
   redemptions   Redemption[]
@@ -33,7 +34,7 @@ model User {
   createdAt   DateTime  @default(now())
 
   channel         Channel?          @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  wallet          Wallet?
+  wallets         Wallet[]
   memesCreated    Meme[]            @relation("CreatedBy")
   memesApproved   Meme[]            @relation("ApprovedBy")
   submissions     MemeSubmission[]
@@ -47,13 +48,17 @@ model User {
 
 model Wallet {
   id        String   @id @default(uuid())
-  userId    String   @unique
+  userId    String
+  channelId String
   balance   Int      @default(0)
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, channelId])
   @@index([userId])
+  @@index([channelId])
 }
 
 model Meme {
@@ -86,6 +91,7 @@ model MemeSubmission {
   title          String
   type           String    // image, gif, video, audio
   fileUrlTemp    String
+  sourceUrl      String?   // URL of imported meme from memalerts.com
   notes          String?
   status         String    // pending, approved, rejected
   moderatorNotes String?
