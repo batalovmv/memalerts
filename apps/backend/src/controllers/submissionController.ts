@@ -18,10 +18,23 @@ export const submissionController = {
       return res.status(400).json({ error: 'File is required' });
     }
 
-    const channelId = req.channelId;
+    // Determine channelId: use from body/query if provided, otherwise use from token
+    let channelId = req.body.channelId || req.query.channelId;
+    if (!channelId) {
+      channelId = req.channelId;
+    }
 
     if (!channelId) {
       return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    // Validate that the channel exists
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId as string },
+    });
+
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
     }
 
     try {
@@ -258,10 +271,23 @@ export const submissionController = {
   },
 
   importMeme: async (req: AuthRequest, res: Response) => {
-    const channelId = req.channelId;
+    // Determine channelId: use from body/query if provided, otherwise use from token
+    let channelId = req.body.channelId || req.query.channelId;
+    if (!channelId) {
+      channelId = req.channelId;
+    }
 
     if (!channelId) {
       return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    // Validate that the channel exists
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId as string },
+    });
+
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
     }
 
     try {

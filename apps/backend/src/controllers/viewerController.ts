@@ -586,37 +586,48 @@ export const viewerController = {
           });
         }
 
+        // Check if user is the owner of the channel (free activation for channel owner)
+        const isChannelOwner = req.channelId === meme.channelId;
+
         // Check for active promotion
         const promotion = await getActivePromotion(meme.channelId);
         const finalPrice = promotion
           ? calculatePriceWithDiscount(meme.priceCoins, promotion.discountPercent)
           : meme.priceCoins;
 
-        if (wallet.balance < finalPrice) {
-          throw new Error('Insufficient balance');
-        }
+        let updatedWallet = wallet;
+        let coinsSpent = 0;
 
-        // Deduct coins and create activation
-        const updatedWallet = await tx.wallet.update({
-          where: { 
-            userId_channelId: {
-              userId: req.userId!,
-              channelId: meme.channelId,
-            }
-          },
-          data: {
-            balance: {
-              decrement: finalPrice,
+        if (!isChannelOwner) {
+          // Only check balance and deduct coins if user is not the channel owner
+          if (wallet.balance < finalPrice) {
+            throw new Error('Insufficient balance');
+          }
+
+          // Deduct coins
+          updatedWallet = await tx.wallet.update({
+            where: { 
+              userId_channelId: {
+                userId: req.userId!,
+                channelId: meme.channelId,
+              }
             },
-          },
-        });
+            data: {
+              balance: {
+                decrement: finalPrice,
+              },
+            },
+          });
+          coinsSpent = finalPrice;
+        }
+        // If isChannelOwner, coinsSpent remains 0 and wallet is not updated
 
         const activation = await tx.memeActivation.create({
           data: {
             channelId: meme.channelId,
             userId: req.userId!,
             memeId: meme.id,
-            coinsSpent: finalPrice,
+            coinsSpent: coinsSpent,
             status: 'queued',
           },
         });
@@ -647,6 +658,7 @@ export const viewerController = {
         originalPrice,
         finalPrice,
         discountApplied: promotion ? promotion.discountPercent : 0,
+        isFree: req.channelId === result.meme.channelId, // Indicate if activation was free for channel owner
       });
     } catch (error: any) {
       if (error.message === 'Wallet not found' || error.message === 'Meme not found') {
