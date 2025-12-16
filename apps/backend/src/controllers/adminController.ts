@@ -641,16 +641,46 @@ export const adminController = {
             });
           }
 
-          if (channel.rewardIdForCoins) {
+          // First, try to get existing rewards to see if we already have one
+          let existingRewardId: string | null = null;
+          try {
+            const rewards = await getChannelRewards(userId, channel.twitchChannelId);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:644',message:'Fetched existing rewards',data:{userId,channelId:channel.twitchChannelId,rewardsCount:rewards?.data?.length || 0,storedRewardId:channel.rewardIdForCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+            // #endregion
+            
+            // Check if we have a stored reward ID that still exists
+            if (channel.rewardIdForCoins && rewards?.data) {
+              const storedReward = rewards.data.find((r: any) => r.id === channel.rewardIdForCoins);
+              if (storedReward) {
+                existingRewardId = channel.rewardIdForCoins;
+              }
+            }
+            
+            // If no stored reward found, try to find a reward with matching title pattern
+            if (!existingRewardId && rewards?.data) {
+              const matchingReward = rewards.data.find((r: any) => 
+                r.title?.includes('Coins') || r.title?.includes('монет')
+              );
+              if (matchingReward) {
+                existingRewardId = matchingReward.id;
+              }
+            }
+          } catch (error: any) {
+            console.error('Error fetching rewards:', error);
+            // Continue with create/update logic
+          }
+
+          if (existingRewardId) {
             // Update existing reward
             try {
               // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:620',message:'Attempting to update existing reward',data:{userId,channelId:channel.twitchChannelId,rewardId:channel.rewardIdForCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:670',message:'Updating existing reward',data:{userId,channelId:channel.twitchChannelId,rewardId:existingRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
               // #endregion
               await updateChannelReward(
                 userId,
                 channel.twitchChannelId,
-                channel.rewardIdForCoins,
+                existingRewardId,
                 {
                   title: body.rewardTitle || `Get ${body.rewardCoins} Coins`,
                   cost: body.rewardCost,
@@ -658,32 +688,26 @@ export const adminController = {
                   prompt: `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`,
                 }
               );
+              body.rewardIdForCoins = existingRewardId;
             } catch (error: any) {
               // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:635',message:'Error updating reward',data:{error:error.message,errorCode:error.code,is404:error.message?.includes('404')||error.message?.includes('not found')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:685',message:'Error updating reward, will create new',data:{error:error.message,rewardId:existingRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
               // #endregion
               console.error('Error updating reward:', error);
-              // If reward doesn't exist, create new one
-              if (error.message?.includes('404') || error.message?.includes('not found')) {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:638',message:'Reward not found, creating new one',data:{userId,channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-                // #endregion
-                const rewardResponse = await createChannelReward(
-                  userId,
-                  channel.twitchChannelId,
-                  body.rewardTitle || `Get ${body.rewardCoins} Coins`,
-                  body.rewardCost,
-                  `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
-                );
-                body.rewardIdForCoins = rewardResponse.data[0].id;
-              } else {
-                throw error;
-              }
+              // If update fails, create new one
+              const rewardResponse = await createChannelReward(
+                userId,
+                channel.twitchChannelId,
+                body.rewardTitle || `Get ${body.rewardCoins} Coins`,
+                body.rewardCost,
+                `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
+              );
+              body.rewardIdForCoins = rewardResponse.data[0].id;
             }
           } else {
             // Create new reward
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:651',message:'Creating new reward',data:{userId,channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:700',message:'Creating new reward',data:{userId,channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
             // #endregion
             const rewardResponse = await createChannelReward(
               userId,
