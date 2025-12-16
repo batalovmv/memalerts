@@ -1,4 +1,4 @@
-export const login = (): void => {
+export const login = (redirectTo?: string): void => {
   const envUrl = import.meta.env.VITE_API_URL;
   let apiUrl: string;
   
@@ -12,6 +12,15 @@ export const login = (): void => {
     apiUrl = 'http://localhost:3001';
   }
   
-  window.location.href = `${apiUrl}/auth/twitch`;
+  // Get current path if redirectTo is not provided
+  const redirectPath = redirectTo || window.location.pathname;
+  
+  // Build auth URL with redirect_to parameter
+  const authUrl = new URL(`${apiUrl}/auth/twitch`);
+  if (redirectPath && redirectPath !== '/') {
+    authUrl.searchParams.set('redirect_to', redirectPath);
+  }
+  
+  window.location.href = authUrl.toString();
 };
 

@@ -105,7 +105,14 @@ export default function Submit() {
         toast.success('Submission created! Waiting for approval.');
         navigate('/dashboard');
       } catch (error: any) {
-        toast.error(error.response?.data?.error || error.message || 'Failed to submit meme');
+        // Handle 524 Cloudflare timeout specifically
+        if (error.code === 'ECONNABORTED' || error.response?.status === 524 || error.message?.includes('timeout')) {
+          toast.error('Upload timeout. The file may have been uploaded successfully. Please check your submissions.');
+          // Still navigate to dashboard - submission might have been created
+          setTimeout(() => navigate('/dashboard'), 2000);
+        } else {
+          toast.error(error.response?.data?.error || error.message || 'Failed to submit meme');
+        }
       } finally {
         setLoading(false);
         setUploadProgress(0);
