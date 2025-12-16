@@ -593,6 +593,10 @@ export const adminController = {
     const channelId = req.channelId;
     const userId = req.userId;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:598',message:'updateChannelSettings called',data:{channelId,userId,hasRewardEnabled:req.body?.rewardEnabled},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     if (!channelId || !userId) {
       return res.status(400).json({ error: 'Channel ID and User ID required' });
     }
@@ -617,9 +621,32 @@ export const adminController = {
             return res.status(400).json({ error: 'Reward cost and coins are required when enabling reward' });
           }
 
+          // Check if user has access token
+          const userWithToken = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { twitchAccessToken: true, twitchRefreshToken: true },
+          });
+
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:615',message:'Checking user token before reward operation',data:{userId,hasAccessToken:!!userWithToken?.twitchAccessToken,hasRefreshToken:!!userWithToken?.twitchRefreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+          // #endregion
+
+          if (!userWithToken || !userWithToken.twitchAccessToken) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:620',message:'No token found, returning error',data:{userId,userExists:!!userWithToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+            // #endregion
+            return res.status(401).json({ 
+              error: 'Twitch access token not found. Please log out and log in again to refresh your authorization.',
+              requiresReauth: true 
+            });
+          }
+
           if (channel.rewardIdForCoins) {
             // Update existing reward
             try {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:620',message:'Attempting to update existing reward',data:{userId,channelId:channel.twitchChannelId,rewardId:channel.rewardIdForCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              // #endregion
               await updateChannelReward(
                 userId,
                 channel.twitchChannelId,
@@ -632,9 +659,15 @@ export const adminController = {
                 }
               );
             } catch (error: any) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:635',message:'Error updating reward',data:{error:error.message,errorCode:error.code,is404:error.message?.includes('404')||error.message?.includes('not found')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              // #endregion
               console.error('Error updating reward:', error);
               // If reward doesn't exist, create new one
               if (error.message?.includes('404') || error.message?.includes('not found')) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:638',message:'Reward not found, creating new one',data:{userId,channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
                 const rewardResponse = await createChannelReward(
                   userId,
                   channel.twitchChannelId,
@@ -649,6 +682,9 @@ export const adminController = {
             }
           } else {
             // Create new reward
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:651',message:'Creating new reward',data:{userId,channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             const rewardResponse = await createChannelReward(
               userId,
               channel.twitchChannelId,

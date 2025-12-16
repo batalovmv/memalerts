@@ -191,6 +191,9 @@ export const authController = {
             channelId = channel.id;
 
             // Create user
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:194',message:'Creating new user with tokens',data:{twitchUserId:twitchUser.id,hasAccessToken:!!tokenData.access_token,hasRefreshToken:!!tokenData.refresh_token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
             const newUser = await tx.user.create({
               data: {
                 twitchUserId: twitchUser.id,
@@ -248,6 +251,9 @@ export const authController = {
         }
       } else {
         console.log('User found:', user.id);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:250',message:'Updating existing user tokens',data:{userId:user.id,hasAccessToken:!!tokenData.access_token,hasRefreshToken:!!tokenData.refresh_token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         // Update tokens for existing user
         user = await prisma.user.update({
           where: { id: user.id },
@@ -257,6 +263,9 @@ export const authController = {
           },
           include: { wallets: true, channel: true },
         });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:260',message:'User tokens updated',data:{userId:user.id,hasAccessToken:!!user.twitchAccessToken,hasRefreshToken:!!user.twitchRefreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
       }
 
       // Ensure wallet exists for user's channel (if user has a channel)
