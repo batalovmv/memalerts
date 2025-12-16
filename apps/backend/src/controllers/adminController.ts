@@ -98,6 +98,9 @@ export const adminController = {
   },
 
   approveSubmission: async (req: AuthRequest, res: Response) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:100',message:'approveSubmission entry',data:{submissionId:req.params.id,channelId:req.channelId,body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     const { id } = req.params;
     const channelId = req.channelId;
 
@@ -106,7 +109,13 @@ export const adminController = {
     }
 
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:109',message:'before schema parse',data:{body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const body = approveSubmissionSchema.parse(req.body);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:111',message:'after schema parse success',data:{parsedBody:body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       // Get submission first to check if it's imported (has sourceUrl)
       let submissionForBackground: any;
@@ -119,10 +128,19 @@ export const adminController = {
         // Ignore, will check in transaction
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:122',message:'before transaction start',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const result = await prisma.$transaction(async (tx) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:123',message:'inside transaction',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         // Try to get submission with tags first
         let submission: any;
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:126',message:'before findUnique submission',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           submission = await tx.memeSubmission.findUnique({
             where: { id },
             include: {
@@ -133,7 +151,13 @@ export const adminController = {
               },
             },
           });
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:136',message:'after findUnique submission success',data:{submissionFound:!!submission,submissionId:submission?.id,status:submission?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
         } catch (error: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:137',message:'error in findUnique submission',data:{errorMessage:error?.message,errorCode:error?.code,errorName:error?.name,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           // If error is about MemeSubmissionTag table, retry without tags
           if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
             console.warn('MemeSubmissionTag table not found, fetching submission without tags');
@@ -176,7 +200,13 @@ export const adminController = {
           const filePath = path.join(process.cwd(), submission.fileUrlTemp);
           
           // Check if file already exists in FileHash (was deduplicated during upload)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:179',message:'before getFileHashByPath',data:{fileUrlTemp:submission.fileUrlTemp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           const existingHash = await getFileHashByPath(submission.fileUrlTemp);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:181',message:'after getFileHashByPath',data:{existingHash:existingHash},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           
           if (existingHash) {
             // File was already deduplicated - use existing path and increment reference
@@ -220,6 +250,9 @@ export const adminController = {
         let tagIds: string[] = [];
         if (tagNames.length > 0) {
           try {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:222',message:'before getOrCreateTags',data:{tagNames:tagNames},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+            // #endregion
             const tagsPromise = getOrCreateTags(tagNames);
             const tagsTimeout = new Promise<string[]>((resolve) => {
               setTimeout(() => {
@@ -228,7 +261,13 @@ export const adminController = {
               }, 3000); // 3 second timeout for tags
             });
             tagIds = await Promise.race([tagsPromise, tagsTimeout]);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:230',message:'after getOrCreateTags success',data:{tagIds:tagIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+            // #endregion
           } catch (error: any) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:231',message:'error in getOrCreateTags',data:{errorMessage:error?.message,errorName:error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+            // #endregion
             console.warn('Error creating tags, proceeding without tags:', error.message);
             tagIds = [];
           }
@@ -269,6 +308,9 @@ export const adminController = {
           createdByUserId: submission.submitterUserId,
           approvedByUserId: req.userId!,
         };
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:282',message:'before meme.create',data:{memeDataKeys:Object.keys(memeData),hasFileHash:!!memeData.fileHash,hasTags:!!memeData.tags},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
 
         // Only add tags if we have tagIds
         if (tagIds.length > 0) {
@@ -290,9 +332,15 @@ export const adminController = {
               },
             } : undefined,
           });
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:294',message:'after meme.create success',data:{memeId:meme.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
 
           return meme;
         } catch (error: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:296',message:'error in meme.create',data:{errorMessage:error?.message,errorCode:error?.code,errorName:error?.name,isPrismaKnown:error instanceof PrismaClientKnownRequestError,isPrismaUnknown:error instanceof PrismaClientUnknownRequestError,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           console.error('Error creating meme:', error);
           // Check if it's a constraint violation or other Prisma error
           if (error instanceof PrismaClientKnownRequestError) {
@@ -336,8 +384,14 @@ export const adminController = {
         });
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:339',message:'before res.json success',data:{resultId:result?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       res.json(result);
     } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:340',message:'catch block entry',data:{errorMessage:error?.message,errorName:error?.name,errorCode:error?.code,isZodError:error instanceof ZodError,isPrismaKnown:error instanceof PrismaClientKnownRequestError,isPrismaUnknown:error instanceof PrismaClientUnknownRequestError,errorStack:error?.stack?.substring(0,1000)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       console.error('Error in approveSubmission:', error);
 
       // Don't send response if headers already sent
@@ -347,6 +401,9 @@ export const adminController = {
       }
 
       // Handle validation errors (ZodError)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:350',message:'checking ZodError',data:{isZodError:error instanceof ZodError,zodErrors:error instanceof ZodError ? error.errors : null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Validation error',
@@ -356,6 +413,9 @@ export const adminController = {
       }
 
       // Handle Prisma errors
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:359',message:'checking Prisma errors',data:{isPrismaKnown:error instanceof PrismaClientKnownRequestError,isPrismaUnknown:error instanceof PrismaClientUnknownRequestError,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       if (error instanceof PrismaClientKnownRequestError || error instanceof PrismaClientUnknownRequestError) {
         console.error('Prisma error in approveSubmission:', error.message);
         
@@ -393,6 +453,9 @@ export const adminController = {
       }
 
       // Handle all other errors
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:396',message:'fallback to generic error',data:{errorMessage:error?.message,errorName:error?.name,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       return res.status(500).json({
         error: 'Internal server error',
         message: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred while processing the request',
