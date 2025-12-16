@@ -28,7 +28,7 @@ export async function getVideoMetadata(filePath: string): Promise<VideoMetadata 
 
     const stats = fs.statSync(filePath);
     
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
+    ffmpeg.ffprobe(filePath, (err: Error | null, metadata: any) => {
       if (err) {
         // If ffprobe fails, we can't validate duration, but we can still return file size
         console.warn('Failed to get video metadata with ffprobe:', err.message);
@@ -41,7 +41,7 @@ export async function getVideoMetadata(filePath: string): Promise<VideoMetadata 
 
       const duration = metadata.format.duration || 0;
       
-      const videoStream = metadata.streams.find((s) => s.codec_type === 'video');
+      const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video');
       const width = videoStream?.width;
       const height = videoStream?.height;
 
