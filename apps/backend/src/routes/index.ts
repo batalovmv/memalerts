@@ -4,6 +4,9 @@ import { viewerRoutes } from './viewer.js';
 import { submissionRoutes } from './submissions.js';
 import { adminRoutes } from './admin.js';
 import { webhookRoutes } from './webhooks.js';
+import { authenticate } from '../middleware/auth.js';
+import { activateMemeLimiter } from '../middleware/rateLimit.js';
+import { viewerController } from '../controllers/viewerController.js';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
