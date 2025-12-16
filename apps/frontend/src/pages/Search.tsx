@@ -82,11 +82,11 @@ export default function Search() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold">Mem Alerts - Search</h1>
+            <h1 className="text-xl font-bold dark:text-white">Mem Alerts - Search</h1>
             {user && <UserMenu />}
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function Search() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Bar */}
-        <div className="mb-6 bg-white rounded-lg shadow p-6">
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="mb-4">
             <input
               type="text"
@@ -173,8 +173,8 @@ export default function Search() {
                     onClick={() => toggleTag(tag.name)}
                     className={`px-3 py-1 rounded-full text-sm transition-colors ${
                       selectedTags.includes(tag.name)
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                     }`}
                   >
                     {tag.name}
@@ -200,14 +200,14 @@ export default function Search() {
             {memes.map((meme) => (
               <div
                 key={meme.id}
-                className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => navigate(`/channel/${meme.channelId}`)}
               >
                 <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2">{meme.title}</h3>
+                  <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">{meme.type.toUpperCase()}</span>
-                    <span className="text-lg font-bold text-purple-600">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{meme.type.toUpperCase()}</span>
+                    <span className="text-lg font-bold text-primary">
                       {meme.priceCoins} coins
                     </span>
                   </div>
@@ -216,7 +216,7 @@ export default function Search() {
                       {meme.tags.map((tagItem, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs"
+                          className="px-2 py-1 bg-accent/20 text-accent rounded text-xs"
                         >
                           {tagItem.tag.name}
                         </span>

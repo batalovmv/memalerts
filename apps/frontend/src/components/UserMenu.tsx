@@ -92,15 +92,15 @@ export default function UserMenu() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
         {/* Avatar placeholder - will be replaced with Twitch avatar later */}
-        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
+        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
           {user.displayName.charAt(0).toUpperCase()}
         </div>
-        <span className="text-sm font-medium text-gray-700">{user.displayName}</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.displayName}</span>
         {userBalance > 0 && (
-          <span className="text-xs text-gray-500">({userBalance} coins)</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">({userBalance} coins)</span>
         )}
         <svg
           className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -113,16 +113,16 @@ export default function UserMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50">
           {/* User info header */}
-          <div className="px-4 py-3 border-b border-gray-200">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
                 {user.displayName.charAt(0).toUpperCase()}
               </div>
               <div>
-                <div className="font-medium text-gray-900">{user.displayName}</div>
-                <div className="text-sm text-gray-500">{displayRole}</div>
+                <div className="font-medium text-gray-900 dark:text-white">{user.displayName}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{displayRole}</div>
               </div>
             </div>
           </div>
@@ -132,21 +132,21 @@ export default function UserMenu() {
             {(user.role === 'streamer' || user.role === 'admin') && (
               <button
                 onClick={handleMyProfile}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 My Profile
               </button>
             )}
             <button
               onClick={handleSubmitMeme}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               Submit Meme
             </button>
             {(user.role === 'streamer' || user.role === 'admin') && (
               <button
                 onClick={handleAdmin}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 Admin Panel
               </button>
@@ -154,12 +154,12 @@ export default function UserMenu() {
           </div>
 
           {/* Divider */}
-          <div className="border-t border-gray-200 my-1"></div>
+          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
           {/* Logout */}
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             Logout
           </button>

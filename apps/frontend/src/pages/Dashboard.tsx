@@ -58,7 +58,7 @@ export default function Dashboard() {
       <nav className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold">Mem Alerts</h1>
+            <h1 className="text-xl font-bold dark:text-white">Mem Alerts</h1>
             <UserMenu />
           </div>
         </div>
@@ -69,13 +69,13 @@ export default function Dashboard() {
           <>
             <div className="mb-6">
               <h2 className="text-2xl font-bold mb-2">Your Profile Link</h2>
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="flex items-center gap-4">
                   <input
                     type="text"
                     readOnly
                     value={`https://twitchmemes.ru/channel/${user.channel?.slug || ''}`}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
+                    className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-700"
                   />
                   <button
                     onClick={async () => {
@@ -87,23 +87,23 @@ export default function Dashboard() {
                         toast.error('Failed to copy link');
                       }
                     }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                    className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                   >
                     Copy Link
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   Share this link so others can submit memes and activate them on your channel!
                 </p>
               </div>
             </div>
             <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2">Your Wallet</h2>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-3xl font-bold text-purple-600">
+              <h2 className="text-2xl font-bold mb-2 dark:text-white">Your Wallet</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <div className="text-3xl font-bold text-primary">
                   {user.wallets?.find(w => w.channelId === user.channelId)?.balance || 0} coins
                 </div>
-                <p className="text-gray-600 mt-2">
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
                   Redeem channel points on Twitch to earn coins!
                 </p>
               </div>
@@ -111,22 +111,22 @@ export default function Dashboard() {
           </>
         )}
 
-        <h2 className="text-2xl font-bold mb-4">Available Memes</h2>
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">Available Memes</h2>
         {memesLoading ? (
-          <div className="text-center py-8">Loading memes...</div>
+          <div className="text-center py-8 dark:text-gray-400">Loading memes...</div>
         ) : memes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No memes available yet.</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No memes available yet.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {memes.map((meme: Meme) => (
-              <div key={meme.id} className="bg-white rounded-lg shadow overflow-hidden">
+              <div key={meme.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
                 <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2">{meme.title}</h3>
+                  <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
                       {meme.type.toUpperCase()}
                     </span>
-                    <span className="text-lg font-bold text-purple-600">
+                    <span className="text-lg font-bold text-primary">
                       {meme.priceCoins} coins
                     </span>
                   </div>
@@ -136,7 +136,7 @@ export default function Dashboard() {
                       !user.channelId || !user.wallets || 
                       (user.wallets.find(w => w.channelId === user.channelId)?.balance || 0) < meme.priceCoins
                     }
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
+                    className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
                   >
                     {!user.channelId || !user.wallets || 
                      (user.wallets.find(w => w.channelId === user.channelId)?.balance || 0) < meme.priceCoins

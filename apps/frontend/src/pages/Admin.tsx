@@ -76,11 +76,11 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold">Admin Panel</h1>
+            <h1 className="text-xl font-bold dark:text-white">Admin Panel</h1>
             <UserMenu />
           </div>
         </div>
@@ -91,30 +91,30 @@ export default function Admin() {
           <div className="flex gap-4 border-b">
             <button
               onClick={() => setActiveTab('submissions')}
-              className={`pb-2 px-4 ${
+              className={`pb-2 px-4 transition-colors ${
                 activeTab === 'submissions'
-                  ? 'border-b-2 border-purple-600 text-purple-600'
-                  : 'text-gray-600'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
               Pending Submissions ({submissions.length})
             </button>
             <button
               onClick={() => setActiveTab('memes')}
-              className={`pb-2 px-4 ${
+              className={`pb-2 px-4 transition-colors ${
                 activeTab === 'memes'
-                  ? 'border-b-2 border-purple-600 text-purple-600'
-                  : 'text-gray-600'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
               All Memes ({memes.length})
             </button>
             <button
               onClick={() => setActiveTab('settings')}
-              className={`pb-2 px-4 ${
+              className={`pb-2 px-4 transition-colors ${
                 activeTab === 'settings'
-                  ? 'border-b-2 border-purple-600 text-purple-600'
-                  : 'text-gray-600'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
               Channel Settings
@@ -174,29 +174,29 @@ export default function Admin() {
                 <p className="text-sm mt-2">All submissions have been reviewed.</p>
               </div>
             ) : (
-              submissions.map((submission) => (
-                <div key={submission.id} className="bg-white rounded-lg shadow p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{submission.title}</h3>
-                      <p className="text-sm text-gray-600">
-                        By {submission.submitter.displayName} • {submission.type}
-                      </p>
-                      {submission.notes && (
-                        <p className="text-sm text-gray-500 mt-2">{submission.notes}</p>
-                      )}
-                      {submission.tags && submission.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {submission.tags.map((tagItem, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs"
-                            >
-                              {tagItem.tag.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                     submissions.map((submission) => (
+                       <div key={submission.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                         <div className="flex justify-between items-start mb-4">
+                           <div className="flex-1">
+                             <h3 className="font-semibold text-lg dark:text-white">{submission.title}</h3>
+                             <p className="text-sm text-gray-600 dark:text-gray-400">
+                               By {submission.submitter.displayName} • {submission.type}
+                             </p>
+                             {submission.notes && (
+                               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{submission.notes}</p>
+                             )}
+                             {submission.tags && submission.tags.length > 0 && (
+                               <div className="flex flex-wrap gap-1 mt-2">
+                                 {submission.tags.map((tagItem, idx) => (
+                                   <span
+                                     key={idx}
+                                     className="px-2 py-1 bg-accent/20 text-accent rounded text-xs"
+                                   >
+                                     {tagItem.tag.name}
+                                   </span>
+                                 ))}
+                               </div>
+                             )}
                     </div>
                   </div>
                   
@@ -210,18 +210,18 @@ export default function Admin() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApprove(submission.id)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleReject(submission.id)}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-                    >
-                      Reject
-                    </button>
+                  <button
+                    onClick={() => handleApprove(submission.id)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(submission.id)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    Reject
+                  </button>
                   </div>
                 </div>
               ))
@@ -231,7 +231,10 @@ export default function Admin() {
 
         {activeTab === 'memes' && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div 
+              className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"
+              style={{ columnGap: 0 }}
+            >
               {memes.map((meme: Meme) => {
                 const isOwner = user?.channelId === meme.channelId && (user?.role === 'streamer' || user?.role === 'admin');
                 return (
@@ -435,6 +438,8 @@ function ChannelSettings() {
         accentColor: settings.accentColor || null,
       });
       toast.success('Settings saved!');
+      // Refresh channel colors
+      window.location.reload();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to save settings');
     } finally {

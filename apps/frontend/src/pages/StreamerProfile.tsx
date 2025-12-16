@@ -147,11 +147,13 @@ export default function StreamerProfile() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900" style={customStyles}>
       <nav className="bg-white dark:bg-gray-800 shadow-sm" style={{
-        backgroundColor: channelInfo?.primaryColor || undefined,
+        backgroundColor: channelInfo?.primaryColor ? (document.documentElement.classList.contains('dark') ? undefined : channelInfo.primaryColor) : undefined,
       }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold">Mem Alerts</h1>
+            <h1 className="text-xl font-bold dark:text-white" style={{
+              color: channelInfo?.primaryColor && !document.documentElement.classList.contains('dark') ? '#ffffff' : undefined,
+            }}>Mem Alerts</h1>
             {user && <UserMenu />}
           </div>
         </div>
@@ -159,9 +161,9 @@ export default function StreamerProfile() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">{channelInfo.name}</h1>
-          <p className="text-gray-600">@{channelInfo.slug}</p>
-          <div className="mt-4 flex gap-4 text-sm text-gray-500">
+          <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
+          <p className="text-gray-600 dark:text-gray-400">@{channelInfo.slug}</p>
+          <div className="mt-4 flex gap-4 text-sm text-gray-500 dark:text-gray-400">
             <span>{channelInfo.stats.memesCount} memes</span>
             <span>{channelInfo.stats.usersCount} users</span>
           </div>
@@ -170,12 +172,12 @@ export default function StreamerProfile() {
         {/* User Wallet (if logged in) */}
         {user && wallet && (
           <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-2">Your Balance</h2>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-3xl font-bold text-purple-600">
+            <h2 className="text-2xl font-bold mb-2 dark:text-white">Your Balance</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="text-3xl font-bold" style={{ color: channelInfo.accentColor || 'var(--accent-color)' }}>
                 {wallet.balance} coins
               </div>
-              <p className="text-gray-600 mt-2">
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Redeem channel points on Twitch to earn coins!
               </p>
             </div>
@@ -187,7 +189,7 @@ export default function StreamerProfile() {
           <div className="mb-6">
             <button
               onClick={handleSubmitMeme}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+              className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
             >
               Submit a Meme
             </button>
@@ -195,9 +197,9 @@ export default function StreamerProfile() {
         )}
 
         {/* Memes List */}
-        <h2 className="text-2xl font-bold mb-4">Available Memes</h2>
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">Available Memes</h2>
         {channelInfo.memes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No memes available yet.</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No memes available yet.</div>
         ) : (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                    {channelInfo.memes.map((meme: Meme) => (
@@ -210,7 +212,7 @@ export default function StreamerProfile() {
                            </span>
                            <span 
                              className="text-lg font-bold"
-                             style={{ color: channelInfo.accentColor || '#9333ea' }}
+                             style={{ color: channelInfo.accentColor || 'var(--accent-color)' }}
                            >
                              {meme.priceCoins} coins
                            </span>
@@ -219,7 +221,7 @@ export default function StreamerProfile() {
                     <button
                       onClick={() => handleActivate(meme.id)}
                       disabled={!wallet || wallet.balance < meme.priceCoins}
-                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
+                      className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
                     >
                       {!wallet || wallet.balance < meme.priceCoins
                         ? 'Insufficient coins'

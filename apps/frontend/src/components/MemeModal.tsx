@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Meme } from '../types';
 import { api } from '../lib/api';
 import toast from 'react-hot-toast';
@@ -13,50 +13,95 @@ interface MemeModalProps {
 
 export default function MemeModal({ meme, isOpen, onClose, onUpdate, isOwner }: MemeModalProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
     title: '',
     priceCoins: 0,
     durationMs: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Update currentMeme when meme prop changes
   useEffect(() => {
     if (meme) {
+      setCurrentMeme(meme);
       setFormData({
         title: meme.title,
         priceCoins: meme.priceCoins,
         durationMs: meme.durationMs,
       });
+      setIsEditing(false);
     }
   }, [meme]);
 
-  if (!isOpen || !meme) return null;
+  // Auto-play video when modal opens
+  useEffect(() => {
+    if (isOpen && videoRef.current && currentMeme) {
+      videoRef.current.play().catch(() => {
+        // Ignore autoplay errors
+      });
+      setIsPlaying(true);
+    } else if (!isOpen && videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [isOpen, currentMeme]);
+
+  if (!isOpen || !currentMeme) return null;
 
   const getVideoUrl = () => {
-    if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
-      return meme.fileUrl;
+    if (currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://')) {
+      return currentMeme.fileUrl;
     }
     const apiUrl = import.meta.env.VITE_API_URL || '';
-    if (apiUrl && !meme.fileUrl.startsWith('/')) {
-      return `${apiUrl}/${meme.fileUrl}`;
+    if (apiUrl && !currentMeme.fileUrl.startsWith('/')) {
+      return `${apiUrl}/${currentMeme.fileUrl}`;
     }
-    return meme.fileUrl.startsWith('/') ? meme.fileUrl : `/${meme.fileUrl}`;
+    return currentMeme.fileUrl.startsWith('/') ? currentMeme.fileUrl : `/${currentMeme.fileUrl}`;
   };
 
   const videoUrl = getVideoUrl();
-  const creatorName = meme.createdBy?.displayName || 'Unknown';
-  const source = meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://') 
+  const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
+  const source = currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://') 
     ? 'imported' 
     : 'uploaded';
+
+  const handlePlayPause = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  const handleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.patch(`/admin/memes/${meme.id}`, formData);
+      const response = await api.patch(`/admin/memes/${currentMeme.id}`, formData);
+      // Update current meme with response data
+      setCurrentMeme(response.data);
       toast.success('Meme updated successfully!');
       setIsEditing(false);
-      onUpdate();
+      onUpdate(); // Update list in background
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to update meme');
     } finally {
@@ -66,146 +111,244 @@ export default function MemeModal({ meme, isOpen, onClose, onUpdate, isOwner }: 
 
   const handleCancel = () => {
     setIsEditing(false);
-    if (meme) {
+    if (currentMeme) {
       setFormData({
-        title: meme.title,
-        priceCoins: meme.priceCoins,
-        durationMs: meme.durationMs,
+        title: currentMeme.title,
+        priceCoins: currentMeme.priceCoins,
+        durationMs: currentMeme.durationMs,
       });
     }
   };
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="meme-modal-title"
     >
       <div
-        className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        role="document"
       >
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="text-2xl font-bold">
-              {isEditing ? 'Edit Meme' : meme.title}
-            </h2>
-            <div className="flex gap-2">
-              {isOwner && !isEditing && (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
-                >
-                  Edit
-                </button>
-              )}
+        {/* Header */}
+        <header className="flex justify-between items-center p-4 border-b">
+          <h2 id="meme-modal-title" className="text-2xl font-bold">
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="border border-gray-300 rounded px-3 py-1 text-2xl font-bold"
+                disabled={!isEditing}
+              />
+            ) : (
+              currentMeme.title
+            )}
+          </h2>
+          <div className="flex items-center gap-2">
+            {isOwner && (
               <button
-                onClick={onClose}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded"
+                onClick={isEditing ? handleCancel : handleEdit}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors group"
+                title={isEditing ? 'Cancel editing' : 'Edit meme'}
               >
-                Close
+                <svg
+                  className={`w-5 h-5 ${isEditing ? 'text-red-600' : 'text-gray-600 group-hover:text-purple-600'}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {isEditing ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  )}
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              title="Close"
+            >
+              <svg
+                className="w-5 h-5 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Video Section - Left */}
+          <section className="flex-1 bg-black flex items-center justify-center relative" aria-label="Video player">
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              loop
+              playsInline
+              className="max-w-full max-h-full object-contain"
+              preload="auto"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              aria-label={`Video: ${currentMeme.title}`}
+            />
+            
+            {/* Custom Video Controls */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2">
+              <button
+                onClick={handlePlayPause}
+                className="text-white hover:text-gray-300 transition-colors"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={handleMute}
+                className="text-white hover:text-gray-300 transition-colors"
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>
 
-          {isEditing ? (
-            <form onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price (coins)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.priceCoins}
-                    onChange={(e) => setFormData({ ...formData, priceCoins: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    min="1"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Duration (ms)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.durationMs}
-                    onChange={(e) => setFormData({ ...formData, durationMs: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    min="1"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded"
-                >
-                  {loading ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <div className="mb-4">
-                <video
-                  src={videoUrl}
-                  controls
-                  className="w-full rounded-lg"
-                  preload="metadata"
-                />
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <span className="font-semibold">Price:</span> {meme.priceCoins} coins
-                </div>
-                <div>
-                  <span className="font-semibold">Duration:</span> {meme.durationMs}ms
-                </div>
-                <div>
-                  <span className="font-semibold">Created by:</span> {creatorName}
-                </div>
-                <div>
-                  <span className="font-semibold">Source:</span> <span className="capitalize">{source}</span>
-                </div>
-                {meme.status && (
+          {/* Info Section - Right */}
+          <aside className="w-80 border-l bg-gray-50 overflow-y-auto" aria-label="Meme information">
+            <div className="p-6 space-y-6">
+              {isEditing ? (
+                <form onSubmit={handleSave} className="space-y-4" aria-label="Edit meme form">
                   <div>
-                    <span className="font-semibold">Status:</span> {meme.status}
+                    <label htmlFor="meme-title" className="block text-sm font-medium text-gray-700 mb-2">
+                      Title
+                    </label>
+                    <input
+                      id="meme-title"
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
+                      aria-required="true"
+                    />
                   </div>
-                )}
-                {meme.createdAt && (
                   <div>
-                    <span className="font-semibold">Created:</span>{' '}
-                    {new Date(meme.createdAt).toLocaleString()}
+                    <label htmlFor="meme-price" className="block text-sm font-medium text-gray-700 mb-2">
+                      Price (coins)
+                    </label>
+                    <input
+                      id="meme-price"
+                      type="number"
+                      value={formData.priceCoins}
+                      onChange={(e) => setFormData({ ...formData, priceCoins: parseInt(e.target.value) || 0 })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      min="1"
+                      required
+                      aria-required="true"
+                    />
                   </div>
-                )}
-              </div>
-            </>
-          )}
+                  <div>
+                    <label htmlFor="meme-duration" className="block text-sm font-medium text-gray-700 mb-2">
+                      Duration (ms)
+                    </label>
+                    <input
+                      id="meme-duration"
+                      type="number"
+                      value={formData.durationMs}
+                      onChange={(e) => setFormData({ ...formData, durationMs: parseInt(e.target.value) || 0 })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      min="1"
+                      required
+                      aria-required="true"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                    >
+                      {loading ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Price</div>
+                      <div className="text-lg font-semibold text-gray-900">{currentMeme.priceCoins} coins</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Duration</div>
+                      <div className="text-lg font-semibold text-gray-900">{currentMeme.durationMs}ms</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Created by</div>
+                      <div className="text-base text-gray-900">{creatorName}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Source</div>
+                      <div className="text-base text-gray-900 capitalize">{source}</div>
+                    </div>
+                    {currentMeme.status && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</div>
+                        <div className="text-base text-gray-900 capitalize">{currentMeme.status}</div>
+                      </div>
+                    )}
+                    {currentMeme.createdAt && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Created</div>
+                        <div className="text-base text-gray-900">
+                          {new Date(currentMeme.createdAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

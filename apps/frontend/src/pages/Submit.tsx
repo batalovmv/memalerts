@@ -155,29 +155,29 @@ export default function Submit() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold">Mem Alerts</h1>
+            <h1 className="text-xl font-bold dark:text-white">Mem Alerts</h1>
             <UserMenu />
           </div>
         </div>
       </nav>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-2xl font-bold mb-6">Submit a Meme</h2>
+        <h2 className="text-2xl font-bold mb-6 dark:text-white">Submit a Meme</h2>
         
         {/* Mode selector */}
-        <div className="mb-6 bg-white rounded-lg shadow p-4">
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
           <div className="flex gap-4">
             <button
               type="button"
               onClick={() => setMode('upload')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                 mode === 'upload'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               Upload Video
@@ -187,8 +187,8 @@ export default function Submit() {
               onClick={() => setMode('import')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                 mode === 'import'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               Import from memalerts.com
@@ -196,7 +196,7 @@ export default function Submit() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Title
@@ -286,7 +286,7 @@ export default function Submit() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
           >
             {loading ? (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Submitting...') : 'Submit'}
           </button>

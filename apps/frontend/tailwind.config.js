@@ -6,10 +6,19 @@ export default {
     extend: {
       colors: {
         dark: {
-          bg: '#1a1a1a',
-          surface: '#2d2d2d',
-          text: '#e5e5e5',
-          border: '#404040',
+          bg: '#111827',
+          surface: '#1f2937',
+          text: '#f9fafb',
+          border: '#374151',
+        },
+        primary: {
+          DEFAULT: 'var(--primary-color)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary-color)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent-color)',
         },
       },
     },

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { Meme } from '../types';
 
 interface MemeCardProps {
@@ -10,6 +10,13 @@ interface MemeCardProps {
 export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Generate consistent aspect ratio based on meme ID for stable layout
+  const aspectRatio = useMemo(() => {
+    // Use meme ID to deterministically assign aspect ratio
+    const hash = meme.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return hash % 2 === 0 ? 'aspect-[9/16]' : 'aspect-square';
+  }, [meme.id]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -36,16 +43,24 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
   };
 
   const videoUrl = getVideoUrl();
-  const creatorName = meme.createdBy?.displayName || 'Unknown';
 
   return (
-    <div
-      className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
+    <article
+      className="bg-white overflow-hidden cursor-pointer break-inside-avoid mb-0"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`View meme: ${meme.title}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
     >
-      <div className="relative aspect-video bg-gray-900">
+      <div className={`relative w-full ${aspectRatio} bg-gray-900`}>
         <video
           ref={videoRef}
           src={videoUrl}
@@ -54,23 +69,18 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
           playsInline
           className="w-full h-full object-cover"
           preload="metadata"
+          aria-label={`Video preview: ${meme.title}`}
         />
         {isOwner && (
-          <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+          <div 
+            className="absolute top-2 right-2 bg-purple-600 bg-opacity-80 text-white text-xs px-2 py-1 rounded"
+            aria-label="Your meme"
+          >
             Your Meme
           </div>
         )}
       </div>
-      <div className="p-4">
-        <h3 className="font-semibold text-lg mb-1 line-clamp-1">{meme.title}</h3>
-        <p className="text-sm text-gray-600">
-          {meme.priceCoins} coins • {meme.durationMs}ms
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          By {creatorName}
-        </p>
-      </div>
-    </div>
+    </article>
   );
 }
 
