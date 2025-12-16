@@ -458,10 +458,9 @@ function ChannelSettings() {
         accentColor: settings.accentColor || null,
       });
       toast.success(t('admin.settingsSaved'));
-      // Reload settings to get updated rewardId
+      // Reload settings to get updated rewardId and state
       await loadSettings();
-      // Refresh channel colors
-      window.location.reload();
+      // Don't reload page - just update the UI
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
       toast.error(errorMessage);
