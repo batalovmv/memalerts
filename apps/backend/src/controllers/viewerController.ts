@@ -59,6 +59,7 @@ export const viewerController = {
         rewardTitle: (channel as any).rewardTitle ?? null,
         rewardCost: (channel as any).rewardCost ?? null,
         rewardCoins: (channel as any).rewardCoins ?? null,
+        coinIconUrl: (channel as any).coinIconUrl ?? null,
         primaryColor: (channel as any).primaryColor ?? null,
         secondaryColor: (channel as any).secondaryColor ?? null,
         accentColor: (channel as any).accentColor ?? null,

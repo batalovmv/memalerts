@@ -697,6 +697,8 @@ export const adminController = {
             }
           }
 
+          let coinIconUrl: string | null = null;
+          
           if (existingRewardId) {
             // Update existing reward
             try {
@@ -715,6 +717,16 @@ export const adminController = {
                 }
               );
               body.rewardIdForCoins = existingRewardId;
+              
+              // Fetch reward details to get image URL
+              try {
+                const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, existingRewardId);
+                if (rewardDetails?.data?.[0]?.image?.url_1x || rewardDetails?.data?.[0]?.image?.url_2x || rewardDetails?.data?.[0]?.image?.url_4x) {
+                  coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
+                }
+              } catch (error) {
+                console.error('Error fetching reward details for icon:', error);
+              }
             } catch (error: any) {
               // #region agent log
               fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:685',message:'Error updating reward, will create new',data:{error:error.message,rewardId:existingRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
@@ -729,6 +741,11 @@ export const adminController = {
                 `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
               );
               body.rewardIdForCoins = rewardResponse.data[0].id;
+              
+              // Extract image URL from reward response
+              if (rewardResponse?.data?.[0]?.image?.url_1x || rewardResponse?.data?.[0]?.image?.url_2x || rewardResponse?.data?.[0]?.image?.url_4x) {
+                coinIconUrl = rewardResponse.data[0].image.url_1x || rewardResponse.data[0].image.url_2x || rewardResponse.data[0].image.url_4x;
+              }
             }
           } else {
             // Create new reward
@@ -743,6 +760,11 @@ export const adminController = {
               `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
             );
             body.rewardIdForCoins = rewardResponse.data[0].id;
+            
+            // Extract image URL from reward response
+            if (rewardResponse?.data?.[0]?.image?.url_1x || rewardResponse?.data?.[0]?.image?.url_2x || rewardResponse?.data?.[0]?.image?.url_4x) {
+              coinIconUrl = rewardResponse.data[0].image.url_1x || rewardResponse.data[0].image.url_2x || rewardResponse.data[0].image.url_4x;
+            }
           }
           
           // Create EventSub subscription if it doesn't exist
@@ -829,22 +851,29 @@ export const adminController = {
 
       // Update channel in database
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:681',message:'Updating channel in DB',data:{channelId,rewardEnabled:body.rewardEnabled,rewardIdForCoins:body.rewardIdForCoins,rewardCost:body.rewardCost,rewardCoins:body.rewardCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:681',message:'Updating channel in DB',data:{channelId,rewardEnabled:body.rewardEnabled,rewardIdForCoins:body.rewardIdForCoins,rewardCost:body.rewardCost,rewardCoins:body.rewardCoins,coinIconUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
       // #endregion
+      
+      const updateData: any = {
+        rewardIdForCoins: body.rewardIdForCoins !== undefined ? body.rewardIdForCoins : (channel as any).rewardIdForCoins,
+        coinPerPointRatio: body.coinPerPointRatio !== undefined ? body.coinPerPointRatio : channel.coinPerPointRatio,
+        rewardEnabled: body.rewardEnabled !== undefined ? body.rewardEnabled : (channel as any).rewardEnabled,
+        rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : (channel as any).rewardTitle,
+        rewardCost: body.rewardCost !== undefined ? body.rewardCost : (channel as any).rewardCost,
+        rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : (channel as any).rewardCoins,
+        primaryColor: body.primaryColor !== undefined ? body.primaryColor : (channel as any).primaryColor,
+        secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : (channel as any).secondaryColor,
+        accentColor: body.accentColor !== undefined ? body.accentColor : (channel as any).accentColor,
+      };
+      
+      // Only update coinIconUrl if we have a value or if reward is being disabled
+      if (coinIconUrl !== null || body.rewardEnabled === false) {
+        updateData.coinIconUrl = body.rewardEnabled === false ? null : coinIconUrl;
+      }
       
       const updatedChannel = await prisma.channel.update({
         where: { id: channelId },
-        data: {
-          rewardIdForCoins: body.rewardIdForCoins !== undefined ? body.rewardIdForCoins : channel.rewardIdForCoins,
-          coinPerPointRatio: body.coinPerPointRatio !== undefined ? body.coinPerPointRatio : channel.coinPerPointRatio,
-          rewardEnabled: body.rewardEnabled !== undefined ? body.rewardEnabled : channel.rewardEnabled,
-          rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : channel.rewardTitle,
-          rewardCost: body.rewardCost !== undefined ? body.rewardCost : channel.rewardCost,
-          rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : channel.rewardCoins,
-          primaryColor: body.primaryColor !== undefined ? body.primaryColor : channel.primaryColor,
-          secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : channel.secondaryColor,
-          accentColor: body.accentColor !== undefined ? body.accentColor : channel.accentColor,
-        },
+        data: updateData,
       });
 
       // #region agent log

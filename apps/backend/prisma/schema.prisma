@@ -18,6 +18,7 @@ model Channel {
   rewardTitle       String?  // Title of the reward in Twitch
   rewardCost        Int?     // Cost in channel points
   rewardCoins       Int?     // Coins granted per redemption
+  coinIconUrl       String?  // Custom coin icon URL from Twitch reward
   primaryColor      String?  // Hex color for primary theme
   secondaryColor    String?  // Hex color for secondary theme
   accentColor       String?  // Hex color for accent
