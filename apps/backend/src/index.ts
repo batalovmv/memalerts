@@ -100,9 +100,10 @@ async function startServer() {
     process.exit(1);
   }
 
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 API server running on http://localhost:${PORT}`);
-  });
+httpServer.listen(PORT, () => {
+  console.log(`🚀 API server running on http://localhost:${PORT}`);
+  console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
+});
 }
 
 startServer();
