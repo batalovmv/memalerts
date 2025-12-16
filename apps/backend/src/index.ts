@@ -73,7 +73,37 @@ setupSocketIO(io);
 // Error handler
 app.use(errorHandler);
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 API server running on http://localhost:${PORT}`);
-});
+// Test database connection before starting server
+import { prisma } from './lib/prisma.js';
+
+async function startServer() {
+  try {
+    // Test database connection
+    console.log('Testing database connection...');
+    await prisma.$connect();
+    console.log('✅ Database connection successful');
+    
+    // Test a simple query
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ Database query test successful');
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+    }
+    console.error('');
+    console.error('Please check:');
+    console.error('1. DATABASE_URL is correctly set in .env');
+    console.error('2. PostgreSQL is running: sudo systemctl status postgresql');
+    console.error('3. Database and user exist');
+    console.error('4. Password in DATABASE_URL is correct');
+    process.exit(1);
+  }
+
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 API server running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();
 
