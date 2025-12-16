@@ -363,6 +363,10 @@ sudo systemctl start nginx || {
 }
 sudo systemctl enable nginx
 
+# Ensure nginx is reloaded to apply any changes
+echo "Reloading nginx to ensure configuration is applied..."
+sudo systemctl reload nginx || sudo systemctl restart nginx
+
 # Get SSL certificate via Let's Encrypt (only if not using Cloudflare cert)
 if [ "$USE_CLOUDFLARE_CERT" != true ] && [[ ! $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # Verify nginx is running on HTTP first
