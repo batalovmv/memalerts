@@ -556,6 +556,25 @@ export const adminController = {
       const updated = await prisma.meme.update({
         where: { id },
         data: body,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              displayName: true,
+              channel: {
+                select: {
+                  slug: true,
+                },
+              },
+            },
+          },
+          approvedBy: {
+            select: {
+              id: true,
+              displayName: true,
+            },
+          },
+        },
       });
 
       res.json(updated);
