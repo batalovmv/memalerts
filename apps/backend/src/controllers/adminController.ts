@@ -13,6 +13,7 @@ import {
   updateChannelReward,
   deleteChannelReward,
   getChannelRewards,
+  createEventSubSubscription,
 } from '../utils/twitchApi.js';
 
 export const adminController = {
@@ -741,6 +742,28 @@ export const adminController = {
               `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
             );
             body.rewardIdForCoins = rewardResponse.data[0].id;
+          }
+          
+          // Create EventSub subscription if it doesn't exist
+          try {
+            // Use API URL (backend), not frontend URL
+            const apiUrl = process.env.API_URL || process.env.WEB_URL?.replace(':5173', ':3001') || 'https://twitchmemes.ru';
+            const webhookUrl = `${apiUrl}/webhooks/twitch/eventsub`;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:750',message:'Creating EventSub subscription',data:{userId,channelId:channel.twitchChannelId,webhookUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+            // #endregion
+            await createEventSubSubscription(
+              userId,
+              channel.twitchChannelId,
+              webhookUrl,
+              process.env.TWITCH_EVENTSUB_SECRET!
+            );
+          } catch (error: any) {
+            // Log but don't fail - subscription might already exist
+            console.error('Error creating EventSub subscription:', error);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:760',message:'EventSub subscription error (may already exist)',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+            // #endregion
           }
         } else {
           // Disable reward - disable in Twitch but don't delete

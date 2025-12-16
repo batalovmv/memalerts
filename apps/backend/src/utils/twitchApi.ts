@@ -243,3 +243,46 @@ export async function getChannelRewards(
   return twitchApiRequest(endpoint, 'GET', userId);
 }
 
+/**
+ * Create EventSub subscription for channel point reward redemptions
+ */
+export async function createEventSubSubscription(
+  userId: string,
+  broadcasterId: string,
+  webhookUrl: string,
+  secret: string
+): Promise<any> {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No valid access token available');
+  }
+
+  const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+    method: 'POST',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      type: 'channel.channel_points_custom_reward_redemption.add',
+      version: '1',
+      condition: {
+        broadcaster_user_id: broadcasterId,
+      },
+      transport: {
+        method: 'webhook',
+        callback: webhookUrl,
+        secret: secret,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  return response.json();
+}
+
