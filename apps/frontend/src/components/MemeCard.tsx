@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Meme } from '../types';
 
 interface MemeCardProps {
@@ -9,14 +9,48 @@ interface MemeCardProps {
 
 export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Generate consistent aspect ratio based on meme ID for stable layout
-  const aspectRatio = useMemo(() => {
-    // Use meme ID to deterministically assign aspect ratio
-    const hash = meme.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return hash % 2 === 0 ? 'aspect-[9/16]' : 'aspect-square';
-  }, [meme.id]);
+  // Determine real video aspect ratio
+  useEffect(() => {
+    if (videoRef.current && meme.type === 'video') {
+      const video = videoRef.current;
+      
+      const handleLoadedMetadata = () => {
+        if (video.videoWidth && video.videoHeight) {
+          const ratio = video.videoWidth / video.videoHeight;
+          
+          // Determine aspect ratio class based on actual dimensions
+          if (ratio > 1.3) {
+            // Horizontal (16:9 or wider)
+            setAspectRatio('aspect-video');
+          } else if (ratio < 0.8) {
+            // Vertical (9:16 or taller)
+            setAspectRatio('aspect-[9/16]');
+          } else {
+            // Square (approximately 1:1)
+            setAspectRatio('aspect-square');
+          }
+        }
+      };
+
+      if (video.readyState >= 1) {
+        // Metadata already loaded
+        handleLoadedMetadata();
+      } else {
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      }
+
+      return () => {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+    } else if (meme.type !== 'video') {
+      // For images/gifs, use default aspect ratio
+      setAspectRatio('aspect-video');
+    }
+  }, [meme.type, meme.fileUrl]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -24,12 +58,29 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
         videoRef.current.play().catch(() => {
           // Ignore autoplay errors
         });
+        // Enable sound if user has interacted
+        if (hasUserInteracted) {
+          videoRef.current.muted = false;
+        }
       } else {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
+        videoRef.current.muted = true; // Always mute when not hovered
       }
     }
-  }, [isHovered]);
+  }, [isHovered, hasUserInteracted]);
+
+  const handleCardClick = () => {
+    setHasUserInteracted(true);
+    onClick();
+  };
+
+  const handleCardInteraction = () => {
+    setHasUserInteracted(true);
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+    }
+  };
 
   const getVideoUrl = () => {
     if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
@@ -46,34 +97,45 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
 
   return (
     <article
-      className="bg-white overflow-hidden cursor-pointer break-inside-avoid mb-0"
+      className="bg-white dark:bg-gray-800 overflow-hidden cursor-pointer break-inside-avoid mb-0"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={onClick}
+      onClick={handleCardClick}
+      onMouseDown={handleCardInteraction}
+      onTouchStart={handleCardInteraction}
       role="button"
       tabIndex={0}
       aria-label={`View meme: ${meme.title}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick();
+          handleCardClick();
         }
       }}
     >
       <div className={`relative w-full ${aspectRatio} bg-gray-900`}>
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          muted
-          loop
-          playsInline
-          className="w-full h-full object-cover"
-          preload="metadata"
-          aria-label={`Video preview: ${meme.title}`}
-        />
+        {meme.type === 'video' ? (
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            muted={!hasUserInteracted || !isHovered}
+            loop
+            playsInline
+            className="w-full h-full object-contain"
+            preload="metadata"
+            aria-label={`Video preview: ${meme.title}`}
+          />
+        ) : (
+          <img
+            src={videoUrl}
+            alt={meme.title}
+            className="w-full h-full object-contain"
+            loading="lazy"
+          />
+        )}
         {isOwner && (
           <div 
-            className="absolute top-2 right-2 bg-purple-600 bg-opacity-80 text-white text-xs px-2 py-1 rounded"
+            className="absolute top-2 right-2 bg-primary bg-opacity-80 text-white text-xs px-2 py-1 rounded"
             aria-label="Your meme"
           >
             Your Meme
@@ -83,4 +145,3 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
     </article>
   );
 }
-

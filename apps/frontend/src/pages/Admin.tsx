@@ -122,10 +122,10 @@ export default function Admin() {
             {user?.role === 'admin' && (
               <button
                 onClick={() => setActiveTab('wallets')}
-                className={`pb-2 px-4 ${
+                className={`pb-2 px-4 transition-colors ${
                   activeTab === 'wallets'
-                    ? 'border-b-2 border-purple-600 text-purple-600'
-                    : 'text-gray-600'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
                 }`}
               >
                 Wallet Management
@@ -133,20 +133,20 @@ export default function Admin() {
             )}
             <button
               onClick={() => setActiveTab('promotions')}
-              className={`pb-2 px-4 ${
+              className={`pb-2 px-4 transition-colors ${
                 activeTab === 'promotions'
-                  ? 'border-b-2 border-purple-600 text-purple-600'
-                  : 'text-gray-600'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
               Promotions
             </button>
             <button
               onClick={() => setActiveTab('statistics')}
-              className={`pb-2 px-4 ${
+              className={`pb-2 px-4 transition-colors ${
                 activeTab === 'statistics'
-                  ? 'border-b-2 border-purple-600 text-purple-600'
-                  : 'text-gray-600'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
               Statistics
@@ -263,6 +263,7 @@ export default function Admin() {
                 }
               }}
               isOwner={user?.channelId === selectedMeme?.channelId && (user?.role === 'streamer' || user?.role === 'admin')}
+              mode="admin"
             />
           </>
         )}
@@ -552,7 +553,7 @@ function ChannelSettings() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
         >
           {loading ? 'Saving...' : 'Save Settings'}
         </button>
@@ -597,9 +598,9 @@ function ChannelStatistics() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-4">Overall Statistics</h2>
         <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <p className="text-3xl font-bold text-purple-600">{stats.overall.totalActivations}</p>
-            <p className="text-sm text-gray-600">Total Activations</p>
+          <div className="text-center p-4 bg-primary/10 rounded-lg">
+            <p className="text-3xl font-bold text-primary">{stats.overall.totalActivations}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Total Activations</p>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <p className="text-3xl font-bold text-green-600">{stats.overall.totalCoinsSpent}</p>
@@ -629,7 +630,7 @@ function ChannelStatistics() {
                 <tr key={item.user.id} className="border-b">
                   <td className="p-2">{item.user.displayName}</td>
                   <td className="p-2">{item.activationsCount}</td>
-                  <td className="p-2 font-bold text-purple-600">{item.totalCoinsSpent}</td>
+                  <td className="p-2 font-bold text-accent">{item.totalCoinsSpent}</td>
                 </tr>
               ))}
             </tbody>
@@ -654,7 +655,7 @@ function ChannelStatistics() {
                 <tr key={item.meme?.id || index} className="border-b">
                   <td className="p-2">{item.meme?.title || 'Unknown'}</td>
                   <td className="p-2">{item.activationsCount}</td>
-                  <td className="p-2 font-bold text-purple-600">{item.totalCoinsSpent}</td>
+                  <td className="p-2 font-bold text-accent">{item.totalCoinsSpent}</td>
                 </tr>
               ))}
             </tbody>
@@ -767,7 +768,7 @@ function PromotionManagement() {
           <h2 className="text-2xl font-bold">Promotions</h2>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+            className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded transition-colors"
           >
             {showCreateForm ? 'Cancel' : 'Create Promotion'}
           </button>
@@ -850,7 +851,7 @@ function PromotionManagement() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-semibold text-lg">{promo.name}</h3>
-                      <p className="text-purple-600 font-bold">{promo.discountPercent}% discount</p>
+                      <p className="text-accent font-bold">{promo.discountPercent}% discount</p>
                       <p className="text-sm text-gray-600">
                         {startDate.toLocaleString()} - {endDate.toLocaleString()}
                       </p>

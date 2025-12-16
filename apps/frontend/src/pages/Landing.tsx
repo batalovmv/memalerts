@@ -45,7 +45,7 @@ export default function Landing() {
             <>
               <button
                 onClick={() => login()}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-4"
+                className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-4"
               >
                 {t('landing.login')}
               </button>

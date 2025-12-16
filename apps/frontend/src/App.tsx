@@ -23,17 +23,19 @@ function App() {
   return (
     <>
       <Toaster position="top-right" />
-      <div className="flex flex-col min-h-screen">
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/channel/:slug" element={<StreamerProfile />} />
-          <Route path="/submit" element={<Submit />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-        </Routes>
+      <div className="flex flex-col min-h-screen overflow-x-hidden">
+        <div className="flex-1">
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/channel/:slug" element={<StreamerProfile />} />
+            <Route path="/submit" element={<Submit />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+          </Routes>
+        </div>
         <Footer />
       </div>
     </>

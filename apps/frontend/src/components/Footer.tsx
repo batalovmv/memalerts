@@ -6,9 +6,13 @@ export default function Footer() {
   const { i18n } = useTranslation();
 
   const toggleLanguage = () => {
-    const newLang = i18n.language === 'en' ? 'ru' : 'en';
+    // Fix: when language is 'ru', switch to 'en', when 'en', switch to 'ru'
+    const newLang = i18n.language === 'ru' ? 'en' : 'ru';
     i18n.changeLanguage(newLang);
   };
+
+  // Get current language for display
+  const currentLang = i18n.language === 'ru' ? 'RU' : 'EN';
 
   return (
     <footer className="bg-gray-800 dark:bg-gray-900 text-white mt-auto">
@@ -23,16 +27,16 @@ export default function Footer() {
             {/* Language Toggle */}
             <button
               onClick={toggleLanguage}
-              className="text-sm hover:text-purple-400 transition-colors px-3 py-1 rounded border border-gray-600 hover:border-purple-400"
-              title={i18n.language === 'en' ? 'Switch to Russian' : 'Переключить на английский'}
+              className="text-sm hover:text-accent transition-colors px-3 py-1 rounded border border-gray-600 hover:border-accent"
+              title={i18n.language === 'ru' ? 'Switch to English' : 'Переключить на русский'}
             >
-              {i18n.language === 'en' ? '🇷🇺 RU' : '🇬🇧 EN'}
+              {currentLang}
             </button>
             
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="text-sm hover:text-purple-400 transition-colors px-3 py-1 rounded border border-gray-600 hover:border-purple-400"
+              className="text-sm hover:text-accent transition-colors px-3 py-1 rounded border border-gray-600 hover:border-accent"
               title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
             >
               {theme === 'dark' ? '☀️' : '🌙'}
@@ -42,7 +46,7 @@ export default function Footer() {
               href="https://twitch.tv/LOTAS_bro"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm hover:text-purple-400 transition-colors"
+              className="text-sm hover:text-accent transition-colors"
             >
               twitch.tv/LOTAS_bro
             </a>

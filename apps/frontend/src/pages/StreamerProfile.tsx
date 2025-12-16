@@ -4,6 +4,8 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { activateMeme } from '../store/slices/memesSlice';
 import { api } from '../lib/api';
 import UserMenu from '../components/UserMenu';
+import MemeCard from '../components/MemeCard';
+import MemeModal from '../components/MemeModal';
 import toast from 'react-hot-toast';
 import type { Meme, Wallet } from '../types';
 
@@ -32,6 +34,8 @@ export default function StreamerProfile() {
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -201,45 +205,48 @@ export default function StreamerProfile() {
         {channelInfo.memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">No memes available yet.</div>
         ) : (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {channelInfo.memes.map((meme: Meme) => (
-                     <div key={meme.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                       <div className="p-4">
-                         <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
-                         <div className="flex items-center justify-between mb-4">
-                           <span className="text-sm text-gray-600 dark:text-gray-400">
-                             {meme.type.toUpperCase()}
-                           </span>
-                           <span 
-                             className="text-lg font-bold"
-                             style={{ color: channelInfo.accentColor || 'var(--accent-color)' }}
-                           >
-                             {meme.priceCoins} coins
-                           </span>
-                         </div>
-                  {user ? (
-                    <button
-                      onClick={() => handleActivate(meme.id)}
-                      disabled={!wallet || wallet.balance < meme.priceCoins}
-                      className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
-                    >
-                      {!wallet || wallet.balance < meme.priceCoins
-                        ? 'Insufficient coins'
-                        : 'Activate'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => navigate('/')}
-                      className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded transition-colors"
-                    >
-                      Log in to activate
-                    </button>
-                  )}
-                </div>
-              </div>
+          <div 
+            className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"
+            style={{ columnGap: 0 }}
+          >
+            {channelInfo.memes.map((meme: Meme) => (
+              <MemeCard
+                key={meme.id}
+                meme={meme}
+                onClick={() => {
+                  setSelectedMeme(meme);
+                  setIsModalOpen(true);
+                }}
+                isOwner={false}
+              />
             ))}
           </div>
         )}
+      </main>
+
+      {/* Meme Modal */}
+      {isModalOpen && selectedMeme && (
+        <MemeModal
+          meme={selectedMeme}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedMeme(null);
+          }}
+          onUpdate={() => {
+            // Refresh wallet if needed
+            if (slug && user) {
+              api.get<Wallet>(`/channels/${slug}/wallet`).then(response => {
+                setWallet(response.data);
+              }).catch(() => {});
+            }
+          }}
+          isOwner={false}
+          mode="viewer"
+          onActivate={handleActivate}
+          walletBalance={wallet?.balance}
+        />
+      )}
       </main>
     </div>
   );
