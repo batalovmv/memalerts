@@ -166,9 +166,9 @@ server {
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
     # location = has highest priority in Nginx
-    # IMPORTANT: proxy_pass without trailing slash preserves the URI
+    # IMPORTANT: proxy_pass without trailing slash preserves the URI (/me -> /me)
     location = /me {
-        proxy_pass http://localhost:$BACKEND_PORT/me;
+        proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -181,6 +181,10 @@ server {
         proxy_intercept_errors off;
         proxy_next_upstream off;
         proxy_redirect off;
+        # Add error handling
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 5s;
     }
     
     # Other backend routes
@@ -242,9 +246,9 @@ server {
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
     # location = has highest priority in Nginx
-    # IMPORTANT: proxy_pass without trailing slash preserves the URI
+    # IMPORTANT: proxy_pass without trailing slash preserves the URI (/me -> /me)
     location = /me {
-        proxy_pass http://localhost:$BACKEND_PORT/me;
+        proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -257,6 +261,10 @@ server {
         proxy_intercept_errors off;
         proxy_next_upstream off;
         proxy_redirect off;
+        # Add error handling
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 5s;
     }
     
     # Other backend routes
@@ -482,6 +490,15 @@ else
     echo "Config file contents:"
     sudo cat /etc/nginx/sites-available/memalerts | grep -A 10 "location" || true
     exit 1
+fi
+
+# Test backend connectivity before reloading nginx
+echo "Testing backend connectivity on port $BACKEND_PORT..."
+if curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:$BACKEND_PORT/health 2>/dev/null | grep -q "200\|404\|401"; then
+    echo "✅ Backend is responding on port $BACKEND_PORT"
+else
+    echo "⚠️  WARNING: Backend may not be responding on port $BACKEND_PORT"
+    echo "This is OK if backend is not running yet, but /me endpoint will fail"
 fi
 
 # Explicitly reload nginx after config creation to ensure it's active
