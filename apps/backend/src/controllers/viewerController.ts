@@ -38,6 +38,9 @@ export const viewerController = {
   },
 
   getMe: async (req: AuthRequest, res: Response) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'controllers/viewerController.ts:getMe', message: 'getMe controller called', data: { userId: req.userId, path: req.path, originalUrl: req.originalUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => {});
+    // #endregion
     const user = await prisma.user.findUnique({
       where: { id: req.userId! },
       include: {

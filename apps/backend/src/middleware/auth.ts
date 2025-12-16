@@ -10,6 +10,10 @@ export interface AuthRequest extends Request {
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.cookies.token;
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'middleware/auth.ts:authenticate', message: 'Authenticate middleware called', data: { path: req.path, method: req.method, originalUrl: req.originalUrl, baseUrl: req.baseUrl, hasToken: !!token, cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => {});
+  // #endregion
+
   console.log('Authenticate middleware called:', {
     path: req.path,
     method: req.method,
