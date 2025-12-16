@@ -99,10 +99,36 @@ export const authController = {
       console.log('Twitch user found:', twitchUser.login);
 
       // Find or create user with proper error handling
-      let user = await prisma.user.findUnique({
-        where: { twitchUserId: twitchUser.id },
-        include: { wallets: true, channel: true },
-      });
+      let user;
+      try {
+        user = await prisma.user.findUnique({
+          where: { twitchUserId: twitchUser.id },
+          include: { wallets: true, channel: true },
+        });
+      } catch (error: any) {
+        // If error is about missing columns, try query without color fields
+        if (error.message && error.message.includes('does not exist')) {
+          user = await prisma.user.findUnique({
+            where: { twitchUserId: twitchUser.id },
+            include: { 
+              wallets: true,
+              channel: {
+                select: {
+                  id: true,
+                  slug: true,
+                  name: true,
+                  twitchChannelId: true,
+                  rewardIdForCoins: true,
+                  coinPerPointRatio: true,
+                  createdAt: true,
+                },
+              },
+            },
+          });
+        } else {
+          throw error;
+        }
+      }
 
       if (!user) {
         console.log('User not found, creating new user...');
