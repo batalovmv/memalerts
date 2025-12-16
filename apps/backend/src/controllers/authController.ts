@@ -25,7 +25,12 @@ export const authController = {
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_callback_url`);
     }
 
-    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}`;
+    // Get redirect_to parameter from query string (where user wants to go after login)
+    const redirectTo = (req.query.redirect_to as string) || '';
+    // Encode the redirect_to in state parameter
+    const state = redirectTo ? encodeURIComponent(redirectTo) : '';
+
+    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}${state ? `&state=${state}` : ''}`;
     console.log('Initiating Twitch auth, redirecting to:', authUrl);
     res.redirect(authUrl);
   },
@@ -329,13 +334,25 @@ export const authController = {
       const redirectUrl = process.env.WEB_URL || (isProduction ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
       
       let redirectPath = '/';
-      if (user.role === 'streamer' && user.channel?.slug) {
-        redirectPath = `/channel/${user.channel.slug}`;
-      } else if (user.role === 'streamer') {
-        redirectPath = '/dashboard';
+      
+      // Check if state parameter contains a redirect path (user came from a specific page)
+      if (state && typeof state === 'string') {
+        const decodedState = decodeURIComponent(state);
+        // If state is a channel profile path, redirect there
+        if (decodedState.startsWith('/channel/')) {
+          redirectPath = decodedState;
+        } else {
+          // Otherwise, redirect to dashboard for streamers
+          redirectPath = user.role === 'streamer' ? '/dashboard' : '/';
+        }
+      } else {
+        // No state parameter - default behavior: dashboard for streamers (not channel profile)
+        if (user.role === 'streamer') {
+          redirectPath = '/dashboard';
+        }
       }
       
-      console.log('Auth successful, redirecting to:', `${redirectUrl}${redirectPath}`);
+      console.log('Auth successful, redirecting to:', `${redirectUrl}${redirectPath}`, 'state:', state);
       
       // Use 302 redirect (temporary) to ensure cookie is sent
       res.status(302).redirect(`${redirectUrl}${redirectPath}`);
