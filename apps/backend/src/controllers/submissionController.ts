@@ -98,35 +98,63 @@ export const submissionController = {
       // #endregion
 
       // Create submission with timeout protection
+      // If tagIds is empty or tags table doesn't exist, create without tags
+      const submissionData: any = {
+        channelId,
+        submitterUserId: req.userId!,
+        title: body.title,
+        type: 'video', // Force video type
+        fileUrlTemp: `/uploads/${req.file.filename}`,
+        notes: body.notes || null,
+        status: 'pending',
+      };
+
+      // Only add tags if we have tagIds (and table exists)
+      if (tagIds.length > 0) {
+        submissionData.tags = {
+          create: tagIds.map((tagId) => ({
+            tagId,
+          })),
+        };
+      }
+
       const submissionPromise = prisma.memeSubmission.create({
-        data: {
-          channelId,
-          submitterUserId: req.userId!,
-          title: body.title,
-          type: 'video', // Force video type
-          fileUrlTemp: `/uploads/${req.file.filename}`,
-          notes: body.notes || null,
-          status: 'pending',
-          tags: tagIds.length > 0 ? {
-            create: tagIds.map((tagId) => ({
-              tagId,
-            })),
-          } : undefined,
-        },
-        include: {
+        data: submissionData,
+        include: tagIds.length > 0 ? {
           tags: {
             include: {
               tag: true,
             },
           },
-        },
+        } : undefined,
       });
       
       const submissionTimeout = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Submission creation timeout')), 10000); // 10 second timeout
       });
       
-      const submission = await Promise.race([submissionPromise, submissionTimeout]) as any;
+      let submission: any;
+      try {
+        submission = await Promise.race([submissionPromise, submissionTimeout]);
+      } catch (dbError: any) {
+        // If error is about MemeSubmissionTag table, retry without tags
+        if (dbError?.code === 'P2021' && dbError?.meta?.table === 'public.MemeSubmissionTag') {
+          console.warn('MemeSubmissionTag table not found, creating submission without tags');
+          submission = await prisma.memeSubmission.create({
+            data: {
+              channelId,
+              submitterUserId: req.userId!,
+              title: body.title,
+              type: 'video',
+              fileUrlTemp: `/uploads/${req.file.filename}`,
+              notes: body.notes || null,
+              status: 'pending',
+            },
+          });
+        } else {
+          throw dbError;
+        }
+      }
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:98',message:'Submission created, sending response',data:{submissionId:submission.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
@@ -171,10 +199,27 @@ export const submissionController = {
         });
       }
 
+      // Handle Prisma errors specifically
+      if (error?.code === 'P2021' || error?.name === 'PrismaClientKnownRequestError') {
+        console.error('Prisma database error - table may not exist:', error?.meta);
+        if (!res.headersSent) {
+          return res.status(500).json({
+            error: 'Database error',
+            message: 'A database error occurred. Please contact support if this persists.',
+            details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+          });
+        }
+        return;
+      }
+
       // If response hasn't been sent, send error response
       if (!res.headersSent) {
-        // Re-throw to let error handler middleware handle it
-        throw error;
+        // Return error response instead of throwing to prevent hanging
+        return res.status(500).json({
+          error: 'Internal server error',
+          message: error?.message || 'An unexpected error occurred',
+          details: process.env.NODE_ENV === 'development' ? error?.stack : undefined,
+        });
       } else {
         // Response already sent, just log the error
         console.error('Error occurred after response was sent');

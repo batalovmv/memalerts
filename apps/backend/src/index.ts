@@ -48,6 +48,9 @@ httpServer.on('timeout', (socket) => {
   socket.destroy();
 });
 
+// Trust proxy for rate limiting behind reverse proxy (nginx/cloudflare)
+app.set('trust proxy', true);
+
 // Middleware
 // Configure helmet to allow cookies
 app.use(
