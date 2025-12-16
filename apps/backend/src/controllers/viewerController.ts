@@ -178,10 +178,6 @@ export const viewerController = {
     const { slug } = req.params;
     
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewerController.ts:177',message:'getWalletForChannel called',data:{slug,userId:req.userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       // Find channel by slug with timeout protection
       const channelPromise = prisma.channel.findUnique({
         where: { slug },
@@ -194,65 +190,34 @@ export const viewerController = {
       
       const channel = await Promise.race([channelPromise, channelTimeout]) as any;
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewerController.ts:195',message:'Channel found',data:{channelId:channel?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       if (!channel) {
         return res.status(404).json({ error: 'Channel not found' });
       }
 
-      // Find or create wallet for this user and channel with timeout protection
-      const walletPromise = prisma.wallet.findUnique({
+      // Use upsert to find or create wallet atomically (prevents race conditions)
+      const walletPromise = prisma.wallet.upsert({
         where: {
           userId_channelId: {
             userId: req.userId!,
             channelId: channel.id,
           }
         },
+        update: {}, // If exists, just return it
+        create: {
+          userId: req.userId!,
+          channelId: channel.id,
+          balance: 0,
+        },
       });
       
       const walletTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Wallet lookup timeout')), 5000);
+        setTimeout(() => reject(new Error('Wallet operation timeout')), 5000);
       });
       
-      let wallet = await Promise.race([walletPromise, walletTimeout]) as any;
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewerController.ts:215',message:'Wallet lookup result',data:{walletFound:!!wallet},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
-      if (!wallet) {
-        // Create wallet with 0 balance if it doesn't exist
-        const createWalletPromise = prisma.wallet.create({
-          data: {
-            userId: req.userId!,
-            channelId: channel.id,
-            balance: 0,
-          },
-        });
-        
-        const createTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Wallet creation timeout')), 5000);
-        });
-        
-        wallet = await Promise.race([createWalletPromise, createTimeout]) as any;
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewerController.ts:230',message:'Wallet created',data:{walletId:wallet?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-      }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewerController.ts:235',message:'Sending wallet response',data:{walletId:wallet?.id,balance:wallet?.balance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      const wallet = await Promise.race([walletPromise, walletTimeout]) as any;
       
       res.json(wallet);
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewerController.ts:240',message:'Error in getWalletForChannel',data:{error:error?.message,stack:error?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       console.error('Error in getWalletForChannel:', error);
       
       // If timeout or database error, return a default wallet instead of failing
@@ -264,6 +229,34 @@ export const viewerController = {
           balance: 0,
           updatedAt: new Date(),
         });
+      }
+      
+      // Handle unique constraint errors gracefully
+      if (error.message?.includes('Unique constraint failed')) {
+        // Try to fetch existing wallet
+        try {
+          const channel = await prisma.channel.findUnique({
+            where: { slug },
+            select: { id: true },
+          });
+          
+          if (channel) {
+            const wallet = await prisma.wallet.findUnique({
+              where: {
+                userId_channelId: {
+                  userId: req.userId!,
+                  channelId: channel.id,
+                }
+              },
+            });
+            
+            if (wallet) {
+              return res.json(wallet);
+            }
+          }
+        } catch (fetchError) {
+          console.error('Error fetching wallet after constraint error:', fetchError);
+        }
       }
       
       res.status(500).json({ error: 'Failed to get wallet', message: error.message });
