@@ -164,7 +164,8 @@ server {
     index index.html;
 
     # Backend routes (auth, webhooks, etc.) - proxy first
-    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health) {
+    # Note: /me must be matched before /dashboard to avoid conflicts
+    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -217,7 +218,8 @@ server {
     index index.html;
 
     # Backend routes (auth, webhooks, etc.) - proxy first
-    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health) {
+    # Note: /me must be matched before /dashboard to avoid conflicts
+    location ~ ^/(auth|webhooks|channels|me|wallet|memes|submissions|admin|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
