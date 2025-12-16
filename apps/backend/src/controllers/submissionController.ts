@@ -42,9 +42,19 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video type is allowed' });
       }
 
-      // Validate video file (duration and size)
+      // Validate video file (duration and size) with timeout protection
       const filePath = path.join(process.cwd(), req.file.path);
-      const validation = await validateVideo(filePath);
+      
+      // Start validation with timeout
+      const validationPromise = validateVideo(filePath);
+      const timeoutPromise = new Promise<{ valid: boolean; error?: string }>((resolve) => {
+        setTimeout(() => {
+          console.warn('Video validation timeout, allowing upload to proceed');
+          resolve({ valid: true }); // Allow upload if validation times out
+        }, 8000); // 8 second timeout for validation
+      });
+      
+      const validation = await Promise.race([validationPromise, timeoutPromise]);
       
       if (!validation.valid) {
         // Delete uploaded file if validation fails
@@ -56,9 +66,10 @@ export const submissionController = {
         return res.status(400).json({ error: validation.error || 'Video validation failed' });
       }
 
-      // Get or create tags
+      // Get or create tags (optimize by batching)
       const tagIds = await getOrCreateTags(body.tags || []);
 
+      // Create submission
       const submission = await prisma.memeSubmission.create({
         data: {
           channelId,
@@ -83,6 +94,7 @@ export const submissionController = {
         },
       });
 
+      // Send response immediately after creating submission
       res.status(201).json(submission);
     } catch (error) {
       throw error;

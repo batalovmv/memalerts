@@ -31,7 +31,7 @@ export const authController = {
   },
 
   handleTwitchCallback: async (req: AuthRequest, res: Response) => {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
 
     console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error });
 

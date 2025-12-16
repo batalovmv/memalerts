@@ -28,30 +28,50 @@ export async function getVideoMetadata(filePath: string): Promise<VideoMetadata 
 
     const stats = fs.statSync(filePath);
     
-    ffmpeg.ffprobe(filePath, (err: Error | null, metadata: any) => {
-      if (err) {
-        // If ffprobe fails, we can't validate duration, but we can still return file size
-        console.warn('Failed to get video metadata with ffprobe:', err.message);
-        resolve({
-          duration: 0, // Unknown duration
-          size: stats.size,
-        });
-        return;
-      }
-
-      const duration = metadata.format.duration || 0;
-      
-      const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video');
-      const width = videoStream?.width;
-      const height = videoStream?.height;
-
+    // Set timeout for ffprobe operation (10 seconds)
+    const timeout = setTimeout(() => {
+      console.warn('ffprobe timeout, using file size only');
       resolve({
-        duration,
-        width,
-        height,
+        duration: 0, // Unknown duration
         size: stats.size,
       });
-    });
+    }, 10000); // 10 second timeout
+    
+    try {
+      ffmpeg.ffprobe(filePath, (err: Error | null, metadata: any) => {
+        clearTimeout(timeout);
+        
+        if (err) {
+          // If ffprobe fails, we can't validate duration, but we can still return file size
+          console.warn('Failed to get video metadata with ffprobe:', err.message);
+          resolve({
+            duration: 0, // Unknown duration
+            size: stats.size,
+          });
+          return;
+        }
+
+        const duration = metadata.format.duration || 0;
+        
+        const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video');
+        const width = videoStream?.width;
+        const height = videoStream?.height;
+
+        resolve({
+          duration,
+          width,
+          height,
+          size: stats.size,
+        });
+      });
+    } catch (error: any) {
+      clearTimeout(timeout);
+      console.warn('Error calling ffprobe:', error.message);
+      resolve({
+        duration: 0,
+        size: stats.size,
+      });
+    }
   });
 }
 
