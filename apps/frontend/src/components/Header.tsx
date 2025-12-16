@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions } from '../store/slices/submissionsSlice';
 import { updateWalletBalance } from '../store/slices/authSlice';
 import { api } from '../lib/api';
+import { io, Socket } from 'socket.io-client';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
 import type { Wallet } from '../types';
@@ -28,6 +29,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
+  const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
@@ -122,6 +125,111 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     };
   }, [user, currentChannelSlug, channelId, dispatch]);
 
+  // Load channel coin icon if not provided via props
+  useEffect(() => {
+    const loadChannelCoinIcon = async () => {
+      // If coinIconUrl is provided via props, use it
+      if (coinIconUrl !== undefined) {
+        setChannelCoinIconUrl(coinIconUrl);
+        return;
+      }
+
+      // Otherwise, try to load from user's channel
+      if (user?.channelId && user?.channel?.slug) {
+        try {
+          const channelResponse = await api.get(`/channels/${user.channel.slug}`);
+          if (channelResponse.data?.coinIconUrl) {
+            setChannelCoinIconUrl(channelResponse.data.coinIconUrl);
+          }
+        } catch (error) {
+          console.error('Error loading channel coin icon:', error);
+        }
+      } else if (currentChannelSlug) {
+        // If we're on a channel page, load from that channel
+        try {
+          const channelResponse = await api.get(`/channels/${currentChannelSlug}`);
+          if (channelResponse.data?.coinIconUrl) {
+            setChannelCoinIconUrl(channelResponse.data.coinIconUrl);
+          }
+        } catch (error) {
+          console.error('Error loading channel coin icon:', error);
+        }
+      }
+    };
+
+    loadChannelCoinIcon();
+  }, [coinIconUrl, user, currentChannelSlug]);
+
+  // Setup Socket.IO connection for real-time wallet updates
+  useEffect(() => {
+    if (!user) {
+      // Disconnect socket if user logs out
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      return;
+    }
+
+    // Get API URL for Socket.IO
+    const getSocketUrl = () => {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl) {
+        return envUrl;
+      }
+      if (import.meta.env.PROD) {
+        return window.location.origin;
+      }
+      return 'http://localhost:3001';
+    };
+
+    const socketUrl = getSocketUrl();
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('Socket.IO connected');
+      // Join user room for wallet updates
+      socket.emit('join:user', user.id);
+      
+      // Also join channel room if we're on a channel page
+      if (currentChannelSlug) {
+        socket.emit('join:channel', currentChannelSlug);
+      }
+    });
+
+    socket.on('wallet:updated', (data: { userId: string; channelId: string; balance: number }) => {
+      // Only update if it's for the current user and channel
+      if (data.userId === user.id && (channelId ? data.channelId === channelId : true)) {
+        setWallet((prev) => {
+          if (prev && prev.channelId === data.channelId) {
+            return { ...prev, balance: data.balance };
+          }
+          return prev;
+        });
+        // Update Redux store
+        dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket.IO disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO connection error:', error);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [user, currentChannelSlug, channelId, dispatch]);
+
   const handlePendingSubmissionsClick = () => {
     navigate('/settings?tab=submissions');
   };
@@ -188,8 +296,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* Balance Display */}
                 <div className="relative group">
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                    {coinIconUrl ? (
-                      <img src={coinIconUrl} alt="Coin" className="w-5 h-5" />
+                    {(coinIconUrl || channelCoinIconUrl) ? (
+                      <img src={coinIconUrl || channelCoinIconUrl || ''} alt="Coin" className="w-5 h-5" />
                     ) : (
                       <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
