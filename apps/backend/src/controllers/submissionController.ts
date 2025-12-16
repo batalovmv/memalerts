@@ -72,7 +72,7 @@ export const submissionController = {
       }
       
       // For small files, skip ffprobe validation (it can hang on some formats)
-      let validation = { valid: true as boolean, error: undefined as string | undefined };
+      let validation: { valid: boolean; error?: string } = { valid: true };
       if (req.file.size > 1024 * 1024) { // Only validate files > 1MB
         // Start validation with aggressive timeout
         const validationPromise = validateVideo(filePath);
