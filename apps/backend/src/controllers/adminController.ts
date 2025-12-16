@@ -305,16 +305,29 @@ export const adminController = {
         try {
           const meme = await tx.meme.create({
             data: memeData,
-            include: tagIds.length > 0 ? {
-              tags: {
-                include: {
-                  tag: true,
+            include: {
+              createdBy: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  channel: {
+                    select: {
+                      slug: true,
+                    },
+                  },
                 },
               },
-            } : undefined,
+              ...(tagIds.length > 0 ? {
+                tags: {
+                  include: {
+                    tag: true,
+                  },
+                },
+              } : {}),
+            },
           });
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:294',message:'after meme.create success',data:{memeId:meme.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:294',message:'after meme.create success',data:{memeId:meme.id,createdBy:!!meme.createdBy,createdByDisplayName:meme.createdBy?.displayName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
           // #endregion
 
           return meme;
