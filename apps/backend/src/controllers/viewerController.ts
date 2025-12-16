@@ -43,6 +43,9 @@ export const viewerController = {
       slug: channel.slug,
       name: channel.name,
       coinPerPointRatio: channel.coinPerPointRatio,
+      primaryColor: channel.primaryColor,
+      secondaryColor: channel.secondaryColor,
+      accentColor: channel.accentColor,
       createdAt: channel.createdAt,
       memes: channel.memes,
       stats: {

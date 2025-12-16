@@ -159,6 +159,9 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
+    # Increase body size for file uploads
+    client_max_body_size 100M;
+
     # Frontend static files
     root /opt/memalerts-frontend/dist;
     index index.html;
@@ -187,8 +190,27 @@ server {
         proxy_read_timeout 5s;
     }
     
+    # File uploads - special handling for large files
+    location ~ ^/submissions {
+        client_max_body_size 100M;
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        # Increased timeouts for file uploads (5 minutes)
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    
     # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|submissions|admin|uploads|health|socket\.io) {
+    location ~ ^/(auth|webhooks|channels|wallet|memes|admin|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -239,6 +261,9 @@ server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
 
+    # Increase body size for file uploads
+    client_max_body_size 100M;
+
     # Frontend static files
     root /opt/memalerts-frontend/dist;
     index index.html;
@@ -267,8 +292,27 @@ server {
         proxy_read_timeout 5s;
     }
     
+    # File uploads - special handling for large files
+    location ~ ^/submissions {
+        client_max_body_size 100M;
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        # Increased timeouts for file uploads (5 minutes)
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    
     # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|submissions|admin|uploads|health|socket\.io) {
+    location ~ ^/(auth|webhooks|channels|wallet|memes|admin|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;

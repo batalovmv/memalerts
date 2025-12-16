@@ -53,9 +53,10 @@ app.use(
     exposedHeaders: ['Set-Cookie'],
   })
 );
-app.use(express.json());
+// Increase body size limit for file uploads (100MB)
+app.use(express.json({ limit: '100mb' }));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 
 // Static files

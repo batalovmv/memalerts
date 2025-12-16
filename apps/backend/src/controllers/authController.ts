@@ -120,7 +120,26 @@ export const authController = {
             if (!channel) {
               // Create new channel for this streamer
               // Use upsert to handle race conditions
-              const slug = twitchUser.login.toLowerCase();
+              // Generate random slug (8 characters: alphanumeric)
+              const generateRandomSlug = () => {
+                const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+                let result = '';
+                for (let i = 0; i < 8; i++) {
+                  result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+              };
+              
+              // Ensure slug is unique
+              let slug = generateRandomSlug();
+              let existingChannel = await tx.channel.findUnique({ where: { slug } });
+              let attempts = 0;
+              while (existingChannel && attempts < 10) {
+                slug = generateRandomSlug();
+                existingChannel = await tx.channel.findUnique({ where: { slug } });
+                attempts++;
+              }
+              
               channel = await tx.channel.upsert({
                 where: { twitchChannelId: twitchUser.id },
                 update: {},
