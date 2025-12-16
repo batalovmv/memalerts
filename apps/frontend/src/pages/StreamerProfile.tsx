@@ -12,6 +12,9 @@ interface ChannelInfo {
   slug: string;
   name: string;
   coinPerPointRatio: number;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  accentColor?: string | null;
   createdAt: string;
   memes: Meme[];
   stats: {
@@ -125,15 +128,15 @@ export default function StreamerProfile() {
   }
 
   // Apply custom colors if available
-  const customStyles: React.CSSProperties = {};
+  const customStyles: Record<string, string> = {};
   if (channelInfo?.primaryColor) {
-    customStyles['--primary-color' as any] = channelInfo.primaryColor;
+    customStyles['--primary-color'] = channelInfo.primaryColor;
   }
   if (channelInfo?.secondaryColor) {
-    customStyles['--secondary-color' as any] = channelInfo.secondaryColor;
+    customStyles['--secondary-color'] = channelInfo.secondaryColor;
   }
   if (channelInfo?.accentColor) {
-    customStyles['--accent-color' as any] = channelInfo.accentColor;
+    customStyles['--accent-color'] = channelInfo.accentColor;
   }
 
   return (

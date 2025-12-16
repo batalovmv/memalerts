@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout } from '../store/slices/authSlice';
-import { useTheme } from '../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 
 export default function UserMenu() {

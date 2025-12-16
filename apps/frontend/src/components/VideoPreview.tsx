@@ -7,7 +7,6 @@ interface VideoPreviewProps {
 }
 
 export default function VideoPreview({ src, title, className = '' }: VideoPreviewProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Construct full URL - handle both relative and absolute URLs
@@ -25,18 +24,8 @@ export default function VideoPreview({ src, title, className = '' }: VideoPrevie
 
   const videoUrl = getVideoUrl();
 
-  const handlePlay = () => {
-    setIsPlaying(true);
-    setError(null);
-  };
-
-  const handlePause = () => {
-    setIsPlaying(false);
-  };
-
   const handleError = () => {
     setError('Failed to load video');
-    setIsPlaying(false);
   };
 
   const handleDownload = () => {
@@ -70,8 +59,6 @@ export default function VideoPreview({ src, title, className = '' }: VideoPrevie
             src={videoUrl}
             controls
             className="w-full max-h-96"
-            onPlay={handlePlay}
-            onPause={handlePause}
             onError={handleError}
             preload="metadata"
           >

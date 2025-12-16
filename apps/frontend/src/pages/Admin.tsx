@@ -356,9 +356,283 @@ function WalletManagement() {
   );
 }
 
+// Channel Settings Component
+function ChannelSettings() {
+  const { user } = useAppSelector((state) => state.auth);
+  const [settings, setSettings] = useState({
+    rewardIdForCoins: '',
+    coinPerPointRatio: '1.0',
+    primaryColor: '',
+    secondaryColor: '',
+    accentColor: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Load current settings
+    if (user?.channelId) {
+      loadSettings();
+    }
+  }, [user?.channelId]);
+
+  const loadSettings = async () => {
+    try {
+      const { api } = await import('../lib/api');
+      const response = await api.get('/channels/' + user?.channel?.slug);
+      if (response.data) {
+        setSettings({
+          rewardIdForCoins: response.data.rewardIdForCoins || '',
+          coinPerPointRatio: String(response.data.coinPerPointRatio || '1.0'),
+          primaryColor: response.data.primaryColor || '',
+          secondaryColor: response.data.secondaryColor || '',
+          accentColor: response.data.accentColor || '',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { api } = await import('../lib/api');
+      await api.patch('/admin/channel/settings', {
+        rewardIdForCoins: settings.rewardIdForCoins || null,
+        coinPerPointRatio: parseFloat(settings.coinPerPointRatio) || 1.0,
+        primaryColor: settings.primaryColor || null,
+        secondaryColor: settings.secondaryColor || null,
+        accentColor: settings.accentColor || null,
+      });
+      toast.success('Settings saved!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to save settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <h2 className="text-2xl font-bold mb-4">Channel Settings</h2>
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Reward ID for Coins
+          </label>
+          <input
+            type="text"
+            value={settings.rewardIdForCoins}
+            onChange={(e) => setSettings({ ...settings, rewardIdForCoins: e.target.value })}
+            className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+            placeholder="Twitch reward ID"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Coins per Point Ratio
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            value={settings.coinPerPointRatio}
+            onChange={(e) => setSettings({ ...settings, coinPerPointRatio: e.target.value })}
+            className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+          />
+        </div>
+
+        <div className="border-t pt-4 mt-4">
+          <h3 className="text-lg font-semibold mb-4">Color Customization</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Primary Color
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={settings.primaryColor || '#9333ea'}
+                  onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
+                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                />
+                <input
+                  type="text"
+                  value={settings.primaryColor}
+                  onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
+                  placeholder="#9333ea"
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Secondary Color
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={settings.secondaryColor || '#4f46e5'}
+                  onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
+                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                />
+                <input
+                  type="text"
+                  value={settings.secondaryColor}
+                  onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
+                  placeholder="#4f46e5"
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Accent Color
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={settings.accentColor || '#ec4899'}
+                  onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
+                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                />
+                <input
+                  type="text"
+                  value={settings.accentColor}
+                  onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
+                  placeholder="#ec4899"
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            These colors will be visible to visitors on your channel profile page
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+        >
+          {loading ? 'Saving...' : 'Save Settings'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// Channel Statistics Component
+function ChannelStatistics() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const { api } = await import('../lib/api');
+      const response = await api.get('/admin/stats/channel');
+      setStats(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to load statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading statistics...</div>;
+  }
+
+  if (!stats) {
+    return <div className="text-center py-8 text-gray-500">No statistics available</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Overall Stats */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold mb-4">Overall Statistics</h2>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-purple-50 rounded-lg">
+            <p className="text-3xl font-bold text-purple-600">{stats.overall.totalActivations}</p>
+            <p className="text-sm text-gray-600">Total Activations</p>
+          </div>
+          <div className="text-center p-4 bg-green-50 rounded-lg">
+            <p className="text-3xl font-bold text-green-600">{stats.overall.totalCoinsSpent}</p>
+            <p className="text-sm text-gray-600">Total Coins Spent</p>
+          </div>
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <p className="text-3xl font-bold text-blue-600">{stats.overall.totalMemes}</p>
+            <p className="text-sm text-gray-600">Total Memes</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Users */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold mb-4">Top Users by Spending</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left p-2">User</th>
+                <th className="text-left p-2">Activations</th>
+                <th className="text-left p-2">Total Coins</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.userSpending.map((item: any, index: number) => (
+                <tr key={item.user.id} className="border-b">
+                  <td className="p-2">{item.user.displayName}</td>
+                  <td className="p-2">{item.activationsCount}</td>
+                  <td className="p-2 font-bold text-purple-600">{item.totalCoinsSpent}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Top Memes */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold mb-4">Most Popular Memes</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left p-2">Meme</th>
+                <th className="text-left p-2">Activations</th>
+                <th className="text-left p-2">Total Coins</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.memePopularity.map((item: any, index: number) => (
+                <tr key={item.meme?.id || index} className="border-b">
+                  <td className="p-2">{item.meme?.title || 'Unknown'}</td>
+                  <td className="p-2">{item.activationsCount}</td>
+                  <td className="p-2 font-bold text-purple-600">{item.totalCoinsSpent}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Promotion Management Component
 function PromotionManagement() {
-  const { user } = useAppSelector((state) => state.auth);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
