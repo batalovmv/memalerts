@@ -12,6 +12,11 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   if (!token) {
     console.log('No token cookie found. Cookies:', req.cookies);
+    console.log('Request headers:', {
+      cookie: req.headers.cookie,
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+    });
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
