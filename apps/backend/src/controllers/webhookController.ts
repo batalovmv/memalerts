@@ -5,9 +5,16 @@ import { twitchRedemptionEventSchema } from '../shared/index.js';
 
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:8',message:'Webhook request received',data:{hasBody:!!req.body,subscriptionType:req.body?.subscription?.type,subscriptionStatus:req.body?.subscription?.status,hasHeaders:!!req.headers['twitch-eventsub-message-id']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+    // #endregion
+    
     // Handle challenge verification
     if (req.body.subscription && req.body.subscription.status === 'webhook_callback_verification_pending') {
       const challenge = req.body.challenge;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:15',message:'Challenge verification',data:{challenge},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      // #endregion
       return res.status(200).send(challenge);
     }
 
@@ -17,6 +24,9 @@ export const webhookController = {
     const messageSignature = req.headers['twitch-eventsub-message-signature'] as string;
 
     if (!messageId || !messageTimestamp || !messageSignature) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:22',message:'Missing signature headers',data:{hasMessageId:!!messageId,hasTimestamp:!!messageTimestamp,hasSignature:!!messageSignature},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      // #endregion
       return res.status(403).json({ error: 'Missing signature headers' });
     }
 
@@ -28,6 +38,9 @@ export const webhookController = {
     const expectedSignature = 'sha256=' + hmac;
 
     if (messageSignature !== expectedSignature) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:32',message:'Invalid signature',data:{messageSignature:messageSignature.substring(0,20)+'...',expectedSignature:expectedSignature.substring(0,20)+'...'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      // #endregion
       return res.status(403).json({ error: 'Invalid signature' });
     }
 
@@ -39,8 +52,15 @@ export const webhookController = {
     }
 
     // Handle redemption event
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:42',message:'Checking event type',data:{subscriptionType:req.body?.subscription?.type,isRedemptionEvent:req.body?.subscription?.type === 'channel.channel_points_custom_reward_redemption.add'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+    // #endregion
+    
     if (req.body.subscription?.type === 'channel.channel_points_custom_reward_redemption.add') {
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:46',message:'Processing redemption event',data:{hasEvent:!!req.body.event,eventRewardId:req.body.event?.reward?.id,eventUserId:req.body.event?.user_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+        // #endregion
         const event = twitchRedemptionEventSchema.parse(req.body.event);
 
         // Check for duplicate redemption
@@ -146,15 +166,25 @@ export const webhookController = {
               },
             });
           });
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:151',message:'Redemption processed successfully',data:{rewardId:event.reward.id,userId:user.id,coinsGranted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+          // #endregion
         }
 
         return res.status(200).json({ message: 'Redemption processed' });
-      } catch (error) {
+      } catch (error: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:155',message:'Error processing redemption',data:{error:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+        // #endregion
         console.error('Error processing redemption:', error);
         return res.status(500).json({ error: 'Internal server error' });
       }
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:162',message:'Event received but not processed',data:{subscriptionType:req.body?.subscription?.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+    // #endregion
     res.status(200).json({ message: 'Event received' });
   },
 };

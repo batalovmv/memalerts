@@ -212,11 +212,21 @@ export async function deleteChannelReward(
   broadcasterId: string,
   rewardId: string
 ): Promise<void> {
-  await twitchApiRequest(
-    `channel_points/custom_rewards?broadcaster_id=${broadcasterId}&id=${rewardId}`,
-    'DELETE',
-    userId
-  );
+  try {
+    await twitchApiRequest(
+      `channel_points/custom_rewards?broadcaster_id=${broadcasterId}&id=${rewardId}`,
+      'DELETE',
+      userId
+    );
+  } catch (error: any) {
+    // DELETE returns 204 No Content, which might cause JSON parse error
+    // Check if it's actually a success (204) or a real error
+    if (error.message?.includes('Unexpected end of JSON input') || error.message?.includes('204')) {
+      // This is expected for DELETE requests - 204 No Content means success
+      return;
+    }
+    throw error;
+  }
 }
 
 /**
