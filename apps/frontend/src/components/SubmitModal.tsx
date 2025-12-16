@@ -1,0 +1,363 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useAppSelector } from '../store/hooks';
+import TagInput from './TagInput';
+import toast from 'react-hot-toast';
+
+interface SubmitModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  channelSlug?: string;
+}
+
+export default function SubmitModal({ isOpen, onClose, channelSlug }: SubmitModalProps) {
+  const { t } = useTranslation();
+  const { user } = useAppSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [mode, setMode] = useState<'upload' | 'import'>('upload');
+  const [formData, setFormData] = useState<{
+    title: string;
+    notes: string;
+    sourceUrl?: string;
+    tags?: string[];
+  }>({
+    title: '',
+    notes: '',
+    sourceUrl: '',
+    tags: [],
+  });
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        title: '',
+        notes: '',
+        sourceUrl: '',
+        tags: [],
+      });
+      setFile(null);
+      setUploadProgress(0);
+      setMode('upload');
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    
+    if (!user) {
+      toast.error(t('submitModal.pleaseLogIn'));
+      return;
+    }
+    
+    if (mode === 'upload') {
+      if (!file) {
+        toast.error(t('submitModal.pleaseSelectFile'));
+        return;
+      }
+
+      // Validate file size (50MB max)
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(t('submitModal.fileSizeExceeds', { size: (file.size / 1024 / 1024).toFixed(2) }));
+        return;
+      }
+
+      // Validate video duration (15 seconds max)
+      // We'll validate this on backend, but show a warning here
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      
+      const durationCheck = new Promise<number>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          window.URL.revokeObjectURL(video.src);
+          resolve(video.duration);
+        };
+        video.onerror = () => {
+          window.URL.revokeObjectURL(video.src);
+          reject(new Error('Failed to load video metadata'));
+        };
+        video.src = URL.createObjectURL(file);
+      });
+
+      try {
+        const duration = await durationCheck;
+        if (duration > 15) {
+          toast.error(t('submitModal.videoDurationExceeds', { duration: duration.toFixed(2) }));
+          return;
+        }
+      } catch (error) {
+        console.warn('Could not check video duration on frontend, will validate on backend');
+      }
+
+      setLoading(true);
+      setUploadProgress(0);
+      try {
+        const formDataToSend = new FormData();
+        formDataToSend.append('file', file);
+        formDataToSend.append('title', formData.title);
+        formDataToSend.append('type', 'video'); // Only video allowed
+        if (formData.notes) {
+          formDataToSend.append('notes', formData.notes);
+        }
+        // Add tags as JSON string (backend will parse it)
+        if (formData.tags && formData.tags.length > 0) {
+          formDataToSend.append('tags', JSON.stringify(formData.tags));
+        }
+
+        // Use axios directly for upload progress tracking
+        const { api } = await import('../lib/api');
+        await api.post('/submissions', formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percentCompleted);
+            }
+          },
+        });
+        
+        toast.success(t('submit.submitted'));
+        onClose();
+        // Optionally navigate to dashboard
+        if (channelSlug) {
+          navigate(`/channel/${channelSlug}`);
+        } else {
+          navigate('/dashboard');
+        }
+      } catch (error: any) {
+        // Handle 524 Cloudflare timeout specifically
+        if (error.code === 'ECONNABORTED' || error.response?.status === 524 || error.message?.includes('timeout')) {
+          toast.error(t('submitModal.uploadTimeout'));
+          // Still close modal - submission might have been created
+          setTimeout(() => {
+            onClose();
+            if (channelSlug) {
+              navigate(`/channel/${channelSlug}`);
+            } else {
+              navigate('/dashboard');
+            }
+          }, 2000);
+        } else {
+          toast.error(error.response?.data?.error || error.message || t('submitModal.failedToSubmit'));
+        }
+      } finally {
+        setLoading(false);
+        setUploadProgress(0);
+      }
+    } else {
+      // Import mode
+      if (!formData.sourceUrl) {
+        toast.error(t('submitModal.pleaseEnterUrl'));
+        return;
+      }
+
+      const isValidUrl = formData.sourceUrl.includes('memalerts.com') || 
+                        formData.sourceUrl.includes('cdns.memealerts.com');
+      if (!isValidUrl) {
+        toast.error(t('submitModal.urlMustBeFromMemalerts'));
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { api } = await import('../lib/api');
+        await api.post('/submissions/import', {
+          title: formData.title,
+          sourceUrl: formData.sourceUrl,
+          notes: formData.notes || null,
+          tags: formData.tags || [],
+        });
+        toast.success(t('submit.importSubmitted'));
+        onClose();
+        if (channelSlug) {
+          navigate(`/channel/${channelSlug}`);
+        } else {
+          navigate('/dashboard');
+        }
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || t('submitModal.failedToImport'));
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-black/50 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      
+      {/* Modal */}
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              aria-label={t('submitModal.closeModal')}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {/* Mode selector */}
+            <div className="mb-6 bg-gray-50 dark:bg-gray-700 rounded-lg shadow p-4 border border-secondary/20">
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setMode('upload')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    mode === 'upload'
+                      ? 'bg-primary text-white border border-secondary/30'
+                      : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
+                  }`}
+                >
+                  {t('submit.uploadVideo')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('import')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    mode === 'import'
+                      ? 'bg-primary text-white border border-secondary/30'
+                      : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
+                  }`}
+                >
+                  {t('submit.import')}
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('submit.titleLabel')}
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              {mode === 'upload' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('submit.videoFile')}
+                  </label>
+                  <input
+                    type="file"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    required
+                    accept="video/*"
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('submit.memalertsUrl')}
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.sourceUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
+                    required
+                    placeholder="https://cdns.memealerts.com/.../alert_orig.webm"
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
+                  <div className="mt-2 p-3 bg-accent/10 rounded-lg border border-accent/20">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">{t('submit.howToCopy')}</p>
+                    <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
+                      {t('submit.copyInstructions', { returnObjects: true }).map((instruction: string, index: number) => (
+                        <li key={index}>{instruction}</li>
+                      ))}
+                    </ol>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Example: https://cdns.memealerts.com/p/.../alert_orig.webm
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('submit.tags')}
+                </label>
+                <TagInput
+                  tags={formData.tags || []}
+                  onChange={(tags) => setFormData({ ...formData, tags })}
+                  placeholder={t('submit.addTags')}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('submit.notes')}
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              {loading && uploadProgress > 0 && (
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">
+                  <div
+                    className="bg-primary h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={loading}
+                  className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+                >
+                  {loading ? (uploadProgress > 0 ? `${t('submit.submitting')} ${uploadProgress}%` : t('submit.submitting')) : t('common.submit')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

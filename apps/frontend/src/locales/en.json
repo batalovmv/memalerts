@@ -9,7 +9,10 @@
     "edit": "Edit",
     "submit": "Submit",
     "search": "Search",
-    "filter": "Filter"
+    "filter": "Filter",
+    "retry": "Retry",
+    "actions": "Actions",
+    "unknown": "Unknown"
   },
   "nav": {
     "home": "Home",
@@ -36,7 +39,9 @@
     "activate": "Activate",
     "profileLink": "Your Channel Profile Link",
     "copyLink": "Copy Link",
-    "linkCopied": "Link copied!"
+    "linkCopied": "Link copied!",
+    "shareLinkDescription": "Share this link so others can submit memes and activate them on your channel!",
+    "viewPublicProfile": "View Public Profile"
   },
   "submit": {
     "title": "Submit a Meme",
@@ -63,7 +68,7 @@
     "importSubmitted": "Meme import submitted! Waiting for approval."
   },
   "admin": {
-    "title": "Admin Panel",
+    "title": "Settings",
     "pendingSubmissions": "Pending Submissions",
     "allMemes": "All Memes",
     "channelSettings": "Channel Settings",
@@ -76,7 +81,72 @@
     "enterDuration": "Enter duration in milliseconds:",
     "rejectionReason": "Enter rejection reason:",
     "noSubmissions": "No pending submissions",
-    "noMemes": "No memes available yet"
+    "noMemes": "No memes available yet",
+    "allSubmissionsReviewed": "All submissions have been reviewed.",
+    "loadingSubmissions": "Loading submissions...",
+    "loadingMemes": "Loading memes...",
+    "loadingWallets": "Loading wallets...",
+    "loadingPromotions": "Loading promotions...",
+    "loadingStatistics": "Loading statistics...",
+    "noWallets": "No wallets found",
+    "noPromotions": "No promotions yet",
+    "noStatistics": "No statistics available",
+    "adjust": "Adjust",
+    "adjusting": "Adjusting...",
+    "amount": "Amount",
+    "enterAmount": "Enter a valid amount",
+    "balanceIncreased": "Balance increased",
+    "balanceDecreased": "Balance decreased",
+    "by": "by",
+    "rewardIdForCoins": "Reward ID for Coins",
+    "coinPerPointRatio": "Coins per Point Ratio",
+    "colorCustomization": "Color Customization",
+    "primaryColor": "Primary Color",
+    "secondaryColor": "Secondary Color",
+    "accentColor": "Accent Color",
+    "colorsVisibleToVisitors": "These colors will be visible to visitors on your channel profile page",
+    "saving": "Saving...",
+    "saveSettings": "Save Settings",
+    "settingsSaved": "Settings saved!",
+    "totalActivations": "Total Activations",
+    "totalCoinsSpent": "Total Coins Spent",
+    "totalMemes": "Total Memes",
+    "topUsersBySpending": "Top Users by Spending",
+    "user": "User",
+    "activations": "Activations",
+    "totalCoins": "Total Coins",
+    "mostPopularMemes": "Most Popular Memes",
+    "meme": "Meme",
+    "createPromotion": "Create Promotion",
+    "name": "Name",
+    "discountPercent": "Discount Percent (0-100)",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "create": "Create",
+    "active": "Active",
+    "inactive": "Inactive",
+    "currentlyRunning": "Currently Running",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "deletePromotion": "Are you sure you want to delete this promotion?",
+    "promotionCreated": "Promotion created!",
+    "promotionActivated": "Promotion activated",
+    "promotionDeactivated": "Promotion deactivated",
+    "promotionDeleted": "Promotion deleted",
+    "failedToCreatePromotion": "Failed to create promotion",
+    "failedToUpdatePromotion": "Failed to update promotion",
+    "failedToDeletePromotion": "Failed to delete promotion",
+    "failedToSaveSettings": "Failed to save settings",
+    "failedToLoadStatistics": "Failed to load statistics",
+    "channel": "Channel",
+    "balance": "Balance",
+    "overallStatistics": "Overall Statistics",
+    "failedToApprove": "Failed to approve submission",
+    "failedToReject": "Failed to reject submission",
+    "failedToLoadWallets": "Failed to load wallets",
+    "failedToAdjustBalance": "Failed to adjust balance",
+    "balanceIncreased": "Balance increased by {{amount}}",
+    "balanceDecreased": "Balance decreased by {{amount}}"
   },
   "profile": {
     "balanceFor": "Your Balance for",
@@ -107,7 +177,65 @@
   },
   "footer": {
     "madeBy": "Made by",
-    "author": "Баталов Михаил"
+    "author": "Баталов Михаил",
+    "switchToEnglish": "Switch to English",
+    "switchToRussian": "Переключить на русский",
+    "switchToLightTheme": "Switch to light theme",
+    "switchToDarkTheme": "Switch to dark theme"
+  },
+  "header": {
+    "pendingSubmissions": "pending submission",
+    "pendingSubmissionsPlural": "pending submissions",
+    "submitMeme": "Submit a meme",
+    "addCoins": "Add coins",
+    "coinsTooltip": "Coins you can redeem with your streamer",
+    "addCoinsTitle": "Add Coins",
+    "enterAmount": "Enter amount",
+    "adding": "Adding...",
+    "addCoinsButton": "Add Coins",
+    "addedCoins": "Added {{amount}} coins!",
+    "validPositiveAmount": "Please enter a valid positive amount",
+    "failedToAddCoins": "Failed to add coins"
+  },
+  "userMenu": {
+    "myProfile": "My Profile",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "logout": "Logout",
+    "loggedOutSuccessfully": "Logged out successfully",
+    "failedToLogout": "Failed to logout",
+    "streamer": "streamer",
+    "viewer": "viewer",
+    "admin": "admin"
+  },
+  "submitModal": {
+    "title": "Submit a Meme",
+    "closeModal": "Close modal",
+    "pleaseLogIn": "Please log in to submit memes",
+    "pleaseSelectFile": "Please select a file",
+    "fileSizeExceeds": "File size exceeds 50MB. Current size: {{size}}MB",
+    "videoDurationExceeds": "Video duration exceeds 15 seconds. Current duration: {{duration}}s",
+    "pleaseEnterUrl": "Please enter a memalerts.com URL",
+    "urlMustBeFromMemalerts": "URL must be from memalerts.com or cdns.memealerts.com",
+    "uploadTimeout": "Upload timeout. The file may have been uploaded successfully. Please check your submissions.",
+    "failedToSubmit": "Failed to submit meme",
+    "failedToImport": "Failed to import meme"
+  },
+  "profile": {
+    "memes": "memes",
+    "users": "users"
+  },
+  "tagInput": {
+    "pressEnterToAdd": "Press Enter or comma to add a tag. Maximum 50 characters per tag."
+  },
+  "toast": {
+    "channelNotFound": "Channel not found",
+    "failedToLoadChannel": "Failed to load channel",
+    "pleaseLogInToActivate": "Please log in to activate memes",
+    "memeActivated": "Meme activated!",
+    "failedToActivate": "Failed to activate meme",
+    "linkCopied": "Link copied to clipboard!",
+    "failedToCopyLink": "Failed to copy link"
   }
 }
 

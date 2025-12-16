@@ -1,4 +1,5 @@
 import { useState, KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface TagInputProps {
   tags: string[];
@@ -6,8 +7,10 @@ interface TagInputProps {
   placeholder?: string;
 }
 
-export default function TagInput({ tags, onChange, placeholder = 'Add tags...' }: TagInputProps) {
+export default function TagInput({ tags, onChange, placeholder }: TagInputProps) {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
+  const defaultPlaceholder = placeholder || t('submit.addTags');
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -61,13 +64,13 @@ export default function TagInput({ tags, onChange, placeholder = 'Add tags...' }
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
-          placeholder={tags.length === 0 ? placeholder : ''}
+          placeholder={tags.length === 0 ? defaultPlaceholder : ''}
           className="flex-1 min-w-[120px] border-none outline-none text-sm"
           maxLength={50}
         />
       </div>
       <p className="text-xs text-gray-500">
-        Press Enter or comma to add a tag. Maximum 50 characters per tag.
+        {t('tagInput.pressEnterToAdd')}
       </p>
     </div>
   );

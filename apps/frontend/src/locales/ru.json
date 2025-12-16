@@ -9,7 +9,10 @@
     "edit": "Редактировать",
     "submit": "Отправить",
     "search": "Поиск",
-    "filter": "Фильтр"
+    "filter": "Фильтр",
+    "retry": "Повторить",
+    "actions": "Действия",
+    "unknown": "Неизвестно"
   },
   "nav": {
     "home": "Главная",
@@ -36,7 +39,9 @@
     "activate": "Активировать",
     "profileLink": "Ссылка на профиль вашего канала",
     "copyLink": "Копировать ссылку",
-    "linkCopied": "Ссылка скопирована!"
+    "linkCopied": "Ссылка скопирована!",
+    "shareLinkDescription": "Поделитесь этой ссылкой, чтобы другие могли отправлять мемы и активировать их на вашем канале!",
+    "viewPublicProfile": "Просмотр публичного профиля"
   },
   "submit": {
     "title": "Отправить мем",
@@ -63,7 +68,7 @@
     "importSubmitted": "Заявка на импорт мема отправлена! Ожидает одобрения."
   },
   "admin": {
-    "title": "Админ панель",
+    "title": "Настройки",
     "pendingSubmissions": "Ожидающие заявки",
     "allMemes": "Все мемы",
     "channelSettings": "Настройки канала",
@@ -76,7 +81,72 @@
     "enterDuration": "Введите длительность в миллисекундах:",
     "rejectionReason": "Введите причину отклонения:",
     "noSubmissions": "Нет ожидающих заявок",
-    "noMemes": "Пока нет мемов"
+    "noMemes": "Пока нет мемов",
+    "allSubmissionsReviewed": "Все заявки рассмотрены.",
+    "loadingSubmissions": "Загрузка заявок...",
+    "loadingMemes": "Загрузка мемов...",
+    "loadingWallets": "Загрузка кошельков...",
+    "loadingPromotions": "Загрузка акций...",
+    "loadingStatistics": "Загрузка статистики...",
+    "noWallets": "Кошельки не найдены",
+    "noPromotions": "Пока нет акций",
+    "noStatistics": "Статистика недоступна",
+    "adjust": "Изменить",
+    "adjusting": "Изменение...",
+    "amount": "Сумма",
+    "enterAmount": "Введите действительную сумму",
+    "balanceIncreased": "Баланс увеличен",
+    "balanceDecreased": "Баланс уменьшен",
+    "by": "на",
+    "rewardIdForCoins": "ID награды для монет",
+    "coinPerPointRatio": "Монет за очко",
+    "colorCustomization": "Настройка цветов",
+    "primaryColor": "Основной цвет",
+    "secondaryColor": "Вторичный цвет",
+    "accentColor": "Акцентный цвет",
+    "colorsVisibleToVisitors": "Эти цвета будут видны посетителям на странице профиля вашего канала",
+    "saving": "Сохранение...",
+    "saveSettings": "Сохранить настройки",
+    "settingsSaved": "Настройки сохранены!",
+    "totalActivations": "Всего активаций",
+    "totalCoinsSpent": "Всего потрачено монет",
+    "totalMemes": "Всего мемов",
+    "topUsersBySpending": "Топ пользователей по тратам",
+    "user": "Пользователь",
+    "activations": "Активации",
+    "totalCoins": "Всего монет",
+    "mostPopularMemes": "Самые популярные мемы",
+    "meme": "Мем",
+    "createPromotion": "Создать акцию",
+    "name": "Название",
+    "discountPercent": "Процент скидки (0-100)",
+    "startDate": "Дата начала",
+    "endDate": "Дата окончания",
+    "create": "Создать",
+    "active": "Активна",
+    "inactive": "Неактивна",
+    "currentlyRunning": "Сейчас действует",
+    "activate": "Активировать",
+    "deactivate": "Деактивировать",
+    "deletePromotion": "Вы уверены, что хотите удалить эту акцию?",
+    "promotionCreated": "Акция создана!",
+    "promotionActivated": "Акция активирована",
+    "promotionDeactivated": "Акция деактивирована",
+    "promotionDeleted": "Акция удалена",
+    "failedToCreatePromotion": "Не удалось создать акцию",
+    "failedToUpdatePromotion": "Не удалось обновить акцию",
+    "failedToDeletePromotion": "Не удалось удалить акцию",
+    "failedToSaveSettings": "Не удалось сохранить настройки",
+    "failedToLoadStatistics": "Не удалось загрузить статистику",
+    "channel": "Канал",
+    "balance": "Баланс",
+    "overallStatistics": "Общая статистика",
+    "failedToApprove": "Не удалось одобрить заявку",
+    "failedToReject": "Не удалось отклонить заявку",
+    "failedToLoadWallets": "Не удалось загрузить кошельки",
+    "failedToAdjustBalance": "Не удалось изменить баланс",
+    "balanceIncreased": "Баланс увеличен на {{amount}}",
+    "balanceDecreased": "Баланс уменьшен на {{amount}}"
   },
   "profile": {
     "balanceFor": "Ваш баланс для",
@@ -107,7 +177,65 @@
   },
   "footer": {
     "madeBy": "Сделано",
-    "author": "Баталов Михаил"
+    "author": "Баталов Михаил",
+    "switchToEnglish": "Switch to English",
+    "switchToRussian": "Переключить на русский",
+    "switchToLightTheme": "Переключить на светлую тему",
+    "switchToDarkTheme": "Переключить на темную тему"
+  },
+  "header": {
+    "pendingSubmissions": "ожидающая заявка",
+    "pendingSubmissionsPlural": "ожидающих заявок",
+    "submitMeme": "Отправить мем",
+    "addCoins": "Добавить монеты",
+    "coinsTooltip": "Монеты, которые вы можете обменять у вашего стримера",
+    "addCoinsTitle": "Добавить монеты",
+    "enterAmount": "Введите сумму",
+    "adding": "Добавление...",
+    "addCoinsButton": "Добавить монеты",
+    "addedCoins": "Добавлено {{amount}} монет!",
+    "validPositiveAmount": "Пожалуйста, введите действительное положительное число",
+    "failedToAddCoins": "Не удалось добавить монеты"
+  },
+  "userMenu": {
+    "myProfile": "Мой профиль",
+    "dashboard": "Панель управления",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "loggedOutSuccessfully": "Выход выполнен успешно",
+    "failedToLogout": "Не удалось выйти",
+    "streamer": "стример",
+    "viewer": "зритель",
+    "admin": "админ"
+  },
+  "submitModal": {
+    "title": "Отправить мем",
+    "closeModal": "Закрыть окно",
+    "pleaseLogIn": "Пожалуйста, войдите, чтобы отправить мемы",
+    "pleaseSelectFile": "Пожалуйста, выберите файл",
+    "fileSizeExceeds": "Размер файла превышает 50МБ. Текущий размер: {{size}}МБ",
+    "videoDurationExceeds": "Длительность видео превышает 15 секунд. Текущая длительность: {{duration}}с",
+    "pleaseEnterUrl": "Пожалуйста, введите URL с memalerts.com",
+    "urlMustBeFromMemalerts": "URL должен быть с memalerts.com или cdns.memealerts.com",
+    "uploadTimeout": "Таймаут загрузки. Файл мог быть успешно загружен. Пожалуйста, проверьте ваши заявки.",
+    "failedToSubmit": "Не удалось отправить мем",
+    "failedToImport": "Не удалось импортировать мем"
+  },
+  "profile": {
+    "memes": "мемов",
+    "users": "пользователей"
+  },
+  "tagInput": {
+    "pressEnterToAdd": "Нажмите Enter или запятую, чтобы добавить тег. Максимум 50 символов на тег."
+  },
+  "toast": {
+    "channelNotFound": "Канал не найден",
+    "failedToLoadChannel": "Не удалось загрузить канал",
+    "pleaseLogInToActivate": "Пожалуйста, войдите, чтобы активировать мемы",
+    "memeActivated": "Мем активирован!",
+    "failedToActivate": "Не удалось активировать мем",
+    "linkCopied": "Ссылка скопирована в буфер обмена!",
+    "failedToCopyLink": "Не удалось скопировать ссылку"
   }
 }
 

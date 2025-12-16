@@ -2,8 +2,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 
 export default function Footer() {
+  const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
-  const { i18n } = useTranslation();
 
   const toggleLanguage = () => {
     // Fix: when language is 'ru', switch to 'en', when 'en', switch to 'ru'
@@ -20,7 +20,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="mb-4 md:mb-0">
             <p className="text-sm">
-              Made by <span className="font-semibold">Баталов Михаил</span>
+              {t('footer.madeBy')} <span className="font-semibold">{t('footer.author')}</span>
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -28,7 +28,7 @@ export default function Footer() {
             <button
               onClick={toggleLanguage}
               className="text-sm hover:text-accent transition-colors px-3 py-1 rounded border border-gray-600 hover:border-accent"
-              title={i18n.language === 'ru' ? 'Switch to English' : 'Переключить на русский'}
+              title={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
             >
               {currentLang}
             </button>
@@ -37,7 +37,7 @@ export default function Footer() {
             <button
               onClick={toggleTheme}
               className="text-sm hover:text-accent transition-colors px-3 py-1 rounded border border-gray-600 hover:border-accent"
-              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
             >
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { activateMeme } from '../store/slices/memesSlice';
 import { api } from '../lib/api';
-import UserMenu from '../components/UserMenu';
+import Header from '../components/Header';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
 import toast from 'react-hot-toast';
@@ -26,6 +27,7 @@ interface ChannelInfo {
 }
 
 export default function StreamerProfile() {
+  const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
@@ -75,10 +77,10 @@ export default function StreamerProfile() {
       } catch (error: any) {
         console.error('Error loading channel:', error);
         if (error.response?.status === 404) {
-          toast.error('Channel not found');
+          toast.error(t('toast.channelNotFound'));
           navigate('/');
         } else {
-          toast.error(error.response?.data?.error || 'Failed to load channel');
+          toast.error(error.response?.data?.error || t('toast.failedToLoadChannel'));
         }
         setLoading(false);
       }
@@ -89,14 +91,14 @@ export default function StreamerProfile() {
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
-      toast.error('Please log in to activate memes');
+      toast.error(t('toast.pleaseLogInToActivate'));
       navigate('/');
       return;
     }
 
     try {
       await dispatch(activateMeme(memeId)).unwrap();
-      toast.success('Meme activated!');
+      toast.success(t('toast.memeActivated'));
       
       // Refresh wallet balance
       if (slug) {
@@ -108,17 +110,10 @@ export default function StreamerProfile() {
         }
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to activate meme');
+      toast.error(error.message || t('toast.failedToActivate'));
     }
   };
 
-  const handleSubmitMeme = () => {
-    if (slug) {
-      navigate(`/submit?channelSlug=${slug}`);
-    } else {
-      navigate('/submit');
-    }
-  };
 
   if (loading) {
     return (
@@ -153,69 +148,25 @@ export default function StreamerProfile() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900" style={customStyles}>
-      <nav className="bg-white dark:bg-gray-800 shadow-sm" style={{
-        backgroundColor: channelInfo?.primaryColor ? (document.documentElement.classList.contains('dark') ? undefined : channelInfo.primaryColor) : undefined,
-      }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold dark:text-white" style={{
-              color: channelInfo?.primaryColor && !document.documentElement.classList.contains('dark') ? '#ffffff' : undefined,
-            }}>Mem Alerts</h1>
-            {user && <UserMenu />}
-          </div>
-        </div>
-      </nav>
+      <Header 
+        channelSlug={slug}
+        channelId={channelInfo?.id}
+        primaryColor={channelInfo?.primaryColor}
+      />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
         <div className="mb-8 border-b border-secondary/30 pb-4">
           <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
-          <p className="text-gray-600 dark:text-gray-400">@{channelInfo.slug}</p>
           <div className="mt-4 flex gap-4 text-sm">
-            <span className="text-accent font-semibold">{channelInfo.stats.memesCount} memes</span>
-            <span className="text-accent font-semibold">{channelInfo.stats.usersCount} users</span>
+            <span className="text-accent font-semibold">{channelInfo.stats.memesCount} {t('profile.memes')}</span>
+            <span className="text-accent font-semibold">{channelInfo.stats.usersCount} {t('profile.users')}</span>
           </div>
-        </div>
-
-        {/* User Wallet (if logged in) */}
-        {user && wallet && (
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-2 dark:text-white">Your Balance</h2>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
-              <div className="text-3xl font-bold text-accent">
-                {wallet.balance} coins
-              </div>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Redeem channel points on Twitch to earn coins!
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="mb-6 flex flex-wrap gap-4">
-          {isOwner ? (
-            <button
-              onClick={() => navigate('/admin')}
-              className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-            >
-              Manage Channel
-            </button>
-          ) : (
-            user && (
-              <button
-                onClick={handleSubmitMeme}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-              >
-                Submit a Meme
-              </button>
-            )
-          )}
         </div>
 
         {/* Memes List */}
-        <h2 className="text-2xl font-bold mb-4 dark:text-white">Available Memes</h2>
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('profile.availableMemes')}</h2>
         {channelInfo.memes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No memes available yet.</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('profile.noMemes')}</div>
         ) : (
           <div 
             className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"

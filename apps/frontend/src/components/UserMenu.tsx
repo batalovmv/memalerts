@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout } from '../store/slices/authSlice';
 import toast from 'react-hot-toast';
 
 export default function UserMenu() {
+  const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -37,9 +39,9 @@ export default function UserMenu() {
     try {
       await dispatch(logout()).unwrap();
       navigate('/');
-      toast.success('Logged out successfully');
+      toast.success(t('userMenu.loggedOutSuccessfully'));
     } catch (error) {
-      toast.error('Failed to logout');
+      toast.error(t('userMenu.failedToLogout'));
     }
   };
 
@@ -57,18 +59,8 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
-  const handleSubmitMeme = () => {
-    navigate('/submit');
-    setIsOpen(false);
-  };
-
   const handleSettings = () => {
-    navigate('/admin?tab=settings');
-    setIsOpen(false);
-  };
-
-  const handleChannelManagement = () => {
-    navigate('/admin');
+    navigate('/settings?tab=settings');
     setIsOpen(false);
   };
 
@@ -84,14 +76,20 @@ export default function UserMenu() {
     if (location.pathname.startsWith('/channel/') && params.slug) {
       // Check if this is the user's own channel
       if (user.channel?.slug === params.slug) {
-        return 'streamer';
+        return t('userMenu.streamer');
       } else {
         // Viewing someone else's channel
-        return 'viewer';
+        return t('userMenu.viewer');
       }
     }
     // On other pages (dashboard, admin, etc.), show actual role
-    return user.role;
+    if (user.role === 'admin') {
+      return t('userMenu.admin');
+    }
+    if (user.role === 'streamer') {
+      return t('userMenu.streamer');
+    }
+    return t('userMenu.viewer');
   };
 
   const displayRole = getDisplayRole();
@@ -108,7 +106,7 @@ export default function UserMenu() {
         </div>
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.displayName}</span>
         {userBalance > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">({userBalance} coins)</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">({userBalance} {t('profile.coins')})</span>
         )}
         <svg
           className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -143,34 +141,22 @@ export default function UserMenu() {
                   onClick={handleMyProfile}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  My Profile
+                  {t('userMenu.myProfile')}
                 </button>
                 <button
                   onClick={handleDashboard}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  Dashboard
+                  {t('userMenu.dashboard')}
                 </button>
                 <button
                   onClick={handleSettings}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  Settings
-                </button>
-                <button
-                  onClick={handleChannelManagement}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Channel Management
+                  {t('userMenu.settings')}
                 </button>
               </>
             )}
-            <button
-              onClick={handleSubmitMeme}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              Submit Meme
-            </button>
           </div>
 
           {/* Divider */}
@@ -181,7 +167,7 @@ export default function UserMenu() {
             onClick={handleLogout}
             className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            Logout
+            {t('userMenu.logout')}
           </button>
         </div>
       )}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
 import { fetchMemes } from '../store/slices/memesSlice';
-import UserMenu from '../components/UserMenu';
+import Header from '../components/Header';
 import VideoPreview from '../components/VideoPreview';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
@@ -13,6 +14,7 @@ import type { Meme } from '../types';
 type TabType = 'submissions' | 'memes' | 'settings' | 'wallets' | 'promotions' | 'statistics';
 
 export default function Admin() {
+  const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const { submissions, loading: submissionsLoading, error: submissionsError } = useAppSelector((state) => state.submissions);
   const { memes } = useAppSelector((state) => state.memes);
@@ -56,44 +58,37 @@ export default function Admin() {
         priceCoins: STANDARD_PRICE_COINS, 
         durationMs: STANDARD_DURATION_MS 
       })).unwrap();
-      toast.success('Submission approved!');
+      toast.success(t('admin.approve') + '!');
       dispatch(fetchSubmissions({ status: 'pending' }));
       if (user) {
         dispatch(fetchMemes({ channelId: user.channelId }));
       }
     } catch (error) {
-      toast.error('Failed to approve submission');
+      toast.error(t('admin.failedToApprove') || 'Failed to approve submission');
     }
   };
 
   const handleReject = async (submissionId: string): Promise<void> => {
     try {
       await dispatch(rejectSubmission({ submissionId, moderatorNotes: null })).unwrap();
-      toast.success('Submission rejected');
+      toast.success(t('admin.reject') + '!');
       dispatch(fetchSubmissions({ status: 'pending' }));
     } catch (error) {
-      toast.error('Failed to reject submission');
+      toast.error(t('admin.failedToReject') || 'Failed to reject submission');
     }
   };
 
   if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+        <div className="text-xl">{t('common.loading')}</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <nav className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold dark:text-white">Admin Panel</h1>
-            <UserMenu />
-          </div>
-        </div>
-      </nav>
+      <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
@@ -106,7 +101,7 @@ export default function Admin() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
-              Pending Submissions ({submissions.length})
+              {t('admin.pendingSubmissions')} ({submissions.length})
             </button>
             <button
               onClick={() => setActiveTab('memes')}
@@ -116,7 +111,7 @@ export default function Admin() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
-              All Memes ({memes.length})
+              {t('admin.allMemes')} ({memes.length})
             </button>
             <button
               onClick={() => setActiveTab('settings')}
@@ -126,7 +121,7 @@ export default function Admin() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
-              Channel Settings
+              {t('admin.channelSettings')}
             </button>
             {user?.role === 'admin' && (
               <button
@@ -137,7 +132,7 @@ export default function Admin() {
                     : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
                 }`}
               >
-                Wallet Management
+                {t('admin.walletManagement')}
               </button>
             )}
             <button
@@ -148,7 +143,7 @@ export default function Admin() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
-              Promotions
+              {t('admin.promotions')}
             </button>
             <button
               onClick={() => setActiveTab('statistics')}
@@ -158,7 +153,7 @@ export default function Admin() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
-              Statistics
+              {t('admin.statistics')}
             </button>
           </div>
         </div>
@@ -166,7 +161,7 @@ export default function Admin() {
         {activeTab === 'submissions' && (
           <div className="space-y-4">
             {submissionsLoading ? (
-              <div className="text-center py-8">Loading submissions...</div>
+              <div className="text-center py-8">{t('admin.loadingSubmissions')}</div>
             ) : submissionsError ? (
               <div className="text-center py-8">
                 <p className="text-red-600 dark:text-red-400 mb-4">{submissionsError}</p>
@@ -174,13 +169,13 @@ export default function Admin() {
                   onClick={() => dispatch(fetchSubmissions({ status: 'pending' }))}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
                 >
-                  Retry
+                  {t('common.retry') || 'Retry'}
                 </button>
               </div>
             ) : submissions.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>No pending submissions</p>
-                <p className="text-sm mt-2">All submissions have been reviewed.</p>
+                <p>{t('admin.noSubmissions')}</p>
+                <p className="text-sm mt-2">{t('admin.allSubmissionsReviewed')}</p>
               </div>
             ) : (
                      submissions.map((submission) => (
@@ -223,13 +218,13 @@ export default function Admin() {
                     onClick={() => handleApprove(submission.id)}
                     className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded transition-colors border border-secondary/30"
                   >
-                    Approve
+                    {t('admin.approve')}
                   </button>
                   <button
                     onClick={() => handleReject(submission.id)}
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors border border-red-500/30"
                   >
-                    Reject
+                    {t('admin.reject')}
                   </button>
                   </div>
                 </div>
@@ -315,7 +310,7 @@ function WalletManagement() {
       const response = await api.get('/admin/wallets');
       setWallets(response.data);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load wallets');
+      toast.error(error.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
     } finally {
       setLoading(false);
     }
@@ -324,7 +319,7 @@ function WalletManagement() {
   const handleAdjust = async (userId: string, channelId: string) => {
     const amount = parseInt(adjustAmount, 10);
     if (isNaN(amount) || amount === 0) {
-      toast.error('Please enter a valid amount');
+      toast.error(t('admin.enterAmount'));
       return;
     }
 
@@ -332,32 +327,34 @@ function WalletManagement() {
       setAdjusting(`${userId}-${channelId}`);
       const { api } = await import('../lib/api');
       await api.post(`/admin/wallets/${userId}/${channelId}/adjust`, { amount });
-      toast.success(`Balance ${amount > 0 ? 'increased' : 'decreased'} by ${Math.abs(amount)}`);
+      toast.success(amount > 0 ? t('admin.balanceIncreased', { amount: Math.abs(amount) }) : t('admin.balanceDecreased', { amount: Math.abs(amount) }));
       setAdjustAmount('');
       fetchWallets();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to adjust balance');
+      toast.error(error.response?.data?.error || t('admin.failedToAdjustBalance') || 'Failed to adjust balance');
     } finally {
       setAdjusting(null);
     }
   };
 
+  const { t } = useTranslation();
+
   if (loading) {
-    return <div className="text-center py-8">Loading wallets...</div>;
+    return <div className="text-center py-8">{t('admin.loadingWallets')}</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">All Wallets</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('admin.walletManagement')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left p-2">User</th>
-                <th className="text-left p-2">Channel</th>
-                <th className="text-left p-2">Balance</th>
-                <th className="text-left p-2">Actions</th>
+                <th className="text-left p-2">{t('admin.user')}</th>
+                <th className="text-left p-2">{t('admin.channel') || 'Channel'}</th>
+                <th className="text-left p-2">{t('admin.balance') || 'Balance'}</th>
+                <th className="text-left p-2">{t('common.actions') || 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
@@ -372,7 +369,7 @@ function WalletManagement() {
                         type="number"
                         value={adjusting === `${wallet.userId}-${wallet.channelId}` ? adjustAmount : ''}
                         onChange={(e) => setAdjustAmount(e.target.value)}
-                        placeholder="Amount"
+                        placeholder={t('admin.amount')}
                         className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
                         disabled={adjusting !== null && adjusting !== `${wallet.userId}-${wallet.channelId}`}
                       />
@@ -381,7 +378,7 @@ function WalletManagement() {
                         disabled={adjusting !== null}
                         className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
                       >
-                        {adjusting === `${wallet.userId}-${wallet.channelId}` ? 'Adjusting...' : 'Adjust'}
+                        {adjusting === `${wallet.userId}-${wallet.channelId}` ? t('admin.adjusting') : t('admin.adjust')}
                       </button>
                     </div>
                   </td>
@@ -391,7 +388,7 @@ function WalletManagement() {
           </table>
         </div>
         {wallets.length === 0 && (
-          <div className="text-center py-8 text-gray-500">No wallets found</div>
+          <div className="text-center py-8 text-gray-500">{t('admin.noWallets')}</div>
         )}
       </div>
     </div>
@@ -400,6 +397,7 @@ function WalletManagement() {
 
 // Channel Settings Component
 function ChannelSettings() {
+  const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const [settings, setSettings] = useState({
     rewardIdForCoins: '',
@@ -447,11 +445,11 @@ function ChannelSettings() {
         secondaryColor: settings.secondaryColor || null,
         accentColor: settings.accentColor || null,
       });
-      toast.success('Settings saved!');
+      toast.success(t('admin.settingsSaved'));
       // Refresh channel colors
       window.location.reload();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to save settings');
+      toast.error(error.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings');
     } finally {
       setLoading(false);
     }
@@ -459,11 +457,11 @@ function ChannelSettings() {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
-      <h2 className="text-2xl font-bold mb-4 dark:text-white">Channel Settings</h2>
+      <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelSettings')}</h2>
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Reward ID for Coins
+            {t('admin.rewardIdForCoins')}
           </label>
           <input
             type="text"
@@ -476,7 +474,7 @@ function ChannelSettings() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Coins per Point Ratio
+            {t('admin.coinPerPointRatio')}
           </label>
           <input
             type="number"
@@ -488,11 +486,11 @@ function ChannelSettings() {
         </div>
 
         <div className="border-t border-secondary/30 pt-4 mt-4">
-          <h3 className="text-lg font-semibold mb-4">Color Customization</h3>
+          <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Primary Color
+                {t('admin.primaryColor')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -513,7 +511,7 @@ function ChannelSettings() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Secondary Color
+                {t('admin.secondaryColor')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -534,7 +532,7 @@ function ChannelSettings() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Accent Color
+                {t('admin.accentColor')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -555,7 +553,7 @@ function ChannelSettings() {
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            These colors will be visible to visitors on your channel profile page
+            {t('admin.colorsVisibleToVisitors')}
           </p>
         </div>
 
@@ -564,7 +562,7 @@ function ChannelSettings() {
           disabled={loading}
           className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
         >
-          {loading ? 'Saving...' : 'Save Settings'}
+          {loading ? t('admin.saving') : t('admin.saveSettings')}
         </button>
       </form>
     </div>
@@ -573,6 +571,7 @@ function ChannelSettings() {
 
 // Channel Statistics Component
 function ChannelStatistics() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -587,51 +586,51 @@ function ChannelStatistics() {
       const response = await api.get('/admin/stats/channel');
       setStats(response.data);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load statistics');
+      toast.error(error.response?.data?.error || t('admin.failedToLoadStatistics') || 'Failed to load statistics');
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading statistics...</div>;
+    return <div className="text-center py-8">{t('admin.loadingStatistics')}</div>;
   }
 
   if (!stats) {
-    return <div className="text-center py-8 text-gray-500">No statistics available</div>;
+    return <div className="text-center py-8 text-gray-500">{t('admin.noStatistics')}</div>;
   }
 
   return (
     <div className="space-y-6">
       {/* Overall Stats */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Overall Statistics</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('admin.overallStatistics') || 'Overall Statistics'}</h2>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-4 bg-primary/10 rounded-lg border border-secondary/20">
             <p className="text-3xl font-bold text-primary">{stats.overall.totalActivations}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total Activations</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalActivations')}</p>
           </div>
           <div className="text-center p-4 bg-accent/10 rounded-lg border border-secondary/20">
             <p className="text-3xl font-bold text-accent">{stats.overall.totalCoinsSpent}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total Coins Spent</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalCoinsSpent')}</p>
           </div>
           <div className="text-center p-4 bg-secondary/10 rounded-lg border border-secondary/20">
             <p className="text-3xl font-bold text-secondary">{stats.overall.totalMemes}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total Memes</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalMemes')}</p>
           </div>
         </div>
       </div>
 
       {/* Top Users */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Top Users by Spending</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('admin.topUsersBySpending')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left p-2">User</th>
-                <th className="text-left p-2">Activations</th>
-                <th className="text-left p-2">Total Coins</th>
+                <th className="text-left p-2">{t('admin.user')}</th>
+                <th className="text-left p-2">{t('admin.activations')}</th>
+                <th className="text-left p-2">{t('admin.totalCoins')}</th>
               </tr>
             </thead>
             <tbody>
@@ -649,20 +648,20 @@ function ChannelStatistics() {
 
       {/* Top Memes */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Most Popular Memes</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('admin.mostPopularMemes')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left p-2">Meme</th>
-                <th className="text-left p-2">Activations</th>
-                <th className="text-left p-2">Total Coins</th>
+                <th className="text-left p-2">{t('admin.meme')}</th>
+                <th className="text-left p-2">{t('admin.activations')}</th>
+                <th className="text-left p-2">{t('admin.totalCoins')}</th>
               </tr>
             </thead>
             <tbody>
               {stats.memePopularity.map((item: any, index: number) => (
                 <tr key={item.meme?.id || index} className="border-b">
-                  <td className="p-2">{item.meme?.title || 'Unknown'}</td>
+                  <td className="p-2">{item.meme?.title || t('common.unknown') || 'Unknown'}</td>
                   <td className="p-2">{item.activationsCount}</td>
                   <td className="p-2 font-bold text-accent">{item.totalCoinsSpent}</td>
                 </tr>
@@ -677,6 +676,7 @@ function ChannelStatistics() {
 
 // Promotion Management Component
 function PromotionManagement() {
+  const { t } = useTranslation();
   const [promotions, setPromotions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -718,12 +718,12 @@ function PromotionManagement() {
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
       });
-      toast.success('Promotion created!');
+      toast.success(t('admin.promotionCreated'));
       setShowCreateForm(false);
       setFormData({ name: '', discountPercent: '', startDate: '', endDate: '' });
       fetchPromotions();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create promotion');
+      toast.error(error.response?.data?.error || t('admin.failedToCreatePromotion') || 'Failed to create promotion');
     }
   };
 
@@ -731,27 +731,27 @@ function PromotionManagement() {
     try {
       const { api } = await import('../lib/api');
       await api.patch(`/admin/promotions/${id}`, { isActive: !currentActive });
-      toast.success(`Promotion ${!currentActive ? 'activated' : 'deactivated'}`);
+      toast.success(!currentActive ? t('admin.promotionActivated') : t('admin.promotionDeactivated'));
       fetchPromotions();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update promotion');
+      toast.error(error.response?.data?.error || t('admin.failedToUpdatePromotion') || 'Failed to update promotion');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this promotion?')) return;
+    if (!confirm(t('admin.deletePromotion'))) return;
     try {
       const { api } = await import('../lib/api');
       await api.delete(`/admin/promotions/${id}`);
-      toast.success('Promotion deleted');
+      toast.success(t('admin.promotionDeleted'));
       fetchPromotions();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to delete promotion');
+      toast.error(error.response?.data?.error || t('admin.failedToDeletePromotion') || 'Failed to delete promotion');
     }
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading promotions...</div>;
+    return <div className="text-center py-8">{t('admin.loadingPromotions')}</div>;
   }
 
   if (error) {
@@ -774,19 +774,19 @@ function PromotionManagement() {
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Promotions</h2>
+          <h2 className="text-2xl font-bold">{t('admin.promotions')}</h2>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
             className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded transition-colors"
           >
-            {showCreateForm ? 'Cancel' : 'Create Promotion'}
+            {showCreateForm ? t('common.cancel') : t('admin.createPromotion')}
           </button>
         </div>
 
         {showCreateForm && (
           <form onSubmit={handleCreate} className="mb-6 p-4 bg-gray-50 rounded-lg space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.name')}</label>
               <input
                 type="text"
                 value={formData.name}
@@ -797,7 +797,7 @@ function PromotionManagement() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Discount Percent (0-100)
+                {t('admin.discountPercent')}
               </label>
               <input
                 type="number"
@@ -812,7 +812,7 @@ function PromotionManagement() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.startDate')}</label>
                 <input
                   type="datetime-local"
                   value={formData.startDate}
@@ -822,7 +822,7 @@ function PromotionManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.endDate')}</label>
                 <input
                   type="datetime-local"
                   value={formData.endDate}
@@ -836,14 +836,14 @@ function PromotionManagement() {
               type="submit"
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
             >
-              Create
+              {t('admin.create')}
             </button>
           </form>
         )}
 
         <div className="space-y-4">
           {promotions.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No promotions yet</div>
+            <div className="text-center py-8 text-gray-500">{t('admin.noPromotions')}</div>
           ) : (
             promotions.map((promo) => {
               const startDate = new Date(promo.startDate);
@@ -866,17 +866,17 @@ function PromotionManagement() {
                       </p>
                       <div className="flex gap-2 mt-2">
                         <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            promo.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {promo.isActive ? 'Active' : 'Inactive'}
+                        className={`px-2 py-1 rounded text-xs ${
+                          promo.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {promo.isActive ? t('admin.active') : t('admin.inactive')}
+                      </span>
+                      {isCurrentlyActive && (
+                        <span className="px-2 py-1 rounded text-xs bg-green-200 text-green-900">
+                          {t('admin.currentlyRunning')}
                         </span>
-                        {isCurrentlyActive && (
-                          <span className="px-2 py-1 rounded text-xs bg-green-200 text-green-900">
-                            Currently Running
-                          </span>
-                        )}
+                      )}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -888,13 +888,13 @@ function PromotionManagement() {
                             : 'bg-green-600 hover:bg-green-700'
                         } text-white`}
                       >
-                        {promo.isActive ? 'Deactivate' : 'Activate'}
+                        {promo.isActive ? t('admin.deactivate') : t('admin.activate')}
                       </button>
                       <button
                         onClick={() => handleDelete(promo.id)}
                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
                       >
-                        Delete
+                        {t('common.delete')}
                       </button>
                     </div>
                   </div>

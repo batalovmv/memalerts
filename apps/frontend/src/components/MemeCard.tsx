@@ -133,12 +133,12 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
             loading="lazy"
           />
         )}
-        {isOwner && (
+        {isHovered && (
           <div 
-            className="absolute top-2 right-2 bg-primary bg-opacity-80 text-white text-xs px-2 py-1 rounded"
-            aria-label="Your meme"
+            className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-3 text-center transition-opacity duration-200"
+            aria-label={`Meme title: ${meme.title}`}
           >
-            Your Meme
+            <p className="text-lg font-semibold">{meme.title}</p>
           </div>
         )}
       </div>

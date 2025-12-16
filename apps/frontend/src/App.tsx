@@ -12,6 +12,7 @@ import Search from './pages/Search';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Footer from './components/Footer';
+import AdminRedirect from './components/AdminRedirect';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -30,7 +31,8 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/channel/:slug" element={<StreamerProfile />} />
             <Route path="/submit" element={<Submit />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/settings" element={<Admin />} />
+            <Route path="/admin" element={<AdminRedirect />} />
             <Route path="/search" element={<Search />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />

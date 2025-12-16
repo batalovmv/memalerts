@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '../store/hooks';
 import { api } from '../lib/api';
-import UserMenu from '../components/UserMenu';
+import Header from '../components/Header';
 import type { Meme, Tag } from '../types';
 import { useDebounce } from '../hooks/useDebounce';
 
 export default function Search() {
+  const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -83,14 +85,7 @@ export default function Search() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <nav className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold dark:text-white">Mem Alerts - Search</h1>
-            {user && <UserMenu />}
-          </div>
-        </div>
-      </nav>
+      <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Bar */}
@@ -100,7 +95,7 @@ export default function Search() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search memes by title..."
+              placeholder={t('search.placeholder')}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-lg"
             />
           </div>
@@ -109,7 +104,7 @@ export default function Search() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Min Price
+                {t('search.minPrice')}
               </label>
               <input
                 type="number"
@@ -121,7 +116,7 @@ export default function Search() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max Price
+                {t('search.maxPrice')}
               </label>
               <input
                 type="number"
@@ -133,29 +128,29 @@ export default function Search() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sort By
+                {t('search.sortBy')}
               </label>
               <select
                 value={filters.sortBy}
                 onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="createdAt">Date</option>
-                <option value="priceCoins">Price</option>
-                <option value="popularity">Popularity</option>
+                <option value="createdAt">{t('search.sortDate')}</option>
+                <option value="priceCoins">{t('search.sortPrice')}</option>
+                <option value="popularity">{t('search.sortPopularity')}</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Order
+                {t('search.order')}
               </label>
               <select
                 value={filters.sortOrder}
                 onChange={(e) => setFilters({ ...filters, sortOrder: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="desc">Descending</option>
-                <option value="asc">Ascending</option>
+                <option value="desc">{t('search.descending')}</option>
+                <option value="asc">{t('search.ascending')}</option>
               </select>
             </div>
           </div>
@@ -164,7 +159,7 @@ export default function Search() {
           {availableTags.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by Tags
+                {t('search.filterByTags')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {availableTags.map((tag) => (
@@ -188,12 +183,12 @@ export default function Search() {
 
         {/* Results */}
         {loading ? (
-          <div className="text-center py-8">Searching...</div>
+          <div className="text-center py-8">{t('common.loading')}</div>
         ) : memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             {query || selectedTags.length > 0
-              ? 'No memes found matching your criteria'
-              : 'Enter a search query or select tags to find memes'}
+              ? t('search.noResults')
+              : t('search.enterQuery')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -208,7 +203,7 @@ export default function Search() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600 dark:text-gray-400">{meme.type.toUpperCase()}</span>
                     <span className="text-lg font-bold text-primary">
-                      {meme.priceCoins} coins
+                      {meme.priceCoins} {t('profile.coins')}
                     </span>
                   </div>
                   {meme.tags && meme.tags.length > 0 && (
