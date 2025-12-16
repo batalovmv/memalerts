@@ -14,6 +14,10 @@ model Channel {
   name              String
   rewardIdForCoins  String?
   coinPerPointRatio Float    @default(1.0)
+  rewardEnabled     Boolean  @default(false)  // Is reward enabled/active
+  rewardTitle       String?  // Title of the reward in Twitch
+  rewardCost        Int?     // Cost in channel points
+  rewardCoins       Int?     // Coins granted per redemption
   primaryColor      String?  // Hex color for primary theme
   secondaryColor    String?  // Hex color for secondary theme
   accentColor       String?  // Hex color for accent
@@ -35,6 +39,8 @@ model User {
   displayName String
   role        String    // viewer, streamer, admin
   channelId   String?
+  twitchAccessToken String?  // Twitch OAuth access token for API calls
+  twitchRefreshToken String?  // Twitch OAuth refresh token
   createdAt   DateTime  @default(now())
 
   channel         Channel?          @relation(fields: [channelId], references: [id], onDelete: SetNull)

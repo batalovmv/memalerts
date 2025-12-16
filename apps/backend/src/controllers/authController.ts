@@ -11,7 +11,7 @@ export const authController = {
     // In production, use proper session storage or signed cookies
     const clientId = process.env.TWITCH_CLIENT_ID;
     const redirectUri = encodeURIComponent(process.env.TWITCH_CALLBACK_URL || '');
-    const scopes = encodeURIComponent('user:read:email channel:read:redemptions');
+    const scopes = encodeURIComponent('user:read:email channel:read:redemptions channel:manage:redemptions');
 
     if (!clientId) {
       console.error('TWITCH_CLIENT_ID is not set');
@@ -197,6 +197,8 @@ export const authController = {
                 displayName: twitchUser.display_name,
                 role,
                 channelId,
+                twitchAccessToken: tokenData.access_token,
+                twitchRefreshToken: tokenData.refresh_token || null,
               },
               include: {
                 wallets: true,
@@ -228,8 +230,13 @@ export const authController = {
           // If user was created in a previous attempt, try to find it
           if (error.code === 'P2002') {
             console.log('User or channel already exists, trying to find user...');
-            user = await prisma.user.findUnique({
+            // Update existing user with new tokens
+            user = await prisma.user.update({
               where: { twitchUserId: twitchUser.id },
+              data: {
+                twitchAccessToken: tokenData.access_token,
+                twitchRefreshToken: tokenData.refresh_token || null,
+              },
               include: { wallets: true, channel: true },
             });
             if (!user) {
@@ -241,6 +248,15 @@ export const authController = {
         }
       } else {
         console.log('User found:', user.id);
+        // Update tokens for existing user
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            twitchAccessToken: tokenData.access_token,
+            twitchRefreshToken: tokenData.refresh_token || null,
+          },
+          include: { wallets: true, channel: true },
+        });
       }
 
       // Ensure wallet exists for user's channel (if user has a channel)

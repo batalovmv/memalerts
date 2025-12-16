@@ -8,6 +8,18 @@ import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
 import path from 'path';
+import {
+  createChannelReward,
+  updateChannelReward,
+  deleteChannelReward,
+  getChannelRewards,
+} from '../utils/twitchApi.js';
+import {
+  createChannelReward,
+  updateChannelReward,
+  deleteChannelReward,
+  getChannelRewards,
+} from '../utils/twitchApi.js';
 
 export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -585,22 +597,116 @@ export const adminController = {
 
   updateChannelSettings: async (req: AuthRequest, res: Response) => {
     const channelId = req.channelId;
+    const userId = req.userId;
 
-    if (!channelId) {
-      return res.status(400).json({ error: 'Channel ID required' });
+    if (!channelId || !userId) {
+      return res.status(400).json({ error: 'Channel ID and User ID required' });
     }
 
     try {
       const body = updateChannelSettingsSchema.parse(req.body);
 
-      const channel = await prisma.channel.update({
+      // Get channel and user info
+      const channel = await prisma.channel.findUnique({
         where: { id: channelId },
-        data: body,
       });
 
-      res.json(channel);
-    } catch (error) {
-      throw error;
+      if (!channel) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+
+      // Handle reward enable/disable
+      if (body.rewardEnabled !== undefined) {
+        if (body.rewardEnabled) {
+          // Enable reward - create or update in Twitch
+          if (!body.rewardCost || !body.rewardCoins) {
+            return res.status(400).json({ error: 'Reward cost and coins are required when enabling reward' });
+          }
+
+          if (channel.rewardIdForCoins) {
+            // Update existing reward
+            try {
+              await updateChannelReward(
+                userId,
+                channel.twitchChannelId,
+                channel.rewardIdForCoins,
+                {
+                  title: body.rewardTitle || `Get ${body.rewardCoins} Coins`,
+                  cost: body.rewardCost,
+                  is_enabled: true,
+                  prompt: `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`,
+                }
+              );
+            } catch (error: any) {
+              console.error('Error updating reward:', error);
+              // If reward doesn't exist, create new one
+              if (error.message?.includes('404') || error.message?.includes('not found')) {
+                const rewardResponse = await createChannelReward(
+                  userId,
+                  channel.twitchChannelId,
+                  body.rewardTitle || `Get ${body.rewardCoins} Coins`,
+                  body.rewardCost,
+                  `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
+                );
+                body.rewardIdForCoins = rewardResponse.data[0].id;
+              } else {
+                throw error;
+              }
+            }
+          } else {
+            // Create new reward
+            const rewardResponse = await createChannelReward(
+              userId,
+              channel.twitchChannelId,
+              body.rewardTitle || `Get ${body.rewardCoins} Coins`,
+              body.rewardCost,
+              `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
+            );
+            body.rewardIdForCoins = rewardResponse.data[0].id;
+          }
+        } else {
+          // Disable reward - disable in Twitch but don't delete
+          if (channel.rewardIdForCoins) {
+            try {
+              await updateChannelReward(
+                userId,
+                channel.twitchChannelId,
+                channel.rewardIdForCoins,
+                {
+                  is_enabled: false,
+                }
+              );
+            } catch (error: any) {
+              console.error('Error disabling reward:', error);
+              // If reward doesn't exist, just continue
+            }
+          }
+        }
+      }
+
+      // Update channel in database
+      const updatedChannel = await prisma.channel.update({
+        where: { id: channelId },
+        data: {
+          rewardIdForCoins: body.rewardIdForCoins !== undefined ? body.rewardIdForCoins : channel.rewardIdForCoins,
+          coinPerPointRatio: body.coinPerPointRatio ?? channel.coinPerPointRatio,
+          rewardEnabled: body.rewardEnabled !== undefined ? body.rewardEnabled : channel.rewardEnabled,
+          rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : channel.rewardTitle,
+          rewardCost: body.rewardCost !== undefined ? body.rewardCost : channel.rewardCost,
+          rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : channel.rewardCoins,
+          primaryColor: body.primaryColor !== undefined ? body.primaryColor : channel.primaryColor,
+          secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : channel.secondaryColor,
+          accentColor: body.accentColor !== undefined ? body.accentColor : channel.accentColor,
+        },
+      });
+
+      res.json(updatedChannel);
+    } catch (error: any) {
+      console.error('Error updating channel settings:', error);
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      }
+      return res.status(500).json({ error: error.message || 'Failed to update channel settings' });
     }
   },
 

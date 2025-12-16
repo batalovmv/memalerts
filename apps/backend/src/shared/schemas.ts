@@ -39,6 +39,10 @@ export const updateMemeSchema = z.object({
 export const updateChannelSettingsSchema = z.object({
   rewardIdForCoins: z.string().optional().nullable(),
   coinPerPointRatio: z.number().positive().optional(),
+  rewardEnabled: z.boolean().optional(),
+  rewardTitle: z.string().optional().nullable(),
+  rewardCost: z.number().int().positive().optional().nullable(),
+  rewardCoins: z.number().int().positive().optional().nullable(),
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
