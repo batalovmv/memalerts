@@ -57,12 +57,6 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
-// #region agent log - log all requests before routing
-app.use((req, res, next) => {
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:beforeRoutes', message: 'Request before routing', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl, cookies: Object.keys(req.cookies || {}), cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run4', hypothesisId: 'E' }) }).catch(() => {});
-  next();
-});
-// #endregion
 
 // Static files
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
@@ -74,15 +68,10 @@ app.set('io', io);
 // Routes
 setupRoutes(app);
 
-// #region agent log - catch all unmatched routes
-app.use((req, res, next) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:unmatchedRoute', message: 'Unmatched route - 404', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl, cookies: Object.keys(req.cookies || {}), cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run6', hypothesisId: 'J' }) }).catch(() => {});
-  // #endregion
-  console.log('Unmatched route:', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
+// 404 handler for unmatched routes
+app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
 });
-// #endregion
 
 // Socket.IO
 setupSocketIO(io);
