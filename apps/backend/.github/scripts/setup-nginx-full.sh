@@ -165,8 +165,8 @@ server {
 
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
-    # Use ^~ prefix to prevent regex matching and ensure highest priority
-    location ^~ /me {
+    # location = has highest priority in Nginx
+    location = /me {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -177,6 +177,8 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
         proxy_cookie_path / /;
+        proxy_intercept_errors off;
+        proxy_next_upstream off;
     }
     
     # Other backend routes
@@ -234,8 +236,8 @@ server {
 
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
-    # Use ^~ prefix to prevent regex matching and ensure highest priority
-    location ^~ /me {
+    # location = has highest priority in Nginx
+    location = /me {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -246,6 +248,8 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
         proxy_cookie_path / /;
+        proxy_intercept_errors off;
+        proxy_next_upstream off;
     }
     
     # Other backend routes
