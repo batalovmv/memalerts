@@ -175,6 +175,8 @@
   "search": {
     "title": "Mem Alerts - Поиск",
     "placeholder": "Поиск мемов по названию...",
+    "searching": "Поиск...",
+    "resultsFound": "результатов найдено",
     "minPrice": "Мин. цена",
     "maxPrice": "Макс. цена",
     "sortBy": "Сортировать по",
@@ -236,7 +238,9 @@
   },
   "profile": {
     "memes": "мемов",
-    "users": "пользователей"
+    "users": "пользователей",
+    "availableMemes": "Доступные мемы",
+    "noMemes": "Мемы отсутствуют"
   },
   "tagInput": {
     "pressEnterToAdd": "Нажмите Enter или запятую, чтобы добавить тег. Максимум 50 символов на тег."

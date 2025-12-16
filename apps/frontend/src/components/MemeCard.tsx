@@ -13,6 +13,22 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Track user interaction at page level (any click/touch on page)
+  useEffect(() => {
+    const handlePageInteraction = () => {
+      setHasUserInteracted(true);
+    };
+    
+    // Listen for any user interaction on the page
+    document.addEventListener('click', handlePageInteraction, { once: true });
+    document.addEventListener('touchstart', handlePageInteraction, { once: true });
+    
+    return () => {
+      document.removeEventListener('click', handlePageInteraction);
+      document.removeEventListener('touchstart', handlePageInteraction);
+    };
+  }, []);
+
   // Determine real video aspect ratio
   useEffect(() => {
     if (videoRef.current && meme.type === 'video') {
@@ -58,10 +74,8 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
         videoRef.current.play().catch(() => {
           // Ignore autoplay errors
         });
-        // Enable sound if user has interacted
-        if (hasUserInteracted) {
-          videoRef.current.muted = false;
-        }
+        // Enable sound if user has interacted with page (not just this card)
+        videoRef.current.muted = !hasUserInteracted;
       } else {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;

@@ -175,6 +175,8 @@
   "search": {
     "title": "Mem Alerts - Search",
     "placeholder": "Search memes by title...",
+    "searching": "Searching...",
+    "resultsFound": "results found",
     "minPrice": "Min Price",
     "maxPrice": "Max Price",
     "sortBy": "Sort By",
@@ -236,7 +238,9 @@
   },
   "profile": {
     "memes": "memes",
-    "users": "users"
+    "users": "users",
+    "availableMemes": "Available Memes",
+    "noMemes": "No memes available"
   },
   "tagInput": {
     "pressEnterToAdd": "Press Enter or comma to add a tag. Maximum 50 characters per tag."
