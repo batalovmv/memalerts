@@ -100,10 +100,22 @@ async function startServer() {
     process.exit(1);
   }
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 API server running on http://localhost:${PORT}`);
-  console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
-});
+  // Check if port is already in use
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use`);
+      console.error('Please stop the process using this port or use a different port');
+      console.error(`Find process: lsof -ti:${PORT}`);
+      process.exit(1);
+    } else {
+      throw err;
+    }
+  });
+
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 API server running on http://localhost:${PORT}`);
+    console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
+  });
 }
 
 startServer();
