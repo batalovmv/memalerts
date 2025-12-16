@@ -166,8 +166,9 @@ server {
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
     # location = has highest priority in Nginx
+    # IMPORTANT: proxy_pass without trailing slash preserves the URI
     location = /me {
-        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_pass http://localhost:$BACKEND_PORT/me;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -179,6 +180,7 @@ server {
         proxy_cookie_path / /;
         proxy_intercept_errors off;
         proxy_next_upstream off;
+        proxy_redirect off;
     }
     
     # Other backend routes
@@ -240,8 +242,9 @@ server {
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
     # location = has highest priority in Nginx
+    # IMPORTANT: proxy_pass without trailing slash preserves the URI
     location = /me {
-        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_pass http://localhost:$BACKEND_PORT/me;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -253,6 +256,7 @@ server {
         proxy_cookie_path / /;
         proxy_intercept_errors off;
         proxy_next_upstream off;
+        proxy_redirect off;
     }
     
     # Other backend routes
