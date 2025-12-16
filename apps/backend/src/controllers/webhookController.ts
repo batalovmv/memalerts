@@ -62,12 +62,13 @@ export const webhookController = {
           return res.status(200).json({ message: 'Channel not found, ignoring' });
         }
 
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:65',message:'Checking reward match',data:{eventRewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,matches:channel.rewardIdForCoins === event.reward.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-        // #endregion
-        
-        // Check if this reward is configured for coins
-        if (channel.rewardIdForCoins && channel.rewardIdForCoins === event.reward.id) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:65',message:'Checking reward match',data:{eventRewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,matches:channel.rewardIdForCoins === event.reward.id,rewardEnabled:channel.rewardEnabled},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+          // #endregion
+          
+          // Check if this reward is configured for coins
+          // Also check if reward is enabled
+          if (channel.rewardIdForCoins && channel.rewardIdForCoins === event.reward.id && channel.rewardEnabled) {
           // Find or create user
           let user = await prisma.user.findUnique({
             where: { twitchUserId: event.user_id },

@@ -643,32 +643,56 @@ export const adminController = {
 
           // First, try to get existing rewards to see if we already have one
           let existingRewardId: string | null = null;
+          let oldRewardsToDelete: string[] = [];
           try {
             const rewards = await getChannelRewards(userId, channel.twitchChannelId);
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:644',message:'Fetched existing rewards',data:{userId,channelId:channel.twitchChannelId,rewardsCount:rewards?.data?.length || 0,storedRewardId:channel.rewardIdForCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:647',message:'Fetched existing rewards',data:{userId,channelId:channel.twitchChannelId,rewardsCount:rewards?.data?.length || 0,storedRewardId:channel.rewardIdForCoins,allRewardIds:rewards?.data?.map((r:any)=>r.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
             // #endregion
             
-            // Check if we have a stored reward ID that still exists
-            if (channel.rewardIdForCoins && rewards?.data) {
-              const storedReward = rewards.data.find((r: any) => r.id === channel.rewardIdForCoins);
-              if (storedReward) {
-                existingRewardId = channel.rewardIdForCoins;
+            if (rewards?.data) {
+              // Check if we have a stored reward ID that still exists
+              if (channel.rewardIdForCoins) {
+                const storedReward = rewards.data.find((r: any) => r.id === channel.rewardIdForCoins);
+                if (storedReward) {
+                  existingRewardId = channel.rewardIdForCoins;
+                }
               }
-            }
-            
-            // If no stored reward found, try to find a reward with matching title pattern
-            if (!existingRewardId && rewards?.data) {
-              const matchingReward = rewards.data.find((r: any) => 
-                r.title?.includes('Coins') || r.title?.includes('монет')
-              );
-              if (matchingReward) {
-                existingRewardId = matchingReward.id;
+              
+              // If no stored reward found, try to find a reward with matching title pattern
+              if (!existingRewardId) {
+                const matchingReward = rewards.data.find((r: any) => 
+                  r.title?.includes('Coins') || r.title?.includes('монет') || r.title?.includes('тест')
+                );
+                if (matchingReward) {
+                  existingRewardId = matchingReward.id;
+                }
               }
+              
+              // Find old rewards to delete (rewards with "Coins" in title that are not the current one)
+              oldRewardsToDelete = rewards.data
+                .filter((r: any) => 
+                  r.id !== existingRewardId && 
+                  (r.title?.includes('Coins') || r.title?.includes('Get') || r.title?.includes('монет'))
+                )
+                .map((r: any) => r.id);
             }
           } catch (error: any) {
             console.error('Error fetching rewards:', error);
             // Continue with create/update logic
+          }
+          
+          // Delete old rewards
+          for (const oldRewardId of oldRewardsToDelete) {
+            try {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:680',message:'Deleting old reward',data:{userId,channelId:channel.twitchChannelId,oldRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+              // #endregion
+              await deleteChannelReward(userId, channel.twitchChannelId, oldRewardId);
+            } catch (error: any) {
+              console.error('Error deleting old reward:', error);
+              // Continue even if deletion fails
+            }
           }
 
           if (existingRewardId) {
