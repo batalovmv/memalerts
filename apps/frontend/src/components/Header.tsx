@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions } from '../store/slices/submissionsSlice';
@@ -21,18 +21,25 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
   const { submissions } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams<{ slug: string }>();
   
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [isAddCoinModalOpen, setIsAddCoinModalOpen] = useState(false);
-  const [coinAmount, setCoinAmount] = useState('');
-  const [isAddingCoins, setIsAddingCoins] = useState(false);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
 
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
   const currentChannelSlug = channelSlug || params.slug;
+
+  // Determine if submit button should be shown
+  // Show only on: /dashboard, /settings, or own profile
+  // Hide on: other profiles (/channel/:slug where slug !== user.channel?.slug)
+  const showSubmitButton = user && (
+    location.pathname === '/dashboard' ||
+    location.pathname.startsWith('/settings') ||
+    isOwnProfile
+  );
 
   // Load pending submissions if user is streamer/admin
   useEffect(() => {
@@ -89,47 +96,13 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
     loadWallet();
   }, [user, currentChannelSlug, channelId]);
 
-  const handleAddCoins = async () => {
-    if (!user || !wallet || !isOwnProfile) {
-      return;
-    }
-
-    const amount = parseInt(coinAmount, 10);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error(t('header.validPositiveAmount'));
-      return;
-    }
-
-    setIsAddingCoins(true);
-    try {
-      await api.post(`/admin/wallets/${user.id}/${wallet.channelId}/adjust`, { amount });
-      toast.success(t('header.addedCoins', { amount }));
-      setCoinAmount('');
-      setIsAddCoinModalOpen(false);
-      
-      // Refresh wallet
-      if (currentChannelSlug) {
-        try {
-          const walletResponse = await api.get<Wallet>(`/channels/${currentChannelSlug}/wallet`);
-          setWallet(walletResponse.data);
-        } catch (error) {
-          console.error('Error refreshing wallet:', error);
-        }
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('header.failedToAddCoins'));
-    } finally {
-      setIsAddingCoins(false);
-    }
-  };
-
   const handlePendingSubmissionsClick = () => {
     navigate('/settings?tab=submissions');
   };
 
   const pendingSubmissionsCount = submissions.length;
   const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin') && pendingSubmissionsCount > 0;
-  const showAddCoinButton = isOwnProfile && (user?.role === 'streamer' || user?.role === 'admin');
+  // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
 
   const navStyle: React.CSSProperties = {
@@ -172,17 +145,19 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
                   </button>
                 )}
 
-                {/* Submit Meme Button */}
-                <button
-                  onClick={() => setIsSubmitModalOpen(true)}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  title={t('header.submitMeme')}
-                  aria-label={t('header.submitMeme')}
-                >
-                  <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
+                {/* Submit Meme Button - only show on own pages */}
+                {showSubmitButton && (
+                  <button
+                    onClick={() => setIsSubmitModalOpen(true)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title={t('header.submitMeme')}
+                    aria-label={t('header.submitMeme')}
+                  >
+                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                )}
 
                 {/* Balance Display */}
                 <div className="relative group">
@@ -193,21 +168,6 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                       {isLoadingWallet ? '...' : balance}
                     </span>
-                    {showAddCoinButton && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsAddCoinModalOpen(true);
-                        }}
-                        className="ml-1 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                        title={t('header.addCoins')}
-                        aria-label={t('header.addCoins')}
-                      >
-                        <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
-                    )}
                   </div>
                   {/* Tooltip */}
                   <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
@@ -228,67 +188,9 @@ export default function Header({ channelSlug, channelId, primaryColor }: HeaderP
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
         channelSlug={currentChannelSlug}
+        channelId={isOwnProfile ? channelId : undefined}
       />
 
-      {/* Add Coins Modal */}
-      {isAddCoinModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div 
-            className="fixed inset-0 bg-black/50 transition-opacity"
-            onClick={() => setIsAddCoinModalOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-xl font-bold dark:text-white">{t('header.addCoinsTitle')}</h2>
-                <button
-                  onClick={() => setIsAddCoinModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  aria-label={t('common.cancel')}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="p-6">
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('admin.amount')}
-                  </label>
-                  <input
-                    type="number"
-                    value={coinAmount}
-                    onChange={(e) => setCoinAmount(e.target.value)}
-                    min="1"
-                    placeholder={t('header.enterAmount')}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    autoFocus
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddCoinModalOpen(false)}
-                    disabled={isAddingCoins}
-                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button
-                    onClick={handleAddCoins}
-                    disabled={isAddingCoins || !coinAmount}
-                    className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
-                  >
-                    {isAddingCoins ? t('header.adding') : t('header.addCoinsButton')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

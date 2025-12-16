@@ -9,9 +9,10 @@ interface SubmitModalProps {
   isOpen: boolean;
   onClose: () => void;
   channelSlug?: string;
+  channelId?: string;
 }
 
-export default function SubmitModal({ isOpen, onClose, channelSlug }: SubmitModalProps) {
+export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }: SubmitModalProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
@@ -108,6 +109,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug }: SubmitModa
         if (formData.tags && formData.tags.length > 0) {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
         }
+        // Add channelId if provided (for submitting to another channel)
+        if (channelId) {
+          formDataToSend.append('channelId', channelId);
+        }
 
         // Use axios directly for upload progress tracking
         const { api } = await import('../lib/api');
@@ -173,6 +178,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug }: SubmitModa
           sourceUrl: formData.sourceUrl,
           notes: formData.notes || null,
           tags: formData.tags || [],
+          ...(channelId && { channelId }), // Add channelId if provided
         });
         toast.success(t('submit.importSubmitted'));
         onClose();

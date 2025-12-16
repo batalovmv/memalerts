@@ -7,6 +7,7 @@ import { api } from '../lib/api';
 import Header from '../components/Header';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
+import SubmitModal from '../components/SubmitModal';
 import toast from 'react-hot-toast';
 import type { Meme, Wallet } from '../types';
 
@@ -38,6 +39,7 @@ export default function StreamerProfile() {
   const [loading, setLoading] = useState(true);
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -156,10 +158,27 @@ export default function StreamerProfile() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
         <div className="mb-8 border-b border-secondary/30 pb-4">
-          <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
-          <div className="mt-4 flex gap-4 text-sm">
-            <span className="text-accent font-semibold">{channelInfo.stats.memesCount} {t('profile.memes')}</span>
-            <span className="text-accent font-semibold">{channelInfo.stats.usersCount} {t('profile.users')}</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
+              <div className="mt-4 flex gap-4 text-sm">
+                <span className="text-accent font-semibold">{channelInfo.stats.memesCount} {t('profile.memes')}</span>
+                <span className="text-accent font-semibold">{channelInfo.stats.usersCount} {t('profile.users')}</span>
+              </div>
+            </div>
+            {/* Submit Meme Button - only show when logged in and not owner */}
+            {user && !isOwner && (
+              <button
+                onClick={() => setIsSubmitModalOpen(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+                title={t('profile.submitMeme')}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>{t('profile.submitMeme')}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -210,6 +229,14 @@ export default function StreamerProfile() {
           walletBalance={wallet?.balance}
         />
       )}
+
+      {/* Submit Modal */}
+      <SubmitModal
+        isOpen={isSubmitModalOpen}
+        onClose={() => setIsSubmitModalOpen(false)}
+        channelSlug={slug}
+        channelId={channelInfo?.id}
+      />
     </div>
   );
 }
