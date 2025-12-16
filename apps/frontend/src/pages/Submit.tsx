@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createSubmission } from '../store/slices/submissionsSlice';
 import UserMenu from '../components/UserMenu';
 import toast from 'react-hot-toast';
-import type { MemeType } from '../types';
 
 export default function Submit() {
   const { user } = useAppSelector((state) => state.auth);

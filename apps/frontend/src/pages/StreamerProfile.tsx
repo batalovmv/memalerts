@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { fetchMemes, activateMeme } from '../store/slices/memesSlice';
+import { activateMeme } from '../store/slices/memesSlice';
 import { api } from '../lib/api';
 import UserMenu from '../components/UserMenu';
 import toast from 'react-hot-toast';
@@ -23,7 +23,6 @@ interface ChannelInfo {
 export default function StreamerProfile() {
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAppSelector((state) => state.auth);
-  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   
