@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
 import { fetchMemes } from '../store/slices/memesSlice';
@@ -18,9 +18,18 @@ export default function Admin() {
   const { memes } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Handle tab parameter from URL
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['submissions', 'memes', 'settings', 'wallets', 'promotions', 'statistics'].includes(tabParam)) {
+      setActiveTab(tabParam as TabType);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
@@ -88,7 +97,7 @@ export default function Admin() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <div className="flex gap-4 border-b">
+          <div className="flex gap-4 border-b border-secondary/30">
             <button
               onClick={() => setActiveTab('submissions')}
               className={`pb-2 px-4 transition-colors ${
@@ -212,13 +221,13 @@ export default function Admin() {
                   <div className="flex gap-2">
                   <button
                     onClick={() => handleApprove(submission.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                    className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded transition-colors border border-secondary/30"
                   >
                     Approve
                   </button>
                   <button
                     onClick={() => handleReject(submission.id)}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors border border-red-500/30"
                   >
                     Reject
                   </button>
@@ -449,8 +458,8 @@ function ChannelSettings() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-      <h2 className="text-2xl font-bold mb-4">Channel Settings</h2>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <h2 className="text-2xl font-bold mb-4 dark:text-white">Channel Settings</h2>
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -460,7 +469,7 @@ function ChannelSettings() {
             type="text"
             value={settings.rewardIdForCoins}
             onChange={(e) => setSettings({ ...settings, rewardIdForCoins: e.target.value })}
-            className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
             placeholder="Twitch reward ID"
           />
         </div>
@@ -474,11 +483,11 @@ function ChannelSettings() {
             step="0.1"
             value={settings.coinPerPointRatio}
             onChange={(e) => setSettings({ ...settings, coinPerPointRatio: e.target.value })}
-            className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
           />
         </div>
 
-        <div className="border-t pt-4 mt-4">
+        <div className="border-t border-secondary/30 pt-4 mt-4">
           <h3 className="text-lg font-semibold mb-4">Color Customization</h3>
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -553,7 +562,7 @@ function ChannelSettings() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
         >
           {loading ? 'Saving...' : 'Save Settings'}
         </button>
@@ -598,17 +607,17 @@ function ChannelStatistics() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-4">Overall Statistics</h2>
         <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-primary/10 rounded-lg">
+          <div className="text-center p-4 bg-primary/10 rounded-lg border border-secondary/20">
             <p className="text-3xl font-bold text-primary">{stats.overall.totalActivations}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">Total Activations</p>
           </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-3xl font-bold text-green-600">{stats.overall.totalCoinsSpent}</p>
-            <p className="text-sm text-gray-600">Total Coins Spent</p>
+          <div className="text-center p-4 bg-accent/10 rounded-lg border border-secondary/20">
+            <p className="text-3xl font-bold text-accent">{stats.overall.totalCoinsSpent}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Total Coins Spent</p>
           </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className="text-3xl font-bold text-blue-600">{stats.overall.totalMemes}</p>
-            <p className="text-sm text-gray-600">Total Memes</p>
+          <div className="text-center p-4 bg-secondary/10 rounded-lg border border-secondary/20">
+            <p className="text-3xl font-bold text-secondary">{stats.overall.totalMemes}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Total Memes</p>
           </div>
         </div>
       </div>

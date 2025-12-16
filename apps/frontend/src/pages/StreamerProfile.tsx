@@ -136,6 +136,9 @@ export default function StreamerProfile() {
     );
   }
 
+  // Check if current user is the owner of this channel
+  const isOwner = user && user.channelId === channelInfo?.id;
+
   // Apply custom colors if available
   const customStyles: Record<string, string> = {};
   if (channelInfo?.primaryColor) {
@@ -164,12 +167,12 @@ export default function StreamerProfile() {
       </nav>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
-        <div className="mb-8">
+        <div className="mb-8 border-b border-secondary/30 pb-4">
           <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
           <p className="text-gray-600 dark:text-gray-400">@{channelInfo.slug}</p>
-          <div className="mt-4 flex gap-4 text-sm text-gray-500 dark:text-gray-400">
-            <span>{channelInfo.stats.memesCount} memes</span>
-            <span>{channelInfo.stats.usersCount} users</span>
+          <div className="mt-4 flex gap-4 text-sm">
+            <span className="text-accent font-semibold">{channelInfo.stats.memesCount} memes</span>
+            <span className="text-accent font-semibold">{channelInfo.stats.usersCount} users</span>
           </div>
         </div>
 
@@ -177,8 +180,8 @@ export default function StreamerProfile() {
         {user && wallet && (
           <div className="mb-6">
             <h2 className="text-2xl font-bold mb-2 dark:text-white">Your Balance</h2>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="text-3xl font-bold" style={{ color: channelInfo.accentColor || 'var(--accent-color)' }}>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+              <div className="text-3xl font-bold text-accent">
                 {wallet.balance} coins
               </div>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -188,17 +191,26 @@ export default function StreamerProfile() {
           </div>
         )}
 
-        {/* Submit Meme Button */}
-        {user && (
-          <div className="mb-6">
+        {/* Action Buttons */}
+        <div className="mb-6 flex flex-wrap gap-4">
+          {isOwner ? (
             <button
-              onClick={handleSubmitMeme}
+              onClick={() => navigate('/admin')}
               className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
             >
-              Submit a Meme
+              Manage Channel
             </button>
-          </div>
-        )}
+          ) : (
+            user && (
+              <button
+                onClick={handleSubmitMeme}
+                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+              >
+                Submit a Meme
+              </button>
+            )
+          )}
+        </div>
 
         {/* Memes List */}
         <h2 className="text-2xl font-bold mb-4 dark:text-white">Available Memes</h2>

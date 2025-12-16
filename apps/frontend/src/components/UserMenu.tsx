@@ -44,13 +44,16 @@ export default function UserMenu() {
   };
 
   const handleMyProfile = () => {
-    if (user.role === 'streamer' && user.channelId) {
-      // Get channel slug from user data or fetch it
-      // For now, redirect to dashboard - we'll improve this later
-      navigate('/dashboard');
+    if (user.role === 'streamer' && user.channelId && user.channel?.slug) {
+      navigate(`/channel/${user.channel.slug}`);
     } else {
       navigate('/dashboard');
     }
+    setIsOpen(false);
+  };
+
+  const handleDashboard = () => {
+    navigate('/dashboard');
     setIsOpen(false);
   };
 
@@ -59,7 +62,12 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
-  const handleAdmin = () => {
+  const handleSettings = () => {
+    navigate('/admin?tab=settings');
+    setIsOpen(false);
+  };
+
+  const handleChannelManagement = () => {
     navigate('/admin');
     setIsOpen(false);
   };
@@ -130,12 +138,32 @@ export default function UserMenu() {
           {/* Menu items */}
           <div className="py-1">
             {(user.role === 'streamer' || user.role === 'admin') && (
-              <button
-                onClick={handleMyProfile}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                My Profile
-              </button>
+              <>
+                <button
+                  onClick={handleMyProfile}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  My Profile
+                </button>
+                <button
+                  onClick={handleDashboard}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={handleSettings}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Settings
+                </button>
+                <button
+                  onClick={handleChannelManagement}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Channel Management
+                </button>
+              </>
             )}
             <button
               onClick={handleSubmitMeme}
@@ -143,14 +171,6 @@ export default function UserMenu() {
             >
               Submit Meme
             </button>
-            {(user.role === 'streamer' || user.role === 'admin') && (
-              <button
-                onClick={handleAdmin}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                Admin Panel
-              </button>
-            )}
           </div>
 
           {/* Divider */}

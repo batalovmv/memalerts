@@ -203,7 +203,7 @@ export default function MemeModal({
         </section>
 
         {/* Info Section - Right */}
-        <aside className="w-80 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative" aria-label="Meme information">
+        <aside className="w-80 border-l border-secondary/30 dark:border-secondary/30 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative" aria-label="Meme information">
           {/* Action buttons in top right corner */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
             {mode === 'admin' && isOwner && (
@@ -271,7 +271,7 @@ export default function MemeModal({
                     type="number"
                     value={formData.priceCoins}
                     onChange={(e) => setFormData({ ...formData, priceCoins: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                     min="1"
                     required
                     aria-required="true"
@@ -286,7 +286,7 @@ export default function MemeModal({
                     type="number"
                     value={formData.durationMs}
                     onChange={(e) => setFormData({ ...formData, durationMs: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                     min="1"
                     required
                     aria-required="true"
@@ -296,14 +296,14 @@ export default function MemeModal({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                    className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors font-medium border border-secondary/30"
                   >
                     {loading ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition-colors font-medium"
+                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-secondary/20 dark:hover:bg-secondary/20 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition-colors font-medium border border-secondary/30"
                   >
                     Cancel
                   </button>
@@ -356,11 +356,11 @@ export default function MemeModal({
 
                 {/* Activate button for viewer mode */}
                 {mode === 'viewer' && (
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
                     <button
                       onClick={handleActivate}
                       disabled={!canActivate}
-                      className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                      className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-secondary/30"
                     >
                       {walletBalance === undefined 
                         ? 'Loading...' 

@@ -97,7 +97,7 @@ export default function MemeCard({ meme, onClick, isOwner = false }: MemeCardPro
 
   return (
     <article
-      className="bg-white dark:bg-gray-800 overflow-hidden cursor-pointer break-inside-avoid mb-0"
+      className="bg-white dark:bg-gray-800 overflow-hidden cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleCardClick}

@@ -169,15 +169,15 @@ export default function Submit() {
         <h2 className="text-2xl font-bold mb-6 dark:text-white">Submit a Meme</h2>
         
         {/* Mode selector */}
-        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-secondary/20">
           <div className="flex gap-4">
             <button
               type="button"
               onClick={() => setMode('upload')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                 mode === 'upload'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-primary text-white border border-secondary/30'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
               }`}
             >
               Upload Video
@@ -187,8 +187,8 @@ export default function Submit() {
               onClick={() => setMode('import')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                 mode === 'import'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-primary text-white border border-secondary/30'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
               }`}
             >
               Import from memalerts.com
@@ -196,7 +196,7 @@ export default function Submit() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4 border border-secondary/20">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Title
@@ -206,7 +206,7 @@ export default function Submit() {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
@@ -220,7 +220,7 @@ export default function Submit() {
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 required
                 accept="video/*"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
               />
               <p className="text-sm text-gray-500 mt-1">Only video files are allowed</p>
             </div>
@@ -235,9 +235,9 @@ export default function Submit() {
                 onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
                 required
                 placeholder="https://cdns.memealerts.com/.../alert_orig.webm"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
               />
-              <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+              <div className="mt-2 p-3 bg-accent/10 rounded-lg border border-accent/20">
                 <p className="text-sm text-gray-700 font-medium mb-1">How to copy video URL:</p>
                 <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
                   <li>Go to memalerts.com and find the video</li>
@@ -271,7 +271,7 @@ export default function Submit() {
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
@@ -286,7 +286,7 @@ export default function Submit() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
           >
             {loading ? (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Submitting...') : 'Submit'}
           </button>

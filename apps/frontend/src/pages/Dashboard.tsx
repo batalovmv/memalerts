@@ -1,16 +1,11 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { fetchUser } from '../store/slices/authSlice';
-import { fetchMemes, activateMeme } from '../store/slices/memesSlice';
+import { useAppSelector } from '../store/hooks';
 import UserMenu from '../components/UserMenu';
 import toast from 'react-hot-toast';
-import type { Meme } from '../types';
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,30 +15,14 @@ export default function Dashboard() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user && user.channelId) {
-      dispatch(fetchMemes({ channelId: user.channelId }));
-    } else if (user && user.role === 'streamer') {
+    if (user && user.role === 'streamer' && !user.channelId) {
       // If user is streamer but no channelId, redirect to home
       navigate('/');
     } else if (user && user.role !== 'streamer') {
       // If user is not streamer, redirect to home
       navigate('/');
     }
-  }, [user, dispatch, navigate]);
-
-
-  const handleActivate = async (memeId: string): Promise<void> => {
-    try {
-      await dispatch(activateMeme(memeId)).unwrap();
-      toast.success('Meme activated!');
-      await dispatch(fetchUser()).unwrap();
-      if (user) {
-        await dispatch(fetchMemes({ channelId: user.channelId })).unwrap();
-      }
-    } catch (error) {
-      toast.error('Failed to activate meme');
-    }
-  };
+  }, [user, navigate]);
 
   if (authLoading || !user) {
     return (
@@ -100,7 +79,7 @@ export default function Dashboard() {
             <div className="mb-6">
               <h2 className="text-2xl font-bold mb-2 dark:text-white">Your Wallet</h2>
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <div className="text-3xl font-bold text-primary">
+                <div className="text-3xl font-bold text-accent">
                   {user.wallets?.find(w => w.channelId === user.channelId)?.balance || 0} coins
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -108,45 +87,27 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
+            
+            {/* Action Buttons */}
+            <div className="mb-6 flex flex-wrap gap-4">
+              <button
+                onClick={() => {
+                  if (user.channel?.slug) {
+                    navigate(`/channel/${user.channel.slug}`);
+                  }
+                }}
+                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+              >
+                View Public Profile
+              </button>
+              <button
+                onClick={() => navigate('/admin?tab=settings')}
+                className="bg-secondary hover:bg-primary text-white font-semibold py-2 px-6 rounded-lg transition-colors border border-secondary"
+              >
+                Settings
+              </button>
+            </div>
           </>
-        )}
-
-        <h2 className="text-2xl font-bold mb-4 dark:text-white">Available Memes</h2>
-        {memesLoading ? (
-          <div className="text-center py-8 dark:text-gray-400">Loading memes...</div>
-        ) : memes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No memes available yet.</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {memes.map((meme: Meme) => (
-              <div key={meme.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {meme.type.toUpperCase()}
-                    </span>
-                    <span className="text-lg font-bold text-primary">
-                      {meme.priceCoins} coins
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleActivate(meme.id)}
-                    disabled={
-                      !user.channelId || !user.wallets || 
-                      (user.wallets.find(w => w.channelId === user.channelId)?.balance || 0) < meme.priceCoins
-                    }
-                    className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
-                  >
-                    {!user.channelId || !user.wallets || 
-                     (user.wallets.find(w => w.channelId === user.channelId)?.balance || 0) < meme.priceCoins
-                      ? 'Insufficient coins'
-                      : 'Activate'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </main>
     </div>
