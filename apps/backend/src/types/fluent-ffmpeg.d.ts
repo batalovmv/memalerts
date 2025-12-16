@@ -17,14 +17,15 @@ declare module 'fluent-ffmpeg' {
   }
 
   interface FfmpegCommand extends EventEmitter {
-    ffprobe(file: string, callback: FFProbeCallback): void;
     setFfmpegPath(path: string): FfmpegCommand;
     [key: string]: any;
   }
 
   function ffmpeg(input?: string): FfmpegCommand;
+  
   namespace ffmpeg {
     function setFfmpegPath(path: string): void;
+    function ffprobe(file: string, callback: FFProbeCallback): void;
   }
 
   export = ffmpeg;
