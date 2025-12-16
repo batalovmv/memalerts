@@ -32,21 +32,17 @@ export default function Admin() {
   }, [user, dispatch]);
 
   const handleApprove = async (submissionId: string): Promise<void> => {
-    const priceCoinsStr = prompt('Enter price in coins:');
-    const durationMsStr = prompt('Enter duration in milliseconds:');
-
-    if (!priceCoinsStr || !durationMsStr) return;
-
-    const priceCoins = parseInt(priceCoinsStr, 10);
-    const durationMs = parseInt(durationMsStr, 10);
-
-    if (isNaN(priceCoins) || isNaN(durationMs)) {
-      toast.error('Invalid input');
-      return;
-    }
+    // Use standard values: 100 coins and 15 seconds (15000ms) max duration
+    // Backend will handle getting actual video duration if needed
+    const STANDARD_PRICE_COINS = 100;
+    const STANDARD_DURATION_MS = 15000; // 15 seconds max
 
     try {
-      await dispatch(approveSubmission({ submissionId, priceCoins, durationMs })).unwrap();
+      await dispatch(approveSubmission({ 
+        submissionId, 
+        priceCoins: STANDARD_PRICE_COINS, 
+        durationMs: STANDARD_DURATION_MS 
+      })).unwrap();
       toast.success('Submission approved!');
       dispatch(fetchSubmissions({ status: 'pending' }));
       if (user) {
@@ -231,17 +227,43 @@ export default function Admin() {
 
         {activeTab === 'memes' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {memes.map((meme: Meme) => (
-              <div key={meme.id} className="bg-white rounded-lg shadow p-4">
-                <h3 className="font-semibold mb-2">{meme.title}</h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  {meme.priceCoins} coins • {meme.durationMs}ms
-                </p>
-                {meme.status && (
-                  <p className="text-xs text-gray-500">Status: {meme.status}</p>
-                )}
-              </div>
-            ))}
+            {memes.map((meme: Meme) => {
+              // Determine source: imported if fileUrl starts with http, otherwise uploaded
+              const source = meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://') 
+                ? 'imported' 
+                : 'uploaded';
+              
+              // Get creator info
+              const creatorName = meme.createdBy?.displayName || 'Unknown';
+              const creatorChannelSlug = meme.createdBy?.channel?.slug;
+              
+              return (
+                <div key={meme.id} className="bg-white rounded-lg shadow p-4">
+                  <h3 className="font-semibold mb-2">{meme.title}</h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {meme.priceCoins} coins • {meme.durationMs}ms
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    By{' '}
+                    {creatorChannelSlug ? (
+                      <button
+                        onClick={() => navigate(`/channel/${creatorChannelSlug}`)}
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        {creatorName}
+                      </button>
+                    ) : (
+                      <span>{creatorName}</span>
+                    )}
+                    {' • '}
+                    <span className="capitalize">{source}</span>
+                  </p>
+                  {meme.status && (
+                    <p className="text-xs text-gray-500">Status: {meme.status}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

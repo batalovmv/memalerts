@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout } from '../store/slices/authSlice';
 import toast from 'react-hot-toast';
@@ -8,6 +8,8 @@ export default function UserMenu() {
   const { user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams<{ slug: string }>();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +69,25 @@ export default function UserMenu() {
     ? user.wallets.find(w => w.channelId === user.channelId)?.balance || 0
     : 0;
 
+  // Determine displayed role based on context
+  // Show "streamer" only when viewing own profile, "viewer" when viewing someone else's profile
+  const getDisplayRole = (): string => {
+    // If on channel profile page
+    if (location.pathname.startsWith('/channel/') && params.slug) {
+      // Check if this is the user's own channel
+      if (user.channel?.slug === params.slug) {
+        return 'streamer';
+      } else {
+        // Viewing someone else's channel
+        return 'viewer';
+      }
+    }
+    // On other pages (dashboard, admin, etc.), show actual role
+    return user.role;
+  };
+
+  const displayRole = getDisplayRole();
+
   return (
     <div className="relative" ref={menuRef}>
       <button
@@ -101,7 +122,7 @@ export default function UserMenu() {
               </div>
               <div>
                 <div className="font-medium text-gray-900">{user.displayName}</div>
-                <div className="text-sm text-gray-500">{user.role}</div>
+                <div className="text-sm text-gray-500">{displayRole}</div>
               </div>
             </div>
           </div>

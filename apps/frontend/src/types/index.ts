@@ -39,6 +39,13 @@ export interface Meme {
   tags?: Array<{ tag: Tag }>;
   createdAt?: string;
   updatedAt?: string;
+  createdBy?: {
+    id: string;
+    displayName: string;
+    channel?: {
+      slug: string;
+    };
+  };
 }
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
