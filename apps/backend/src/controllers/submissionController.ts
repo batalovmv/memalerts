@@ -2,7 +2,10 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { createSubmissionSchema, importMemeSchema } from '../shared/index.js';
+import { validateVideo } from '../utils/videoValidator.js';
+import { getOrCreateTags } from '../utils/tags.js';
 import path from 'path';
+import fs from 'fs';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
@@ -22,12 +25,39 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video files are allowed' });
       }
 
-      const body = createSubmissionSchema.parse(req.body);
+      // Parse tags from FormData (they come as JSON string)
+      const bodyData = { ...req.body };
+      if (typeof bodyData.tags === 'string') {
+        try {
+          bodyData.tags = JSON.parse(bodyData.tags);
+        } catch (e) {
+          bodyData.tags = [];
+        }
+      }
+      
+      const body = createSubmissionSchema.parse(bodyData);
 
       // Ensure type is video
       if (body.type !== 'video') {
         return res.status(400).json({ error: 'Only video type is allowed' });
       }
+
+      // Validate video file (duration and size)
+      const filePath = path.join(process.cwd(), req.file.path);
+      const validation = await validateVideo(filePath);
+      
+      if (!validation.valid) {
+        // Delete uploaded file if validation fails
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          console.error('Failed to delete invalid video file:', unlinkError);
+        }
+        return res.status(400).json({ error: validation.error || 'Video validation failed' });
+      }
+
+      // Get or create tags
+      const tagIds = await getOrCreateTags(body.tags || []);
 
       const submission = await prisma.memeSubmission.create({
         data: {
@@ -38,6 +68,18 @@ export const submissionController = {
           fileUrlTemp: `/uploads/${req.file.filename}`,
           notes: body.notes || null,
           status: 'pending',
+          tags: {
+            create: tagIds.map((tagId) => ({
+              tagId,
+            })),
+          },
+        },
+        include: {
+          tags: {
+            include: {
+              tag: true,
+            },
+          },
         },
       });
 
@@ -70,10 +112,15 @@ export const submissionController = {
     try {
       const body = importMemeSchema.parse(req.body);
 
-      // Validate URL is from memalerts.com
-      if (!body.sourceUrl.includes('memalerts.com')) {
-        return res.status(400).json({ error: 'Source URL must be from memalerts.com' });
+      // Validate URL is from memalerts.com or cdns.memealerts.com
+      const isValidUrl = body.sourceUrl.includes('memalerts.com') || 
+                        body.sourceUrl.includes('cdns.memealerts.com');
+      if (!isValidUrl) {
+        return res.status(400).json({ error: 'Source URL must be from memalerts.com or cdns.memealerts.com' });
       }
+
+      // Get or create tags
+      const tagIds = await getOrCreateTags(body.tags || []);
 
       // Create submission with imported URL
       const submission = await prisma.memeSubmission.create({
@@ -86,6 +133,18 @@ export const submissionController = {
           sourceUrl: body.sourceUrl,
           notes: body.notes || null,
           status: 'pending',
+          tags: {
+            create: tagIds.map((tagId) => ({
+              tagId,
+            })),
+          },
+        },
+        include: {
+          tags: {
+            include: {
+              tag: true,
+            },
+          },
         },
       });
 

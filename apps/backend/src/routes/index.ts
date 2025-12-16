@@ -20,6 +20,8 @@ export function setupRoutes(app: Express) {
   app.get('/me', authenticate, viewerController.getMe);
   app.get('/wallet', authenticate, viewerController.getWallet);
   app.get('/memes', authenticate, viewerController.getMemes);
+  app.get('/channels/memes/search', viewerController.searchMemes); // Public search endpoint
+  app.get('/memes/stats', viewerController.getMemeStats); // Public stats endpoint
   app.post('/memes/:id/activate', authenticate, activateMemeLimiter, viewerController.activateMeme);
   
   // Router-based routes

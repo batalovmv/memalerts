@@ -14,4 +14,17 @@ adminRoutes.get('/memes', adminController.getMemes);
 adminRoutes.patch('/memes/:id', adminController.updateMeme);
 adminRoutes.patch('/channel/settings', adminController.updateChannelSettings);
 
+// Admin-only routes for wallet management
+adminRoutes.get('/wallets', adminController.getAllWallets);
+adminRoutes.post('/wallets/:userId/:channelId/adjust', adminController.adjustWallet);
+
+// Promotion management
+adminRoutes.get('/promotions', adminController.getPromotions);
+adminRoutes.post('/promotions', adminController.createPromotion);
+adminRoutes.patch('/promotions/:id', adminController.updatePromotion);
+adminRoutes.delete('/promotions/:id', adminController.deletePromotion);
+
+// Statistics
+adminRoutes.get('/stats/channel', adminController.getChannelStats);
+
 

@@ -14,6 +14,9 @@ model Channel {
   name              String
   rewardIdForCoins  String?
   coinPerPointRatio Float    @default(1.0)
+  primaryColor      String?  // Hex color for primary theme
+  secondaryColor    String?  // Hex color for secondary theme
+  accentColor       String?  // Hex color for accent
   createdAt         DateTime @default(now())
 
   users         User[]
@@ -23,6 +26,7 @@ model Channel {
   redemptions   Redemption[]
   activations   MemeActivation[]
   auditLogs     AuditLog[]
+  promotions    Promotion[]
 }
 
 model User {
@@ -78,6 +82,7 @@ model Meme {
   createdBy     User?           @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   approvedBy    User?           @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   activations   MemeActivation[]
+  tags          MemeTag[]
 
   @@index([channelId])
   @@index([status])
@@ -99,6 +104,7 @@ model MemeSubmission {
 
   channel    Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   submitter  User    @relation(fields: [submitterUserId], references: [id], onDelete: Cascade)
+  tags       MemeSubmissionTag[]
 
   @@index([channelId])
   @@index([status])
@@ -156,6 +162,61 @@ model AuditLog {
   @@index([channelId])
   @@index([actorId])
   @@index([createdAt])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  memes         MemeTag[]
+  submissions   MemeSubmissionTag[]
+
+  @@index([name])
+}
+
+model MemeTag {
+  id     String @id @default(uuid())
+  memeId String
+  tagId  String
+
+  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([memeId, tagId])
+  @@index([memeId])
+  @@index([tagId])
+}
+
+model MemeSubmissionTag {
+  id             String @id @default(uuid())
+  submissionId   String
+  tagId          String
+
+  submission MemeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  tag        Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, tagId])
+  @@index([submissionId])
+  @@index([tagId])
+}
+
+model Promotion {
+  id              String   @id @default(uuid())
+  channelId       String
+  name            String
+  discountPercent Float    // 0-100, e.g., 50 for 50% discount
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([isActive])
+  @@index([startDate, endDate])
 }
 
 

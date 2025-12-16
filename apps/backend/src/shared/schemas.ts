@@ -10,17 +10,20 @@ export const createSubmissionSchema = z.object({
   title: z.string().min(1).max(200),
   type: z.literal('video'), // Only video allowed
   notes: z.string().max(500).optional().nullable(),
+  tags: z.array(z.string().min(1).max(50)).optional().default([]), // Array of tag names
 });
 
 export const importMemeSchema = z.object({
   title: z.string().min(1).max(200),
   sourceUrl: z.string().url(), // URL from memalerts.com
   notes: z.string().max(500).optional().nullable(),
+  tags: z.array(z.string().min(1).max(50)).optional().default([]), // Array of tag names
 });
 
 export const approveSubmissionSchema = z.object({
   priceCoins: z.number().int().positive(),
   durationMs: z.number().int().positive(),
+  tags: z.array(z.string().min(1).max(50)).optional().default([]), // Tags to apply to approved meme
 });
 
 export const rejectSubmissionSchema = z.object({
@@ -36,6 +39,24 @@ export const updateMemeSchema = z.object({
 export const updateChannelSettingsSchema = z.object({
   rewardIdForCoins: z.string().optional().nullable(),
   coinPerPointRatio: z.number().positive().optional(),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
+  secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
+});
+
+export const createPromotionSchema = z.object({
+  name: z.string().min(1).max(200),
+  discountPercent: z.number().min(0).max(100),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+});
+
+export const updatePromotionSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const activateMemeSchema = z.object({
