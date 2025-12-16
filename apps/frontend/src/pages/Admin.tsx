@@ -5,6 +5,8 @@ import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/
 import { fetchMemes } from '../store/slices/memesSlice';
 import UserMenu from '../components/UserMenu';
 import VideoPreview from '../components/VideoPreview';
+import MemeCard from '../components/MemeCard';
+import MemeModal from '../components/MemeModal';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
 
@@ -17,6 +19,8 @@ export default function Admin() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
@@ -226,55 +230,38 @@ export default function Admin() {
         )}
 
         {activeTab === 'memes' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {memes.map((meme: Meme) => {
-              // Determine source: imported if fileUrl starts with http, otherwise uploaded
-              const source = meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://') 
-                ? 'imported' 
-                : 'uploaded';
-              
-              // Get creator info
-              const creatorName = meme.createdBy?.displayName || 'Unknown';
-              const creatorChannelSlug = meme.createdBy?.channel?.slug;
-              
-              return (
-                <div key={meme.id} className="bg-white rounded-lg shadow p-4">
-                  <h3 className="font-semibold mb-2">{meme.title}</h3>
-                  
-                  {/* Video Preview */}
-                  <div className="mb-4">
-                    <VideoPreview 
-                      src={meme.fileUrl} 
-                      title={meme.title}
-                      className="w-full"
-                    />
-                  </div>
-                  
-                  <p className="text-sm text-gray-600 mb-2">
-                    {meme.priceCoins} coins • {meme.durationMs}ms
-                  </p>
-                  <p className="text-sm text-gray-600 mb-2">
-                    By{' '}
-                    {creatorChannelSlug ? (
-                      <button
-                        onClick={() => navigate(`/channel/${creatorChannelSlug}`)}
-                        className="text-blue-600 hover:text-blue-800 underline"
-                      >
-                        {creatorName}
-                      </button>
-                    ) : (
-                      <span>{creatorName}</span>
-                    )}
-                    {' • '}
-                    <span className="capitalize">{source}</span>
-                  </p>
-                  {meme.status && (
-                    <p className="text-xs text-gray-500">Status: {meme.status}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {memes.map((meme: Meme) => {
+                const isOwner = user?.channelId === meme.channelId && (user?.role === 'streamer' || user?.role === 'admin');
+                return (
+                  <MemeCard
+                    key={meme.id}
+                    meme={meme}
+                    onClick={() => {
+                      setSelectedMeme(meme);
+                      setIsModalOpen(true);
+                    }}
+                    isOwner={isOwner}
+                  />
+                );
+              })}
+            </div>
+            <MemeModal
+              meme={selectedMeme}
+              isOpen={isModalOpen}
+              onClose={() => {
+                setIsModalOpen(false);
+                setSelectedMeme(null);
+              }}
+              onUpdate={() => {
+                if (user) {
+                  dispatch(fetchMemes({ channelId: user.channelId }));
+                }
+              }}
+              isOwner={user?.channelId === selectedMeme?.channelId && (user?.role === 'streamer' || user?.role === 'admin')}
+            />
+          </>
         )}
 
         {activeTab === 'settings' && (
