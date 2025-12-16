@@ -13,8 +13,20 @@ export const authController = {
     const redirectUri = encodeURIComponent(process.env.TWITCH_CALLBACK_URL || '');
     const scopes = encodeURIComponent('user:read:email channel:read:redemptions');
 
-    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}`;
+    if (!clientId) {
+      console.error('TWITCH_CLIENT_ID is not set');
+      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_client_id`);
+    }
 
+    if (!redirectUri) {
+      console.error('TWITCH_CALLBACK_URL is not set');
+      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_callback_url`);
+    }
+
+    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}`;
+    console.log('Initiating Twitch auth, redirecting to:', authUrl);
     res.redirect(authUrl);
   },
 
