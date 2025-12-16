@@ -12,7 +12,7 @@ type TabType = 'submissions' | 'memes' | 'settings' | 'wallets' | 'promotions' |
 
 export default function Admin() {
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading, error: submissionsError } = useAppSelector((state) => state.submissions);
   const { memes } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();

@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { createSubmission } from '../store/slices/submissionsSlice';
+import { useAppSelector } from '../store/hooks';
 import UserMenu from '../components/UserMenu';
 import TagInput from '../components/TagInput';
 import toast from 'react-hot-toast';
 
 export default function Submit() {
   const { user } = useAppSelector((state) => state.auth);
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
