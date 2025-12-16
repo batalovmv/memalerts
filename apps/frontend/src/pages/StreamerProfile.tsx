@@ -247,7 +247,6 @@ export default function StreamerProfile() {
           walletBalance={wallet?.balance}
         />
       )}
-      </main>
     </div>
   );
 }
