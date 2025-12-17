@@ -6,57 +6,35 @@ import crypto from 'crypto';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:entry',message:'getRedirectUrl called',data:{hasWebUrl:!!process.env.WEB_URL,webUrl:process.env.WEB_URL,hasDomain:!!process.env.DOMAIN,domain:process.env.DOMAIN,nodeEnv:process.env.NODE_ENV,hasReq:!!req,reqHost:req?.get('host'),reqReferer:req?.get('referer'),stateOrigin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
   // First priority: use origin from state (set during OAuth initiation)
   if (stateOrigin) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:stateOrigin',message:'Using origin from state',data:{stateOrigin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return stateOrigin;
   }
   
   // Second priority: determine domain from Host header (for beta detection)
   if (req) {
     const host = req.get('host') || '';
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:hostCheck',message:'Checking Host header',data:{host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     
     // If request came to beta domain, redirect to beta
     if (host.includes('beta.')) {
       const betaUrl = `https://${host.split(':')[0]}`;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:betaFromHost',message:'Using beta domain from Host header',data:{host,betaUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return betaUrl;
     }
   }
   
   // First, use WEB_URL if explicitly set (this is the primary way)
   if (process.env.WEB_URL) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:webUrl',message:'Using WEB_URL',data:{webUrl:process.env.WEB_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return process.env.WEB_URL;
   }
   
   // Fallback: construct from DOMAIN if in production
   if (process.env.NODE_ENV === 'production' && process.env.DOMAIN) {
     const fallbackUrl = `https://${process.env.DOMAIN}`;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:domainFallback',message:'Using DOMAIN fallback',data:{domain:process.env.DOMAIN,fallbackUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     return fallbackUrl;
   }
   
   // Development fallback
   const devUrl = 'http://localhost:5173';
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:devFallback',message:'Using dev fallback',data:{devUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
   return devUrl;
 };
 
@@ -89,9 +67,6 @@ export const authController = {
     const originHost = req.get('host') || '';
     const referer = req.get('referer') || '';
     const isBeta = originHost.includes('beta.') || referer.includes('beta.');
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:initiateTwitchAuth:originCheck',message:'Checking origin',data:{originHost,referer,isBeta,reqHeaders:Object.keys(req.headers)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     
     // Determine origin URL - prefer beta if detected, otherwise use WEB_URL or construct from host
     let originUrl: string | undefined;
@@ -118,9 +93,6 @@ export const authController = {
     const state = encodeURIComponent(JSON.stringify(stateData));
 
     const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}${state ? `&state=${state}` : ''}`;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:initiateTwitchAuth',message:'Initiating Twitch auth',data:{originHost,isBeta,stateData,authUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     console.log('Initiating Twitch auth, redirecting to:', authUrl);
     res.redirect(authUrl);
   },
@@ -128,47 +100,21 @@ export const authController = {
   handleTwitchCallback: async (req: AuthRequest, res: Response) => {
     const { code, error, state } = req.query;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:entry',message:'Callback received',data:{hasCode:!!code,hasError:!!error,hasState:!!state,stateType:typeof state,stateValue:state,reqHost:req.get('host'),reqReferer:req.get('referer'),reqHeaders:Object.keys(req.headers)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     // Extract origin from state if present
     let stateOrigin: string | undefined;
     let stateRedirectTo: string | undefined;
     if (state && typeof state === 'string') {
       try {
         const decodedState = decodeURIComponent(state);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateDecode',message:'Decoding state',data:{state,decodedState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         const stateData = JSON.parse(decodedState);
         stateOrigin = stateData.origin;
         stateRedirectTo = stateData.redirectTo;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateParse',message:'Parsed state data',data:{state,decodedState,stateData,stateOrigin,stateRedirectTo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
       } catch (e) {
         // State might be old format (just redirect path), ignore
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateParseError',message:'Failed to parse state, using old format',data:{state,error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
       }
-    } else {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:noState',message:'No state parameter',data:{state,stateType:typeof state},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     }
 
-    console.log('Twitch callback received:', { 
-      code: code ? 'present' : 'missing', 
-      error, 
-      stateOrigin, 
-      state,
-      stateType: typeof state,
-      stateValue: state,
-      queryParams: Object.keys(req.query),
-      fullQuery: req.query
-    });
+    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error, stateOrigin, state });
 
     if (error) {
       console.error('Twitch OAuth error:', error);
@@ -321,9 +267,6 @@ export const authController = {
             channelId = channel.id;
 
             // Create user
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:194',message:'Creating new user with tokens',data:{twitchUserId:twitchUser.id,hasAccessToken:!!tokenData.access_token,hasRefreshToken:!!tokenData.refresh_token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-            // #endregion
             const newUser = await tx.user.create({
               data: {
                 twitchUserId: twitchUser.id,
@@ -384,9 +327,6 @@ export const authController = {
         }
       } else {
         console.log('User found:', user.id);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:250',message:'Updating existing user tokens',data:{userId:user.id,hasAccessToken:!!tokenData.access_token,hasRefreshToken:!!tokenData.refresh_token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         // Update tokens for existing user
         user = await prisma.user.update({
           where: { id: user.id },
@@ -398,9 +338,6 @@ export const authController = {
           },
           include: { wallets: true, channel: true },
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:260',message:'User tokens updated',data:{userId:user.id,hasAccessToken:!!user.twitchAccessToken,hasRefreshToken:!!user.twitchRefreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
       }
 
       // Ensure wallet exists for user's channel (if user has a channel)
@@ -462,52 +399,31 @@ export const authController = {
       const redirectUrl = getRedirectUrl(req, stateOrigin);
       
       // Determine cookie domain based on redirect URL
-      // If redirecting to beta, we need to set cookie domain to work for beta
-      // If redirecting to production, use production domain
+      // IMPORTANT: For security, beta and production cookies must be isolated
+      // - For beta: use exact domain (beta.twitchmemes.ru) without dot prefix to isolate from production
+      // - For production: don't set domain explicitly - browser will set it to current domain only
       let cookieDomain: string | undefined;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:determineCookieDomain',message:'Determining cookie domain',data:{stateOrigin,hasStateOrigin:!!stateOrigin,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       // Check both stateOrigin and redirectUrl for beta detection
       const isBetaRedirect = (stateOrigin && stateOrigin.includes('beta.')) || (redirectUrl && redirectUrl.includes('beta.'));
       
       if (isBetaRedirect) {
-        // For beta, set domain to .twitchmemes.ru so cookie works for both beta and production
-        // Extract base domain (e.g., .twitchmemes.ru from beta.twitchmemes.ru)
+        // For beta, use the exact beta domain (without dot prefix) to isolate from production
+        // This ensures cookies are NOT shared between beta and production
         try {
-          // Use redirectUrl if available, otherwise stateOrigin
           const urlToParse = redirectUrl || stateOrigin;
-          if (!urlToParse) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:noUrlToParse',message:'No URL to parse for cookie domain',data:{stateOrigin,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          } else {
+          if (urlToParse) {
             const url = new URL(urlToParse);
             const hostname = url.hostname;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:parseBetaDomain',message:'Parsing beta domain',data:{urlToParse,hostname,parts:hostname.split('.')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            // Extract base domain (twitchmemes.ru) and add dot prefix
-            const parts = hostname.split('.');
-            if (parts.length >= 2) {
-              cookieDomain = '.' + parts.slice(-2).join('.');
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieDomainSet',message:'Cookie domain determined',data:{cookieDomain,hostname,parts},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-              // #endregion
-            }
+            // Use exact hostname for beta (e.g., beta.twitchmemes.ru) without dot prefix
+            // This prevents cookie from working on production domain
+            cookieDomain = hostname;
           }
         } catch (e) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieDomainError',message:'Failed to parse cookie domain',data:{stateOrigin,redirectUrl,error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          // If parsing fails, don't set domain
+          // If parsing fails, don't set domain - browser will handle it
         }
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:noBetaDomain',message:'Not setting cookie domain (not beta)',data:{stateOrigin,redirectUrl,isBetaRedirect},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
       }
+      // For production, don't set domain - browser will automatically set it to the current domain only
       
       const cookieOptions: any = {
         httpOnly: true,
@@ -516,18 +432,12 @@ export const authController = {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/', // Ensure cookie is available for all paths
       };
-      
+
       // Set domain only if we determined it should be set for beta
       if (cookieDomain) {
         cookieOptions.domain = cookieDomain;
       }
       // Otherwise, don't set domain explicitly - let browser handle it
-      // Browser will automatically set it to the current domain
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:setCookie',message:'Setting cookie',data:{stateOrigin,cookieDomain,cookieOptions,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       console.log('Setting cookie with options:', {
         httpOnly: cookieOptions.httpOnly,
         secure: cookieOptions.secure,
@@ -546,9 +456,6 @@ export const authController = {
       
       // Verify cookie was set in response
       const setCookieHeader = res.getHeader('Set-Cookie');
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieSet',message:'Cookie set in response',data:{setCookieHeader:setCookieHeader?.toString(),cookieOptions,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       console.log('Set-Cookie header:', setCookieHeader);
       console.log('Response headers before redirect:', Object.keys(res.getHeaders()));
       
@@ -557,7 +464,8 @@ export const authController = {
       }
 
       // Redirect to user's profile if streamer, otherwise to home
-      // redirectUrl was already determined above for cookie domain
+      // Pass req and stateOrigin to determine correct redirect domain
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
       
       let redirectPath = '/';
       
@@ -588,9 +496,6 @@ export const authController = {
       }
       
       const finalRedirectUrl = `${redirectUrl}${redirectPath}`;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:redirect',message:'Final redirect URL',data:{redirectUrl,redirectPath,finalRedirectUrl,state,userRole:user.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       console.log('Auth successful, redirecting to:', finalRedirectUrl, 'state:', state);
       
       // Use 302 redirect (temporary) to ensure cookie is sent

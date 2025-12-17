@@ -10,10 +10,6 @@ import fs from 'fs';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:11',message:'createSubmission started',data:{hasFile:!!req.file,channelId:req.channelId,userId:req.userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     if (!req.file) {
       return res.status(400).json({ error: 'File is required' });
     }
@@ -43,10 +39,6 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video files are allowed' });
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:28',message:'File validated as video',data:{mimetype:req.file.mimetype,filename:req.file.filename},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       // Parse tags from FormData (they come as JSON string)
       const bodyData = { ...req.body };
       if (typeof bodyData.tags === 'string') {
@@ -64,10 +56,6 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video type is allowed' });
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:45',message:'Starting file processing',data:{filePath:req.file.path,fileSize:req.file.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       // Skip video validation completely to avoid ffprobe hanging
       // Just check file size limit
       const filePath = path.join(process.cwd(), req.file.path);
@@ -82,10 +70,6 @@ export const submissionController = {
           error: `Video file size (${(req.file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)` 
         });
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:58',message:'File size check passed, starting deduplication',data:{fileSize:req.file.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       // Calculate file hash and perform deduplication
       let finalFilePath: string;
@@ -103,10 +87,6 @@ export const submissionController = {
         finalFilePath = `/uploads/${req.file.filename}`;
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:76',message:'Starting getOrCreateTags',data:{tagsCount:body.tags?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       // Get or create tags with timeout protection
       let tagIds: string[] = [];
       try {
@@ -122,10 +102,6 @@ export const submissionController = {
         console.warn('Error creating tags, proceeding without tags:', error.message);
         tagIds = []; // Proceed without tags on error
       }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:91',message:'Tags processed, starting DB submission',data:{tagIdsCount:tagIds.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       // Create submission with timeout protection
       // If tagIds is empty or tags table doesn't exist, create without tags
@@ -186,17 +162,9 @@ export const submissionController = {
         }
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:98',message:'Submission created, sending response',data:{submissionId:submission.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       // Send response immediately after creating submission
       res.status(201).json(submission);
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:error',message:'Error in createSubmission',data:{error:error?.message,stack:error?.stack,name:error?.name,code:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       console.error('Error in createSubmission:', {
         message: error?.message,
         name: error?.name,

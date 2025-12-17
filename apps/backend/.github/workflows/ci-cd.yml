@@ -437,9 +437,13 @@ jobs:
             fi
             
             # Create .env file with beta port
+            # Use DATABASE_URL_BETA if available, otherwise fallback to DATABASE_URL
+            # IMPORTANT: Beta should use separate database to prevent affecting production data
+            BETA_DB_URL="${{ secrets.DATABASE_URL_BETA || secrets.DATABASE_URL }}"
+            
             cat > .env << EOF
-            # Database
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            # Database (beta instance - should use separate database)
+            DATABASE_URL=$BETA_DB_URL
             
             # Server
             PORT=3002

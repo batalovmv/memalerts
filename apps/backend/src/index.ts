@@ -9,23 +9,48 @@ import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { globalLimiter } from './middleware/rateLimit.js';
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
 // Get allowed origins from env or use defaults
+// IMPORTANT: Beta and production must be isolated
+// - Beta backend should only allow beta frontend
+// - Production backend should only allow production frontend
 const getAllowedOrigins = () => {
   const origins: string[] = [];
-  if (process.env.WEB_URL) origins.push(process.env.WEB_URL);
-  if (process.env.OVERLAY_URL) origins.push(process.env.OVERLAY_URL);
-  if (process.env.DOMAIN) {
-    origins.push(`https://${process.env.DOMAIN}`);
-    origins.push(`https://www.${process.env.DOMAIN}`);
+  
+  // Check if this is a beta instance (by checking DOMAIN or PORT)
+  const isBetaInstance = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
+  
+  if (process.env.WEB_URL) {
+    // Only add WEB_URL if it matches the instance type (beta or production)
+    const webUrlIsBeta = process.env.WEB_URL.includes('beta.');
+    if ((isBetaInstance && webUrlIsBeta) || (!isBetaInstance && !webUrlIsBeta)) {
+      origins.push(process.env.WEB_URL);
+    }
   }
+  
+  if (process.env.OVERLAY_URL) {
+    origins.push(process.env.OVERLAY_URL);
+  }
+  
+  if (process.env.DOMAIN) {
+    // Only add domain if it matches instance type
+    const domainIsBeta = process.env.DOMAIN.includes('beta.');
+    if ((isBetaInstance && domainIsBeta) || (!isBetaInstance && !domainIsBeta)) {
+      origins.push(`https://${process.env.DOMAIN}`);
+      origins.push(`https://www.${process.env.DOMAIN}`);
+    }
+  }
+  
+  // Development fallback
   if (origins.length === 0) {
     origins.push('http://localhost:5173', 'http://localhost:5174');
   }
+  
   return origins;
 };
 
@@ -95,6 +120,9 @@ app.use('/uploads', express.static(path.join(process.cwd(), uploadDir)));
 // Attach io to app for use in routes
 app.set('io', io);
 
+// Global rate limiting (applied to all routes)
+app.use(globalLimiter);
+
 // Routes
 setupRoutes(app);
 
@@ -106,15 +134,6 @@ app.use((req, res) => {
 // Socket.IO
 setupSocketIO(io);
 
-// #region agent log - catch all unmatched routes (before error handler)
-app.use((req, res, next) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:unmatchedRoute', message: 'Unmatched route - 404', data: { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl, cookies: Object.keys(req.cookies || {}), cookieHeader: req.headers.cookie }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run6', hypothesisId: 'J' }) }).catch(() => {});
-  // #endregion
-  console.log('Unmatched route:', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
-  res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
-});
-
 // Error handler
 app.use(errorHandler);
 
@@ -122,6 +141,27 @@ app.use(errorHandler);
 import { prisma } from './lib/prisma.js';
 
 async function startServer() {
+  // Validate required environment variables
+  const requiredEnvVars = [
+    'DATABASE_URL',
+    'JWT_SECRET',
+    'TWITCH_CLIENT_ID',
+    'TWITCH_CLIENT_SECRET',
+    'TWITCH_EVENTSUB_SECRET',
+  ];
+  
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missingVars.forEach(varName => {
+      console.error(`   - ${varName}`);
+    });
+    console.error('');
+    console.error('Please set these variables in your .env file or environment.');
+    process.exit(1);
+  }
+  
   try {
     // Test database connection
     console.log('Testing database connection...');

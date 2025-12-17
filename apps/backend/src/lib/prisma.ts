@@ -5,10 +5,16 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Configure Prisma Client with connection pooling
+// Connection pooling is configured via DATABASE_URL parameters:
+// ?connection_limit=10&pool_timeout=20
+// This ensures efficient database connection management under load
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    // Connection pooling is handled via DATABASE_URL parameters
+    // Recommended: ?connection_limit=10&pool_timeout=20
   });
 
 // Middleware to handle file hash reference counting when memes are deleted

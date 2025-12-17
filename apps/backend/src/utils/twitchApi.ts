@@ -4,31 +4,17 @@ import { prisma } from '../lib/prisma.js';
  * Get valid access token for a user, refreshing if necessary
  */
 export async function getValidAccessToken(userId: string): Promise<string | null> {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:6',message:'getValidAccessToken called',data:{userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { twitchAccessToken: true, twitchRefreshToken: true },
   });
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:12',message:'User fetched from DB',data:{userFound:!!user,hasAccessToken:!!user?.twitchAccessToken,hasRefreshToken:!!user?.twitchRefreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   if (!user || !user.twitchAccessToken) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:18',message:'No valid token found',data:{userExists:!!user,hasToken:!!user?.twitchAccessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return null;
   }
 
   // Verify token is still valid (optional: can add token validation here)
   // For now, we'll just return the token. In production, you might want to validate it.
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:24',message:'Returning valid token',data:{tokenLength:user.twitchAccessToken.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
   return user.twitchAccessToken;
 }
 
@@ -90,10 +76,6 @@ async function twitchApiRequest(
   userId: string,
   body?: any
 ): Promise<any> {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:72',message:'twitchApiRequest called',data:{endpoint,method,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-
   let accessToken = await getValidAccessToken(userId);
   if (!accessToken) {
     // Try to refresh
@@ -286,9 +268,6 @@ export async function createEventSubSubscription(
     const errorText = await response.text();
     // If subscription already exists, that's fine - return success
     if (response.status === 409 && errorText.includes('already exists')) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'twitchApi.ts:308',message:'Subscription already exists, treating as success',data:{broadcasterId,webhookUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-      // #endregion
       return { data: [{ id: 'existing', status: 'enabled' }] };
     }
     throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);

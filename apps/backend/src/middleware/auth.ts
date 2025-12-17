@@ -8,23 +8,10 @@ export interface AuthRequest extends Request {
 }
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:10',message:'authenticate middleware called',data:{path:req.path,hasToken:!!req.cookies?.token,cookies:req.cookies,cookieHeader:req.headers.cookie,host:req.headers.host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-  
-  console.log('[authenticate] Request details:', {
-    path: req.path,
-    host: req.headers.host,
-    cookieHeader: req.headers.cookie,
-    cookies: req.cookies,
-    hasToken: !!req.cookies?.token,
-  });
-  
   const token = req.cookies?.token;
 
   if (!token) {
-    console.log('[authenticate] No token found in cookies');
-    return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required' });
+    return res.status(401).json({ error: 'Unauthorized', message: 'No token cookie found' });
   }
 
   try {
@@ -37,10 +24,6 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     req.userRole = decoded.role;
     req.channelId = decoded.channelId;
     console.log('Authentication successful:', { userId: decoded.userId, role: decoded.role });
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:28',message:'Authentication successful',data:{userId:decoded.userId,role:decoded.role,channelId:decoded.channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     
     next();
   } catch (error) {

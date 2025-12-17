@@ -106,9 +106,6 @@ export const adminController = {
   },
 
   approveSubmission: async (req: AuthRequest, res: Response) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:100',message:'approveSubmission entry',data:{submissionId:req.params.id,channelId:req.channelId,body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const { id } = req.params;
     const channelId = req.channelId;
 
@@ -117,13 +114,7 @@ export const adminController = {
     }
 
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:109',message:'before schema parse',data:{body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const body = approveSubmissionSchema.parse(req.body);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:111',message:'after schema parse success',data:{parsedBody:body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       // Get submission first to check if it's imported (has sourceUrl)
       let submissionForBackground: any;
@@ -136,19 +127,10 @@ export const adminController = {
         // Ignore, will check in transaction
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:122',message:'before transaction start',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       const result = await prisma.$transaction(async (tx) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:123',message:'inside transaction',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         // Get submission WITHOUT tags to avoid transaction abort if MemeSubmissionTag table doesn't exist
         // The table may not exist on production, so we fetch without tags from the start
         let submission: any;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:127',message:'before findUnique submission (no tags)',data:{submissionId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         try {
           submission = await tx.memeSubmission.findUnique({
             where: { id },
@@ -157,13 +139,7 @@ export const adminController = {
           if (submission) {
             submission.tags = [];
           }
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:136',message:'after findUnique submission success',data:{submissionFound:!!submission,submissionId:submission?.id,status:submission?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
         } catch (error: any) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:137',message:'error in findUnique submission',data:{errorMessage:error?.message,errorCode:error?.code,errorName:error?.name,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           console.error('Error fetching submission:', error);
           throw new Error('Failed to fetch submission');
         }
@@ -189,13 +165,7 @@ export const adminController = {
           const filePath = path.join(process.cwd(), submission.fileUrlTemp);
           
           // Check if file already exists in FileHash (was deduplicated during upload)
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:179',message:'before getFileHashByPath',data:{fileUrlTemp:submission.fileUrlTemp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
           const existingHash = await getFileHashByPath(submission.fileUrlTemp);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:181',message:'after getFileHashByPath',data:{existingHash:existingHash},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
           
           if (existingHash) {
             // File was already deduplicated - use existing path and increment reference
@@ -239,9 +209,6 @@ export const adminController = {
         let tagIds: string[] = [];
         if (tagNames.length > 0) {
           try {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:222',message:'before getOrCreateTags',data:{tagNames:tagNames},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
             const tagsPromise = getOrCreateTags(tagNames);
             const tagsTimeout = new Promise<string[]>((resolve) => {
               setTimeout(() => {
@@ -250,13 +217,7 @@ export const adminController = {
               }, 3000); // 3 second timeout for tags
             });
             tagIds = await Promise.race([tagsPromise, tagsTimeout]);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:230',message:'after getOrCreateTags success',data:{tagIds:tagIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
           } catch (error: any) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:231',message:'error in getOrCreateTags',data:{errorMessage:error?.message,errorName:error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
             console.warn('Error creating tags, proceeding without tags:', error.message);
             tagIds = [];
           }
@@ -297,9 +258,6 @@ export const adminController = {
           createdByUserId: submission.submitterUserId,
           approvedByUserId: req.userId!,
         };
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:282',message:'before meme.create',data:{memeDataKeys:Object.keys(memeData),hasFileHash:!!memeData.fileHash,hasTags:!!memeData.tags},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
 
         // Only add tags if we have tagIds
         if (tagIds.length > 0) {
@@ -334,15 +292,9 @@ export const adminController = {
               } : {}),
             },
           });
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:294',message:'after meme.create success',data:{memeId:meme.id,createdBy:!!meme.createdBy,createdByDisplayName:meme.createdBy?.displayName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
 
           return meme;
         } catch (error: any) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:296',message:'error in meme.create',data:{errorMessage:error?.message,errorCode:error?.code,errorName:error?.name,isPrismaKnown:error instanceof PrismaClientKnownRequestError,isPrismaUnknown:error instanceof PrismaClientUnknownRequestError,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
           console.error('Error creating meme:', error);
           // Check if it's a constraint violation or other Prisma error
           if (error instanceof PrismaClientKnownRequestError) {
@@ -386,14 +338,8 @@ export const adminController = {
         });
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:339',message:'before res.json success',data:{resultId:result?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       res.json(result);
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:340',message:'catch block entry',data:{errorMessage:error?.message,errorName:error?.name,errorCode:error?.code,isZodError:error instanceof ZodError,isPrismaKnown:error instanceof PrismaClientKnownRequestError,isPrismaUnknown:error instanceof PrismaClientUnknownRequestError,errorStack:error?.stack?.substring(0,1000)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       console.error('Error in approveSubmission:', error);
 
       // Don't send response if headers already sent
@@ -403,9 +349,6 @@ export const adminController = {
       }
 
       // Handle validation errors (ZodError)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:350',message:'checking ZodError',data:{isZodError:error instanceof ZodError,zodErrors:error instanceof ZodError ? error.errors : null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Validation error',
@@ -415,9 +358,6 @@ export const adminController = {
       }
 
       // Handle Prisma errors
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:359',message:'checking Prisma errors',data:{isPrismaKnown:error instanceof PrismaClientKnownRequestError,isPrismaUnknown:error instanceof PrismaClientUnknownRequestError,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       if (error instanceof PrismaClientKnownRequestError || error instanceof PrismaClientUnknownRequestError) {
         console.error('Prisma error in approveSubmission:', error.message);
         
@@ -455,9 +395,6 @@ export const adminController = {
       }
 
       // Handle all other errors
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:396',message:'fallback to generic error',data:{errorMessage:error?.message,errorName:error?.name,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return res.status(500).json({
         error: 'Internal server error',
         message: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred while processing the request',
@@ -595,10 +532,6 @@ export const adminController = {
     const channelId = req.channelId;
     const userId = req.userId;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:598',message:'updateChannelSettings called',data:{channelId,userId,hasRewardEnabled:req.body?.rewardEnabled},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
     if (!channelId || !userId) {
       return res.status(400).json({ error: 'Channel ID and User ID required' });
     }
@@ -631,14 +564,7 @@ export const adminController = {
             select: { twitchAccessToken: true, twitchRefreshToken: true },
           });
 
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:615',message:'Checking user token before reward operation',data:{userId,hasAccessToken:!!userWithToken?.twitchAccessToken,hasRefreshToken:!!userWithToken?.twitchRefreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-          // #endregion
-
           if (!userWithToken || !userWithToken.twitchAccessToken) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:620',message:'No token found, returning error',data:{userId,userExists:!!userWithToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
             return res.status(401).json({ 
               error: 'Twitch access token not found. Please log out and log in again to refresh your authorization.',
               requiresReauth: true 
@@ -650,9 +576,6 @@ export const adminController = {
           let oldRewardsToDelete: string[] = [];
           try {
             const rewards = await getChannelRewards(userId, channel.twitchChannelId);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:647',message:'Fetched existing rewards',data:{userId,channelId:channel.twitchChannelId,rewardsCount:rewards?.data?.length || 0,storedRewardId:channel.rewardIdForCoins,allRewardIds:rewards?.data?.map((r:any)=>r.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-            // #endregion
             
             if (rewards?.data) {
               // Check if we have a stored reward ID that still exists
@@ -689,9 +612,6 @@ export const adminController = {
           // Delete old rewards
           for (const oldRewardId of oldRewardsToDelete) {
             try {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:680',message:'Deleting old reward',data:{userId,channelId:channel.twitchChannelId,oldRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-              // #endregion
               await deleteChannelReward(userId, channel.twitchChannelId, oldRewardId);
             } catch (error: any) {
               console.error('Error deleting old reward:', error);
@@ -702,9 +622,6 @@ export const adminController = {
           if (existingRewardId) {
             // Update existing reward
             try {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:670',message:'Updating existing reward',data:{userId,channelId:channel.twitchChannelId,rewardId:existingRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-              // #endregion
               await updateChannelReward(
                 userId,
                 channel.twitchChannelId,
@@ -729,9 +646,6 @@ export const adminController = {
                 console.error('Error fetching reward details for icon:', error);
               }
             } catch (error: any) {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:685',message:'Error updating reward, will create new',data:{error:error.message,rewardId:existingRewardId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-              // #endregion
               console.error('Error updating reward:', error);
               // If update fails, create new one
               const rewardResponse = await createChannelReward(
@@ -761,9 +675,6 @@ export const adminController = {
             }
           } else {
             // Create new reward
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:700',message:'Creating new reward',data:{userId,channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-            // #endregion
             const rewardResponse = await createChannelReward(
               userId,
               channel.twitchChannelId,
@@ -802,9 +713,6 @@ export const adminController = {
             // Check existing subscriptions first
             try {
               const existingSubs = await getEventSubSubscriptions(channel.twitchChannelId);
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:750',message:'Checked existing subscriptions',data:{userId,channelId:channel.twitchChannelId,subscriptionsCount:existingSubs?.data?.length || 0,subscriptions:existingSubs?.data?.map((s:any)=>({id:s.id,type:s.type,status:s.status}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-              // #endregion
               
               // Check if we already have an active subscription for this event type
               const hasActiveSubscription = existingSubs?.data?.some((sub: any) => 
@@ -813,31 +721,19 @@ export const adminController = {
               );
               
               if (hasActiveSubscription) {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:758',message:'Active subscription already exists, skipping creation',data:{channelId:channel.twitchChannelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-                // #endregion
                 // Subscription already exists and is active, skip creation
               } else {
                 // Create new subscription
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:763',message:'Creating EventSub subscription',data:{userId,channelId:channel.twitchChannelId,webhookUrl,apiUrl,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-                // #endregion
                 const subscriptionResult = await createEventSubSubscription(
                   userId,
                   channel.twitchChannelId,
                   webhookUrl,
                   process.env.TWITCH_EVENTSUB_SECRET!
                 );
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:771',message:'EventSub subscription created successfully',data:{subscriptionId:subscriptionResult?.data?.[0]?.id,status:subscriptionResult?.data?.[0]?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-                // #endregion
               }
             } catch (checkError: any) {
               // If check fails, try to create anyway
               console.error('Error checking subscriptions, will try to create:', checkError);
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:777',message:'Error checking subscriptions, creating new',data:{error:checkError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-              // #endregion
               const subscriptionResult = await createEventSubSubscription(
                 userId,
                 channel.twitchChannelId,
@@ -848,9 +744,6 @@ export const adminController = {
           } catch (error: any) {
             // Log but don't fail - subscription might already exist
             console.error('Error creating EventSub subscription:', error);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:789',message:'EventSub subscription error',data:{error:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-            // #endregion
           }
         } else {
           // Disable reward - disable in Twitch but don't delete
@@ -873,10 +766,6 @@ export const adminController = {
       }
 
       // Update channel in database
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:681',message:'Updating channel in DB',data:{channelId,rewardEnabled:body.rewardEnabled,rewardIdForCoins:body.rewardIdForCoins,rewardCost:body.rewardCost,rewardCoins:body.rewardCoins,coinIconUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-      // #endregion
-      
       const updateData: any = {
         rewardIdForCoins: body.rewardIdForCoins !== undefined ? body.rewardIdForCoins : (channel as any).rewardIdForCoins,
         coinPerPointRatio: body.coinPerPointRatio !== undefined ? body.coinPerPointRatio : channel.coinPerPointRatio,
@@ -898,10 +787,6 @@ export const adminController = {
         where: { id: channelId },
         data: updateData,
       });
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:697',message:'Channel updated in DB',data:{channelId:updatedChannel.id,rewardEnabled:updatedChannel.rewardEnabled,rewardIdForCoins:updatedChannel.rewardIdForCoins,rewardCost:updatedChannel.rewardCost,rewardCoins:updatedChannel.rewardCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-      // #endregion
 
       res.json(updatedChannel);
     } catch (error: any) {

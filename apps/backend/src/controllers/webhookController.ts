@@ -7,7 +7,6 @@ import { Server } from 'socket.io';
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
     try {
-      // #region agent log
       console.log('Webhook request received:', {
         method: req.method,
         path: req.path,
@@ -22,16 +21,11 @@ export const webhookController = {
           signature: req.headers['twitch-eventsub-message-signature'] ? 'present' : 'missing',
         },
       });
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:8',message:'Webhook request received',data:{hasBody:!!req.body,subscriptionType:req.body?.subscription?.type,subscriptionStatus:req.body?.subscription?.status,hasHeaders:!!req.headers['twitch-eventsub-message-id'],method:req.method,path:req.path},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       
       // Handle challenge verification
       if (req.body.subscription && req.body.subscription.status === 'webhook_callback_verification_pending') {
         const challenge = req.body.challenge;
         console.log('Challenge verification:', challenge);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:15',message:'Challenge verification',data:{challenge},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-        // #endregion
         return res.status(200).send(challenge);
       }
 
@@ -42,9 +36,6 @@ export const webhookController = {
 
       if (!messageId || !messageTimestamp || !messageSignature) {
         console.log('Missing signature headers:', { messageId: !!messageId, timestamp: !!messageTimestamp, signature: !!messageSignature });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:22',message:'Missing signature headers',data:{hasMessageId:!!messageId,hasTimestamp:!!messageTimestamp,hasSignature:!!messageSignature},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-        // #endregion
         // For challenge verification, we might not have signature headers yet
         // Return 200 instead of 403 to allow challenge to pass
         return res.status(200).json({ message: 'Missing signature headers - may be challenge verification' });
@@ -69,9 +60,6 @@ export const webhookController = {
           received: messageSignature.substring(0, 30),
           expected: expectedSignature.substring(0, 30),
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:32',message:'Invalid signature',data:{messageSignature:messageSignature.substring(0,20)+'...',expectedSignature:expectedSignature.substring(0,20)+'...'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-        // #endregion
         return res.status(403).json({ error: 'Invalid signature' });
       }
 
@@ -101,16 +89,10 @@ export const webhookController = {
         subscriptionType: req.body?.subscription?.type,
         isRedemptionEvent: req.body?.subscription?.type === 'channel.channel_points_custom_reward_redemption.add',
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:42',message:'Checking event type',data:{subscriptionType:req.body?.subscription?.type,isRedemptionEvent:req.body?.subscription?.type === 'channel.channel_points_custom_reward_redemption.add'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       
       if (req.body.subscription?.type === 'channel.channel_points_custom_reward_redemption.add') {
         console.log('Redemption event detected, processing...');
       try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:46',message:'Processing redemption event',data:{hasEvent:!!req.body.event,eventRewardId:req.body.event?.reward?.id,eventUserId:req.body.event?.user_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-        // #endregion
         const event = twitchRedemptionEventSchema.parse(req.body.event);
 
         // Check for duplicate redemption
@@ -132,10 +114,6 @@ export const webhookController = {
           return res.status(200).json({ message: 'Channel not found, ignoring' });
         }
 
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:65',message:'Checking reward match',data:{eventRewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,matches:channel.rewardIdForCoins === event.reward.id,rewardEnabled:channel.rewardEnabled},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-          // #endregion
-          
           // Check if this reward is configured for coins
           // Also check if reward is enabled
           if (channel.rewardIdForCoins && channel.rewardIdForCoins === event.reward.id && channel.rewardEnabled) {
@@ -172,18 +150,10 @@ export const webhookController = {
           }
 
           // Calculate coins - use rewardCoins (fixed value per redemption)
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:99',message:'Processing reward redemption',data:{rewardId:event.reward.id,channelRewardId:channel.rewardIdForCoins,rewardCost:event.reward.cost,rewardCoins:channel.rewardCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-          // #endregion
-          
           // Use rewardCoins if set, otherwise default to 1
           const coinsGranted = channel.rewardCoins !== null && channel.rewardCoins !== undefined 
             ? channel.rewardCoins 
             : 1;
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:109',message:'Coins calculated',data:{coinsGranted,userId:user.id,channelId:channel.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-          // #endregion
 
           // Atomic transaction: create redemption + update wallet
           const updatedWallet = await prisma.$transaction(async (tx) => {
@@ -233,32 +203,19 @@ export const webhookController = {
             console.error('Error emitting wallet update:', error);
             // Don't fail the request if Socket.IO emit fails
           }
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:151',message:'Redemption processed successfully',data:{rewardId:event.reward.id,userId:user.id,coinsGranted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
         }
 
         return res.status(200).json({ message: 'Redemption processed' });
       } catch (error: any) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:155',message:'Error processing redemption',data:{error:error.message,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-        // #endregion
         console.error('Error processing redemption:', error);
         return res.status(500).json({ error: 'Internal server error' });
       }
     }
 
-      // #region agent log
       console.log('Event received but not processed:', { subscriptionType: req.body?.subscription?.type });
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:162',message:'Event received but not processed',data:{subscriptionType:req.body?.subscription?.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       res.status(200).json({ message: 'Event received' });
     } catch (error: any) {
       console.error('Error in handleEventSub:', error);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webhookController.ts:170',message:'Top-level error in handleEventSub',data:{error:error.message,errorStack:error.stack?.substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   },
