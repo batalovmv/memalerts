@@ -55,6 +55,7 @@ export function setupRoutes(app: Express) {
         req.path === '/wallet' ||
         req.path === '/memes' ||
         req.path.startsWith('/admin') || // Admin routes use authenticate + requireBetaAccess in index.ts
+        req.path.startsWith('/submissions') || // Submissions routes use authenticate middleware
         req.path.startsWith('/channels/memes/search') ||
         req.path === '/memes/stats' ||
         req.path.startsWith('/uploads') || // Static files should not require beta access
