@@ -524,8 +524,9 @@ jobs:
             # Domain (for CORS and callbacks)
             DOMAIN=beta.${{ secrets.DOMAIN || 'twitchalerts.ru' }}
             
-            # JWT
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            # JWT (use separate secret for beta to ensure token isolation between beta and production)
+            # If JWT_SECRET_BETA is not set, fallback to JWT_SECRET (for backward compatibility)
+            JWT_SECRET=${{ secrets.JWT_SECRET_BETA || secrets.JWT_SECRET }}
             JWT_EXPIRES_IN=7d
             
             # Twitch OAuth

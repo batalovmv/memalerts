@@ -169,7 +169,7 @@ pnpm dev
 - `VPS_SSH_KEY` - Приватный SSH ключ
 - `VPS_PORT` - Порт SSH (обычно `22`)
 - `DATABASE_URL` - Строка подключения к PostgreSQL
-- `JWT_SECRET` - Секретный ключ для JWT токенов
+- `JWT_SECRET` - Секретный ключ для JWT токенов (для production)
 - `TWITCH_CLIENT_ID` - Client ID из Twitch приложения
 - `TWITCH_CLIENT_SECRET` - Client Secret из Twitch приложения
 - `TWITCH_EVENTSUB_SECRET` - Секрет для проверки EventSub webhooks
@@ -181,6 +181,7 @@ pnpm dev
 - `TWITCH_CALLBACK_URL` - Явный URL для callback
 - `CLOUDFLARE_ORIGIN_CERT` - Cloudflare Origin Certificate
 - `CLOUDFLARE_ORIGIN_KEY` - Cloudflare Origin Private Key
+- `JWT_SECRET_BETA` - Секретный ключ для JWT токенов (для beta окружения). Если не установлен, используется `JWT_SECRET`. **Рекомендуется использовать отдельный секрет для изоляции токенов между бета и продакшен.**
 
 ## 📦 Команды
 
