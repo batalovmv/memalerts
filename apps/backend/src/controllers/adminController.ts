@@ -170,10 +170,7 @@ export const adminController = {
             filePath = validatePathWithinDirectory(submission.fileUrlTemp, uploadsDir);
           } catch (pathError: any) {
             console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
-            return res.status(400).json({ 
-              error: 'Invalid file path',
-              message: 'File path contains invalid characters or path traversal attempt'
-            });
+            throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
           }
           
           // Check if file already exists in FileHash (was deduplicated during upload)
@@ -325,7 +322,7 @@ export const adminController = {
       });
 
       // If this is an imported meme, start background download and update
-      if (submissionForBackground?.sourceUrl && result) {
+      if (submissionForBackground?.sourceUrl && result && 'id' in result) {
         const memeId = result.id;
         const sourceUrl = submissionForBackground.sourceUrl;
         
@@ -345,7 +342,7 @@ export const adminController = {
             console.error(`Failed to update meme ${memeId} after background download:`, err);
           });
         }).catch((error: any) => {
-          console.error(`Background download failed for meme ${result.id}:`, error.message);
+          console.error(`Background download failed for meme ${memeId}:`, error.message);
           // File will continue using sourceUrl - that's okay, it will work
         });
       }
