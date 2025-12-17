@@ -77,9 +77,17 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     });
   }
 
+  // In production, never expose error details to prevent information leakage
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   res.status(500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
-    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    error: 'Internal server error',
+    message: 'Internal server error',
+    // Only include details in development
+    ...(isProduction ? {} : { 
+      details: err.message,
+      stack: err.stack 
+    }),
   });
 }
 
