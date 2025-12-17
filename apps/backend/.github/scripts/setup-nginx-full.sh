@@ -4,10 +4,21 @@
 
 set -e
 
+# #region agent log
+LOG_FILE="/tmp/nginx-setup-debug.log"
+log_debug() {
+    echo "{\"id\":\"log_$(date +%s)_$$\",\"timestamp\":$(date +%s)000,\"location\":\"setup-nginx-full.sh:$1\",\"message\":\"$2\",\"data\":$3,\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"$4\"}" >> "$LOG_FILE" 2>/dev/null || true
+}
+# #endregion
+
 DOMAIN="${1:-twitchalerts.ru}"
 BACKEND_PORT="${2:-3001}"
 BETA_DOMAIN="beta.${DOMAIN}"
 BETA_BACKEND_PORT="${3:-3002}"
+
+# #region agent log
+log_debug "12" "Script started" "{\"domain\":\"$DOMAIN\",\"betaDomain\":\"$BETA_DOMAIN\",\"backendPort\":\"$BACKEND_PORT\",\"betaBackendPort\":\"$BETA_BACKEND_PORT\"}" "A"
+# #endregion
 
 echo "Setting up nginx for domains: $DOMAIN (production) and $BETA_DOMAIN (beta)"
 
@@ -201,17 +212,31 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Check if Origin matches production or beta domain
-        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+        # Use separate checks for each domain (Nginx doesn't support variable interpolation in regex alternation)
+        set \$cors_origin "";
+        if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$preflight_origin "";
+            if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$preflight_origin != "") {
+                add_header Access-Control-Allow-Origin \$preflight_origin always;
             }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
@@ -461,17 +486,31 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Check if Origin matches production or beta domain
-        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+        # Use separate checks for each domain (Nginx doesn't support variable interpolation in regex alternation)
+        set \$cors_origin "";
+        if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$preflight_origin "";
+            if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$preflight_origin != "") {
+                add_header Access-Control-Allow-Origin \$preflight_origin always;
             }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
@@ -573,17 +612,31 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Check if Origin matches production or beta domain
-        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+        # Use separate checks for each domain (Nginx doesn't support variable interpolation in regex alternation)
+        set \$cors_origin "";
+        if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$preflight_origin "";
+            if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$preflight_origin != "") {
+                add_header Access-Control-Allow-Origin \$preflight_origin always;
             }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
@@ -816,17 +869,31 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Check if Origin matches production or beta domain
-        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+        # Use separate checks for each domain (Nginx doesn't support variable interpolation in regex alternation)
+        set \$cors_origin "";
+        if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+            set \$cors_origin \$http_origin;
+        }
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$preflight_origin "";
+            if (\$http_origin ~* "^https://(www\.)?$DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$http_origin ~* "^https://(www\.)?$BETA_DOMAIN\$") {
+                set \$preflight_origin \$http_origin;
+            }
+            if (\$preflight_origin != "") {
+                add_header Access-Control-Allow-Origin \$preflight_origin always;
             }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
@@ -928,13 +995,24 @@ done
 
 # Test nginx configuration (HTTP only for now)
 echo "Testing nginx configuration..."
+# #region agent log
+log_debug "950" "Starting nginx test" "{\"domain\":\"$DOMAIN\",\"betaDomain\":\"$BETA_DOMAIN\"}" "A"
+# #endregion
 NGINX_TEST_OUTPUT=$(sudo nginx -t 2>&1)
 NGINX_TEST_STATUS=$?
+
+# #region agent log
+log_debug "954" "Nginx test completed" "{\"status\":$NGINX_TEST_STATUS,\"output\":\"$(echo "$NGINX_TEST_OUTPUT" | tr '\n' ' ' | head -c 500)\"}" "A"
+# #endregion
 
 if [ $NGINX_TEST_STATUS -ne 0 ]; then
     echo "ERROR: Nginx configuration test failed!"
     echo "Test output:"
     echo "$NGINX_TEST_OUTPUT"
+    
+    # #region agent log
+    log_debug "961" "Nginx test failed" "{\"fullOutput\":\"$(echo "$NGINX_TEST_OUTPUT" | tr '\n' ' ' | head -c 1000)\"}" "B"
+    # #endregion
     
     # Check if error is about SSL certificate
     if echo "$NGINX_TEST_OUTPUT" | grep -q "ssl_certificate.*twitchmemes.ru"; then
