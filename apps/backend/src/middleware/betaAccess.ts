@@ -26,7 +26,21 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
       select: { hasBetaAccess: true },
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'betaAccess.ts:requireBetaAccess',message:'Checking beta access',data:{userId:req.userId,hasBetaAccess:user?.hasBetaAccess,userExists:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+
+    // If user doesn't have beta access, grant it automatically
+    // This ensures all users can access beta (accounts are shared between beta and production)
     if (!user || !user.hasBetaAccess) {
+      console.log('[requireBetaAccess] User does not have beta access, granting automatically:', req.userId);
+      await prisma.user.update({
+        where: { id: req.userId },
+        data: { hasBetaAccess: true },
+      });
+      // Continue to next middleware
+      return next();
+    }
       // Check if user has a pending request
       const betaAccess = await prisma.betaAccess.findUnique({
         where: { userId: req.userId },
