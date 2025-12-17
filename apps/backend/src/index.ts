@@ -124,6 +124,10 @@ app.use(
     exposedHeaders: ['Set-Cookie'],
   })
 );
+
+// CSRF protection for state-changing operations (must be after CORS)
+import { csrfProtection } from './middleware/csrf.js';
+app.use(csrfProtection);
 // Increase body size limit for file uploads (100MB)
 app.use(express.json({ limit: '100mb' }));
 app.use(cookieParser());

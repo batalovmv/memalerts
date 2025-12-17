@@ -8,6 +8,7 @@ import { betaRoutes } from './beta.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { activateMemeLimiter } from '../middleware/rateLimit.js';
 import { requireBetaAccess } from '../middleware/betaAccess.js';
+import { csrfProtection } from '../middleware/csrf.js';
 import { viewerController } from '../controllers/viewerController.js';
 
 export function setupRoutes(app: Express) {
