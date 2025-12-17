@@ -21,7 +21,19 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
                         req.path === '/memes/stats' ||
                         /^\/channels\/[^\/]+$/.test(req.path); // Match /channels/:slug (public route)
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'betaAccess.ts:checkPublicRoute',message:'Checking if route is public',data:{path:req.path,isPublicRoute,regexTest:/^\/channels\/[^\/]+$/.test(req.path)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+  // #endregion
+  
+  console.log('[requireBetaAccess] Checking route:', {
+    path: req.path,
+    isPublicRoute,
+    regexTest: /^\/channels\/[^\/]+$/.test(req.path),
+    hasUserId: !!req.userId,
+  });
+  
   if (isPublicRoute) {
+    console.log('[requireBetaAccess] Public route, allowing access without authentication');
     return next();
   }
 
