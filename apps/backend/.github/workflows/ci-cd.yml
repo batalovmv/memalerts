@@ -100,6 +100,18 @@ jobs:
       - name: Build API
         run: pnpm build
 
+      - name: Create deployment directory
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sudo mkdir -p /opt/memalerts-backend
+            sudo chown -R $USER:$USER /opt/memalerts-backend
+            sudo chmod -R 755 /opt/memalerts-backend
+
       - name: Copy code to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -379,6 +391,18 @@ jobs:
 
       - name: Build API
         run: pnpm build
+
+      - name: Create deployment directory (Beta)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sudo mkdir -p /opt/memalerts-backend-beta
+            sudo chown -R $USER:$USER /opt/memalerts-backend-beta
+            sudo chmod -R 755 /opt/memalerts-backend-beta
 
       - name: Copy code to VPS (Beta)
         uses: appleboy/scp-action@v0.1.7
