@@ -121,19 +121,7 @@ const uploadPath = path.join(process.cwd(), uploadDir);
 console.log('[STATIC_FILES] Upload directory:', uploadPath);
 console.log('[STATIC_FILES] Upload dir exists:', existsSync(uploadPath));
 // #endregion
-app.use('/uploads', (req, res, next) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:static',message:'uploads request',data:{path:req.path,method:req.method,host:req.get('host'),uploadPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  express.static(uploadPath)(req, res, (err) => {
-    if (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:static-error',message:'static file error',data:{error:err.message,path:req.path},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-    }
-    next(err);
-  });
-});
+app.use('/uploads', express.static(uploadPath));
 
 // Attach io to app for use in routes
 app.set('io', io);
