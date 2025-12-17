@@ -195,19 +195,24 @@ server {
     }
     
     # Static files (uploads) - serve directly with CORS headers
-    # Allow cross-origin requests from beta domain
+    # Allow cross-origin requests from beta and production domains only
     location /uploads/ {
         alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        # Add CORS headers to allow cross-origin requests from beta domain
-        add_header Access-Control-Allow-Origin "*" always;
+        # Add CORS headers - allow only specific domains (production and beta)
+        # Check if Origin matches production or beta domain
+        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+            add_header Access-Control-Allow-Origin \$http_origin always;
+        }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin "*" always;
+            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+                add_header Access-Control-Allow-Origin \$http_origin always;
+            }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
@@ -455,15 +460,19 @@ server {
         alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        # Add CORS headers to allow cross-origin requests from beta domain
-        # Allow both beta and production domains to access files
-        add_header Access-Control-Allow-Origin "*" always;
+        # Add CORS headers - allow only specific domains (production and beta)
+        # Check if Origin matches production or beta domain
+        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+            add_header Access-Control-Allow-Origin \$http_origin always;
+        }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin "*" always;
+            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+                add_header Access-Control-Allow-Origin \$http_origin always;
+            }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
@@ -558,19 +567,24 @@ server {
     }
     
     # Static files (uploads) - serve directly with CORS headers
-    # Allow cross-origin requests from beta domain
+    # Allow cross-origin requests from beta and production domains only
     location /uploads/ {
         alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        # Add CORS headers to allow cross-origin requests from beta domain
-        add_header Access-Control-Allow-Origin "*" always;
+        # Add CORS headers - allow only specific domains (production and beta)
+        # Check if Origin matches production or beta domain
+        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+            add_header Access-Control-Allow-Origin \$http_origin always;
+        }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin "*" always;
+            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+                add_header Access-Control-Allow-Origin \$http_origin always;
+            }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
@@ -801,15 +815,19 @@ server {
         alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        # Add CORS headers to allow cross-origin requests from beta domain
-        # Allow both beta and production domains to access files
-        add_header Access-Control-Allow-Origin "*" always;
+        # Add CORS headers - allow only specific domains (production and beta)
+        # Check if Origin matches production or beta domain
+        if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+            add_header Access-Control-Allow-Origin \$http_origin always;
+        }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin "*" always;
+            if (\$http_origin ~* "^https://(www\.)?($DOMAIN|$BETA_DOMAIN)$") {
+                add_header Access-Control-Allow-Origin \$http_origin always;
+            }
             add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
             add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
