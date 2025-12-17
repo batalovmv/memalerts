@@ -610,6 +610,26 @@ export const authController = {
         return res.redirect('/?error=auth_failed&reason=invalid_token');
       }
 
+      // Grant beta access to user if they don't have it
+      // This endpoint is only called on beta backend, so we should grant access
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          select: { hasBetaAccess: true },
+        });
+        
+        if (user && !user.hasBetaAccess) {
+          console.log('Granting beta access to user:', decoded.userId);
+          await prisma.user.update({
+            where: { id: decoded.userId },
+            data: { hasBetaAccess: true },
+          });
+        }
+      } catch (error) {
+        console.error('Error granting beta access:', error);
+        // Continue anyway - beta access can be granted later
+      }
+
       // Extract redirect path from state if present
       let redirectPath = '/';
       let stateOrigin: string | undefined;
