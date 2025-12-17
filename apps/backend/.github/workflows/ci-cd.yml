@@ -443,6 +443,18 @@ jobs:
             
             # Validate DATABASE_URL format before creating .env
             echo "Validating DATABASE_URL format..."
+            
+            # Check for placeholder values (user, password, host, port)
+            if echo "$BETA_DB_URL" | grep -qE "(user|password|host|port)([^:]*:|/|\?)"; then
+              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder values!"
+              echo "   Found placeholder values like 'user', 'password', 'host', or 'port'"
+              echo "   You must use REAL values, not placeholders"
+              echo "   Example: postgresql://myuser:mypassword@localhost:5432/memalerts_beta?schema=public"
+              echo "   NOT: postgresql://user:password@host:port/memalerts_beta?schema=public"
+              exit 1
+            fi
+            
+            # Check for schema typo
             if echo "$BETA_DB_URL" | grep -q "schema=publi[^c]"; then
               echo "❌ ERROR: Invalid schema value detected in DATABASE_URL_BETA"
               echo "   Found: schema=publi (should be schema=public)"
@@ -450,13 +462,22 @@ jobs:
               exit 1
             fi
             
-            # Check if URL contains valid port
-            if ! echo "$BETA_DB_URL" | grep -qE ":[0-9]+/"; then
-              echo "❌ ERROR: Invalid port in DATABASE_URL_BETA"
-              echo "   URL must contain :port/ after hostname"
-              echo "   Example: postgresql://user:password@host:5432/database?schema=public"
+            # Check if URL contains valid port (must be a number)
+            if ! echo "$BETA_DB_URL" | grep -qE ":[0-9]{1,5}/"; then
+              echo "❌ ERROR: Invalid or missing port in DATABASE_URL_BETA"
+              echo "   URL must contain :port/ after hostname (port must be a number)"
+              echo "   Example: postgresql://myuser:mypassword@localhost:5432/memalerts_beta?schema=public"
               exit 1
             fi
+            
+            # Check if URL starts with postgresql:// or postgres://
+            if ! echo "$BETA_DB_URL" | grep -qE "^postgres(ql)?://"; then
+              echo "❌ ERROR: DATABASE_URL_BETA must start with postgresql:// or postgres://"
+              echo "   Found: $(echo "$BETA_DB_URL" | cut -c1-20)..."
+              exit 1
+            fi
+            
+            echo "✅ DATABASE_URL format validation passed"
             
             cat > .env << EOF
             # Database (beta instance - should use separate database)
