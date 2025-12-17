@@ -236,23 +236,14 @@ jobs:
 
       - name: Build Web (Beta)
         run: |
-          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
-            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:web
-          elif [ -n "${{ secrets.DOMAIN }}" ]; then
-            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:web
-          else
-            VITE_API_URL="https://beta.twitchalerts.ru" pnpm build:web
-          fi
+          # For beta, always use relative URL (empty string) so frontend uses same domain
+          # This ensures beta frontend uses beta API automatically
+          VITE_API_URL="" pnpm build:web
 
       - name: Build Overlay (Beta)
         run: |
-          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
-            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:overlay
-          elif [ -n "${{ secrets.DOMAIN }}" ]; then
-            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:overlay
-          else
-            VITE_API_URL="https://beta.twitchalerts.ru" pnpm build:overlay
-          fi
+          # For beta, always use relative URL (empty string) so frontend uses same domain
+          VITE_API_URL="" pnpm build:overlay
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
