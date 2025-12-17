@@ -159,7 +159,16 @@ export const authController = {
       // #endregion
     }
 
-    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error, stateOrigin, state });
+    console.log('Twitch callback received:', { 
+      code: code ? 'present' : 'missing', 
+      error, 
+      stateOrigin, 
+      state,
+      stateType: typeof state,
+      stateValue: state,
+      queryParams: Object.keys(req.query),
+      fullQuery: req.query
+    });
 
     if (error) {
       console.error('Twitch OAuth error:', error);
