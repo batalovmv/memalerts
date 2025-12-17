@@ -146,7 +146,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           return;
         }
 
-        // If not in cache, fetch it
+        // Don't fetch if we're on a channel page - data will be loaded by StreamerProfile
+        // This avoids unnecessary requests with includeMemes=false
+        if (location.pathname.startsWith('/channel/')) {
+          return;
+        }
+
+        // If not in cache and not on channel page, fetch it
         const channelData = await getChannelData(slugToUse);
         if (channelData?.coinIconUrl) {
           setChannelCoinIconUrl(channelData.coinIconUrl);
@@ -155,7 +161,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     };
 
     loadChannelCoinIcon();
-  }, [coinIconUrl, user?.channel?.slug, currentChannelSlug, getChannelData, getCachedChannelData]);
+  }, [coinIconUrl, user?.channel?.slug, currentChannelSlug, location.pathname, getChannelData, getCachedChannelData]);
 
   // Setup Socket.IO connection for real-time wallet updates
   // Use separate effects to avoid reconnection on dependency changes
