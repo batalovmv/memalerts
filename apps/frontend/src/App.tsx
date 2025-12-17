@@ -13,6 +13,7 @@ import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Footer from './components/Footer';
 import AdminRedirect from './components/AdminRedirect';
+import BetaAccessRequest from './components/BetaAccessRequest';
 
 function App() {
   const dispatch = useAppDispatch();
