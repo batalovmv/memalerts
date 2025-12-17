@@ -513,6 +513,9 @@ export const authController = {
       
       // Verify cookie was set in response
       const setCookieHeader = res.getHeader('Set-Cookie');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieSet',message:'Cookie set in response',data:{setCookieHeader:setCookieHeader?.toString(),cookieOptions,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       console.log('Set-Cookie header:', setCookieHeader);
       console.log('Response headers before redirect:', Object.keys(res.getHeaders()));
       
