@@ -7,6 +7,7 @@ const getApiUrl = () => {
     return envUrl;
   }
   // In production, use same origin (relative URL)
+  // This ensures beta frontend uses beta API, production uses production API
   if (import.meta.env.PROD) {
     return '';
   }
