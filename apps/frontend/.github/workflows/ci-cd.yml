@@ -106,6 +106,18 @@ jobs:
             pnpm build:overlay
           fi
 
+      - name: Create deployment directory
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sudo mkdir -p /opt/memalerts-frontend
+            sudo chown -R $USER:$USER /opt/memalerts-frontend
+            sudo chmod -R 755 /opt/memalerts-frontend
+
       - name: Deploy to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -241,6 +253,18 @@ jobs:
           else
             VITE_API_URL="https://beta.twitchalerts.ru" pnpm build:overlay
           fi
+
+      - name: Create deployment directory (Beta)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sudo mkdir -p /opt/memalerts-frontend-beta
+            sudo chown -R $USER:$USER /opt/memalerts-frontend-beta
+            sudo chmod -R 755 /opt/memalerts-frontend-beta
 
       - name: Deploy to VPS (Beta)
         uses: appleboy/scp-action@v0.1.7
