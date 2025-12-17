@@ -199,6 +199,10 @@ jobs:
             # File Upload
             MAX_FILE_SIZE=10485760
             UPLOAD_DIR=./uploads
+            
+            # Rate Limiting
+            # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
+            RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
             EOF
             
             # Ensure uploads directory exists
@@ -539,6 +543,10 @@ jobs:
             # File Upload
             MAX_FILE_SIZE=10485760
             UPLOAD_DIR=./uploads
+            
+            # Rate Limiting
+            # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
+            RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
             EOF
             
             # Ensure uploads directory exists

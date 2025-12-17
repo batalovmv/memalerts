@@ -135,15 +135,52 @@ async function migrateBetaToProduction() {
               }
             } else {
               // Wallet doesn't exist in production - create it from beta
+              // Use upsert to handle race conditions and old schema constraints
               console.log(`     Creating wallet for channel ${betaWallet.channelId} with balance ${betaWallet.balance} (not in production)`);
-              await productionDb.wallet.create({
-                data: {
-                  userId: existingUser.id,
-                  channelId: betaWallet.channelId,
-                  balance: betaWallet.balance,
-                },
-              });
-              stats.walletsCreated++;
+              try {
+                await productionDb.wallet.upsert({
+                  where: {
+                    userId_channelId: {
+                      userId: existingUser.id,
+                      channelId: betaWallet.channelId,
+                    },
+                  },
+                  update: {}, // If exists, don't update
+                  create: {
+                    userId: existingUser.id,
+                    channelId: betaWallet.channelId,
+                    balance: betaWallet.balance,
+                  },
+                });
+                stats.walletsCreated++;
+              } catch (error: any) {
+                // If wallet was created by another process or constraint issue, check if it exists now
+                if (error.message?.includes('Unique constraint')) {
+                  const existingWalletNow = await productionDb.wallet.findUnique({
+                    where: {
+                      userId_channelId: {
+                        userId: existingUser.id,
+                        channelId: betaWallet.channelId,
+                      },
+                    },
+                  });
+                  if (existingWalletNow) {
+                    console.log(`     Wallet already exists (created concurrently or old schema), skipping`);
+                  } else {
+                    // Try to find by userId only (old schema might have unique on userId)
+                    const walletByUserId = await productionDb.wallet.findFirst({
+                      where: { userId: existingUser.id },
+                    });
+                    if (walletByUserId) {
+                      console.log(`     User already has a wallet (old schema constraint), skipping new wallet creation`);
+                    } else {
+                      throw error;
+                    }
+                  }
+                } else {
+                  throw error;
+                }
+              }
             }
           }
 

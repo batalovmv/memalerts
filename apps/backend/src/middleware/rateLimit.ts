@@ -1,4 +1,68 @@
 import rateLimit from 'express-rate-limit';
+import { Request } from 'express';
+
+// Get whitelist IPs from environment variable (comma-separated)
+const getWhitelistIPs = (): string[] => {
+  const whitelist = process.env.RATE_LIMIT_WHITELIST_IPS;
+  if (!whitelist) return [];
+  return whitelist.split(',').map(ip => ip.trim()).filter(ip => ip.length > 0);
+};
+
+// Get client IP from request (handles proxy headers and Cloudflare)
+const getClientIP = (req: Request): string => {
+  // Priority 1: Check CF-Connecting-IP (Cloudflare header with real client IP)
+  // This is the most reliable for Cloudflare-proxied requests
+  const cfConnectingIP = req.headers['cf-connecting-ip'];
+  if (cfConnectingIP) {
+    const ip = Array.isArray(cfConnectingIP) ? cfConnectingIP[0] : cfConnectingIP;
+    if (ip && ip.trim() && ip !== 'unknown') return ip.trim();
+  }
+  
+  // Priority 2: Check X-Real-IP header (from nginx, this is the real client IP)
+  const realIP = req.headers['x-real-ip'];
+  if (realIP) {
+    const ip = Array.isArray(realIP) ? realIP[0] : realIP;
+    if (ip && ip.trim() && ip !== 'unknown') return ip.trim();
+  }
+  
+  // Priority 3: Check X-Forwarded-For header (from nginx/proxy/cloudflare)
+  // X-Forwarded-For format: "client, proxy1, proxy2"
+  // The first IP is usually the real client IP
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    const firstIP = ips.split(',')[0].trim();
+    if (firstIP && firstIP !== 'unknown') return firstIP;
+  }
+  
+  // Fallback to connection remote address
+  return req.socket.remoteAddress || req.ip || 'unknown';
+};
+
+// Log rate limit events for monitoring
+const logRateLimitEvent = (type: 'hit' | 'blocked' | 'whitelist', req: Request, details?: any) => {
+  const clientIP = getClientIP(req);
+  const timestamp = new Date().toISOString();
+  const logData = {
+    type,
+    timestamp,
+    ip: clientIP,
+    path: req.path,
+    method: req.method,
+    userAgent: req.headers['user-agent'],
+    ...details,
+  };
+  
+  // Log to console (will be captured by PM2 logs)
+  if (type === 'blocked') {
+    console.warn(`[RATE_LIMIT] BLOCKED: ${JSON.stringify(logData)}`);
+  } else if (type === 'hit') {
+    console.log(`[RATE_LIMIT] HIT: ${JSON.stringify(logData)}`);
+  } else if (type === 'whitelist') {
+    // Log whitelist requests for monitoring (even though they're not blocked)
+    console.log(`[RATE_LIMIT] WHITELIST: ${JSON.stringify(logData)}`);
+  }
+};
 
 // Global rate limiter for all routes (prevents abuse)
 export const globalLimiter = rateLimit({
@@ -9,7 +73,43 @@ export const globalLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => {
     // Skip rate limiting for health check endpoint
-    return req.path === '/health';
+    if (req.path === '/health') {
+      return true;
+    }
+    
+    // Check if IP is whitelisted
+    const whitelistIPs = getWhitelistIPs();
+    if (whitelistIPs.length > 0) {
+      const clientIP = getClientIP(req);
+      const isWhitelisted = whitelistIPs.includes(clientIP);
+      
+      if (isWhitelisted) {
+        // Log whitelist access for monitoring
+        logRateLimitEvent('whitelist', req, {
+          whitelistedIP: clientIP,
+          note: 'Request from whitelisted IP, rate limit skipped',
+        });
+        return true;
+      }
+    }
+    
+    return false;
+  },
+  // Custom handler to log and then use default behavior
+  handler: (req: Request, res: any, next: any, options: any) => {
+    // Log the rate limit hit
+    logRateLimitEvent('blocked', req, {
+      limit: options.max,
+      windowMs: options.windowMs,
+      remaining: res.getHeader('X-RateLimit-Remaining'),
+      resetTime: res.getHeader('X-RateLimit-Reset'),
+    });
+    
+    // Use default handler behavior
+    res.status(options.statusCode).json({
+      error: 'Too Many Requests',
+      message: options.message,
+    });
   },
 });
 
@@ -19,6 +119,26 @@ export const activateMemeLimiter = rateLimit({
   message: 'Too many activation requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Check if IP is whitelisted
+    const whitelistIPs = getWhitelistIPs();
+    if (whitelistIPs.length > 0) {
+      const clientIP = getClientIP(req);
+      return whitelistIPs.includes(clientIP);
+    }
+    return false;
+  },
+  handler: (req: Request, res: any, next: any, options: any) => {
+    logRateLimitEvent('blocked', req, {
+      limiter: 'activateMeme',
+      limit: options.max,
+      windowMs: options.windowMs,
+    });
+    res.status(options.statusCode).json({
+      error: 'Too Many Requests',
+      message: options.message,
+    });
+  },
 });
 
 export const uploadLimiter = rateLimit({
@@ -27,6 +147,26 @@ export const uploadLimiter = rateLimit({
   message: 'Too many upload requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Check if IP is whitelisted
+    const whitelistIPs = getWhitelistIPs();
+    if (whitelistIPs.length > 0) {
+      const clientIP = getClientIP(req);
+      return whitelistIPs.includes(clientIP);
+    }
+    return false;
+  },
+  handler: (req: Request, res: any, next: any, options: any) => {
+    logRateLimitEvent('blocked', req, {
+      limiter: 'upload',
+      limit: options.max,
+      windowMs: options.windowMs,
+    });
+    res.status(options.statusCode).json({
+      error: 'Too Many Requests',
+      message: options.message,
+    });
+  },
 });
 
 
