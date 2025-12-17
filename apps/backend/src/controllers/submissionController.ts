@@ -282,13 +282,39 @@ export const submissionController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    // Validate that the channel exists
+    // Validate that the channel exists and user has access to it
     const channel = await prisma.channel.findUnique({
       where: { id: channelId as string },
     });
 
     if (!channel) {
       return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Check if user is the owner of this channel
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { channelId: true },
+    });
+
+    if (!user || user.channelId !== channelId) {
+      // Log security event for unauthorized import attempt
+      await logSecurityEvent(
+        'unauthorized_access',
+        req.userId!,
+        channelId as string,
+        {
+          action: 'import_meme',
+          attemptedChannelId: channelId,
+          userChannelId: user?.channelId || null,
+        },
+        req
+      );
+      
+      return res.status(403).json({ 
+        error: 'Forbidden',
+        message: 'You can only import memes to your own channel'
+      });
     }
 
     try {
