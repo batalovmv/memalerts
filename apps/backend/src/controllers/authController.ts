@@ -389,6 +389,19 @@ export const authController = {
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_null`);
       }
 
+      // If this is beta backend and user logged in on beta domain, grant beta access automatically
+      const isBetaBackend = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
+      const isBetaLogin = isBetaRedirect || (stateOrigin && stateOrigin.includes('beta.'));
+      
+      if (isBetaBackend && isBetaLogin && !user.hasBetaAccess) {
+        console.log('Granting beta access to user:', user.id);
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { hasBetaAccess: true },
+          include: { wallets: true, channel: true },
+        });
+      }
+
       console.log('User created/found, generating JWT...');
       
       // If production backend received callback for beta, create temporary token and redirect to beta
