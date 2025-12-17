@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.js';
+import { logSecurityEvent } from '../utils/auditLogger.js';
 
 /**
  * Get allowed origins for CSRF validation
@@ -71,7 +72,7 @@ function getRequestOrigin(req: Request): string | null {
  * that state-changing requests (POST, PUT, DELETE, PATCH) come from
  * trusted origins.
  */
-export function csrfProtection(req: Request, res: Response, next: NextFunction) {
+export async function csrfProtection(req: Request, res: Response, next: NextFunction) {
   // Only protect state-changing methods
   const stateChangingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
   if (!stateChangingMethods.includes(req.method)) {
@@ -124,6 +125,22 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
   
   if (!isAllowed) {
     console.warn(`[CSRF] Blocked request from unauthorized origin: ${requestOrigin} for ${req.method} ${req.path}`);
+    
+    // Log security event
+    const authReq = req as AuthRequest;
+    await logSecurityEvent(
+      'csrf_blocked',
+      authReq.userId || null,
+      authReq.channelId || null,
+      {
+        origin: requestOrigin,
+        method: req.method,
+        path: req.path,
+        allowedOrigins,
+      },
+      req
+    );
+    
     return res.status(403).json({
       error: 'Forbidden',
       message: 'CSRF protection: Request origin is not allowed',

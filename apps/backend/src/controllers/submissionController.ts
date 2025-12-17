@@ -6,6 +6,7 @@ import { validateVideo } from '../utils/videoValidator.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../utils/fileHash.js';
 import { validateFileContent } from '../utils/fileTypeValidator.js';
+import { logFileUpload, logSecurityEvent } from '../utils/auditLogger.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -50,6 +51,21 @@ export const submissionController = {
         } catch (unlinkError) {
           console.error('Failed to delete invalid file:', unlinkError);
         }
+        
+        // Log security event
+        await logSecurityEvent(
+          'file_validation_failed',
+          req.userId!,
+          channelId as string,
+          {
+            fileName: req.file.originalname,
+            declaredType: req.file.mimetype,
+            detectedType: contentValidation.detectedType,
+            error: contentValidation.error,
+          },
+          req
+        );
+        
         return res.status(400).json({ 
           error: 'Invalid file content',
           message: contentValidation.error || 'File content does not match declared file type'

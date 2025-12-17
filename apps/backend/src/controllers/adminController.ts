@@ -5,6 +5,7 @@ import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, upda
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
 import { validatePathWithinDirectory } from '../utils/pathSecurity.js';
+import { logAdminAction } from '../utils/auditLogger.js';
 import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
@@ -443,6 +444,20 @@ export const adminController = {
       });
 
       // Don't delete file on reject - keep it for potential future use
+
+      // Log admin action
+      await logAdminAction(
+        'reject_submission',
+        req.userId!,
+        channelId,
+        id,
+        {
+          submissionId: id,
+          notes: body.moderatorNotes || null,
+        },
+        true,
+        req
+      );
 
       res.json(updated);
     } catch (error) {

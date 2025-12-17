@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { activateMemeSchema } from '../shared/index.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promotions.js';
+import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
 
 export const viewerController = {

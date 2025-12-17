@@ -5,6 +5,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { logAuthEvent } from '../utils/auditLogger.js';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -185,6 +186,7 @@ export const authController = {
 
       if (!twitchUser) {
         console.error('No user data received from Twitch:', userData);
+        await logAuthEvent('login_failed', null, false, req, 'No user data from Twitch');
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
       }
@@ -607,7 +609,7 @@ export const authController = {
     }
   },
 
-  logout: (req: AuthRequest, res: Response) => {
+  logout: async (req: AuthRequest, res: Response) => {
     const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -625,6 +627,12 @@ export const authController = {
       cookieOptions.domain = process.env.DOMAIN;
     }
     res.clearCookie('token', cookieOptions);
+    
+    // Log logout
+    if (req.userId) {
+      await logAuthEvent('logout', req.userId, true, req);
+    }
+    
     res.json({ message: 'Logged out successfully' });
   },
 
