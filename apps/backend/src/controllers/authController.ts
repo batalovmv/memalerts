@@ -6,18 +6,33 @@ import crypto from 'crypto';
 
 // Helper function to get redirect URL based on environment
 const getRedirectUrl = (): string => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:entry',message:'getRedirectUrl called',data:{hasWebUrl:!!process.env.WEB_URL,webUrl:process.env.WEB_URL,hasDomain:!!process.env.DOMAIN,domain:process.env.DOMAIN,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   // First, use WEB_URL if explicitly set (this is the primary way)
   if (process.env.WEB_URL) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:webUrl',message:'Using WEB_URL',data:{webUrl:process.env.WEB_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     return process.env.WEB_URL;
   }
   
   // Fallback: construct from DOMAIN if in production
   if (process.env.NODE_ENV === 'production' && process.env.DOMAIN) {
-    return `https://${process.env.DOMAIN}`;
+    const fallbackUrl = `https://${process.env.DOMAIN}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:domainFallback',message:'Using DOMAIN fallback',data:{domain:process.env.DOMAIN,fallbackUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    return fallbackUrl;
   }
   
   // Development fallback
-  return 'http://localhost:5173';
+  const devUrl = 'http://localhost:5173';
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:devFallback',message:'Using dev fallback',data:{devUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+  return devUrl;
 };
 
 // Simple Twitch OAuth implementation (you can replace with passport-twitch-new)
@@ -398,10 +413,14 @@ export const authController = {
         }
       }
       
-      console.log('Auth successful, redirecting to:', `${redirectUrl}${redirectPath}`, 'state:', state);
+      const finalRedirectUrl = `${redirectUrl}${redirectPath}`;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:redirect',message:'Final redirect URL',data:{redirectUrl,redirectPath,finalRedirectUrl,state,userRole:user.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      console.log('Auth successful, redirecting to:', finalRedirectUrl, 'state:', state);
       
       // Use 302 redirect (temporary) to ensure cookie is sent
-      res.status(302).redirect(`${redirectUrl}${redirectPath}`);
+      res.status(302).redirect(finalRedirectUrl);
     } catch (error) {
       console.error('Auth error:', error);
       if (error instanceof Error) {
