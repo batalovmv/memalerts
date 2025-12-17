@@ -12,6 +12,7 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
   const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isLoadingMetadataRef = useRef<boolean>(false);
 
   // Track user interaction at page level (any click/touch on page)
   useEffect(() => {
@@ -35,6 +36,10 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
       const video = videoRef.current;
       
       const handleLoadedMetadata = () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MemeCard.tsx:handleLoadedMetadata',message:'metadata loaded',data:{memeId:meme.id,readyState:video.readyState,width:video.videoWidth,height:video.videoHeight},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        isLoadingMetadataRef.current = false;
         if (video.videoWidth && video.videoHeight) {
           const ratio = video.videoWidth / video.videoHeight;
           
@@ -52,23 +57,40 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
         }
       };
 
+      // Reset loading flag when hover ends
+      if (!isHovered) {
+        isLoadingMetadataRef.current = false;
+        return;
+      }
+
       if (video.readyState >= 1) {
         // Metadata already loaded
         handleLoadedMetadata();
-      } else {
-        // Load metadata when hovered
+      } else if (!isLoadingMetadataRef.current) {
+        // Load metadata when hovered, but only if not already loading
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MemeCard.tsx:load-metadata',message:'loading metadata',data:{memeId:meme.id,readyState:video.readyState,isHovered,isLoading:isLoadingMetadataRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        isLoadingMetadataRef.current = true;
         video.load();
-        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
       }
 
       return () => {
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        // Reset loading flag on cleanup
+        if (!isHovered) {
+          isLoadingMetadataRef.current = false;
+        }
       };
     } else if (meme.type !== 'video') {
       // For images/gifs, use default aspect ratio
       setAspectRatio('aspect-video');
+    } else if (!isHovered) {
+      // Reset loading flag when not hovered
+      isLoadingMetadataRef.current = false;
     }
-  }, [meme.type, meme.fileUrl, isHovered]);
+  }, [meme.type, meme.fileUrl, isHovered, meme.id]);
 
   useEffect(() => {
     if (videoRef.current) {
