@@ -625,9 +625,105 @@ jobs:
             if pm2 list | grep -q "memalerts-api-beta.*online"; then
               echo "✅ Beta backend is running"
               pm2 list | grep memalerts-api-beta
+              
+              # Test beta backend health
+              echo ""
+              echo "Testing beta backend health endpoint..."
+              sleep 2
+              curl -f http://localhost:3002/health || {
+                echo "❌ Beta backend health check failed"
+                echo "Full logs:"
+                pm2 logs memalerts-api-beta --lines 50 --nostream
+                exit 1
+              }
+              echo "✅ Beta backend health check passed"
             else
               echo "❌ Beta backend failed to start"
               pm2 logs memalerts-api-beta --lines 100 --nostream
               exit 1
             fi
+            
+            # Final beta deployment verification
+            echo ""
+            echo "=========================================="
+            echo "BETA DEPLOYMENT VERIFICATION"
+            echo "=========================================="
+            BETA_DOMAIN="beta.${{ secrets.DOMAIN || 'twitchalerts.ru' }}"
+            
+            # Check frontend files
+            echo "1. Checking beta frontend files..."
+            if [ -d /opt/memalerts-frontend-beta/dist ] && [ -f /opt/memalerts-frontend-beta/dist/index.html ]; then
+              echo "✅ Beta frontend files exist"
+            else
+              echo "❌ Beta frontend files not found"
+            fi
+            
+            # Check nginx config
+            echo ""
+            echo "2. Checking nginx configuration for beta..."
+            if sudo grep -q "server_name.*$BETA_DOMAIN" /etc/nginx/sites-available/memalerts 2>/dev/null; then
+              echo "✅ Beta domain configured in nginx"
+              sudo grep "server_name.*$BETA_DOMAIN" /etc/nginx/sites-available/memalerts | head -1
+            else
+              echo "❌ Beta domain NOT found in nginx config"
+            fi
+            
+            # Check SSL certificate
+            echo ""
+            echo "3. Checking SSL certificate..."
+            if [ -f /etc/nginx/ssl/cloudflare-origin.crt ] && [ -f /etc/nginx/ssl/cloudflare-origin.key ]; then
+              echo "✅ Cloudflare Origin Certificate files exist"
+              # Check if certificate includes beta domain
+              if sudo openssl x509 -in /etc/nginx/ssl/cloudflare-origin.crt -noout -text 2>/dev/null | grep -q "twitchmemes.ru\|twitchalerts.ru"; then
+                echo "✅ Certificate includes domain"
+              else
+                echo "⚠️  Could not verify certificate domain"
+              fi
+            else
+              echo "❌ SSL certificate files not found"
+            fi
+            
+            # Check nginx status
+            echo ""
+            echo "4. Checking nginx status..."
+            if sudo systemctl is-active --quiet nginx; then
+              echo "✅ Nginx is running"
+            else
+              echo "❌ Nginx is not running"
+            fi
+            
+            # DNS check
+            echo ""
+            echo "5. Checking DNS resolution..."
+            if nslookup "$BETA_DOMAIN" > /dev/null 2>&1 || dig "$BETA_DOMAIN" +short > /dev/null 2>&1; then
+              echo "✅ DNS resolves for $BETA_DOMAIN"
+              RESOLVED_IP=$(nslookup "$BETA_DOMAIN" 2>/dev/null | grep -A 1 "Name:" | tail -1 | awk '{print $2}' || dig "$BETA_DOMAIN" +short 2>/dev/null | head -1)
+              if [ -n "$RESOLVED_IP" ]; then
+                echo "   Resolved to: $RESOLVED_IP"
+              fi
+            else
+              echo "❌ DNS does not resolve for $BETA_DOMAIN"
+              echo "   Please check Cloudflare DNS settings"
+            fi
+            
+            # Test local nginx
+            echo ""
+            echo "6. Testing local nginx response..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: $BETA_DOMAIN" http://localhost/health 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
+              echo "✅ Nginx responds (HTTP $HTTP_CODE)"
+            else
+              echo "⚠️  Nginx test returned: HTTP $HTTP_CODE"
+            fi
+            
+            echo ""
+            echo "=========================================="
+            echo "Beta deployment summary:"
+            echo "  Domain: $BETA_DOMAIN"
+            echo "  Backend: http://localhost:3002"
+            echo "  Frontend: /opt/memalerts-frontend-beta/dist"
+            echo ""
+            echo "To access beta site:"
+            echo "  https://$BETA_DOMAIN"
+            echo "=========================================="
 
