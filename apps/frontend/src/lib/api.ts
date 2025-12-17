@@ -4,19 +4,27 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 const getApiUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) {
+    console.log('[API] Using VITE_API_URL from env:', envUrl);
     return envUrl;
   }
   // In production, use same origin (relative URL)
   // This ensures beta frontend uses beta API, production uses production API
   if (import.meta.env.PROD) {
-    return '';
+    const relativeUrl = '';
+    console.log('[API] Using relative URL (same origin):', relativeUrl, 'Current origin:', window.location.origin);
+    return relativeUrl;
   }
   // In development, use localhost
-  return 'http://localhost:3001';
+  const devUrl = 'http://localhost:3001';
+  console.log('[API] Using dev URL:', devUrl);
+  return devUrl;
 };
 
+const apiBaseUrl = getApiUrl();
+console.log('[API] Final baseURL:', apiBaseUrl, 'Current origin:', window.location.origin);
+
 export const api = axios.create({
-  baseURL: getApiUrl(),
+  baseURL: apiBaseUrl,
   withCredentials: true,
   timeout: 300000, // 5 minutes timeout for file uploads
 });

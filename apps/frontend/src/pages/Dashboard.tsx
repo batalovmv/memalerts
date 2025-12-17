@@ -11,6 +11,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!authLoading && !user) {
+      console.log('[Dashboard] No user, redirecting to /', { authLoading, user });
       navigate('/');
     }
   }, [user, authLoading, navigate]);
