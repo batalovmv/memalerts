@@ -438,9 +438,10 @@ jobs:
             fi
             
             # Create .env file with beta port
-            # Use DATABASE_URL_BETA if available, otherwise fallback to DATABASE_URL
-            # IMPORTANT: Beta should use separate database to prevent affecting production data
-            BETA_DB_URL="${{ secrets.DATABASE_URL_BETA || secrets.DATABASE_URL }}"
+            # IMPORTANT: Beta now uses the same database as production to avoid data duplication
+            # This ensures users see the same data on both domains
+            # Use DATABASE_URL (production database) for beta as well
+            BETA_DB_URL="${{ secrets.DATABASE_URL }}"
             
             # Validate DATABASE_URL format before creating .env
             echo "Validating DATABASE_URL format..."
@@ -448,7 +449,7 @@ jobs:
             # Check for exact placeholder values (not just containing the words)
             # Check for postgresql://user: (exact placeholder)
             if echo "$BETA_DB_URL" | grep -qE "postgresql://user:"; then
-              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'user'!"
+              echo "❌ ERROR: DATABASE_URL contains placeholder 'user'!"
               echo "   Found: postgresql://user: (should be real username)"
               echo "   Example: postgresql://myuser:password@host:5432/db?schema=public"
               exit 1
@@ -459,7 +460,7 @@ jobs:
               # But allow if it's part of a longer password (like "mypassword123")
               if ! echo "$BETA_DB_URL" | grep -qE ":[^:]*[^p]password|password[^@]*[^@]@"; then
                 if echo "$BETA_DB_URL" | grep -qE ":password@|:password$"; then
-                  echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'password'!"
+                  echo "❌ ERROR: DATABASE_URL contains placeholder 'password'!"
                   echo "   Found: :password@ (should be real password)"
                   echo "   Example: postgresql://user:mypassword@host:5432/db?schema=public"
                   exit 1
@@ -469,7 +470,7 @@ jobs:
             
             # Check for @host: (exact placeholder, not hostname.example.com)
             if echo "$BETA_DB_URL" | grep -qE "@host:"; then
-              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'host'!"
+              echo "❌ ERROR: DATABASE_URL contains placeholder 'host'!"
               echo "   Found: @host: (should be real hostname like localhost or IP)"
               echo "   Example: postgresql://user:password@localhost:5432/db?schema=public"
               exit 1
@@ -477,7 +478,7 @@ jobs:
             
             # Check for :port/ (exact placeholder, not :5432/)
             if echo "$BETA_DB_URL" | grep -qE ":port/"; then
-              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'port'!"
+              echo "❌ ERROR: DATABASE_URL contains placeholder 'port'!"
               echo "   Found: :port/ (should be real port number like :5432/)"
               echo "   Example: postgresql://user:password@host:5432/db?schema=public"
               exit 1
@@ -485,23 +486,23 @@ jobs:
             
             # Check for schema typo
             if echo "$BETA_DB_URL" | grep -q "schema=publi[^c]"; then
-              echo "❌ ERROR: Invalid schema value detected in DATABASE_URL_BETA"
+              echo "❌ ERROR: Invalid schema value detected in DATABASE_URL"
               echo "   Found: schema=publi (should be schema=public)"
-              echo "   Please fix the DATABASE_URL_BETA secret in GitHub Secrets"
+              echo "   Please fix the DATABASE_URL secret in GitHub Secrets"
               exit 1
             fi
             
             # Check if URL contains valid port (must be a number)
             if ! echo "$BETA_DB_URL" | grep -qE ":[0-9]{1,5}/"; then
-              echo "❌ ERROR: Invalid or missing port in DATABASE_URL_BETA"
+              echo "❌ ERROR: Invalid or missing port in DATABASE_URL"
               echo "   URL must contain :port/ after hostname (port must be a number)"
-              echo "   Example: postgresql://myuser:mypassword@localhost:5432/memalerts_beta?schema=public"
+              echo "   Example: postgresql://myuser:mypassword@localhost:5432/memalerts?schema=public"
               exit 1
             fi
             
             # Check if URL starts with postgresql:// or postgres://
             if ! echo "$BETA_DB_URL" | grep -qE "^postgres(ql)?://"; then
-              echo "❌ ERROR: DATABASE_URL_BETA must start with postgresql:// or postgres://"
+              echo "❌ ERROR: DATABASE_URL must start with postgresql:// or postgres://"
               echo "   Found: $(echo "$BETA_DB_URL" | cut -c1-20)..."
               exit 1
             fi
@@ -509,7 +510,7 @@ jobs:
             echo "✅ DATABASE_URL format validation passed"
             
             cat > .env << EOF
-            # Database (beta instance - should use separate database)
+            # Database (beta instance - uses same database as production to avoid data duplication)
             DATABASE_URL=$BETA_DB_URL
             
             # Server
