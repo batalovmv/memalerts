@@ -8,12 +8,14 @@ import { Server } from 'socket.io';
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
     const { slug } = req.params;
+    // Optional parameter to exclude memes from response for performance
+    const includeMemes = req.query.includeMemes !== 'false'; // Default to true for backward compatibility
 
     try {
       const channel = await prisma.channel.findUnique({
         where: { slug },
         include: {
-          memes: {
+          memes: includeMemes ? {
             where: { status: 'approved' },
             orderBy: { createdAt: 'desc' },
             select: {
@@ -25,7 +27,7 @@ export const viewerController = {
               priceCoins: true,
               createdAt: true,
             },
-          },
+          } : false,
           users: {
             where: { role: 'streamer' },
             take: 1,
@@ -49,7 +51,7 @@ export const viewerController = {
       }
 
       const owner = channel.users?.[0] || null;
-      res.json({
+      const response: any = {
         id: channel.id,
         slug: channel.slug,
         name: channel.name,
@@ -64,7 +66,6 @@ export const viewerController = {
         secondaryColor: (channel as any).secondaryColor ?? null,
         accentColor: (channel as any).accentColor ?? null,
         createdAt: channel.createdAt,
-        memes: channel.memes,
         owner: owner ? {
           id: owner.id,
           displayName: owner.displayName,
@@ -74,7 +75,14 @@ export const viewerController = {
           memesCount: channel._count.memes,
           usersCount: channel._count.users,
         },
-      });
+      };
+
+      // Only include memes if includeMemes is true
+      if (includeMemes) {
+        response.memes = channel.memes || [];
+      }
+
+      res.json(response);
     } catch (error: any) {
       // If error is about missing columns, try query without color fields
       if (error.message && error.message.includes('does not exist')) {
@@ -116,7 +124,7 @@ export const viewerController = {
           where: { channelId: channel[0].id },
         });
         
-        return res.json({
+        const response: any = {
           id: channel[0].id,
           slug: channel[0].slug,
           name: channel[0].name,
@@ -125,12 +133,18 @@ export const viewerController = {
           secondaryColor: null,
           accentColor: null,
           createdAt: channel[0].createdAt,
-          memes,
           stats: {
             memesCount,
             usersCount,
           },
-        });
+        };
+
+        // Only include memes if includeMemes is true
+        if (includeMemes) {
+          response.memes = memes;
+        }
+
+        return res.json(response);
       }
       throw error;
     }
