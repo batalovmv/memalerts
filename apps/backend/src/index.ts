@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
+import { existsSync } from 'fs';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
@@ -118,7 +119,7 @@ const uploadDir = process.env.UPLOAD_DIR || './uploads';
 const uploadPath = path.join(process.cwd(), uploadDir);
 // #region agent log
 console.log('[STATIC_FILES] Upload directory:', uploadPath);
-console.log('[STATIC_FILES] Upload dir exists:', require('fs').existsSync(uploadPath));
+console.log('[STATIC_FILES] Upload dir exists:', existsSync(uploadPath));
 // #endregion
 app.use('/uploads', (req, res, next) => {
   // #region agent log
