@@ -45,27 +45,15 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     return next();
   }
 
-<<<<<<< Updated upstream
-=======
   // For public routes (like /channels/:slug), allow access without authentication
-  // These routes are excluded from requireBetaAccess in index.ts, but this is a safety check
   const isPublicRoute = req.path.startsWith('/channels/memes/search') ||
                         req.path === '/memes/stats' ||
                         /^\/channels\/[^\/]+$/.test(req.path); // Match /channels/:slug (public route)
-  
-  console.log('[requireBetaAccess] Checking route:', {
-    path: req.path,
-    isPublicRoute,
-    regexTest: /^\/channels\/[^\/]+$/.test(req.path),
-    hasUserId: !!req.userId,
-  });
-  
+
   if (isPublicRoute) {
-    console.log('[requireBetaAccess] Public route, allowing access without authentication');
     return next();
   }
 
->>>>>>> Stashed changes
   if (!req.userId) {
     return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required' });
   }
@@ -90,35 +78,6 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
       select: { hasBetaAccess: true },
     });
 
-<<<<<<< Updated upstream
-    if (!user || !user.hasBetaAccess) {
-      // Check if user has a pending request
-      const betaAccess = await prisma.betaAccess.findUnique({
-        where: { userId: req.userId },
-        select: { status: true },
-      });
-
-      if (betaAccess?.status === 'pending') {
-        return res.status(403).json({
-          error: 'Beta Access Pending',
-          message: 'Your beta access request is pending approval. Please wait for admin approval.',
-          status: 'pending',
-        });
-      }
-
-      if (betaAccess?.status === 'rejected') {
-        return res.status(403).json({
-          error: 'Beta Access Denied',
-          message: 'Your beta access request was rejected. Please contact an administrator.',
-          status: 'rejected',
-        });
-      }
-
-      return res.status(403).json({
-        error: 'Beta Access Required',
-        message: 'You do not have access to the beta version. Please request access first.',
-        status: 'no_access',
-=======
     const hasAccess = user?.hasBetaAccess || false;
     
     // Cache the result
@@ -130,7 +89,6 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
       return res.status(403).json({ 
         error: 'Forbidden', 
         message: 'Beta access required. Please request access or contact an administrator.' 
->>>>>>> Stashed changes
       });
     }
 

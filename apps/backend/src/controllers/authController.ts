@@ -394,8 +394,6 @@ export const authController = {
       // Set httpOnly cookie
       // Use secure in production (HTTPS) and lax sameSite for OAuth redirects
       const isProduction = process.env.NODE_ENV === 'production';
-<<<<<<< Updated upstream
-=======
       
       // Determine redirect URL first (needed for cookie domain)
       const redirectUrl = getRedirectUrl(req, stateOrigin);
@@ -427,7 +425,6 @@ export const authController = {
       }
       // For production, don't set domain - browser will automatically set it to the current domain only
       
->>>>>>> Stashed changes
       const cookieOptions: any = {
         httpOnly: true,
         secure: isProduction, // Only send over HTTPS in production
@@ -436,20 +433,22 @@ export const authController = {
         path: '/', // Ensure cookie is available for all paths
       };
 
-<<<<<<< Updated upstream
-      // Don't set domain explicitly - let browser handle it
-      // Setting domain explicitly can cause issues with cookie setting
-      // Browser will automatically set it to the current domain
-
-=======
->>>>>>> Stashed changes
+      // Set domain only if we determined it should be set for beta
+      if (cookieDomain) {
+        cookieOptions.domain = cookieDomain;
+      }
+      // Otherwise, don't set domain explicitly - let browser handle it
       console.log('Setting cookie with options:', {
         httpOnly: cookieOptions.httpOnly,
         secure: cookieOptions.secure,
         sameSite: cookieOptions.sameSite,
         path: cookieOptions.path,
+        domain: cookieOptions.domain,
         maxAge: cookieOptions.maxAge,
         isProduction,
+        stateOrigin,
+        cookieDomain,
+        'cookieDomain set': !!cookieDomain,
       });
 
       // Set cookie
