@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'tsconfig.json'
       - '.github/**'
+  workflow_dispatch: # Allow manual trigger
   pull_request:
     branches: [main, develop]
     paths:
