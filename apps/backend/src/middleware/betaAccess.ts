@@ -15,6 +15,16 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     return next();
   }
 
+  // For public routes (like /channels/:slug), allow access without authentication
+  // These routes are excluded from requireBetaAccess in index.ts, but this is a safety check
+  const isPublicRoute = req.path.startsWith('/channels/memes/search') ||
+                        req.path === '/memes/stats' ||
+                        /^\/channels\/[^\/]+$/.test(req.path); // Match /channels/:slug (public route)
+  
+  if (isPublicRoute) {
+    return next();
+  }
+
   if (!req.userId) {
     return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required' });
   }
