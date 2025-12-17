@@ -130,7 +130,17 @@ export const authController = {
 
     try {
       console.log('Exchanging code for token...');
+      
+      // Check if this is production backend handling beta callback
+      // If callback came to production domain but state indicates beta origin,
+      // we need to handle it specially
+      const isProductionBackend = !process.env.DOMAIN?.includes('beta.') && process.env.PORT !== '3002';
+      const isBetaCallback = stateOrigin && stateOrigin.includes('beta.');
+      const requestHost = req.get('host') || '';
+      const callbackCameToProduction = !requestHost.includes('beta.');
+      
       // Exchange code for token
+      // Use the callback URL that was registered with Twitch (must match exactly)
       const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
         method: 'POST',
         headers: {
@@ -380,6 +390,28 @@ export const authController = {
       }
 
       console.log('User created/found, generating JWT...');
+      
+      // If production backend received callback for beta, create temporary token and redirect to beta
+      if (isProductionBackend && isBetaCallback && callbackCameToProduction) {
+        // Create a short-lived token for beta backend to use
+        const tempToken = jwt.sign(
+          {
+            userId: user.id,
+            role: user.role,
+            channelId: user.channelId,
+            tempForBeta: true,
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: '5m' } as SignOptions // Short-lived token
+        );
+        
+        // Redirect to beta backend with temporary token
+        // Beta backend will exchange this for a proper cookie
+        const betaAuthUrl = `${stateOrigin}/auth/twitch/complete?token=${encodeURIComponent(tempToken)}&state=${encodeURIComponent(state as string)}`;
+        console.log('Redirecting to beta backend for cookie setup:', betaAuthUrl);
+        return res.redirect(betaAuthUrl);
+      }
+      
       // Generate JWT
       const token = jwt.sign(
         {
@@ -397,6 +429,21 @@ export const authController = {
       
       // Determine redirect URL first (needed for cookie domain)
       const redirectUrl = getRedirectUrl(req, stateOrigin);
+      
+      // Check if this is production backend handling beta callback
+      // If callback came to production domain but state indicates beta origin,
+      // we cannot set cookie for beta domain from production domain due to browser security
+      // Instead, we need to redirect to beta backend to set the cookie
+      const isProductionBackend = !process.env.DOMAIN?.includes('beta.') && process.env.PORT !== '3002';
+      const isBetaCallback = stateOrigin && stateOrigin.includes('beta.');
+      const requestHost = req.get('host') || '';
+      const callbackCameToProduction = !requestHost.includes('beta.');
+      
+      // If production backend received callback for beta, we need to handle it after token exchange
+      // We'll create a temporary token and redirect to beta backend
+      if (isProductionBackend && isBetaCallback && callbackCameToProduction) {
+        console.log('Production backend received beta callback, will redirect to beta backend after token exchange');
+      }
       
       // Determine cookie domain based on redirect URL
       // IMPORTANT: For security, beta and production cookies must be isolated
@@ -535,6 +582,93 @@ export const authController = {
   logout: (req: AuthRequest, res: Response) => {
     res.clearCookie('token');
     res.json({ message: 'Logged out successfully' });
+  },
+
+  completeBetaAuth: async (req: AuthRequest, res: Response) => {
+    // This endpoint is called by beta backend when production backend redirects with temp token
+    const { token, state } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.redirect('/?error=auth_failed&reason=no_token');
+    }
+
+    try {
+      // Verify the temporary token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+        userId: string;
+        role: string;
+        channelId?: string;
+        tempForBeta?: boolean;
+      };
+
+      if (!decoded.tempForBeta) {
+        return res.redirect('/?error=auth_failed&reason=invalid_token');
+      }
+
+      // Extract redirect path from state if present
+      let redirectPath = '/';
+      let stateOrigin: string | undefined;
+      if (state && typeof state === 'string') {
+        try {
+          const decodedState = decodeURIComponent(state);
+          const stateData = JSON.parse(decodedState);
+          stateOrigin = stateData.origin;
+          if (stateData.redirectTo) {
+            redirectPath = stateData.redirectTo;
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      // Generate proper JWT token for beta
+      const betaToken = jwt.sign(
+        {
+          userId: decoded.userId,
+          role: decoded.role,
+          channelId: decoded.channelId,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
+      );
+
+      // Set cookie for beta domain
+      const isProduction = process.env.NODE_ENV === 'production';
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
+      
+      // Determine cookie domain for beta
+      let cookieDomain: string | undefined;
+      if (redirectUrl && redirectUrl.includes('beta.')) {
+        try {
+          const url = new URL(redirectUrl);
+          cookieDomain = url.hostname;
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      const cookieOptions: any = {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+      };
+
+      if (cookieDomain) {
+        cookieOptions.domain = cookieDomain;
+      }
+
+      res.cookie('token', betaToken, cookieOptions);
+
+      // Redirect to appropriate page
+      const finalRedirectUrl = `${redirectUrl}${redirectPath}`;
+      console.log('Beta auth completed, redirecting to:', finalRedirectUrl);
+      res.redirect(finalRedirectUrl);
+    } catch (error) {
+      console.error('Error completing beta auth:', error);
+      res.redirect('/?error=auth_failed&reason=token_verification_failed');
+    }
   },
 };
 
