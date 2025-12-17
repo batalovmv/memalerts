@@ -303,10 +303,10 @@ server {
     root /opt/memalerts-frontend-beta/dist;
     index index.html;
 
-    # Auth routes - proxy to production backend (where cookie is set)
-    # This ensures cookie set during OAuth callback is available for beta domain
+    # Auth routes - proxy to beta backend (where cookie is set for beta domain)
+    # Beta backend knows about beta domain and sets cookies correctly
     location ~ ^/auth {
-        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -324,9 +324,9 @@ server {
         proxy_read_timeout 5s;
     }
     
-    # User endpoint - proxy to production backend (where cookie is set)
+    # User endpoint - proxy to beta backend (where cookie is set for beta domain)
     location = /me {
-        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -393,8 +393,8 @@ server {
         proxy_cookie_path / /;
     }
     
-    # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+    # Other backend routes (excluding /auth and /me which are handled above)
+    location ~ ^/(webhooks|channels|wallet|memes|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -565,7 +565,28 @@ server {
     root /opt/memalerts-frontend-beta/dist;
     index index.html;
 
-    # Backend routes (auth, webhooks, etc.) - proxy to beta backend
+    # Auth routes - proxy to beta backend (where cookie is set for beta domain)
+    # Beta backend knows about beta domain and sets cookies correctly
+    location ~ ^/auth {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_intercept_errors off;
+        proxy_next_upstream off;
+        proxy_redirect off;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+    
+    # User endpoint - proxy to beta backend (where cookie is set for beta domain)
     location = /me {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
@@ -634,8 +655,8 @@ server {
         proxy_cookie_path / /;
     }
     
-    # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+    # Other backend routes (excluding /auth and /me which are handled above)
+    location ~ ^/(webhooks|channels|wallet|memes|uploads|health|socket\.io) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
