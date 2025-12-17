@@ -106,12 +106,19 @@ export const authController = {
   handleTwitchCallback: async (req: AuthRequest, res: Response) => {
     const { code, error, state } = req.query;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:entry',message:'Callback received',data:{hasCode:!!code,hasError:!!error,hasState:!!state,stateType:typeof state,stateValue:state,reqHost:req.get('host'),reqReferer:req.get('referer'),reqHeaders:Object.keys(req.headers)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     // Extract origin from state if present
     let stateOrigin: string | undefined;
     let stateRedirectTo: string | undefined;
     if (state && typeof state === 'string') {
       try {
         const decodedState = decodeURIComponent(state);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateDecode',message:'Decoding state',data:{state,decodedState},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         const stateData = JSON.parse(decodedState);
         stateOrigin = stateData.origin;
         stateRedirectTo = stateData.redirectTo;
@@ -121,12 +128,16 @@ export const authController = {
       } catch (e) {
         // State might be old format (just redirect path), ignore
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateParseError',message:'Failed to parse state, using old format',data:{state,error:e},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateParseError',message:'Failed to parse state, using old format',data:{state,error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
       }
+    } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:noState',message:'No state parameter',data:{state,stateType:typeof state},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
     }
 
-    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error, stateOrigin });
+    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error, stateOrigin, state });
 
     if (error) {
       console.error('Twitch OAuth error:', error);
