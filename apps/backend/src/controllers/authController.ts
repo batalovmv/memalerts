@@ -457,6 +457,27 @@ export const authController = {
       // Set httpOnly cookie
       // Use secure in production (HTTPS) and lax sameSite for OAuth redirects
       const isProduction = process.env.NODE_ENV === 'production';
+      
+      // Determine cookie domain based on redirect URL
+      // If redirecting to beta, we need to set cookie domain to work for beta
+      // If redirecting to production, use production domain
+      let cookieDomain: string | undefined;
+      if (stateOrigin && stateOrigin.includes('beta.')) {
+        // For beta, set domain to .twitchmemes.ru so cookie works for both beta and production
+        // Extract base domain (e.g., .twitchmemes.ru from beta.twitchmemes.ru)
+        try {
+          const url = new URL(stateOrigin);
+          const hostname = url.hostname;
+          // Extract base domain (twitchmemes.ru) and add dot prefix
+          const parts = hostname.split('.');
+          if (parts.length >= 2) {
+            cookieDomain = '.' + parts.slice(-2).join('.');
+          }
+        } catch (e) {
+          // If parsing fails, don't set domain
+        }
+      }
+      
       const cookieOptions: any = {
         httpOnly: true,
         secure: isProduction, // Only send over HTTPS in production
@@ -464,18 +485,27 @@ export const authController = {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/', // Ensure cookie is available for all paths
       };
-
-      // Don't set domain explicitly - let browser handle it
-      // Setting domain explicitly can cause issues with cookie setting
+      
+      // Set domain only if we determined it should be set for beta
+      if (cookieDomain) {
+        cookieOptions.domain = cookieDomain;
+      }
+      // Otherwise, don't set domain explicitly - let browser handle it
       // Browser will automatically set it to the current domain
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:setCookie',message:'Setting cookie',data:{stateOrigin,cookieDomain,cookieOptions,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       console.log('Setting cookie with options:', {
         httpOnly: cookieOptions.httpOnly,
         secure: cookieOptions.secure,
         sameSite: cookieOptions.sameSite,
         path: cookieOptions.path,
+        domain: cookieOptions.domain,
         maxAge: cookieOptions.maxAge,
         isProduction,
+        stateOrigin,
       });
 
       // Set cookie
