@@ -179,6 +179,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -201,6 +203,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -219,6 +223,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -239,6 +245,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         
@@ -257,6 +265,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
     }
 
     # Frontend routes
@@ -312,6 +322,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -324,6 +336,19 @@ server {
         proxy_read_timeout 5s;
     }
     
+    # Debug IP endpoint (temporary - for identifying real client IP)
+    location = /debug-ip {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
+        proxy_cache_bypass \$http_upgrade;
+    }
+    
     # User endpoint - proxy to beta backend (where cookie is set for beta domain)
     location = /me {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
@@ -332,6 +357,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -353,6 +380,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -370,6 +399,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -387,6 +418,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -403,6 +436,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -419,6 +454,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
     }
 
     # Frontend routes
@@ -458,6 +495,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -480,6 +519,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -498,6 +539,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -518,6 +561,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         
@@ -536,6 +581,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
     }
 
     # Frontend routes
@@ -574,6 +621,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -586,6 +635,19 @@ server {
         proxy_read_timeout 5s;
     }
     
+    # Debug IP endpoint (temporary - for identifying real client IP)
+    location = /debug-ip {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
+        proxy_cache_bypass \$http_upgrade;
+    }
+    
     # User endpoint - proxy to beta backend (where cookie is set for beta domain)
     location = /me {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
@@ -594,6 +656,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -615,6 +679,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -632,6 +698,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -649,6 +717,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -665,6 +735,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
         proxy_set_header Cookie \$http_cookie;
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
@@ -681,6 +753,8 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
     }
 
     # Frontend routes

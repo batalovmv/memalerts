@@ -15,6 +15,25 @@ export function setupRoutes(app: Express) {
     res.json({ status: 'ok' });
   });
 
+  // Temporary endpoint to debug IP detection (remove after IP is identified)
+  app.get('/debug-ip', (req, res) => {
+    const ipInfo = {
+      'cf-connecting-ip': req.headers['cf-connecting-ip'],
+      'x-real-ip': req.headers['x-real-ip'],
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'socket.remoteAddress': req.socket.remoteAddress,
+      'req.ip': req.ip,
+      'all-ip-headers': {
+        'cf-connecting-ip': req.headers['cf-connecting-ip'],
+        'x-real-ip': req.headers['x-real-ip'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+        'true-client-ip': req.headers['true-client-ip'],
+      }
+    };
+    console.log('[DEBUG_IP] Request IP info:', JSON.stringify(ipInfo, null, 2));
+    res.json(ipInfo);
+  });
+
   // Apply beta access middleware to all routes (except public routes and routes that use authenticate)
   // The middleware will check if request is for beta domain and verify access
   // Note: /me, /wallet, /memes are excluded because they use authenticate middleware which sets req.userId

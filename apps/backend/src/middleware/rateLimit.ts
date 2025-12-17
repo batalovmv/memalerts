@@ -81,7 +81,32 @@ export const globalLimiter = rateLimit({
     const whitelistIPs = getWhitelistIPs();
     if (whitelistIPs.length > 0) {
       const clientIP = getClientIP(req);
-      const isWhitelisted = whitelistIPs.includes(clientIP);
+      
+      // Get all possible IPs from headers for whitelist checking
+      const allPossibleIPs: string[] = [clientIP];
+      if (req.headers['cf-connecting-ip']) {
+        const ip = Array.isArray(req.headers['cf-connecting-ip']) ? req.headers['cf-connecting-ip'][0] : req.headers['cf-connecting-ip'];
+        if (ip && ip.trim()) allPossibleIPs.push(ip.trim());
+      }
+      if (req.headers['x-real-ip']) {
+        const ip = Array.isArray(req.headers['x-real-ip']) ? req.headers['x-real-ip'][0] : req.headers['x-real-ip'];
+        if (ip && ip.trim()) allPossibleIPs.push(ip.trim());
+      }
+      if (req.headers['x-forwarded-for']) {
+        const forwarded = Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for'];
+        forwarded.split(',').forEach(ip => {
+          const trimmed = ip.trim();
+          if (trimmed) allPossibleIPs.push(trimmed);
+        });
+      }
+      if (req.socket.remoteAddress) allPossibleIPs.push(req.socket.remoteAddress);
+      if (req.ip) allPossibleIPs.push(req.ip);
+      
+      // Check if any of the possible IPs is whitelisted
+      const uniqueIPs = [...new Set(allPossibleIPs)];
+      const isWhitelisted = whitelistIPs.some(whitelistIP => 
+        uniqueIPs.includes(whitelistIP)
+      );
       
       if (isWhitelisted) {
         // Log whitelist access for monitoring
