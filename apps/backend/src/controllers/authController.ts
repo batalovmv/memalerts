@@ -389,6 +389,12 @@ export const authController = {
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_null`);
       }
 
+      // Determine redirect URL first (needed for cookie domain and beta access check)
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
+      
+      // Check both stateOrigin and redirectUrl for beta detection
+      const isBetaRedirect = (stateOrigin && stateOrigin.includes('beta.')) || (redirectUrl && redirectUrl.includes('beta.'));
+      
       // If this is beta backend and user logged in on beta domain, grant beta access automatically
       const isBetaBackend = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
       const isBetaLogin = isBetaRedirect || (stateOrigin && stateOrigin.includes('beta.'));
@@ -440,9 +446,6 @@ export const authController = {
       // Use secure in production (HTTPS) and lax sameSite for OAuth redirects
       const isProduction = process.env.NODE_ENV === 'production';
       
-      // Determine redirect URL first (needed for cookie domain)
-      const redirectUrl = getRedirectUrl(req, stateOrigin);
-      
       // If production backend received callback for beta, we need to handle it after token exchange
       // We'll create a temporary token and redirect to beta backend
       // (isProductionBackend, isBetaCallback, callbackCameToProduction are already declared above)
@@ -454,10 +457,8 @@ export const authController = {
       // IMPORTANT: For security, beta and production cookies must be isolated
       // - For beta: use exact domain (beta.twitchmemes.ru) without dot prefix to isolate from production
       // - For production: don't set domain explicitly - browser will set it to current domain only
+      // redirectUrl and isBetaRedirect are already declared above (before beta access check)
       let cookieDomain: string | undefined;
-      
-      // Check both stateOrigin and redirectUrl for beta detection
-      const isBetaRedirect = (stateOrigin && stateOrigin.includes('beta.')) || (redirectUrl && redirectUrl.includes('beta.'));
       
       if (isBetaRedirect) {
         // For beta, use the exact beta domain (without dot prefix) to isolate from production
