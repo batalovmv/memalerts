@@ -76,23 +76,37 @@ async function migrateBetaToProduction() {
         });
 
         if (existingUser) {
-          // User exists - merge data
-          console.log(`   Merging user: ${betaUser.displayName} (${betaUser.twitchUserId})`);
+          // User exists in production - production data has priority
+          console.log(`   User exists in production: ${existingUser.displayName} (${betaUser.twitchUserId})`);
+          console.log(`     Production data will be preserved, beta data will only supplement missing information`);
           
-          // Update user data (keep production data, but update if beta has newer info)
-          await productionDb.user.update({
-            where: { id: existingUser.id },
-            data: {
-              // Update displayName if beta has different one
-              displayName: betaUser.displayName,
-              // Update profileImageUrl if beta has one and production doesn't
-              profileImageUrl: existingUser.profileImageUrl || betaUser.profileImageUrl,
-              // Grant beta access if beta user has it
-              hasBetaAccess: existingUser.hasBetaAccess || betaUser.hasBetaAccess,
-            },
-          });
+          // Update user data - ONLY if production is missing the data
+          // Production data has absolute priority
+          const updateData: any = {};
+          
+          // Only update profileImageUrl if production doesn't have it but beta does
+          if (!existingUser.profileImageUrl && betaUser.profileImageUrl) {
+            updateData.profileImageUrl = betaUser.profileImageUrl;
+            console.log(`     Adding profileImageUrl from beta`);
+          }
+          
+          // Grant beta access if beta user has it (this is safe to merge)
+          if (!existingUser.hasBetaAccess && betaUser.hasBetaAccess) {
+            updateData.hasBetaAccess = true;
+            console.log(`     Granting beta access from beta user`);
+          }
+          
+          // Only update if there's something to update
+          if (Object.keys(updateData).length > 0) {
+            await productionDb.user.update({
+              where: { id: existingUser.id },
+              data: updateData,
+            });
+          } else {
+            console.log(`     No updates needed - production data is complete`);
+          }
 
-          // Merge wallets
+          // Merge wallets - production balance has priority, but we'll take maximum
           for (const betaWallet of betaUser.wallets) {
             const existingWallet = await productionDb.wallet.findUnique({
               where: {
@@ -104,18 +118,24 @@ async function migrateBetaToProduction() {
             });
 
             if (existingWallet) {
-              // Wallet exists - sum balances
-              console.log(`     Merging wallet for channel ${betaWallet.channelId}: ${existingWallet.balance} + ${betaWallet.balance} = ${existingWallet.balance + betaWallet.balance}`);
-              await productionDb.wallet.update({
-                where: { id: existingWallet.id },
-                data: {
-                  balance: existingWallet.balance + betaWallet.balance,
-                },
-              });
-              stats.walletsMerged++;
+              // Wallet exists - take maximum balance (production priority, but if beta has more, use it)
+              // This handles edge case where beta user might have earned more during testing
+              const maxBalance = Math.max(existingWallet.balance, betaWallet.balance);
+              if (maxBalance !== existingWallet.balance) {
+                console.log(`     Updating wallet for channel ${betaWallet.channelId}: ${existingWallet.balance} -> ${maxBalance} (beta had ${betaWallet.balance})`);
+                await productionDb.wallet.update({
+                  where: { id: existingWallet.id },
+                  data: {
+                    balance: maxBalance,
+                  },
+                });
+                stats.walletsMerged++;
+              } else {
+                console.log(`     Wallet for channel ${betaWallet.channelId} already has higher/equal balance (${existingWallet.balance} >= ${betaWallet.balance})`);
+              }
             } else {
-              // Wallet doesn't exist - create it
-              console.log(`     Creating wallet for channel ${betaWallet.channelId} with balance ${betaWallet.balance}`);
+              // Wallet doesn't exist in production - create it from beta
+              console.log(`     Creating wallet for channel ${betaWallet.channelId} with balance ${betaWallet.balance} (not in production)`);
               await productionDb.wallet.create({
                 data: {
                   userId: existingUser.id,
