@@ -430,17 +430,9 @@ export const authController = {
       // Determine redirect URL first (needed for cookie domain)
       const redirectUrl = getRedirectUrl(req, stateOrigin);
       
-      // Check if this is production backend handling beta callback
-      // If callback came to production domain but state indicates beta origin,
-      // we cannot set cookie for beta domain from production domain due to browser security
-      // Instead, we need to redirect to beta backend to set the cookie
-      const isProductionBackend = !process.env.DOMAIN?.includes('beta.') && process.env.PORT !== '3002';
-      const isBetaCallback = stateOrigin && stateOrigin.includes('beta.');
-      const requestHost = req.get('host') || '';
-      const callbackCameToProduction = !requestHost.includes('beta.');
-      
       // If production backend received callback for beta, we need to handle it after token exchange
       // We'll create a temporary token and redirect to beta backend
+      // (isProductionBackend, isBetaCallback, callbackCameToProduction are already declared above)
       if (isProductionBackend && isBetaCallback && callbackCameToProduction) {
         console.log('Production backend received beta callback, will redirect to beta backend after token exchange');
       }
