@@ -198,6 +198,63 @@ async function startServer() {
     console.error('Please set these variables in your .env file or environment.');
     process.exit(1);
   }
+
+  // Validate optional but recommended environment variables
+  const recommendedEnvVars = [
+    'DOMAIN',
+    'WEB_URL',
+    'TWITCH_CALLBACK_URL',
+  ];
+  
+  const missingRecommended = recommendedEnvVars.filter(varName => !process.env[varName]);
+  
+  if (missingRecommended.length > 0 && process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  Missing recommended environment variables (may cause issues in production):');
+    missingRecommended.forEach(varName => {
+      console.warn(`   - ${varName}`);
+    });
+    console.warn('');
+  }
+
+  // Validate URL format for WEB_URL and TWITCH_CALLBACK_URL if provided
+  if (process.env.WEB_URL) {
+    try {
+      new URL(process.env.WEB_URL);
+    } catch (urlError: any) {
+      console.error('❌ Invalid WEB_URL format:', process.env.WEB_URL);
+      console.error('   WEB_URL must be a valid URL (e.g., https://example.com)');
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+      }
+    }
+  }
+
+  if (process.env.TWITCH_CALLBACK_URL) {
+    try {
+      const callbackUrl = new URL(process.env.TWITCH_CALLBACK_URL);
+      if (!callbackUrl.protocol.startsWith('https')) {
+        console.warn('⚠️  TWITCH_CALLBACK_URL should use HTTPS in production');
+      }
+    } catch (urlError: any) {
+      console.error('❌ Invalid TWITCH_CALLBACK_URL format:', process.env.TWITCH_CALLBACK_URL);
+      console.error('   TWITCH_CALLBACK_URL must be a valid URL');
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+      }
+    }
+  }
+
+  // Validate DOMAIN format if provided
+  if (process.env.DOMAIN) {
+    const domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+    if (!domainRegex.test(process.env.DOMAIN)) {
+      console.error('❌ Invalid DOMAIN format:', process.env.DOMAIN);
+      console.error('   DOMAIN must be a valid domain name (e.g., example.com or beta.example.com)');
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+      }
+    }
+  }
   
   // Validate DATABASE_URL format before attempting connection
   const dbUrl = process.env.DATABASE_URL;
