@@ -159,7 +159,10 @@
     "failedToLoadWallets": "Не удалось загрузить кошельки",
     "failedToAdjustBalance": "Не удалось изменить баланс",
     "balanceIncreased": "Баланс увеличен на {{amount}}",
-    "balanceDecreased": "Баланс уменьшен на {{amount}}"
+    "balanceDecreased": "Баланс уменьшен на {{amount}}",
+    "betaAccess": "Доступ к Beta",
+    "betaAccessRequests": "Заявки на доступ к Beta",
+    "noBetaAccessRequests": "Нет заявок на доступ к Beta"
   },
   "profile": {
     "balanceFor": "Ваш баланс для",

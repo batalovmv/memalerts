@@ -64,7 +64,7 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL || '' }}
 
   deploy:
-    name: Deploy to VPS
+    name: Deploy to VPS (Production)
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -179,7 +179,7 @@ jobs:
               chmod +x "$SCRIPT_PATH"
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E "$SCRIPT_PATH" ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 2>&1 || {
+              sudo -E "$SCRIPT_PATH" ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 2>&1 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
@@ -197,5 +197,73 @@ jobs:
             mkdir -p /opt/memalerts-frontend/dist
             
             # Reload nginx (already configured above)
+            sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
+
+  deploy-beta:
+    name: Deploy to VPS (Beta)
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build Web (Beta)
+        run: |
+          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
+            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:web
+          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:web
+          else
+            VITE_API_URL="https://beta.twitchalerts.ru" pnpm build:web
+          fi
+
+      - name: Build Overlay (Beta)
+        run: |
+          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
+            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:overlay
+          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:overlay
+          else
+            VITE_API_URL="https://beta.twitchalerts.ru" pnpm build:overlay
+          fi
+
+      - name: Deploy to VPS (Beta)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "dist,overlay/dist"
+          target: "/opt/memalerts-frontend-beta"
+          strip_components: 0
+
+      - name: Setup Beta Nginx
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            # Ensure beta frontend directory exists
+            mkdir -p /opt/memalerts-frontend-beta/dist
+            
+            # Reload nginx (beta domain will be configured by backend script)
             sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
 

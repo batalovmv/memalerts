@@ -8,10 +8,11 @@ import Header from '../components/Header';
 import VideoPreview from '../components/VideoPreview';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
+import { api } from '../lib/api';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
 
-type TabType = 'submissions' | 'memes' | 'settings' | 'wallets' | 'promotions' | 'statistics';
+type TabType = 'submissions' | 'memes' | 'settings' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
 export default function Admin() {
   const { t } = useTranslation();
@@ -155,6 +156,18 @@ export default function Admin() {
             >
               {t('admin.statistics')}
             </button>
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('beta')}
+                className={`pb-2 px-4 transition-colors ${
+                  activeTab === 'beta'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+                }`}
+              >
+                {t('admin.betaAccess')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -286,6 +299,10 @@ export default function Admin() {
 
         {activeTab === 'statistics' && (
           <ChannelStatistics />
+        )}
+
+        {activeTab === 'beta' && user?.role === 'admin' && (
+          <BetaAccessManagement />
         )}
       </main>
     </div>
@@ -1034,6 +1051,121 @@ function PromotionManagement() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Beta Access Management Component (Admin only)
+function BetaAccessManagement() {
+  const { t } = useTranslation();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/admin/beta/requests');
+      setRequests(response.data);
+    } catch (error: any) {
+      console.error('Error loading beta access requests:', error);
+      toast.error(error.response?.data?.error || t('toast.failedToLoad'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (requestId: string) => {
+    try {
+      await api.post(`/admin/beta/requests/${requestId}/approve`);
+      toast.success(t('toast.betaAccessApproved'));
+      loadRequests();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || t('toast.failedToApprove'));
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
+    try {
+      await api.post(`/admin/beta/requests/${requestId}/reject`);
+      toast.success(t('toast.betaAccessRejected'));
+      loadRequests();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || t('toast.failedToReject'));
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const colors = {
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    };
+    return (
+      <span className={`px-2 py-1 rounded text-xs font-semibold ${colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800'}`}>
+        {status}
+      </span>
+    );
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">{t('common.loading')}</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold dark:text-white">{t('admin.betaAccessRequests')}</h2>
+      
+      {requests.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          {t('admin.noBetaAccessRequests')}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {requests.map((request: any) => (
+            <div key={request.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {request.user?.displayName || 'Unknown User'}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {request.user?.twitchUserId || 'N/A'}
+                  </div>
+                </div>
+                {getStatusBadge(request.status)}
+              </div>
+              
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                <div>Requested: {new Date(request.requestedAt).toLocaleString()}</div>
+                {request.approvedAt && (
+                  <div>Processed: {new Date(request.approvedAt).toLocaleString()}</div>
+                )}
+              </div>
+
+              {request.status === 'pending' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleApprove(request.id)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    {t('admin.approve')}
+                  </button>
+                  <button
+                    onClick={() => handleReject(request.id)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    {t('admin.reject')}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -159,7 +159,10 @@
     "failedToLoadWallets": "Failed to load wallets",
     "failedToAdjustBalance": "Failed to adjust balance",
     "balanceIncreased": "Balance increased by {{amount}}",
-    "balanceDecreased": "Balance decreased by {{amount}}"
+    "balanceDecreased": "Balance decreased by {{amount}}",
+    "betaAccess": "Beta Access",
+    "betaAccessRequests": "Beta Access Requests",
+    "noBetaAccessRequests": "No beta access requests"
   },
   "profile": {
     "balanceFor": "Your Balance for",

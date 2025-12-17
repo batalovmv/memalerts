@@ -21,10 +21,14 @@ function App() {
     dispatch(fetchUser());
   }, [dispatch]);
 
+  // Check if we're on beta domain
+  const isBetaDomain = window.location.hostname.includes('beta.');
+
   return (
     <>
       <Toaster position="top-right" />
       <div className="flex flex-col min-h-screen overflow-x-hidden">
+        {isBetaDomain && <BetaAccessRequest />}
         <div className="flex-1">
           <Routes>
             <Route path="/" element={<Landing />} />
