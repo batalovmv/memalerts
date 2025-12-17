@@ -33,6 +33,7 @@ export function setupRoutes(app: Express) {
         req.path === '/me' ||
         req.path === '/wallet' ||
         req.path === '/memes' ||
+        req.path.startsWith('/admin') || // Admin routes use authenticate + requireBetaAccess in index.ts
         req.path.startsWith('/channels/memes/search') ||
         req.path === '/memes/stats' ||
         /^\/channels\/[^\/]+$/.test(req.path)) { // Match /channels/:slug (public route)
