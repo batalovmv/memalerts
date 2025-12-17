@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { sanitizeFilename, getSafeExtension } from '../utils/pathSecurity.js';
 
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '52428800', 10); // 50MB default (50 * 1024 * 1024)
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
@@ -15,8 +16,18 @@ const storage = multer.diskStorage({
     cb(null, UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    try {
+      // Sanitize original filename to prevent path traversal
+      const sanitizedOriginal = sanitizeFilename(file.originalname || 'file');
+      const ext = getSafeExtension(sanitizedOriginal) || getSafeExtension(file.originalname || '');
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const safeFilename = `${file.fieldname}-${uniqueSuffix}${ext ? '.' + ext : ''}`;
+      cb(null, safeFilename);
+    } catch (error: any) {
+      // If sanitization fails, use a safe default
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, `${file.fieldname}-${uniqueSuffix}.bin`);
+    }
   },
 });
 

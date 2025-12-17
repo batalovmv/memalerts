@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
+import { validatePathWithinDirectory } from '../utils/pathSecurity.js';
 import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
@@ -162,7 +163,18 @@ export const adminController = {
           finalFileUrl = submission.sourceUrl;
         } else {
           // Uploaded file - check if already deduplicated or perform deduplication
-          const filePath = path.join(process.cwd(), submission.fileUrlTemp);
+          // Validate path to prevent path traversal attacks
+          let filePath: string;
+          try {
+            const uploadsDir = path.join(process.cwd(), 'uploads');
+            filePath = validatePathWithinDirectory(submission.fileUrlTemp, uploadsDir);
+          } catch (pathError: any) {
+            console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
+            return res.status(400).json({ 
+              error: 'Invalid file path',
+              message: 'File path contains invalid characters or path traversal attempt'
+            });
+          }
           
           // Check if file already exists in FileHash (was deduplicated during upload)
           const existingHash = await getFileHashByPath(submission.fileUrlTemp);

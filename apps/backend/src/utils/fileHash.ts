@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { validatePathWithinDirectory } from './pathSecurity.js';
 import { prisma } from '../lib/prisma.js';
 import https from 'https';
 import http from 'http';
@@ -147,14 +148,21 @@ export async function decrementFileHashReference(hash: string): Promise<void> {
 
   if (fileHash.referenceCount <= 1) {
     // Last reference - delete file and record
-    const filePath = path.join(process.cwd(), fileHash.filePath);
-    
+    // Validate path to prevent path traversal attacks
     try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      const filePath = validatePathWithinDirectory(fileHash.filePath, uploadsDir);
+      
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (error) {
+        console.error(`Failed to delete file ${filePath}:`, error);
       }
-    } catch (error) {
-      console.error(`Failed to delete file ${filePath}:`, error);
+    } catch (pathError: any) {
+      console.error(`Path validation failed for fileHash.filePath: ${fileHash.filePath}`, pathError.message);
+      // Don't delete if path is invalid - security risk
     }
 
     await prisma.fileHash.delete({
