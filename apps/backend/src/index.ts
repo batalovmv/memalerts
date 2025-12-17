@@ -77,11 +77,44 @@ httpServer.on('timeout', (socket) => {
 app.set('trust proxy', true);
 
 // Middleware
-// Configure helmet to allow cookies
+// Configure helmet with proper CSP
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false, // Disable CSP for now to avoid cookie issues
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"], // 'unsafe-inline' needed for Vite HMR in dev, but should be removed in production
+        styleSrc: ["'self'", "'unsafe-inline'"], // 'unsafe-inline' needed for Tailwind CSS and inline styles
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://static-cdn.jtvnw.net', // Twitch avatars and images
+          'https://*.twitch.tv', // Twitch CDN
+        ],
+        mediaSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://static-cdn.jtvnw.net', // Twitch media
+        ],
+        connectSrc: [
+          "'self'",
+          'wss:', // WebSocket for Socket.IO
+          'ws:', // WebSocket for Socket.IO (dev)
+          'https://id.twitch.tv', // Twitch OAuth
+          'https://api.twitch.tv', // Twitch API (if used)
+          'https://static-cdn.jtvnw.net', // Twitch CDN
+        ],
+        fontSrc: ["'self'", 'data:'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'", 'https://id.twitch.tv'], // Twitch OAuth redirect
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null, // Only in production
+      },
+    },
   })
 );
 app.use(
@@ -224,9 +257,6 @@ async function startServer() {
   try {
     // Test database connection
     console.log('Testing database connection...');
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:220',message:'Attempting Prisma connection',data:{hasPrisma:!!prisma},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     await prisma.$connect();
     console.log('✅ Database connection successful');
     
