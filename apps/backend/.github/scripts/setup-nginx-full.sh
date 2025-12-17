@@ -194,6 +194,29 @@ server {
         proxy_read_timeout 5s;
     }
     
+    # Static files (uploads) - serve directly with CORS headers
+    # Allow cross-origin requests from beta domain
+    location /uploads/ {
+        alias /opt/memalerts-backend/uploads/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        # Add CORS headers to allow cross-origin requests from beta domain
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range" always;
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
+        # Handle preflight requests
+        if (\$request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Range" always;
+            add_header Access-Control-Max-Age 86400;
+            add_header Content-Type "text/plain; charset=utf-8";
+            add_header Content-Length 0;
+            return 204;
+        }
+    }
+    
     # File uploads - special handling for large files
     location ~ ^/submissions {
         client_max_body_size 100M;
@@ -235,8 +258,8 @@ server {
         proxy_read_timeout 120s;
     }
     
-    # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+    # Other backend routes (excluding /uploads which is handled above)
+    location ~ ^/(auth|webhooks|channels|wallet|memes|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -432,6 +455,22 @@ server {
         alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
+        # Add CORS headers to allow cross-origin requests from beta domain
+        # Allow both beta and production domains to access files
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range" always;
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
+        # Handle preflight requests
+        if (\$request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Range" always;
+            add_header Access-Control-Max-Age 86400;
+            add_header Content-Type "text/plain; charset=utf-8";
+            add_header Content-Length 0;
+            return 204;
+        }
     }
     
     # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
@@ -518,6 +557,29 @@ server {
         proxy_read_timeout 5s;
     }
     
+    # Static files (uploads) - serve directly with CORS headers
+    # Allow cross-origin requests from beta domain
+    location /uploads/ {
+        alias /opt/memalerts-backend/uploads/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        # Add CORS headers to allow cross-origin requests from beta domain
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range" always;
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
+        # Handle preflight requests
+        if (\$request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Range" always;
+            add_header Access-Control-Max-Age 86400;
+            add_header Content-Type "text/plain; charset=utf-8";
+            add_header Content-Length 0;
+            return 204;
+        }
+    }
+    
     # File uploads - special handling for large files
     location ~ ^/submissions {
         client_max_body_size 100M;
@@ -559,8 +621,8 @@ server {
         proxy_read_timeout 120s;
     }
     
-    # Other backend routes
-    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+    # Other backend routes (excluding /uploads which is handled above)
+    location ~ ^/(auth|webhooks|channels|wallet|memes|health|socket\.io) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -739,6 +801,22 @@ server {
         alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
+        # Add CORS headers to allow cross-origin requests from beta domain
+        # Allow both beta and production domains to access files
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range" always;
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
+        # Handle preflight requests
+        if (\$request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Range" always;
+            add_header Access-Control-Max-Age 86400;
+            add_header Content-Type "text/plain; charset=utf-8";
+            add_header Content-Length 0;
+            return 204;
+        }
     }
     
     # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
