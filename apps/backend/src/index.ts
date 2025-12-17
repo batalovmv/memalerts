@@ -162,9 +162,71 @@ async function startServer() {
     process.exit(1);
   }
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:165',message:'DATABASE_URL validation start',data:{hasDatabaseUrl:!!process.env.DATABASE_URL,urlLength:process.env.DATABASE_URL?.length,urlPreview:process.env.DATABASE_URL?.substring(0,50)+'...',containsSchema:process.env.DATABASE_URL?.includes('schema='),schemaValue:process.env.DATABASE_URL?.match(/schema=([^&]+)/)?.[1]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
+  // Validate DATABASE_URL format before attempting connection
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:172',message:'Parsing DATABASE_URL',data:{urlStart:dbUrl.substring(0,30),hasPostgresql:dbUrl.startsWith('postgresql://'),hasPostgres:dbUrl.startsWith('postgres://'),portMatch:dbUrl.match(/:(\d+)\//)?.[1],schemaMatch:dbUrl.match(/schema=([^&]+)/)?.[1]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
+    try {
+      const url = new URL(dbUrl);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:177',message:'URL parsed successfully',data:{protocol:url.protocol,hostname:url.hostname,port:url.port,pathname:url.pathname,search:url.search},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // Validate port
+      if (url.port && isNaN(parseInt(url.port))) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:182',message:'Invalid port detected',data:{port:url.port,portIsNaN:isNaN(parseInt(url.port))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        console.error('❌ Invalid port in DATABASE_URL:', url.port);
+        console.error('   Full URL (first 100 chars):', dbUrl.substring(0, 100));
+        process.exit(1);
+      }
+      
+      // Check for common typos in schema parameter
+      const schemaMatch = dbUrl.match(/schema=([^&]+)/);
+      if (schemaMatch) {
+        const schemaValue = schemaMatch[1];
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:192',message:'Schema parameter check',data:{schemaValue:schemaValue,isPublic:schemaValue==='public',isPubli:schemaValue==='publi',length:schemaValue.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        if (schemaValue !== 'public') {
+          console.error('❌ Invalid schema value in DATABASE_URL:', schemaValue);
+          console.error('   Expected: schema=public');
+          console.error('   Found: schema=' + schemaValue);
+          if (schemaValue === 'publi') {
+            console.error('   ⚠️  Common typo detected: "publi" should be "public"');
+          }
+          process.exit(1);
+        }
+      }
+    } catch (urlError: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:204',message:'URL parsing failed',data:{error:urlError.message,urlPreview:dbUrl.substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      console.error('❌ Invalid DATABASE_URL format:', urlError.message);
+      console.error('   URL (first 100 chars):', dbUrl.substring(0, 100));
+      console.error('   Check for:');
+      console.error('   - Special characters that need escaping (use % encoding)');
+      console.error('   - Spaces or newlines');
+      console.error('   - Correct format: postgresql://user:password@host:port/database?schema=public');
+      process.exit(1);
+    }
+  }
+  
   try {
     // Test database connection
     console.log('Testing database connection...');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:220',message:'Attempting Prisma connection',data:{hasPrisma:!!prisma},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     await prisma.$connect();
     console.log('✅ Database connection successful');
     

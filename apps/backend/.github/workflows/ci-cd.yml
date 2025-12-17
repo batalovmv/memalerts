@@ -441,6 +441,23 @@ jobs:
             # IMPORTANT: Beta should use separate database to prevent affecting production data
             BETA_DB_URL="${{ secrets.DATABASE_URL_BETA || secrets.DATABASE_URL }}"
             
+            # Validate DATABASE_URL format before creating .env
+            echo "Validating DATABASE_URL format..."
+            if echo "$BETA_DB_URL" | grep -q "schema=publi[^c]"; then
+              echo "❌ ERROR: Invalid schema value detected in DATABASE_URL_BETA"
+              echo "   Found: schema=publi (should be schema=public)"
+              echo "   Please fix the DATABASE_URL_BETA secret in GitHub Secrets"
+              exit 1
+            fi
+            
+            # Check if URL contains valid port
+            if ! echo "$BETA_DB_URL" | grep -qE ":[0-9]+/"; then
+              echo "❌ ERROR: Invalid port in DATABASE_URL_BETA"
+              echo "   URL must contain :port/ after hostname"
+              echo "   Example: postgresql://user:password@host:5432/database?schema=public"
+              exit 1
+            fi
+            
             cat > .env << EOF
             # Database (beta instance - should use separate database)
             DATABASE_URL=$BETA_DB_URL
