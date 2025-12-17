@@ -458,40 +458,54 @@ export const authController = {
       // Use secure in production (HTTPS) and lax sameSite for OAuth redirects
       const isProduction = process.env.NODE_ENV === 'production';
       
+      // Determine redirect URL first (needed for cookie domain)
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
+      
       // Determine cookie domain based on redirect URL
       // If redirecting to beta, we need to set cookie domain to work for beta
       // If redirecting to production, use production domain
       let cookieDomain: string | undefined;
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:determineCookieDomain',message:'Determining cookie domain',data:{stateOrigin,hasStateOrigin:!!stateOrigin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:determineCookieDomain',message:'Determining cookie domain',data:{stateOrigin,hasStateOrigin:!!stateOrigin,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       
-      if (stateOrigin && stateOrigin.includes('beta.')) {
+      // Check both stateOrigin and redirectUrl for beta detection
+      const isBetaRedirect = (stateOrigin && stateOrigin.includes('beta.')) || (redirectUrl && redirectUrl.includes('beta.'));
+      
+      if (isBetaRedirect) {
         // For beta, set domain to .twitchmemes.ru so cookie works for both beta and production
         // Extract base domain (e.g., .twitchmemes.ru from beta.twitchmemes.ru)
         try {
-          const url = new URL(stateOrigin);
-          const hostname = url.hostname;
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:parseBetaDomain',message:'Parsing beta domain',data:{stateOrigin,hostname,parts:hostname.split('.')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          // Extract base domain (twitchmemes.ru) and add dot prefix
-          const parts = hostname.split('.');
-          if (parts.length >= 2) {
-            cookieDomain = '.' + parts.slice(-2).join('.');
+          // Use redirectUrl if available, otherwise stateOrigin
+          const urlToParse = redirectUrl || stateOrigin;
+          if (!urlToParse) {
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieDomainSet',message:'Cookie domain determined',data:{cookieDomain,hostname,parts},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:noUrlToParse',message:'No URL to parse for cookie domain',data:{stateOrigin,redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
             // #endregion
+          } else {
+            const url = new URL(urlToParse);
+            const hostname = url.hostname;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:parseBetaDomain',message:'Parsing beta domain',data:{urlToParse,hostname,parts:hostname.split('.')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            // Extract base domain (twitchmemes.ru) and add dot prefix
+            const parts = hostname.split('.');
+            if (parts.length >= 2) {
+              cookieDomain = '.' + parts.slice(-2).join('.');
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieDomainSet',message:'Cookie domain determined',data:{cookieDomain,hostname,parts},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
+            }
           }
         } catch (e) {
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieDomainError',message:'Failed to parse cookie domain',data:{stateOrigin,error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:cookieDomainError',message:'Failed to parse cookie domain',data:{stateOrigin,redirectUrl,error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
           // #endregion
           // If parsing fails, don't set domain
         }
       } else {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:noBetaDomain',message:'Not setting cookie domain (not beta)',data:{stateOrigin,includesBeta:stateOrigin?.includes('beta.')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:noBetaDomain',message:'Not setting cookie domain (not beta)',data:{stateOrigin,redirectUrl,isBetaRedirect},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
       }
       
@@ -543,8 +557,7 @@ export const authController = {
       }
 
       // Redirect to user's profile if streamer, otherwise to home
-      // Pass req and stateOrigin to determine correct redirect domain
-      const redirectUrl = getRedirectUrl(req, stateOrigin);
+      // redirectUrl was already determined above for cookie domain
       
       let redirectPath = '/';
       
