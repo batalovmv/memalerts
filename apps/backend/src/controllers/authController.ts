@@ -4,11 +4,36 @@ import { prisma } from '../lib/prisma.js';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 
-// Helper function to get redirect URL based on environment
-const getRedirectUrl = (): string => {
+// Helper function to get redirect URL based on environment and request
+const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:entry',message:'getRedirectUrl called',data:{hasWebUrl:!!process.env.WEB_URL,webUrl:process.env.WEB_URL,hasDomain:!!process.env.DOMAIN,domain:process.env.DOMAIN,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:entry',message:'getRedirectUrl called',data:{hasWebUrl:!!process.env.WEB_URL,webUrl:process.env.WEB_URL,hasDomain:!!process.env.DOMAIN,domain:process.env.DOMAIN,nodeEnv:process.env.NODE_ENV,hasReq:!!req,reqHost:req?.get('host'),reqReferer:req?.get('referer'),stateOrigin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
+  
+  // First priority: use origin from state (set during OAuth initiation)
+  if (stateOrigin) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:stateOrigin',message:'Using origin from state',data:{stateOrigin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    return stateOrigin;
+  }
+  
+  // Second priority: determine domain from Host header (for beta detection)
+  if (req) {
+    const host = req.get('host') || '';
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:hostCheck',message:'Checking Host header',data:{host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    // If request came to beta domain, redirect to beta
+    if (host.includes('beta.')) {
+      const betaUrl = `https://${host.split(':')[0]}`;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:getRedirectUrl:betaFromHost',message:'Using beta domain from Host header',data:{host,betaUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return betaUrl;
+    }
+  }
   
   // First, use WEB_URL if explicitly set (this is the primary way)
   if (process.env.WEB_URL) {
@@ -46,22 +71,34 @@ export const authController = {
 
     if (!clientId) {
       console.error('TWITCH_CLIENT_ID is not set');
-      const redirectUrl = getRedirectUrl();
+      const redirectUrl = getRedirectUrl(req);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_client_id`);
     }
 
     if (!redirectUri) {
       console.error('TWITCH_CALLBACK_URL is not set');
-      const redirectUrl = getRedirectUrl();
+      const redirectUrl = getRedirectUrl(req);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_callback_url`);
     }
 
     // Get redirect_to parameter from query string (where user wants to go after login)
     const redirectTo = (req.query.redirect_to as string) || '';
-    // Encode the redirect_to in state parameter
-    const state = redirectTo ? encodeURIComponent(redirectTo) : '';
+    
+    // Store origin domain in state to determine redirect target after callback
+    const originHost = req.get('host') || '';
+    const isBeta = originHost.includes('beta.');
+    const stateData = {
+      redirectTo: redirectTo || undefined,
+      origin: isBeta ? `https://${originHost.split(':')[0]}` : undefined
+    };
+    const state = Object.keys(stateData).some(k => stateData[k as keyof typeof stateData]) 
+      ? encodeURIComponent(JSON.stringify(stateData)) 
+      : '';
 
     const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}${state ? `&state=${state}` : ''}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:initiateTwitchAuth',message:'Initiating Twitch auth',data:{originHost,isBeta,stateData,authUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.log('Initiating Twitch auth, redirecting to:', authUrl);
     res.redirect(authUrl);
   },
@@ -69,17 +106,37 @@ export const authController = {
   handleTwitchCallback: async (req: AuthRequest, res: Response) => {
     const { code, error, state } = req.query;
 
-    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error });
+    // Extract origin from state if present
+    let stateOrigin: string | undefined;
+    let stateRedirectTo: string | undefined;
+    if (state && typeof state === 'string') {
+      try {
+        const decodedState = decodeURIComponent(state);
+        const stateData = JSON.parse(decodedState);
+        stateOrigin = stateData.origin;
+        stateRedirectTo = stateData.redirectTo;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateParse',message:'Parsed state data',data:{state,decodedState,stateData,stateOrigin,stateRedirectTo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+      } catch (e) {
+        // State might be old format (just redirect path), ignore
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:handleTwitchCallback:stateParseError',message:'Failed to parse state, using old format',data:{state,error:e},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+      }
+    }
+
+    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error, stateOrigin });
 
     if (error) {
       console.error('Twitch OAuth error:', error);
-      const redirectUrl = getRedirectUrl();
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${error}`);
     }
 
     if (!code) {
       console.error('No code in callback');
-      const redirectUrl = getRedirectUrl();
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_code`);
     }
 
@@ -106,7 +163,7 @@ export const authController = {
 
       if (!tokenData.access_token) {
         console.error('No access token received from Twitch:', tokenData);
-        const redirectUrl = getRedirectUrl();
+        const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
       }
 
@@ -128,7 +185,7 @@ export const authController = {
 
       if (!twitchUser) {
         console.error('No user data received from Twitch:', userData);
-        const redirectUrl = getRedirectUrl();
+        const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
       }
 
@@ -339,7 +396,7 @@ export const authController = {
       // Ensure user exists
       if (!user) {
         console.error('User is null after creation/fetch');
-        const redirectUrl = getRedirectUrl();
+        const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_null`);
       }
 
@@ -392,18 +449,28 @@ export const authController = {
       }
 
       // Redirect to user's profile if streamer, otherwise to home
-      const redirectUrl = getRedirectUrl();
+      // Pass req and stateOrigin to determine correct redirect domain
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
       
       let redirectPath = '/';
       
       // Check if state parameter contains a redirect path (user came from a specific page)
-      if (state && typeof state === 'string') {
-        const decodedState = decodeURIComponent(state);
-        // If state is a channel profile path, redirect there
-        if (decodedState.startsWith('/channel/')) {
-          redirectPath = decodedState;
-        } else {
-          // Otherwise, redirect to dashboard for streamers
+      if (stateRedirectTo) {
+        // Use redirect path from state
+        redirectPath = stateRedirectTo;
+      } else if (state && typeof state === 'string') {
+        // Try to parse as old format (just path)
+        try {
+          const decodedState = decodeURIComponent(state);
+          // If state is a channel profile path, redirect there
+          if (decodedState.startsWith('/channel/')) {
+            redirectPath = decodedState;
+          } else {
+            // Otherwise, redirect to dashboard for streamers
+            redirectPath = user.role === 'streamer' ? '/dashboard' : '/';
+          }
+        } catch (e) {
+          // Invalid state format, use default
           redirectPath = user.role === 'streamer' ? '/dashboard' : '/';
         }
       } else {
@@ -437,7 +504,19 @@ export const authController = {
       // Log error as JSON for better debugging
       console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       
-      const redirectUrl = getRedirectUrl();
+      // Extract stateOrigin from state if available
+      let stateOrigin: string | undefined;
+      if (req.query.state && typeof req.query.state === 'string') {
+        try {
+          const decodedState = decodeURIComponent(req.query.state);
+          const stateData = JSON.parse(decodedState);
+          stateOrigin = stateData.origin;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      
+      const redirectUrl = getRedirectUrl(req, stateOrigin);
       const errorReason = error instanceof Error ? encodeURIComponent(error.message.substring(0, 100)) : 'unknown';
       res.redirect(`${redirectUrl}/?error=auth_failed&reason=exception&details=${errorReason}`);
     }
