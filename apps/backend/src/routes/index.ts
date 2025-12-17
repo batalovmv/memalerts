@@ -15,20 +15,27 @@ export function setupRoutes(app: Express) {
     res.json({ status: 'ok' });
   });
 
-  // Apply beta access middleware to all routes (except /beta/request, /beta/status, /health, /me, /wallet, /memes)
+  // Apply beta access middleware to all routes (except public routes and routes that use authenticate)
   // The middleware will check if request is for beta domain and verify access
   // Note: /me, /wallet, /memes are excluded because they use authenticate middleware which sets req.userId
   // requireBetaAccess will be applied after authenticate in those routes
   app.use((req, res, next) => {
-    // Skip beta access check for beta access routes, health endpoint, and auth routes
-    // Also skip for /me, /wallet, /memes - these will be checked after authenticate middleware
+    // Skip beta access check for:
+    // - Beta access routes
+    // - Health endpoint
+    // - Auth routes
+    // - Public routes (/channels/:slug, /channels/memes/search, /memes/stats)
+    // - Routes that use authenticate middleware (/me, /wallet, /memes)
     if (req.path.startsWith('/beta/request') || 
         req.path.startsWith('/beta/status') || 
         req.path === '/health' ||
         req.path.startsWith('/auth/twitch') ||
         req.path === '/me' ||
         req.path === '/wallet' ||
-        req.path === '/memes') {
+        req.path === '/memes' ||
+        req.path.startsWith('/channels/memes/search') ||
+        req.path === '/memes/stats' ||
+        /^\/channels\/[^\/]+$/.test(req.path)) { // Match /channels/:slug (public route)
       return next();
     }
     // Apply beta access check (will skip if not beta domain)
