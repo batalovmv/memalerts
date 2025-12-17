@@ -428,12 +428,10 @@ server {
     
     # Static files (uploads) - serve from production uploads directory
     # Beta and production share the same database, so they should share the same uploads
-    location ~ ^/uploads {
-        alias /opt/memalerts-backend/uploads;
+    location /uploads/ {
+        alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        # Try to serve file, if not found return 404
-        try_files \$uri =404;
     }
     
     # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
@@ -737,12 +735,10 @@ server {
     
     # Static files (uploads) - serve from production uploads directory
     # Beta and production share the same database, so they should share the same uploads
-    location ~ ^/uploads {
-        alias /opt/memalerts-backend/uploads;
+    location /uploads/ {
+        alias /opt/memalerts-backend/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        # Try to serve file, if not found return 404
-        try_files \$uri =404;
     }
     
     # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
