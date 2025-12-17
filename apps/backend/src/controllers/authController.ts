@@ -91,9 +91,8 @@ export const authController = {
       redirectTo: redirectTo || undefined,
       origin: isBeta ? `https://${originHost.split(':')[0]}` : undefined
     };
-    const state = Object.keys(stateData).some(k => stateData[k as keyof typeof stateData]) 
-      ? encodeURIComponent(JSON.stringify(stateData)) 
-      : '';
+    // Always create state if we have any data, even if origin is undefined (for production)
+    const state = encodeURIComponent(JSON.stringify(stateData));
 
     const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}${state ? `&state=${state}` : ''}`;
     // #region agent log
