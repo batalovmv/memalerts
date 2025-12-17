@@ -426,8 +426,18 @@ server {
         proxy_cookie_path / /;
     }
     
-    # Other backend routes (excluding /auth and /me which are handled above)
-    location ~ ^/(webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+    # Static files (uploads) - serve from production uploads directory
+    # Beta and production share the same database, so they should share the same uploads
+    location ~ ^/uploads {
+        alias /opt/memalerts-backend/uploads;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        # Try to serve file, if not found return 404
+        try_files \$uri =404;
+    }
+    
+    # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
+    location ~ ^/(webhooks|channels|wallet|memes|health|socket\.io) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -725,8 +735,18 @@ server {
         proxy_cookie_path / /;
     }
     
-    # Other backend routes (excluding /auth and /me which are handled above)
-    location ~ ^/(webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+    # Static files (uploads) - serve from production uploads directory
+    # Beta and production share the same database, so they should share the same uploads
+    location ~ ^/uploads {
+        alias /opt/memalerts-backend/uploads;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        # Try to serve file, if not found return 404
+        try_files \$uri =404;
+    }
+    
+    # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
+    location ~ ^/(webhooks|channels|wallet|memes|health|socket\.io) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;

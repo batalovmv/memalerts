@@ -44,8 +44,9 @@ export function setupRoutes(app: Express) {
     // - Health endpoint
     // - Auth routes
     // - Public routes (/channels/:slug, /channels/memes/search, /memes/stats)
-    // - Routes that use authenticate middleware (/me, /wallet, /memes)
-    if (req.path.startsWith('/beta/request') || 
+    // - Routes that use authenticate middleware (/me, /wallet, /memes, /channels/:slug/wallet)
+    // - Static files (/uploads)
+    const isSkipped = req.path.startsWith('/beta/request') || 
         req.path.startsWith('/beta/status') || 
         req.path === '/health' ||
         req.path.startsWith('/auth/twitch') ||
@@ -55,7 +56,10 @@ export function setupRoutes(app: Express) {
         req.path.startsWith('/admin') || // Admin routes use authenticate + requireBetaAccess in index.ts
         req.path.startsWith('/channels/memes/search') ||
         req.path === '/memes/stats' ||
-        /^\/channels\/[^\/]+$/.test(req.path)) { // Match /channels/:slug (public route)
+        req.path.startsWith('/uploads') || // Static files should not require beta access
+        /^\/channels\/[^\/]+$/.test(req.path) || // Match /channels/:slug (public route)
+        /^\/channels\/[^\/]+\/wallet$/.test(req.path); // Match /channels/:slug/wallet (uses authenticate middleware)
+    if (isSkipped) {
       return next();
     }
     // Apply beta access check (will skip if not beta domain)
