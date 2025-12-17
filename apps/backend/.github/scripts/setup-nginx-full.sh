@@ -4,13 +4,6 @@
 
 set -e
 
-# #region agent log
-LOG_FILE="/tmp/nginx-setup-debug.log"
-log_debug() {
-    echo "{\"id\":\"log_$(date +%s)_$$\",\"timestamp\":$(date +%s)000,\"location\":\"setup-nginx-full.sh:$1\",\"message\":\"$2\",\"data\":$3,\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"$4\"}" >> "$LOG_FILE" 2>/dev/null || true
-}
-# #endregion
-
 DOMAIN="${1:-twitchalerts.ru}"
 BACKEND_PORT="${2:-3001}"
 BETA_DOMAIN="beta.${DOMAIN}"
@@ -19,10 +12,6 @@ BETA_BACKEND_PORT="${3:-3002}"
 # Escape dots in domain names for regex (replace . with \.)
 DOMAIN_ESCAPED=$(echo "$DOMAIN" | sed 's/\./\\./g')
 BETA_DOMAIN_ESCAPED=$(echo "$BETA_DOMAIN" | sed 's/\./\\./g')
-
-# #region agent log
-log_debug "12" "Script started" "{\"domain\":\"$DOMAIN\",\"betaDomain\":\"$BETA_DOMAIN\",\"domainEscaped\":\"$DOMAIN_ESCAPED\",\"betaDomainEscaped\":\"$BETA_DOMAIN_ESCAPED\",\"backendPort\":\"$BACKEND_PORT\",\"betaBackendPort\":\"$BETA_BACKEND_PORT\"}" "A"
-# #endregion
 
 echo "Setting up nginx for domains: $DOMAIN (production) and $BETA_DOMAIN (beta)"
 
@@ -963,34 +952,14 @@ done
 
 # Test nginx configuration (HTTP only for now)
 echo "Testing nginx configuration..."
-# #region agent log
-log_debug "997" "Starting nginx test" "{\"domain\":\"$DOMAIN\",\"betaDomain\":\"$BETA_DOMAIN\"}" "A"
-# #endregion
-
-# Save full nginx test output to file for debugging
 NGINX_TEST_OUTPUT=$(sudo nginx -t 2>&1)
 NGINX_TEST_STATUS=$?
-
-# #region agent log
-# Escape output for JSON
-ESCAPED_OUTPUT=$(echo "$NGINX_TEST_OUTPUT" | sed 's/"/\\"/g' | tr '\n' ' ' | head -c 2000)
-log_debug "1003" "Nginx test completed" "{\"status\":$NGINX_TEST_STATUS,\"output\":\"$ESCAPED_OUTPUT\"}" "A"
-# #endregion
-
-# Also save to file for easier debugging
-echo "$NGINX_TEST_OUTPUT" | sudo tee /tmp/nginx-test-output.log > /dev/null
 
 if [ $NGINX_TEST_STATUS -ne 0 ]; then
     echo "ERROR: Nginx configuration test failed!"
     echo "Test output:"
     echo "$NGINX_TEST_OUTPUT"
     echo ""
-    echo "Full error saved to: /tmp/nginx-test-output.log"
-    
-    # #region agent log
-    ESCAPED_FULL=$(echo "$NGINX_TEST_OUTPUT" | sed 's/"/\\"/g' | tr '\n' ' ' | head -c 2000)
-    log_debug "1015" "Nginx test failed - details" "{\"fullOutput\":\"$ESCAPED_FULL\",\"configFile\":\"/etc/nginx/sites-available/memalerts\"}" "B"
-    # #endregion
     
     # Show relevant config lines around error if possible
     if echo "$NGINX_TEST_OUTPUT" | grep -q "line"; then
