@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
 import crypto from 'crypto';
 
 // Helper function to get redirect URL based on environment and request
@@ -399,13 +401,33 @@ export const authController = {
       const isBetaBackend = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
       const isBetaLogin = isBetaRedirect || (stateOrigin && stateOrigin.includes('beta.'));
       
+      // #region agent log
+      try{const logData={location:'authController.ts:404',message:'Checking beta access grant conditions',data:{userId:user.id,isBetaBackend,isBetaLogin,hasBetaAccess:user.hasBetaAccess,stateOrigin,redirectUrl,domain:process.env.DOMAIN,port:process.env.PORT},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
+      // #endregion
+      console.log('[BETA_ACCESS_DEBUG] Checking conditions:', { isBetaBackend, isBetaLogin, hasBetaAccess: user.hasBetaAccess, domain: process.env.DOMAIN, port: process.env.PORT, stateOrigin, redirectUrl });
+      
       if (isBetaBackend && isBetaLogin && !user.hasBetaAccess) {
-        console.log('Granting beta access to user:', user.id);
+        // #region agent log
+        try{const logData={location:'authController.ts:410',message:'Granting beta access to user',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
+        // #endregion
+        console.log('[BETA_ACCESS_DEBUG] Granting beta access to user:', user.id);
         user = await prisma.user.update({
           where: { id: user.id },
           data: { hasBetaAccess: true },
           include: { wallets: true, channel: true },
         });
+        // Invalidate cache so next request picks up the new beta access status
+        const { invalidateBetaAccessCache } = await import('../middleware/betaAccess.js');
+        invalidateBetaAccessCache(user.id);
+        console.log('[BETA_ACCESS_DEBUG] Beta access granted, cache invalidated for user:', user.id);
+        // #region agent log
+        try{const logData={location:'authController.ts:420',message:'Beta access granted successfully, cache invalidated',data:{userId:user.id,hasBetaAccess:user.hasBetaAccess},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
+        // #endregion
+      } else {
+        console.log('[BETA_ACCESS_DEBUG] Conditions not met - NOT granting beta access:', { isBetaBackend, isBetaLogin, hasBetaAccess: user.hasBetaAccess });
+        // #region agent log
+        try{const logData={location:'authController.ts:425',message:'Beta access grant conditions not met',data:{isBetaBackend,isBetaLogin,hasBetaAccess:user.hasBetaAccess},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
+        // #endregion
       }
 
       console.log('User created/found, generating JWT...');
@@ -625,6 +647,9 @@ export const authController = {
             where: { id: decoded.userId },
             data: { hasBetaAccess: true },
           });
+          // Invalidate cache so next request picks up the new beta access status
+          const { invalidateBetaAccessCache } = await import('../middleware/betaAccess.js');
+          invalidateBetaAccessCache(decoded.userId);
         }
       } catch (error) {
         console.error('Error granting beta access:', error);
