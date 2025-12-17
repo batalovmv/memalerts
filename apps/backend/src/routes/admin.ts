@@ -4,7 +4,8 @@ import { adminController } from '../controllers/adminController.js';
 
 export const adminRoutes = Router();
 
-adminRoutes.use(authenticate);
+// authenticate and requireBetaAccess are applied in index.ts before this router
+// So we only need to check role here
 adminRoutes.use(requireRole('streamer', 'admin'));
 
 adminRoutes.get('/submissions', adminController.getSubmissions);
