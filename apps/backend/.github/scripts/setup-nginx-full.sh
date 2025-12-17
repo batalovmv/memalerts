@@ -216,20 +216,25 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Use single if with combined regex (domains are escaped for regex)
+        # Nginx doesn't allow nested if directives, so we use variables to combine conditions
+        set \$cors_origin "";
+        
+        # Check if Origin is allowed
         if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$cors_origin \$http_origin;
+        }
+        
+        # Set CORS headers if Origin is allowed
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
-        # Handle preflight requests
+        
+        # Handle preflight requests (OPTIONS) - return 204
+        # Use single if (no nested if allowed in Nginx)
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
-            }
-            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
             add_header Content-Type "text/plain; charset=utf-8";
             add_header Content-Length 0;
@@ -476,20 +481,25 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Use single if with combined regex (domains are escaped for regex)
+        # Nginx doesn't allow nested if directives, so we use variables to combine conditions
+        set \$cors_origin "";
+        
+        # Check if Origin is allowed
         if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$cors_origin \$http_origin;
+        }
+        
+        # Set CORS headers if Origin is allowed
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
-        # Handle preflight requests
+        
+        # Handle preflight requests (OPTIONS) - return 204
+        # Use single if (no nested if allowed in Nginx)
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
-            }
-            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
             add_header Content-Type "text/plain; charset=utf-8";
             add_header Content-Length 0;
@@ -588,20 +598,25 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Use single if with combined regex (domains are escaped for regex)
+        # Nginx doesn't allow nested if directives, so we use variables to combine conditions
+        set \$cors_origin "";
+        
+        # Check if Origin is allowed
         if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$cors_origin \$http_origin;
+        }
+        
+        # Set CORS headers if Origin is allowed
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
-        # Handle preflight requests
+        
+        # Handle preflight requests (OPTIONS) - return 204
+        # Use single if (no nested if allowed in Nginx)
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
-            }
-            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
             add_header Content-Type "text/plain; charset=utf-8";
             add_header Content-Length 0;
@@ -831,20 +846,25 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)
-        # Use single if with combined regex (domains are escaped for regex)
+        # Nginx doesn't allow nested if directives, so we use variables to combine conditions
+        set \$cors_origin "";
+        
+        # Check if Origin is allowed
         if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-            add_header Access-Control-Allow-Origin \$http_origin always;
+            set \$cors_origin \$http_origin;
+        }
+        
+        # Set CORS headers if Origin is allowed
+        if (\$cors_origin != "") {
+            add_header Access-Control-Allow-Origin \$cors_origin always;
         }
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Range" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
-        # Handle preflight requests
+        
+        # Handle preflight requests (OPTIONS) - return 204
+        # Use single if (no nested if allowed in Nginx)
         if (\$request_method = OPTIONS) {
-            if (\$http_origin ~* "^https://(www\.)?($DOMAIN_ESCAPED|$BETA_DOMAIN_ESCAPED)\$") {
-                add_header Access-Control-Allow-Origin \$http_origin always;
-            }
-            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Range" always;
             add_header Access-Control-Max-Age 86400;
             add_header Content-Type "text/plain; charset=utf-8";
             add_header Content-Length 0;
