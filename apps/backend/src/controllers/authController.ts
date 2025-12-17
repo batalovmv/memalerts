@@ -523,6 +523,8 @@ export const authController = {
         maxAge: cookieOptions.maxAge,
         isProduction,
         stateOrigin,
+        cookieDomain,
+        'cookieDomain set': !!cookieDomain,
       });
 
       // Set cookie
