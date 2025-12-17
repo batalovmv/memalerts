@@ -41,35 +41,8 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
       // Continue to next middleware
       return next();
     }
-      // Check if user has a pending request
-      const betaAccess = await prisma.betaAccess.findUnique({
-        where: { userId: req.userId },
-        select: { status: true },
-      });
 
-      if (betaAccess?.status === 'pending') {
-        return res.status(403).json({
-          error: 'Beta Access Pending',
-          message: 'Your beta access request is pending approval. Please wait for admin approval.',
-          status: 'pending',
-        });
-      }
-
-      if (betaAccess?.status === 'rejected') {
-        return res.status(403).json({
-          error: 'Beta Access Denied',
-          message: 'Your beta access request was rejected. Please contact an administrator.',
-          status: 'rejected',
-        });
-      }
-
-      return res.status(403).json({
-        error: 'Beta Access Required',
-        message: 'You do not have access to the beta version. Please request access first.',
-        status: 'no_access',
-      });
-    }
-
+    // User has beta access, continue
     next();
   } catch (error) {
     console.error('Error checking beta access:', error);
