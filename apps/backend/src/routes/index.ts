@@ -5,7 +5,7 @@ import { submissionRoutes } from './submissions.js';
 import { adminRoutes } from './admin.js';
 import { webhookRoutes } from './webhooks.js';
 import { betaRoutes } from './beta.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { activateMemeLimiter } from '../middleware/rateLimit.js';
 import { requireBetaAccess } from '../middleware/betaAccess.js';
 import { viewerController } from '../controllers/viewerController.js';
