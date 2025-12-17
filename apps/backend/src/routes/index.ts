@@ -50,6 +50,7 @@ export function setupRoutes(app: Express) {
         req.path.startsWith('/beta/status') || 
         req.path === '/health' ||
         req.path.startsWith('/auth/twitch') ||
+        req.path === '/auth/logout' || // Logout doesn't require authentication
         req.path === '/me' ||
         req.path === '/wallet' ||
         req.path === '/memes' ||

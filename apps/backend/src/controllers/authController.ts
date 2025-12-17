@@ -608,7 +608,29 @@ export const authController = {
   },
 
   logout: (req: AuthRequest, res: Response) => {
-    res.clearCookie('token');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:610',message:'logout called',data:{path:req.path,host:req.get('host'),hasCookie:!!req.cookies?.token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    const cookieOptions: any = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    };
+    // Determine cookie domain based on request host
+    const host = req.get('host') || '';
+    const isBetaDomain = host.includes('beta.');
+    if (isBetaDomain) {
+      // For beta domain, set cookie domain to beta domain
+      const domain = process.env.DOMAIN || 'twitchmemes.ru';
+      cookieOptions.domain = domain.includes('beta.') ? domain : `beta.${domain}`;
+    } else if (process.env.DOMAIN) {
+      cookieOptions.domain = process.env.DOMAIN;
+    }
+    res.clearCookie('token', cookieOptions);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:630',message:'logout cookie cleared',data:{cookieOptions},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     res.json({ message: 'Logged out successfully' });
   },
 
