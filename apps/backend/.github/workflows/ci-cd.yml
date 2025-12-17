@@ -445,13 +445,41 @@ jobs:
             # Validate DATABASE_URL format before creating .env
             echo "Validating DATABASE_URL format..."
             
-            # Check for placeholder values (user, password, host, port)
-            if echo "$BETA_DB_URL" | grep -qE "(user|password|host|port)([^:]*:|/|\?)"; then
-              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder values!"
-              echo "   Found placeholder values like 'user', 'password', 'host', or 'port'"
-              echo "   You must use REAL values, not placeholders"
-              echo "   Example: postgresql://myuser:mypassword@localhost:5432/memalerts_beta?schema=public"
-              echo "   NOT: postgresql://user:password@host:port/memalerts_beta?schema=public"
+            # Check for exact placeholder values (not just containing the words)
+            # Check for postgresql://user: (exact placeholder)
+            if echo "$BETA_DB_URL" | grep -qE "postgresql://user:"; then
+              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'user'!"
+              echo "   Found: postgresql://user: (should be real username)"
+              echo "   Example: postgresql://myuser:password@host:5432/db?schema=public"
+              exit 1
+            fi
+            
+            # Check for :password@ (exact placeholder)
+            if echo "$BETA_DB_URL" | grep -qE ":[^:]*password[^@]*@"; then
+              # But allow if it's part of a longer password (like "mypassword123")
+              if ! echo "$BETA_DB_URL" | grep -qE ":[^:]*[^p]password|password[^@]*[^@]@"; then
+                if echo "$BETA_DB_URL" | grep -qE ":password@|:password$"; then
+                  echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'password'!"
+                  echo "   Found: :password@ (should be real password)"
+                  echo "   Example: postgresql://user:mypassword@host:5432/db?schema=public"
+                  exit 1
+                fi
+              fi
+            fi
+            
+            # Check for @host: (exact placeholder, not hostname.example.com)
+            if echo "$BETA_DB_URL" | grep -qE "@host:"; then
+              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'host'!"
+              echo "   Found: @host: (should be real hostname like localhost or IP)"
+              echo "   Example: postgresql://user:password@localhost:5432/db?schema=public"
+              exit 1
+            fi
+            
+            # Check for :port/ (exact placeholder, not :5432/)
+            if echo "$BETA_DB_URL" | grep -qE ":port/"; then
+              echo "❌ ERROR: DATABASE_URL_BETA contains placeholder 'port'!"
+              echo "   Found: :port/ (should be real port number like :5432/)"
+              echo "   Example: postgresql://user:password@host:5432/db?schema=public"
               exit 1
             fi
             
