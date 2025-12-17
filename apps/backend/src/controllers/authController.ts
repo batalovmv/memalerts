@@ -85,11 +85,34 @@ export const authController = {
     const redirectTo = (req.query.redirect_to as string) || '';
     
     // Store origin domain in state to determine redirect target after callback
+    // Check both Host header and Referer to determine if request came from beta
     const originHost = req.get('host') || '';
-    const isBeta = originHost.includes('beta.');
+    const referer = req.get('referer') || '';
+    const isBeta = originHost.includes('beta.') || referer.includes('beta.');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authController.ts:initiateTwitchAuth:originCheck',message:'Checking origin',data:{originHost,referer,isBeta,reqHeaders:Object.keys(req.headers)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    // Determine origin URL - prefer beta if detected, otherwise use WEB_URL or construct from host
+    let originUrl: string | undefined;
+    if (isBeta) {
+      if (originHost.includes('beta.')) {
+        originUrl = `https://${originHost.split(':')[0]}`;
+      } else if (referer.includes('beta.')) {
+        // Extract beta domain from referer
+        try {
+          const refererUrl = new URL(referer);
+          originUrl = `${refererUrl.protocol}//${refererUrl.host}`;
+        } catch (e) {
+          // Fallback to WEB_URL if available
+          originUrl = process.env.WEB_URL?.includes('beta') ? process.env.WEB_URL : undefined;
+        }
+      }
+    }
+    
     const stateData = {
       redirectTo: redirectTo || undefined,
-      origin: isBeta ? `https://${originHost.split(':')[0]}` : undefined
+      origin: originUrl
     };
     // Always create state if we have any data, even if origin is undefined (for production)
     const state = encodeURIComponent(JSON.stringify(stateData));
