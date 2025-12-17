@@ -429,12 +429,12 @@ jobs:
             cd /opt/memalerts-backend-beta
             
             # Determine callback URL for beta
-            if [ -n "${{ secrets.TWITCH_CALLBACK_URL }}" ]; then
-              CALLBACK_URL="${{ secrets.TWITCH_CALLBACK_URL }}"
-            elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            # IMPORTANT: For beta, always use beta callback URL, regardless of TWITCH_CALLBACK_URL secret
+            # The TWITCH_CALLBACK_URL secret is for production only
+            if [ -n "${{ secrets.DOMAIN }}" ]; then
               CALLBACK_URL="https://beta.${{ secrets.DOMAIN }}/auth/twitch/callback"
             else
-              CALLBACK_URL="https://beta.twitchalerts.ru/auth/twitch/callback"
+              CALLBACK_URL="https://beta.twitchmemes.ru/auth/twitch/callback"
             fi
             
             # Create .env file with beta port
