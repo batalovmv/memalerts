@@ -14,48 +14,51 @@ model Channel {
   name              String
   rewardIdForCoins  String?
   coinPerPointRatio Float    @default(1.0)
-  rewardEnabled     Boolean  @default(false)  // Is reward enabled/active
-  rewardTitle       String?  // Title of the reward in Twitch
-  rewardCost        Int?     // Cost in channel points
-  rewardCoins       Int?     // Coins granted per redemption
-  coinIconUrl       String?  // Custom coin icon URL from Twitch reward
-  primaryColor      String?  // Hex color for primary theme
-  secondaryColor    String?  // Hex color for secondary theme
-  accentColor       String?  // Hex color for accent
+  rewardEnabled     Boolean  @default(false) // Is reward enabled/active
+  rewardTitle       String? // Title of the reward in Twitch
+  rewardCost        Int? // Cost in channel points
+  rewardCoins       Int? // Coins granted per redemption
+  coinIconUrl       String? // Custom coin icon URL from Twitch reward
+  primaryColor      String? // Hex color for primary theme
+  secondaryColor    String? // Hex color for secondary theme
+  accentColor       String? // Hex color for accent
   createdAt         DateTime @default(now())
 
-  users         User[]
+  users       User[]
+  wallets     Wallet[]
+  memes       Meme[]
+  submissions MemeSubmission[]
+  redemptions Redemption[]
+  activations MemeActivation[]
+  auditLogs   AuditLog[]
+  promotions  Promotion[]
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  twitchUserId       String   @unique
+  displayName        String
+  profileImageUrl    String? // Twitch profile image URL
+  role               String // viewer, streamer, admin
+  channelId          String?
+  twitchAccessToken  String? // Twitch OAuth access token for API calls
+  twitchRefreshToken String? // Twitch OAuth refresh token
+  hasBetaAccess      Boolean  @default(false) // Beta access flag
+  createdAt          DateTime @default(now())
+
+  channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: SetNull)
   wallets       Wallet[]
-  memes         Meme[]
+  memesCreated  Meme[]           @relation("CreatedBy")
+  memesApproved Meme[]           @relation("ApprovedBy")
   submissions   MemeSubmission[]
   redemptions   Redemption[]
   activations   MemeActivation[]
   auditLogs     AuditLog[]
-  promotions    Promotion[]
-}
-
-model User {
-  id          String    @id @default(uuid())
-  twitchUserId String   @unique
-  displayName String
-  profileImageUrl String?  // Twitch profile image URL
-  role        String    // viewer, streamer, admin
-  channelId   String?
-  twitchAccessToken String?  // Twitch OAuth access token for API calls
-  twitchRefreshToken String?  // Twitch OAuth refresh token
-  createdAt   DateTime  @default(now())
-
-  channel         Channel?          @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  wallets         Wallet[]
-  memesCreated    Meme[]            @relation("CreatedBy")
-  memesApproved   Meme[]            @relation("ApprovedBy")
-  submissions     MemeSubmission[]
-  redemptions     Redemption[]
-  activations     MemeActivation[]
-  auditLogs       AuditLog[]
+  betaAccess    BetaAccess?
 
   @@index([twitchUserId])
   @@index([channelId])
+  @@index([hasBetaAccess])
 }
 
 model Wallet {
@@ -74,25 +77,25 @@ model Wallet {
 }
 
 model Meme {
-  id              String    @id @default(uuid())
-  channelId       String
-  title           String
-  type            String    // image, gif, video, audio
-  fileUrl         String
-  fileHash        String?   // SHA-256 hash for deduplication
-  durationMs      Int
-  priceCoins      Int
-  status          String    // pending, approved, rejected
-  createdByUserId String?
+  id               String   @id @default(uuid())
+  channelId        String
+  title            String
+  type             String // image, gif, video, audio
+  fileUrl          String
+  fileHash         String? // SHA-256 hash for deduplication
+  durationMs       Int
+  priceCoins       Int
+  status           String // pending, approved, rejected
+  createdByUserId  String?
   approvedByUserId String?
-  createdAt       DateTime  @default(now())
+  createdAt        DateTime @default(now())
 
-  channel       Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  createdBy     User?           @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  approvedBy    User?           @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  activations   MemeActivation[]
-  tags          MemeTag[]
-  fileHashRef   FileHash?       @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
+  channel     Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy   User?            @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?            @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  activations MemeActivation[]
+  tags        MemeTag[]
+  fileHashRef FileHash?        @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
 
   @@index([channelId])
   @@index([status])
@@ -101,21 +104,21 @@ model Meme {
 }
 
 model MemeSubmission {
-  id             String    @id @default(uuid())
-  channelId      String
+  id              String   @id @default(uuid())
+  channelId       String
   submitterUserId String
-  title          String
-  type           String    // image, gif, video, audio
-  fileUrlTemp    String
-  sourceUrl      String?   // URL of imported meme from memalerts.com
-  notes          String?
-  status         String    // pending, approved, rejected
-  moderatorNotes String?
-  createdAt      DateTime  @default(now())
+  title           String
+  type            String // image, gif, video, audio
+  fileUrlTemp     String
+  sourceUrl       String? // URL of imported meme from memalerts.com
+  notes           String?
+  status          String // pending, approved, rejected
+  moderatorNotes  String?
+  createdAt       DateTime @default(now())
 
-  channel    Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  submitter  User    @relation(fields: [submitterUserId], references: [id], onDelete: Cascade)
-  tags       MemeSubmissionTag[]
+  channel   Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  submitter User                @relation(fields: [submitterUserId], references: [id], onDelete: Cascade)
+  tags      MemeSubmissionTag[]
 
   @@index([channelId])
   @@index([status])
@@ -123,14 +126,14 @@ model MemeSubmission {
 }
 
 model Redemption {
-  id               String   @id @default(uuid())
-  channelId        String
-  userId           String
-  twitchRedemptionId String @unique
-  pointsSpent      Int
-  coinsGranted     Int
-  status           String   // pending, completed, failed
-  createdAt        DateTime @default(now())
+  id                 String   @id @default(uuid())
+  channelId          String
+  userId             String
+  twitchRedemptionId String   @unique
+  pointsSpent        Int
+  coinsGranted       Int
+  status             String // pending, completed, failed
+  createdAt          DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -146,7 +149,7 @@ model MemeActivation {
   userId     String
   memeId     String
   coinsSpent Int
-  status     String   // queued, playing, done, failed
+  status     String // queued, playing, done, failed
   createdAt  DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -160,15 +163,15 @@ model MemeActivation {
 }
 
 model AuditLog {
-  id         String    @id @default(uuid())
-  actorId    String?
-  channelId  String
-  action     String
+  id          String   @id @default(uuid())
+  actorId     String?
+  channelId   String
+  action      String
   payloadJson String   @db.Text
-  createdAt  DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
-  actor   User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  channel Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([channelId])
   @@index([actorId])
@@ -180,8 +183,8 @@ model Tag {
   name      String   @unique
   createdAt DateTime @default(now())
 
-  memes         MemeTag[]
-  submissions   MemeSubmissionTag[]
+  memes       MemeTag[]
+  submissions MemeSubmissionTag[]
 
   @@index([name])
 }
@@ -200,9 +203,9 @@ model MemeTag {
 }
 
 model MemeSubmissionTag {
-  id             String @id @default(uuid())
-  submissionId   String
-  tagId          String
+  id           String @id @default(uuid())
+  submissionId String
+  tagId        String
 
   submission MemeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   tag        Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
@@ -216,7 +219,7 @@ model Promotion {
   id              String   @id @default(uuid())
   channelId       String
   name            String
-  discountPercent Float    // 0-100, e.g., 50 for 50% discount
+  discountPercent Float // 0-100, e.g., 50 for 50% discount
   startDate       DateTime
   endDate         DateTime
   isActive        Boolean  @default(true)
@@ -232,10 +235,10 @@ model Promotion {
 
 model FileHash {
   hash           String   @id // SHA-256 hash
-  filePath       String   // Path to physical file
+  filePath       String // Path to physical file
   referenceCount Int      @default(1) // Number of references to this file
-  fileSize       BigInt   // File size in bytes
-  mimeType       String   // MIME type of the file
+  fileSize       BigInt // File size in bytes
+  mimeType       String // MIME type of the file
   createdAt      DateTime @default(now())
 
   memes Meme[]
@@ -243,4 +246,18 @@ model FileHash {
   @@index([referenceCount])
 }
 
+model BetaAccess {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  status      String // pending, approved, rejected
+  requestedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  approvedBy  String? // User ID who approved/rejected
+  createdAt   DateTime  @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+}

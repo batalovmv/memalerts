@@ -75,7 +75,7 @@ jobs:
         run: pnpm build
 
   deploy:
-    name: Deploy to VPS
+    name: Deploy to VPS (Production)
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -219,7 +219,7 @@ jobs:
               chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || {
+              sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
@@ -246,7 +246,7 @@ jobs:
               chmod +x .github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchmemes.ru' }} 3001 || {
+              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
@@ -351,6 +351,168 @@ jobs:
               echo ""
               echo "Full logs:"
               pm2 logs memalerts-api --lines 100 --nostream
+              exit 1
+            fi
+
+  deploy-beta:
+    name: Deploy to VPS (Beta)
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build API
+        run: pnpm build
+
+      - name: Copy code to VPS (Beta)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "src,prisma,package.json,tsconfig.json,.github"
+          target: "/opt/memalerts-backend-beta"
+          strip_components: 0
+          rm: false
+          overwrite: true
+
+      - name: Create/Update .env file on VPS (Beta)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /opt/memalerts-backend-beta
+            
+            # Determine callback URL for beta
+            if [ -n "${{ secrets.TWITCH_CALLBACK_URL }}" ]; then
+              CALLBACK_URL="${{ secrets.TWITCH_CALLBACK_URL }}"
+            elif [ -n "${{ secrets.DOMAIN }}" ]; then
+              CALLBACK_URL="https://beta.${{ secrets.DOMAIN }}/auth/twitch/callback"
+            else
+              CALLBACK_URL="https://beta.twitchalerts.ru/auth/twitch/callback"
+            fi
+            
+            # Create .env file with beta port
+            cat > .env << EOF
+            # Database
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            
+            # Server
+            PORT=3002
+            NODE_ENV=production
+            
+            # Domain (for CORS and callbacks)
+            DOMAIN=beta.${{ secrets.DOMAIN || 'twitchalerts.ru' }}
+            
+            # JWT
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=7d
+            
+            # Twitch OAuth
+            TWITCH_CLIENT_ID=${{ secrets.TWITCH_CLIENT_ID }}
+            TWITCH_CLIENT_SECRET=${{ secrets.TWITCH_CLIENT_SECRET }}
+            TWITCH_CALLBACK_URL=$CALLBACK_URL
+            
+            # Twitch EventSub
+            TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
+            
+            # CORS
+            WEB_URL=${{ secrets.WEB_URL || 'https://beta.twitchalerts.ru' }}
+            OVERLAY_URL=${{ secrets.OVERLAY_URL }}
+            
+            # File Upload
+            MAX_FILE_SIZE=10485760
+            UPLOAD_DIR=./uploads
+            EOF
+            
+            # Ensure uploads directory exists
+            mkdir -p uploads uploads/memes
+            chmod -R 755 uploads
+
+      - name: Deploy to VPS (Beta)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /opt/memalerts-backend-beta
+            
+            # Install all dependencies
+            echo "Installing dependencies..."
+            pnpm install
+            
+            # Build the project
+            echo "Building project..."
+            pnpm build
+            
+            # Generate Prisma client
+            echo "Generating Prisma client..."
+            pnpm prisma generate
+            
+            # Run migrations
+            echo "Running database migrations..."
+            pnpm prisma migrate deploy
+            
+            # Verify dist directory exists
+            if [ ! -f dist/index.js ]; then
+              echo "❌ Build failed: dist/index.js not found"
+              exit 1
+            fi
+            echo "✅ Build successful: dist/index.js exists"
+            
+            # Stop existing beta process if running
+            echo "Stopping existing PM2 process..."
+            pm2 stop memalerts-api-beta 2>/dev/null || true
+            pm2 delete memalerts-api-beta 2>/dev/null || true
+            
+            # Kill any process using port 3002
+            echo "Checking for processes on port 3002..."
+            PID=$(lsof -ti:3002 2>/dev/null || true)
+            if [ -n "$PID" ]; then
+              echo "Killing process $PID on port 3002..."
+              kill -9 $PID 2>/dev/null || true
+              sleep 2
+            fi
+            
+            # Start beta backend with PM2
+            echo "Starting beta backend with PM2..."
+            pm2 start dist/index.js --name memalerts-api-beta --update-env
+            
+            # Save PM2 configuration
+            pm2 save
+            
+            # Wait for backend to start
+            sleep 5
+            
+            # Check if backend is running
+            if pm2 list | grep -q "memalerts-api-beta.*online"; then
+              echo "✅ Beta backend is running"
+              pm2 list | grep memalerts-api-beta
+            else
+              echo "❌ Beta backend failed to start"
+              pm2 logs memalerts-api-beta --lines 100 --nostream
               exit 1
             fi
 

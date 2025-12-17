@@ -4,10 +4,12 @@
 
 set -e
 
-DOMAIN="${1:-twitchmemes.ru}"
+DOMAIN="${1:-twitchalerts.ru}"
 BACKEND_PORT="${2:-3001}"
+BETA_DOMAIN="beta.${DOMAIN}"
+BETA_BACKEND_PORT="${3:-3002}"
 
-echo "Setting up nginx for domain: $DOMAIN"
+echo "Setting up nginx for domains: $DOMAIN (production) and $BETA_DOMAIN (beta)"
 
 # Verify sudo works without password
 if ! sudo -n true 2>/dev/null; then
@@ -271,6 +273,144 @@ server {
         add_header Cache-Control "public, immutable";
     }
 }
+
+# Beta domain: $BETA_DOMAIN
+server {
+    listen 80;
+    server_name $BETA_DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name $BETA_DOMAIN;
+
+    # Cloudflare Origin Certificate
+    ssl_certificate /etc/nginx/ssl/cloudflare-origin.crt;
+    ssl_certificate_key /etc/nginx/ssl/cloudflare-origin.key;
+    
+    # SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Increase body size for file uploads
+    client_max_body_size 100M;
+
+    # Frontend static files (beta)
+    root /opt/memalerts-frontend-beta/dist;
+    index index.html;
+
+    # Backend routes (auth, webhooks, etc.) - proxy to beta backend
+    location = /me {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_intercept_errors off;
+        proxy_next_upstream off;
+        proxy_redirect off;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+    
+    # File uploads - special handling for large files
+    location ~ ^/submissions {
+        client_max_body_size 100M;
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    
+    # Admin routes
+    location ~ ^/admin {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+    
+    # Beta access routes (allow without beta access check)
+    location ~ ^/beta/(request|status) {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+    }
+    
+    # Other backend routes
+    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+    }
+
+    # WebSocket support for Socket.IO
+    location /socket.io/ {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Frontend routes
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
 EOF
 else
     # Configuration without SSL (HTTP only, will get Let's Encrypt later)
@@ -391,13 +531,138 @@ server {
         add_header Cache-Control "public, immutable";
     }
 }
+
+# Beta domain: $BETA_DOMAIN
+server {
+    listen 80;
+    server_name $BETA_DOMAIN;
+
+    # Increase body size for file uploads
+    client_max_body_size 100M;
+
+    # Frontend static files (beta)
+    root /opt/memalerts-frontend-beta/dist;
+    index index.html;
+
+    # Backend routes (auth, webhooks, etc.) - proxy to beta backend
+    location = /me {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_intercept_errors off;
+        proxy_next_upstream off;
+        proxy_redirect off;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+    
+    # File uploads
+    location ~ ^/submissions {
+        client_max_body_size 100M;
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    
+    # Admin routes
+    location ~ ^/admin {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+    
+    # Beta access routes
+    location ~ ^/beta/(request|status) {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+    }
+    
+    # Other backend routes
+    location ~ ^/(auth|webhooks|channels|wallet|memes|uploads|health|socket\.io) {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_pass_header Set-Cookie;
+        proxy_cookie_path / /;
+    }
+
+    # WebSocket support for Socket.IO
+    location /socket.io/ {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Frontend routes
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
 EOF
 fi
 
-# Ensure frontend directory exists
+# Ensure frontend directories exist
 mkdir -p /opt/memalerts-frontend/dist
+mkdir -p /opt/memalerts-frontend-beta/dist
 if [ ! -f /opt/memalerts-frontend/dist/index.html ]; then
   echo "<!DOCTYPE html><html><head><title>MemAlerts</title></head><body><h1>Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend/dist/index.html
+fi
+if [ ! -f /opt/memalerts-frontend-beta/dist/index.html ]; then
+  echo "<!DOCTYPE html><html><head><title>MemAlerts Beta</title></head><body><h1>Beta Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend-beta/dist/index.html
 fi
 
 # Copy configuration to nginx directory
@@ -556,8 +821,10 @@ elif [[ $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 echo "Nginx configured successfully!"
-echo "Frontend should be accessible at: https://$DOMAIN"
-echo "API should be accessible at: https://$DOMAIN (same domain)"
+echo "Production frontend should be accessible at: https://$DOMAIN"
+echo "Production API should be accessible at: https://$DOMAIN (same domain)"
+echo "Beta frontend should be accessible at: https://$BETA_DOMAIN"
+echo "Beta API should be accessible at: https://$BETA_DOMAIN (same domain)"
 
 # Verify that /me location is in the config
 echo "Verifying /me location in config..."
@@ -573,12 +840,20 @@ else
 fi
 
 # Test backend connectivity before reloading nginx
-echo "Testing backend connectivity on port $BACKEND_PORT..."
+echo "Testing backend connectivity on port $BACKEND_PORT (production)..."
 if curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:$BACKEND_PORT/health 2>/dev/null | grep -q "200\|404\|401"; then
-    echo "✅ Backend is responding on port $BACKEND_PORT"
+    echo "✅ Production backend is responding on port $BACKEND_PORT"
 else
-    echo "⚠️  WARNING: Backend may not be responding on port $BACKEND_PORT"
+    echo "⚠️  WARNING: Production backend may not be responding on port $BACKEND_PORT"
     echo "This is OK if backend is not running yet, but /me endpoint will fail"
+fi
+
+echo "Testing backend connectivity on port $BETA_BACKEND_PORT (beta)..."
+if curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:$BETA_BACKEND_PORT/health 2>/dev/null | grep -q "200\|404\|401"; then
+    echo "✅ Beta backend is responding on port $BETA_BACKEND_PORT"
+else
+    echo "⚠️  WARNING: Beta backend may not be responding on port $BETA_BACKEND_PORT"
+    echo "This is OK if beta backend is not running yet"
 fi
 
 # Explicitly reload nginx after config creation to ensure it's active
