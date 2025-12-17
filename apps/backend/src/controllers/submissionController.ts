@@ -5,6 +5,7 @@ import { createSubmissionSchema, importMemeSchema } from '../shared/index.js';
 import { validateVideo } from '../utils/videoValidator.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../utils/fileHash.js';
+import { validateFileContent } from '../utils/fileTypeValidator.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -39,6 +40,22 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video files are allowed' });
       }
 
+      // Validate file content using magic bytes (prevents MIME type spoofing)
+      const filePath = path.join(process.cwd(), req.file.path);
+      const contentValidation = await validateFileContent(filePath, req.file.mimetype);
+      if (!contentValidation.valid) {
+        // Delete the uploaded file if validation fails
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          console.error('Failed to delete invalid file:', unlinkError);
+        }
+        return res.status(400).json({ 
+          error: 'Invalid file content',
+          message: contentValidation.error || 'File content does not match declared file type'
+        });
+      }
+
       // Parse tags from FormData (they come as JSON string)
       const bodyData = { ...req.body };
       if (typeof bodyData.tags === 'string') {
@@ -58,7 +75,7 @@ export const submissionController = {
 
       // Skip video validation completely to avoid ffprobe hanging
       // Just check file size limit
-      const filePath = path.join(process.cwd(), req.file.path);
+      // Note: filePath is already set above during content validation
       const MAX_SIZE = 50 * 1024 * 1024; // 50MB
       if (req.file.size > MAX_SIZE) {
         try {
