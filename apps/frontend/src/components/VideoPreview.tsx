@@ -11,10 +11,18 @@ export default function VideoPreview({ src, title, className = '' }: VideoPrevie
 
   // Construct full URL - handle both relative and absolute URLs
   const getVideoUrl = () => {
+    // If already absolute URL, return as is
     if (src.startsWith('http://') || src.startsWith('https://')) {
       return src;
     }
-    // If it's a relative path, construct full URL
+    
+    // For beta domain, always use production domain for static files (uploads)
+    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+    if (isBetaDomain && src.startsWith('/uploads/')) {
+      return `https://twitchmemes.ru${src}`;
+    }
+    
+    // For production or non-upload paths, use normal logic
     const apiUrl = import.meta.env.VITE_API_URL || '';
     if (apiUrl && !src.startsWith('/')) {
       return `${apiUrl}/${src}`;

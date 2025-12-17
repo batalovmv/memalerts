@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { api } from '../lib/api';
 
@@ -8,10 +8,39 @@ interface ChannelColors {
   accentColor: string | null;
 }
 
+interface ChannelData {
+  id: string;
+  slug: string;
+  name: string;
+  coinPerPointRatio: number;
+  coinIconUrl?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  accentColor?: string | null;
+  rewardIdForCoins?: string | null;
+  rewardEnabled?: boolean;
+  rewardTitle?: string | null;
+  rewardCost?: number | null;
+  rewardCoins?: number | null;
+  createdAt?: string;
+  owner?: {
+    id: string;
+    displayName: string;
+    profileImageUrl?: string | null;
+  } | null;
+  stats?: {
+    memesCount: number;
+    usersCount: number;
+  };
+}
+
 interface ChannelColorsContextType {
   colors: ChannelColors;
+  channelData: ChannelData | null;
   isLoading: boolean;
   refreshColors: () => Promise<void>;
+  getChannelData: (slug: string) => Promise<ChannelData | null>;
+  getCachedChannelData: (slug: string) => ChannelData | null;
 }
 
 const defaultColors: ChannelColors = {
@@ -22,32 +51,77 @@ const defaultColors: ChannelColors = {
 
 const ChannelColorsContext = createContext<ChannelColorsContextType | undefined>(undefined);
 
+// Cache for channel data by slug
+const channelDataCache = new Map<string, { data: ChannelData; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export function ChannelColorsProvider({ children }: { children: ReactNode }) {
   const { user } = useAppSelector((state) => state.auth);
   const [colors, setColors] = useState<ChannelColors>(defaultColors);
+  const [channelData, setChannelData] = useState<ChannelData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Get cached channel data or fetch it
+  const getChannelData = useCallback(async (slug: string, includeMemes: boolean = false): Promise<ChannelData | null> => {
+    // Check cache first
+    const cached = channelDataCache.get(slug);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+
+    try {
+      // Use includeMemes=false for performance when memes are not needed
+      const params = includeMemes ? '' : '?includeMemes=false';
+      const response = await api.get(`/channels/${slug}${params}`);
+      const data: ChannelData = response.data;
+      
+      // Update cache
+      channelDataCache.set(slug, { data, timestamp: Date.now() });
+      
+      return data;
+    } catch (error) {
+      console.warn(`Failed to fetch channel data for ${slug}:`, error);
+      return null;
+    }
+  }, []);
+
+  // Get cached channel data without fetching
+  const getCachedChannelData = useCallback((slug: string): ChannelData | null => {
+    const cached = channelDataCache.get(slug);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+    return null;
+  }, []);
 
   const fetchChannelColors = async () => {
     if (!user?.channelId) {
       setColors(defaultColors);
+      setChannelData(null);
       setIsLoading(false);
       return;
     }
 
     try {
-      // Try to get channel colors from user's channel
-      const response = await api.get(`/channels/${user.channel?.slug || ''}`);
-      const channelData = response.data;
+      const slug = user.channel?.slug || '';
+      const data = await getChannelData(slug);
       
-      setColors({
-        primaryColor: channelData.primaryColor || defaultColors.primaryColor,
-        secondaryColor: channelData.secondaryColor || defaultColors.secondaryColor,
-        accentColor: channelData.accentColor || defaultColors.accentColor,
-      });
+      if (data) {
+        setChannelData(data);
+        setColors({
+          primaryColor: data.primaryColor || defaultColors.primaryColor,
+          secondaryColor: data.secondaryColor || defaultColors.secondaryColor,
+          accentColor: data.accentColor || defaultColors.accentColor,
+        });
+      } else {
+        setColors(defaultColors);
+        setChannelData(null);
+      }
     } catch (error) {
       // If error, use default colors
       console.warn('Failed to fetch channel colors, using defaults:', error);
       setColors(defaultColors);
+      setChannelData(null);
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +129,7 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchChannelColors();
-  }, [user?.channelId, user?.channel?.slug]);
+  }, [user?.channelId, user?.channel?.slug, getChannelData]);
 
   // Apply CSS variables for colors
   useEffect(() => {
@@ -66,7 +140,14 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
   }, [colors]);
 
   return (
-    <ChannelColorsContext.Provider value={{ colors, isLoading, refreshColors: fetchChannelColors }}>
+    <ChannelColorsContext.Provider value={{ 
+      colors, 
+      channelData,
+      isLoading, 
+      refreshColors: fetchChannelColors,
+      getChannelData,
+      getCachedChannelData
+    }}>
       {children}
     </ChannelColorsContext.Provider>
   );

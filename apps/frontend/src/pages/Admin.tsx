@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
 import { fetchMemes } from '../store/slices/memesSlice';
+import { useChannelColors } from '../contexts/ChannelColorsContext';
 import Header from '../components/Header';
 import VideoPreview from '../components/VideoPreview';
 import MemeCard from '../components/MemeCard';
@@ -416,6 +417,7 @@ function WalletManagement() {
 function ChannelSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
+  const { getChannelData, getCachedChannelData } = useChannelColors();
   const [settings, setSettings] = useState({
     rewardIdForCoins: '',
     coinPerPointRatio: '1.0',
@@ -431,26 +433,45 @@ function ChannelSettings() {
 
   useEffect(() => {
     // Load current settings
-    if (user?.channelId) {
+    if (user?.channelId && user?.channel?.slug) {
       loadSettings();
     }
-  }, [user?.channelId]);
+  }, [user?.channelId, user?.channel?.slug, getChannelData, getCachedChannelData]);
 
   const loadSettings = async () => {
+    if (!user?.channel?.slug) return;
+    
     try {
-      const { api } = await import('../lib/api');
-      const response = await api.get('/channels/' + user?.channel?.slug);
-      if (response.data) {
+      // Check cache first
+      const cached = getCachedChannelData(user.channel.slug);
+      if (cached) {
         setSettings({
-          rewardIdForCoins: response.data.rewardIdForCoins || '',
-          coinPerPointRatio: String(response.data.coinPerPointRatio || '1.0'),
-          rewardEnabled: response.data.rewardEnabled || false,
-          rewardTitle: response.data.rewardTitle || '',
-          rewardCost: response.data.rewardCost ? String(response.data.rewardCost) : '',
-          rewardCoins: response.data.rewardCoins ? String(response.data.rewardCoins) : '',
-          primaryColor: response.data.primaryColor || '',
-          secondaryColor: response.data.secondaryColor || '',
-          accentColor: response.data.accentColor || '',
+          rewardIdForCoins: cached.rewardIdForCoins || '',
+          coinPerPointRatio: String(cached.coinPerPointRatio || '1.0'),
+          rewardEnabled: cached.rewardEnabled || false,
+          rewardTitle: cached.rewardTitle || '',
+          rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
+          rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
+          primaryColor: cached.primaryColor || '',
+          secondaryColor: cached.secondaryColor || '',
+          accentColor: cached.accentColor || '',
+        });
+        return;
+      }
+
+      // If not in cache, fetch it
+      const channelData = await getChannelData(user.channel.slug);
+      if (channelData) {
+        setSettings({
+          rewardIdForCoins: channelData.rewardIdForCoins || '',
+          coinPerPointRatio: String(channelData.coinPerPointRatio || '1.0'),
+          rewardEnabled: channelData.rewardEnabled || false,
+          rewardTitle: channelData.rewardTitle || '',
+          rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
+          rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
+          primaryColor: channelData.primaryColor || '',
+          secondaryColor: channelData.secondaryColor || '',
+          accentColor: channelData.accentColor || '',
         });
       }
     } catch (error) {

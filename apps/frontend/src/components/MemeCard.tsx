@@ -29,9 +29,9 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
     };
   }, []);
 
-  // Determine real video aspect ratio
+  // Determine real video aspect ratio - only load metadata on hover
   useEffect(() => {
-    if (videoRef.current && meme.type === 'video') {
+    if (videoRef.current && meme.type === 'video' && isHovered) {
       const video = videoRef.current;
       
       const handleLoadedMetadata = () => {
@@ -56,6 +56,8 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
         // Metadata already loaded
         handleLoadedMetadata();
       } else {
+        // Load metadata when hovered
+        video.load();
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
       }
 
@@ -66,7 +68,7 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
       // For images/gifs, use default aspect ratio
       setAspectRatio('aspect-video');
     }
-  }, [meme.type, meme.fileUrl]);
+  }, [meme.type, meme.fileUrl, isHovered]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -97,9 +99,18 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
   };
 
   const getVideoUrl = () => {
+    // If already absolute URL, return as is
     if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
       return meme.fileUrl;
     }
+    
+    // For beta domain, always use production domain for static files (uploads)
+    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+    if (isBetaDomain && meme.fileUrl.startsWith('/uploads/')) {
+      return `https://twitchmemes.ru${meme.fileUrl}`;
+    }
+    
+    // For production or non-upload paths, use normal logic
     const apiUrl = import.meta.env.VITE_API_URL || '';
     if (apiUrl && !meme.fileUrl.startsWith('/')) {
       return `${apiUrl}/${meme.fileUrl}`;
@@ -136,7 +147,7 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
             loop
             playsInline
             className="w-full h-full object-contain"
-            preload="metadata"
+            preload="none"
             aria-label={`Video preview: ${meme.title}`}
           />
         ) : (

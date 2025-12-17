@@ -65,9 +65,18 @@ export default function MemeModal({
   if (!isOpen || !currentMeme) return null;
 
   const getVideoUrl = () => {
+    // If already absolute URL, return as is
     if (currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://')) {
       return currentMeme.fileUrl;
     }
+    
+    // For beta domain, always use production domain for static files (uploads)
+    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+    if (isBetaDomain && currentMeme.fileUrl.startsWith('/uploads/')) {
+      return `https://twitchmemes.ru${currentMeme.fileUrl}`;
+    }
+    
+    // For production or non-upload paths, use normal logic
     const apiUrl = import.meta.env.VITE_API_URL || '';
     if (apiUrl && !currentMeme.fileUrl.startsWith('/')) {
       return `${apiUrl}/${currentMeme.fileUrl}`;
