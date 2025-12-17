@@ -473,6 +473,97 @@ jobs:
             mkdir -p uploads uploads/memes
             chmod -R 755 uploads
 
+      - name: Setup Beta Nginx
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'deploy' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            # Configure sudo for deploy user (if needed)
+            if ! sudo -n true 2>/dev/null; then
+              echo "Warning: sudo requires password. Nginx setup may fail."
+            fi
+            
+            # Setup/update nginx configuration for beta
+            echo "Setting up/updating nginx configuration for beta..."
+            cd /opt/memalerts-backend-beta || cd /opt
+            
+            if [ -f memalerts-backend-beta/.github/scripts/setup-nginx-full.sh ]; then
+              chmod +x memalerts-backend-beta/.github/scripts/setup-nginx-full.sh
+              export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+              export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+              sudo -E memalerts-backend-beta/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+                echo "Nginx setup failed. Check logs above."
+                exit 1
+              }
+            elif [ -f .github/scripts/setup-nginx-full.sh ]; then
+              chmod +x .github/scripts/setup-nginx-full.sh
+              export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+              export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+                echo "Nginx setup failed. Check logs above."
+                exit 1
+              }
+            else
+              echo "Nginx setup script not found! Trying to use backend script..."
+              if [ -f /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
+                chmod +x /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh
+                export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
+                export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+                sudo -E /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+                  echo "Nginx setup failed. Check logs above."
+                  exit 1
+                }
+              else
+                echo "ERROR: Nginx setup script not found anywhere!"
+                exit 1
+              fi
+            fi
+            
+            # Verify beta domain is in nginx config
+            BETA_DOMAIN="beta.${{ secrets.DOMAIN || 'twitchalerts.ru' }}"
+            echo "Verifying beta domain '$BETA_DOMAIN' in nginx config..."
+            if sudo grep -q "server_name.*$BETA_DOMAIN" /etc/nginx/sites-available/memalerts 2>/dev/null; then
+              echo "✅ Beta domain found in nginx config"
+              sudo grep "server_name.*$BETA_DOMAIN" /etc/nginx/sites-available/memalerts
+            else
+              echo "❌ WARNING: Beta domain '$BETA_DOMAIN' NOT found in nginx config!"
+              echo "Current server_name entries:"
+              sudo grep "server_name" /etc/nginx/sites-available/memalerts 2>/dev/null || echo "Config file not found"
+            fi
+            
+            # Test and reload nginx
+            echo "Testing nginx configuration..."
+            sudo nginx -t && sudo systemctl reload nginx || {
+              echo "Failed to reload nginx"
+              exit 1
+            }
+            
+            echo "✅ Nginx configuration updated for beta domain"
+            
+            # DNS diagnostic
+            BETA_DOMAIN="beta.${{ secrets.DOMAIN || 'twitchalerts.ru' }}"
+            echo ""
+            echo "=========================================="
+            echo "DNS DIAGNOSTIC FOR BETA DOMAIN"
+            echo "=========================================="
+            echo "Beta domain: $BETA_DOMAIN"
+            echo "Checking DNS resolution..."
+            if nslookup "$BETA_DOMAIN" > /dev/null 2>&1 || dig "$BETA_DOMAIN" +short > /dev/null 2>&1; then
+              echo "✅ DNS resolution works"
+              nslookup "$BETA_DOMAIN" 2>/dev/null || dig "$BETA_DOMAIN" 2>/dev/null || true
+            else
+              echo "❌ WARNING: DNS resolution failed for $BETA_DOMAIN"
+              echo "Please add DNS A record in Cloudflare:"
+              echo "  Type: A"
+              echo "  Name: beta"
+              echo "  IPv4: [YOUR_VPS_IP]"
+              echo "  Proxy: DNS only (gray cloud)"
+            fi
+            echo "=========================================="
+
       - name: Deploy to VPS (Beta)
         uses: appleboy/ssh-action@v1.0.0
         with:
