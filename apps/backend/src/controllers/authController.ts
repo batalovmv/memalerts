@@ -4,6 +4,22 @@ import { prisma } from '../lib/prisma.js';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 
+// Helper function to get redirect URL based on environment
+const getRedirectUrl = (): string => {
+  // First, use WEB_URL if explicitly set (this is the primary way)
+  if (process.env.WEB_URL) {
+    return process.env.WEB_URL;
+  }
+  
+  // Fallback: construct from DOMAIN if in production
+  if (process.env.NODE_ENV === 'production' && process.env.DOMAIN) {
+    return `https://${process.env.DOMAIN}`;
+  }
+  
+  // Development fallback
+  return 'http://localhost:5173';
+};
+
 // Simple Twitch OAuth implementation (you can replace with passport-twitch-new)
 export const authController = {
   initiateTwitchAuth: (req: AuthRequest, res: Response) => {
@@ -15,13 +31,13 @@ export const authController = {
 
     if (!clientId) {
       console.error('TWITCH_CLIENT_ID is not set');
-      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      const redirectUrl = getRedirectUrl();
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_client_id`);
     }
 
     if (!redirectUri) {
       console.error('TWITCH_CALLBACK_URL is not set');
-      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      const redirectUrl = getRedirectUrl();
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_callback_url`);
     }
 
@@ -42,13 +58,13 @@ export const authController = {
 
     if (error) {
       console.error('Twitch OAuth error:', error);
-      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      const redirectUrl = getRedirectUrl();
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${error}`);
     }
 
     if (!code) {
       console.error('No code in callback');
-      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      const redirectUrl = getRedirectUrl();
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_code`);
     }
 
@@ -75,7 +91,7 @@ export const authController = {
 
       if (!tokenData.access_token) {
         console.error('No access token received from Twitch:', tokenData);
-        const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+        const redirectUrl = getRedirectUrl();
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
       }
 
@@ -97,7 +113,7 @@ export const authController = {
 
       if (!twitchUser) {
         console.error('No user data received from Twitch:', userData);
-        const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+        const redirectUrl = getRedirectUrl();
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
       }
 
@@ -308,7 +324,7 @@ export const authController = {
       // Ensure user exists
       if (!user) {
         console.error('User is null after creation/fetch');
-        const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+        const redirectUrl = getRedirectUrl();
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_null`);
       }
 
@@ -361,7 +377,7 @@ export const authController = {
       }
 
       // Redirect to user's profile if streamer, otherwise to home
-      const redirectUrl = process.env.WEB_URL || (isProduction ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      const redirectUrl = getRedirectUrl();
       
       let redirectPath = '/';
       
@@ -402,7 +418,7 @@ export const authController = {
       // Log error as JSON for better debugging
       console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       
-      const redirectUrl = process.env.WEB_URL || (process.env.NODE_ENV === 'production' ? `https://${process.env.DOMAIN}` : 'http://localhost:5173');
+      const redirectUrl = getRedirectUrl();
       const errorReason = error instanceof Error ? encodeURIComponent(error.message.substring(0, 100)) : 'unknown';
       res.redirect(`${redirectUrl}/?error=auth_failed&reason=exception&details=${errorReason}`);
     }

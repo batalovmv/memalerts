@@ -461,7 +461,7 @@ jobs:
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
             
             # CORS
-            WEB_URL=${{ secrets.WEB_URL || 'https://beta.twitchalerts.ru' }}
+            WEB_URL=https://beta.${{ secrets.DOMAIN || 'twitchmemes.ru' }}
             OVERLAY_URL=${{ secrets.OVERLAY_URL }}
             
             # File Upload
