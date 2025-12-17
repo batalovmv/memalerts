@@ -464,9 +464,7 @@ export const authController = {
       }
 
       // Redirect to user's profile if streamer, otherwise to home
-      // Pass req and stateOrigin to determine correct redirect domain
-      const redirectUrl = getRedirectUrl(req, stateOrigin);
-      
+      // redirectUrl was already determined above for cookie domain
       let redirectPath = '/';
       
       // Check if state parameter contains a redirect path (user came from a specific page)
