@@ -165,6 +165,7 @@ export const adminController = {
         // Determine fileUrl: handle deduplication for both uploaded and imported files
         let finalFileUrl: string;
         let fileHash: string | null = null;
+        let filePath: string | null = null; // Declare filePath in wider scope
         
         if (submission.sourceUrl) {
           // Imported meme - use sourceUrl temporarily, download will happen in background
@@ -173,7 +174,6 @@ export const adminController = {
         } else {
           // Uploaded file - check if already deduplicated or perform deduplication
           // Validate path to prevent path traversal attacks
-          let filePath: string;
           try {
             const uploadsDir = path.join(process.cwd(), 'uploads');
             // If fileUrlTemp starts with /, remove it before validation
@@ -250,7 +250,7 @@ export const adminController = {
         let durationMs = body.durationMs || STANDARD_DURATION_MS;
         
         // Try to get real video duration from file metadata
-        if (!submission.sourceUrl && fs.existsSync(filePath)) {
+        if (!submission.sourceUrl && filePath && fs.existsSync(filePath)) {
           try {
             const metadata = await getVideoMetadata(filePath);
             if (metadata && metadata.duration > 0) {
@@ -611,11 +611,17 @@ export const adminController = {
       });
 
       // Log admin action
-      await logAdminAction(req.userId!, 'delete_meme', {
-        memeId: id,
+      await logAdminAction(
+        'delete_meme',
+        req.userId!,
         channelId,
-        memeTitle: meme.title,
-      }, req);
+        id,
+        {
+          memeTitle: meme.title,
+        },
+        true,
+        req
+      );
 
       res.json(deleted);
     } catch (error: any) {
