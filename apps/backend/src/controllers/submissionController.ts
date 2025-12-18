@@ -115,18 +115,24 @@ export const submissionController = {
         });
       }
 
-      // Calculate file hash and perform deduplication
+      // Calculate file hash and perform deduplication with timeout
       let finalFilePath: string;
       let fileHash: string | null = null;
       try {
-        const hash = await calculateFileHash(filePath);
+        // Add timeout for hash calculation to prevent hanging
+        const hashPromise = calculateFileHash(filePath);
+        const hashTimeout = new Promise<string>((_, reject) => {
+          setTimeout(() => reject(new Error('Hash calculation timeout')), 10000); // 10 second timeout
+        });
+        
+        const hash = await Promise.race([hashPromise, hashTimeout]);
         const stats = await getFileStats(filePath);
         const result = await findOrCreateFileHash(filePath, hash, stats.mimeType, stats.size);
         finalFilePath = result.filePath;
         fileHash = hash;
         console.log(`File deduplication: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
       } catch (error: any) {
-        console.error('File hash calculation failed, using original path:', error);
+        console.error('File hash calculation failed, using original path:', error.message);
         // Fallback to original path if hash calculation fails
         finalFilePath = `/uploads/${req.file.filename}`;
       }

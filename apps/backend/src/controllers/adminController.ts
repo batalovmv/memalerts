@@ -116,6 +116,10 @@ export const adminController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:119',message:'approveSubmission started',data:{submissionId:id,channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     try {
       const body = approveSubmissionSchema.parse(req.body);
 
@@ -130,10 +134,10 @@ export const adminController = {
         // Ignore, will check in transaction
       }
 
+      let submission: any; // Declare submission in outer scope for error handling
       const result = await prisma.$transaction(async (tx) => {
         // Get submission WITHOUT tags to avoid transaction abort if MemeSubmissionTag table doesn't exist
         // The table may not exist on production, so we fetch without tags from the start
-        let submission: any;
         try {
           submission = await tx.memeSubmission.findUnique({
             where: { id },
@@ -167,6 +171,10 @@ export const adminController = {
         let fileHash: string | null = null;
         let filePath: string | null = null; // Declare filePath in wider scope
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:165',message:'Processing file URL',data:{submissionId:id,hasSourceUrl:!!submission.sourceUrl,fileUrlTemp:submission.fileUrlTemp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         if (submission.sourceUrl) {
           // Imported meme - use sourceUrl temporarily, download will happen in background
           // This prevents timeout issues - we approve immediately and download async
@@ -180,8 +188,20 @@ export const adminController = {
             const relativePath = submission.fileUrlTemp.startsWith('/') 
               ? submission.fileUrlTemp.slice(1) 
               : submission.fileUrlTemp;
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:178',message:'Validating file path',data:{submissionId:id,fileUrlTemp:submission.fileUrlTemp,relativePath,uploadsDir},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            
             filePath = validatePathWithinDirectory(relativePath, uploadsDir);
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:184',message:'Path validated',data:{submissionId:id,filePath,fileExists:fs.existsSync(filePath)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
           } catch (pathError: any) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:186',message:'Path validation failed',data:{submissionId:id,fileUrlTemp:submission.fileUrlTemp,error:pathError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
             throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
           }
@@ -374,6 +394,9 @@ export const adminController = {
 
       res.json(result);
     } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:377',message:'Error in approveSubmission',data:{submissionId:id,errorMessage:error.message,errorName:error.name,errorCode:error.code,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       console.error('Error in approveSubmission:', error);
 
       // Don't send response if headers already sent
@@ -419,12 +442,22 @@ export const adminController = {
         return res.status(404).json({ error: error.message });
       }
 
-      // Handle file operation errors
-      if (error.message?.includes('Hash calculation timeout') || error.message?.includes('file')) {
-        console.error('File operation error in approveSubmission:', error.message);
+      // Handle file operation errors with more specific messages
+      if (error.message?.includes('Hash calculation timeout') || 
+          error.message?.includes('file') || 
+          error.message?.includes('File') ||
+          error.message?.includes('Invalid file path') ||
+          error.message?.includes('Uploaded file not found')) {
+        console.error('File operation error in approveSubmission:', error.message, {
+          submissionId: id,
+          fileUrlTemp: submission?.fileUrlTemp,
+          stack: error.stack,
+        });
         return res.status(500).json({
           error: 'File operation error',
-          message: 'An error occurred while processing the file. Please try again.',
+          message: error.message?.includes('not found') 
+            ? 'The uploaded file was not found. Please try uploading again.'
+            : 'An error occurred while processing the file. Please try again.',
         });
       }
 
@@ -443,6 +476,10 @@ export const adminController = {
     if (!channelId) {
       return res.status(400).json({ error: 'Channel ID required' });
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:449',message:'rejectSubmission started',data:{submissionId:id,channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
 
     try {
       const body = rejectSubmissionSchema.parse(req.body);
@@ -483,9 +520,36 @@ export const adminController = {
         req
       );
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:496',message:'rejectSubmission success',data:{submissionId:id,status:updated.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      
       res.json(updated);
-    } catch (error) {
-      throw error;
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:500',message:'Error in rejectSubmission',data:{submissionId:id,errorMessage:error.message,errorName:error.name,errorCode:error.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      console.error('Error in rejectSubmission:', error);
+      if (!res.headersSent) {
+        // Handle validation errors (ZodError)
+        if (error instanceof ZodError) {
+          return res.status(400).json({
+            error: 'Validation error',
+            message: 'Validation failed',
+            details: error.errors,
+          });
+        }
+
+        // Handle specific error messages
+        if (error.message === 'Submission not found' || error.message === 'Submission already processed') {
+          return res.status(400).json({ error: error.message });
+        }
+
+        return res.status(500).json({
+          error: 'Internal server error',
+          message: 'Failed to reject submission',
+        });
+      }
     }
   },
 
@@ -1044,12 +1108,32 @@ export const adminController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    const promotions = await prisma.promotion.findMany({
-      where: { channelId },
-      orderBy: { createdAt: 'desc' },
-    });
+    try {
+      // Add timeout protection for promotions query
+      const promotionsPromise = prisma.promotion.findMany({
+        where: { channelId },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    res.json(promotions);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Promotions query timeout')), 5000); // 5 second timeout
+      });
+
+      const promotions = await Promise.race([promotionsPromise, timeoutPromise]);
+      res.json(promotions);
+    } catch (error: any) {
+      console.error('Error in getPromotions:', error);
+      if (!res.headersSent) {
+        // If timeout or table doesn't exist, return empty array
+        if (error.message?.includes('timeout') || error.message?.includes('does not exist') || error.code === 'P2021') {
+          return res.json([]);
+        }
+        return res.status(500).json({
+          error: 'Failed to load promotions',
+          message: 'An error occurred while loading promotions',
+        });
+      }
+    }
   },
 
   createPromotion: async (req: AuthRequest, res: Response) => {
