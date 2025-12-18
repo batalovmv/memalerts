@@ -29,21 +29,13 @@ export default function BetaAccessRequest() {
 
   const loadStatus = async () => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BetaAccessRequest.tsx:30',message:'loadStatus started',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       setLoading(true);
       const startTime = Date.now();
       const response = await api.get<BetaAccessStatus>('/beta/status');
       const duration = Date.now() - startTime;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BetaAccessRequest.tsx:33',message:'loadStatus completed',data:{hasAccess:response?.hasAccess,duration},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+      console.log('[BetaAccessRequest] loadStatus completed', { hasAccess: response?.hasAccess, duration });
       setStatus(response);
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BetaAccessRequest.tsx:35',message:'loadStatus error',data:{error:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       console.error('Error loading beta access status:', error);
     } finally {
       setLoading(false);
