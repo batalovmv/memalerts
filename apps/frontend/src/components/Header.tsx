@@ -36,6 +36,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket } = useSocket();
   const submissionsLoadedRef = useRef(false);
+  const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
+  const channelDataLoadedRef = useRef<string | null>(null); // Track which channel's data was loaded
 
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
@@ -73,11 +75,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   useEffect(() => {
     if (!user) {
       setWallet(null);
+      walletLoadedRef.current = null;
       return;
     }
 
     // Don't load wallet in Header if we're on a channel page - it's loaded by StreamerProfile
-    if (location.pathname.startsWith('/channel/')) {
+    const isChannelPage = location.pathname.startsWith('/channel/');
+    if (isChannelPage) {
       // Use wallet from Redux store if available, or from user data
       if (channelId && user.wallets) {
         const userWallet = user.wallets.find(w => w.channelId === channelId);
@@ -85,34 +89,46 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           setWallet(userWallet);
         }
       }
+      walletLoadedRef.current = null; // Reset since we're not loading here
+      return;
+    }
+
+    // Determine which channel's wallet to load
+    const targetChannelSlug = currentChannelSlug || user.channel?.slug;
+    const targetChannelId = channelId || user.channelId;
+
+    // Skip if we've already loaded wallet for this channel
+    if (walletLoadedRef.current === targetChannelSlug) {
       return;
     }
 
     const loadWallet = async () => {
       setIsLoadingWallet(true);
       try {
-        if (currentChannelSlug) {
+        if (targetChannelSlug) {
           // Load wallet for the current channel
           try {
-            const wallet = await api.get<Wallet>(`/channels/${currentChannelSlug}/wallet`, {
+            const wallet = await api.get<Wallet>(`/channels/${targetChannelSlug}/wallet`, {
               timeout: 10000,
             });
             setWallet(wallet);
+            walletLoadedRef.current = targetChannelSlug; // Mark as loaded
             // Update Redux store if channelId matches
-            if (channelId && wallet.channelId === channelId) {
-              dispatch(updateWalletBalance({ channelId, balance: wallet.balance }));
+            if (targetChannelId && wallet.channelId === targetChannelId) {
+              dispatch(updateWalletBalance({ channelId: targetChannelId, balance: wallet.balance }));
             }
           } catch (error: unknown) {
             const apiError = error as { response?: { status?: number }; code?: string };
             if (apiError.response?.status === 404 || apiError.code === 'ECONNABORTED') {
               // Wallet doesn't exist yet, set default
-              if (channelId) {
+              if (targetChannelId) {
                 setWallet({
                   id: '',
                   userId: user.id,
-                  channelId: channelId,
+                  channelId: targetChannelId,
                   balance: 0,
                 });
+                walletLoadedRef.current = targetChannelSlug; // Mark as loaded (even if default)
               }
             }
             console.warn('Failed to load wallet:', error);
@@ -122,6 +138,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           const userWallet = user.wallets.find(w => w.channelId === user.channelId);
           if (userWallet) {
             setWallet(userWallet);
+            walletLoadedRef.current = user.channel?.slug || null;
           }
         }
       } catch (error) {
@@ -131,19 +148,21 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       }
     };
 
-    // Load immediately on mount
+    // Load immediately on mount or when channel changes
     loadWallet();
 
     // Refresh when tab becomes visible (user returns to page)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isChannelPage) {
         loadWallet();
       }
     };
 
     // Refresh when window regains focus
     const handleFocus = () => {
-      loadWallet();
+      if (!isChannelPage) {
+        loadWallet();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -153,7 +172,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, currentChannelSlug, channelId, dispatch, location.pathname]);
+  }, [user, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch]);
 
   // Load channel coin icon and reward title if not provided via props
   useEffect(() => {
@@ -170,50 +189,62 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
       // If both are provided via props, we're done
       if (coinIconUrl !== undefined && rewardTitle !== undefined) {
+        channelDataLoadedRef.current = 'props'; // Mark as loaded via props
         return;
       }
 
       // Otherwise, try to get from cache or fetch
       const slugToUse = user?.channel?.slug || currentChannelSlug;
-      if (slugToUse) {
-        // Check cache first
-        const cached = getCachedChannelData(slugToUse);
-        if (cached) {
-          if (coinIconUrl === undefined && cached.coinIconUrl) {
-            setChannelCoinIconUrl(cached.coinIconUrl);
-          }
-          if (rewardTitle === undefined && cached.rewardTitle) {
-            setChannelRewardTitle(cached.rewardTitle);
-          }
-          // If we got both from cache, we're done
-          if ((coinIconUrl !== undefined || cached.coinIconUrl) && 
-              (rewardTitle !== undefined || cached.rewardTitle)) {
-            return;
-          }
-        }
+      if (!slugToUse) {
+        channelDataLoadedRef.current = null;
+        return;
+      }
 
-        // Don't fetch if we're on a channel page - data will be loaded by StreamerProfile
-        // This avoids unnecessary requests with includeMemes=false
-        if (location.pathname.startsWith('/channel/')) {
+      // Skip if already loaded for this channel
+      if (channelDataLoadedRef.current === slugToUse) {
+        return;
+      }
+
+      // Don't fetch if we're on a channel page - data will be loaded by StreamerProfile
+      // This avoids unnecessary requests with includeMemes=false
+      if (location.pathname.startsWith('/channel/')) {
+        channelDataLoadedRef.current = null; // Reset since we're not loading here
+        return;
+      }
+
+      // Check cache first
+      const cached = getCachedChannelData(slugToUse);
+      if (cached) {
+        if (coinIconUrl === undefined && cached.coinIconUrl) {
+          setChannelCoinIconUrl(cached.coinIconUrl);
+        }
+        if (rewardTitle === undefined && cached.rewardTitle) {
+          setChannelRewardTitle(cached.rewardTitle);
+        }
+        // If we got both from cache, we're done
+        if ((coinIconUrl !== undefined || cached.coinIconUrl) && 
+            (rewardTitle !== undefined || cached.rewardTitle)) {
+          channelDataLoadedRef.current = slugToUse;
           return;
         }
+      }
 
-        // If not in cache and not on channel page, fetch it
-        // getChannelData already uses includeMemes=false by default for performance
-        const channelData = await getChannelData(slugToUse);
-        if (channelData) {
-          if (coinIconUrl === undefined && channelData.coinIconUrl) {
-            setChannelCoinIconUrl(channelData.coinIconUrl);
-          }
-          if (rewardTitle === undefined && channelData.rewardTitle) {
-            setChannelRewardTitle(channelData.rewardTitle);
-          }
+      // If not in cache and not on channel page, fetch it
+      // getChannelData already uses includeMemes=false by default for performance
+      const channelData = await getChannelData(slugToUse);
+      if (channelData) {
+        if (coinIconUrl === undefined && channelData.coinIconUrl) {
+          setChannelCoinIconUrl(channelData.coinIconUrl);
         }
+        if (rewardTitle === undefined && channelData.rewardTitle) {
+          setChannelRewardTitle(channelData.rewardTitle);
+        }
+        channelDataLoadedRef.current = slugToUse;
       }
     };
 
     loadChannelData();
-  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug, location.pathname, getChannelData, getCachedChannelData]);
+  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug]);
 
   // Setup Socket.IO listeners for real-time wallet updates
   // Socket connection is managed by SocketContext at app level

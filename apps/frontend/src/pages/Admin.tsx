@@ -345,15 +345,20 @@ function WalletManagement() {
   const [loading, setLoading] = useState(true);
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [adjustAmount, setAdjustAmount] = useState('');
+  const walletsLoadedRef = useRef(false);
 
   const fetchWallets = useCallback(async () => {
+    if (walletsLoadedRef.current) return; // Prevent duplicate requests
+    
     try {
       setLoading(true);
+      walletsLoadedRef.current = true;
       const { api } = await import('../lib/api');
       const wallets = await api.get<Array<Record<string, unknown>>>('/admin/wallets');
       setWallets(wallets);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
+      walletsLoadedRef.current = false; // Reset on error to allow retry
       toast.error(apiError.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
     } finally {
       setLoading(false);
@@ -462,9 +467,15 @@ function ChannelSettings() {
     accentColor: '',
   });
   const [loading, setLoading] = useState(false);
+  const settingsLoadedRef = useRef<string | null>(null); // Track which channel's settings were loaded
 
   const loadSettings = useCallback(async () => {
     if (!user?.channel?.slug) return;
+    
+    // Skip if already loaded for this channel
+    if (settingsLoadedRef.current === user.channel.slug) {
+      return;
+    }
     
     try {
       // Check cache first
@@ -481,6 +492,7 @@ function ChannelSettings() {
           secondaryColor: cached.secondaryColor || '',
           accentColor: cached.accentColor || '',
         });
+        settingsLoadedRef.current = user.channel.slug;
         return;
       }
 
@@ -498,16 +510,20 @@ function ChannelSettings() {
           secondaryColor: channelData.secondaryColor || '',
           accentColor: channelData.accentColor || '',
         });
+        settingsLoadedRef.current = user.channel.slug;
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      settingsLoadedRef.current = null; // Reset on error to allow retry
     }
-  }, [user?.channelId, user?.channel?.slug, getChannelData, getCachedChannelData, t]);
+  }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
 
   useEffect(() => {
     // Load current settings
     if (user?.channelId && user?.channel?.slug) {
       loadSettings();
+    } else {
+      settingsLoadedRef.current = null; // Reset when user/channel changes
     }
   }, [loadSettings, user?.channelId, user?.channel?.slug]);
 
@@ -775,15 +791,20 @@ function ChannelStatistics() {
   const { t } = useTranslation();
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const statsLoadedRef = useRef(false);
 
   const fetchStats = useCallback(async () => {
+    if (statsLoadedRef.current) return; // Prevent duplicate requests
+    
     try {
       setLoading(true);
+      statsLoadedRef.current = true;
       const { api } = await import('../lib/api');
       const stats = await api.get<Record<string, unknown>>('/admin/stats/channel');
       setStats(stats);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
+      statsLoadedRef.current = false; // Reset on error to allow retry
       toast.error(apiError.response?.data?.error || t('admin.failedToLoadStatistics') || 'Failed to load statistics');
     } finally {
       setLoading(false);
@@ -889,6 +910,7 @@ function PromotionManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const promotionsLoadedRef = useRef(false);
   const [formData, setFormData] = useState({
     name: '',
     discountPercent: '',
@@ -896,26 +918,30 @@ function PromotionManagement() {
     endDate: '',
   });
 
-  useEffect(() => {
-    fetchPromotions();
-  }, []);
-
-  const fetchPromotions = async () => {
+  const fetchPromotions = useCallback(async () => {
+    if (promotionsLoadedRef.current) return; // Prevent duplicate requests
+    
     try {
       setLoading(true);
       setError(null);
+      promotionsLoadedRef.current = true;
       const { api } = await import('../lib/api');
       const promotions = await api.get<Array<Record<string, unknown>>>('/admin/promotions');
       setPromotions(promotions);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || 'Failed to load promotions';
+      promotionsLoadedRef.current = false; // Reset on error to allow retry
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchPromotions();
+  }, [fetchPromotions]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -930,6 +956,7 @@ function PromotionManagement() {
       toast.success(t('admin.promotionCreated'));
       setShowCreateForm(false);
       setFormData({ name: '', discountPercent: '', startDate: '', endDate: '' });
+      promotionsLoadedRef.current = false; // Reset to allow reload
       fetchPromotions();
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -942,6 +969,7 @@ function PromotionManagement() {
       const { api } = await import('../lib/api');
       await api.patch(`/admin/promotions/${id}`, { isActive: !currentActive });
       toast.success(!currentActive ? t('admin.promotionActivated') : t('admin.promotionDeactivated'));
+      promotionsLoadedRef.current = false; // Reset to allow reload
       fetchPromotions();
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -955,6 +983,7 @@ function PromotionManagement() {
       const { api } = await import('../lib/api');
       await api.delete(`/admin/promotions/${id}`);
       toast.success(t('admin.promotionDeleted'));
+      promotionsLoadedRef.current = false; // Reset to allow reload
       fetchPromotions();
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -971,7 +1000,10 @@ function PromotionManagement() {
       <div className="text-center py-8">
         <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
         <button
-          onClick={fetchPromotions}
+          onClick={() => {
+            promotionsLoadedRef.current = false; // Reset to allow reload
+            fetchPromotions();
+          }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
         >
           Retry
@@ -1126,14 +1158,19 @@ function BetaAccessManagement() {
   const { t } = useTranslation();
   const [requests, setRequests] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
+  const requestsLoadedRef = useRef(false);
 
   const loadRequests = useCallback(async () => {
+    if (requestsLoadedRef.current) return; // Prevent duplicate requests
+    
     try {
       setLoading(true);
+      requestsLoadedRef.current = true;
       const requests = await api.get<Array<Record<string, unknown>>>('/admin/beta/requests');
       setRequests(requests);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
+      requestsLoadedRef.current = false; // Reset on error to allow retry
       console.error('Error loading beta access requests:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {

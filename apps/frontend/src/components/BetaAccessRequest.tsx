@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '../store/hooks';
 import { api } from '../lib/api';
@@ -21,13 +21,7 @@ export default function BetaAccessRequest() {
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      loadStatus();
-    }
-  }, [user]);
-
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
       const startTime = Date.now();
@@ -42,7 +36,13 @@ export default function BetaAccessRequest() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadStatus();
+    }
+  }, [user, loadStatus]);
 
   const handleRequest = async () => {
     try {

@@ -67,7 +67,7 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery, selectedTags, filters, setSearchParams]);
+  }, [debouncedQuery, selectedTags, filters]);
 
   useEffect(() => {
     performSearch();

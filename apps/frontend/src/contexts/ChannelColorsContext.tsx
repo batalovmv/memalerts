@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { api } from '../lib/api';
 
@@ -60,6 +60,7 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
   const [colors, setColors] = useState<ChannelColors>(defaultColors);
   const [channelData, setChannelData] = useState<ChannelData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const colorsLoadedRef = useRef<string | null>(null); // Track which channel's colors were loaded
 
   // Get cached channel data or fetch it
   const getChannelData = useCallback(async (slug: string, includeMemes: boolean = false): Promise<ChannelData | null> => {
@@ -95,16 +96,24 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
     return null;
   }, []);
 
-  const fetchChannelColors = async () => {
+  const fetchChannelColors = useCallback(async () => {
     if (!user?.channelId) {
       setColors(defaultColors);
       setChannelData(null);
       setIsLoading(false);
+      colorsLoadedRef.current = null;
+      return;
+    }
+
+    const slug = user.channel?.slug || '';
+    
+    // Skip if already loaded for this channel
+    if (colorsLoadedRef.current === slug) {
       return;
     }
 
     try {
-      const slug = user.channel?.slug || '';
+      setIsLoading(true);
       const data = await getChannelData(slug);
       
       if (data) {
@@ -114,27 +123,26 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
           secondaryColor: data.secondaryColor || defaultColors.secondaryColor,
           accentColor: data.accentColor || defaultColors.accentColor,
         });
+        colorsLoadedRef.current = slug; // Mark as loaded
       } else {
         setColors(defaultColors);
         setChannelData(null);
+        colorsLoadedRef.current = slug; // Mark as loaded (even if no data)
       }
     } catch (error) {
       // If error, use default colors
       console.warn('Failed to fetch channel colors, using defaults:', error);
       setColors(defaultColors);
       setChannelData(null);
+      colorsLoadedRef.current = null; // Reset on error to allow retry
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fetchChannelColorsMemo = useCallback(() => {
-    fetchChannelColors();
   }, [user?.channelId, user?.channel?.slug, getChannelData]);
 
   useEffect(() => {
-    fetchChannelColorsMemo();
-  }, [fetchChannelColorsMemo]);
+    fetchChannelColors();
+  }, [fetchChannelColors]);
 
   // Apply CSS variables for colors
   useEffect(() => {
