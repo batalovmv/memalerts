@@ -6,12 +6,14 @@ interface SubmissionsState {
   submissions: Submission[];
   loading: boolean;
   error: string | null;
+  lastFetchedAt: number | null;
 }
 
 const initialState: SubmissionsState = {
   submissions: [],
   loading: false,
   error: null,
+  lastFetchedAt: null,
 };
 
 export const fetchSubmissions = createAsyncThunk<
@@ -121,6 +123,7 @@ const submissionsSlice = createSlice({
         state.loading = false;
         state.submissions = action.payload;
         state.error = null;
+        state.lastFetchedAt = Date.now();
       })
       .addCase(fetchSubmissions.rejected, (state, action) => {
         state.loading = false;

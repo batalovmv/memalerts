@@ -47,16 +47,24 @@ export default function Admin() {
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin')) {
       // Load submissions if not already loaded
-      // Check Redux store directly to avoid duplicate requests on navigation
+      // Check Redux store with TTL to avoid duplicate requests on navigation
       const currentState = store.getState();
-      const hasSubmissions = currentState.submissions.submissions.length > 0;
-      const isSubmissionsLoading = currentState.submissions.loading;
+      const submissionsState = currentState.submissions;
+      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       
-      if (hasSubmissions && !submissionsLoadedRef.current) {
-        submissionsLoadedRef.current = true;
-      } else if (!isSubmissionsLoading && !submissionsLoadedRef.current && !hasSubmissions) {
+      // Check if we have fresh data based on timestamp
+      const hasFreshData = submissionsState.submissions.length > 0 && 
+        submissionsState.lastFetchedAt !== null &&
+        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
+      
+      const isSubmissionsLoading = submissionsState.loading;
+      
+      // Only fetch if no fresh data and not loading
+      if (!hasFreshData && !isSubmissionsLoading && !submissionsLoadedRef.current) {
         submissionsLoadedRef.current = true;
         dispatch(fetchSubmissions({ status: 'pending' }));
+      } else if (hasFreshData) {
+        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
       
       // Load memes if not already loaded

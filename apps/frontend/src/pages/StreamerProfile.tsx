@@ -96,25 +96,38 @@ export default function StreamerProfile() {
         }
         
         // If user is logged in, load their wallet for this channel
-        if (user) {
-          try {
-            const wallet = await api.get<Wallet>(`/channels/${slug}/wallet`, {
-              timeout: 10000, // 10 second timeout
-            });
-            setWallet(wallet);
-          } catch (error: unknown) {
-            const apiError = error as { response?: { status?: number }; code?: string };
-            // If wallet doesn't exist or times out, set default wallet
-            if (apiError.response?.status === 404 || apiError.code === 'ECONNABORTED' || apiError.response?.status === 504 || apiError.response?.status === 500) {
-              setWallet({
-                id: '',
-                userId: user.id,
-                channelId: channelInfo.id,
-                balance: 0,
+        // Use user.wallets from Redux first (Socket.IO will update it automatically)
+        if (user && channelInfo) {
+          // Check if wallet exists in user.wallets first
+          const userWallet = user.wallets?.find(w => w.channelId === channelInfo.id);
+          if (userWallet) {
+            setWallet(userWallet);
+          } else {
+            // Only fetch if wallet not in Redux
+            try {
+              const wallet = await api.get<Wallet>(`/channels/${slug}/wallet`, {
+                timeout: 10000, // 10 second timeout
               });
+              setWallet(wallet);
+              // Update Redux store
+              dispatch(updateWalletBalance({ 
+                channelId: wallet.channelId, 
+                balance: wallet.balance 
+              }));
+            } catch (error: unknown) {
+              const apiError = error as { response?: { status?: number }; code?: string };
+              // If wallet doesn't exist or times out, set default wallet
+              if (apiError.response?.status === 404 || apiError.code === 'ECONNABORTED' || apiError.response?.status === 504 || apiError.response?.status === 500) {
+                setWallet({
+                  id: '',
+                  userId: user.id,
+                  channelId: channelInfo.id,
+                  balance: 0,
+                });
+              }
+              // Don't show error for wallet - it's not critical for page display
+              console.warn('Failed to load wallet:', error);
             }
-            // Don't show error for wallet - it's not critical for page display
-            console.warn('Failed to load wallet:', error);
           }
         }
       } catch (error: unknown) {
@@ -132,7 +145,17 @@ export default function StreamerProfile() {
     };
 
     loadChannelData();
-  }, [slug, user, navigate]);
+  }, [slug, user, navigate, t, dispatch]);
+
+  // Sync wallet from user.wallets when Redux store updates (e.g., via Socket.IO)
+  useEffect(() => {
+    if (user?.wallets && channelInfo) {
+      const userWallet = user.wallets.find(w => w.channelId === channelInfo.id);
+      if (userWallet && (!wallet || userWallet.balance !== wallet.balance)) {
+        setWallet(userWallet);
+      }
+    }
+  }, [user?.wallets, channelInfo, wallet]);
 
   // Load more memes function
   const loadMoreMemes = useCallback(async () => {
@@ -225,18 +248,12 @@ export default function StreamerProfile() {
       await dispatch(activateMeme(memeId)).unwrap();
       toast.success(t('toast.memeActivated'));
       
-      // Refresh wallet balance
-      if (slug) {
-        try {
-          const wallet = await api.get<Wallet>(`/channels/${slug}/wallet`);
-          setWallet(wallet);
-          // Also update Redux store
-          dispatch(updateWalletBalance({ 
-            channelId: wallet.channelId, 
-            balance: wallet.balance 
-          }));
-        } catch (error) {
-          console.error('Error refreshing wallet:', error);
+      // Wallet balance will be updated via Socket.IO automatically
+      // Sync from Redux store if available
+      if (user?.wallets && channelInfo) {
+        const userWallet = user.wallets.find(w => w.channelId === channelInfo.id);
+        if (userWallet) {
+          setWallet(userWallet);
         }
       }
     } catch (error: unknown) {
@@ -447,11 +464,13 @@ export default function StreamerProfile() {
             setSelectedMeme(null);
           }}
           onUpdate={() => {
-            // Refresh wallet if needed
-            if (slug && user) {
-              api.get<Wallet>(`/channels/${slug}/wallet`).then(wallet => {
-                setWallet(wallet);
-              }).catch(() => {});
+            // Wallet will be updated via Socket.IO automatically
+            // Sync from Redux store if available
+            if (user?.wallets && channelInfo) {
+              const userWallet = user.wallets.find(w => w.channelId === channelInfo.id);
+              if (userWallet) {
+                setWallet(userWallet);
+              }
             }
           }}
           isOwner={isOwner}

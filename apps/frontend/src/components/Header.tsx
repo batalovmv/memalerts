@@ -54,22 +54,26 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   );
 
   // Load submissions for streamer/admin if not already loaded
-  // Check Redux store directly to avoid duplicate requests on navigation
+  // Check Redux store with TTL to avoid duplicate requests on navigation
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
-      // Check Redux store directly - if submissions exist, mark as loaded and skip request
       const currentState = store.getState();
-      const hasSubmissions = currentState.submissions.submissions.length > 0;
-      const isLoading = currentState.submissions.loading;
+      const submissionsState = currentState.submissions;
+      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       
-      if (hasSubmissions && !submissionsLoadedRef.current) {
-        submissionsLoadedRef.current = true;
-        return; // Already have submissions, don't request
-      }
+      // Check if we have fresh data based on timestamp
+      const hasFreshData = submissionsState.submissions.length > 0 && 
+        submissionsState.lastFetchedAt !== null &&
+        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
       
-      if (!isLoading && !submissionsLoadedRef.current && !hasSubmissions) {
+      const isLoading = submissionsState.loading;
+      
+      // Only fetch if no fresh data and not loading
+      if (!hasFreshData && !isLoading && !submissionsLoadedRef.current) {
         submissionsLoadedRef.current = true;
         dispatch(fetchSubmissions({ status: 'pending' }));
+      } else if (hasFreshData) {
+        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
     }
     // Reset ref when user changes
@@ -105,16 +109,27 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     const targetChannelSlug = currentChannelSlug || user.channel?.slug;
     const targetChannelId = channelId || user.channelId;
 
+    // Check if wallet exists in user.wallets first - use Redux store as primary source
+    if (targetChannelId && user.wallets) {
+      const userWallet = user.wallets.find(w => w.channelId === targetChannelId);
+      if (userWallet) {
+        setWallet(userWallet);
+        walletLoadedRef.current = targetChannelSlug;
+        return; // Use wallet from Redux, don't fetch - Socket.IO will update it automatically
+      }
+    }
+
     // Skip if we've already loaded wallet for this channel
     if (walletLoadedRef.current === targetChannelSlug) {
       return;
     }
 
+    // Only fetch if wallet not in Redux and not already loaded
     const loadWallet = async () => {
       setIsLoadingWallet(true);
       try {
         if (targetChannelSlug) {
-          // Load wallet for the current channel
+          // Load wallet for the current channel via API (only if not in Redux)
           try {
             const wallet = await api.get<Wallet>(`/channels/${targetChannelSlug}/wallet`, {
               timeout: 10000,
@@ -140,13 +155,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               }
             }
             console.warn('Failed to load wallet:', error);
-          }
-        } else if (user.channelId && user.wallets) {
-          // Use wallet from user data
-          const userWallet = user.wallets.find(w => w.channelId === user.channelId);
-          if (userWallet) {
-            setWallet(userWallet);
-            walletLoadedRef.current = user.channel?.slug || null;
           }
         }
       } catch (error) {

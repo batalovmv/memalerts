@@ -26,22 +26,26 @@ export default function Dashboard() {
   // Removed role restrictions - Dashboard is accessible to all users
 
   // Load pending submissions if user is streamer/admin
-  // Check Redux store directly to avoid duplicate requests on navigation
+  // Check Redux store with TTL to avoid duplicate requests on navigation
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
-      // Check Redux store directly - if submissions exist, mark as loaded and skip request
       const currentState = store.getState();
-      const hasSubmissions = currentState.submissions.submissions.length > 0;
-      const isLoading = currentState.submissions.loading;
+      const submissionsState = currentState.submissions;
+      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       
-      if (hasSubmissions && !submissionsLoadedRef.current) {
-        submissionsLoadedRef.current = true;
-        return; // Already have submissions, don't request
-      }
+      // Check if we have fresh data based on timestamp
+      const hasFreshData = submissionsState.submissions.length > 0 && 
+        submissionsState.lastFetchedAt !== null &&
+        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
       
-      if (!isLoading && !submissionsLoadedRef.current && !hasSubmissions) {
+      const isLoading = submissionsState.loading;
+      
+      // Only fetch if no fresh data and not loading
+      if (!hasFreshData && !isLoading && !submissionsLoadedRef.current) {
         submissionsLoadedRef.current = true;
         dispatch(fetchSubmissions({ status: 'pending' }));
+      } else if (hasFreshData) {
+        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
     }
     // Reset ref when user changes
