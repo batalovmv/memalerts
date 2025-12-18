@@ -26,14 +26,25 @@ export const submissionController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    // Validate that the channel exists
+    // Validate that the channel exists and get owner info
     const channel = await prisma.channel.findUnique({
       where: { id: channelId as string },
+      include: {
+        users: {
+          where: { role: 'streamer' },
+          take: 1,
+          select: { id: true },
+        },
+      },
     });
 
     if (!channel) {
       return res.status(404).json({ error: 'Channel not found' });
     }
+
+    // Check if submitter is the channel owner
+    const channelOwner = channel.users?.[0];
+    const isOwner = channelOwner && channelOwner.id === req.userId;
 
     try {
       // Validate file is video
@@ -136,6 +147,85 @@ export const submissionController = {
         tagIds = []; // Proceed without tags on error
       }
 
+      // If owner is submitting, create meme directly (bypass approval)
+      if (isOwner) {
+        console.log('Owner submitting meme, creating directly as approved');
+        
+        // Create meme directly with approved status
+        const memeData: any = {
+          channelId,
+          title: body.title,
+          type: 'video',
+          fileUrl: finalFilePath,
+          durationMs: 0, // Default duration, can be updated later
+          priceCoins: 0, // Default price, can be updated later
+          status: 'approved',
+          createdByUserId: req.userId!,
+          approvedByUserId: req.userId!,
+          fileHash,
+        };
+
+        // Only add tags if we have tagIds (and table exists)
+        if (tagIds.length > 0) {
+          memeData.tags = {
+            create: tagIds.map((tagId) => ({
+              tagId,
+            })),
+          };
+        }
+
+        const memePromise = prisma.meme.create({
+          data: memeData,
+          include: tagIds.length > 0 ? {
+            tags: {
+              include: {
+                tag: true,
+              },
+            },
+          } : undefined,
+        });
+        
+        const memeTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Meme creation timeout')), 10000);
+        });
+        
+        let meme: any;
+        try {
+          meme = await Promise.race([memePromise, memeTimeout]);
+        } catch (dbError: any) {
+          // If error is about MemeTag table, retry without tags
+          if (dbError?.code === 'P2021' && dbError?.meta?.table === 'public.MemeTag') {
+            console.warn('MemeTag table not found, creating meme without tags');
+            meme = await prisma.meme.create({
+              data: {
+                channelId,
+                title: body.title,
+                type: 'video',
+                fileUrl: finalFilePath,
+                durationMs: 0,
+                priceCoins: 0,
+                status: 'approved',
+                createdByUserId: req.userId!,
+                approvedByUserId: req.userId!,
+                fileHash,
+              },
+            });
+          } else {
+            throw dbError;
+          }
+        }
+
+        // Log file upload
+        await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, req);
+
+        // Send response with meme data
+        return res.status(201).json({
+          ...meme,
+          isDirectApproval: true,
+        });
+      }
+
+      // Otherwise, create submission for approval
       // Create submission with timeout protection
       // If tagIds is empty or tags table doesn't exist, create without tags
       const submissionData: any = {

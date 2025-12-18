@@ -540,38 +540,38 @@ export const authController = {
         console.error('WARNING: Set-Cookie header is not set!');
       }
 
-      // Redirect to user's profile if streamer, otherwise to home
+      // Redirect logic: prioritize redirectTo from state (user came from a specific page)
       // redirectUrl was already determined above for cookie domain
       let redirectPath = '/';
       
-      // Check if state parameter contains a redirect path (user came from a specific page)
+      // First priority: Check if state parameter contains a redirect path (user came from a specific page)
       if (stateRedirectTo) {
-        // Use redirect path from state
+        // Use redirect path from state - this preserves where user was before login
         redirectPath = stateRedirectTo;
-      } else if (state && typeof state === 'string') {
-        // Try to parse as old format (just path)
-        try {
-          const decodedState = decodeURIComponent(state);
-          // If state is a channel profile path, redirect there
-          if (decodedState.startsWith('/channel/')) {
-            redirectPath = decodedState;
-          } else {
-            // Otherwise, redirect to dashboard for streamers
-            redirectPath = user.role === 'streamer' ? '/dashboard' : '/';
-          }
-        } catch (e) {
-          // Invalid state format, use default
-          redirectPath = user.role === 'streamer' ? '/dashboard' : '/';
-        }
+        console.log('Using redirectTo from state:', redirectPath);
+      } else if (user.role === 'streamer' && user.channel?.slug) {
+        // Second priority: If user is streamer with channel, redirect to dashboard
+        // (but only if no redirectTo was specified)
+        redirectPath = '/dashboard';
+        console.log('Redirecting streamer to dashboard (no redirectTo in state)');
       } else {
-        // No state parameter - default behavior: dashboard for streamers (not channel profile)
-        if (user.role === 'streamer') {
-          redirectPath = '/dashboard';
-        }
+        // Default: redirect to home
+        redirectPath = '/';
+        console.log('Redirecting to home (default)');
       }
       
-      const finalRedirectUrl = `${redirectUrl}${redirectPath}`;
-      console.log('Auth successful, redirecting to:', finalRedirectUrl, 'state:', state);
+      // Build final redirect URL
+      // If redirectPath is different from default, add it as query parameter for frontend
+      let finalRedirectUrl = `${redirectUrl}${redirectPath}`;
+      
+      // If we're using a redirectTo from state (user came from specific page), 
+      // pass it in URL so frontend can use it
+      if (stateRedirectTo && stateRedirectTo !== redirectPath) {
+        // redirectPath already contains stateRedirectTo, so just use it
+        finalRedirectUrl = `${redirectUrl}${redirectPath}`;
+      }
+      
+      console.log('Auth successful, redirecting to:', finalRedirectUrl, 'redirectPath:', redirectPath, 'stateRedirectTo:', stateRedirectTo);
       
       // Use 302 redirect (temporary) to ensure cookie is sent
       res.status(302).redirect(finalRedirectUrl);
