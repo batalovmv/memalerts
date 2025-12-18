@@ -333,8 +333,8 @@ export default function StreamerProfile() {
           onUpdate={() => {
             // Refresh wallet if needed
             if (slug && user) {
-              api.get<Wallet>(`/channels/${slug}/wallet`).then(response => {
-                setWallet(response.data);
+              api.get<Wallet>(`/channels/${slug}/wallet`).then(wallet => {
+                setWallet(wallet);
               }).catch(() => {});
             }
           }}

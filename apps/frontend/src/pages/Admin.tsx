@@ -756,8 +756,8 @@ function ChannelStatistics() {
     try {
       setLoading(true);
       const { api } = await import('../lib/api');
-      const response = await api.get('/admin/stats/channel');
-      setStats(response.data);
+      const stats = await api.get('/admin/stats/channel');
+      setStats(stats);
     } catch (error: any) {
       toast.error(error.response?.data?.error || t('admin.failedToLoadStatistics') || 'Failed to load statistics');
     } finally {
@@ -870,8 +870,8 @@ function PromotionManagement() {
       setLoading(true);
       setError(null);
       const { api } = await import('../lib/api');
-      const response = await api.get('/admin/promotions');
-      setPromotions(response.data);
+      const promotions = await api.get('/admin/promotions');
+      setPromotions(promotions);
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to load promotions';
       setError(errorMessage);
@@ -1094,8 +1094,8 @@ function BetaAccessManagement() {
   const loadRequests = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/beta/requests');
-      setRequests(response.data);
+      const requests = await api.get('/admin/beta/requests');
+      setRequests(requests);
     } catch (error: any) {
       console.error('Error loading beta access requests:', error);
       toast.error(error.response?.data?.error || t('toast.failedToLoad'));
