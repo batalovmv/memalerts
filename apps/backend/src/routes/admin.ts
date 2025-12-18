@@ -6,6 +6,7 @@ export const adminRoutes = Router();
 
 // authenticate and requireBetaAccess are applied in index.ts before this router
 // So we only need to check role here
+// Note: authenticate is applied in index.ts, so req.userId is available
 adminRoutes.use(requireRole('streamer', 'admin'));
 
 adminRoutes.get('/submissions', adminController.getSubmissions);

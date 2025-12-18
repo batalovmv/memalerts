@@ -85,7 +85,9 @@ export function setupRoutes(app: Express) {
   app.use('/webhooks', webhookRoutes);
   app.use('/channels', viewerRoutes);
   app.use('/submissions', submissionRoutes);
-  app.use('/admin', adminRoutes);
+  // Apply authenticate and requireBetaAccess to admin routes
+  // authenticate is applied in adminRoutes, but requireBetaAccess needs to be applied here
+  app.use('/admin', authenticate, requireBetaAccess, adminRoutes);
   app.use('/', betaRoutes); // Beta access routes (mounted at root to avoid /beta/beta/request)
 }
 
