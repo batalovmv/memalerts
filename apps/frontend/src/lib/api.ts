@@ -72,12 +72,12 @@ export const api: AxiosInstance = {
       
       if (pending) {
         // Return existing promise if request is still pending
-        return pending.promise;
+        return pending.promise as Promise<T>;
       }
       
       // Create new request
-      const promise = axiosInstance.request<T>(config)
-        .then((response) => {
+      const promise: Promise<T> = axiosInstance.request<any>(config)
+        .then((response: AxiosResponse<any>) => {
           // Remove from pending after a short delay to allow for rapid successive calls
           setTimeout(() => {
             pendingRequests.delete(requestKey);
@@ -91,7 +91,7 @@ export const api: AxiosInstance = {
         });
       
       pendingRequests.set(requestKey, {
-        promise,
+        promise: promise as Promise<any>,
         timestamp: Date.now(),
       });
       
