@@ -1,12 +1,12 @@
 import axios, { AxiosError, AxiosResponse, AxiosInstance, AxiosRequestConfig } from 'axios';
 
 // Request deduplication: track in-flight requests to prevent duplicate calls
-interface PendingRequest {
-  promise: Promise<any>;
+interface PendingRequest<T = any> {
+  promise: Promise<T>;
   timestamp: number;
 }
 
-const pendingRequests = new Map<string, PendingRequest>();
+const pendingRequests = new Map<string, PendingRequest<any>>();
 const REQUEST_DEDUP_TTL = 5000; // 5 seconds - requests with same key within this time share the same promise
 
 // Generate a unique key for a request
