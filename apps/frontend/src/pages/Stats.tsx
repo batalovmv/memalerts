@@ -18,8 +18,8 @@ export default function Stats() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
-      setStats(response.data);
+      const stats = await api.get(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
+      setStats(stats);
     } catch (error: any) {
       console.error('Failed to fetch stats:', error);
     } finally {

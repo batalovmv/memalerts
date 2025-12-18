@@ -330,8 +330,8 @@ function WalletManagement() {
     try {
       setLoading(true);
       const { api } = await import('../lib/api');
-      const response = await api.get('/admin/wallets');
-      setWallets(response.data);
+      const wallets = await api.get('/admin/wallets');
+      setWallets(wallets);
     } catch (error: any) {
       toast.error(error.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
     } finally {

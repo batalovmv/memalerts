@@ -46,12 +46,12 @@ export default function Search() {
       params.append('sortOrder', filters.sortOrder);
       params.append('limit', '50');
 
-      const response = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
-      setMemes(response.data);
+      const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
+      setMemes(memes);
 
       // Extract unique tags from results
       const allTags = new Map<string, Tag>();
-      response.data.forEach((meme) => {
+      memes.forEach((meme) => {
         meme.tags?.forEach((tagItem) => {
           if (!allTags.has(tagItem.tag.id)) {
             allTags.set(tagItem.tag.id, tagItem.tag);

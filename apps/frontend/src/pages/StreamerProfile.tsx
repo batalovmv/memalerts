@@ -122,8 +122,8 @@ export default function StreamerProfile() {
           channelSlug: slug,
           limit: '100',
         });
-        const response = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
-        setSearchResults(response.data);
+        const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
+        setSearchResults(memes);
       } catch (error: any) {
         console.error('Search failed:', error);
         setSearchResults([]);
