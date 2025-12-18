@@ -397,25 +397,29 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 )}
 
                 {/* Balance Display */}
-                <div className="flex flex-col items-end">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                <div className="relative group">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
                     {(coinIconUrl || channelCoinIconUrl) ? (
-                      <img src={coinIconUrl || channelCoinIconUrl || ''} alt="Coin" className="w-6 h-6" />
+                      <img src={coinIconUrl || channelCoinIconUrl || ''} alt="Coin" className="w-5 h-5" />
                     ) : (
-                      <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     )}
-                    <span className="text-base font-bold text-gray-900 dark:text-white">
-                      {isLoadingWallet ? '...' : balance}
-                    </span>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">coins</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-base font-bold text-gray-900 dark:text-white">
+                        {isLoadingWallet ? '...' : balance}
+                      </span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">coins</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {/* Tooltip */}
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
                     {channelRewardTitle 
                       ? t('header.activateRewardToEarn', `Activate ${channelRewardTitle} to earn`, { rewardTitle: channelRewardTitle })
                       : t('header.redeemChannelPoints', 'Redeem channel points to earn')
                     }
+                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45" />
                   </div>
                 </div>
 

@@ -40,6 +40,7 @@ export default function Admin() {
     durationMs: '15000',
   });
   const [rejectReason, setRejectReason] = useState('');
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
   const memesLoadedRef = useRef(false);
 
@@ -214,7 +215,8 @@ export default function Admin() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <div className="flex gap-4 border-b border-secondary/30">
+          <div className="flex gap-4 items-center border-b border-secondary/30">
+            {/* Основные вкладки */}
             <button
               onClick={() => setActiveTab('submissions')}
               className={`pb-2 px-4 transition-colors ${
@@ -226,16 +228,6 @@ export default function Admin() {
               {t('admin.pendingSubmissions')} ({submissions.length})
             </button>
             <button
-              onClick={() => setActiveTab('memes')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'memes'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.allMemes')} ({memes.length})
-            </button>
-            <button
               onClick={() => setActiveTab('settings')}
               className={`pb-2 px-4 transition-colors ${
                 activeTab === 'settings'
@@ -245,50 +237,110 @@ export default function Admin() {
             >
               {t('admin.channelSettings')}
             </button>
-            {user?.role === 'admin' && (
+
+            {/* Dropdown для дополнительных вкладок */}
+            <div className="ml-auto relative">
               <button
-                onClick={() => setActiveTab('wallets')}
-                className={`pb-2 px-4 transition-colors ${
-                  activeTab === 'wallets'
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className={`pb-2 px-4 transition-colors flex items-center gap-1 ${
+                  ['memes', 'wallets', 'promotions', 'statistics', 'beta'].includes(activeTab)
                     ? 'border-b-2 border-primary text-primary'
                     : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
                 }`}
               >
-                {t('admin.walletManagement')}
+                {t('admin.more', 'More')}
+                <svg 
+                  className={`w-4 h-4 transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
-            )}
-            <button
-              onClick={() => setActiveTab('promotions')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'promotions'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.promotions')}
-            </button>
-            <button
-              onClick={() => setActiveTab('statistics')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'statistics'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.statistics')}
-            </button>
-            {user?.role === 'admin' && (
-              <button
-                onClick={() => setActiveTab('beta')}
-                className={`pb-2 px-4 transition-colors ${
-                  activeTab === 'beta'
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-                }`}
-              >
-                {t('admin.betaAccess')}
-              </button>
-            )}
+
+              {/* Dropdown меню */}
+              {isMoreMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsMoreMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 py-1">
+                    <button
+                      onClick={() => {
+                        setActiveTab('memes');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        activeTab === 'memes'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {t('admin.allMemes')} ({memes.length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('statistics');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        activeTab === 'statistics'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {t('admin.statistics')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('promotions');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        activeTab === 'promotions'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {t('admin.promotions')}
+                    </button>
+                    {user?.role === 'admin' && (
+                      <>
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                        <button
+                          onClick={() => {
+                            setActiveTab('wallets');
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                            activeTab === 'wallets'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {t('admin.walletManagement')}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveTab('beta');
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                            activeTab === 'beta'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {t('admin.betaAccess')}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
