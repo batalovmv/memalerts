@@ -45,7 +45,7 @@ export const createSubmission = createAsyncThunk<
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    return response;
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({

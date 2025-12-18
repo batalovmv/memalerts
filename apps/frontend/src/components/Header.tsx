@@ -64,13 +64,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         if (currentChannelSlug) {
           // Load wallet for the current channel
           try {
-            const walletResponse = await api.get<Wallet>(`/channels/${currentChannelSlug}/wallet`, {
+            const wallet = await api.get<Wallet>(`/channels/${currentChannelSlug}/wallet`, {
               timeout: 10000,
             });
-            setWallet(walletResponse.data);
+            setWallet(wallet);
             // Update Redux store if channelId matches
-            if (channelId && walletResponse.data.channelId === channelId) {
-              dispatch(updateWalletBalance({ channelId, balance: walletResponse.data.balance }));
+            if (channelId && wallet.channelId === channelId) {
+              dispatch(updateWalletBalance({ channelId, balance: wallet.balance }));
             }
           } catch (error: any) {
             if (error.response?.status === 404 || error.code === 'ECONNABORTED') {

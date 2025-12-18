@@ -65,23 +65,23 @@ export default function StreamerProfile() {
     const loadChannelData = async () => {
       try {
         // Load channel info and memes
-        const channelResponse = await api.get<ChannelInfo>(`/channels/${slug}`);
-        setChannelInfo(channelResponse.data);
+        const channelInfo = await api.get<ChannelInfo>(`/channels/${slug}`);
+        setChannelInfo(channelInfo);
         
         // If user is logged in, load their wallet for this channel
         if (user) {
           try {
-            const walletResponse = await api.get<Wallet>(`/channels/${slug}/wallet`, {
+            const wallet = await api.get<Wallet>(`/channels/${slug}/wallet`, {
               timeout: 10000, // 10 second timeout
             });
-            setWallet(walletResponse.data);
+            setWallet(wallet);
           } catch (error: any) {
             // If wallet doesn't exist or times out, set default wallet
             if (error.response?.status === 404 || error.code === 'ECONNABORTED' || error.response?.status === 504 || error.response?.status === 500) {
               setWallet({
                 id: '',
                 userId: user.id,
-                channelId: channelResponse.data.id,
+                channelId: channelInfo.id,
                 balance: 0,
               });
             }
@@ -149,12 +149,12 @@ export default function StreamerProfile() {
       // Refresh wallet balance
       if (slug) {
         try {
-          const walletResponse = await api.get<Wallet>(`/channels/${slug}/wallet`);
-          setWallet(walletResponse.data);
+          const wallet = await api.get<Wallet>(`/channels/${slug}/wallet`);
+          setWallet(wallet);
           // Also update Redux store
           dispatch(updateWalletBalance({ 
-            channelId: walletResponse.data.channelId, 
-            balance: walletResponse.data.balance 
+            channelId: wallet.channelId, 
+            balance: wallet.balance 
           }));
         } catch (error) {
           console.error('Error refreshing wallet:', error);
