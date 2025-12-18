@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { store } from '../store/index';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
 import { fetchMemes } from '../store/slices/memesSlice';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
@@ -46,14 +47,16 @@ export default function Admin() {
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin')) {
       // Load submissions if not already loaded
-      if (!submissionsLoading && !submissionsLoadedRef.current) {
-        const currentSubmissions = submissions.filter(s => s.status === 'pending');
-        if (currentSubmissions.length === 0) {
-          submissionsLoadedRef.current = true;
-          dispatch(fetchSubmissions({ status: 'pending' }));
-        } else {
-          submissionsLoadedRef.current = true;
-        }
+      // Check Redux store directly to avoid duplicate requests on navigation
+      const currentState = store.getState();
+      const hasSubmissions = currentState.submissions.submissions.length > 0;
+      const isSubmissionsLoading = currentState.submissions.loading;
+      
+      if (hasSubmissions && !submissionsLoadedRef.current) {
+        submissionsLoadedRef.current = true;
+      } else if (!isSubmissionsLoading && !submissionsLoadedRef.current && !hasSubmissions) {
+        submissionsLoadedRef.current = true;
+        dispatch(fetchSubmissions({ status: 'pending' }));
       }
       
       // Load memes if not already loaded
@@ -74,7 +77,7 @@ export default function Admin() {
       memesLoadedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, user?.role, user?.channelId, dispatch, submissionsLoading, memesLoading]);
+  }, [user, user?.role, user?.channelId, dispatch, memesLoading]);
 
   const handleApprove = async (submissionId: string): Promise<void> => {
     // Use standard values: 100 coins and 15 seconds (15000ms) max duration

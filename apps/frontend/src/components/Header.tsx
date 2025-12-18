@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { store } from '../store/index';
 import { updateWalletBalance } from '../store/slices/authSlice';
 import { fetchSubmissions } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
@@ -53,22 +54,29 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   );
 
   // Load submissions for streamer/admin if not already loaded
-  // Use ref to track if we've already attempted to load to prevent infinite loops
+  // Check Redux store directly to avoid duplicate requests on navigation
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && !submissionsLoadedRef.current) {
-      // Check if submissions are already loaded
-      if (submissions.length === 0) {
+    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
+      // Check Redux store directly - if submissions exist, mark as loaded and skip request
+      const currentState = store.getState();
+      const hasSubmissions = currentState.submissions.submissions.length > 0;
+      const isLoading = currentState.submissions.loading;
+      
+      if (hasSubmissions && !submissionsLoadedRef.current) {
+        submissionsLoadedRef.current = true;
+        return; // Already have submissions, don't request
+      }
+      
+      if (!isLoading && !submissionsLoadedRef.current && !hasSubmissions) {
         submissionsLoadedRef.current = true;
         dispatch(fetchSubmissions({ status: 'pending' }));
-      } else {
-        submissionsLoadedRef.current = true;
       }
     }
     // Reset ref when user changes
     if (!user || !user.channelId) {
       submissionsLoadedRef.current = false;
     }
-  }, [user, user?.role, user?.channelId, submissionsLoading, dispatch]);
+  }, [user, user?.role, user?.channelId, dispatch]);
 
   // Load wallet balance and auto-refresh
   // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile

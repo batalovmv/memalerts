@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { store } from '../store/index';
 import { fetchSubmissions } from '../store/slices/submissionsSlice';
 import Header from '../components/Header';
 import SubmitModal from '../components/SubmitModal';
@@ -9,7 +10,7 @@ import SubmitModal from '../components/SubmitModal';
 export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { submissions } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -25,23 +26,29 @@ export default function Dashboard() {
   // Removed role restrictions - Dashboard is accessible to all users
 
   // Load pending submissions if user is streamer/admin
-  // Note: Header also loads submissions, so we check if already loaded to avoid duplicate requests
-  // Use ref to track if we've already attempted to load to prevent infinite loops
+  // Check Redux store directly to avoid duplicate requests on navigation
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && !submissionsLoadedRef.current) {
-      // Check if submissions are already loaded
-      if (submissions.length === 0) {
+    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
+      // Check Redux store directly - if submissions exist, mark as loaded and skip request
+      const currentState = store.getState();
+      const hasSubmissions = currentState.submissions.submissions.length > 0;
+      const isLoading = currentState.submissions.loading;
+      
+      if (hasSubmissions && !submissionsLoadedRef.current) {
+        submissionsLoadedRef.current = true;
+        return; // Already have submissions, don't request
+      }
+      
+      if (!isLoading && !submissionsLoadedRef.current && !hasSubmissions) {
         submissionsLoadedRef.current = true;
         dispatch(fetchSubmissions({ status: 'pending' }));
-      } else {
-        submissionsLoadedRef.current = true;
       }
     }
     // Reset ref when user changes
     if (!user || !user.channelId) {
       submissionsLoadedRef.current = false;
     }
-  }, [user, user?.role, user?.channelId, submissionsLoading, dispatch]);
+  }, [user, user?.role, user?.channelId, dispatch]);
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
 
