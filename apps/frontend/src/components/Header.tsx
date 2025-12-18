@@ -16,9 +16,10 @@ interface HeaderProps {
   channelId?: string;
   primaryColor?: string | null;
   coinIconUrl?: string | null;
+  rewardTitle?: string | null;
 }
 
-export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl }: HeaderProps) {
+export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { submissions } = useAppSelector((state) => state.submissions);
@@ -32,6 +33,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
+  const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   // Determine if we're on own profile page
@@ -127,12 +129,21 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     };
   }, [user, currentChannelSlug, channelId, dispatch]);
 
-  // Load channel coin icon if not provided via props
+  // Load channel coin icon and reward title if not provided via props
   useEffect(() => {
-    const loadChannelCoinIcon = async () => {
+    const loadChannelData = async () => {
       // If coinIconUrl is provided via props, use it
       if (coinIconUrl !== undefined) {
         setChannelCoinIconUrl(coinIconUrl);
+      }
+      
+      // If rewardTitle is provided via props, use it
+      if (rewardTitle !== undefined) {
+        setChannelRewardTitle(rewardTitle);
+      }
+
+      // If both are provided via props, we're done
+      if (coinIconUrl !== undefined && rewardTitle !== undefined) {
         return;
       }
 
@@ -141,9 +152,18 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       if (slugToUse) {
         // Check cache first
         const cached = getCachedChannelData(slugToUse);
-        if (cached?.coinIconUrl) {
-          setChannelCoinIconUrl(cached.coinIconUrl);
-          return;
+        if (cached) {
+          if (coinIconUrl === undefined && cached.coinIconUrl) {
+            setChannelCoinIconUrl(cached.coinIconUrl);
+          }
+          if (rewardTitle === undefined && cached.rewardTitle) {
+            setChannelRewardTitle(cached.rewardTitle);
+          }
+          // If we got both from cache, we're done
+          if ((coinIconUrl !== undefined || cached.coinIconUrl) && 
+              (rewardTitle !== undefined || cached.rewardTitle)) {
+            return;
+          }
         }
 
         // Don't fetch if we're on a channel page - data will be loaded by StreamerProfile
@@ -154,14 +174,19 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
         // If not in cache and not on channel page, fetch it
         const channelData = await getChannelData(slugToUse);
-        if (channelData?.coinIconUrl) {
-          setChannelCoinIconUrl(channelData.coinIconUrl);
+        if (channelData) {
+          if (coinIconUrl === undefined && channelData.coinIconUrl) {
+            setChannelCoinIconUrl(channelData.coinIconUrl);
+          }
+          if (rewardTitle === undefined && channelData.rewardTitle) {
+            setChannelRewardTitle(channelData.rewardTitle);
+          }
         }
       }
     };
 
-    loadChannelCoinIcon();
-  }, [coinIconUrl, user?.channel?.slug, currentChannelSlug, location.pathname, getChannelData, getCachedChannelData]);
+    loadChannelData();
+  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug, location.pathname, getChannelData, getCachedChannelData]);
 
   // Setup Socket.IO connection for real-time wallet updates
   // Use separate effects to avoid reconnection on dependency changes
@@ -293,16 +318,37 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {showPendingIndicator && (
                   <button
                     onClick={handlePendingSubmissionsClick}
-                    className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    title={pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount })}
-                    aria-label={pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount })}
+                    className={`relative p-2 rounded-lg transition-colors ${
+                      hasPendingSubmissions
+                        ? 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800 opacity-60'
+                    }`}
+                    title={hasPendingSubmissions 
+                      ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
+                      : t('header.noPendingSubmissions', 'No pending submissions')
+                    }
+                    aria-label={hasPendingSubmissions 
+                      ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
+                      : t('header.noPendingSubmissions', 'No pending submissions')
+                    }
                   >
-                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg 
+                      className={`w-6 h-6 transition-colors ${
+                        hasPendingSubmissions 
+                          ? 'text-primary' 
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                      {pendingSubmissionsCount}
-                    </span>
+                    {hasPendingSubmissions && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                        {pendingSubmissionsCount}
+                      </span>
+                    )}
                   </button>
                 )}
 
@@ -310,13 +356,14 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {showSubmitButton && (
                   <button
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
                     title={t('header.submitMeme')}
                     aria-label={t('header.submitMeme')}
                   >
-                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
+                    <span className="text-sm">{t('header.submitMeme')}</span>
                   </button>
                 )}
 
@@ -335,8 +382,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     </span>
                   </div>
                   {/* Tooltip */}
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    {t('header.coinsTooltip')}
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    {channelRewardTitle 
+                      ? t('header.coinsTooltipWithReward', { rewardTitle: channelRewardTitle }, `Активируйте ${channelRewardTitle} для получения монет`)
+                      : t('header.coinsTooltip')
+                    }
                   </div>
                 </div>
 

@@ -26,7 +26,18 @@
     "title": "Channel Points Mem Alerts",
     "subtitle": "Spend your Twitch channel points to activate memes on stream!",
     "login": "Login with Twitch",
-    "terms": "By continuing, you agree to our Terms of Service and Privacy Policy."
+    "terms": "By continuing, you agree to our Terms of Service and Privacy Policy.",
+    "howItWorks": "How It Works",
+    "forViewers": "For Viewers",
+    "forStreamers": "For Streamers",
+    "viewerStep1": "Login through Twitch",
+    "viewerStep2": "Find the streamer's channel (by link)",
+    "viewerStep3": "Activate the reward on Twitch to get coins",
+    "viewerStep4": "Activate memes for coins",
+    "streamerStep1": "Login through Twitch",
+    "streamerStep2": "Configure your channel and reward",
+    "streamerStep3": "Approve memes from viewers",
+    "streamerStep4": "Share your profile link"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -41,7 +52,20 @@
     "copyLink": "Copy Link",
     "linkCopied": "Link copied!",
     "shareLinkDescription": "Share this link so others can submit memes and activate them on your channel!",
-    "viewPublicProfile": "View Public Profile"
+    "viewPublicProfile": "View Public Profile",
+    "noChannel": "You don't have a channel yet. Create one to start using the platform.",
+    "quickActions": {
+      "submitMeme": "Submit Meme",
+      "submitMemeDescription": "Add a meme directly to your pool",
+      "submitMemeButton": "Submit Meme",
+      "pendingSubmissions": "Pending Submissions",
+      "pendingSubmissionsDescription": "Review and approve meme submissions",
+      "pendingSubmissionsButton": "{{count}} Pending",
+      "noPendingSubmissions": "No Pending",
+      "settings": "Settings",
+      "settingsDescription": "Configure your channel and preferences",
+      "settingsButton": "Open Settings"
+    }
   },
   "submit": {
     "title": "Submit a Meme",
@@ -204,9 +228,11 @@
   "header": {
     "pendingSubmissions": "pending submission",
     "pendingSubmissionsPlural": "pending submissions",
+    "noPendingSubmissions": "No pending submissions",
     "submitMeme": "Submit a meme",
     "addCoins": "Add coins",
     "coinsTooltip": "Coins you can redeem with your streamer",
+    "coinsTooltipWithReward": "Activate {{rewardTitle}} to get coins",
     "addCoinsTitle": "Add Coins",
     "enterAmount": "Enter amount",
     "adding": "Adding...",
@@ -243,7 +269,16 @@
     "memes": "memes",
     "users": "users",
     "availableMemes": "Available Memes",
-    "noMemes": "No memes available"
+    "noMemes": "No memes available",
+    "submitMeme": "Submit a Meme"
+  },
+  "coinsInfoModal": {
+    "title": "How to get coins",
+    "description": "Activate the reward on the streamer's Twitch channel to get coins.",
+    "descriptionWithReward": "Activate the reward \"{{rewardTitle}}\" on the streamer's Twitch channel to get coins.",
+    "afterActivation": "After activation, coins will appear in your balance.",
+    "gotIt": "Got it",
+    "close": "Close"
   },
   "tagInput": {
     "pressEnterToAdd": "Press Enter or comma to add a tag. Maximum 50 characters per tag."

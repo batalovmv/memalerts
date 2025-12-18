@@ -26,7 +26,18 @@
     "title": "Channel Points Mem Alerts",
     "subtitle": "Тратьте очки канала Twitch на активацию мемов в стриме!",
     "login": "Войти через Twitch",
-    "terms": "Продолжая, вы соглашаетесь с нашими Условиями использования и Политикой конфиденциальности."
+    "terms": "Продолжая, вы соглашаетесь с нашими Условиями использования и Политикой конфиденциальности.",
+    "howItWorks": "Как это работает",
+    "forViewers": "Для зрителей",
+    "forStreamers": "Для стримеров",
+    "viewerStep1": "Войдите через Twitch",
+    "viewerStep2": "Найдите канал стримера (по ссылке)",
+    "viewerStep3": "Активируйте награду на Twitch для получения монет",
+    "viewerStep4": "Активируйте мемы за монеты",
+    "streamerStep1": "Войдите через Twitch",
+    "streamerStep2": "Настройте канал и награду",
+    "streamerStep3": "Одобряйте мемы от зрителей",
+    "streamerStep4": "Делитесь ссылкой на свой профиль"
   },
   "dashboard": {
     "title": "Панель управления",
@@ -41,7 +52,20 @@
     "copyLink": "Копировать ссылку",
     "linkCopied": "Ссылка скопирована!",
     "shareLinkDescription": "Поделитесь этой ссылкой, чтобы другие могли отправлять мемы и активировать их на вашем канале!",
-    "viewPublicProfile": "Просмотр публичного профиля"
+    "viewPublicProfile": "Просмотр публичного профиля",
+    "noChannel": "У вас пока нет канала. Создайте его, чтобы начать использовать платформу.",
+    "quickActions": {
+      "submitMeme": "Отправить мем",
+      "submitMemeDescription": "Добавьте мем напрямую в ваш пул",
+      "submitMemeButton": "Отправить мем",
+      "pendingSubmissions": "Ожидающие заявки",
+      "pendingSubmissionsDescription": "Проверьте и одобрите заявки на мемы",
+      "pendingSubmissionsButton": "{{count}} Ожидает",
+      "noPendingSubmissions": "Нет заявок",
+      "settings": "Настройки",
+      "settingsDescription": "Настройте свой канал и предпочтения",
+      "settingsButton": "Открыть настройки"
+    }
   },
   "submit": {
     "title": "Отправить мем",
@@ -204,9 +228,11 @@
   "header": {
     "pendingSubmissions": "ожидающая заявка",
     "pendingSubmissionsPlural": "ожидающих заявок",
+    "noPendingSubmissions": "Нет ожидающих заявок",
     "submitMeme": "Отправить мем",
     "addCoins": "Добавить монеты",
     "coinsTooltip": "Монеты, которые вы можете обменять у вашего стримера",
+    "coinsTooltipWithReward": "Активируйте {{rewardTitle}} для получения монет",
     "addCoinsTitle": "Добавить монеты",
     "enterAmount": "Введите сумму",
     "adding": "Добавление...",

@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
 import SubmitModal from '../components/SubmitModal';
+import CoinsInfoModal from '../components/CoinsInfoModal';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import type { Meme, Wallet } from '../types';
@@ -202,6 +203,7 @@ export default function StreamerProfile() {
         channelSlug={slug}
         channelId={channelInfo?.id}
         primaryColor={channelInfo?.primaryColor}
+        rewardTitle={channelInfo.rewardTitle || null}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
@@ -349,6 +351,9 @@ export default function StreamerProfile() {
         channelSlug={slug}
         channelId={channelInfo?.id}
       />
+
+      {/* Coins Info Modal */}
+      <CoinsInfoModal rewardTitle={channelInfo.rewardTitle || null} />
     </div>
   );
 }
