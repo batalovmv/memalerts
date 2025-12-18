@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -317,6 +317,7 @@ export default function Admin() {
 
 // Wallet Management Component (Admin only)
 function WalletManagement() {
+  const { t } = useTranslation();
   const [wallets, setWallets] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [adjusting, setAdjusting] = useState<string | null>(null);
@@ -326,7 +327,7 @@ function WalletManagement() {
     try {
       setLoading(true);
       const { api } = await import('../lib/api');
-      const wallets = await api.get('/admin/wallets');
+      const wallets = await api.get<Array<Record<string, unknown>>>('/admin/wallets');
       setWallets(wallets);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -334,7 +335,11 @@ function WalletManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    fetchWallets();
+  }, [fetchWallets]);
 
   const handleAdjust = async (userId: string, channelId: string) => {
     const amount = parseInt(adjustAmount, 10);
@@ -358,8 +363,6 @@ function WalletManagement() {
     }
   };
 
-  const { t } = useTranslation();
-
   if (loading) {
     return <div className="text-center py-8">{t('admin.loadingWallets')}</div>;
   }
@@ -379,32 +382,35 @@ function WalletManagement() {
               </tr>
             </thead>
             <tbody>
-              {wallets.map((wallet) => (
-                <tr key={wallet.id} className="border-b">
-                  <td className="p-2">{wallet.user.displayName}</td>
-                  <td className="p-2">{wallet.channel.name}</td>
-                  <td className="p-2 font-bold">{wallet.balance} coins</td>
+              {wallets.map((wallet) => {
+                const w = wallet as { id: string; userId: string; channelId: string; balance: number; user: { displayName: string }; channel: { name: string } };
+                return (
+                <tr key={w.id} className="border-b">
+                  <td className="p-2">{w.user.displayName}</td>
+                  <td className="p-2">{w.channel.name}</td>
+                  <td className="p-2 font-bold">{w.balance} coins</td>
                   <td className="p-2">
                     <div className="flex gap-2 items-center">
                       <input
                         type="number"
-                        value={adjusting === `${wallet.userId}-${wallet.channelId}` ? adjustAmount : ''}
+                        value={adjusting === `${w.userId}-${w.channelId}` ? adjustAmount : ''}
                         onChange={(e) => setAdjustAmount(e.target.value)}
                         placeholder={t('admin.amount')}
                         className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
-                        disabled={adjusting !== null && adjusting !== `${wallet.userId}-${wallet.channelId}`}
+                        disabled={adjusting !== null && adjusting !== `${w.userId}-${w.channelId}`}
                       />
                       <button
-                        onClick={() => handleAdjust(wallet.userId, wallet.channelId)}
+                        onClick={() => handleAdjust(w.userId, w.channelId)}
                         disabled={adjusting !== null}
                         className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
                       >
-                        {adjusting === `${wallet.userId}-${wallet.channelId}` ? t('admin.adjusting') : t('admin.adjust')}
+                        {adjusting === `${w.userId}-${w.channelId}` ? t('admin.adjusting') : t('admin.adjust')}
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -508,7 +514,7 @@ function ChannelSettings() {
       toast.error(errorMessage);
       
       // If requires reauth, show special message
-      if (error.response?.data?.requiresReauth) {
+      if (apiError.response?.data && typeof apiError.response.data === 'object' && 'requiresReauth' in apiError.response.data) {
         setTimeout(() => {
           if (window.confirm(t('admin.requiresReauth') || 'You need to log out and log in again to enable Twitch rewards. Log out now?')) {
             // Logout and redirect to login
@@ -751,7 +757,7 @@ function ChannelStatistics() {
     try {
       setLoading(true);
       const { api } = await import('../lib/api');
-      const stats = await api.get('/admin/stats/channel');
+      const stats = await api.get<Record<string, unknown>>('/admin/stats/channel');
       setStats(stats);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -780,15 +786,15 @@ function ChannelStatistics() {
         <h2 className="text-2xl font-bold mb-4">{t('admin.overallStatistics') || 'Overall Statistics'}</h2>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-4 bg-primary/10 rounded-lg border border-secondary/20">
-            <p className="text-3xl font-bold text-primary">{stats.overall.totalActivations}</p>
+            <p className="text-3xl font-bold text-primary">{(stats.overall as { totalActivations: number })?.totalActivations || 0}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalActivations')}</p>
           </div>
           <div className="text-center p-4 bg-accent/10 rounded-lg border border-secondary/20">
-            <p className="text-3xl font-bold text-accent">{stats.overall.totalCoinsSpent}</p>
+            <p className="text-3xl font-bold text-accent">{(stats.overall as { totalCoinsSpent: number })?.totalCoinsSpent || 0}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalCoinsSpent')}</p>
           </div>
           <div className="text-center p-4 bg-secondary/10 rounded-lg border border-secondary/20">
-            <p className="text-3xl font-bold text-secondary">{stats.overall.totalMemes}</p>
+            <p className="text-3xl font-bold text-secondary">{(stats.overall as { totalMemes: number })?.totalMemes || 0}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalMemes')}</p>
           </div>
         </div>
@@ -807,13 +813,16 @@ function ChannelStatistics() {
               </tr>
             </thead>
             <tbody>
-              {Array.isArray(stats.userSpending) && stats.userSpending.map((item: Record<string, unknown>) => (
-                <tr key={item.user.id} className="border-b">
-                  <td className="p-2">{item.user.displayName}</td>
-                  <td className="p-2">{item.activationsCount}</td>
-                  <td className="p-2 font-bold text-accent">{item.totalCoinsSpent}</td>
+              {Array.isArray(stats.userSpending) && stats.userSpending.map((item: Record<string, unknown>) => {
+                const i = item as { user: { id: string; displayName: string }; activationsCount: number; totalCoinsSpent: number };
+                return (
+                <tr key={i.user.id} className="border-b">
+                  <td className="p-2">{i.user.displayName}</td>
+                  <td className="p-2">{i.activationsCount}</td>
+                  <td className="p-2 font-bold text-accent">{i.totalCoinsSpent}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -832,13 +841,16 @@ function ChannelStatistics() {
               </tr>
             </thead>
             <tbody>
-              {Array.isArray(stats.memePopularity) && stats.memePopularity.map((item: Record<string, unknown>, index: number) => (
-                <tr key={item.meme?.id || index} className="border-b">
-                  <td className="p-2">{item.meme?.title || t('common.unknown') || 'Unknown'}</td>
-                  <td className="p-2">{item.activationsCount}</td>
-                  <td className="p-2 font-bold text-accent">{item.totalCoinsSpent}</td>
+              {Array.isArray(stats.memePopularity) && stats.memePopularity.map((item: Record<string, unknown>, index: number) => {
+                const i = item as { meme?: { id: string; title: string }; activationsCount: number; totalCoinsSpent: number };
+                return (
+                <tr key={i.meme?.id || index} className="border-b">
+                  <td className="p-2">{i.meme?.title || t('common.unknown') || 'Unknown'}</td>
+                  <td className="p-2">{i.activationsCount}</td>
+                  <td className="p-2 font-bold text-accent">{i.totalCoinsSpent}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -850,7 +862,7 @@ function ChannelStatistics() {
 // Promotion Management Component
 function PromotionManagement() {
   const { t } = useTranslation();
-  const [promotions, setPromotions] = useState<any[]>([]);
+  const [promotions, setPromotions] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -870,7 +882,7 @@ function PromotionManagement() {
       setLoading(true);
       setError(null);
       const { api } = await import('../lib/api');
-      const promotions = await api.get('/admin/promotions');
+      const promotions = await api.get<Array<Record<string, unknown>>>('/admin/promotions');
       setPromotions(promotions);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -1023,31 +1035,32 @@ function PromotionManagement() {
             <div className="text-center py-8 text-gray-500">{t('admin.noPromotions')}</div>
           ) : (
             promotions.map((promo) => {
-              const startDate = new Date(promo.startDate);
-              const endDate = new Date(promo.endDate);
-              const isCurrentlyActive = promo.isActive && now >= startDate && now <= endDate;
+              const p = promo as { id: string; name: string; discountPercent: number; startDate: string | number | Date; endDate: string | number | Date; isActive: boolean };
+              const startDate = new Date(p.startDate);
+              const endDate = new Date(p.endDate);
+              const isCurrentlyActive = p.isActive && now >= startDate && now <= endDate;
               
               return (
                 <div
-                  key={promo.id}
+                  key={p.id}
                   className={`p-4 border rounded-lg ${
                     isCurrentlyActive ? 'border-green-500 bg-green-50' : 'border-gray-300'
                   }`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-semibold text-lg">{promo.name}</h3>
-                      <p className="text-accent font-bold">{promo.discountPercent}% discount</p>
+                      <h3 className="font-semibold text-lg">{p.name}</h3>
+                      <p className="text-accent font-bold">{p.discountPercent}% discount</p>
                       <p className="text-sm text-gray-600">
                         {startDate.toLocaleString()} - {endDate.toLocaleString()}
                       </p>
                       <div className="flex gap-2 mt-2">
                         <span
                         className={`px-2 py-1 rounded text-xs ${
-                          promo.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          p.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                         }`}
                       >
-                        {promo.isActive ? t('admin.active') : t('admin.inactive')}
+                        {p.isActive ? t('admin.active') : t('admin.inactive')}
                       </span>
                       {isCurrentlyActive && (
                         <span className="px-2 py-1 rounded text-xs bg-green-200 text-green-900">
@@ -1058,17 +1071,17 @@ function PromotionManagement() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleToggleActive(promo.id, promo.isActive)}
+                        onClick={() => handleToggleActive(p.id, p.isActive)}
                         className={`px-3 py-1 rounded text-sm ${
-                          promo.isActive
+                          p.isActive
                             ? 'bg-yellow-600 hover:bg-yellow-700'
                             : 'bg-green-600 hover:bg-green-700'
                         } text-white`}
                       >
-                        {promo.isActive ? t('admin.deactivate') : t('admin.activate')}
+                        {p.isActive ? t('admin.deactivate') : t('admin.activate')}
                       </button>
                       <button
-                        onClick={() => handleDelete(promo.id)}
+                        onClick={() => handleDelete(p.id)}
                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
                       >
                         {t('common.delete')}
@@ -1088,13 +1101,13 @@ function PromotionManagement() {
 // Beta Access Management Component (Admin only)
 function BetaAccessManagement() {
   const { t } = useTranslation();
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
 
   const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
-      const requests = await api.get('/admin/beta/requests');
+      const requests = await api.get<Array<Record<string, unknown>>>('/admin/beta/requests');
       setRequests(requests);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -1158,37 +1171,39 @@ function BetaAccessManagement() {
         </div>
       ) : (
         <div className="space-y-4">
-          {requests.map((request: Record<string, unknown>) => (
-            <div key={request.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+          {requests.map((request: Record<string, unknown>) => {
+            const r = request as { id: string; status: string; requestedAt: string; approvedAt?: string; user?: { displayName: string; twitchUserId: string } };
+            return (
+            <div key={r.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <div className="font-semibold text-gray-900 dark:text-white">
-                    {request.user?.displayName || 'Unknown User'}
+                    {r.user?.displayName || 'Unknown User'}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {request.user?.twitchUserId || 'N/A'}
+                    {r.user?.twitchUserId || 'N/A'}
                   </div>
                 </div>
-                {getStatusBadge(request.status)}
+                {getStatusBadge(r.status)}
               </div>
               
               <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                <div>Requested: {new Date(request.requestedAt).toLocaleString()}</div>
-                {request.approvedAt && (
-                  <div>Processed: {new Date(request.approvedAt).toLocaleString()}</div>
+                <div>Requested: {new Date(r.requestedAt).toLocaleString()}</div>
+                {r.approvedAt && (
+                  <div>Processed: {new Date(r.approvedAt).toLocaleString()}</div>
                 )}
               </div>
 
-              {request.status === 'pending' && (
+              {r.status === 'pending' && (
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleApprove(request.id)}
+                    onClick={() => handleApprove(r.id)}
                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
                   >
                     {t('admin.approve')}
                   </button>
                   <button
-                    onClick={() => handleReject(request.id)}
+                    onClick={() => handleReject(r.id)}
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
                   >
                     {t('admin.reject')}
@@ -1196,7 +1211,8 @@ function BetaAccessManagement() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

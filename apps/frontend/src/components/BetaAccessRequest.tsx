@@ -30,8 +30,8 @@ export default function BetaAccessRequest() {
   const loadStatus = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/beta/status');
-      setStatus(response.data);
+      const response = await api.get<BetaAccessStatus>('/beta/status');
+      setStatus(response);
     } catch (error) {
       console.error('Error loading beta access status:', error);
     } finally {

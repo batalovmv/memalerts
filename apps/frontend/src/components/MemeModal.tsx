@@ -117,8 +117,8 @@ export default function MemeModal({
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await api.patch(`/admin/memes/${currentMeme.id}`, formData);
-      setCurrentMeme(response.data);
+      const response = await api.patch<Meme>(`/admin/memes/${currentMeme.id}`, formData);
+      setCurrentMeme(response);
       toast.success('Meme updated successfully!');
       setIsEditing(false);
       onUpdate();

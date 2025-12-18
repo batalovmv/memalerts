@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { api } from '../lib/api';
 import UserMenu from '../components/UserMenu';
@@ -12,7 +12,7 @@ export default function Stats() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const stats = await api.get(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
+      const stats = await api.get<Record<string, unknown>>(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
       setStats(stats);
     } catch (error: unknown) {
       console.error('Failed to fetch stats:', error);
@@ -61,7 +61,7 @@ export default function Stats() {
 
           {loading ? (
             <div className="text-center py-8">Loading statistics...</div>
-          ) : stats && stats.stats.length > 0 ? (
+          ) : stats && (stats.stats as Array<unknown>)?.length > 0 ? (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Top Memes</h2>
               <div className="overflow-x-auto">
@@ -75,14 +75,17 @@ export default function Stats() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.isArray(stats.stats) && stats.stats.map((stat: Record<string, unknown>, index: number) => (
-                      <tr key={stat.meme?.id || index} className="border-b">
+                    {Array.isArray(stats.stats) && (stats.stats as Array<Record<string, unknown>>).map((stat: Record<string, unknown>, index: number) => {
+                      const s = stat as { meme?: { id: string; title: string }; activationsCount: number; totalCoinsSpent: number };
+                      return (
+                      <tr key={s.meme?.id || index} className="border-b">
                         <td className="p-2 font-bold">#{index + 1}</td>
-                        <td className="p-2">{stat.meme?.title || 'Unknown'}</td>
-                        <td className="p-2">{stat.activationsCount}</td>
-                        <td className="p-2 font-bold text-purple-600">{stat.totalCoinsSpent}</td>
+                        <td className="p-2">{s.meme?.title || 'Unknown'}</td>
+                        <td className="p-2">{s.activationsCount}</td>
+                        <td className="p-2 font-bold text-purple-600">{s.totalCoinsSpent}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
