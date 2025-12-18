@@ -21,8 +21,8 @@ export const fetchMemes = createAsyncThunk<
 >('memes/fetchMemes', async ({ channelId }, { rejectWithValue }) => {
   try {
     const params = channelId ? { channelId } : {};
-    const response = await api.get<Meme[]>('/memes', { params });
-    return response.data;
+    const memes = await api.get<Meme[]>('/memes', { params });
+    return memes;
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({

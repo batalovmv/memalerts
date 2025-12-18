@@ -20,10 +20,10 @@ export const fetchSubmissions = createAsyncThunk<
   { rejectValue: ApiError }
 >('submissions/fetchSubmissions', async ({ status = 'pending' }, { rejectWithValue }) => {
   try {
-    const response = await api.get<Submission[]>('/admin/submissions', {
+    const submissions = await api.get<Submission[]>('/admin/submissions', {
       params: { status },
     });
-    return response.data;
+    return submissions;
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({
