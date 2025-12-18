@@ -28,11 +28,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const getSocketUrl = () => {
     const envUrl = import.meta.env.VITE_API_URL;
     if (envUrl) {
-      return envUrl;
+      console.log('Socket.IO using VITE_API_URL:', envUrl);
+      return envUrl; // Should be https://beta.twitchmemes.ru or similar for beta
     }
     if (import.meta.env.PROD) {
-      return window.location.origin;
+      const origin = window.location.origin;
+      console.log('Socket.IO using window.location.origin:', origin);
+      return origin;
     }
+    console.log('Socket.IO using localhost fallback');
     return 'http://localhost:3001';
   };
 
@@ -71,7 +75,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         setIsConnected(false);
       });
 
-      socket.on('connect_error', (error) => {
+      socket.on('connect_error', (error: Error) => {
         console.error('Socket.IO connection error:', error);
         setIsConnected(false);
       });

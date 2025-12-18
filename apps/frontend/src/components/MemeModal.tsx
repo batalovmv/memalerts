@@ -86,9 +86,19 @@ export default function MemeModal({
 
   const videoUrl = getVideoUrl();
   const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
-  const source = currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://') 
-    ? 'imported' 
-    : 'uploaded';
+  
+  const getSource = () => {
+    if (currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://')) {
+      try {
+        const url = new URL(currentMeme.fileUrl);
+        return url.hostname; // Show domain (e.g., memalerts.com)
+      } catch {
+        return 'imported';
+      }
+    }
+    return 'uploaded';
+  };
+  const source = getSource();
 
   const handlePlayPause = () => {
     if (videoRef.current) {
@@ -138,6 +148,28 @@ export default function MemeModal({
         priceCoins: currentMeme.priceCoins,
         durationMs: currentMeme.durationMs,
       });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!currentMeme) return;
+    
+    // Confirm deletion
+    if (!window.confirm(`Are you sure you want to delete "${currentMeme.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.delete(`/admin/memes/${currentMeme.id}`);
+      toast.success('Meme deleted successfully!');
+      onUpdate();
+      onClose();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || 'Failed to delete meme');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -217,24 +249,44 @@ export default function MemeModal({
           {/* Action buttons in top right corner */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
             {mode === 'admin' && isOwner && (
-              <button
-                onClick={isEditing ? handleCancel : handleEdit}
-                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors group"
-                title={isEditing ? 'Cancel editing' : 'Edit meme'}
-              >
-                <svg
-                  className={`w-5 h-5 ${isEditing ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400 group-hover:text-primary'}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              <div className="flex gap-2">
+                <button
+                  onClick={isEditing ? handleCancel : handleEdit}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors group"
+                  title={isEditing ? 'Cancel editing' : 'Edit meme'}
+                  disabled={loading}
                 >
-                  {isEditing ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  )}
-                </svg>
-              </button>
+                  <svg
+                    className={`w-5 h-5 ${isEditing ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400 group-hover:text-primary'}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    {isEditing ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    )}
+                  </svg>
+                </button>
+                {!isEditing && (
+                  <button
+                    onClick={handleDelete}
+                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-full transition-colors group"
+                    title="Delete meme"
+                    disabled={loading}
+                  >
+                    <svg
+                      className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-red-600 dark:group-hover:text-red-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             )}
             <button
               onClick={onClose}
@@ -383,6 +435,19 @@ export default function MemeModal({
                         Your balance: {walletBalance} coins
                       </p>
                     )}
+                  </div>
+                )}
+
+                {/* Delete button for admin mode */}
+                {mode === 'admin' && isOwner && !isEditing && (
+                  <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
+                    <button
+                      onClick={handleDelete}
+                      disabled={loading}
+                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-red-500/30"
+                    >
+                      {loading ? 'Deleting...' : 'Delete Meme'}
+                    </button>
                   </div>
                 )}
               </>
