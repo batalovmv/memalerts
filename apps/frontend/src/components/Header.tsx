@@ -287,7 +287,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   };
 
   const pendingSubmissionsCount = submissions.length;
-  const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin') && pendingSubmissionsCount > 0;
+  // Show indicator for streamers/admins always, but style it differently based on count
+  const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin');
+  const hasPendingSubmissions = pendingSubmissionsCount > 0;
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
 
@@ -384,7 +386,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                   {/* Tooltip */}
                   <div className="absolute right-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                     {channelRewardTitle 
-                      ? t('header.coinsTooltipWithReward', { rewardTitle: channelRewardTitle }, `Активируйте ${channelRewardTitle} для получения монет`)
+                      ? t('header.coinsTooltipWithReward', `Активируйте ${channelRewardTitle} для получения монет`, { rewardTitle: channelRewardTitle })
                       : t('header.coinsTooltip')
                     }
                   </div>

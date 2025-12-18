@@ -20,6 +20,7 @@ interface ChannelInfo {
   name: string;
   coinPerPointRatio: number;
   coinIconUrl?: string | null;
+  rewardTitle?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;

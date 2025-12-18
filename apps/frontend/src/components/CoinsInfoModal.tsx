@@ -49,7 +49,7 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
         <div className="space-y-3 text-gray-700 dark:text-gray-300">
           <p>
             {rewardTitle
-              ? t('coinsInfoModal.descriptionWithReward', { rewardTitle }, `Activate the reward "${rewardTitle}" on the streamer's Twitch channel to get coins.`)
+              ? t('coinsInfoModal.descriptionWithReward', `Activate the reward "${rewardTitle}" on the streamer's Twitch channel to get coins.`, { rewardTitle })
               : t('coinsInfoModal.description', 'Activate the reward on the streamer\'s Twitch channel to get coins.')
             }
           </p>

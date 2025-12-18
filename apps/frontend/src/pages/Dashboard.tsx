@@ -31,7 +31,6 @@ export default function Dashboard() {
   }, [user, dispatch]);
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
-  const isOwner = user && user.channelId && user.channelId === user.channelId;
 
   if (authLoading || !user) {
     return (
@@ -83,7 +82,7 @@ export default function Dashboard() {
                   }`}
                 >
                   {pendingSubmissionsCount > 0 
-                    ? t('dashboard.quickActions.pendingSubmissionsButton', { count: pendingSubmissionsCount }, `${pendingSubmissionsCount} Pending`)
+                    ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, { count: pendingSubmissionsCount })
                     : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')
                   }
                 </button>
