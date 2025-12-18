@@ -100,6 +100,32 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, user?.role, user?.channelId, dispatch, memesLoading]);
 
+  // Auto-detect video duration when approve modal opens
+  useEffect(() => {
+    if (approveModal.open && approveModal.submissionId) {
+      const submission = submissions.find(s => s.id === approveModal.submissionId);
+      if (submission?.fileUrlTemp && submission.type === 'video') {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        
+        const handleLoadedMetadata = () => {
+          if (video.duration && !isNaN(video.duration)) {
+            const durationMs = Math.min(Math.ceil(video.duration * 1000), 15000);
+            setApproveForm(prev => ({ ...prev, durationMs: String(durationMs) }));
+          }
+          window.URL.revokeObjectURL(video.src);
+        };
+        
+        video.onloadedmetadata = handleLoadedMetadata;
+        video.onerror = () => {
+          window.URL.revokeObjectURL(video.src);
+        };
+        
+        video.src = submission.fileUrlTemp;
+      }
+    }
+  }, [approveModal.open, approveModal.submissionId, submissions]);
+
   const openApproveModal = (submissionId: string) => {
     setApproveModal({ open: true, submissionId });
     setApproveForm({ priceCoins: '100', durationMs: '15000' });
@@ -475,7 +501,8 @@ export default function Admin() {
                     <button
                       type="button"
                       onClick={handleReject}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                      disabled={!rejectReason.trim()}
+                      className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                     >
                       {t('admin.reject')}
                     </button>
