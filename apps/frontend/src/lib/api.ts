@@ -1,5 +1,20 @@
 import axios, { AxiosError, AxiosResponse, AxiosInstance, AxiosRequestConfig } from 'axios';
 
+// Custom API interface that returns data directly instead of AxiosResponse
+interface CustomAxiosInstance {
+  request: <T = any>(config: AxiosRequestConfig) => Promise<T>;
+  get: <T = any>(url: string, config?: AxiosRequestConfig) => Promise<T>;
+  delete: <T = any>(url: string, config?: AxiosRequestConfig) => Promise<T>;
+  head: <T = any>(url: string, config?: AxiosRequestConfig) => Promise<T>;
+  options: <T = any>(url: string, config?: AxiosRequestConfig) => Promise<T>;
+  post: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) => Promise<T>;
+  put: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) => Promise<T>;
+  patch: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) => Promise<T>;
+  getUri: (config?: AxiosRequestConfig) => string;
+  defaults: AxiosInstance['defaults'];
+  interceptors: AxiosInstance['interceptors'];
+}
+
 // Request deduplication: track in-flight requests to prevent duplicate calls
 interface PendingRequest<T = any> {
   promise: Promise<T>;
@@ -62,7 +77,7 @@ const axiosInstance: AxiosInstance = axios.create({
 });
 
 // Wrap axios instance with request deduplication
-export const api: AxiosInstance = {
+export const api: CustomAxiosInstance = {
   ...axiosInstance,
   request: <T = any>(config: AxiosRequestConfig): Promise<T> => {
     // Only deduplicate GET requests to avoid issues with POST/PUT/DELETE
@@ -153,7 +168,7 @@ export const api: AxiosInstance = {
   },
   defaults: axiosInstance.defaults,
   interceptors: axiosInstance.interceptors,
-} as AxiosInstance;
+};
 
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
