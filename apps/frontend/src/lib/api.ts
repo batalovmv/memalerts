@@ -82,7 +82,7 @@ export const api: AxiosInstance = {
           setTimeout(() => {
             pendingRequests.delete(requestKey);
           }, 100);
-          return response;
+          return response.data as T;
         })
         .catch((error) => {
           // Remove from pending on error
@@ -99,28 +99,28 @@ export const api: AxiosInstance = {
     }
     
     // For non-GET requests, use original axios instance
-    return axiosInstance.request<T>(config);
+    return axiosInstance.request<T>(config).then(response => response.data as T);
   },
   get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     return api.request<T>({ ...config, method: 'GET', url });
   },
   delete: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.delete<T>(url, config);
+    return axiosInstance.delete<T>(url, config).then(response => response.data as T);
   },
   head: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.head<T>(url, config);
+    return axiosInstance.head<T>(url, config).then(response => response.data as T);
   },
   options: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.options<T>(url, config);
+    return axiosInstance.options<T>(url, config).then(response => response.data as T);
   },
   post: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.post<T>(url, data, config);
+    return axiosInstance.post<T>(url, data, config).then(response => response.data as T);
   },
   put: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.put<T>(url, data, config);
+    return axiosInstance.put<T>(url, data, config).then(response => response.data as T);
   },
   patch: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.patch<T>(url, data, config);
+    return axiosInstance.patch<T>(url, data, config).then(response => response.data as T);
   },
   getUri: (config?: AxiosRequestConfig): string => {
     return axiosInstance.getUri(config);

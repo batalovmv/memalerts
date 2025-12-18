@@ -48,12 +48,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     isOwnProfile
   );
 
-  // Load pending submissions if user is streamer/admin
-  useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin')) {
-      dispatch(fetchSubmissions({ status: 'pending' }));
-    }
-  }, [user, dispatch]);
+  // Submissions are fetched by pages that need them (Dashboard, Admin)
+  // Header only reads from Redux store, doesn't trigger fetches
 
   // Load wallet balance and auto-refresh
   useEffect(() => {
