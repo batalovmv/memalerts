@@ -102,8 +102,33 @@ export const api: AxiosInstance = {
     return axiosInstance.request<any>(config).then((response: AxiosResponse<any>) => response.data as T);
   },
   get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+    // Use request deduplication directly for GET requests
     const requestConfig = { ...config, method: 'GET' as const, url };
-    return api.request<T>(requestConfig);
+    const requestKey = getRequestKey(requestConfig);
+    const pending = pendingRequests.get(requestKey);
+    
+    if (pending) {
+      return pending.promise as Promise<T>;
+    }
+    
+    const promise: Promise<T> = axiosInstance.request<any>(requestConfig)
+      .then((response: AxiosResponse<any>) => {
+        setTimeout(() => {
+          pendingRequests.delete(requestKey);
+        }, 100);
+        return response.data as T;
+      })
+      .catch((error) => {
+        pendingRequests.delete(requestKey);
+        throw error;
+      });
+    
+    pendingRequests.set(requestKey, {
+      promise: promise as Promise<any>,
+      timestamp: Date.now(),
+    });
+    
+    return promise;
   },
   delete: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     return axiosInstance.delete<T>(url, config).then(response => response.data as T);
