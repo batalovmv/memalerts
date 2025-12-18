@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -19,13 +19,15 @@ export default function Admin() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const { submissions, loading: submissionsLoading, error: submissionsError } = useAppSelector((state) => state.submissions);
-  const { memes } = useAppSelector((state) => state.memes);
+  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const submissionsLoadedRef = useRef(false);
+  const memesLoadedRef = useRef(false);
 
   // Handle tab parameter from URL
   useEffect(() => {
@@ -42,16 +44,37 @@ export default function Admin() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && !submissionsLoading) {
-      // Only fetch if not already loaded (check Redux store)
-      // Submissions might already be loaded by Dashboard or Header
-      const currentSubmissions = submissions.filter(s => s.status === 'pending');
-      if (currentSubmissions.length === 0) {
-        dispatch(fetchSubmissions({ status: 'pending' }));
+    if (user && (user.role === 'streamer' || user.role === 'admin')) {
+      // Load submissions if not already loaded
+      if (!submissionsLoading && !submissionsLoadedRef.current) {
+        const currentSubmissions = submissions.filter(s => s.status === 'pending');
+        if (currentSubmissions.length === 0) {
+          submissionsLoadedRef.current = true;
+          dispatch(fetchSubmissions({ status: 'pending' }));
+        } else {
+          submissionsLoadedRef.current = true;
+        }
       }
-      dispatch(fetchMemes({ channelId: user.channelId }));
+      
+      // Load memes if not already loaded
+      if (!memesLoading && !memesLoadedRef.current && user.channelId) {
+        // Check if memes are already loaded for this channel
+        const channelMemes = memes.filter(m => m.channelId === user.channelId);
+        if (channelMemes.length === 0) {
+          memesLoadedRef.current = true;
+          dispatch(fetchMemes({ channelId: user.channelId }));
+        } else {
+          memesLoadedRef.current = true;
+        }
+      }
     }
-  }, [user, dispatch, submissionsLoading]);
+    // Reset refs when user changes
+    if (!user || !user.channelId) {
+      submissionsLoadedRef.current = false;
+      memesLoadedRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, user?.role, user?.channelId, dispatch, submissionsLoading, memesLoading]);
 
   const handleApprove = async (submissionId: string): Promise<void> => {
     // Use standard values: 100 coins and 15 seconds (15000ms) max duration

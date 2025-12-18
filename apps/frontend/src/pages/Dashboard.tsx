@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -13,6 +13,7 @@ export default function Dashboard() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const submissionsLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -25,11 +26,22 @@ export default function Dashboard() {
 
   // Load pending submissions if user is streamer/admin
   // Note: Header also loads submissions, so we check if already loaded to avoid duplicate requests
+  // Use ref to track if we've already attempted to load to prevent infinite loops
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && submissions.length === 0) {
-      dispatch(fetchSubmissions({ status: 'pending' }));
+    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && !submissionsLoadedRef.current) {
+      // Check if submissions are already loaded
+      if (submissions.length === 0) {
+        submissionsLoadedRef.current = true;
+        dispatch(fetchSubmissions({ status: 'pending' }));
+      } else {
+        submissionsLoadedRef.current = true;
+      }
     }
-  }, [user, dispatch, submissionsLoading, submissions.length]);
+    // Reset ref when user changes
+    if (!user || !user.channelId) {
+      submissionsLoadedRef.current = false;
+    }
+  }, [user, user?.role, user?.channelId, submissionsLoading, dispatch]);
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
 
