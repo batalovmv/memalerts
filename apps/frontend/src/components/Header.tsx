@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -35,6 +35,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket } = useSocket();
+  const submissionsLoadedRef = useRef(false);
 
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
@@ -50,12 +51,22 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   );
 
   // Load submissions for streamer/admin if not already loaded
+  // Use ref to track if we've already attempted to load to prevent infinite loops
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && submissions.length === 0) {
-      // Only fetch if not currently loading and store is empty
-      dispatch(fetchSubmissions({ status: 'pending' }));
+    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && !submissionsLoadedRef.current) {
+      // Check if submissions are already loaded
+      if (submissions.length === 0) {
+        submissionsLoadedRef.current = true;
+        dispatch(fetchSubmissions({ status: 'pending' }));
+      } else {
+        submissionsLoadedRef.current = true;
+      }
     }
-  }, [user, user?.role, user?.channelId, submissionsLoading, submissions.length, dispatch]);
+    // Reset ref when user changes
+    if (!user || !user.channelId) {
+      submissionsLoadedRef.current = false;
+    }
+  }, [user, user?.role, user?.channelId, submissionsLoading, dispatch]);
 
   // Load wallet balance and auto-refresh
   // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile

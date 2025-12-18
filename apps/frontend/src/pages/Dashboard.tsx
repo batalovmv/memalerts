@@ -9,7 +9,7 @@ import SubmitModal from '../components/SubmitModal';
 export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -24,11 +24,12 @@ export default function Dashboard() {
   // Removed role restrictions - Dashboard is accessible to all users
 
   // Load pending submissions if user is streamer/admin
+  // Note: Header also loads submissions, so we check if already loaded to avoid duplicate requests
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
+    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && submissions.length === 0) {
       dispatch(fetchSubmissions({ status: 'pending' }));
     }
-  }, [user, dispatch]);
+  }, [user, dispatch, submissionsLoading, submissions.length]);
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
 
