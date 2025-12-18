@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { updateWalletBalance } from '../store/slices/authSlice';
+import { fetchSubmissions } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
@@ -21,7 +22,7 @@ interface HeaderProps {
 export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
-  const { submissions } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,13 +49,31 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     isOwnProfile
   );
 
-  // Submissions are fetched by pages that need them (Dashboard, Admin)
-  // Header only reads from Redux store, doesn't trigger fetches
+  // Load submissions for streamer/admin if not already loaded
+  useEffect(() => {
+    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId && !submissionsLoading && submissions.length === 0) {
+      // Only fetch if not currently loading and store is empty
+      dispatch(fetchSubmissions({ status: 'pending' }));
+    }
+  }, [user, user?.role, user?.channelId, submissionsLoading, submissions.length, dispatch]);
 
   // Load wallet balance and auto-refresh
+  // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile
   useEffect(() => {
     if (!user) {
       setWallet(null);
+      return;
+    }
+
+    // Don't load wallet in Header if we're on a channel page - it's loaded by StreamerProfile
+    if (location.pathname.startsWith('/channel/')) {
+      // Use wallet from Redux store if available, or from user data
+      if (channelId && user.wallets) {
+        const userWallet = user.wallets.find(w => w.channelId === channelId);
+        if (userWallet) {
+          setWallet(userWallet);
+        }
+      }
       return;
     }
 
@@ -123,7 +142,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, currentChannelSlug, channelId, dispatch]);
+  }, [user, currentChannelSlug, channelId, dispatch, location.pathname]);
 
   // Load channel coin icon and reward title if not provided via props
   useEffect(() => {
@@ -230,10 +249,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     navigate('/settings?tab=submissions');
   };
 
-  const pendingSubmissionsCount = submissions.length;
-  // Show indicator for streamers/admins always, but style it differently based on count
+  const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
+  // Show indicator for streamers/admins always, even if submissions are not loaded yet
   const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin');
   const hasPendingSubmissions = pendingSubmissionsCount > 0;
+  const isLoadingSubmissions = submissionsLoading && submissions.length === 0;
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
 
@@ -260,7 +280,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
             
             {user && (
               <div className="flex items-center gap-3">
-                {/* Pending Submissions Indicator */}
+                {/* Pending Submissions Indicator - always show for streamer/admin */}
                 {showPendingIndicator && (
                   <button
                     onClick={handlePendingSubmissionsClick}
@@ -269,13 +289,17 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                         ? 'hover:bg-gray-100 dark:hover:bg-gray-700'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800 opacity-60'
                     }`}
-                    title={hasPendingSubmissions 
-                      ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
-                      : t('header.noPendingSubmissions', 'No pending submissions')
+                    title={isLoadingSubmissions
+                      ? t('header.loadingSubmissions', 'Loading submissions...')
+                      : hasPendingSubmissions 
+                        ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
+                        : t('header.noPendingSubmissions', 'No pending submissions')
                     }
-                    aria-label={hasPendingSubmissions 
-                      ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
-                      : t('header.noPendingSubmissions', 'No pending submissions')
+                    aria-label={isLoadingSubmissions
+                      ? t('header.loadingSubmissions', 'Loading submissions...')
+                      : hasPendingSubmissions 
+                        ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
+                        : t('header.noPendingSubmissions', 'No pending submissions')
                     }
                   >
                     <svg 
@@ -290,7 +314,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
-                    {hasPendingSubmissions && (
+                    {hasPendingSubmissions && !isLoadingSubmissions && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                         {pendingSubmissionsCount}
                       </span>
