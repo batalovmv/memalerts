@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { Meme } from '../types';
 import { api } from '../lib/api';
 import toast from 'react-hot-toast';
+import ConfirmDialog from './ConfirmDialog';
 
 interface MemeModalProps {
   meme: Meme | null;
@@ -34,6 +35,7 @@ export default function MemeModal({
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Update currentMeme when meme prop changes
@@ -151,18 +153,18 @@ export default function MemeModal({
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     if (!currentMeme) return;
-    
-    // Confirm deletion
-    if (!window.confirm(`Are you sure you want to delete "${currentMeme.title}"? This action cannot be undone.`)) {
-      return;
-    }
 
     setLoading(true);
     try {
       await api.delete(`/admin/memes/${currentMeme.id}`);
       toast.success('Meme deleted successfully!');
+      setShowDeleteConfirm(false);
       onUpdate();
       onClose();
     } catch (error: unknown) {
@@ -455,6 +457,24 @@ export default function MemeModal({
           </div>
         </aside>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+        title="Delete Meme"
+        message={
+          <div>
+            <p className="mb-2">Are you sure you want to delete <strong>"{currentMeme?.title}"</strong>?</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
+          </div>
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        isLoading={loading}
+      />
     </div>
   );
 }
