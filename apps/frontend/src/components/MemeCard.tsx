@@ -229,7 +229,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
           </button>
         </div>
       )}
-      </div>
     </article>
   );
 }
