@@ -152,33 +152,52 @@ export const viewerController = {
   },
 
   getMe: async (req: AuthRequest, res: Response) => {
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId! },
-      include: {
-        wallets: true,
-        channel: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
+    // #region agent log
+    console.log('[DEBUG] getMe started', JSON.stringify({ location: 'viewerController.ts:154', message: 'getMe started', data: { userId: req.userId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
+    // #endregion
+    try {
+      const startTime = Date.now();
+      const user = await prisma.user.findUnique({
+        where: { id: req.userId! },
+        include: {
+          wallets: true,
+          channel: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      });
+      const dbDuration = Date.now() - startTime;
+      // #region agent log
+      console.log('[DEBUG] getMe db query completed', JSON.stringify({ location: 'viewerController.ts:167', message: 'getMe db query completed', data: { userId: req.userId, found: !!user, dbDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
+      // #endregion
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const response = {
+        id: user.id,
+        displayName: user.displayName,
+        profileImageUrl: user.profileImageUrl || null,
+        role: user.role,
+        channelId: user.channelId,
+        channel: user.channel,
+        wallets: user.wallets,
+      };
+      // #region agent log
+      console.log('[DEBUG] getMe sending response', JSON.stringify({ location: 'viewerController.ts:181', message: 'getMe sending response', data: { userId: user.id, hasChannel: !!user.channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
+      // #endregion
+      res.json(response);
+    } catch (error: any) {
+      // #region agent log
+      console.log('[DEBUG] getMe error', JSON.stringify({ location: 'viewerController.ts:185', message: 'getMe error', data: { userId: req.userId, error: error.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
+      // #endregion
+      throw error;
     }
-
-    res.json({
-      id: user.id,
-      displayName: user.displayName,
-      profileImageUrl: user.profileImageUrl || null,
-      role: user.role,
-      channelId: user.channelId,
-      channel: user.channel,
-      wallets: user.wallets,
-    });
   },
 
   getWallet: async (req: AuthRequest, res: Response) => {

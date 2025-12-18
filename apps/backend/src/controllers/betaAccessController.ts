@@ -64,17 +64,26 @@ export const betaAccessController = {
   // Get user's beta access status
   getStatus: async (req: AuthRequest, res: Response) => {
     try {
+      // #region agent log
+      console.log('[DEBUG] getStatus started', JSON.stringify({ location: 'betaAccessController.ts:65', message: 'getStatus started', data: { userId: req.userId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
+      // #endregion
       const { userId } = req;
 
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
+      const startTime = Date.now();
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { hasBetaAccess: true },
       });
+      const userDuration = Date.now() - startTime;
+      // #region agent log
+      console.log('[DEBUG] getStatus user query completed', JSON.stringify({ location: 'betaAccessController.ts:78', message: 'getStatus user query completed', data: { userId, found: !!user, userDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
+      // #endregion
 
+      const betaStartTime = Date.now();
       const betaAccess = await prisma.betaAccess.findUnique({
         where: { userId },
         select: {
@@ -84,12 +93,23 @@ export const betaAccessController = {
           approvedAt: true,
         },
       });
+      const betaDuration = Date.now() - betaStartTime;
+      // #region agent log
+      console.log('[DEBUG] getStatus betaAccess query completed', JSON.stringify({ location: 'betaAccessController.ts:87', message: 'getStatus betaAccess query completed', data: { userId, found: !!betaAccess, betaDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
+      // #endregion
 
-      return res.json({
+      const response = {
         hasAccess: user?.hasBetaAccess || false,
         request: betaAccess,
-      });
+      };
+      // #region agent log
+      console.log('[DEBUG] getStatus sending response', JSON.stringify({ location: 'betaAccessController.ts:92', message: 'getStatus sending response', data: { userId, hasAccess: response.hasAccess }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
+      // #endregion
+      return res.json(response);
     } catch (error: any) {
+      // #region agent log
+      console.log('[DEBUG] getStatus error', JSON.stringify({ location: 'betaAccessController.ts:95', message: 'getStatus error', data: { userId: req.userId, error: error.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
+      // #endregion
       console.error('Error getting beta access status:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
