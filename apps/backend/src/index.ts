@@ -51,6 +51,11 @@ const getAllowedOrigins = () => {
     origins.push('http://localhost:5173', 'http://localhost:5174');
   }
   
+  // Log origins for debugging (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Socket.IO allowed origins:', origins);
+  }
+  
   return origins;
 };
 

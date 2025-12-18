@@ -22,6 +22,7 @@ model Channel {
   primaryColor      String? // Hex color for primary theme
   secondaryColor    String? // Hex color for secondary theme
   accentColor       String? // Hex color for accent
+  defaultPriceCoins Int?    @default(100) // Default price for memes in this channel
   createdAt         DateTime @default(now())
 
   users       User[]

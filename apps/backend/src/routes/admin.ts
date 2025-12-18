@@ -14,6 +14,7 @@ adminRoutes.post('/submissions/:id/approve', adminController.approveSubmission);
 adminRoutes.post('/submissions/:id/reject', adminController.rejectSubmission);
 adminRoutes.get('/memes', adminController.getMemes);
 adminRoutes.patch('/memes/:id', adminController.updateMeme);
+adminRoutes.delete('/memes/:id', adminController.deleteMeme);
 adminRoutes.patch('/channel/settings', adminController.updateChannelSettings);
 
 // Admin-only routes for wallet management

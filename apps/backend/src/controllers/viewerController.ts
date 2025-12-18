@@ -326,6 +326,14 @@ export const viewerController = {
         channelId: targetChannelId,
         status: 'approved',
       },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -435,6 +443,12 @@ export const viewerController = {
     const memes = await prisma.meme.findMany({
       where,
       include: {
+        createdBy: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
         tags: {
           include: {
             tag: true,
@@ -547,6 +561,12 @@ export const viewerController = {
         },
       },
       include: {
+        createdBy: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
         tags: {
           include: {
             tag: true,

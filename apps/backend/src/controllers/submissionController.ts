@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { createSubmissionSchema, importMemeSchema } from '../shared/index.js';
-import { validateVideo } from '../utils/videoValidator.js';
+import { validateVideo, getVideoMetadata } from '../utils/videoValidator.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../utils/fileHash.js';
 import { validateFileContent } from '../utils/fileTypeValidator.js';
@@ -151,14 +151,31 @@ export const submissionController = {
       if (isOwner) {
         console.log('Owner submitting meme, creating directly as approved');
         
+        // Get video duration from metadata if available
+        let durationMs = 0; // Default duration
+        if (fs.existsSync(filePath)) {
+          try {
+            const metadata = await getVideoMetadata(filePath);
+            if (metadata && metadata.duration > 0) {
+              durationMs = Math.round(metadata.duration * 1000); // Convert seconds to milliseconds
+            }
+          } catch (error: any) {
+            console.warn('Failed to get video duration for owner submission:', error.message);
+            durationMs = 0; // Keep default
+          }
+        }
+        
+        // Get default price from channel
+        const defaultPrice = channel.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
+        
         // Create meme directly with approved status
         const memeData: any = {
           channelId,
           title: body.title,
           type: 'video',
           fileUrl: finalFilePath,
-          durationMs: 0, // Default duration, can be updated later
-          priceCoins: 0, // Default price, can be updated later
+          durationMs, // Use real duration or 0
+          priceCoins: defaultPrice, // Use channel default price
           status: 'approved',
           createdByUserId: req.userId!,
           approvedByUserId: req.userId!,
@@ -202,8 +219,8 @@ export const submissionController = {
                 title: body.title,
                 type: 'video',
                 fileUrl: finalFilePath,
-                durationMs: 0,
-                priceCoins: 0,
+                durationMs, // Use real duration or 0
+                priceCoins: defaultPrice, // Use channel default price
                 status: 'approved',
                 createdByUserId: req.userId!,
                 approvedByUserId: req.userId!,

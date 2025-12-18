@@ -6,6 +6,7 @@ import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
 import { validatePathWithinDirectory } from '../utils/pathSecurity.js';
 import { logAdminAction } from '../utils/auditLogger.js';
+import { getVideoMetadata } from '../utils/videoValidator.js';
 import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
@@ -154,6 +155,13 @@ export const adminController = {
           throw new Error('Submission already processed');
         }
 
+        // Get channel to use default price
+        const channel = await tx.channel.findUnique({
+          where: { id: channelId },
+          select: { defaultPriceCoins: true },
+        });
+        const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
+
         // Determine fileUrl: handle deduplication for both uploaded and imported files
         let finalFileUrl: string;
         let fileHash: string | null = null;
@@ -168,7 +176,11 @@ export const adminController = {
           let filePath: string;
           try {
             const uploadsDir = path.join(process.cwd(), 'uploads');
-            filePath = validatePathWithinDirectory(submission.fileUrlTemp, uploadsDir);
+            // If fileUrlTemp starts with /, remove it before validation
+            const relativePath = submission.fileUrlTemp.startsWith('/') 
+              ? submission.fileUrlTemp.slice(1) 
+              : submission.fileUrlTemp;
+            filePath = validatePathWithinDirectory(relativePath, uploadsDir);
           } catch (pathError: any) {
             console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
             throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
@@ -233,14 +245,26 @@ export const adminController = {
           }
         }
 
-        // Use standard values - skip video metadata to avoid hanging
-        const STANDARD_DURATION_MS = 15000; // 15 seconds (15000ms)
-        const STANDARD_PRICE_COINS = 100; // Standard price: 100 coins
+        // Get video duration from metadata if available
+        const STANDARD_DURATION_MS = 15000; // 15 seconds (15000ms) fallback
+        let durationMs = body.durationMs || STANDARD_DURATION_MS;
         
-        // Always use standard duration - skip video metadata to prevent hanging
-        // Video duration validation happens on upload, so we can trust the file is valid
-        const durationMs = body.durationMs || STANDARD_DURATION_MS;
-        const priceCoins = body.priceCoins || STANDARD_PRICE_COINS;
+        // Try to get real video duration from file metadata
+        if (!submission.sourceUrl && fs.existsSync(filePath)) {
+          try {
+            const metadata = await getVideoMetadata(filePath);
+            if (metadata && metadata.duration > 0) {
+              durationMs = Math.round(metadata.duration * 1000); // Convert seconds to milliseconds
+            }
+          } catch (error: any) {
+            console.warn('Failed to get video duration, using default:', error.message);
+            // Use body.durationMs or fallback to standard
+            durationMs = body.durationMs || STANDARD_DURATION_MS;
+          }
+        }
+        
+        // Use channel default price or body price
+        const priceCoins = body.priceCoins || defaultPrice;
 
         // Update submission
         try {
@@ -475,6 +499,9 @@ export const adminController = {
     const memes = await prisma.meme.findMany({
       where: {
         channelId,
+        status: {
+          not: 'deleted', // Exclude deleted memes
+        },
       },
       include: {
         createdBy: {
@@ -549,6 +576,56 @@ export const adminController = {
       res.json(updated);
     } catch (error) {
       throw error;
+    }
+  },
+
+  deleteMeme: async (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const channelId = req.channelId;
+
+    if (!channelId) {
+      return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    try {
+      const meme = await prisma.meme.findUnique({
+        where: { id },
+      });
+
+      if (!meme || meme.channelId !== channelId) {
+        return res.status(404).json({ error: 'Meme not found' });
+      }
+
+      // Soft delete: change status to 'deleted'
+      const deleted = await prisma.meme.update({
+        where: { id },
+        data: { status: 'deleted' },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              displayName: true,
+            },
+          },
+        },
+      });
+
+      // Log admin action
+      await logAdminAction(req.userId!, 'delete_meme', {
+        memeId: id,
+        channelId,
+        memeTitle: meme.title,
+      }, req);
+
+      res.json(deleted);
+    } catch (error: any) {
+      console.error('Error in deleteMeme:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Internal server error',
+          message: 'Failed to delete meme',
+        });
+      }
     }
   },
 
