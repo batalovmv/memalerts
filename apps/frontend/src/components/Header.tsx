@@ -114,7 +114,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       const userWallet = user.wallets.find(w => w.channelId === targetChannelId);
       if (userWallet) {
         setWallet(userWallet);
-        walletLoadedRef.current = targetChannelSlug;
+        walletLoadedRef.current = targetChannelSlug || null;
         return; // Use wallet from Redux, don't fetch - Socket.IO will update it automatically
       }
     }
@@ -135,7 +135,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               timeout: 10000,
             });
             setWallet(wallet);
-            walletLoadedRef.current = targetChannelSlug; // Mark as loaded
+            walletLoadedRef.current = targetChannelSlug || null; // Mark as loaded
             // Update Redux store if channelId matches
             if (targetChannelId && wallet.channelId === targetChannelId) {
               dispatch(updateWalletBalance({ channelId: targetChannelId, balance: wallet.balance }));
@@ -151,7 +151,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                   channelId: targetChannelId,
                   balance: 0,
                 });
-                walletLoadedRef.current = targetChannelSlug; // Mark as loaded (even if default)
+                walletLoadedRef.current = targetChannelSlug || null; // Mark as loaded (even if default)
               }
             }
             console.warn('Failed to load wallet:', error);
