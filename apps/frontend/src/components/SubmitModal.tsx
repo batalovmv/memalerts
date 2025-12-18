@@ -30,6 +30,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
     tags: [],
   });
   const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   // Reset form when modal closes
@@ -42,10 +43,26 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         tags: [],
       });
       setFile(null);
+      setFilePreview(null);
       setUploadProgress(0);
       setMode('upload');
     }
   }, [isOpen]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+
+    if (selectedFile) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFilePreview(reader.result as string);
+      };
+      reader.readAsDataURL(selectedFile);
+    } else {
+      setFilePreview(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -278,12 +295,26 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                   </label>
                   <input
                     type="file"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    onChange={handleFileChange}
                     required
                     accept="video/*"
                     className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                   />
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
+                  {filePreview && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('submitModal.preview', 'Preview')}
+                      </label>
+                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700">
+                        <video
+                          src={filePreview}
+                          controls
+                          className="max-w-full max-h-64 mx-auto rounded"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>
@@ -343,6 +374,13 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                   ></div>
                 </div>
               )}
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>{t('submitModal.whatHappensNext', 'What happens next?')}</strong>{' '}
+                  {t('submitModal.approvalProcess', 'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.')}
+                </p>
+              </div>
               
               <div className="flex gap-3 pt-4">
                 <button

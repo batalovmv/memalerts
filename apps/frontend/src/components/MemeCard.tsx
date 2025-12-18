@@ -5,9 +5,12 @@ interface MemeCardProps {
   meme: Meme;
   onClick: () => void;
   isOwner?: boolean;
+  onActivate?: (memeId: string) => void;
+  walletBalance?: number;
+  canActivate?: boolean;
 }
 
-export default function MemeCard({ meme, onClick }: MemeCardProps) {
+export default function MemeCard({ meme, onClick, onActivate, walletBalance, canActivate }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -163,12 +166,40 @@ export default function MemeCard({ meme, onClick }: MemeCardProps) {
           />
         )}
         {isHovered && (
-          <div 
-            className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-3 text-center transition-opacity duration-200"
-            aria-label={`Meme title: ${meme.title}`}
-          >
-            <p className="text-lg font-semibold">{meme.title}</p>
-          </div>
+          <>
+            <div 
+              className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-3 text-center transition-opacity duration-200"
+              aria-label={`Meme title: ${meme.title}`}
+            >
+              <p className="text-lg font-semibold">{meme.title}</p>
+            </div>
+            {onActivate && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/90 text-white p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">{meme.priceCoins} coins</span>
+                  {!canActivate && walletBalance !== undefined && (
+                    <span className="text-xs text-yellow-300">
+                      Need {meme.priceCoins - walletBalance} more
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onActivate(meme.id);
+                  }}
+                  disabled={!canActivate}
+                  className={`w-full font-semibold py-2 px-4 rounded-lg transition-colors ${
+                    canActivate
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  {canActivate ? 'Activate Meme' : 'Insufficient Coins'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </article>

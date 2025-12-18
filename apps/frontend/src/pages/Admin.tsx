@@ -27,6 +27,19 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
+    open: false,
+    submissionId: null,
+  });
+  const [rejectModal, setRejectModal] = useState<{ open: boolean; submissionId: string | null }>({
+    open: false,
+    submissionId: null,
+  });
+  const [approveForm, setApproveForm] = useState({
+    priceCoins: '100',
+    durationMs: '15000',
+  });
+  const [rejectReason, setRejectReason] = useState('');
   const submissionsLoadedRef = useRef(false);
   const memesLoadedRef = useRef(false);
 
@@ -87,19 +100,40 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, user?.role, user?.channelId, dispatch, memesLoading]);
 
-  const handleApprove = async (submissionId: string): Promise<void> => {
-    // Use standard values: 100 coins and 15 seconds (15000ms) max duration
-    // Backend will handle getting actual video duration if needed
-    const STANDARD_PRICE_COINS = 100;
-    const STANDARD_DURATION_MS = 15000; // 15 seconds max
+  const openApproveModal = (submissionId: string) => {
+    setApproveModal({ open: true, submissionId });
+    setApproveForm({ priceCoins: '100', durationMs: '15000' });
+  };
+
+  const closeApproveModal = () => {
+    setApproveModal({ open: false, submissionId: null });
+    setApproveForm({ priceCoins: '100', durationMs: '15000' });
+  };
+
+  const handleApprove = async (): Promise<void> => {
+    if (!approveModal.submissionId) return;
+
+    const priceCoins = parseInt(approveForm.priceCoins, 10);
+    const durationMs = parseInt(approveForm.durationMs, 10);
+
+    if (isNaN(priceCoins) || priceCoins < 1) {
+      toast.error(t('admin.invalidPrice') || 'Price must be at least 1 coin');
+      return;
+    }
+
+    if (isNaN(durationMs) || durationMs < 1000 || durationMs > 15000) {
+      toast.error(t('admin.invalidDuration') || 'Duration must be between 1000ms and 15000ms');
+      return;
+    }
 
     try {
       await dispatch(approveSubmission({ 
-        submissionId, 
-        priceCoins: STANDARD_PRICE_COINS, 
-        durationMs: STANDARD_DURATION_MS 
+        submissionId: approveModal.submissionId, 
+        priceCoins, 
+        durationMs 
       })).unwrap();
       toast.success(t('admin.approve') + '!');
+      closeApproveModal();
       dispatch(fetchSubmissions({ status: 'pending' }));
       if (user) {
         dispatch(fetchMemes({ channelId: user.channelId }));
@@ -109,10 +143,31 @@ export default function Admin() {
     }
   };
 
-  const handleReject = async (submissionId: string): Promise<void> => {
+  const openRejectModal = (submissionId: string) => {
+    setRejectModal({ open: true, submissionId });
+    setRejectReason('');
+  };
+
+  const closeRejectModal = () => {
+    setRejectModal({ open: false, submissionId: null });
+    setRejectReason('');
+  };
+
+  const handleReject = async (): Promise<void> => {
+    if (!rejectModal.submissionId) return;
+
+    if (!rejectReason.trim()) {
+      toast.error(t('admin.reasonRequired') || 'Please provide a reason for rejection');
+      return;
+    }
+
     try {
-      await dispatch(rejectSubmission({ submissionId, moderatorNotes: null })).unwrap();
+      await dispatch(rejectSubmission({ 
+        submissionId: rejectModal.submissionId, 
+        moderatorNotes: rejectReason.trim() 
+      })).unwrap();
       toast.success(t('admin.reject') + '!');
+      closeRejectModal();
       dispatch(fetchSubmissions({ status: 'pending' }));
     } catch (error) {
       toast.error(t('admin.failedToReject') || 'Failed to reject submission');
@@ -268,14 +323,14 @@ export default function Admin() {
                   
                   <div className="flex gap-2">
                   <button
-                    onClick={() => handleApprove(submission.id)}
-                    className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded transition-colors border border-secondary/30"
+                    onClick={() => openApproveModal(submission.id)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded transition-colors font-semibold"
                   >
                     {t('admin.approve')}
                   </button>
                   <button
-                    onClick={() => handleReject(submission.id)}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors border border-red-500/30"
+                    onClick={() => openRejectModal(submission.id)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded transition-colors font-semibold"
                   >
                     {t('admin.reject')}
                   </button>
@@ -283,6 +338,151 @@ export default function Admin() {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* Approve Modal */}
+        {approveModal.open && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div 
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={closeApproveModal}
+              aria-hidden="true"
+            />
+            <div className="flex min-h-full items-center justify-center p-4">
+              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+                  <h2 className="text-2xl font-bold dark:text-white">{t('admin.approveSubmission') || 'Approve Submission'}</h2>
+                  <button
+                    onClick={closeApproveModal}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    aria-label={t('common.close') || 'Close'}
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('admin.priceCoins') || 'Price (coins)'}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={approveForm.priceCoins}
+                      onChange={(e) => setApproveForm({ ...approveForm, priceCoins: e.target.value })}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t('admin.priceCoinsDescription') || 'Minimum 1 coin'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('admin.durationMs') || 'Duration (milliseconds)'}
+                    </label>
+                    <input
+                      type="number"
+                      min="1000"
+                      max="15000"
+                      step="100"
+                      value={approveForm.durationMs}
+                      onChange={(e) => setApproveForm({ ...approveForm, durationMs: e.target.value })}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t('admin.durationMsDescription') || 'Between 1000ms (1s) and 15000ms (15s)'}
+                    </p>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={closeApproveModal}
+                      className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApprove}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                    >
+                      {t('admin.approve')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reject Modal */}
+        {rejectModal.open && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div 
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={closeRejectModal}
+              aria-hidden="true"
+            />
+            <div className="flex min-h-full items-center justify-center p-4">
+              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+                  <h2 className="text-2xl font-bold dark:text-white">{t('admin.rejectSubmission') || 'Reject Submission'}</h2>
+                  <button
+                    onClick={closeRejectModal}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    aria-label={t('common.close') || 'Close'}
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <p className="text-sm text-red-800 dark:text-red-200 font-medium">
+                      {t('admin.rejectWarning') || 'This action cannot be undone. Please provide a reason for rejection.'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('admin.rejectionReason') || 'Reason for rejection'} <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      rows={4}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      placeholder={t('admin.rejectionReasonPlaceholder') || 'Enter reason for rejection...'}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t('admin.rejectionReasonDescription') || 'This reason will be visible to the submitter'}
+                    </p>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={closeRejectModal}
+                      className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReject}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                    >
+                      {t('admin.reject')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

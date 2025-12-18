@@ -431,6 +431,9 @@ export default function StreamerProfile() {
                       setIsModalOpen(true);
                     }}
                     isOwner={isOwner}
+                    onActivate={handleActivate}
+                    walletBalance={wallet?.balance}
+                    canActivate={wallet ? wallet.balance >= meme.priceCoins : false}
                   />
                 ))}
               </div>
