@@ -12,6 +12,10 @@ import fs from 'fs';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:14',message:'createSubmission started',data:{hasFile:!!req.file,userId:req.userId,channelId:req.channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+    // #endregion
+    
     if (!req.file) {
       return res.status(400).json({ error: 'File is required' });
     }
@@ -312,6 +316,10 @@ export const submissionController = {
 
       // Log file upload
       await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:306',message:'Submission created successfully, sending response',data:{submissionId:submission.id,channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      // #endregion
 
       // Send response immediately after creating submission
       res.status(201).json(submission);

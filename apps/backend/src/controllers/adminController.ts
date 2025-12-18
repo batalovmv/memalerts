@@ -331,6 +331,10 @@ export const adminController = {
         }
 
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:333',message:'Creating meme in transaction',data:{submissionId:id,channelId:submission.channelId,hasTags:tagIds.length>0,fileUrl:finalFileUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+          // #endregion
+          
           const meme = await tx.meme.create({
             data: memeData,
             include: {
@@ -355,8 +359,15 @@ export const adminController = {
             },
           });
 
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:357',message:'Meme created successfully',data:{submissionId:id,memeId:meme.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+          // #endregion
+
           return meme;
         } catch (error: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:360',message:'Error creating meme',data:{submissionId:id,errorMessage:error.message,errorName:error.name,errorCode:error instanceof PrismaClientKnownRequestError ? error.code : undefined,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+          // #endregion
           console.error('Error creating meme:', error);
           // Check if it's a constraint violation or other Prisma error
           if (error instanceof PrismaClientKnownRequestError) {
@@ -372,7 +383,16 @@ export const adminController = {
       }, {
         timeout: 30000, // 30 second timeout for transaction
         maxWait: 10000, // 10 second max wait for transaction to start
+      }).catch((txError: any) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:375',message:'Transaction failed',data:{submissionId:id,errorMessage:txError.message,errorName:txError.name,errorCode:txError.code,stack:txError.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+        // #endregion
+        throw txError;
       });
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:380',message:'Transaction completed successfully',data:{submissionId:id,resultId:result?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+      // #endregion
 
       // If this is an imported meme, start background download and update
       if (submissionForBackground?.sourceUrl && result && 'id' in result) {
