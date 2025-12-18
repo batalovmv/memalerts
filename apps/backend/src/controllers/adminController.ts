@@ -159,10 +159,19 @@ export const adminController = {
         }
 
         // Get channel to use default price
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:162',message:'Fetching channel for default price',data:{channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        
         const channel = await tx.channel.findUnique({
           where: { id: channelId },
           select: { defaultPriceCoins: true },
         });
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:166',message:'Channel fetched',data:{channelId,found:!!channel,defaultPriceCoins:channel?.defaultPriceCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        
         const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
 
         // Determine fileUrl: handle deduplication for both uploaded and imported files
@@ -415,20 +424,36 @@ export const adminController = {
 
       // Handle Prisma errors
       if (error instanceof PrismaClientKnownRequestError || error instanceof PrismaClientUnknownRequestError) {
-        console.error('Prisma error in approveSubmission:', error.message);
+        const errorCode = error instanceof PrismaClientKnownRequestError ? error.code : undefined;
+        const errorMeta = error instanceof PrismaClientKnownRequestError ? error.meta : undefined;
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:426',message:'Prisma error in approveSubmission',data:{submissionId:id,errorCode,errorMessage:error.message,meta:errorMeta},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+        // #endregion
+        console.error('Prisma error in approveSubmission:', error.message, errorCode, errorMeta);
         
         // Handle transaction aborted error (25P02)
-        if (error.message?.includes('current transaction is aborted') || error.message?.includes('25P02')) {
+        if (error.message?.includes('current transaction is aborted') || error.message?.includes('25P02') || errorCode === 'P2025') {
           return res.status(500).json({
             error: 'Database transaction error',
             message: 'Transaction was aborted. Please try again.',
           });
         }
 
-        // Handle other Prisma errors
+        // Handle record not found (P2025)
+        if (errorCode === 'P2025') {
+          return res.status(404).json({
+            error: 'Record not found',
+            message: 'The requested record was not found in the database.',
+          });
+        }
+
+        // Handle other Prisma errors with more detail
         return res.status(500).json({
           error: 'Database error',
-          message: 'An error occurred while processing the request. Please try again.',
+          message: process.env.NODE_ENV === 'development' 
+            ? `Database error: ${error.message}${errorCode ? ` (code: ${errorCode})` : ''}`
+            : 'An error occurred while processing the request. Please try again.',
         });
       }
 
