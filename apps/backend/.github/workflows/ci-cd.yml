@@ -69,8 +69,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/memalerts_test?schema=public
         run: pnpm prisma db push
 
-      - name: Lint
-        run: pnpm lint || true
+      # Lint step removed - no lint script in package.json
 
       - name: Build
         run: pnpm build
