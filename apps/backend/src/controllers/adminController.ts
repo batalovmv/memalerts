@@ -120,6 +120,7 @@ export const adminController = {
     fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:119',message:'approveSubmission started',data:{submissionId:id,channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
 
+    let submission: any; // Declare submission in outer scope for error handling
     try {
       const body = approveSubmissionSchema.parse(req.body);
 
@@ -133,8 +134,6 @@ export const adminController = {
       } catch (error) {
         // Ignore, will check in transaction
       }
-
-      let submission: any; // Declare submission in outer scope for error handling
       const result = await prisma.$transaction(async (tx) => {
         // Get submission WITHOUT tags to avoid transaction abort if MemeSubmissionTag table doesn't exist
         // The table may not exist on production, so we fetch without tags from the start

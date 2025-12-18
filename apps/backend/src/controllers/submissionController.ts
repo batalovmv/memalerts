@@ -29,7 +29,9 @@ export const submissionController = {
     // Validate that the channel exists and get owner info
     const channel = await prisma.channel.findUnique({
       where: { id: channelId as string },
-      include: {
+      select: {
+        id: true,
+        defaultPriceCoins: true,
         users: {
           where: { role: 'streamer' },
           take: 1,
