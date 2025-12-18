@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAppDispatch } from './store/hooks';
 import { fetchUser } from './store/slices/authSlice';
+import { SocketProvider } from './contexts/SocketContext';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import StreamerProfile from './pages/StreamerProfile';
@@ -26,7 +27,7 @@ function App() {
   const isBetaDomain = window.location.hostname.includes('beta.');
 
   return (
-    <>
+    <SocketProvider>
       <Toaster position="top-right" />
       <div className="flex flex-col min-h-screen overflow-x-hidden">
         {isBetaDomain && <BetaAccessRequest />}
@@ -45,7 +46,7 @@ function App() {
         </div>
         <Footer />
       </div>
-    </>
+    </SocketProvider>
   );
 }
 

@@ -43,10 +43,15 @@ export default function Admin() {
 
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin')) {
-      dispatch(fetchSubmissions({ status: 'pending' }));
+      // Only fetch if not already loaded (check Redux store)
+      // Submissions might already be loaded by Dashboard or Header
+      const currentSubmissions = submissions.filter(s => s.status === 'pending');
+      if (currentSubmissions.length === 0) {
+        dispatch(fetchSubmissions({ status: 'pending' }));
+      }
       dispatch(fetchMemes({ channelId: user.channelId }));
     }
-  }, [user, dispatch]);
+  }, [user, dispatch, submissions]);
 
   const handleApprove = async (submissionId: string): Promise<void> => {
     // Use standard values: 100 coins and 15 seconds (15000ms) max duration

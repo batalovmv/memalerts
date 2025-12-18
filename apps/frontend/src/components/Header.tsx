@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { fetchSubmissions } from '../store/slices/submissionsSlice';
 import { updateWalletBalance } from '../store/slices/authSlice';
 import { api } from '../lib/api';
-import { io, Socket } from 'socket.io-client';
+import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
@@ -34,7 +33,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const { socket } = useSocket();
 
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
@@ -188,99 +187,46 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     loadChannelData();
   }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug, location.pathname, getChannelData, getCachedChannelData]);
 
-  // Setup Socket.IO connection for real-time wallet updates
-  // Use separate effects to avoid reconnection on dependency changes
+  // Setup Socket.IO listeners for real-time wallet updates
+  // Socket connection is managed by SocketContext at app level
   useEffect(() => {
-    if (!user) {
-      // Disconnect socket if user logs out
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+    if (!socket || !user) {
       return;
     }
 
-    // Get API URL for Socket.IO
-    const getSocketUrl = () => {
-      const envUrl = import.meta.env.VITE_API_URL;
-      if (envUrl) {
-        return envUrl;
+    const handleWalletUpdate = (data: { userId: string; channelId: string; balance: number }) => {
+      // Only update if it's for the current user and channel
+      if (data.userId === user.id && (channelId ? data.channelId === channelId : true)) {
+        setWallet((prev) => {
+          if (prev && prev.channelId === data.channelId) {
+            return { ...prev, balance: data.balance };
+          }
+          return prev;
+        });
+        // Update Redux store
+        dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
       }
-      if (import.meta.env.PROD) {
-        return window.location.origin;
-      }
-      return 'http://localhost:3001';
     };
 
-    // Only create socket if it doesn't exist
-    if (!socketRef.current) {
-      const socketUrl = getSocketUrl();
-      const socket = io(socketUrl, {
-        transports: ['websocket', 'polling'],
-        withCredentials: true,
-      });
+    socket.on('wallet:updated', handleWalletUpdate);
 
-      socketRef.current = socket;
-
-      socket.on('connect', () => {
-        console.log('Socket.IO connected');
-        // Join user room for wallet updates
-        if (user) {
-          socket.emit('join:user', user.id);
-        }
-      });
-
-      socket.on('wallet:updated', (data: { userId: string; channelId: string; balance: number }) => {
-        // Only update if it's for the current user and channel
-        if (data.userId === user.id && (channelId ? data.channelId === channelId : true)) {
-          setWallet((prev) => {
-            if (prev && prev.channelId === data.channelId) {
-              return { ...prev, balance: data.balance };
-            }
-            return prev;
-          });
-          // Update Redux store
-          dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
-        }
-      });
-
-      socket.on('disconnect', () => {
-        console.log('Socket.IO disconnected');
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('Socket.IO connection error:', error);
-      });
-    } else {
-      // Socket already exists, just update rooms if needed
-      const socket = socketRef.current;
-      if (socket.connected && user) {
-        socket.emit('join:user', user.id);
-      }
+    // Join user room if connected
+    if (socket.connected && user) {
+      socket.emit('join:user', user.id);
     }
 
     return () => {
-      // Don't disconnect on dependency changes, only on unmount
-      // Socket will be cleaned up when component unmounts or user logs out
+      socket.off('wallet:updated', handleWalletUpdate);
     };
-  }, [user?.id, dispatch]); // Only depend on user.id, not full user object
+  }, [socket, user?.id, channelId, dispatch]);
 
   // Update channel room when currentChannelSlug changes
   useEffect(() => {
-    if (socketRef.current?.connected && currentChannelSlug) {
-      socketRef.current.emit('join:channel', currentChannelSlug);
+    if (socket?.connected && currentChannelSlug) {
+      socket.emit('join:channel', currentChannelSlug);
     }
-  }, [currentChannelSlug]);
+  }, [socket, currentChannelSlug]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, []);
 
   const handlePendingSubmissionsClick = () => {
     navigate('/settings?tab=submissions');
