@@ -75,9 +75,10 @@ export default function StreamerProfile() {
               timeout: 10000, // 10 second timeout
             });
             setWallet(wallet);
-          } catch (error: any) {
+          } catch (error: unknown) {
+            const apiError = error as { response?: { status?: number }; code?: string };
             // If wallet doesn't exist or times out, set default wallet
-            if (error.response?.status === 404 || error.code === 'ECONNABORTED' || error.response?.status === 504 || error.response?.status === 500) {
+            if (apiError.response?.status === 404 || apiError.code === 'ECONNABORTED' || apiError.response?.status === 504 || apiError.response?.status === 500) {
               setWallet({
                 id: '',
                 userId: user.id,
@@ -91,13 +92,14 @@ export default function StreamerProfile() {
         }
         
         setLoading(false);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
         console.error('Error loading channel:', error);
-        if (error.response?.status === 404) {
+        if (apiError.response?.status === 404) {
           toast.error(t('toast.channelNotFound'));
           navigate('/');
         } else {
-          toast.error(error.response?.data?.error || t('toast.failedToLoadChannel'));
+          toast.error(apiError.response?.data?.error || t('toast.failedToLoadChannel'));
         }
         setLoading(false);
       }
@@ -124,7 +126,7 @@ export default function StreamerProfile() {
         });
         const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
         setSearchResults(memes);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Search failed:', error);
         setSearchResults([]);
       } finally {
@@ -160,8 +162,9 @@ export default function StreamerProfile() {
           console.error('Error refreshing wallet:', error);
         }
       }
-    } catch (error: any) {
-      toast.error(error.message || t('toast.failedToActivate'));
+    } catch (error: unknown) {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || t('toast.failedToActivate'));
     }
   };
 

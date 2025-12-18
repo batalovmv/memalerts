@@ -6,26 +6,26 @@ import UserMenu from '../components/UserMenu';
 export default function Stats() {
   const { user } = useAppSelector((state) => state.auth);
   const [period, setPeriod] = useState('month');
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const stats = await api.get(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
+      setStats(stats);
+    } catch (error: unknown) {
+      console.error('Failed to fetch stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [period, user?.channelId]);
 
   useEffect(() => {
     if (user?.channelId) {
       fetchStats();
     }
-  }, [period, user?.channelId]);
-
-  const fetchStats = async () => {
-    setLoading(true);
-    try {
-      const stats = await api.get(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
-      setStats(stats);
-    } catch (error: any) {
-      console.error('Failed to fetch stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchStats, user?.channelId]);
 
   if (!user) {
     return null;
@@ -75,7 +75,7 @@ export default function Stats() {
                     </tr>
                   </thead>
                   <tbody>
-                    {stats.stats.map((stat: any, index: number) => (
+                    {Array.isArray(stats.stats) && stats.stats.map((stat: Record<string, unknown>, index: number) => (
                       <tr key={stat.meme?.id || index} className="border-b">
                         <td className="p-2 font-bold">#{index + 1}</td>
                         <td className="p-2">{stat.meme?.title || 'Unknown'}</td>

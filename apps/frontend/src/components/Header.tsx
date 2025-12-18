@@ -72,8 +72,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
             if (channelId && wallet.channelId === channelId) {
               dispatch(updateWalletBalance({ channelId, balance: wallet.balance }));
             }
-          } catch (error: any) {
-            if (error.response?.status === 404 || error.code === 'ECONNABORTED') {
+          } catch (error: unknown) {
+            const apiError = error as { response?: { status?: number }; code?: string };
+            if (apiError.response?.status === 404 || apiError.code === 'ECONNABORTED') {
               // Wallet doesn't exist yet, set default
               if (channelId) {
                 setWallet({
@@ -214,6 +215,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     return () => {
       socket.off('wallet:updated', handleWalletUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, user?.id, channelId, dispatch]);
 
   // Update channel room when currentChannelSlug changes

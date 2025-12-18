@@ -136,9 +136,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         } else {
           navigate('/dashboard');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const apiError = error as { response?: { status?: number; data?: { error?: string } }; code?: string; message?: string };
         // Handle 524 Cloudflare timeout specifically
-        if (error.code === 'ECONNABORTED' || error.response?.status === 524 || error.message?.includes('timeout')) {
+        if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
           toast.error(t('submitModal.uploadTimeout'));
           // Still close modal - submission might have been created
           setTimeout(() => {
@@ -150,7 +151,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
             }
           }, 2000);
         } else {
-          toast.error(error.response?.data?.error || error.message || t('submitModal.failedToSubmit'));
+          toast.error(apiError.response?.data?.error || apiError.message || t('submitModal.failedToSubmit'));
         }
       } finally {
         setLoading(false);
@@ -187,8 +188,9 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         } else {
           navigate('/dashboard');
         }
-      } catch (error: any) {
-        toast.error(error.response?.data?.error || t('submitModal.failedToImport'));
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || t('submitModal.failedToImport'));
       } finally {
         setLoading(false);
       }

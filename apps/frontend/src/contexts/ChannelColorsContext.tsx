@@ -126,9 +126,13 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  useEffect(() => {
+  const fetchChannelColorsMemo = useCallback(() => {
     fetchChannelColors();
   }, [user?.channelId, user?.channel?.slug, getChannelData]);
+
+  useEffect(() => {
+    fetchChannelColorsMemo();
+  }, [fetchChannelColorsMemo]);
 
   // Apply CSS variables for colors
   useEffect(() => {
@@ -152,6 +156,7 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChannelColors() {
   const context = useContext(ChannelColorsContext);
   if (context === undefined) {

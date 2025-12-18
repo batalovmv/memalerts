@@ -45,8 +45,9 @@ export default function BetaAccessRequest() {
       await api.post('/beta/request');
       toast.success(t('toast.betaAccessRequested'));
       loadStatus();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('toast.failedToRequestBetaAccess'));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToRequestBetaAccess'));
     } finally {
       setRequesting(false);
     }

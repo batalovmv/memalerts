@@ -12,6 +12,7 @@ const SocketContext = createContext<SocketContextType>({
   isConnected: false,
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useSocket = () => useContext(SocketContext);
 
 interface SocketProviderProps {
@@ -88,6 +89,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       // Don't disconnect on dependency changes, only on unmount
       // Socket will be cleaned up when app unmounts or user logs out
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Only depend on user.id, not full user object
 
   return (

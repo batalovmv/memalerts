@@ -104,14 +104,15 @@ export default function Submit() {
         
         toast.success('Submission created! Waiting for approval.');
         navigate('/dashboard');
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const apiError = error as { response?: { status?: number; data?: { error?: string } }; code?: string; message?: string };
         // Handle 524 Cloudflare timeout specifically
-        if (error.code === 'ECONNABORTED' || error.response?.status === 524 || error.message?.includes('timeout')) {
+        if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
           toast.error('Upload timeout. The file may have been uploaded successfully. Please check your submissions.');
           // Still navigate to dashboard - submission might have been created
           setTimeout(() => navigate('/dashboard'), 2000);
         } else {
-          toast.error(error.response?.data?.error || error.message || 'Failed to submit meme');
+          toast.error(apiError.response?.data?.error || apiError.message || 'Failed to submit meme');
         }
       } finally {
         setLoading(false);
@@ -142,8 +143,9 @@ export default function Submit() {
         });
         toast.success('Meme import submitted! Waiting for approval.');
         navigate('/dashboard');
-      } catch (error: any) {
-        toast.error(error.response?.data?.error || 'Failed to import meme');
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || 'Failed to import meme');
       } finally {
         setLoading(false);
       }

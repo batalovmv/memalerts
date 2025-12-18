@@ -317,23 +317,20 @@ export default function Admin() {
 
 // Wallet Management Component (Admin only)
 function WalletManagement() {
-  const [wallets, setWallets] = useState<any[]>([]);
+  const [wallets, setWallets] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [adjustAmount, setAdjustAmount] = useState('');
 
-  useEffect(() => {
-    fetchWallets();
-  }, []);
-
-  const fetchWallets = async () => {
+  const fetchWallets = useCallback(async () => {
     try {
       setLoading(true);
       const { api } = await import('../lib/api');
       const wallets = await api.get('/admin/wallets');
       setWallets(wallets);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
     } finally {
       setLoading(false);
     }
@@ -353,8 +350,9 @@ function WalletManagement() {
       toast.success(amount > 0 ? t('admin.balanceIncreased', { amount: Math.abs(amount) }) : t('admin.balanceDecreased', { amount: Math.abs(amount) }));
       setAdjustAmount('');
       fetchWallets();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToAdjustBalance') || 'Failed to adjust balance');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToAdjustBalance') || 'Failed to adjust balance');
     } finally {
       setAdjusting(null);
     }
@@ -436,14 +434,7 @@ function ChannelSettings() {
   });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Load current settings
-    if (user?.channelId && user?.channel?.slug) {
-      loadSettings();
-    }
-  }, [user?.channelId, user?.channel?.slug, getChannelData, getCachedChannelData]);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     if (!user?.channel?.slug) return;
     
     try {
@@ -482,7 +473,14 @@ function ChannelSettings() {
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
-  };
+  }, [user?.channelId, user?.channel?.slug, getChannelData, getCachedChannelData, t]);
+
+  useEffect(() => {
+    // Load current settings
+    if (user?.channelId && user?.channel?.slug) {
+      loadSettings();
+    }
+  }, [loadSettings, user?.channelId, user?.channel?.slug]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -504,8 +502,9 @@ function ChannelSettings() {
       // Reload settings to get updated rewardId and state
       await loadSettings();
       // Don't reload page - just update the UI
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
       toast.error(errorMessage);
       
       // If requires reauth, show special message
@@ -745,25 +744,26 @@ function ChannelSettings() {
 // Channel Statistics Component
 function ChannelStatistics() {
   const { t } = useTranslation();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       const { api } = await import('../lib/api');
       const stats = await api.get('/admin/stats/channel');
       setStats(stats);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToLoadStatistics') || 'Failed to load statistics');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToLoadStatistics') || 'Failed to load statistics');
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   if (loading) {
     return <div className="text-center py-8">{t('admin.loadingStatistics')}</div>;
@@ -807,7 +807,7 @@ function ChannelStatistics() {
               </tr>
             </thead>
             <tbody>
-              {stats.userSpending.map((item: any) => (
+              {Array.isArray(stats.userSpending) && stats.userSpending.map((item: Record<string, unknown>) => (
                 <tr key={item.user.id} className="border-b">
                   <td className="p-2">{item.user.displayName}</td>
                   <td className="p-2">{item.activationsCount}</td>
@@ -832,7 +832,7 @@ function ChannelStatistics() {
               </tr>
             </thead>
             <tbody>
-              {stats.memePopularity.map((item: any, index: number) => (
+              {Array.isArray(stats.memePopularity) && stats.memePopularity.map((item: Record<string, unknown>, index: number) => (
                 <tr key={item.meme?.id || index} className="border-b">
                   <td className="p-2">{item.meme?.title || t('common.unknown') || 'Unknown'}</td>
                   <td className="p-2">{item.activationsCount}</td>
@@ -872,8 +872,9 @@ function PromotionManagement() {
       const { api } = await import('../lib/api');
       const promotions = await api.get('/admin/promotions');
       setPromotions(promotions);
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to load promotions';
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      const errorMessage = apiError.response?.data?.error || 'Failed to load promotions';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -895,8 +896,9 @@ function PromotionManagement() {
       setShowCreateForm(false);
       setFormData({ name: '', discountPercent: '', startDate: '', endDate: '' });
       fetchPromotions();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToCreatePromotion') || 'Failed to create promotion');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToCreatePromotion') || 'Failed to create promotion');
     }
   };
 
@@ -906,8 +908,9 @@ function PromotionManagement() {
       await api.patch(`/admin/promotions/${id}`, { isActive: !currentActive });
       toast.success(!currentActive ? t('admin.promotionActivated') : t('admin.promotionDeactivated'));
       fetchPromotions();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToUpdatePromotion') || 'Failed to update promotion');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToUpdatePromotion') || 'Failed to update promotion');
     }
   };
 
@@ -918,8 +921,9 @@ function PromotionManagement() {
       await api.delete(`/admin/promotions/${id}`);
       toast.success(t('admin.promotionDeleted'));
       fetchPromotions();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('admin.failedToDeletePromotion') || 'Failed to delete promotion');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToDeletePromotion') || 'Failed to delete promotion');
     }
   };
 
@@ -1087,30 +1091,32 @@ function BetaAccessManagement() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadRequests();
-  }, []);
-
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
       const requests = await api.get('/admin/beta/requests');
       setRequests(requests);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
       console.error('Error loading beta access requests:', error);
-      toast.error(error.response?.data?.error || t('toast.failedToLoad'));
+      toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
 
   const handleApprove = async (requestId: string) => {
     try {
       await api.post(`/admin/beta/requests/${requestId}/approve`);
       toast.success(t('toast.betaAccessApproved'));
       loadRequests();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('toast.failedToApprove'));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToApprove'));
     }
   };
 
@@ -1119,8 +1125,9 @@ function BetaAccessManagement() {
       await api.post(`/admin/beta/requests/${requestId}/reject`);
       toast.success(t('toast.betaAccessRejected'));
       loadRequests();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || t('toast.failedToReject'));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToReject'));
     }
   };
 
@@ -1151,7 +1158,7 @@ function BetaAccessManagement() {
         </div>
       ) : (
         <div className="space-y-4">
-          {requests.map((request: any) => (
+          {requests.map((request: Record<string, unknown>) => (
             <div key={request.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
               <div className="flex items-center justify-between mb-2">
                 <div>

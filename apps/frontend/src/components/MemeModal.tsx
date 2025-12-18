@@ -122,8 +122,9 @@ export default function MemeModal({
       toast.success('Meme updated successfully!');
       setIsEditing(false);
       onUpdate();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update meme');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || 'Failed to update meme');
     } finally {
       setLoading(false);
     }
