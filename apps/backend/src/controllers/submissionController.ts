@@ -216,7 +216,7 @@ export const submissionController = {
         }
 
         // Log file upload
-        await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, req);
+        await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
 
         // Send response with meme data
         return res.status(201).json({
@@ -284,6 +284,9 @@ export const submissionController = {
           throw dbError;
         }
       }
+
+      // Log file upload
+      await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
 
       // Send response immediately after creating submission
       res.status(201).json(submission);
