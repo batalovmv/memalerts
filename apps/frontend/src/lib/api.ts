@@ -73,7 +73,7 @@ console.log('[API] Final baseURL:', apiBaseUrl, 'Current origin:', window.locati
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
-  timeout: 300000, // 5 minutes timeout for file uploads
+  timeout: 30000, // 30 seconds for regular requests (file uploads will override this)
 });
 
 // Wrap axios instance with request deduplication
@@ -102,6 +102,10 @@ export const api: CustomAxiosInstance = {
         .catch((error: unknown) => {
           // Remove from pending on error
           pendingRequests.delete(requestKey);
+          // Log timeout errors
+          if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+            console.error('[API] Request timeout:', config.url, config.method);
+          }
           throw error;
         });
       
@@ -114,7 +118,20 @@ export const api: CustomAxiosInstance = {
     }
     
     // For non-GET requests, use original axios instance
-    return axiosInstance.request<unknown>(config).then((response: AxiosResponse<unknown>) => response.data as T);
+    // For file uploads (FormData), use longer timeout
+    const requestConfig = { ...config };
+    if (config.data instanceof FormData && !requestConfig.timeout) {
+      requestConfig.timeout = 300000; // 5 minutes for file uploads
+    }
+    return axiosInstance.request<unknown>(requestConfig)
+      .then((response: AxiosResponse<unknown>) => response.data as T)
+      .catch((error: unknown) => {
+        // Log timeout errors
+        if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+          console.error('[API] Request timeout:', requestConfig.url, requestConfig.method);
+        }
+        throw error;
+      });
   },
   get: <T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     // Use request deduplication directly for GET requests
@@ -135,6 +152,10 @@ export const api: CustomAxiosInstance = {
       })
       .catch((error: unknown) => {
         pendingRequests.delete(requestKey);
+        // Log timeout errors
+        if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+          console.error('[API] Request timeout:', requestConfig.url, requestConfig.method);
+        }
         throw error;
       });
     
@@ -155,7 +176,20 @@ export const api: CustomAxiosInstance = {
     return axiosInstance.options<T>(url, config).then(response => response.data as T);
   },
   post: <T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
-    return axiosInstance.post<T>(url, data, config).then(response => response.data as T);
+    // For file uploads (FormData), use longer timeout
+    const requestConfig = { ...config };
+    if (data instanceof FormData && !requestConfig.timeout) {
+      requestConfig.timeout = 300000; // 5 minutes for file uploads
+    }
+    return axiosInstance.post<T>(url, data, requestConfig)
+      .then(response => response.data as T)
+      .catch((error: unknown) => {
+        // Log timeout errors
+        if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+          console.error('[API] Request timeout:', url, 'POST');
+        }
+        throw error;
+      });
   },
   put: <T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
     return axiosInstance.put<T>(url, data, config).then(response => response.data as T);
@@ -173,6 +207,15 @@ export const api: CustomAxiosInstance = {
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error('[API] Request timeout:', error.config?.url, error.config?.method);
+      const timeoutError = new Error('Request timeout - the server took too long to respond');
+      (timeoutError as any).isTimeout = true;
+      (timeoutError as any).config = error.config;
+      return Promise.reject(timeoutError);
+    }
+    
     if (error.response?.status === 401) {
       // Handle unauthorized - could dispatch logout action here if needed
     }

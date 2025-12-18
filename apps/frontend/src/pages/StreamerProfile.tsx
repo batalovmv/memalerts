@@ -72,7 +72,9 @@ export default function StreamerProfile() {
     const loadChannelData = async () => {
       try {
         // Load channel info without memes for faster initial load
-        const channelInfo = await api.get<ChannelInfo>(`/channels/${slug}?includeMemes=false`);
+        const channelInfo = await api.get<ChannelInfo>(`/channels/${slug}?includeMemes=false`, {
+          timeout: 15000, // 15 seconds timeout
+        });
         setChannelInfo({ ...channelInfo, memes: [] }); // Set memes to empty array initially
         setLoading(false); // Channel info loaded, can show page structure
         
@@ -80,7 +82,9 @@ export default function StreamerProfile() {
         setMemesLoading(true);
         setMemesOffset(0);
         try {
-          const memes = await api.get<Meme[]>(`/memes?channelId=${channelInfo.id}&limit=${MEMES_PER_PAGE}&offset=0`);
+          const memes = await api.get<Meme[]>(`/memes?channelId=${channelInfo.id}&limit=${MEMES_PER_PAGE}&offset=0`, {
+            timeout: 15000, // 15 seconds timeout
+          });
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
         } catch (error) {
@@ -139,7 +143,9 @@ export default function StreamerProfile() {
     setLoadingMore(true);
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
-      const newMemes = await api.get<Meme[]>(`/memes?channelId=${channelInfo.id}&limit=${MEMES_PER_PAGE}&offset=${nextOffset}`);
+      const newMemes = await api.get<Meme[]>(`/memes?channelId=${channelInfo.id}&limit=${MEMES_PER_PAGE}&offset=${nextOffset}`, {
+        timeout: 15000, // 15 seconds timeout
+      });
       
       if (newMemes.length > 0) {
         setMemes(prev => [...prev, ...newMemes]);

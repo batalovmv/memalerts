@@ -72,7 +72,9 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
     try {
       // Use includeMemes=false for performance when memes are not needed
       const params = includeMemes ? '' : '?includeMemes=false';
-      const data: ChannelData = await api.get(`/channels/${slug}${params}`);
+      const data: ChannelData = await api.get(`/channels/${slug}${params}`, {
+        timeout: 15000, // 15 seconds timeout
+      });
       
       // Update cache
       channelDataCache.set(slug, { data, timestamp: Date.now() });

@@ -22,6 +22,7 @@ export const fetchSubmissions = createAsyncThunk<
   try {
     const submissions = await api.get<Submission[]>('/admin/submissions', {
       params: { status },
+      timeout: 15000, // 15 seconds timeout
     });
     return submissions;
   } catch (error: unknown) {

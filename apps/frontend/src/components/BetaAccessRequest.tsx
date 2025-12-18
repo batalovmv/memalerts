@@ -31,7 +31,9 @@ export default function BetaAccessRequest() {
     try {
       setLoading(true);
       const startTime = Date.now();
-      const response = await api.get<BetaAccessStatus>('/beta/status');
+      const response = await api.get<BetaAccessStatus>('/beta/status', {
+        timeout: 10000, // 10 seconds timeout
+      });
       const duration = Date.now() - startTime;
       console.log('[BetaAccessRequest] loadStatus completed', { hasAccess: response?.hasAccess, duration });
       setStatus(response);

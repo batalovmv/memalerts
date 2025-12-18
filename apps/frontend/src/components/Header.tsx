@@ -188,6 +188,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         }
 
         // If not in cache and not on channel page, fetch it
+        // getChannelData already uses includeMemes=false by default for performance
         const channelData = await getChannelData(slugToUse);
         if (channelData) {
           if (coinIconUrl === undefined && channelData.coinIconUrl) {
