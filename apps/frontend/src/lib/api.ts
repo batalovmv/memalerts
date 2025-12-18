@@ -99,10 +99,10 @@ export const api: AxiosInstance = {
     }
     
     // For non-GET requests, use original axios instance
-    return axiosInstance.request<T>(config).then(response => response.data as T);
+    return axiosInstance.request<any>(config).then((response: AxiosResponse<any>) => response.data as T);
   },
   get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    return api.request<T>({ ...config, method: 'GET', url });
+    return api.request<T>({ ...config, method: 'GET', url }) as Promise<T>;
   },
   delete: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     return axiosInstance.delete<T>(url, config).then(response => response.data as T);
