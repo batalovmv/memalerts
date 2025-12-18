@@ -242,7 +242,7 @@ export default function Submit() {
                 <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
                   <li>Go to memalerts.com and find the video</li>
                   <li>Right-click on the video</li>
-                  <li>Select "Copy video address" or "Copy video URL"</li>
+                  <li>Select &quot;Copy video address&quot; or &quot;Copy video URL&quot;</li>
                   <li>Paste the URL here</li>
                 </ol>
                 <p className="text-xs text-gray-500 mt-2">
