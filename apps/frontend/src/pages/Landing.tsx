@@ -94,6 +94,12 @@ export default function Landing() {
     }
   }, [searchParams, setSearchParams]);
 
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Landing.tsx:97',message:'Landing render state',data:{loading,hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  }, [loading, user]);
+  // #endregion
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

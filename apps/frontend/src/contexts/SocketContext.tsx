@@ -54,6 +54,9 @@ export function SocketProvider({ children }: SocketProviderProps) {
     // Only create socket if it doesn't exist
     if (!socketRef.current) {
       const socketUrl = getSocketUrl();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocketContext.tsx:56',message:'Socket.IO connecting',data:{socketUrl,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const socket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
@@ -62,6 +65,9 @@ export function SocketProvider({ children }: SocketProviderProps) {
       socketRef.current = socket;
 
       socket.on('connect', () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocketContext.tsx:64',message:'Socket.IO connected',data:{socketId:socket.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         console.log('Socket.IO connected');
         setIsConnected(true);
         // Join user room for wallet updates
@@ -71,11 +77,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
       });
 
       socket.on('disconnect', () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocketContext.tsx:73',message:'Socket.IO disconnected',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         console.log('Socket.IO disconnected');
         setIsConnected(false);
       });
 
       socket.on('connect_error', (error: Error) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocketContext.tsx:78',message:'Socket.IO connection error',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         console.error('Socket.IO connection error:', error);
         setIsConnected(false);
       });
