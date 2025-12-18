@@ -117,7 +117,7 @@ export const adminController = {
     }
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:119',message:'approveSubmission started',data:{submissionId:id,channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    console.log('[DEBUG] approveSubmission started', JSON.stringify({ location: 'adminController.ts:119', message: 'approveSubmission started', data: { submissionId: id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
     // #endregion
 
     let submission: any; // Declare submission in outer scope for error handling
@@ -160,7 +160,7 @@ export const adminController = {
 
         // Get channel to use default price
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:162',message:'Fetching channel for default price',data:{channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        console.log('[DEBUG] Fetching channel for default price', JSON.stringify({ location: 'adminController.ts:162', message: 'Fetching channel for default price', data: { channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
         // #endregion
         
         const channel = await tx.channel.findUnique({
@@ -169,7 +169,7 @@ export const adminController = {
         });
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:166',message:'Channel fetched',data:{channelId,found:!!channel,defaultPriceCoins:channel?.defaultPriceCoins},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        console.log('[DEBUG] Channel fetched', JSON.stringify({ location: 'adminController.ts:166', message: 'Channel fetched', data: { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
         // #endregion
         
         const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
@@ -180,7 +180,7 @@ export const adminController = {
         let filePath: string | null = null; // Declare filePath in wider scope
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:165',message:'Processing file URL',data:{submissionId:id,hasSourceUrl:!!submission.sourceUrl,fileUrlTemp:submission.fileUrlTemp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        console.log('[DEBUG] Processing file URL', JSON.stringify({ location: 'adminController.ts:165', message: 'Processing file URL', data: { submissionId: id, hasSourceUrl: !!submission.sourceUrl, fileUrlTemp: submission.fileUrlTemp }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
         // #endregion
         
         if (submission.sourceUrl) {
@@ -198,17 +198,17 @@ export const adminController = {
               : submission.fileUrlTemp;
             
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:178',message:'Validating file path',data:{submissionId:id,fileUrlTemp:submission.fileUrlTemp,relativePath,uploadsDir},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            console.log('[DEBUG] Validating file path', JSON.stringify({ location: 'adminController.ts:178', message: 'Validating file path', data: { submissionId: id, fileUrlTemp: submission.fileUrlTemp, relativePath, uploadsDir }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
             // #endregion
             
             filePath = validatePathWithinDirectory(relativePath, uploadsDir);
             
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:184',message:'Path validated',data:{submissionId:id,filePath,fileExists:fs.existsSync(filePath)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            console.log('[DEBUG] Path validated', JSON.stringify({ location: 'adminController.ts:184', message: 'Path validated', data: { submissionId: id, filePath, fileExists: fs.existsSync(filePath) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
             // #endregion
           } catch (pathError: any) {
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:186',message:'Path validation failed',data:{submissionId:id,fileUrlTemp:submission.fileUrlTemp,error:pathError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            console.log('[DEBUG] Path validation failed', JSON.stringify({ location: 'adminController.ts:186', message: 'Path validation failed', data: { submissionId: id, fileUrlTemp: submission.fileUrlTemp, error: pathError.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
             // #endregion
             console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
             throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
@@ -332,7 +332,7 @@ export const adminController = {
 
         try {
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:333',message:'Creating meme in transaction',data:{submissionId:id,channelId:submission.channelId,hasTags:tagIds.length>0,fileUrl:finalFileUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+          console.log('[DEBUG] Creating meme in transaction', JSON.stringify({ location: 'adminController.ts:333', message: 'Creating meme in transaction', data: { submissionId: id, channelId: submission.channelId, hasTags: tagIds.length > 0, fileUrl: finalFileUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
           // #endregion
           
           const meme = await tx.meme.create({
@@ -360,13 +360,13 @@ export const adminController = {
           });
 
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:357',message:'Meme created successfully',data:{submissionId:id,memeId:meme.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+          console.log('[DEBUG] Meme created successfully', JSON.stringify({ location: 'adminController.ts:357', message: 'Meme created successfully', data: { submissionId: id, memeId: meme.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
           // #endregion
 
           return meme;
         } catch (error: any) {
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:360',message:'Error creating meme',data:{submissionId:id,errorMessage:error.message,errorName:error.name,errorCode:error instanceof PrismaClientKnownRequestError ? error.code : undefined,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+          console.log('[DEBUG] Error creating meme', JSON.stringify({ location: 'adminController.ts:360', message: 'Error creating meme', data: { submissionId: id, errorMessage: error.message, errorName: error.name, errorCode: error instanceof PrismaClientKnownRequestError ? error.code : undefined, stack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
           // #endregion
           console.error('Error creating meme:', error);
           // Check if it's a constraint violation or other Prisma error
@@ -385,13 +385,13 @@ export const adminController = {
         maxWait: 10000, // 10 second max wait for transaction to start
       }).catch((txError: any) => {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:375',message:'Transaction failed',data:{submissionId:id,errorMessage:txError.message,errorName:txError.name,errorCode:txError.code,stack:txError.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+        console.log('[DEBUG] Transaction failed', JSON.stringify({ location: 'adminController.ts:375', message: 'Transaction failed', data: { submissionId: id, errorMessage: txError.message, errorName: txError.name, errorCode: txError.code, stack: txError.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
         // #endregion
         throw txError;
       });
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:380',message:'Transaction completed successfully',data:{submissionId:id,resultId:result?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+      console.log('[DEBUG] Transaction completed successfully', JSON.stringify({ location: 'adminController.ts:380', message: 'Transaction completed successfully', data: { submissionId: id, resultId: result?.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
       // #endregion
 
       // If this is an imported meme, start background download and update
@@ -423,7 +423,7 @@ export const adminController = {
       res.json(result);
     } catch (error: any) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:377',message:'Error in approveSubmission',data:{submissionId:id,errorMessage:error.message,errorName:error.name,errorCode:error.code,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      console.log('[DEBUG] Error in approveSubmission', JSON.stringify({ location: 'adminController.ts:377', message: 'Error in approveSubmission', data: { submissionId: id, errorMessage: error.message, errorName: error.name, errorCode: error.code, stack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }));
       // #endregion
       console.error('Error in approveSubmission:', error);
 
@@ -448,7 +448,7 @@ export const adminController = {
         const errorMeta = error instanceof PrismaClientKnownRequestError ? error.meta : undefined;
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:426',message:'Prisma error in approveSubmission',data:{submissionId:id,errorCode,errorMessage:error.message,meta:errorMeta},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+        console.log('[DEBUG] Prisma error in approveSubmission', JSON.stringify({ location: 'adminController.ts:426', message: 'Prisma error in approveSubmission', data: { submissionId: id, errorCode, errorMessage: error.message, meta: errorMeta }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'H' }));
         // #endregion
         console.error('Prisma error in approveSubmission:', error.message, errorCode, errorMeta);
         

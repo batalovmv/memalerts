@@ -13,7 +13,7 @@ import fs from 'fs';
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:14',message:'createSubmission started',data:{hasFile:!!req.file,userId:req.userId,channelId:req.channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+    console.log('[DEBUG] createSubmission started', JSON.stringify({ location: 'submissionController.ts:14', message: 'createSubmission started', data: { hasFile: !!req.file, userId: req.userId, channelId: req.channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
     // #endregion
     
     if (!req.file) {
@@ -318,7 +318,7 @@ export const submissionController = {
       await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submissionController.ts:306',message:'Submission created successfully, sending response',data:{submissionId:submission.id,channelId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      console.log('[DEBUG] Submission created successfully, sending response', JSON.stringify({ location: 'submissionController.ts:306', message: 'Submission created successfully, sending response', data: { submissionId: submission.id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
       // #endregion
 
       // Send response immediately after creating submission
