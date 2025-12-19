@@ -241,14 +241,28 @@ jobs:
 
       - name: Build Web (Beta)
         run: |
-          # For beta, always use relative URL (empty string) so frontend uses same domain
-          # This ensures beta frontend uses beta API automatically
-          VITE_API_URL="" pnpm build:web
+          # For beta, use same logic as production but with beta domain
+          if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
+            # If VITE_API_URL contains "beta", use it directly
+            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:web
+          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            # Build beta URL from DOMAIN (same as production but with beta prefix)
+            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:web
+          else
+            # Fallback to empty string for relative URLs
+            VITE_API_URL="" pnpm build:web
+          fi
 
       - name: Build Overlay (Beta)
         run: |
-          # For beta, always use relative URL (empty string) so frontend uses same domain
-          VITE_API_URL="" pnpm build:overlay
+          # Same logic for overlay
+          if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
+            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:overlay
+          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:overlay
+          else
+            VITE_API_URL="" pnpm build:overlay
+          fi
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
