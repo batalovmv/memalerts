@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { api } from '../../lib/api';
-import type { User, ApiError } from '../../types';
+import type { User, ApiError, Wallet } from '../../types';
 
 interface AuthState {
   user: User | null;
@@ -72,12 +72,27 @@ const authSlice = createSlice({
       state.error = null;
     },
     updateWalletBalance: (state, action: PayloadAction<{ channelId: string; balance: number }>) => {
-      if (state.user?.wallets) {
-        const wallet = state.user.wallets.find(w => w.channelId === action.payload.channelId);
-        if (wallet) {
-          wallet.balance = action.payload.balance;
-        }
+      if (!state.user) return;
+
+      // Ensure wallets array exists
+      if (!state.user.wallets) {
+        state.user.wallets = [];
       }
+
+      const wallet = state.user.wallets.find(w => w.channelId === action.payload.channelId);
+      if (wallet) {
+        wallet.balance = action.payload.balance;
+        return;
+      }
+
+      // If wallet doesn't exist yet (first-time redemption), create it in state
+      const newWallet: Wallet = {
+        id: '',
+        userId: state.user.id,
+        channelId: action.payload.channelId,
+        balance: action.payload.balance,
+      };
+      state.user.wallets.push(newWallet);
     },
   },
   extraReducers: (builder) => {

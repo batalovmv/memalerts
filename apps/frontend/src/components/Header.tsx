@@ -36,6 +36,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket } = useSocket();
+  const [coinUpdateCount, setCoinUpdateCount] = useState(0);
+  const [lastCoinDelta, setLastCoinDelta] = useState<number | null>(null);
+  const coinUpdateHideTimerRef = useRef<number | null>(null);
   const submissionsLoadedRef = useRef(false);
   const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
   const channelDataLoadedRef = useRef<string | null>(null); // Track which channel's data was loaded
@@ -86,6 +89,16 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       submissionsLoadedRef.current = false;
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (coinUpdateHideTimerRef.current) {
+        window.clearTimeout(coinUpdateHideTimerRef.current);
+        coinUpdateHideTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Load wallet balance and auto-refresh
   // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile
@@ -274,14 +287,39 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       return;
     }
 
-    const handleWalletUpdate = (data: { userId: string; channelId: string; balance: number }) => {
+    const handleWalletUpdate = (data: { userId: string; channelId: string; balance: number; delta?: number; reason?: string }) => {
       // Only update if it's for the current user and channel
       if (data.userId === user.id && (channelId ? data.channelId === channelId : true)) {
         setWallet((prev) => {
+          const prevBalance = prev?.channelId === data.channelId ? prev.balance : (prev?.balance ?? 0);
+          const delta = typeof data.delta === 'number' ? data.delta : (data.balance - prevBalance);
+
+          // Show a header badge when coins are added from Twitch reward
+          if (delta > 0 && (data.reason === 'twitch_reward' || data.reason === undefined)) {
+            setCoinUpdateCount((c) => c + 1);
+            setLastCoinDelta(delta);
+
+            if (coinUpdateHideTimerRef.current) {
+              window.clearTimeout(coinUpdateHideTimerRef.current);
+            }
+            coinUpdateHideTimerRef.current = window.setTimeout(() => {
+              setCoinUpdateCount(0);
+              setLastCoinDelta(null);
+              coinUpdateHideTimerRef.current = null;
+            }, 8000);
+          }
+
           if (prev && prev.channelId === data.channelId) {
             return { ...prev, balance: data.balance };
           }
-          return prev;
+
+          // If Header had no wallet yet (first-time wallet creation), set it
+          return {
+            id: '',
+            userId: user.id,
+            channelId: data.channelId,
+            balance: data.balance,
+          };
         });
         // Update Redux store
         dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
@@ -304,7 +342,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Update channel room when currentChannelSlug changes
   useEffect(() => {
     if (socket?.connected && currentChannelSlug) {
-      socket.emit('join:channel', currentChannelSlug);
+      socket.emit('join:channel', currentChannelSlug.trim().toLowerCase());
     }
   }, [socket, currentChannelSlug]);
 
@@ -407,7 +445,22 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Balance Display */}
                 <div className="relative group">
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
+                    onClick={() => {
+                      setCoinUpdateCount(0);
+                      setLastCoinDelta(null);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setCoinUpdateCount(0);
+                        setLastCoinDelta(null);
+                      }
+                    }}
+                    aria-label={t('header.balance', 'Balance')}
+                  >
                     {(coinIconUrl || channelCoinIconUrl) ? (
                       <img src={coinIconUrl || channelCoinIconUrl || ''} alt="Coin" className="w-5 h-5" />
                     ) : (
@@ -422,6 +475,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       <span className="text-xs text-gray-600 dark:text-gray-400">coins</span>
                     </div>
                   </div>
+                  {coinUpdateCount > 0 && lastCoinDelta !== null && (
+                    <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
+                      +{lastCoinDelta}{coinUpdateCount > 1 ? ` (${coinUpdateCount})` : ''}
+                    </span>
+                  )}
                   {/* Tooltip */}
                   <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
                     {channelRewardTitle 
