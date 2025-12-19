@@ -189,9 +189,14 @@ jobs:
             if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
               echo "Using script: $SCRIPT_PATH"
               chmod +x "$SCRIPT_PATH"
+              # Fix line endings if needed (convert CRLF to LF)
+              sed -i 's/\r$//' "$SCRIPT_PATH" || true
+              # Ensure script is executable
+              chmod +x "$SCRIPT_PATH"
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E "$SCRIPT_PATH" ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 2>&1 || {
+              # Use bash explicitly to avoid shebang issues
+              sudo -E bash "$SCRIPT_PATH" ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 2>&1 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
