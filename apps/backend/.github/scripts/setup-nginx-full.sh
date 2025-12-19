@@ -272,8 +272,29 @@ server {
         proxy_read_timeout 120s;
     }
     
-    # Other backend routes (excluding /uploads which is handled above)
-    location ~ ^/(auth|webhooks|channels|wallet|memes|health|socket\.io) {
+    # WebSocket support for Socket.IO (must come BEFORE regex location to have priority)
+    location /socket.io/ {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # WebSocket specific timeouts (24 hours for long-lived connections)
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_connect_timeout 60s;
+    }
+
+    # Other backend routes (excluding /uploads and /socket.io which are handled above)
+    location ~ ^/(auth|webhooks|channels|wallet|memes|health) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -292,19 +313,6 @@ server {
         proxy_cookie_path / /;
     }
 
-    # WebSocket support for Socket.IO
-    location /socket.io/ {
-        proxy_pass http://localhost:$BACKEND_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        # Pass Cloudflare real client IP header
-        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
-    }
 
     # Frontend routes
     # IMPORTANT: This must come AFTER all backend routes
@@ -496,8 +504,29 @@ server {
         }
     }
     
-    # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
-    location ~ ^/(webhooks|channels|wallet|memes|health|socket\.io) {
+    # WebSocket support for Socket.IO (must come BEFORE regex location to have priority)
+    location /socket.io/ {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # WebSocket specific timeouts (24 hours for long-lived connections)
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_connect_timeout 60s;
+    }
+
+    # Other backend routes (excluding /auth, /me, /uploads, and /socket.io which are handled above)
+    location ~ ^/(webhooks|channels|wallet|memes|health) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -512,20 +541,6 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
         proxy_cookie_path / /;
-    }
-
-    # WebSocket support for Socket.IO
-    location /socket.io/ {
-        proxy_pass http://localhost:$BETA_BACKEND_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        # Pass Cloudflare real client IP header
-        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
     }
 
     # Frontend routes
@@ -654,8 +669,29 @@ server {
         proxy_read_timeout 120s;
     }
     
-    # Other backend routes (excluding /uploads which is handled above)
-    location ~ ^/(auth|webhooks|channels|wallet|memes|health|socket\.io) {
+    # WebSocket support for Socket.IO (must come BEFORE regex location to have priority)
+    location /socket.io/ {
+        proxy_pass http://localhost:$BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # WebSocket specific timeouts (24 hours for long-lived connections)
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_connect_timeout 60s;
+    }
+
+    # Other backend routes (excluding /uploads and /socket.io which are handled above)
+    location ~ ^/(auth|webhooks|channels|wallet|memes|health) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -674,19 +710,6 @@ server {
         proxy_cookie_path / /;
     }
 
-    # WebSocket support for Socket.IO
-    location /socket.io/ {
-        proxy_pass http://localhost:$BACKEND_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        # Pass Cloudflare real client IP header
-        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
-    }
 
     # Frontend routes
     # IMPORTANT: This must come AFTER all backend routes
@@ -861,8 +884,29 @@ server {
         }
     }
     
-    # Other backend routes (excluding /auth, /me, and /uploads which are handled above)
-    location ~ ^/(webhooks|channels|wallet|memes|health|socket\.io) {
+    # WebSocket support for Socket.IO (must come BEFORE regex location to have priority)
+    location /socket.io/ {
+        proxy_pass http://localhost:$BETA_BACKEND_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # Pass Cloudflare real client IP header
+        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
+        proxy_set_header Cookie \$http_cookie;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # WebSocket specific timeouts (24 hours for long-lived connections)
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_connect_timeout 60s;
+    }
+
+    # Other backend routes (excluding /auth, /me, /uploads, and /socket.io which are handled above)
+    location ~ ^/(webhooks|channels|wallet|memes|health) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -877,20 +921,6 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_pass_header Set-Cookie;
         proxy_cookie_path / /;
-    }
-
-    # WebSocket support for Socket.IO
-    location /socket.io/ {
-        proxy_pass http://localhost:$BETA_BACKEND_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        # Pass Cloudflare real client IP header
-        proxy_set_header CF-Connecting-IP \$http_cf_connecting_ip;
     }
 
     # Frontend routes
