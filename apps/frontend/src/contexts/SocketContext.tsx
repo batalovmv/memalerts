@@ -101,7 +101,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
         console.error('[SocketContext] ❌ Socket.IO connection error:', error.message, {
           socketUrl,
           userId: user?.id,
-          attempts: socket.io?.reconnecting ? 'reconnecting' : 'initial',
+          connected: socket.connected,
+          disconnected: socket.disconnected,
         });
         setIsConnected(false);
         // Don't manually retry - let Socket.IO handle reconnection with exponential backoff
