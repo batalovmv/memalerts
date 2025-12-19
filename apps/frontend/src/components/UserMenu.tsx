@@ -46,7 +46,9 @@ export default function UserMenu() {
   };
 
   const handleMyProfile = () => {
-    if (user.role === 'streamer' && user.channelId && user.channel?.slug) {
+    // Admin is an additional role, not exclusive - admin can also be a streamer
+    // Check if user has a channel (regardless of role)
+    if (user.channelId && user.channel?.slug) {
       navigate(`/channel/${user.channel.slug}`);
     } else {
       navigate('/dashboard');
