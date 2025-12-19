@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { store } from '../store/index';
 import { updateWalletBalance } from '../store/slices/authSlice';
-import { fetchSubmissions } from '../store/slices/submissionsSlice';
+import { fetchSubmissions, submissionApproved, submissionCreated, submissionRejected } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
@@ -338,6 +338,44 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, user?.id, channelId, dispatch]);
+
+  // Realtime pending submissions badge updates (no polling)
+  useEffect(() => {
+    if (!socket || !user || !(user.role === 'streamer' || user.role === 'admin')) {
+      return;
+    }
+
+    const onCreated = (data: { submissionId: string; channelId: string; submitterId?: string }) => {
+      // Only update if it's for current channel (when available)
+      if (channelId && data.channelId && data.channelId !== channelId) return;
+      dispatch(submissionCreated(data));
+    };
+
+    const onApproved = (data: { submissionId: string; channelId: string }) => {
+      if (channelId && data.channelId && data.channelId !== channelId) return;
+      dispatch(submissionApproved({ submissionId: data.submissionId }));
+    };
+
+    const onRejected = (data: { submissionId: string; channelId: string }) => {
+      if (channelId && data.channelId && data.channelId !== channelId) return;
+      dispatch(submissionRejected({ submissionId: data.submissionId }));
+    };
+
+    socket.on('submission:created', onCreated);
+    socket.on('submission:approved', onApproved);
+    socket.on('submission:rejected', onRejected);
+
+    // Ensure we're in channel room when on a channel (for channel-scoped emits)
+    if (socket.connected && currentChannelSlug) {
+      socket.emit('join:channel', currentChannelSlug.trim().toLowerCase());
+    }
+
+    return () => {
+      socket.off('submission:created', onCreated);
+      socket.off('submission:approved', onApproved);
+      socket.off('submission:rejected', onRejected);
+    };
+  }, [socket, user?.id, user?.role, channelId, currentChannelSlug, dispatch]);
 
   // Update channel room when currentChannelSlug changes
   useEffect(() => {

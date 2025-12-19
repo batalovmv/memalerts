@@ -113,6 +113,30 @@ const submissionsSlice = createSlice({
     removeSubmission: (state, action: PayloadAction<string>) => {
       state.submissions = state.submissions.filter((s) => s.id !== action.payload);
     },
+    // Socket.IO realtime updates (badge + list)
+    submissionCreated: (state, action: PayloadAction<{ submissionId: string; channelId: string; submitterId?: string }>) => {
+      // Only matters if we're tracking pending submissions list
+      // Add a lightweight placeholder if full payload is not available
+      const exists = state.submissions.some((s) => s.id === action.payload.submissionId);
+      if (exists) return;
+      state.submissions.unshift({
+        id: action.payload.submissionId,
+        channelId: action.payload.channelId,
+        submitterUserId: action.payload.submitterId || '',
+        title: 'New submission',
+        type: 'video',
+        fileUrlTemp: '',
+        status: 'pending',
+        notes: null,
+        createdAt: new Date().toISOString(),
+      } as unknown as Submission);
+    },
+    submissionApproved: (state, action: PayloadAction<{ submissionId: string }>) => {
+      state.submissions = state.submissions.filter((s) => s.id !== action.payload.submissionId);
+    },
+    submissionRejected: (state, action: PayloadAction<{ submissionId: string }>) => {
+      state.submissions = state.submissions.filter((s) => s.id !== action.payload.submissionId);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -152,6 +176,6 @@ const submissionsSlice = createSlice({
   },
 });
 
-export const { clearError, removeSubmission } = submissionsSlice.actions;
+export const { clearError, removeSubmission, submissionCreated, submissionApproved, submissionRejected } = submissionsSlice.actions;
 export default submissionsSlice.reducer;
 
