@@ -49,10 +49,20 @@ setInterval(cleanupPendingRequests, 10000); // Every 10 seconds
 // Use relative URL in production (same domain), absolute in development
 const getApiUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) {
+  
+  // If VITE_API_URL is explicitly set (even if empty string), use it
+  // Empty string means use relative URLs (same origin)
+  if (envUrl !== undefined) {
+    if (envUrl === '') {
+      // Empty string means use relative URLs - return empty string for axios baseURL
+      console.log('[API] Using relative URLs (empty VITE_API_URL), current origin:', window.location.origin);
+      return '';
+    }
     console.log('[API] Using VITE_API_URL from env:', envUrl);
     return envUrl;
   }
+  
+  // If VITE_API_URL is not set at all, determine based on environment
   // In production, use same origin (relative URL)
   // This ensures beta frontend uses beta API, production uses production API
   if (import.meta.env.PROD) {
@@ -60,6 +70,7 @@ const getApiUrl = () => {
     console.log('[API] Using relative URL (same origin):', relativeUrl, 'Current origin:', window.location.origin);
     return relativeUrl;
   }
+  
   // In development, use localhost
   const devUrl = 'http://localhost:3001';
   console.log('[API] Using dev URL:', devUrl);
