@@ -233,9 +233,14 @@ jobs:
             cd /opt/memalerts-backend || cd /opt
             if [ -f memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
               chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
+              # Fix line endings if needed (convert CRLF to LF)
+              sed -i 's/\r$//' memalerts-backend/.github/scripts/setup-nginx-full.sh || true
+              # Ensure script is executable
+              chmod +x memalerts-backend/.github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+              # Use bash explicitly to avoid shebang issues
+              sudo -E bash memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
@@ -262,7 +267,7 @@ jobs:
               chmod +x .github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+              sudo -E bash .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
@@ -572,17 +577,27 @@ jobs:
             
             if [ -f memalerts-backend-beta/.github/scripts/setup-nginx-full.sh ]; then
               chmod +x memalerts-backend-beta/.github/scripts/setup-nginx-full.sh
+              # Fix line endings if needed (convert CRLF to LF)
+              sed -i 's/\r$//' memalerts-backend-beta/.github/scripts/setup-nginx-full.sh || true
+              # Ensure script is executable
+              chmod +x memalerts-backend-beta/.github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E memalerts-backend-beta/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+              # Use bash explicitly to avoid shebang issues
+              sudo -E bash memalerts-backend-beta/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
             elif [ -f .github/scripts/setup-nginx-full.sh ]; then
               chmod +x .github/scripts/setup-nginx-full.sh
+              # Fix line endings if needed (convert CRLF to LF)
+              sed -i 's/\r$//' .github/scripts/setup-nginx-full.sh || true
+              # Ensure script is executable
+              chmod +x .github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              sudo -E .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+              # Use bash explicitly to avoid shebang issues
+              sudo -E bash .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
               }
@@ -592,7 +607,7 @@ jobs:
                 chmod +x /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh
                 export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
                 export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-                sudo -E /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
+                sudo -E bash /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                   echo "Nginx setup failed. Check logs above."
                   exit 1
                 }
