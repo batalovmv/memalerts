@@ -348,6 +348,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
 
   const handlePendingSubmissionsClick = () => {
+    // If user uses the "notifications" entry point, clear coin notification badge as well
+    setCoinUpdateCount(0);
+    setLastCoinDelta(null);
     navigate('/settings?tab=submissions');
   };
 
@@ -423,6 +426,12 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     {hasPendingSubmissions && !isLoadingSubmissions && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                         {pendingSubmissionsCount}
+                      </span>
+                    )}
+                    {/* Coin notification badge (only if no pending submissions badge is shown) */}
+                    {!hasPendingSubmissions && coinUpdateCount > 0 && lastCoinDelta !== null && (
+                      <span className="absolute -bottom-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
+                        +{lastCoinDelta}{coinUpdateCount > 1 ? ` (${coinUpdateCount})` : ''}
                       </span>
                     )}
                   </button>
