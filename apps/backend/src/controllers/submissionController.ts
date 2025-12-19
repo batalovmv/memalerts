@@ -330,7 +330,7 @@ export const submissionController = {
           select: { slug: true, users: { where: { role: 'streamer' }, take: 1, select: { id: true } } },
         });
         if (channel) {
-          io.to(`channel:${channel.slug}`).emit('submission:created', {
+          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:created', {
             submissionId: submission.id,
             channelId: channelId as string,
             submitterId: req.userId,
