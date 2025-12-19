@@ -78,6 +78,11 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   if (!stateChangingMethods.includes(req.method)) {
     return next();
   }
+
+  // Skip CSRF for internal localhost-only relay endpoints
+  if (req.path.startsWith('/internal/')) {
+    return next();
+  }
   
   // Skip CSRF check for webhooks (they use HMAC verification instead)
   if (req.path.startsWith('/webhooks')) {

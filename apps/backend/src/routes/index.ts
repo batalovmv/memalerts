@@ -10,10 +10,31 @@ import { activateMemeLimiter } from '../middleware/rateLimit.js';
 import { requireBetaAccess } from '../middleware/betaAccess.js';
 import { csrfProtection } from '../middleware/csrf.js';
 import { viewerController } from '../controllers/viewerController.js';
+import { Server } from 'socket.io';
+import { emitWalletUpdated, isInternalWalletRelayRequest, WalletUpdatedEvent } from '../realtime/walletBridge.js';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  // Internal-only relay endpoint (used to mirror wallet updates between prod/beta backends on the same VPS)
+  // Not exposed via nginx public routes; additionally, requires localhost source + internal header.
+  app.post('/internal/wallet-updated', (req, res) => {
+    const remote = req.socket.remoteAddress || '';
+    const isLocal = remote === '127.0.0.1' || remote === '::1' || remote.endsWith('127.0.0.1');
+    if (!isLocal || !isInternalWalletRelayRequest(req.headers as any)) {
+      return res.status(404).json({ error: 'Not Found' });
+    }
+
+    const body = req.body as Partial<WalletUpdatedEvent>;
+    if (!body.userId || !body.channelId || typeof body.balance !== 'number') {
+      return res.status(400).json({ error: 'Bad Request' });
+    }
+
+    const io = app.get('io') as Server;
+    emitWalletUpdated(io, body as WalletUpdatedEvent);
+    return res.json({ ok: true });
   });
 
   // Temporary endpoint to debug IP detection (remove after IP is identified)

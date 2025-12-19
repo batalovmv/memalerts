@@ -313,6 +313,7 @@ async function startServer() {
     // Test a simple query
     await prisma.$queryRaw`SELECT 1`;
     console.log('✅ Database query test successful');
+
   } catch (error) {
     console.error('❌ Database connection failed:', error);
     if (error instanceof Error) {

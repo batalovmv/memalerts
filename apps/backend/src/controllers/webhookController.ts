@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
 import { twitchRedemptionEventSchema } from '../shared/index.js';
 import { Server } from 'socket.io';
+import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
@@ -195,11 +196,12 @@ export const webhookController = {
               balance: updatedWallet.balance,
               delta: coinsGranted,
               reason: 'twitch_reward' as const,
+              channelSlug: channel.slug,
             };
             console.log('[webhookController] Emitting wallet:updated event:', walletUpdateData);
-            // Emit to user-specific room and channel room
-            io.to(`user:${user.id}`).emit('wallet:updated', walletUpdateData);
-            io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('wallet:updated', walletUpdateData);
+            // Emit locally, then relay to the other backend instance (beta/prod) on localhost
+            emitWalletUpdated(io, walletUpdateData as any);
+            void relayWalletUpdatedToPeer(walletUpdateData as any);
             // Log how many clients are in each room (for debugging)
             const userRoom = io.sockets.adapter.rooms.get(`user:${user.id}`);
             const channelRoom = io.sockets.adapter.rooms.get(`channel:${String(channel.slug).toLowerCase()}`);
