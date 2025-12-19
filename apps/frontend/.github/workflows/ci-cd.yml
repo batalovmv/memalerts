@@ -246,32 +246,36 @@ jobs:
           if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
             # If VITE_API_URL explicitly contains "beta", use it
             echo "Using VITE_API_URL with beta: ${{ secrets.VITE_API_URL }}"
-            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:web
+            export VITE_API_URL="${{ secrets.VITE_API_URL }}"
           elif [ -n "${{ secrets.DOMAIN }}" ]; then
             # Always build beta URL from DOMAIN for beta deployments
             BETA_URL="https://beta.${{ secrets.DOMAIN }}"
             echo "Using beta URL from DOMAIN: $BETA_URL"
-            VITE_API_URL="$BETA_URL" pnpm build:web
+            export VITE_API_URL="$BETA_URL"
           else
             # Fallback to empty string for relative URLs
             echo "Using relative URLs (empty VITE_API_URL)"
-            VITE_API_URL="" pnpm build:web
+            export VITE_API_URL=""
           fi
+          echo "Final VITE_API_URL for build: $VITE_API_URL"
+          pnpm build:web
 
       - name: Build Overlay (Beta)
         run: |
           # Same logic for overlay
           if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
             echo "Using VITE_API_URL with beta: ${{ secrets.VITE_API_URL }}"
-            VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:overlay
+            export VITE_API_URL="${{ secrets.VITE_API_URL }}"
           elif [ -n "${{ secrets.DOMAIN }}" ]; then
             BETA_URL="https://beta.${{ secrets.DOMAIN }}"
             echo "Using beta URL from DOMAIN: $BETA_URL"
-            VITE_API_URL="$BETA_URL" pnpm build:overlay
+            export VITE_API_URL="$BETA_URL"
           else
             echo "Using relative URLs (empty VITE_API_URL)"
-            VITE_API_URL="" pnpm build:overlay
+            export VITE_API_URL=""
           fi
+          echo "Final VITE_API_URL for overlay build: $VITE_API_URL"
+          pnpm build:overlay
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
