@@ -188,16 +188,22 @@ export const webhookController = {
           // Emit wallet update event via Socket.IO
           try {
             const io: Server = req.app.get('io');
+            const walletUpdateData = {
+              userId: user.id,
+              channelId: channel.id,
+              walletId: updatedWallet.id,
+              balance: updatedWallet.balance,
+            };
+            console.log('[webhookController] Emitting wallet:updated event:', walletUpdateData);
             // Emit to user-specific room and channel room
-            io.to(`user:${user.id}`).emit('wallet:updated', {
-              userId: user.id,
-              channelId: channel.id,
-              balance: updatedWallet.balance,
-            });
-            io.to(`channel:${channel.slug}`).emit('wallet:updated', {
-              userId: user.id,
-              channelId: channel.id,
-              balance: updatedWallet.balance,
+            io.to(`user:${user.id}`).emit('wallet:updated', walletUpdateData);
+            io.to(`channel:${channel.slug}`).emit('wallet:updated', walletUpdateData);
+            // Log how many clients are in each room (for debugging)
+            const userRoom = io.sockets.adapter.rooms.get(`user:${user.id}`);
+            const channelRoom = io.sockets.adapter.rooms.get(`channel:${channel.slug}`);
+            console.log('[webhookController] Socket.IO rooms:', {
+              userRoomSize: userRoom?.size || 0,
+              channelRoomSize: channelRoom?.size || 0,
             });
           } catch (error) {
             console.error('Error emitting wallet update:', error);
