@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 
 interface ChannelThemeProviderProps {
-  channelSlug: string;
+  channelSlug?: string; // Optional, kept for future use
   children: ReactNode;
   primaryColor?: string | null;
   secondaryColor?: string | null;
@@ -15,7 +15,6 @@ const defaultColors = {
 };
 
 export default function ChannelThemeProvider({
-  channelSlug,
   children,
   primaryColor,
   secondaryColor,
