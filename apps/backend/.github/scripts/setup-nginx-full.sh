@@ -172,6 +172,21 @@ server {
     root /opt/memalerts-frontend/dist;
     index index.html;
 
+    # Runtime config (no secrets) - prevents cross-environment API mistakes
+    location = /config.json {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"apiBaseUrl":"","socketUrl":""}';
+    }
+
+    # Never cache HTML (index.html controls which hashed assets are loaded)
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files \$uri =404;
+    }
+
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
     # location = has highest priority in Nginx
@@ -319,6 +334,9 @@ server {
     # try_files will try to find the file, and if not found, serve index.html
     # This should NOT match /me because location = /me has higher priority
     location / {
+        add_header Cache-Control "no-store" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
         try_files \$uri \$uri/ /index.html;
     }
 
@@ -357,6 +375,21 @@ server {
     # Frontend static files (beta)
     root /opt/memalerts-frontend-beta/dist;
     index index.html;
+
+    # Runtime config (no secrets) - prevents cross-environment API mistakes
+    location = /config.json {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"apiBaseUrl":"","socketUrl":""}';
+    }
+
+    # Never cache HTML (index.html controls which hashed assets are loaded)
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files \$uri =404;
+    }
 
     # Auth routes - proxy to beta backend (where cookie is set for beta domain)
     # Beta backend knows about beta domain and sets cookies correctly
@@ -545,6 +578,9 @@ server {
 
     # Frontend routes
     location / {
+        add_header Cache-Control "no-store" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
         try_files \$uri \$uri/ /index.html;
     }
 
@@ -568,6 +604,21 @@ server {
     # Frontend static files
     root /opt/memalerts-frontend/dist;
     index index.html;
+
+    # Runtime config (no secrets) - prevents cross-environment API mistakes
+    location = /config.json {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"apiBaseUrl":"","socketUrl":""}';
+    }
+
+    # Never cache HTML (index.html controls which hashed assets are loaded)
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files \$uri =404;
+    }
 
     # Backend routes (auth, webhooks, etc.) - proxy first
     # Use exact match for /me to ensure it's caught before location /
@@ -716,6 +767,9 @@ server {
     # try_files will try to find the file, and if not found, serve index.html
     # This should NOT match /me because location = /me has higher priority
     location / {
+        add_header Cache-Control "no-store" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
         try_files \$uri \$uri/ /index.html;
     }
 
@@ -737,6 +791,21 @@ server {
     # Frontend static files (beta)
     root /opt/memalerts-frontend-beta/dist;
     index index.html;
+
+    # Runtime config (no secrets) - prevents cross-environment API mistakes
+    location = /config.json {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"apiBaseUrl":"","socketUrl":""}';
+    }
+
+    # Never cache HTML (index.html controls which hashed assets are loaded)
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files \$uri =404;
+    }
 
     # Auth routes - proxy to beta backend (where cookie is set for beta domain)
     # Beta backend knows about beta domain and sets cookies correctly
@@ -925,6 +994,9 @@ server {
 
     # Frontend routes
     location / {
+        add_header Cache-Control "no-store" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
         try_files \$uri \$uri/ /index.html;
     }
 
