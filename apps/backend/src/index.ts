@@ -79,7 +79,9 @@ httpServer.on('timeout', (socket) => {
 });
 
 // Trust proxy for rate limiting behind reverse proxy (nginx/cloudflare)
-app.set('trust proxy', true);
+// Set to 1 to trust first proxy (nginx), or 2 if behind Cloudflare + nginx
+// This prevents express-rate-limit validation error while still allowing IP detection
+app.set('trust proxy', 1);
 
 // Middleware
 // Configure helmet with proper CSP
