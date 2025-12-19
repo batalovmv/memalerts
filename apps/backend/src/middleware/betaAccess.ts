@@ -55,7 +55,8 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
   // For public routes (like /channels/:slug), allow access without authentication
   const isPublicRoute = req.path.startsWith('/channels/memes/search') ||
                         req.path === '/memes/stats' ||
-                        /^\/channels\/[^\/]+$/.test(req.path); // Match /channels/:slug (public route)
+                        /^\/channels\/[^\/]+$/.test(req.path) || // Match /channels/:slug (public route)
+                        /^\/channels\/[^\/]+\/memes$/.test(req.path); // Match /channels/:slug/memes (public route)
 
   if (isPublicRoute) {
     return next();
