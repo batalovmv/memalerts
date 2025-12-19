@@ -241,15 +241,20 @@ jobs:
 
       - name: Build Web (Beta)
         run: |
-          # For beta, use same logic as production but with beta domain
+          # For beta, ALWAYS use beta domain, ignore VITE_API_URL if it points to production
+          # Only use VITE_API_URL if it explicitly contains "beta"
           if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
-            # If VITE_API_URL contains "beta", use it directly
+            # If VITE_API_URL explicitly contains "beta", use it
+            echo "Using VITE_API_URL with beta: ${{ secrets.VITE_API_URL }}"
             VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:web
           elif [ -n "${{ secrets.DOMAIN }}" ]; then
-            # Build beta URL from DOMAIN (same as production but with beta prefix)
-            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:web
+            # Always build beta URL from DOMAIN for beta deployments
+            BETA_URL="https://beta.${{ secrets.DOMAIN }}"
+            echo "Using beta URL from DOMAIN: $BETA_URL"
+            VITE_API_URL="$BETA_URL" pnpm build:web
           else
             # Fallback to empty string for relative URLs
+            echo "Using relative URLs (empty VITE_API_URL)"
             VITE_API_URL="" pnpm build:web
           fi
 
@@ -257,10 +262,14 @@ jobs:
         run: |
           # Same logic for overlay
           if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
+            echo "Using VITE_API_URL with beta: ${{ secrets.VITE_API_URL }}"
             VITE_API_URL="${{ secrets.VITE_API_URL }}" pnpm build:overlay
           elif [ -n "${{ secrets.DOMAIN }}" ]; then
-            VITE_API_URL="https://beta.${{ secrets.DOMAIN }}" pnpm build:overlay
+            BETA_URL="https://beta.${{ secrets.DOMAIN }}"
+            echo "Using beta URL from DOMAIN: $BETA_URL"
+            VITE_API_URL="$BETA_URL" pnpm build:overlay
           else
+            echo "Using relative URLs (empty VITE_API_URL)"
             VITE_API_URL="" pnpm build:overlay
           fi
 
