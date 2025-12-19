@@ -1,6 +1,6 @@
 {
   "name": "@memalerts/api",
-  "_deploy_trigger": "2025-01-20-2",
+  "_deploy_trigger": "rollback-to-b396db2",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
