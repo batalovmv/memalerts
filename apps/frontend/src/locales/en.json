@@ -108,6 +108,9 @@
     "enterPrice": "Enter price in coins:",
     "enterDuration": "Enter duration in milliseconds:",
     "rejectionReason": "Enter rejection reason:",
+    "rejectWarning": "This action cannot be undone. Please provide a reason for rejection.",
+    "rejectionReasonPlaceholder": "Enter reason for rejection...",
+    "rejectionReasonDescription": "This reason will be visible to the submitter",
     "noSubmissions": "No pending submissions",
     "noMemes": "No memes available yet",
     "allSubmissionsReviewed": "All submissions have been reviewed.",
@@ -193,20 +196,17 @@
     "betaAccessGranted": "Users with Beta Access",
     "noGrantedBetaUsers": "No users currently have beta access",
     "betaAccessRevokeConfirm": "Revoke beta access for {{user}}?",
+    "betaAccessRestoreConfirm": "Restore beta access for {{user}}?",
     "revoke": "Revoke",
+    "restore": "Restore",
     "searchUsers": "Search users...",
-    "betaAccessGrantedBadge": "granted"
-  },
-  "profile": {
-    "balanceFor": "Your Balance for",
-    "coins": "coins",
-    "redeemPoints": "Redeem channel points on Twitch to earn coins!",
-    "topUp": "Top Up Balance (Coming Soon)",
-    "submitMeme": "Submit a Meme",
-    "availableMemes": "Available Memes",
-    "noMemes": "No memes available yet.",
-    "insufficientCoins": "Insufficient coins",
-    "activate": "Activate"
+    "betaAccessGrantedBadge": "granted",
+    "betaAccessRevoked": "Revoked (banned)",
+    "noRevokedBetaUsers": "No revoked users",
+    "betaAccessRevokedBadge": "revoked",
+    "revokedAt": "Revoked:",
+    "submissionRewardCoins": "Reward for approved submission (coins)",
+    "submissionRewardCoinsDescription": "Coins granted to the viewer when you approve their submission. Set 0 to disable."
   },
   "search": {
     "title": "Mem Alerts - Search",
@@ -275,11 +275,18 @@
     "failedToImport": "Failed to import meme"
   },
   "profile": {
+    "balanceFor": "Your Balance for",
+    "coins": "coins",
+    "redeemPoints": "Redeem channel points on Twitch to earn coins!",
+    "topUp": "Top Up Balance (Coming Soon)",
+    "insufficientCoins": "Insufficient coins",
+    "activate": "Activate",
     "memes": "memes",
     "users": "users",
     "availableMemes": "Available Memes",
     "noMemes": "No memes available",
-    "submitMeme": "Submit a Meme"
+    "submitMeme": "Submit a Meme",
+    "allMemesLoaded": "All memes loaded"
   },
   "coinsInfoModal": {
     "title": "How to get coins",
@@ -304,9 +311,23 @@
     "betaAccessApproved": "Beta access approved",
     "betaAccessRejected": "Beta access rejected",
     "betaAccessRevoked": "Beta access revoked",
+    "betaAccessRestored": "Beta access restored",
     "failedToApprove": "Failed to approve",
     "failedToReject": "Failed to reject",
-    "failedToRevoke": "Failed to revoke access"
+    "failedToRevoke": "Failed to revoke access",
+    "failedToRestore": "Failed to restore access",
+    "betaAccessRequested": "Beta access request submitted",
+    "failedToRequestBetaAccess": "Failed to request beta access"
+  },
+  "betaAccess": {
+    "title": "Beta access required",
+    "description": "You are logged in, but do not have access to the beta version.",
+    "pending": "Your request is pending approval.",
+    "requestedAt": "Requested:",
+    "rejected": "Your request was rejected. You can submit a new request.",
+    "revoked": "Your beta access was revoked by an administrator.",
+    "useProduction": "Please use the production site while you do not have beta access.",
+    "requestButton": "Request beta access"
   }
 }
 

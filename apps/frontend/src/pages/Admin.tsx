@@ -530,7 +530,7 @@ export default function Admin() {
                 <div className="p-6 space-y-4">
                   <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                     <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                      {t('admin.rejectWarning') || 'This action cannot be undone. Please provide a reason for rejection.'}
+                      {t('admin.rejectWarning', { defaultValue: 'This action cannot be undone. Please provide a reason for rejection.' })}
                     </p>
                   </div>
                   <div>
@@ -542,11 +542,11 @@ export default function Admin() {
                       onChange={(e) => setRejectReason(e.target.value)}
                       rows={4}
                       className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                      placeholder={t('admin.rejectionReasonPlaceholder') || 'Enter reason for rejection...'}
+                      placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter reason for rejection...' })}
                       required
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rejectionReasonDescription') || 'This reason will be visible to the submitter'}
+                      {t('admin.rejectionReasonDescription', { defaultValue: 'This reason will be visible to the submitter' })}
                     </p>
                   </div>
                   <div className="flex gap-3 pt-4">
@@ -762,6 +762,7 @@ function RewardsSettings() {
     rewardTitle: '',
     rewardCost: '',
     rewardCoins: '',
+    submissionRewardCoins: '0',
   });
   const [loading, setLoading] = useState(false);
   const settingsLoadedRef = useRef<string | null>(null);
@@ -782,6 +783,7 @@ function RewardsSettings() {
           rewardTitle: cached.rewardTitle || '',
           rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
           rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
+          submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
         return;
@@ -795,6 +797,7 @@ function RewardsSettings() {
           rewardTitle: channelData.rewardTitle || '',
           rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
           rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
+          submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
       }
@@ -823,6 +826,7 @@ function RewardsSettings() {
         rewardTitle: rewardSettings.rewardTitle || null,
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+        submissionRewardCoins: rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0,
       });
       toast.success(t('admin.settingsSaved'));
       await loadRewardSettings();
@@ -957,6 +961,24 @@ function RewardsSettings() {
                 </div>
               </div>
             )}
+
+            {/* Reward for approved submissions (independent of Twitch reward) */}
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={rewardSettings.submissionRewardCoins}
+                onChange={(e) => setRewardSettings({ ...rewardSettings, submissionRewardCoins: e.target.value })}
+                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                placeholder="0"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}
+              </p>
+            </div>
 
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
               <button
@@ -1554,11 +1576,14 @@ function BetaAccessManagement() {
   const { t } = useTranslation();
   const [requests, setRequests] = useState<Array<Record<string, unknown>>>([]);
   const [grantedUsers, setGrantedUsers] = useState<Array<Record<string, unknown>>>([]);
+  const [revokedUsers, setRevokedUsers] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [grantedLoading, setGrantedLoading] = useState(true);
+  const [revokedLoading, setRevokedLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const requestsLoadedRef = useRef(false);
   const grantedLoadedRef = useRef(false);
+  const revokedLoadedRef = useRef(false);
 
   const loadRequests = useCallback(async (opts?: { force?: boolean }) => {
     if (!opts?.force && requestsLoadedRef.current) return; // Prevent duplicate requests
@@ -1596,10 +1621,29 @@ function BetaAccessManagement() {
     }
   }, [t]);
 
+  const loadRevokedUsers = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && revokedLoadedRef.current) return; // Prevent duplicate requests
+
+    try {
+      setRevokedLoading(true);
+      revokedLoadedRef.current = true;
+      const revoked = await api.get<Array<Record<string, unknown>>>('/admin/beta/users/revoked');
+      setRevokedUsers(revoked);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      revokedLoadedRef.current = false; // Reset on error to allow retry
+      console.error('Error loading revoked beta users:', error);
+      toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
+    } finally {
+      setRevokedLoading(false);
+    }
+  }, [t]);
+
   useEffect(() => {
     loadRequests();
     loadGrantedUsers();
-  }, [loadRequests, loadGrantedUsers]);
+    loadRevokedUsers();
+  }, [loadRequests, loadGrantedUsers, loadRevokedUsers]);
 
   const handleApprove = async (requestId: string) => {
     try {
@@ -1608,6 +1652,7 @@ function BetaAccessManagement() {
       await Promise.all([
         loadRequests({ force: true }),
         loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
       ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -1622,6 +1667,7 @@ function BetaAccessManagement() {
       await Promise.all([
         loadRequests({ force: true }),
         loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
       ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -1640,10 +1686,30 @@ function BetaAccessManagement() {
       await Promise.all([
         loadRequests({ force: true }),
         loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
       ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToRevoke'));
+    }
+  };
+
+  const handleRestore = async (targetUserId: string, displayName?: string) => {
+    const label = displayName ? `@${displayName}` : targetUserId;
+    const confirmed = window.confirm(t('admin.betaAccessRestoreConfirm', { user: label }));
+    if (!confirmed) return;
+
+    try {
+      await api.post(`/admin/beta/users/${targetUserId}/restore`);
+      toast.success(t('toast.betaAccessRestored'));
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
+      ]);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToRestore'));
     }
   };
 
@@ -1671,6 +1737,16 @@ function BetaAccessManagement() {
     return (
       (user.displayName || '').toLowerCase().includes(q) ||
       (user.twitchUserId || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredRevokedUsers = revokedUsers.filter((r: Record<string, unknown>) => {
+    const row = r as { user?: { displayName?: string; twitchUserId?: string } };
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      (row.user?.displayName || '').toLowerCase().includes(q) ||
+      (row.user?.twitchUserId || '').toLowerCase().includes(q)
     );
   });
 
@@ -1768,6 +1844,58 @@ function BetaAccessManagement() {
                         className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
                       >
                         {t('admin.revoke', 'Revoke')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <h3 className="text-xl font-bold dark:text-white">{t('admin.betaAccessRevoked')}</h3>
+        </div>
+
+        {revokedLoading ? (
+          <div className="text-center py-6">{t('common.loading')}</div>
+        ) : filteredRevokedUsers.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+            {t('admin.noRevokedBetaUsers')}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredRevokedUsers.map((row: Record<string, unknown>) => {
+              const r = row as {
+                id: string;
+                approvedAt?: string | null;
+                user: { id: string; displayName: string; twitchUserId?: string; role?: string };
+              };
+              return (
+                <div key={r.user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-white">{r.user.displayName || r.user.id}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {r.user.twitchUserId || 'N/A'}{r.user.role ? ` • ${r.user.role}` : ''}
+                      </div>
+                      {r.approvedAt && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {t('admin.revokedAt', { defaultValue: 'Revoked:' })} {new Date(r.approvedAt).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                        {t('admin.betaAccessRevokedBadge', { defaultValue: 'revoked' })}
+                      </span>
+                      <button
+                        onClick={() => handleRestore(r.user.id, r.user.displayName)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                      >
+                        {t('admin.restore', { defaultValue: 'Restore' })}
                       </button>
                     </div>
                   </div>

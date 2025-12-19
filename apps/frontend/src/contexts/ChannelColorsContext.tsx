@@ -22,6 +22,7 @@ interface ChannelData {
   rewardTitle?: string | null;
   rewardCost?: number | null;
   rewardCoins?: number | null;
+  submissionRewardCoins?: number;
   createdAt?: string;
   owner?: {
     id: string;

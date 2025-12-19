@@ -449,7 +449,7 @@ export default function StreamerProfile() {
                   )}
                   {!hasMore && memes.length > 0 && (
                     <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                      {t('profile.allMemesLoaded') || 'All memes loaded'}
+                      {t('profile.allMemesLoaded', { defaultValue: 'All memes loaded' })}
                     </div>
                   )}
                 </div>

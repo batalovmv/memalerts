@@ -108,6 +108,9 @@
     "enterPrice": "Введите цену в монетах:",
     "enterDuration": "Введите длительность в миллисекундах:",
     "rejectionReason": "Введите причину отклонения:",
+    "rejectWarning": "Это действие нельзя отменить. Пожалуйста, укажите причину отклонения.",
+    "rejectionReasonPlaceholder": "Введите причину отклонения...",
+    "rejectionReasonDescription": "Эта причина будет видна отправителю",
     "noSubmissions": "Нет ожидающих заявок",
     "noMemes": "Пока нет мемов",
     "allSubmissionsReviewed": "Все заявки рассмотрены.",
@@ -193,20 +196,17 @@
     "betaAccessGranted": "Пользователи с доступом к Beta",
     "noGrantedBetaUsers": "Сейчас ни у кого нет доступа к Beta",
     "betaAccessRevokeConfirm": "Забрать доступ к Beta у {{user}}?",
+    "betaAccessRestoreConfirm": "Вернуть доступ к Beta для {{user}}?",
     "revoke": "Забрать доступ",
+    "restore": "Вернуть доступ",
     "searchUsers": "Поиск пользователей...",
-    "betaAccessGrantedBadge": "доступ есть"
-  },
-  "profile": {
-    "balanceFor": "Ваш баланс для",
-    "coins": "монет",
-    "redeemPoints": "Обменивайте очки канала на Twitch, чтобы заработать монеты!",
-    "topUp": "Пополнить баланс (Скоро)",
-    "submitMeme": "Отправить мем",
-    "availableMemes": "Доступные мемы",
-    "noMemes": "Пока нет доступных мемов.",
-    "insufficientCoins": "Недостаточно монет",
-    "activate": "Активировать"
+    "betaAccessGrantedBadge": "доступ есть",
+    "betaAccessRevoked": "Изгнанные (ban)",
+    "noRevokedBetaUsers": "Нет изгнанных пользователей",
+    "betaAccessRevokedBadge": "ban",
+    "revokedAt": "Забанен:",
+    "submissionRewardCoins": "Награда за одобренный мем (монет)",
+    "submissionRewardCoinsDescription": "Монеты, которые получит зритель, если вы одобрите его заявку. Поставьте 0 чтобы отключить."
   },
   "search": {
     "title": "Mem Alerts - Поиск",
@@ -275,10 +275,18 @@
     "failedToImport": "Не удалось импортировать мем"
   },
   "profile": {
+    "balanceFor": "Ваш баланс для",
+    "coins": "монет",
+    "redeemPoints": "Обменивайте очки канала на Twitch, чтобы заработать монеты!",
+    "topUp": "Пополнить баланс (Скоро)",
+    "submitMeme": "Отправить мем",
+    "insufficientCoins": "Недостаточно монет",
+    "activate": "Активировать",
     "memes": "мемов",
     "users": "пользователей",
     "availableMemes": "Доступные мемы",
-    "noMemes": "Мемы отсутствуют"
+    "noMemes": "Мемы отсутствуют",
+    "allMemesLoaded": "Все мемы загружены"
   },
   "tagInput": {
     "pressEnterToAdd": "Нажмите Enter или запятую, чтобы добавить тег. Максимум 50 символов на тег."
@@ -295,9 +303,23 @@
     "betaAccessApproved": "Доступ к Beta одобрен",
     "betaAccessRejected": "Доступ к Beta отклонён",
     "betaAccessRevoked": "Доступ к Beta забран",
+    "betaAccessRestored": "Доступ к Beta возвращён",
     "failedToApprove": "Не удалось одобрить",
     "failedToReject": "Не удалось отклонить",
-    "failedToRevoke": "Не удалось забрать доступ"
+    "failedToRevoke": "Не удалось забрать доступ",
+    "failedToRestore": "Не удалось вернуть доступ",
+    "betaAccessRequested": "Заявка на доступ к Beta отправлена",
+    "failedToRequestBetaAccess": "Не удалось отправить заявку на Beta"
+  },
+  "betaAccess": {
+    "title": "Нужен доступ к Beta",
+    "description": "Вы вошли в аккаунт, но у вас нет доступа к beta-версии.",
+    "pending": "Заявка ожидает одобрения.",
+    "requestedAt": "Отправлено:",
+    "rejected": "Заявка отклонена. Вы можете отправить новую заявку.",
+    "revoked": "Доступ к beta был забран администратором.",
+    "useProduction": "Пока нет доступа к beta, используйте продакшн-версию сайта.",
+    "requestButton": "Запросить доступ к Beta"
   }
 }
 
