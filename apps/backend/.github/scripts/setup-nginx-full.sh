@@ -4,6 +4,9 @@
 
 set -e
 
+# Write nginx config atomically without relying on /tmp (more reliable in CI/ssh environments)
+NGINX_SITE_PATH="/etc/nginx/sites-available/memalerts"
+
 DOMAIN="${1:-twitchalerts.ru}"
 BACKEND_PORT="${2:-3001}"
 BETA_DOMAIN="beta.${DOMAIN}"
@@ -143,7 +146,7 @@ fi
 # Create nginx configuration
 if [ "$USE_CLOUDFLARE_CERT" = true ]; then
     # Configuration with Cloudflare Origin Certificate (HTTPS)
-    cat > /tmp/memalerts-nginx.conf << EOF
+    sudo tee "$NGINX_SITE_PATH" > /dev/null << EOF
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
@@ -593,7 +596,7 @@ server {
 EOF
 else
     # Configuration without SSL (HTTP only, will get Let's Encrypt later)
-    cat > /tmp/memalerts-nginx.conf << EOF
+    sudo tee "$NGINX_SITE_PATH" > /dev/null << EOF
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
@@ -1019,12 +1022,8 @@ if [ ! -f /opt/memalerts-frontend-beta/dist/index.html ]; then
   echo "<!DOCTYPE html><html><head><title>MemAlerts Beta</title></head><body><h1>Beta Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend-beta/dist/index.html
 fi
 
-# Copy configuration to nginx directory
-sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
-rm -f /tmp/memalerts-nginx.conf
-
 # Verify the config file was created
-if [ ! -f /etc/nginx/sites-available/memalerts ]; then
+if [ ! -f "$NGINX_SITE_PATH" ]; then
     echo "ERROR: Failed to create nginx config file!"
     exit 1
 fi
@@ -1094,7 +1093,7 @@ if [ $NGINX_TEST_STATUS -ne 0 ]; then
         done
         
         # Recreate clean HTTP config
-        sudo cp /tmp/memalerts-nginx.conf /etc/nginx/sites-available/memalerts
+        # Reuse the generated config (already written to $NGINX_SITE_PATH)
         sudo ln -sf /etc/nginx/sites-available/memalerts /etc/nginx/sites-enabled/memalerts
         
         # Test again
