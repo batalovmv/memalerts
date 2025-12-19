@@ -14,7 +14,7 @@ import { api } from '../lib/api';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
 
-type TabType = 'submissions' | 'memes' | 'settings' | 'wallets' | 'promotions' | 'statistics' | 'beta';
+type TabType = 'submissions' | 'memes' | 'settings' | 'rewards' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
 export default function Admin() {
   const { t } = useTranslation();
@@ -246,6 +246,16 @@ export default function Admin() {
               }`}
             >
               {t('admin.channelDesign', 'Оформление')}
+            </button>
+            <button
+              onClick={() => setActiveTab('rewards')}
+              className={`pb-2 px-4 transition-colors ${
+                activeTab === 'rewards'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+              }`}
+            >
+              {t('admin.rewards', 'Награды')}
             </button>
 
             {/* Dropdown для дополнительных вкладок */}
@@ -605,6 +615,10 @@ export default function Admin() {
           <ChannelSettings />
         )}
 
+        {activeTab === 'rewards' && (
+          <RewardsSettings />
+        )}
+
         {activeTab === 'wallets' && user?.role === 'admin' && (
           <WalletManagement />
         )}
@@ -737,18 +751,235 @@ function WalletManagement() {
   );
 }
 
-// Channel Settings Component
+// Rewards Settings Component
+function RewardsSettings() {
+  const { t } = useTranslation();
+  const { user } = useAppSelector((state) => state.auth);
+  const { getChannelData, getCachedChannelData } = useChannelColors();
+  const [rewardSettings, setRewardSettings] = useState({
+    rewardIdForCoins: '',
+    rewardEnabled: false,
+    rewardTitle: '',
+    rewardCost: '',
+    rewardCoins: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const settingsLoadedRef = useRef<string | null>(null);
+
+  const loadRewardSettings = useCallback(async () => {
+    if (!user?.channel?.slug) return;
+    
+    if (settingsLoadedRef.current === user.channel.slug) {
+      return;
+    }
+    
+    try {
+      const cached = getCachedChannelData(user.channel.slug);
+      if (cached) {
+        setRewardSettings({
+          rewardIdForCoins: cached.rewardIdForCoins || '',
+          rewardEnabled: cached.rewardEnabled || false,
+          rewardTitle: cached.rewardTitle || '',
+          rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
+          rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
+        });
+        settingsLoadedRef.current = user.channel.slug;
+        return;
+      }
+
+      const channelData = await getChannelData(user.channel.slug);
+      if (channelData) {
+        setRewardSettings({
+          rewardIdForCoins: channelData.rewardIdForCoins || '',
+          rewardEnabled: channelData.rewardEnabled || false,
+          rewardTitle: channelData.rewardTitle || '',
+          rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
+          rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
+        });
+        settingsLoadedRef.current = user.channel.slug;
+      }
+    } catch (error) {
+      console.error('Failed to load reward settings:', error);
+      settingsLoadedRef.current = null;
+    }
+  }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
+
+  useEffect(() => {
+    if (user?.channelId && user?.channel?.slug) {
+      loadRewardSettings();
+    } else {
+      settingsLoadedRef.current = null;
+    }
+  }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
+
+  const handleSaveReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { api } = await import('../lib/api');
+      await api.patch('/admin/channel/settings', {
+        rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
+        rewardEnabled: rewardSettings.rewardEnabled,
+        rewardTitle: rewardSettings.rewardTitle || null,
+        rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
+        rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+      });
+      toast.success(t('admin.settingsSaved'));
+      await loadRewardSettings();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
+      toast.error(errorMessage);
+      
+      if (apiError.response?.data && typeof apiError.response.data === 'object' && 'requiresReauth' in apiError.response.data) {
+        setTimeout(() => {
+          if (window.confirm(t('admin.requiresReauth') || 'You need to log out and log in again to enable Twitch rewards. Log out now?')) {
+            window.location.href = '/';
+          }
+        }, 2000);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Structure ready for multiple rewards - currently showing one reward card
+  const rewards = [
+    {
+      id: 'coins',
+      name: t('admin.coinsReward', 'Награда за монеты'),
+      description: t('admin.enableRewardDescription'),
+      enabled: rewardSettings.rewardEnabled,
+      title: rewardSettings.rewardTitle,
+      cost: rewardSettings.rewardCost,
+      coins: rewardSettings.rewardCoins,
+      rewardId: rewardSettings.rewardIdForCoins,
+    },
+  ];
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold dark:text-white">{t('admin.rewards', 'Награды')}</h2>
+        {/* Future: Add new reward button - пока скрыто, так как только одна награда */}
+        {/* <button
+          className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          disabled
+          title={t('admin.addRewardComingSoon', 'Скоро будет доступно')}
+        >
+          {t('admin.addReward', 'Добавить награду')}
+        </button> */}
+      </div>
+
+      <div className="space-y-4">
+        {rewards.map((reward) => (
+          <form key={reward.id} onSubmit={handleSaveReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold dark:text-white mb-1">{reward.name}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{reward.description}</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={reward.enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </div>
+
+            {reward.enabled && (
+              <div className="space-y-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.rewardTitle')}
+                  </label>
+                  <input
+                    type="text"
+                    value={reward.title}
+                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder={t('admin.rewardTitlePlaceholder')}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('admin.rewardCost')}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={reward.cost}
+                      onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCost: e.target.value })}
+                      className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                      placeholder="100"
+                      required={reward.enabled}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t('admin.rewardCostDescription')}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('admin.rewardCoins')}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={reward.coins}
+                      onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCoins: e.target.value })}
+                      className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                      placeholder="100"
+                      required={reward.enabled}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t('admin.rewardCoinsDescription')}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.rewardIdForCoins')} ({t('admin.autoGenerated')})
+                  </label>
+                  <input
+                    type="text"
+                    value={reward.rewardId}
+                    readOnly
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
+                    placeholder={t('admin.rewardIdPlaceholder')}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.rewardIdDescription')}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                {loading ? t('admin.saving') : t('admin.saveSettings')}
+              </button>
+            </div>
+          </form>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Channel Settings Component (Colors only)
 function ChannelSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { getChannelData, getCachedChannelData } = useChannelColors();
   const [settings, setSettings] = useState({
-    rewardIdForCoins: '',
-    coinPerPointRatio: '1.0',
-    rewardEnabled: false,
-    rewardTitle: '',
-    rewardCost: '',
-    rewardCoins: '',
     primaryColor: '',
     secondaryColor: '',
     accentColor: '',
@@ -769,12 +1000,6 @@ function ChannelSettings() {
       const cached = getCachedChannelData(user.channel.slug);
       if (cached) {
         setSettings({
-          rewardIdForCoins: cached.rewardIdForCoins || '',
-          coinPerPointRatio: String(cached.coinPerPointRatio || '1.0'),
-          rewardEnabled: cached.rewardEnabled || false,
-          rewardTitle: cached.rewardTitle || '',
-          rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
-          rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
           primaryColor: cached.primaryColor || '',
           secondaryColor: cached.secondaryColor || '',
           accentColor: cached.accentColor || '',
@@ -787,12 +1012,6 @@ function ChannelSettings() {
       const channelData = await getChannelData(user.channel.slug);
       if (channelData) {
         setSettings({
-          rewardIdForCoins: channelData.rewardIdForCoins || '',
-          coinPerPointRatio: String(channelData.coinPerPointRatio || '1.0'),
-          rewardEnabled: channelData.rewardEnabled || false,
-          rewardTitle: channelData.rewardTitle || '',
-          rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
-          rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
           primaryColor: channelData.primaryColor || '',
           secondaryColor: channelData.secondaryColor || '',
           accentColor: channelData.accentColor || '',
@@ -820,34 +1039,16 @@ function ChannelSettings() {
     try {
       const { api } = await import('../lib/api');
       await api.patch('/admin/channel/settings', {
-        rewardIdForCoins: settings.rewardIdForCoins || null,
-        coinPerPointRatio: 1.0, // Legacy field, not used anymore
-        rewardEnabled: settings.rewardEnabled,
-        rewardTitle: settings.rewardTitle || null,
-        rewardCost: settings.rewardCost ? parseInt(settings.rewardCost, 10) : null,
-        rewardCoins: settings.rewardCoins ? parseInt(settings.rewardCoins, 10) : null,
         primaryColor: settings.primaryColor || null,
         secondaryColor: settings.secondaryColor || null,
         accentColor: settings.accentColor || null,
       });
       toast.success(t('admin.settingsSaved'));
-      // Reload settings to get updated rewardId and state
       await loadSettings();
-      // Don't reload page - just update the UI
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
       toast.error(errorMessage);
-      
-      // If requires reauth, show special message
-      if (apiError.response?.data && typeof apiError.response.data === 'object' && 'requiresReauth' in apiError.response.data) {
-        setTimeout(() => {
-          if (window.confirm(t('admin.requiresReauth') || 'You need to log out and log in again to enable Twitch rewards. Log out now?')) {
-            // Logout and redirect to login
-            window.location.href = '/';
-          }
-        }, 2000);
-      }
     } finally {
       setLoading(false);
     }
@@ -857,7 +1058,7 @@ function ChannelSettings() {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
-      <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelSettings')}</h2>
+      <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
       
       {/* Profile Link Section */}
       {profileUrl && (
@@ -897,99 +1098,7 @@ function ChannelSettings() {
       )}
 
       <form onSubmit={handleSave} className="space-y-4">
-        {/* Reward Toggle */}
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-secondary/20">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('admin.enableReward')}
-              </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {t('admin.enableRewardDescription')}
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.rewardEnabled}
-                onChange={(e) => setSettings({ ...settings, rewardEnabled: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-            </label>
-          </div>
-
-          {settings.rewardEnabled && (
-            <div className="space-y-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('admin.rewardTitle')}
-                </label>
-                <input
-                  type="text"
-                  value={settings.rewardTitle}
-                  onChange={(e) => setSettings({ ...settings, rewardTitle: e.target.value })}
-                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                  placeholder={t('admin.rewardTitlePlaceholder')}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rewardCost')}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={settings.rewardCost}
-                    onChange={(e) => setSettings({ ...settings, rewardCost: e.target.value })}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    placeholder="100"
-                    required={settings.rewardEnabled}
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('admin.rewardCostDescription')}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rewardCoins')}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={settings.rewardCoins}
-                    onChange={(e) => setSettings({ ...settings, rewardCoins: e.target.value })}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    placeholder="100"
-                    required={settings.rewardEnabled}
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('admin.rewardCoinsDescription')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('admin.rewardIdForCoins')} ({t('admin.autoGenerated')})
-          </label>
-          <input
-            type="text"
-            value={settings.rewardIdForCoins}
-            readOnly
-            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
-            placeholder={t('admin.rewardIdPlaceholder')}
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {t('admin.rewardIdDescription')}
-          </p>
-        </div>
-
-        <div className="border-t border-secondary/30 pt-4 mt-4">
           <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-3 gap-4">
             <div>
