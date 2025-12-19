@@ -404,7 +404,7 @@ export const adminController = {
           select: { slug: true },
         });
         if (channel) {
-          io.to(`channel:${channel.slug}`).emit('submission:approved', {
+          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:approved', {
             submissionId: id,
             channelId,
             moderatorId: req.userId,
@@ -605,7 +605,7 @@ export const adminController = {
           select: { slug: true },
         });
         if (channel) {
-          io.to(`channel:${channel.slug}`).emit('submission:rejected', {
+          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:rejected', {
             submissionId: id,
             channelId,
             moderatorId: req.userId,
