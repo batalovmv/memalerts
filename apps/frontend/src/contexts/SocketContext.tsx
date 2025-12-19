@@ -27,16 +27,28 @@ export function SocketProvider({ children }: SocketProviderProps) {
   // Get API URL for Socket.IO
   const getSocketUrl = () => {
     const envUrl = import.meta.env.VITE_API_URL;
-    if (envUrl) {
-      console.log('Socket.IO using VITE_API_URL:', envUrl);
-      return envUrl; // Should be https://beta.twitchmemes.ru or similar for beta
+    
+    // If VITE_API_URL is explicitly set (even if empty string), use it
+    // Empty string means use relative URLs (same origin)
+    if (envUrl !== undefined) {
+      if (envUrl === '') {
+        // Empty string means use relative URLs - use current origin
+        const origin = window.location.origin;
+        console.log('[SocketContext] Using relative URLs (empty VITE_API_URL), origin:', origin);
+        return origin;
+      }
+      console.log('[SocketContext] Using VITE_API_URL:', envUrl);
+      return envUrl;
     }
+    
+    // If VITE_API_URL is not set at all, determine based on environment
     if (import.meta.env.PROD) {
       const origin = window.location.origin;
-      console.log('Socket.IO using window.location.origin:', origin);
+      console.log('[SocketContext] Using window.location.origin:', origin);
       return origin;
     }
-    console.log('Socket.IO using localhost fallback');
+    
+    console.log('[SocketContext] Using localhost fallback');
     return 'http://localhost:3001';
   };
 

@@ -2,8 +2,15 @@ export const login = (redirectTo?: string): void => {
   const envUrl = import.meta.env.VITE_API_URL;
   let apiUrl: string;
   
-  if (envUrl) {
-    apiUrl = envUrl;
+  // If VITE_API_URL is explicitly set (even if empty string), use it
+  // Empty string means use relative URLs (same origin)
+  if (envUrl !== undefined) {
+    if (envUrl === '') {
+      // Empty string means use relative URLs - use current origin
+      apiUrl = window.location.origin;
+    } else {
+      apiUrl = envUrl;
+    }
   } else if (import.meta.env.PROD) {
     // In production, use same origin
     apiUrl = window.location.origin;
