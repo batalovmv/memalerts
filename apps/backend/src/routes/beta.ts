@@ -13,4 +13,6 @@ betaRoutes.get('/beta/status', authenticate, betaAccessController.getStatus);
 betaRoutes.get('/admin/beta/requests', authenticate, requireRole('admin'), betaAccessController.getAllRequests);
 betaRoutes.post('/admin/beta/requests/:id/approve', authenticate, requireRole('admin'), betaAccessController.approveRequest);
 betaRoutes.post('/admin/beta/requests/:id/reject', authenticate, requireRole('admin'), betaAccessController.rejectRequest);
+betaRoutes.get('/admin/beta/users', authenticate, requireRole('admin'), betaAccessController.getGrantedUsers);
+betaRoutes.post('/admin/beta/users/:userId/revoke', authenticate, requireRole('admin'), betaAccessController.revokeUserAccess);
 
