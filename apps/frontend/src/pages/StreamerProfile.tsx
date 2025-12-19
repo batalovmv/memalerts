@@ -64,8 +64,10 @@ export default function StreamerProfile() {
   
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
+  const normalizedSlug = (slug || '').trim().toLowerCase();
+
   useEffect(() => {
-    if (!slug) {
+    if (!normalizedSlug) {
       navigate('/');
       return;
     }
@@ -73,17 +75,22 @@ export default function StreamerProfile() {
     const loadChannelData = async () => {
       try {
         // Load channel info without memes for faster initial load
-        const channelInfo = await api.get<ChannelInfo>(`/channels/${slug}?includeMemes=false`, {
+        const channelInfo = await api.get<ChannelInfo>(`/channels/${normalizedSlug}?includeMemes=false`, {
           timeout: 15000, // 15 seconds timeout
         });
         setChannelInfo({ ...channelInfo, memes: [] }); // Set memes to empty array initially
         setLoading(false); // Channel info loaded, can show page structure
+
+        // Canonicalize URL (prevents case-sensitive slug issues on production)
+        if (slug && channelInfo.slug && slug !== channelInfo.slug) {
+          navigate(`/channel/${channelInfo.slug}`, { replace: true });
+        }
         
         // Load memes separately with pagination
         setMemesLoading(true);
         setMemesOffset(0);
         try {
-          const memes = await api.get<Meme[]>(`/memes?channelId=${channelInfo.id}&limit=${MEMES_PER_PAGE}&offset=0`, {
+          const memes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?limit=${MEMES_PER_PAGE}&offset=0`, {
             timeout: 15000, // 15 seconds timeout
           });
           setMemes(memes);
@@ -106,7 +113,7 @@ export default function StreamerProfile() {
           } else {
             // Only fetch if wallet not in Redux
             try {
-              const wallet = await api.get<Wallet>(`/channels/${slug}/wallet`, {
+              const wallet = await api.get<Wallet>(`/channels/${channelInfo.slug}/wallet`, {
                 timeout: 10000, // 10 second timeout
               });
               setWallet(wallet);
@@ -146,7 +153,7 @@ export default function StreamerProfile() {
     };
 
     loadChannelData();
-  }, [slug, user, navigate, t, dispatch]);
+  }, [slug, normalizedSlug, user, navigate, t, dispatch]);
 
   // Sync wallet from user.wallets when Redux store updates (e.g., via Socket.IO)
   useEffect(() => {
@@ -167,7 +174,7 @@ export default function StreamerProfile() {
     setLoadingMore(true);
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
-      const newMemes = await api.get<Meme[]>(`/memes?channelId=${channelInfo.id}&limit=${MEMES_PER_PAGE}&offset=${nextOffset}`, {
+      const newMemes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?limit=${MEMES_PER_PAGE}&offset=${nextOffset}`, {
         timeout: 15000, // 15 seconds timeout
       });
       
@@ -211,7 +218,7 @@ export default function StreamerProfile() {
 
   // Perform search when debounced query changes
   useEffect(() => {
-    if (!slug || !debouncedSearchQuery.trim()) {
+    if (!normalizedSlug || !debouncedSearchQuery.trim()) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -222,7 +229,7 @@ export default function StreamerProfile() {
       try {
         const params = new URLSearchParams({
           q: debouncedSearchQuery,
-          channelSlug: slug,
+          channelSlug: normalizedSlug,
           limit: '100',
         });
         const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
@@ -236,7 +243,7 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [debouncedSearchQuery, slug]);
+  }, [debouncedSearchQuery, normalizedSlug]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
