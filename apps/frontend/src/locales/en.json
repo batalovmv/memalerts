@@ -189,7 +189,13 @@
     "balanceDecreased": "Balance decreased by {{amount}}",
     "betaAccess": "Beta Access",
     "betaAccessRequests": "Beta Access Requests",
-    "noBetaAccessRequests": "No beta access requests"
+    "noBetaAccessRequests": "No beta access requests",
+    "betaAccessGranted": "Users with Beta Access",
+    "noGrantedBetaUsers": "No users currently have beta access",
+    "betaAccessRevokeConfirm": "Revoke beta access for {{user}}?",
+    "revoke": "Revoke",
+    "searchUsers": "Search users...",
+    "betaAccessGrantedBadge": "granted"
   },
   "profile": {
     "balanceFor": "Your Balance for",
@@ -293,7 +299,14 @@
     "memeActivated": "Meme activated!",
     "failedToActivate": "Failed to activate meme",
     "linkCopied": "Link copied to clipboard!",
-    "failedToCopyLink": "Failed to copy link"
+    "failedToCopyLink": "Failed to copy link",
+    "failedToLoad": "Failed to load data",
+    "betaAccessApproved": "Beta access approved",
+    "betaAccessRejected": "Beta access rejected",
+    "betaAccessRevoked": "Beta access revoked",
+    "failedToApprove": "Failed to approve",
+    "failedToReject": "Failed to reject",
+    "failedToRevoke": "Failed to revoke access"
   }
 }
 

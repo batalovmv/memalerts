@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode: _mode }) => {
   const isBetaBuild = process.env.BETA_BUILD === 'true';
 
   const betaApiUrl = process.env.VITE_API_URL_BETA?.trim();

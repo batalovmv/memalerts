@@ -189,7 +189,13 @@
     "balanceDecreased": "Баланс уменьшен на {{amount}}",
     "betaAccess": "Доступ к Beta",
     "betaAccessRequests": "Заявки на доступ к Beta",
-    "noBetaAccessRequests": "Нет заявок на доступ к Beta"
+    "noBetaAccessRequests": "Нет заявок на доступ к Beta",
+    "betaAccessGranted": "Пользователи с доступом к Beta",
+    "noGrantedBetaUsers": "Сейчас ни у кого нет доступа к Beta",
+    "betaAccessRevokeConfirm": "Забрать доступ к Beta у {{user}}?",
+    "revoke": "Забрать доступ",
+    "searchUsers": "Поиск пользователей...",
+    "betaAccessGrantedBadge": "доступ есть"
   },
   "profile": {
     "balanceFor": "Ваш баланс для",
@@ -284,7 +290,14 @@
     "memeActivated": "Мем активирован!",
     "failedToActivate": "Не удалось активировать мем",
     "linkCopied": "Ссылка скопирована в буфер обмена!",
-    "failedToCopyLink": "Не удалось скопировать ссылку"
+    "failedToCopyLink": "Не удалось скопировать ссылку",
+    "failedToLoad": "Не удалось загрузить данные",
+    "betaAccessApproved": "Доступ к Beta одобрен",
+    "betaAccessRejected": "Доступ к Beta отклонён",
+    "betaAccessRevoked": "Доступ к Beta забран",
+    "failedToApprove": "Не удалось одобрить",
+    "failedToReject": "Не удалось отклонить",
+    "failedToRevoke": "Не удалось забрать доступ"
   }
 }
 

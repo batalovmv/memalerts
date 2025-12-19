@@ -25,7 +25,7 @@ export default function Stats() {
     if (user?.channelId) {
       fetchStats();
     }
-  }, [fetchStats]);
+  }, [fetchStats, user?.channelId]);
 
   if (!user) {
     return null;

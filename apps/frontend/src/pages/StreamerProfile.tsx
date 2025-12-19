@@ -195,7 +195,7 @@ export default function StreamerProfile() {
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
-    if (!loadMoreRef.current || searchQuery.trim() || !channelInfo) {
+    if (!loadMoreRef.current || searchQuery.trim() || !channelInfo?.id) {
       return;
     }
 

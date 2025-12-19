@@ -28,7 +28,11 @@ export default function Dashboard() {
   // Load pending submissions if user is streamer/admin
   // Check Redux store with TTL to avoid duplicate requests on navigation
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userChannelId = user?.channelId;
+
+    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
       const currentState = store.getState();
       const submissionsState = currentState.submissions;
       const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -54,7 +58,7 @@ export default function Dashboard() {
       }
     }
     // Reset ref when user changes
-    if (!user || !user.channelId) {
+    if (!userId || !userChannelId) {
       submissionsLoadedRef.current = false;
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs

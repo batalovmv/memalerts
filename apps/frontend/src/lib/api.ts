@@ -123,7 +123,8 @@ export const api: CustomAxiosInstance = {
           // Remove from pending on error
           pendingRequests.delete(requestKey);
           // Log timeout errors
-          if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+          const err = error as { isTimeout?: boolean; code?: string };
+          if (err?.isTimeout || err?.code === 'ECONNABORTED') {
             console.error('[API] Request timeout:', config.url, config.method);
           }
           throw error;
@@ -147,7 +148,8 @@ export const api: CustomAxiosInstance = {
       .then((response: AxiosResponse<unknown>) => response.data as T)
       .catch((error: unknown) => {
         // Log timeout errors
-        if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+        const err = error as { isTimeout?: boolean; code?: string };
+        if (err?.isTimeout || err?.code === 'ECONNABORTED') {
           console.error('[API] Request timeout:', requestConfig.url, requestConfig.method);
         }
         throw error;
@@ -173,7 +175,8 @@ export const api: CustomAxiosInstance = {
       .catch((error: unknown) => {
         pendingRequests.delete(requestKey);
         // Log timeout errors
-        if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+        const err = error as { isTimeout?: boolean; code?: string };
+        if (err?.isTimeout || err?.code === 'ECONNABORTED') {
           console.error('[API] Request timeout:', requestConfig.url, requestConfig.method);
         }
         throw error;
@@ -205,7 +208,8 @@ export const api: CustomAxiosInstance = {
       .then(response => response.data as T)
       .catch((error: unknown) => {
         // Log timeout errors
-        if ((error as any)?.isTimeout || (error as any)?.code === 'ECONNABORTED') {
+        const err = error as { isTimeout?: boolean; code?: string };
+        if (err?.isTimeout || err?.code === 'ECONNABORTED') {
           console.error('[API] Request timeout:', url, 'POST');
         }
         throw error;
@@ -230,9 +234,10 @@ axiosInstance.interceptors.response.use(
     // Handle timeout errors
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       console.error('[API] Request timeout:', error.config?.url, error.config?.method);
-      const timeoutError = new Error('Request timeout - the server took too long to respond');
-      (timeoutError as any).isTimeout = true;
-      (timeoutError as any).config = error.config;
+      const timeoutError: Error & { isTimeout?: boolean; config?: AxiosRequestConfig } =
+        new Error('Request timeout - the server took too long to respond');
+      timeoutError.isTimeout = true;
+      timeoutError.config = error.config;
       return Promise.reject(timeoutError);
     }
     

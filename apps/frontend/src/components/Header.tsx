@@ -62,7 +62,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Load submissions for streamer/admin if not already loaded
   // Check Redux store with TTL to avoid duplicate requests on navigation
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userChannelId = user?.channelId;
+
+    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
       const currentState = store.getState();
       const submissionsState = currentState.submissions;
       const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -88,7 +92,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       }
     }
     // Reset ref when user changes
-    if (!user || !user.channelId) {
+    if (!userId || !userChannelId) {
       submissionsLoadedRef.current = false;
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
@@ -209,7 +213,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch]);
+  }, [user, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch, location.pathname]);
 
   // Load channel coin icon and reward title if not provided via props
   useEffect(() => {
@@ -281,7 +285,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     };
 
     loadChannelData();
-  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug]);
+  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug, getCachedChannelData, getChannelData, location.pathname]);
 
   // Setup Socket.IO listeners for real-time wallet updates
   // Socket connection is managed by SocketContext at app level
@@ -344,7 +348,10 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
   // Realtime pending submissions badge updates (no polling)
   useEffect(() => {
-    if (!socket || !user || !(user.role === 'streamer' || user.role === 'admin')) {
+    const userId = user?.id;
+    const userRole = user?.role;
+
+    if (!socket || !userId || !(userRole === 'streamer' || userRole === 'admin')) {
       return;
     }
 

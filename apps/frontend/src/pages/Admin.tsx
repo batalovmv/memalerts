@@ -1553,11 +1553,15 @@ function PromotionManagement() {
 function BetaAccessManagement() {
   const { t } = useTranslation();
   const [requests, setRequests] = useState<Array<Record<string, unknown>>>([]);
+  const [grantedUsers, setGrantedUsers] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
+  const [grantedLoading, setGrantedLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const requestsLoadedRef = useRef(false);
+  const grantedLoadedRef = useRef(false);
 
-  const loadRequests = useCallback(async () => {
-    if (requestsLoadedRef.current) return; // Prevent duplicate requests
+  const loadRequests = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && requestsLoadedRef.current) return; // Prevent duplicate requests
     
     try {
       setLoading(true);
@@ -1574,15 +1578,37 @@ function BetaAccessManagement() {
     }
   }, [t]);
 
+  const loadGrantedUsers = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && grantedLoadedRef.current) return; // Prevent duplicate requests
+
+    try {
+      setGrantedLoading(true);
+      grantedLoadedRef.current = true;
+      const users = await api.get<Array<Record<string, unknown>>>('/admin/beta/users');
+      setGrantedUsers(users);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      grantedLoadedRef.current = false; // Reset on error to allow retry
+      console.error('Error loading granted beta users:', error);
+      toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
+    } finally {
+      setGrantedLoading(false);
+    }
+  }, [t]);
+
   useEffect(() => {
     loadRequests();
-  }, [loadRequests]);
+    loadGrantedUsers();
+  }, [loadRequests, loadGrantedUsers]);
 
   const handleApprove = async (requestId: string) => {
     try {
       await api.post(`/admin/beta/requests/${requestId}/approve`);
       toast.success(t('toast.betaAccessApproved'));
-      loadRequests();
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+      ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToApprove'));
@@ -1593,10 +1619,31 @@ function BetaAccessManagement() {
     try {
       await api.post(`/admin/beta/requests/${requestId}/reject`);
       toast.success(t('toast.betaAccessRejected'));
-      loadRequests();
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+      ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToReject'));
+    }
+  };
+
+  const handleRevoke = async (targetUserId: string, displayName?: string) => {
+    const label = displayName ? `@${displayName}` : targetUserId;
+    const confirmed = window.confirm(t('admin.betaAccessRevokeConfirm', { user: label }));
+    if (!confirmed) return;
+
+    try {
+      await api.post(`/admin/beta/users/${targetUserId}/revoke`);
+      toast.success(t('toast.betaAccessRevoked'));
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+      ]);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToRevoke'));
     }
   };
 
@@ -1616,6 +1663,16 @@ function BetaAccessManagement() {
   if (loading) {
     return <div className="text-center py-8">{t('common.loading')}</div>;
   }
+
+  const filteredGrantedUsers = grantedUsers.filter((u: Record<string, unknown>) => {
+    const user = u as { displayName?: string; twitchUserId?: string };
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      (user.displayName || '').toLowerCase().includes(q) ||
+      (user.twitchUserId || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-4">
@@ -1671,6 +1728,55 @@ function BetaAccessManagement() {
           })}
         </div>
       )}
+
+      <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <h3 className="text-xl font-bold dark:text-white">{t('admin.betaAccessGranted')}</h3>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('admin.searchUsers', 'Search users...')}
+            className="w-full max-w-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+        </div>
+
+        {grantedLoading ? (
+          <div className="text-center py-6">{t('common.loading')}</div>
+        ) : filteredGrantedUsers.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+            {t('admin.noGrantedBetaUsers')}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredGrantedUsers.map((u: Record<string, unknown>) => {
+              const user = u as { id: string; displayName: string; twitchUserId?: string; role?: string; hasBetaAccess?: boolean };
+              return (
+                <div key={user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-white">{user.displayName || user.id}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {user.twitchUserId || 'N/A'}{user.role ? ` • ${user.role}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        {t('admin.betaAccessGrantedBadge', 'granted')}
+                      </span>
+                      <button
+                        onClick={() => handleRevoke(user.id, user.displayName)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                      >
+                        {t('admin.revoke', 'Revoke')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
