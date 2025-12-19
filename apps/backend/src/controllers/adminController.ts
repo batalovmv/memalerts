@@ -19,6 +19,7 @@ import {
   getChannelRewards,
   createEventSubSubscription,
   getEventSubSubscriptions,
+  deleteEventSubSubscription,
 } from '../utils/twitchApi.js';
 
 export const adminController = {
@@ -986,38 +987,70 @@ export const adminController = {
               const existingSubs = await getEventSubSubscriptions(channel.twitchChannelId);
               
               // Check if we already have an active subscription for this event type
-              const hasActiveSubscription = existingSubs?.data?.some((sub: any) => 
-                sub.type === 'channel.channel_points_custom_reward_redemption.add' && 
-                (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending') &&
-                sub.transport?.callback === webhookUrl
+              const relevantSubs = (existingSubs?.data || []).filter((sub: any) =>
+                sub.type === 'channel.channel_points_custom_reward_redemption.add' &&
+                (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending')
               );
+
+              const hasActiveSubscription = relevantSubs.some((sub: any) => sub.transport?.callback === webhookUrl);
               
               if (hasActiveSubscription) {
                 // Subscription already exists and is active, skip creation
               } else {
                 // If there is an active subscription but with a different callback, log it.
-                const activeSubs = existingSubs?.data?.filter((sub: any) =>
-                  sub.type === 'channel.channel_points_custom_reward_redemption.add' &&
-                  (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending')
-                ) || [];
-                if (activeSubs.length > 0) {
-                  console.warn('[adminController] EventSub subscription callback mismatch, creating a new subscription', {
+                const mismatchedSubs = relevantSubs.filter((s: any) => s.transport?.callback !== webhookUrl);
+                if (mismatchedSubs.length > 0) {
+                  console.warn('[adminController] EventSub subscription callback mismatch, will delete and re-create', {
                     desiredWebhookUrl: webhookUrl,
-                    existingCallbacks: activeSubs.map((s: any) => ({ id: s.id, status: s.status, callback: s.transport?.callback })),
+                    existingCallbacks: mismatchedSubs.map((s: any) => ({ id: s.id, status: s.status, callback: s.transport?.callback })),
                   });
+                  // Delete mismatched subscriptions to allow a deterministic re-register
+                  for (const sub of mismatchedSubs) {
+                    try {
+                      await deleteEventSubSubscription(sub.id);
+                      console.log('[adminController] Deleted EventSub subscription:', { id: sub.id, callback: sub.transport?.callback });
+                    } catch (deleteErr) {
+                      console.error('[adminController] Failed to delete EventSub subscription:', { id: sub.id, error: (deleteErr as any)?.message });
+                    }
+                  }
                 }
                 // Create new subscription
-                const subscriptionResult = await createEventSubSubscription(
-                  userId,
-                  channel.twitchChannelId,
-                  webhookUrl,
-                  process.env.TWITCH_EVENTSUB_SECRET!
-                );
+                try {
+                  await createEventSubSubscription(
+                    userId,
+                    channel.twitchChannelId,
+                    webhookUrl,
+                    process.env.TWITCH_EVENTSUB_SECRET!
+                  );
+                } catch (createErr: any) {
+                  // If Twitch says "already exists", do a best-effort cleanup and retry once.
+                  if (createErr?.status === 409) {
+                    console.warn('[adminController] EventSub create returned 409, retrying after cleanup', {
+                      desiredWebhookUrl: webhookUrl,
+                      error: createErr?.message,
+                    });
+                    for (const sub of relevantSubs) {
+                      try {
+                        await deleteEventSubSubscription(sub.id);
+                      } catch (deleteErr) {
+                        console.error('[adminController] Cleanup delete failed:', { id: sub.id, error: (deleteErr as any)?.message });
+                      }
+                    }
+                    await createEventSubSubscription(
+                      userId,
+                      channel.twitchChannelId,
+                      webhookUrl,
+                      process.env.TWITCH_EVENTSUB_SECRET!
+                    );
+                  } else {
+                    throw createErr;
+                  }
+                }
               }
             } catch (checkError: any) {
               // If check fails, try to create anyway
               console.error('Error checking subscriptions, will try to create:', checkError);
-              const subscriptionResult = await createEventSubSubscription(
+              await createEventSubSubscription(
                 userId,
                 channel.twitchChannelId,
                 webhookUrl,
