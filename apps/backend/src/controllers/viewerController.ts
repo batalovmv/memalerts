@@ -5,6 +5,7 @@ import { activateMemeSchema } from '../shared/index.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promotions.js';
 import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
+import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
@@ -778,6 +779,21 @@ export const viewerController = {
         durationMs: result.meme.durationMs,
         title: result.meme.title,
       });
+
+      // Publish wallet update so other instances (beta/prod) can emit it to connected clients.
+      // Also emit locally for immediate feedback to current instance.
+      if (result.activation.coinsSpent && result.activation.coinsSpent > 0) {
+        const walletUpdateData = {
+          userId: result.activation.userId,
+          channelId: result.activation.channelId,
+          balance: result.wallet.balance,
+          delta: -result.activation.coinsSpent,
+          reason: 'meme_activation',
+          channelSlug: result.meme.channel.slug,
+        };
+        emitWalletUpdated(io, walletUpdateData as any);
+        void relayWalletUpdatedToPeer(walletUpdateData as any);
+      }
 
       // Get promotion info for response
       const promotion = await getActivePromotion(result.meme.channelId);
