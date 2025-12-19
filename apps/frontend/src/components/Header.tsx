@@ -428,8 +428,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                         {pendingSubmissionsCount}
                       </span>
                     )}
-                    {/* Coin notification badge (only if no pending submissions badge is shown) */}
-                    {!hasPendingSubmissions && coinUpdateCount > 0 && lastCoinDelta !== null && (
+                    {/* Coin notification badge (shown even if pending submissions badge is present) */}
+                    {coinUpdateCount > 0 && lastCoinDelta !== null && (
                       <span className="absolute -bottom-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
                         +{lastCoinDelta}{coinUpdateCount > 1 ? ` (${coinUpdateCount})` : ''}
                       </span>
