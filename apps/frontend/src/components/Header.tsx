@@ -35,7 +35,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
-  const { socket } = useSocket();
+  const { socket, isConnected } = useSocket();
   const [coinUpdateCount, setCoinUpdateCount] = useState(0);
   const [lastCoinDelta, setLastCoinDelta] = useState<number | null>(null);
   const coinUpdateHideTimerRef = useRef<number | null>(null);
@@ -46,6 +46,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
   const currentChannelSlug = channelSlug || params.slug;
+  const effectiveModeratorChannelSlug =
+    (currentChannelSlug || user?.channel?.slug || '').trim().toLowerCase();
+  const effectiveModeratorChannelId = channelId || user?.channelId;
 
   // Determine if submit button should be shown
   // Show only on: /dashboard, /settings, or own profile
@@ -347,17 +350,17 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
     const onCreated = (data: { submissionId: string; channelId: string; submitterId?: string }) => {
       // Only update if it's for current channel (when available)
-      if (channelId && data.channelId && data.channelId !== channelId) return;
+      if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
       dispatch(submissionCreated(data));
     };
 
     const onApproved = (data: { submissionId: string; channelId: string }) => {
-      if (channelId && data.channelId && data.channelId !== channelId) return;
+      if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
       dispatch(submissionApproved({ submissionId: data.submissionId }));
     };
 
     const onRejected = (data: { submissionId: string; channelId: string }) => {
-      if (channelId && data.channelId && data.channelId !== channelId) return;
+      if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
       dispatch(submissionRejected({ submissionId: data.submissionId }));
     };
 
@@ -365,9 +368,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     socket.on('submission:approved', onApproved);
     socket.on('submission:rejected', onRejected);
 
-    // Ensure we're in channel room when on a channel (for channel-scoped emits)
-    if (socket.connected && currentChannelSlug) {
-      socket.emit('join:channel', currentChannelSlug.trim().toLowerCase());
+    // Ensure moderators are in their channel room (needed on /dashboard and /settings too)
+    if (isConnected && effectiveModeratorChannelSlug) {
+      socket.emit('join:channel', effectiveModeratorChannelSlug);
     }
 
     return () => {
@@ -375,20 +378,18 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       socket.off('submission:approved', onApproved);
       socket.off('submission:rejected', onRejected);
     };
-  }, [socket, user?.id, user?.role, channelId, currentChannelSlug, dispatch]);
+  }, [socket, isConnected, user?.id, user?.role, effectiveModeratorChannelId, effectiveModeratorChannelSlug, dispatch]);
 
   // Update channel room when currentChannelSlug changes
   useEffect(() => {
-    if (socket?.connected && currentChannelSlug) {
-      socket.emit('join:channel', currentChannelSlug.trim().toLowerCase());
+    if (!socket) return;
+    if (isConnected && effectiveModeratorChannelSlug) {
+      socket.emit('join:channel', effectiveModeratorChannelSlug);
     }
-  }, [socket, currentChannelSlug]);
+  }, [socket, isConnected, effectiveModeratorChannelSlug]);
 
 
   const handlePendingSubmissionsClick = () => {
-    // If user uses the "notifications" entry point, clear coin notification badge as well
-    setCoinUpdateCount(0);
-    setLastCoinDelta(null);
     navigate('/settings?tab=submissions');
   };
 
@@ -464,12 +465,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     {hasPendingSubmissions && !isLoadingSubmissions && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                         {pendingSubmissionsCount}
-                      </span>
-                    )}
-                    {/* Coin notification badge (shown even if pending submissions badge is present) */}
-                    {coinUpdateCount > 0 && lastCoinDelta !== null && (
-                      <span className="absolute -bottom-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
-                        +{lastCoinDelta}{coinUpdateCount > 1 ? ` (${coinUpdateCount})` : ''}
                       </span>
                     )}
                   </button>
