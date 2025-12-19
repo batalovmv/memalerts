@@ -247,29 +247,30 @@ jobs:
           echo "Clearing Vite cache..."
           rm -rf node_modules/.vite 2>/dev/null || true
           rm -rf .vite 2>/dev/null || true
+          rm -rf dist 2>/dev/null || true
           
-          # Unset any existing VITE_API_URL to prevent inheritance from secrets
-          unset VITE_API_URL || true
-          
-          # Determine beta API URL and set it explicitly
+          # Determine beta API URL
           if [ -n "${{ secrets.DOMAIN }}" ]; then
-            export VITE_API_URL="https://beta.${{ secrets.DOMAIN }}"
-            echo "✅ Building beta frontend with API URL: $VITE_API_URL"
+            BETA_API_URL="https://beta.${{ secrets.DOMAIN }}"
+            echo "✅ Building beta frontend with API URL: $BETA_API_URL"
           else
-            export VITE_API_URL=""
+            BETA_API_URL=""
             echo "⚠️ WARNING: DOMAIN secret not set, using relative URLs"
           fi
           
-          # Log the actual value that will be used
-          echo "✅ VITE_API_URL is set to: $VITE_API_URL"
+          # Create .env.production file to ensure Vite uses the correct value
+          # This file takes precedence over environment variables
+          echo "VITE_API_URL=$BETA_API_URL" > .env.production
+          echo "✅ Created .env.production with VITE_API_URL=$BETA_API_URL"
           
-          # Verify variable is set before build
-          if [ -z "$VITE_API_URL" ]; then
-            echo "⚠️ WARNING: VITE_API_URL is empty, will use relative URLs"
-          fi
+          # Verify file was created
+          cat .env.production
           
-          # Build with explicit environment variable
-          VITE_API_URL="$VITE_API_URL" pnpm build:web
+          # Build - Vite will read from .env.production
+          pnpm build:web
+          
+          # Clean up .env.production after build
+          rm -f .env.production
 
       - name: Build Overlay (Beta)
         run: |
@@ -277,29 +278,29 @@ jobs:
           echo "Clearing Vite cache for overlay..."
           rm -rf node_modules/.vite 2>/dev/null || true
           rm -rf .vite 2>/dev/null || true
+          rm -rf overlay/dist 2>/dev/null || true
           
-          # Unset any existing VITE_API_URL to prevent inheritance from secrets
-          unset VITE_API_URL || true
-          
-          # Determine beta API URL and set it explicitly
+          # Determine beta API URL
           if [ -n "${{ secrets.DOMAIN }}" ]; then
-            export VITE_API_URL="https://beta.${{ secrets.DOMAIN }}"
-            echo "✅ Building beta overlay with API URL: $VITE_API_URL"
+            BETA_API_URL="https://beta.${{ secrets.DOMAIN }}"
+            echo "✅ Building beta overlay with API URL: $BETA_API_URL"
           else
-            export VITE_API_URL=""
+            BETA_API_URL=""
             echo "⚠️ WARNING: DOMAIN secret not set, using relative URLs"
           fi
           
-          # Log the actual value that will be used
-          echo "✅ VITE_API_URL is set to: $VITE_API_URL"
+          # Create .env.production file in overlay directory
+          echo "VITE_API_URL=$BETA_API_URL" > overlay/.env.production
+          echo "✅ Created overlay/.env.production with VITE_API_URL=$BETA_API_URL"
           
-          # Verify variable is set before build
-          if [ -z "$VITE_API_URL" ]; then
-            echo "⚠️ WARNING: VITE_API_URL is empty, will use relative URLs"
-          fi
+          # Verify file was created
+          cat overlay/.env.production
           
-          # Build with explicit environment variable
-          VITE_API_URL="$VITE_API_URL" pnpm build:overlay
+          # Build - Vite will read from overlay/.env.production
+          pnpm build:overlay
+          
+          # Clean up .env.production after build
+          rm -f overlay/.env.production
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
