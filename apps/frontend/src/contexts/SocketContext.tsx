@@ -54,31 +54,48 @@ export function SocketProvider({ children }: SocketProviderProps) {
     // Only create socket if it doesn't exist
     if (!socketRef.current) {
       const socketUrl = getSocketUrl();
-      console.log('[SocketContext] Connecting to:', socketUrl);
+      console.log('[SocketContext] Initializing Socket.IO connection to:', socketUrl);
       const socket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+        timeout: 20000, // 20 seconds timeout
       });
 
       socketRef.current = socket;
 
       socket.on('connect', () => {
-        console.log('Socket.IO connected', { socketId: socket.id });
+        console.log('[SocketContext] ✅ Socket.IO connected', { 
+          socketId: socket.id, 
+          socketUrl,
+          userId: user?.id 
+        });
         setIsConnected(true);
         // Join user room for wallet updates
         if (user) {
           socket.emit('join:user', user.id);
+          console.log('[SocketContext] Joined user room:', `user:${user.id}`);
         }
       });
 
-      socket.on('disconnect', () => {
-        console.log('Socket.IO disconnected');
+      socket.on('disconnect', (reason: string) => {
+        console.log('[SocketContext] Socket.IO disconnected', { reason, socketUrl });
         setIsConnected(false);
       });
 
       socket.on('connect_error', (error: Error) => {
-        console.error('Socket.IO connection error:', error);
+        console.error('[SocketContext] Socket.IO connection error:', error);
+        console.error('[SocketContext] Error details:', {
+          message: error.message,
+          type: error.name,
+          socketUrl,
+          userAgent: navigator.userAgent,
+        });
         setIsConnected(false);
+        // Don't retry immediately - let Socket.IO handle reconnection with exponential backoff
       });
     } else {
       // Socket already exists, just update rooms if needed
