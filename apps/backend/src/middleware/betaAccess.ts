@@ -52,6 +52,12 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     return next();
   }
 
+  // Allow authenticated users to load their session/profile and request beta access
+  // This enables UX: login -> see BetaAccessRequest -> request access, while keeping other actions blocked.
+  if (req.path === '/me' || req.path.startsWith('/beta/')) {
+    return next();
+  }
+
   // For public routes (like /channels/:slug), allow access without authentication
   const isPublicRoute = req.path.startsWith('/channels/memes/search') ||
                         req.path === '/memes/stats' ||
@@ -88,20 +94,6 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     });
 
     let hasAccess = user?.hasBetaAccess || false;
-    
-    // If this is beta backend and user doesn't have beta access, grant it automatically
-    // This handles the case where user was logged in before beta access logic was added
-    const isBetaBackend = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
-    if (isBetaBackend && !hasAccess) {
-      console.log('[requireBetaAccess] Auto-granting beta access to user on beta backend:', req.userId);
-      await prisma.user.update({
-        where: { id: req.userId },
-        data: { hasBetaAccess: true },
-      });
-      hasAccess = true;
-      // Invalidate cache so it's updated
-      invalidateBetaAccessCache(req.userId);
-    }
     
     // Cache the result
     setCachedBetaAccess(req.userId, hasAccess);
