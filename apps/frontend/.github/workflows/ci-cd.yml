@@ -96,6 +96,12 @@ jobs:
             pnpm build:web
           fi
 
+      # Runtime config served as a static file to avoid build-time env coupling (beta vs prod)
+      # "" means same-origin for both REST and Socket.IO.
+      - name: Generate runtime config (Web)
+        run: |
+          echo '{"apiBaseUrl":"","socketUrl":""}' > dist/config.json
+
       - name: Build Overlay
         run: |
           if [ -n "${{ secrets.VITE_API_URL }}" ]; then
@@ -251,6 +257,10 @@ jobs:
           BETA_BUILD: "true"
           DOMAIN: ${{ secrets.DOMAIN }}
           VITE_API_URL_BETA: ${{ secrets.VITE_API_URL_BETA }}
+
+      - name: Generate runtime config (Web, Beta)
+        run: |
+          echo '{"apiBaseUrl":"","socketUrl":""}' > dist/config.json
 
       - name: Build Overlay (Beta)
         run: |
