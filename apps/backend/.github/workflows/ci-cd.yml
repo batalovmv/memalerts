@@ -265,8 +265,13 @@ jobs:
               }
             elif [ -f .github/scripts/setup-nginx-full.sh ]; then
               chmod +x .github/scripts/setup-nginx-full.sh
+              # Fix line endings if needed (convert CRLF to LF)
+              sed -i 's/\r$//' .github/scripts/setup-nginx-full.sh || true
+              # Ensure script is executable
+              chmod +x .github/scripts/setup-nginx-full.sh
               export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
               export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
+              # Use bash explicitly to avoid shebang issues
               sudo -E bash .github/scripts/setup-nginx-full.sh ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 || {
                 echo "Nginx setup failed. Check logs above."
                 exit 1
