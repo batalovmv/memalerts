@@ -240,11 +240,6 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build Web (Beta)
-        env:
-          # Explicitly override VITE_API_URL to use beta domain, ignoring the secret value
-          # This env block takes precedence over any inherited VITE_API_URL from secrets
-          # Use ternary operator: if DOMAIN exists, use "https://beta.DOMAIN", else empty string
-          VITE_API_URL: ${{ secrets.DOMAIN != '' && concat('https://beta.', secrets.DOMAIN) || '' }}
         run: |
           # For beta, ALWAYS use beta domain from DOMAIN secret
           # Ignore VITE_API_URL secret completely for beta (it points to production)
@@ -253,8 +248,19 @@ jobs:
           rm -rf node_modules/.vite 2>/dev/null || true
           rm -rf .vite 2>/dev/null || true
           
-          # Log the actual value that will be used (env block sets it above)
-          echo "✅ Building beta frontend with API URL: $VITE_API_URL"
+          # Unset any existing VITE_API_URL to prevent inheritance from secrets
+          unset VITE_API_URL || true
+          
+          # Determine beta API URL and set it explicitly
+          if [ -n "${{ secrets.DOMAIN }}" ]; then
+            export VITE_API_URL="https://beta.${{ secrets.DOMAIN }}"
+            echo "✅ Building beta frontend with API URL: $VITE_API_URL"
+          else
+            export VITE_API_URL=""
+            echo "⚠️ WARNING: DOMAIN secret not set, using relative URLs"
+          fi
+          
+          # Log the actual value that will be used
           echo "✅ VITE_API_URL is set to: $VITE_API_URL"
           
           # Verify variable is set before build
@@ -262,22 +268,29 @@ jobs:
             echo "⚠️ WARNING: VITE_API_URL is empty, will use relative URLs"
           fi
           
-          pnpm build:web
+          # Build with explicit environment variable
+          VITE_API_URL="$VITE_API_URL" pnpm build:web
 
       - name: Build Overlay (Beta)
-        env:
-          # Explicitly override VITE_API_URL to use beta domain, ignoring the secret value
-          # This env block takes precedence over any inherited VITE_API_URL from secrets
-          # Use ternary operator: if DOMAIN exists, use "https://beta.DOMAIN", else empty string
-          VITE_API_URL: ${{ secrets.DOMAIN != '' && concat('https://beta.', secrets.DOMAIN) || '' }}
         run: |
           # Clear Vite cache to ensure fresh build
           echo "Clearing Vite cache for overlay..."
           rm -rf node_modules/.vite 2>/dev/null || true
           rm -rf .vite 2>/dev/null || true
           
-          # Log the actual value that will be used (env block sets it above)
-          echo "✅ Building beta overlay with API URL: $VITE_API_URL"
+          # Unset any existing VITE_API_URL to prevent inheritance from secrets
+          unset VITE_API_URL || true
+          
+          # Determine beta API URL and set it explicitly
+          if [ -n "${{ secrets.DOMAIN }}" ]; then
+            export VITE_API_URL="https://beta.${{ secrets.DOMAIN }}"
+            echo "✅ Building beta overlay with API URL: $VITE_API_URL"
+          else
+            export VITE_API_URL=""
+            echo "⚠️ WARNING: DOMAIN secret not set, using relative URLs"
+          fi
+          
+          # Log the actual value that will be used
           echo "✅ VITE_API_URL is set to: $VITE_API_URL"
           
           # Verify variable is set before build
@@ -285,7 +298,8 @@ jobs:
             echo "⚠️ WARNING: VITE_API_URL is empty, will use relative URLs"
           fi
           
-          pnpm build:overlay
+          # Build with explicit environment variable
+          VITE_API_URL="$VITE_API_URL" pnpm build:overlay
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
