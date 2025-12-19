@@ -241,39 +241,28 @@ jobs:
 
       - name: Build Web (Beta)
         run: |
-          # For beta, ALWAYS use beta domain, ignore VITE_API_URL if it points to production
-          # Determine beta URL
-          if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
-            # If VITE_API_URL explicitly contains "beta", use it
-            echo "Using VITE_API_URL with beta: ${{ secrets.VITE_API_URL }}"
-            BETA_API_URL="${{ secrets.VITE_API_URL }}"
-          elif [ -n "${{ secrets.DOMAIN }}" ]; then
-            # Always build beta URL from DOMAIN for beta deployments
+          # For beta, ALWAYS use beta domain from DOMAIN secret
+          # Ignore VITE_API_URL secret completely for beta (it points to production)
+          if [ -n "${{ secrets.DOMAIN }}" ]; then
             BETA_API_URL="https://beta.${{ secrets.DOMAIN }}"
-            echo "Using beta URL from DOMAIN: $BETA_API_URL"
+            echo "Building beta frontend with API URL: $BETA_API_URL"
+            VITE_API_URL="$BETA_API_URL" pnpm build:web
           else
-            # Fallback to empty string for relative URLs
-            BETA_API_URL=""
-            echo "Using relative URLs (empty VITE_API_URL)"
+            echo "WARNING: DOMAIN secret not set, using relative URLs"
+            VITE_API_URL="" pnpm build:web
           fi
-          echo "Final VITE_API_URL for build: $BETA_API_URL"
-          VITE_API_URL="$BETA_API_URL" pnpm build:web
 
       - name: Build Overlay (Beta)
         run: |
           # Same logic for overlay
-          if [ -n "${{ secrets.VITE_API_URL }}" ] && [[ "${{ secrets.VITE_API_URL }}" == *"beta"* ]]; then
-            echo "Using VITE_API_URL with beta: ${{ secrets.VITE_API_URL }}"
-            BETA_API_URL="${{ secrets.VITE_API_URL }}"
-          elif [ -n "${{ secrets.DOMAIN }}" ]; then
+          if [ -n "${{ secrets.DOMAIN }}" ]; then
             BETA_API_URL="https://beta.${{ secrets.DOMAIN }}"
-            echo "Using beta URL from DOMAIN: $BETA_API_URL"
+            echo "Building beta overlay with API URL: $BETA_API_URL"
+            VITE_API_URL="$BETA_API_URL" pnpm build:overlay
           else
-            BETA_API_URL=""
-            echo "Using relative URLs (empty VITE_API_URL)"
+            echo "WARNING: DOMAIN secret not set, using relative URLs"
+            VITE_API_URL="" pnpm build:overlay
           fi
-          echo "Final VITE_API_URL for overlay build: $BETA_API_URL"
-          VITE_API_URL="$BETA_API_URL" pnpm build:overlay
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
