@@ -43,6 +43,7 @@ export const updateChannelSettingsSchema = z.object({
   rewardTitle: z.string().optional().nullable(),
   rewardCost: z.number().int().positive().optional().nullable(),
   rewardCoins: z.number().int().positive().optional().nullable(),
+  submissionRewardCoins: z.number().int().min(0).optional(),
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),

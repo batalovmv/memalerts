@@ -23,6 +23,7 @@ model Channel {
   secondaryColor    String? // Hex color for secondary theme
   accentColor       String? // Hex color for accent
   defaultPriceCoins Int?    @default(100) // Default price for memes in this channel
+  submissionRewardCoins Int @default(0) // Coins granted to submitter when their submission is approved
   createdAt         DateTime @default(now())
 
   users       User[]

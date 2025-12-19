@@ -21,6 +21,7 @@ import {
   getEventSubSubscriptions,
   deleteEventSubSubscription,
 } from '../utils/twitchApi.js';
+import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 
 export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -123,6 +124,7 @@ export const adminController = {
     // #endregion
 
     let submission: any; // Declare submission in outer scope for error handling
+    let submissionRewardEvent: any = null;
     try {
       const body = approveSubmissionSchema.parse(req.body);
 
@@ -167,7 +169,7 @@ export const adminController = {
         
         const channel = await tx.channel.findUnique({
           where: { id: channelId },
-          select: { defaultPriceCoins: true, slug: true },
+          select: { defaultPriceCoins: true, slug: true, submissionRewardCoins: true },
         });
         
         // #region agent log
@@ -175,6 +177,7 @@ export const adminController = {
         // #endregion
         
         const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
+        const rewardForApproval = channel?.submissionRewardCoins ?? 0;
 
         // Determine fileUrl: handle deduplication for both uploaded and imported files
         let finalFileUrl: string;
@@ -365,6 +368,39 @@ export const adminController = {
           console.log('[DEBUG] Meme created successfully', JSON.stringify({ location: 'adminController.ts:357', message: 'Meme created successfully', data: { submissionId: id, memeId: meme.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
           // #endregion
 
+          // Reward submitter for approved submission (per-channel setting)
+          // Only if enabled (>0) and submitter is not the moderator approving.
+          if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
+            const updatedWallet = await tx.wallet.upsert({
+              where: {
+                userId_channelId: {
+                  userId: submission.submitterUserId,
+                  channelId: submission.channelId,
+                },
+              },
+              create: {
+                userId: submission.submitterUserId,
+                channelId: submission.channelId,
+                balance: rewardForApproval,
+              },
+              update: {
+                balance: { increment: rewardForApproval },
+              },
+              select: {
+                balance: true,
+              },
+            });
+
+            submissionRewardEvent = {
+              userId: submission.submitterUserId,
+              channelId: submission.channelId,
+              balance: updatedWallet.balance,
+              delta: rewardForApproval,
+              reason: 'submission_approved_reward',
+              channelSlug: channel?.slug,
+            };
+          }
+
           return meme;
         } catch (error: any) {
           // #region agent log
@@ -421,6 +457,17 @@ export const adminController = {
       } catch (error) {
         console.error('Error emitting submission:approved event:', error);
         // Don't fail the request if Socket.IO emit fails
+      }
+
+      // Emit wallet update for rewarded submitter (if configured)
+      if (submissionRewardEvent) {
+        try {
+          const io: Server = req.app.get('io');
+          emitWalletUpdated(io, submissionRewardEvent);
+          void relayWalletUpdatedToPeer(submissionRewardEvent);
+        } catch (err) {
+          console.error('Error emitting wallet:updated for submission reward:', err);
+        }
       }
 
       // If this is an imported meme, start background download and update
@@ -1089,6 +1136,7 @@ export const adminController = {
         rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : (channel as any).rewardTitle,
         rewardCost: body.rewardCost !== undefined ? body.rewardCost : (channel as any).rewardCost,
         rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : (channel as any).rewardCoins,
+        submissionRewardCoins: body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : (channel as any).submissionRewardCoins,
         primaryColor: body.primaryColor !== undefined ? body.primaryColor : (channel as any).primaryColor,
         secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : (channel as any).secondaryColor,
         accentColor: body.accentColor !== undefined ? body.accentColor : (channel as any).accentColor,

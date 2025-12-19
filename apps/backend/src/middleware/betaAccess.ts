@@ -52,19 +52,14 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     return next();
   }
 
-  // Allow authenticated users to load their session/profile and request beta access
-  // This enables UX: login -> see BetaAccessRequest -> request access, while keeping other actions blocked.
+  // Allow authenticated users to load their session/profile and request beta access.
+  // On beta, everything else is blocked until access is granted.
   if (req.path === '/me' || req.path.startsWith('/beta/')) {
     return next();
   }
 
-  // For public routes (like /channels/:slug), allow access without authentication
-  const isPublicRoute = req.path.startsWith('/channels/memes/search') ||
-                        req.path === '/memes/stats' ||
-                        /^\/channels\/[^\/]+$/.test(req.path) || // Match /channels/:slug (public route)
-                        /^\/channels\/[^\/]+\/memes$/.test(req.path); // Match /channels/:slug/memes (public route)
-
-  if (isPublicRoute) {
+  // Optional: allow health checks without beta access
+  if (req.path === '/health') {
     return next();
   }
 
