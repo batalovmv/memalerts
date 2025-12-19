@@ -32,16 +32,21 @@ export default function Dashboard() {
       const currentState = store.getState();
       const submissionsState = currentState.submissions;
       const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+      const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
       
       // Check if we have fresh data based on timestamp
       const hasFreshData = submissionsState.submissions.length > 0 && 
         submissionsState.lastFetchedAt !== null &&
         (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
       
+      // Check if we had a recent error (especially 403) - don't retry immediately
+      const hasRecentError = submissionsState.lastErrorAt !== null &&
+        (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
+      
       const isLoading = submissionsState.loading;
       
-      // Only fetch if no fresh data and not loading
-      if (!hasFreshData && !isLoading && !submissionsLoadedRef.current) {
+      // Only fetch if no fresh data, not loading, no recent error, and not already loaded
+      if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
         submissionsLoadedRef.current = true;
         dispatch(fetchSubmissions({ status: 'pending' }));
       } else if (hasFreshData) {
@@ -52,7 +57,7 @@ export default function Dashboard() {
     if (!user || !user.channelId) {
       submissionsLoadedRef.current = false;
     }
-  }, [user, user?.role, user?.channelId, dispatch]);
+  }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
 

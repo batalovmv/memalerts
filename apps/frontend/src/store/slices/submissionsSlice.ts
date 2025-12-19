@@ -7,6 +7,7 @@ interface SubmissionsState {
   loading: boolean;
   error: string | null;
   lastFetchedAt: number | null;
+  lastErrorAt: number | null; // Track when error occurred to prevent infinite retries
 }
 
 const initialState: SubmissionsState = {
@@ -14,6 +15,7 @@ const initialState: SubmissionsState = {
   loading: false,
   error: null,
   lastFetchedAt: null,
+  lastErrorAt: null,
 };
 
 export const fetchSubmissions = createAsyncThunk<
@@ -124,10 +126,16 @@ const submissionsSlice = createSlice({
         state.submissions = action.payload;
         state.error = null;
         state.lastFetchedAt = Date.now();
+        state.lastErrorAt = null; // Clear error timestamp on success
       })
       .addCase(fetchSubmissions.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || 'Failed to fetch submissions';
+        // Track error time to prevent infinite retries
+        // If error is 403 (Forbidden), don't retry for 5 minutes
+        if (action.payload?.statusCode === 403) {
+          state.lastErrorAt = Date.now();
+        }
       })
       // approveSubmission
       .addCase(approveSubmission.fulfilled, (state, action) => {
