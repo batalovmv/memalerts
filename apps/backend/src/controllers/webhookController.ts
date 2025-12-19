@@ -193,14 +193,16 @@ export const webhookController = {
               channelId: channel.id,
               walletId: updatedWallet.id,
               balance: updatedWallet.balance,
+              delta: coinsGranted,
+              reason: 'twitch_reward' as const,
             };
             console.log('[webhookController] Emitting wallet:updated event:', walletUpdateData);
             // Emit to user-specific room and channel room
             io.to(`user:${user.id}`).emit('wallet:updated', walletUpdateData);
-            io.to(`channel:${channel.slug}`).emit('wallet:updated', walletUpdateData);
+            io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('wallet:updated', walletUpdateData);
             // Log how many clients are in each room (for debugging)
             const userRoom = io.sockets.adapter.rooms.get(`user:${user.id}`);
-            const channelRoom = io.sockets.adapter.rooms.get(`channel:${channel.slug}`);
+            const channelRoom = io.sockets.adapter.rooms.get(`channel:${String(channel.slug).toLowerCase()}`);
             console.log('[webhookController] Socket.IO rooms:', {
               userRoomSize: userRoom?.size || 0,
               channelRoomSize: channelRoom?.size || 0,
