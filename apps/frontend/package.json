@@ -1,6 +1,6 @@
 {
   "name": "@memalerts/web",
-  "_deploy_trigger": "2025-01-20",
+  "_deploy_trigger": "rollback-to-20286d3",
   "version": "1.0.10",
   "type": "module",
   "scripts": {
