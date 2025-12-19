@@ -175,7 +175,7 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
               disabled={!canActivate}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md shadow-lg transition-colors text-xs font-medium ${
                 canActivate
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  ? 'bg-[var(--primary-color)] hover:bg-[var(--secondary-color)] text-white'
                   : 'bg-gray-600 text-gray-300 cursor-not-allowed'
               }`}
               title={!canActivate && walletBalance !== undefined 
@@ -210,7 +210,7 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
             disabled={!canActivate}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md shadow-lg transition-colors text-xs font-medium ${
               canActivate
-                ? 'bg-green-600 hover:bg-green-700 text-white'
+                ? 'bg-[var(--primary-color)] hover:bg-[var(--secondary-color)] text-white'
                 : 'bg-gray-600 text-gray-300 cursor-not-allowed'
             }`}
             title={!canActivate && walletBalance !== undefined 

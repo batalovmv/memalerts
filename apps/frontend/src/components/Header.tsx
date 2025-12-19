@@ -316,6 +316,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
 
+  // Use CSS variables for colors when on public channel page, fallback to inline styles for other pages
   const navStyle: React.CSSProperties = {
     backgroundColor: primaryColor && !document.documentElement.classList.contains('dark') ? primaryColor : undefined,
   };
@@ -326,11 +327,14 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
   return (
     <>
-      <nav className="bg-white dark:bg-gray-800 shadow-sm" style={navStyle}>
+      <nav 
+        className="bg-white dark:bg-gray-800 shadow-sm channel-theme-nav"
+        style={navStyle}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <h1 
-              className="text-xl font-bold dark:text-white cursor-pointer"
+              className="text-xl font-bold dark:text-white cursor-pointer channel-theme-logo"
               onClick={() => navigate('/')}
               style={logoStyle}
             >

@@ -10,6 +10,7 @@ import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
 import SubmitModal from '../components/SubmitModal';
 import CoinsInfoModal from '../components/CoinsInfoModal';
+import ChannelThemeProvider from '../components/ChannelThemeProvider';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import type { Meme, Wallet } from '../types';
@@ -278,28 +279,22 @@ export default function StreamerProfile() {
   // Check if current user is the owner of this channel
   const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
 
-  // Apply custom colors if available
-  const customStyles: Record<string, string> = {};
-  if (channelInfo?.primaryColor) {
-    customStyles['--primary-color'] = channelInfo.primaryColor;
-  }
-  if (channelInfo?.secondaryColor) {
-    customStyles['--secondary-color'] = channelInfo.secondaryColor;
-  }
-  if (channelInfo?.accentColor) {
-    customStyles['--accent-color'] = channelInfo.accentColor;
-  }
-
   // Show page structure immediately, even if channel info is still loading
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900" style={customStyles}>
-      <Header
-        coinIconUrl={channelInfo?.coinIconUrl} 
-        channelSlug={slug}
-        channelId={channelInfo?.id}
-        primaryColor={channelInfo?.primaryColor}
-        rewardTitle={channelInfo?.rewardTitle || null}
-      />
+    <ChannelThemeProvider
+      channelSlug={slug || ''}
+      primaryColor={channelInfo?.primaryColor}
+      secondaryColor={channelInfo?.secondaryColor}
+      accentColor={channelInfo?.accentColor}
+    >
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+        <Header
+          coinIconUrl={channelInfo?.coinIconUrl} 
+          channelSlug={slug}
+          channelId={channelInfo?.id}
+          primaryColor={channelInfo?.primaryColor}
+          rewardTitle={channelInfo?.rewardTitle || null}
+        />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
         {loading ? (
@@ -493,7 +488,8 @@ export default function StreamerProfile() {
 
       {/* Coins Info Modal */}
       {channelInfo && <CoinsInfoModal rewardTitle={channelInfo.rewardTitle || null} />}
-    </div>
+      </div>
+    </ChannelThemeProvider>
   );
 }
 

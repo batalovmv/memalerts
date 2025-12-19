@@ -228,6 +228,16 @@ export default function Admin() {
               {t('admin.pendingSubmissions')} ({submissions.length})
             </button>
             <button
+              onClick={() => setActiveTab('memes')}
+              className={`pb-2 px-4 transition-colors ${
+                activeTab === 'memes'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+              }`}
+            >
+              {t('admin.allMemes')} ({memes.length})
+            </button>
+            <button
               onClick={() => setActiveTab('settings')}
               className={`pb-2 px-4 transition-colors ${
                 activeTab === 'settings'
@@ -235,7 +245,7 @@ export default function Admin() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
               }`}
             >
-              {t('admin.channelSettings')}
+              {t('admin.channelDesign', 'Оформление')}
             </button>
 
             {/* Dropdown для дополнительных вкладок */}
@@ -243,7 +253,7 @@ export default function Admin() {
               <button
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
                 className={`pb-2 px-4 transition-colors flex items-center gap-1 ${
-                  ['memes', 'wallets', 'promotions', 'statistics', 'beta'].includes(activeTab)
+                  ['wallets', 'promotions', 'statistics', 'beta'].includes(activeTab)
                     ? 'border-b-2 border-primary text-primary'
                     : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
                 }`}
@@ -267,19 +277,6 @@ export default function Admin() {
                     onClick={() => setIsMoreMenuOpen(false)}
                   />
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 py-1">
-                    <button
-                      onClick={() => {
-                        setActiveTab('memes');
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                        activeTab === 'memes'
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {t('admin.allMemes')} ({memes.length})
-                    </button>
                     <button
                       onClick={() => {
                         setActiveTab('statistics');

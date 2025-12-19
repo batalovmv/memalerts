@@ -91,4 +91,22 @@ body {
   color: var(--accent-color);
 }
 
+/* Channel theme styles - applied only on public channel pages */
+.channel-theme .channel-theme-nav {
+  background-color: var(--primary-color) !important;
+}
+
+.channel-theme .channel-theme-nav h1 {
+  color: #ffffff !important;
+}
+
+.channel-theme .channel-theme-nav .text-primary {
+  color: #ffffff !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dark .channel-theme .channel-theme-nav {
+    background-color: var(--primary-color) !important;
+  }
+}
 

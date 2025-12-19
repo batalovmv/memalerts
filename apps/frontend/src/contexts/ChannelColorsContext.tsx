@@ -144,13 +144,8 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
     fetchChannelColors();
   }, [fetchChannelColors]);
 
-  // Apply CSS variables for colors
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty('--primary-color', colors.primaryColor || defaultColors.primaryColor);
-    root.style.setProperty('--secondary-color', colors.secondaryColor || defaultColors.secondaryColor);
-    root.style.setProperty('--accent-color', colors.accentColor || defaultColors.accentColor);
-  }, [colors]);
+  // Note: Colors are no longer applied globally here.
+  // They are applied only on public channel pages via ChannelThemeProvider.
 
   return (
     <ChannelColorsContext.Provider value={{ 
