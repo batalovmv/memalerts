@@ -6,6 +6,8 @@ import App from './App.tsx';
 import { store } from './store/index.ts';
 import { ThemeProvider } from './contexts/ThemeContext.tsx';
 import { ChannelColorsProvider } from './contexts/ChannelColorsContext.tsx';
+import { loadRuntimeConfig } from './lib/runtimeConfig';
+import { setApiBaseUrl } from './lib/api';
 import './i18n/config';
 import './index.css';
 
@@ -19,18 +21,29 @@ if (!rootElement) {
 
 console.log('[main.tsx] Root element found, creating root');
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <Provider store={store}>
-      <BrowserRouter>
-        <ThemeProvider>
-          <ChannelColorsProvider>
-            <App />
-          </ChannelColorsProvider>
-        </ThemeProvider>
-      </BrowserRouter>
-    </Provider>
-  </StrictMode>,
-);
+async function bootstrap() {
+  // Load runtime config first, so initial /me request uses correct origin (beta vs prod)
+  const cfg = await loadRuntimeConfig();
+  if (cfg.apiBaseUrl !== undefined) {
+    // "" means same-origin relative requests
+    setApiBaseUrl(cfg.apiBaseUrl);
+  }
 
-console.log('[main.tsx] Render completed');
+  createRoot(rootElement!).render(
+    <StrictMode>
+      <Provider store={store}>
+        <BrowserRouter>
+          <ThemeProvider>
+            <ChannelColorsProvider>
+              <App />
+            </ChannelColorsProvider>
+          </ThemeProvider>
+        </BrowserRouter>
+      </Provider>
+    </StrictMode>,
+  );
+
+  console.log('[main.tsx] Render completed');
+}
+
+bootstrap();

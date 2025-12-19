@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAppSelector } from '../store/hooks';
+import { getRuntimeConfig } from '../lib/runtimeConfig';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -26,6 +27,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
   // Get API URL for Socket.IO
   const getSocketUrl = () => {
+    const runtime = getRuntimeConfig();
+    if (runtime?.socketUrl !== undefined) {
+      if (runtime.socketUrl === '') return window.location.origin;
+      return runtime.socketUrl;
+    }
+
     const envUrl = import.meta.env.VITE_API_URL;
     
     // If VITE_API_URL is explicitly set (even if empty string), use it
