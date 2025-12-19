@@ -973,12 +973,13 @@ export const adminController = {
           
           // Create EventSub subscription if it doesn't exist
           try {
-            // Use API URL (backend), not frontend URL
-            // For production, use https://twitchmemes.ru, for dev use localhost
-            const apiUrl = process.env.NODE_ENV === 'production' 
-              ? 'https://twitchmemes.ru'
-              : (process.env.API_URL || 'http://localhost:3001');
-            const webhookUrl = `${apiUrl}/webhooks/twitch/eventsub`;
+            // Use the current request host as the webhook callback base URL.
+            // This avoids hardcoding production domain and prevents beta from registering prod callbacks.
+            const domain = process.env.DOMAIN || 'twitchmemes.ru';
+            const reqHost = req.get('host') || '';
+            const allowedHosts = new Set([domain, `www.${domain}`, `beta.${domain}`]);
+            const apiBaseUrl = allowedHosts.has(reqHost) ? `https://${reqHost}` : `https://${domain}`;
+            const webhookUrl = `${apiBaseUrl}/webhooks/twitch/eventsub`;
             
             // Check existing subscriptions first
             try {
@@ -987,12 +988,24 @@ export const adminController = {
               // Check if we already have an active subscription for this event type
               const hasActiveSubscription = existingSubs?.data?.some((sub: any) => 
                 sub.type === 'channel.channel_points_custom_reward_redemption.add' && 
-                (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending')
+                (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending') &&
+                sub.transport?.callback === webhookUrl
               );
               
               if (hasActiveSubscription) {
                 // Subscription already exists and is active, skip creation
               } else {
+                // If there is an active subscription but with a different callback, log it.
+                const activeSubs = existingSubs?.data?.filter((sub: any) =>
+                  sub.type === 'channel.channel_points_custom_reward_redemption.add' &&
+                  (sub.status === 'enabled' || sub.status === 'webhook_callback_verification_pending')
+                ) || [];
+                if (activeSubs.length > 0) {
+                  console.warn('[adminController] EventSub subscription callback mismatch, creating a new subscription', {
+                    desiredWebhookUrl: webhookUrl,
+                    existingCallbacks: activeSubs.map((s: any) => ({ id: s.id, status: s.status, callback: s.transport?.callback })),
+                  });
+                }
                 // Create new subscription
                 const subscriptionResult = await createEventSubSubscription(
                   userId,
