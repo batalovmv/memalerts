@@ -243,7 +243,8 @@ jobs:
         env:
           # Explicitly override VITE_API_URL to use beta domain, ignoring the secret value
           # This env block takes precedence over any inherited VITE_API_URL from secrets
-          VITE_API_URL: ${{ secrets.DOMAIN != '' && format('https://beta.{0}', secrets.DOMAIN) || '' }}
+          # Use ternary operator: if DOMAIN exists, use "https://beta.DOMAIN", else empty string
+          VITE_API_URL: ${{ secrets.DOMAIN != '' && concat('https://beta.', secrets.DOMAIN) || '' }}
         run: |
           # For beta, ALWAYS use beta domain from DOMAIN secret
           # Ignore VITE_API_URL secret completely for beta (it points to production)
@@ -267,7 +268,8 @@ jobs:
         env:
           # Explicitly override VITE_API_URL to use beta domain, ignoring the secret value
           # This env block takes precedence over any inherited VITE_API_URL from secrets
-          VITE_API_URL: ${{ secrets.DOMAIN != '' && format('https://beta.{0}', secrets.DOMAIN) || '' }}
+          # Use ternary operator: if DOMAIN exists, use "https://beta.DOMAIN", else empty string
+          VITE_API_URL: ${{ secrets.DOMAIN != '' && concat('https://beta.', secrets.DOMAIN) || '' }}
         run: |
           # Clear Vite cache to ensure fresh build
           echo "Clearing Vite cache for overlay..."
