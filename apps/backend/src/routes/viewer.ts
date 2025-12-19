@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { requireBetaAccess } from '../middleware/betaAccess.js';
 import { viewerController } from '../controllers/viewerController.js';
 
 export const viewerRoutes = Router();
@@ -12,6 +13,6 @@ viewerRoutes.get('/:slug', viewerController.getChannelBySlug);
 viewerRoutes.get('/:slug/memes', viewerController.getChannelMemesPublic);
 
 // Get wallet for specific channel (requires auth)
-viewerRoutes.get('/:slug/wallet', authenticate, viewerController.getWalletForChannel);
+viewerRoutes.get('/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
 
 
