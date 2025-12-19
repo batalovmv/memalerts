@@ -32,7 +32,9 @@ export default function OverlayView() {
     if (!channelSlug) return;
 
     const envUrl = import.meta.env.VITE_API_URL;
-    const apiUrl = envUrl || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3001');
+    // In production/beta deployments, always use same-origin to avoid cross-environment calls.
+    // In local dev, allow VITE_API_URL override or fallback to localhost.
+    const apiUrl = import.meta.env.PROD ? window.location.origin : (envUrl || 'http://localhost:3001');
     const newSocket = io(apiUrl, {
       transports: ['websocket'],
     });
@@ -174,21 +176,21 @@ export default function OverlayView() {
     <div style={containerStyle}>
       {current.type === 'image' && (
         <img
-          src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${current.fileUrl}`}
+          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
           alt={current.title}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
         />
       )}
       {current.type === 'gif' && (
         <img
-          src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${current.fileUrl}`}
+          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
           alt={current.title}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
         />
       )}
       {current.type === 'video' && (
         <video
-          src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${current.fileUrl}`}
+          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
           autoPlay
           muted={false}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
@@ -200,7 +202,7 @@ export default function OverlayView() {
       {current.type === 'audio' && (
         <audio
           ref={audioRef}
-          src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${current.fileUrl}`}
+          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
           autoPlay
           onLoadedData={(e) => {
             e.currentTarget.volume = volume;

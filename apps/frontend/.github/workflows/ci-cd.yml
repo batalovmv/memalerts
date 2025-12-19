@@ -96,6 +96,12 @@ jobs:
             pnpm build:web
           fi
 
+      # Runtime config served as a static file to avoid build-time env coupling (beta vs prod)
+      # "" means same-origin for both REST and Socket.IO.
+      - name: Generate runtime config (Web)
+        run: |
+          echo '{"apiBaseUrl":"","socketUrl":""}' > dist/config.json
+
       - name: Build Overlay
         run: |
           if [ -n "${{ secrets.VITE_API_URL }}" ]; then
@@ -241,14 +247,33 @@ jobs:
 
       - name: Build Web (Beta)
         run: |
-          # For beta, always use relative URL (empty string) so frontend uses same domain
-          # This ensures beta frontend uses beta API automatically
-          VITE_API_URL="" pnpm build:web
+          # Clear Vite cache to ensure fresh build
+          echo "Clearing Vite cache..."
+          rm -rf node_modules/.vite 2>/dev/null || true
+          rm -rf .vite 2>/dev/null || true
+          rm -rf dist 2>/dev/null || true
+          pnpm build:web
+        env:
+          BETA_BUILD: "true"
+          DOMAIN: ${{ secrets.DOMAIN }}
+          VITE_API_URL_BETA: ${{ secrets.VITE_API_URL_BETA }}
+
+      - name: Generate runtime config (Web, Beta)
+        run: |
+          echo '{"apiBaseUrl":"","socketUrl":""}' > dist/config.json
 
       - name: Build Overlay (Beta)
         run: |
-          # For beta, always use relative URL (empty string) so frontend uses same domain
-          VITE_API_URL="" pnpm build:overlay
+          # Clear Vite cache to ensure fresh build
+          echo "Clearing Vite cache for overlay..."
+          rm -rf node_modules/.vite 2>/dev/null || true
+          rm -rf .vite 2>/dev/null || true
+          rm -rf overlay/dist 2>/dev/null || true
+          pnpm build:overlay
+        env:
+          BETA_BUILD: "true"
+          DOMAIN: ${{ secrets.DOMAIN }}
+          VITE_API_URL_BETA: ${{ secrets.VITE_API_URL_BETA }}
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0
@@ -258,6 +283,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            # Atomic deploy: remove previous build output so old hashed assets can't be served
+            # (scp doesn't delete removed files)
+            sudo rm -rf /opt/memalerts-frontend-beta/dist /opt/memalerts-frontend-beta/overlay/dist || true
             sudo mkdir -p /opt/memalerts-frontend-beta
             sudo chown -R $USER:$USER /opt/memalerts-frontend-beta
             sudo chmod -R 755 /opt/memalerts-frontend-beta

@@ -64,8 +64,9 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
 
   // Get cached channel data or fetch it
   const getChannelData = useCallback(async (slug: string, includeMemes: boolean = false): Promise<ChannelData | null> => {
+    const cacheKey = (slug || '').trim().toLowerCase();
     // Check cache first
-    const cached = channelDataCache.get(slug);
+    const cached = channelDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.data;
     }
@@ -78,7 +79,7 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
       });
       
       // Update cache
-      channelDataCache.set(slug, { data, timestamp: Date.now() });
+      channelDataCache.set(cacheKey, { data, timestamp: Date.now() });
       
       return data;
     } catch (error) {
@@ -89,7 +90,8 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
 
   // Get cached channel data without fetching
   const getCachedChannelData = useCallback((slug: string): ChannelData | null => {
-    const cached = channelDataCache.get(slug);
+    const cacheKey = (slug || '').trim().toLowerCase();
+    const cached = channelDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.data;
     }

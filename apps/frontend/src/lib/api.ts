@@ -87,6 +87,15 @@ const axiosInstance: AxiosInstance = axios.create({
   timeout: 30000, // 30 seconds for regular requests (file uploads will override this)
 });
 
+/**
+ * Override API baseURL at runtime (used for runtime config).
+ * This avoids hard-binding API URL at build time and prevents beta/prod cross-calls.
+ */
+export function setApiBaseUrl(baseURL: string): void {
+  axiosInstance.defaults.baseURL = baseURL;
+  console.log('[API] Runtime baseURL override:', baseURL, 'Current origin:', window.location.origin);
+}
+
 // Wrap axios instance with request deduplication
 export const api: CustomAxiosInstance = {
   ...axiosInstance,

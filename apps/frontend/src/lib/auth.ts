@@ -1,7 +1,14 @@
+import { getRuntimeConfig } from './runtimeConfig';
+
 export const login = (redirectTo?: string): void => {
+  const runtime = getRuntimeConfig();
   const envUrl = import.meta.env.VITE_API_URL;
   let apiUrl: string;
   
+  // Prefer runtime config if available (enterprise pattern: runtime env, same build)
+  if (runtime?.apiBaseUrl !== undefined) {
+    apiUrl = runtime.apiBaseUrl === '' ? window.location.origin : runtime.apiBaseUrl;
+  } else
   // If VITE_API_URL is explicitly set (even if empty string), use it
   // Empty string means use relative URLs (same origin)
   if (envUrl !== undefined) {
