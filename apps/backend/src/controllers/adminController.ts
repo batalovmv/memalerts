@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { Server } from 'socket.io';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
@@ -158,14 +159,14 @@ export const adminController = {
           throw new Error('Submission already processed');
         }
 
-        // Get channel to use default price
+        // Get channel to use default price and slug for Socket.IO
         // #region agent log
         console.log('[DEBUG] Fetching channel for default price', JSON.stringify({ location: 'adminController.ts:162', message: 'Fetching channel for default price', data: { channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
         // #endregion
         
         const channel = await tx.channel.findUnique({
           where: { id: channelId },
-          select: { defaultPriceCoins: true },
+          select: { defaultPriceCoins: true, slug: true },
         });
         
         // #region agent log
@@ -394,6 +395,33 @@ export const adminController = {
       console.log('[DEBUG] Transaction completed successfully', JSON.stringify({ location: 'adminController.ts:380', message: 'Transaction completed successfully', data: { submissionId: id, resultId: result?.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
       // #endregion
 
+      // Emit Socket.IO event for submission approval
+      try {
+        const io: Server = req.app.get('io');
+        const channel = await prisma.channel.findUnique({
+          where: { id: channelId },
+          select: { slug: true },
+        });
+        if (channel) {
+          io.to(`channel:${channel.slug}`).emit('submission:approved', {
+            submissionId: id,
+            channelId,
+            moderatorId: req.userId,
+          });
+          // Also emit to user room for the moderator
+          if (req.userId) {
+            io.to(`user:${req.userId}`).emit('submission:approved', {
+              submissionId: id,
+              channelId,
+              moderatorId: req.userId,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error emitting submission:approved event:', error);
+        // Don't fail the request if Socket.IO emit fails
+      }
+
       // If this is an imported meme, start background download and update
       if (submissionForBackground?.sourceUrl && result && 'id' in result) {
         const memeId = result.id;
@@ -567,6 +595,33 @@ export const adminController = {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'adminController.ts:496',message:'rejectSubmission success',data:{submissionId:id,status:updated.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
+
+      // Emit Socket.IO event for submission rejection
+      try {
+        const io: Server = req.app.get('io');
+        const channel = await prisma.channel.findUnique({
+          where: { id: channelId },
+          select: { slug: true },
+        });
+        if (channel) {
+          io.to(`channel:${channel.slug}`).emit('submission:rejected', {
+            submissionId: id,
+            channelId,
+            moderatorId: req.userId,
+          });
+          // Also emit to user room for the moderator
+          if (req.userId) {
+            io.to(`user:${req.userId}`).emit('submission:rejected', {
+              submissionId: id,
+              channelId,
+              moderatorId: req.userId,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error emitting submission:rejected event:', error);
+        // Don't fail the request if Socket.IO emit fails
+      }
       
       res.json(updated);
     } catch (error: any) {

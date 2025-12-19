@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { Server } from 'socket.io';
 import { createSubmissionSchema, importMemeSchema } from '../shared/index.js';
 import { validateVideo, getVideoMetadata } from '../utils/videoValidator.js';
 import { getOrCreateTags } from '../utils/tags.js';
@@ -320,6 +321,33 @@ export const submissionController = {
       // #region agent log
       console.log('[DEBUG] Submission created successfully, sending response', JSON.stringify({ location: 'submissionController.ts:306', message: 'Submission created successfully, sending response', data: { submissionId: submission.id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
       // #endregion
+
+      // Emit Socket.IO event for new submission
+      try {
+        const io: Server = req.app.get('io');
+        const channel = await prisma.channel.findUnique({
+          where: { id: channelId as string },
+          select: { slug: true, users: { where: { role: 'streamer' }, take: 1, select: { id: true } } },
+        });
+        if (channel) {
+          io.to(`channel:${channel.slug}`).emit('submission:created', {
+            submissionId: submission.id,
+            channelId: channelId as string,
+            submitterId: req.userId,
+          });
+          // Also emit to streamer's user room
+          if (channel.users && channel.users.length > 0) {
+            io.to(`user:${channel.users[0].id}`).emit('submission:created', {
+              submissionId: submission.id,
+              channelId: channelId as string,
+              submitterId: req.userId,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error emitting submission:created event:', error);
+        // Don't fail the request if Socket.IO emit fails
+      }
 
       // Send response immediately after creating submission
       res.status(201).json(submission);
