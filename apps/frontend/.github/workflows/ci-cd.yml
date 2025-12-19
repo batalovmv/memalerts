@@ -241,7 +241,7 @@ jobs:
 
       - name: Build Web (Beta)
         run: |
-          # For beta, ALWAYS use beta domain from DOMAIN secret
+          # For beta, use VITE_API_URL_BETA secret
           # Use vite.config.ts define to explicitly set VITE_API_URL (takes precedence over all env vars)
           # Clear Vite cache to ensure fresh build
           echo "Clearing Vite cache..."
@@ -249,19 +249,19 @@ jobs:
           rm -rf .vite 2>/dev/null || true
           rm -rf dist 2>/dev/null || true
           
-          # Set BETA_BUILD flag and BETA_DOMAIN for vite.config.ts
+          # Set BETA_BUILD flag and VITE_API_URL_BETA for vite.config.ts
           export BETA_BUILD="true"
-          if [ -n "${{ secrets.DOMAIN }}" ]; then
-            export BETA_DOMAIN="${{ secrets.DOMAIN }}"
-            echo "✅ Building beta frontend with API URL: https://beta.$BETA_DOMAIN"
-            echo "✅ BETA_BUILD=true, BETA_DOMAIN=$BETA_DOMAIN"
+          if [ -n "${{ secrets.VITE_API_URL_BETA }}" ]; then
+            export VITE_API_URL_BETA="${{ secrets.VITE_API_URL_BETA }}"
+            echo "✅ Building beta frontend with API URL from VITE_API_URL_BETA secret: $VITE_API_URL_BETA"
+            echo "✅ BETA_BUILD=true, VITE_API_URL_BETA is set"
           else
-            export BETA_DOMAIN=""
-            echo "⚠️ WARNING: DOMAIN secret not set, using relative URLs"
-            echo "✅ BETA_BUILD=true, BETA_DOMAIN is empty"
+            export VITE_API_URL_BETA=""
+            echo "⚠️ WARNING: VITE_API_URL_BETA secret not set, using relative URLs"
+            echo "✅ BETA_BUILD=true, VITE_API_URL_BETA is empty"
           fi
           
-          # Build - vite.config.ts will use define to set VITE_API_URL
+          # Build - vite.config.ts will use define to set VITE_API_URL from VITE_API_URL_BETA
           pnpm build:web
 
       - name: Build Overlay (Beta)
@@ -272,19 +272,19 @@ jobs:
           rm -rf .vite 2>/dev/null || true
           rm -rf overlay/dist 2>/dev/null || true
           
-          # Set BETA_BUILD flag and BETA_DOMAIN for vite.config.ts
+          # Set BETA_BUILD flag and VITE_API_URL_BETA for vite.config.ts
           export BETA_BUILD="true"
-          if [ -n "${{ secrets.DOMAIN }}" ]; then
-            export BETA_DOMAIN="${{ secrets.DOMAIN }}"
-            echo "✅ Building beta overlay with API URL: https://beta.$BETA_DOMAIN"
-            echo "✅ BETA_BUILD=true, BETA_DOMAIN=$BETA_DOMAIN"
+          if [ -n "${{ secrets.VITE_API_URL_BETA }}" ]; then
+            export VITE_API_URL_BETA="${{ secrets.VITE_API_URL_BETA }}"
+            echo "✅ Building beta overlay with API URL from VITE_API_URL_BETA secret: $VITE_API_URL_BETA"
+            echo "✅ BETA_BUILD=true, VITE_API_URL_BETA is set"
           else
-            export BETA_DOMAIN=""
-            echo "⚠️ WARNING: DOMAIN secret not set, using relative URLs"
-            echo "✅ BETA_BUILD=true, BETA_DOMAIN is empty"
+            export VITE_API_URL_BETA=""
+            echo "⚠️ WARNING: VITE_API_URL_BETA secret not set, using relative URLs"
+            echo "✅ BETA_BUILD=true, VITE_API_URL_BETA is empty"
           fi
           
-          # Build - vite.config.ts will use define to set VITE_API_URL
+          # Build - vite.config.ts will use define to set VITE_API_URL from VITE_API_URL_BETA
           pnpm build:overlay
 
       - name: Create deployment directory (Beta)
