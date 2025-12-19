@@ -41,9 +41,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
   };
 
   useEffect(() => {
+    // Don't create socket if user is not loaded yet (user === null means still loading)
+    // Only create socket when user is explicitly undefined (logged out) or when user exists
+    if (user === null) {
+      // User is still loading, don't create socket yet
+      return;
+    }
+
     if (!user) {
-      // Disconnect socket if user logs out
+      // User is logged out - disconnect socket
       if (socketRef.current) {
+        console.log('[SocketContext] User logged out, disconnecting socket');
         socketRef.current.disconnect();
         socketRef.current = null;
         setIsConnected(false);
@@ -54,15 +62,18 @@ export function SocketProvider({ children }: SocketProviderProps) {
     // Only create socket if it doesn't exist
     if (!socketRef.current) {
       const socketUrl = getSocketUrl();
-      console.log('[SocketContext] Initializing Socket.IO connection to:', socketUrl);
+      console.log('[SocketContext] Initializing Socket.IO connection to:', socketUrl, { userId: user.id });
+      
+      // Prevent multiple initialization attempts
       const socket = io(socketUrl, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
         reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
-        timeout: 20000, // 20 seconds timeout
+        reconnectionDelay: 2000, // Start with 2 seconds
+        reconnectionDelayMax: 10000, // Max 10 seconds between attempts
+        reconnectionAttempts: 3, // Only 3 attempts to prevent infinite loops
+        timeout: 10000, // 10 seconds timeout (reduced from 20)
+        forceNew: false, // Reuse existing connection if available
       });
 
       socketRef.current = socket;
@@ -82,20 +93,28 @@ export function SocketProvider({ children }: SocketProviderProps) {
       });
 
       socket.on('disconnect', (reason: string) => {
-        console.log('[SocketContext] Socket.IO disconnected', { reason, socketUrl });
+        console.log('[SocketContext] ❌ Socket.IO disconnected', { reason, socketUrl, socketId: socket.id });
         setIsConnected(false);
       });
 
       socket.on('connect_error', (error: Error) => {
-        console.error('[SocketContext] Socket.IO connection error:', error);
-        console.error('[SocketContext] Error details:', {
-          message: error.message,
-          type: error.name,
+        console.error('[SocketContext] ❌ Socket.IO connection error:', error.message, {
           socketUrl,
-          userAgent: navigator.userAgent,
+          userId: user?.id,
+          attempts: socket.io?.reconnecting ? 'reconnecting' : 'initial',
         });
         setIsConnected(false);
-        // Don't retry immediately - let Socket.IO handle reconnection with exponential backoff
+        // Don't manually retry - let Socket.IO handle reconnection with exponential backoff
+      });
+
+      socket.on('reconnect_attempt', (attemptNumber: number) => {
+        console.log(`[SocketContext] 🔄 Reconnection attempt ${attemptNumber} for ${socketUrl}`);
+      });
+
+      socket.on('reconnect_failed', () => {
+        console.error('[SocketContext] ❌ Reconnection failed, stopping attempts');
+        // After failed reconnection, don't try again automatically
+        // User will need to refresh page or reconnect manually
       });
     } else {
       // Socket already exists, just update rooms if needed
@@ -103,6 +122,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
       if (socket.connected && user) {
         socket.emit('join:user', user.id);
         setIsConnected(true);
+      } else if (!socket.connected && user) {
+        // Socket exists but not connected - try to connect
+        console.log('[SocketContext] Socket exists but not connected, attempting to connect');
+        socket.connect();
       }
     }
 
@@ -112,7 +135,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       // Socket will be cleaned up when app unmounts or user logs out
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]); // Only depend on user.id, not full user object
+  }, [user?.id, user === null ? 'loading' : user ? 'authenticated' : 'unauthenticated']); // More specific dependencies
 
   return (
     <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
