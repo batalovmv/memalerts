@@ -266,11 +266,10 @@ export async function createEventSubSubscription(
 
   if (!response.ok) {
     const errorText = await response.text();
-    // If subscription already exists, that's fine - return success
-    if (response.status === 409 && errorText.includes('already exists')) {
-      return { data: [{ id: 'existing', status: 'enabled' }] };
-    }
-    throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+    const err = new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+    (err as any).status = response.status;
+    (err as any).body = errorText;
+    throw err;
   }
 
   return response.json();
@@ -296,4 +295,28 @@ export async function getEventSubSubscriptions(broadcasterId: string): Promise<a
   }
 
   return response.json();
+}
+
+/**
+ * Delete an EventSub subscription by id (requires app access token)
+ */
+export async function deleteEventSubSubscription(subscriptionId: string): Promise<void> {
+  const accessToken = await getAppAccessToken();
+
+  const url = new URL('https://api.twitch.tv/helix/eventsub/subscriptions');
+  url.searchParams.set('id', subscriptionId);
+
+  const response = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  // Twitch returns 204 No Content on success
+  if (!response.ok && response.status !== 204) {
+    const errorText = await response.text();
+    throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
 }
