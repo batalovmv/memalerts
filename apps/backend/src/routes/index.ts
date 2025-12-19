@@ -8,6 +8,7 @@ import { betaRoutes } from './beta.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { activateMemeLimiter } from '../middleware/rateLimit.js';
 import { requireBetaAccess } from '../middleware/betaAccess.js';
+import { isBetaDomain } from '../middleware/betaAccess.js';
 import { csrfProtection } from '../middleware/csrf.js';
 import { viewerController } from '../controllers/viewerController.js';
 import { Server } from 'socket.io';
@@ -61,6 +62,7 @@ export function setupRoutes(app: Express) {
   // Note: /me, /wallet, /memes are excluded because they use authenticate middleware which sets req.userId
   // requireBetaAccess will be applied after authenticate in those routes
   app.use((req, res, next) => {
+    const isBeta = isBetaDomain(req);
     // Skip beta access check for:
     // - Beta access routes
     // - Health endpoint
@@ -68,21 +70,26 @@ export function setupRoutes(app: Express) {
     // - Public routes (/channels/:slug, /channels/memes/search, /memes/stats)
     // - Routes that use authenticate middleware (/me, /wallet, /memes, /channels/:slug/wallet)
     // - Static files (/uploads)
-    const isSkipped = req.path.startsWith('/beta/request') || 
-        req.path.startsWith('/beta/status') || 
+    // On beta: keep the allow-list minimal. Everything else must go through auth + requireBetaAccess.
+    const isSkipped = req.path.startsWith('/beta/request') ||
+        req.path.startsWith('/beta/status') ||
         req.path === '/health' ||
         req.path.startsWith('/auth/twitch') ||
         req.path === '/auth/logout' || // Logout doesn't require authentication
+        req.path.startsWith('/uploads') || // Static files should not require beta access
+        // Routes that will run authenticate + requireBetaAccess explicitly
         req.path === '/me' ||
         req.path === '/wallet' ||
         req.path === '/memes' ||
-        req.path.startsWith('/admin') || // Admin routes use authenticate + requireBetaAccess in index.ts
-        req.path.startsWith('/submissions') || // Submissions routes use authenticate middleware
-        req.path.startsWith('/channels/memes/search') ||
-        req.path === '/memes/stats' ||
-        req.path.startsWith('/uploads') || // Static files should not require beta access
-        /^\/channels\/[^\/]+$/.test(req.path) || // Match /channels/:slug (public route)
-        /^\/channels\/[^\/]+\/wallet$/.test(req.path); // Match /channels/:slug/wallet (uses authenticate middleware)
+        req.path.startsWith('/admin') ||
+        req.path.startsWith('/submissions') ||
+        // Channels memes will be handled explicitly below (beta: auth+beta; prod: public)
+        /^\/channels\/[^\/]+\/memes$/.test(req.path) ||
+        // Keep public endpoints on production only (beta should be gated)
+        (!isBeta && (req.path.startsWith('/channels/memes/search') ||
+          req.path === '/memes/stats' ||
+          /^\/channels\/[^\/]+$/.test(req.path) ||
+          /^\/channels\/[^\/]+\/wallet$/.test(req.path)));
     if (isSkipped) {
       return next();
     }
@@ -97,6 +104,14 @@ export function setupRoutes(app: Express) {
   app.get('/me', authenticate, requireBetaAccess, viewerController.getMe);
   app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
   app.get('/memes', authenticate, requireBetaAccess, viewerController.getMemes);
+
+  // Public on production; gated on beta (auth + requireBetaAccess)
+  app.get('/channels/:slug/memes', (req, res, next) => {
+    if (isBetaDomain(req)) {
+      return authenticate(req as AuthRequest, res, () => requireBetaAccess(req as AuthRequest, res, () => viewerController.getChannelMemesPublic(req as AuthRequest, res)));
+    }
+    return viewerController.getChannelMemesPublic(req as AuthRequest, res);
+  });
   app.get('/channels/memes/search', viewerController.searchMemes); // Public search endpoint
   app.get('/memes/stats', viewerController.getMemeStats); // Public stats endpoint
   app.post('/memes/:id/activate', authenticate, activateMemeLimiter, viewerController.activateMeme);
