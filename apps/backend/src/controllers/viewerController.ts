@@ -8,13 +8,18 @@ import { Server } from 'socket.io';
 
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
-    const { slug } = req.params;
+    const slug = String(req.params.slug || '').trim();
     // Optional parameter to exclude memes from response for performance
     const includeMemes = req.query.includeMemes !== 'false'; // Default to true for backward compatibility
 
     try {
-      const channel = await prisma.channel.findUnique({
-        where: { slug },
+      const channel = await prisma.channel.findFirst({
+        where: {
+          slug: {
+            equals: slug,
+            mode: 'insensitive',
+          },
+        },
         include: {
           memes: includeMemes ? {
             where: { status: 'approved' },
@@ -231,12 +236,12 @@ export const viewerController = {
   },
 
   getWalletForChannel: async (req: AuthRequest, res: Response) => {
-    const { slug } = req.params;
+    const slug = String(req.params.slug || '').trim();
     
     try {
       // Find channel by slug with timeout protection
       const channelPromise = prisma.channel.findUnique({
-        where: { slug },
+        where: { slug }, // fast path (case-sensitive)
         select: { id: true },
       });
       
@@ -244,7 +249,16 @@ export const viewerController = {
         setTimeout(() => reject(new Error('Channel lookup timeout')), 5000);
       });
       
-      const channel = await Promise.race([channelPromise, channelTimeout]) as any;
+      let channel = await Promise.race([channelPromise, channelTimeout]) as any;
+
+      // Fallback: case-insensitive lookup (handles user-entered mixed-case slugs)
+      if (!channel) {
+        const ciChannelPromise = prisma.channel.findFirst({
+          where: { slug: { equals: slug, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        channel = await Promise.race([ciChannelPromise, channelTimeout]) as any;
+      }
 
       if (!channel) {
         return res.status(404).json({ error: 'Channel not found' });
@@ -317,6 +331,46 @@ export const viewerController = {
       
       res.status(500).json({ error: 'Failed to get wallet', message: error.message });
     }
+  },
+
+  // Public: list approved memes for a channel by slug (supports pagination)
+  getChannelMemesPublic: async (req: any, res: Response) => {
+    const slug = String(req.params.slug || '').trim();
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+    if (!slug) {
+      return res.status(400).json({ error: 'Channel slug is required' });
+    }
+
+    const channel = await prisma.channel.findFirst({
+      where: { slug: { equals: slug, mode: 'insensitive' } },
+      select: { id: true, slug: true },
+    });
+
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    const memes = await prisma.meme.findMany({
+      where: {
+        channelId: channel.id,
+        status: 'approved',
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Number.isFinite(limit) ? limit : 30,
+      skip: Number.isFinite(offset) ? offset : 0,
+    });
+
+    res.json(memes);
   },
 
   getMemes: async (req: AuthRequest, res: Response) => {
