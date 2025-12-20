@@ -109,9 +109,6 @@ export function setupSocketIO(io: Server) {
           ? Number((channel as any)?.overlayTokenVersion)
           : 1;
         if (tokenVersion !== currentVersion) {
-          // #region agent log
-          globalThis.fetch?.('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-backend/src/socket/index.ts:join:overlay',message:'join:overlay denied (token rotated)',data:{tokenVersion,currentVersion,hasJti:typeof (decoded as any).jti==='string' && String((decoded as any).jti).length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
           console.warn('[socket] join:overlay denied (token rotated)', {
             socketId: socket.id,
             channelId: decoded.channelId,
@@ -120,10 +117,6 @@ export function setupSocketIO(io: Server) {
           });
           return;
         }
-
-        // #region agent log
-        globalThis.fetch?.('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-backend/src/socket/index.ts:join:overlay',message:'join:overlay allowed',data:{tokenVersion,currentVersion,hasJti:typeof (decoded as any).jti==='string' && String((decoded as any).jti).length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
 
         const slug = String(channel?.slug || decoded.channelSlug || '').toLowerCase();
         if (!slug) return;
