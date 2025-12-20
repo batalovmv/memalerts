@@ -44,6 +44,27 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
+// Optional auth: if cookie is present and valid, populate req.userId/userRole/channelId.
+// If missing/invalid, continue as anonymous (used for public endpoints with user-specific enhancements).
+export function optionalAuthenticate(req: AuthRequest, _res: Response, next: NextFunction) {
+  const isBeta = isBetaDomain(req);
+  const token = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId: string;
+      role: string;
+      channelId?: string;
+    };
+    req.userId = decoded.userId;
+    req.userRole = decoded.role;
+    req.channelId = decoded.channelId;
+  } catch {
+    // ignore invalid token on public endpoint
+  }
+  return next();
+}
+
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userRole || !roles.includes(req.userRole)) {

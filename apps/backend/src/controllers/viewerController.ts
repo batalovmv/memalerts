@@ -429,6 +429,7 @@ export const viewerController = {
       sortBy = 'createdAt', // createdAt, priceCoins, popularity
       sortOrder = 'desc', // asc, desc
       includeUploader, // "1" enables searching by uploader name (dashboard only)
+      favorites, // "1" returns user's most activated memes for this channel (requires auth)
       limit = 50,
       offset = 0,
     } = req.query;
@@ -455,6 +456,8 @@ export const viewerController = {
     if (targetChannelId) {
       where.channelId = targetChannelId;
     }
+
+    const favoritesEnabled = String(favorites || '') === '1' && !!req.userId && !!targetChannelId;
 
     // Search query - search in title + tags; optionally uploader (dashboard)
     if (q) {
@@ -524,6 +527,47 @@ export const viewerController = {
     }
 
     // Execute query
+    const parsedLimit = parseInt(limit as string, 10);
+    const parsedOffset = parseInt(offset as string, 10);
+
+    // "My favorites": when no other filters are applied, use a cheap groupBy ordering by activation count.
+    if (
+      favoritesEnabled &&
+      !q &&
+      !tags &&
+      !minPrice &&
+      !maxPrice &&
+      sortBy !== 'priceCoins'
+    ) {
+      const rows = await prisma.memeActivation.groupBy({
+        by: ['memeId'],
+        where: {
+          channelId: targetChannelId!,
+          userId: req.userId!,
+          status: 'done',
+        },
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: Number.isFinite(parsedLimit) ? parsedLimit : 50,
+        skip: Number.isFinite(parsedOffset) ? parsedOffset : 0,
+      });
+
+      const ids = rows.map((r) => r.memeId);
+      if (ids.length === 0) return res.json([]);
+
+      const memesById = await prisma.meme.findMany({
+        where: { id: { in: ids }, status: 'approved' },
+        include: {
+          createdBy: { select: { id: true, displayName: true } },
+          tags: { include: { tag: true } },
+        },
+      });
+
+      const map = new Map(memesById.map((m) => [m.id, m]));
+      const ordered = ids.map((id) => map.get(id)).filter(Boolean);
+      return res.json(ordered);
+    }
+
     const popularityStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const memes = await prisma.meme.findMany({
       where,
@@ -548,8 +592,8 @@ export const viewerController = {
         },
       },
       orderBy,
-      take: parseInt(limit as string, 10),
-      skip: parseInt(offset as string, 10),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     // If sorting by popularity, sort in memory
@@ -562,6 +606,22 @@ export const viewerController = {
         }
         return countB - countA;
       });
+    }
+
+    // If favorites is enabled along with other filters, sort in-memory by user's activation count (done) as a best-effort.
+    if (favoritesEnabled) {
+      const counts = await prisma.memeActivation.groupBy({
+        by: ['memeId'],
+        where: {
+          channelId: targetChannelId!,
+          userId: req.userId!,
+          status: 'done',
+          memeId: { in: memes.map((m: any) => m.id) },
+        },
+        _count: { id: true },
+      });
+      const byId = new Map(counts.map((c) => [c.memeId, c._count.id]));
+      memes.sort((a: any, b: any) => (byId.get(b.id) || 0) - (byId.get(a.id) || 0));
     }
 
     res.json(memes);
