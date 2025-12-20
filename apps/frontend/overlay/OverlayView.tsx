@@ -28,6 +28,26 @@ export default function OverlayView() {
   const position = searchParams.get('position') || 'center';
   const volume = parseFloat(searchParams.get('volume') || '1');
 
+  const getMediaUrl = (fileUrl: string): string => {
+    const v = (fileUrl || '').trim();
+    if (!v) return '';
+    if (v.startsWith('http://') || v.startsWith('https://')) return v;
+
+    // Beta deployment serves API/socket on beta domain, but uploads may live on production domain.
+    // Keep this consistent with the web app preview logic.
+    const isBeta = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+    if (isBeta && v.startsWith('/uploads/')) {
+      return `https://twitchmemes.ru${v}`;
+    }
+
+    // In prod deployments, overlay is same-origin with the site (relative paths).
+    if (import.meta.env.PROD) return v.startsWith('/') ? v : `/${v}`;
+
+    // Dev fallback: use VITE_API_URL or localhost backend.
+    const devBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    return v.startsWith('/') ? `${devBase}${v}` : `${devBase}/${v}`;
+  };
+
   useEffect(() => {
     if (!channelSlug) return;
 
@@ -176,21 +196,21 @@ export default function OverlayView() {
     <div style={containerStyle}>
       {current.type === 'image' && (
         <img
-          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
+          src={getMediaUrl(current.fileUrl)}
           alt={current.title}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
         />
       )}
       {current.type === 'gif' && (
         <img
-          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
+          src={getMediaUrl(current.fileUrl)}
           alt={current.title}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
         />
       )}
       {current.type === 'video' && (
         <video
-          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
+          src={getMediaUrl(current.fileUrl)}
           autoPlay
           muted={false}
           style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
@@ -202,7 +222,7 @@ export default function OverlayView() {
       {current.type === 'audio' && (
         <audio
           ref={audioRef}
-          src={`${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3001')}${current.fileUrl}`}
+          src={getMediaUrl(current.fileUrl)}
           autoPlay
           onLoadedData={(e) => {
             e.currentTarget.volume = volume;

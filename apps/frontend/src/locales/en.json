@@ -92,6 +92,15 @@
     "importSubmitted": "Meme import submitted! Waiting for approval."
   },
   "admin": {
+    "obsLinks": "OBS",
+    "obsLinksTitle": "OBS links",
+    "obsLinksDescription": "Copy the overlay link and paste it into OBS as a Browser Source. The overlay will show activated memes in real time.",
+    "obsOverlayUrl": "Overlay URL (Browser Source)",
+    "obsOverlayUrlHint": "Click to copy. You can reveal the URL with the eye icon.",
+    "obsHowToTitle": "How to add in OBS",
+    "obsHowToStep1": "Add a new Browser Source.",
+    "obsHowToStep2": "Paste the Overlay URL.",
+    "obsHowToStep3": "Set Width/Height (e.g. 1920×1080) and enable “Shutdown source when not visible” if you want.",
     "title": "Settings",
     "pendingSubmissions": "Pending Submissions",
     "allMemes": "All Memes",

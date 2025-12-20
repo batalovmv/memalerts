@@ -92,6 +92,15 @@
     "importSubmitted": "Заявка на импорт мема отправлена! Ожидает одобрения."
   },
   "admin": {
+    "obsLinks": "OBS",
+    "obsLinksTitle": "Ссылки для OBS",
+    "obsLinksDescription": "Скопируйте ссылку оверлея и вставьте её в OBS как Browser Source. Оверлей будет показывать отправленные мемы в реальном времени.",
+    "obsOverlayUrl": "Ссылка для оверлея (Browser Source)",
+    "obsOverlayUrlHint": "Кликните, чтобы скопировать. Ссылку можно показать через иконку глаза.",
+    "obsHowToTitle": "Как добавить в OBS",
+    "obsHowToStep1": "Добавьте Browser Source.",
+    "obsHowToStep2": "Вставьте ссылку оверлея.",
+    "obsHowToStep3": "Поставьте Width/Height (например 1920×1080) и при желании включите “Shutdown source when not visible”.",
     "title": "Настройки",
     "pendingSubmissions": "Ожидающие заявки",
     "allMemes": "Все мемы",

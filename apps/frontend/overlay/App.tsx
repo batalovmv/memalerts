@@ -4,7 +4,7 @@ import OverlayView from './OverlayView';
 function App() {
   return (
     <Routes>
-      <Route path="/overlay/:channelSlug" element={<OverlayView />} />
+      <Route path="/:channelSlug" element={<OverlayView />} />
     </Routes>
   );
 }
