@@ -254,7 +254,8 @@ export default function OverlayView() {
     if (active.length === 0) return;
     if (typeof window === 'undefined') return;
 
-    const padding = 28; // px safe area around the edges
+    const requestedPad = parseInt(String(searchParams.get('pad') || ''), 10);
+    const padding = clampInt(Number.isFinite(requestedPad) ? requestedPad : 80, 0, 400); // px safe area around the edges
     const vw = window.innerWidth || 0;
     const vh = window.innerHeight || 0;
     if (vw <= padding * 2 || vh <= padding * 2) return;
@@ -292,7 +293,7 @@ export default function OverlayView() {
 
       return changed ? next : prev;
     });
-  }, [active, position]);
+  }, [active, position, searchParams]);
 
   // Ensure per-activation fallback timers exist while active (prevents "stuck" videos in OBS).
   useEffect(() => {
@@ -347,8 +348,8 @@ export default function OverlayView() {
 
       // Clamp size to feel like an overlay (not a full web page).
       // Since scale applies via transform, reduce pre-scale bounds to keep the final size within viewport.
-      const preScaleMaxVw = Math.max(18, Math.min(55, 50 / safeScale));
-      const preScaleMaxVh = Math.max(18, Math.min(55, 50 / safeScale));
+      const preScaleMaxVw = Math.max(16, Math.min(50, 42 / safeScale));
+      const preScaleMaxVh = Math.max(16, Math.min(50, 42 / safeScale));
       const sizeClamp: React.CSSProperties = {
         maxWidth: `${preScaleMaxVw}vw`,
         maxHeight: `${preScaleMaxVh}vh`,
@@ -464,16 +465,19 @@ export default function OverlayView() {
 
   const badgeStyle = useMemo<React.CSSProperties>(() => {
     return {
-      padding: '8px 12px',
+      marginTop: 10,
+      alignSelf: 'center',
+      padding: '7px 12px',
       fontSize: 13,
       lineHeight: 1.2,
       color: 'rgba(255,255,255,0.92)',
-      background: 'rgba(0,0,0,0.55)',
-      borderTop: '1px solid rgba(255,255,255,0.10)',
+      background: 'rgba(0,0,0,0.62)',
+      border: '1px solid rgba(255,255,255,0.18)',
+      borderRadius: 999,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
-      maxWidth: '100%',
+      maxWidth: '48vw',
     };
   }, []);
 
@@ -489,7 +493,8 @@ export default function OverlayView() {
             itemRefs.current.set(item.id, el);
           }}
         >
-          <div style={{ ...cardStyle, opacity: item.isExiting ? 0 : 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+            <div style={{ ...cardStyle, opacity: item.isExiting ? 0 : 1 }}>
             {(item.type === 'image' || item.type === 'gif') && (
               <img
                 src={getMediaUrl(item.fileUrl)}
@@ -551,6 +556,8 @@ export default function OverlayView() {
                 onEnded={() => doneActivation(item.id)}
               />
             )}
+
+            </div>
 
             {config.overlayShowSender && item.senderDisplayName && (
               <div style={badgeStyle}>{item.senderDisplayName}</div>

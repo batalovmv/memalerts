@@ -61,10 +61,21 @@ export default function SecretCopyField({ label, value, description, masked = tr
     if (!v) return emptyText;
     if (!masked) return v;
     if (isRevealed) return v;
-    // Mask, but include a small suffix so the user can see that the value changed after rotation,
-    // without revealing the full secret.
-    const suffix = v.length > 8 ? v.slice(-8) : v;
-    return `****************${suffix}`;
+    // Mask the value, but include a small suffix of the *secret token* (not query params)
+    // so the user can confirm it changed after rotation without leaking the whole URL.
+    try {
+      const marker = '/overlay/t/';
+      const idx = v.indexOf(marker);
+      if (idx !== -1) {
+        const after = v.slice(idx + marker.length);
+        const token = after.split('?')[0] || '';
+        const suffix = token.length > 8 ? token.slice(-8) : token;
+        return `****************${suffix}`;
+      }
+    } catch {
+      // ignore and fall back
+    }
+    return '****************';
   }, [value, masked, isRevealed, emptyText]);
 
   const canCopy = (value || '').trim().length > 0;

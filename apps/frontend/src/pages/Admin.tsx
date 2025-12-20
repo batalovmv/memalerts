@@ -589,6 +589,8 @@ function ObsLinksSettings() {
   const [savingOverlaySettings, setSavingOverlaySettings] = useState(false);
   const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
   const overlaySettingsLoadedRef = useRef<string | null>(null);
+  const lastSavedOverlaySettingsRef = useRef<string | null>(null);
+  const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -662,28 +664,43 @@ function ObsLinksSettings() {
   // - volume: number (0..1)
   const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=random&scale=1&volume=1` : '';
 
-  const handleSaveOverlaySettings = async (): Promise<void> => {
+  // Auto-save overlay settings (no explicit Save button).
+  useEffect(() => {
     if (!channelSlug) return;
+    if (loadingOverlaySettings) return;
+    if (!overlaySettingsLoadedRef.current) return;
 
-    try {
-      setSavingOverlaySettings(true);
-      const { api } = await import('../lib/api');
-      await api.patch('/admin/channel/settings', {
-        overlayMode,
-        overlayShowSender,
-      });
+    const payload = JSON.stringify({ overlayMode, overlayShowSender });
+    if (payload === lastSavedOverlaySettingsRef.current) return;
 
-      toast.success(t('admin.saved', { defaultValue: 'Saved' }));
+    if (saveOverlayTimerRef.current) clearTimeout(saveOverlayTimerRef.current);
+    saveOverlayTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          setSavingOverlaySettings(true);
+          const { api } = await import('../lib/api');
+          await api.patch('/admin/channel/settings', {
+            overlayMode,
+            overlayShowSender,
+          });
+          lastSavedOverlaySettingsRef.current = payload;
+          // Keep channel cache consistent (used by other panels).
+          await getChannelData(channelSlug, false, true);
+        } catch (error: unknown) {
+          const apiError = error as { response?: { data?: { error?: string } } };
+          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+        } finally {
+          setSavingOverlaySettings(false);
+        }
+      })();
+    }, 250);
+  }, [channelSlug, getChannelData, loadingOverlaySettings, overlayMode, overlayShowSender, t]);
 
-      // Refresh cached channel data so other settings panels stay consistent.
-      await getChannelData(channelSlug, false, true);
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
-    } finally {
-      setSavingOverlaySettings(false);
-    }
-  };
+  useEffect(() => {
+    return () => {
+      if (saveOverlayTimerRef.current) clearTimeout(saveOverlayTimerRef.current);
+    };
+  }, []);
 
   const handleRotateOverlayToken = async (): Promise<void> => {
     if (!channelSlug) return;
@@ -790,19 +807,6 @@ function ObsLinksSettings() {
                   {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Name is provided by the server (not the client).' })}
                 </div>
               </label>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleSaveOverlaySettings}
-              disabled={savingOverlaySettings || loadingOverlaySettings}
-              className="px-4 py-2 rounded bg-primary text-white hover:opacity-90 disabled:opacity-60 text-sm font-medium"
-            >
-              {savingOverlaySettings ? t('common.saving', { defaultValue: 'Saving...' }) : t('common.save', { defaultValue: 'Save' })}
-            </button>
-            <div className="text-xs text-gray-600 dark:text-gray-300">
-              {t('admin.obsOverlaySettingsNote', { defaultValue: 'After saving, reload the OBS Browser Source to apply.' })}
             </div>
           </div>
         </div>
