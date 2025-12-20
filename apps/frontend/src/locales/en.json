@@ -339,5 +339,24 @@
     "useProduction": "Please use the production site while you do not have beta access.",
     "requestButton": "Request beta access"
   }
+  ,
+  "memeModal": {
+    "price": "Price",
+    "priceValue": "{{price}} coins",
+    "priceCoins": "Price (coins)",
+    "duration": "Duration",
+    "durationValue": "{{seconds}}s",
+    "durationSeconds": "Duration (seconds)",
+    "createdBy": "Created by",
+    "source": "Source",
+    "sourceImported": "imported",
+    "sourceUploaded": "uploaded",
+    "status": "Status",
+    "createdAt": "Created",
+    "yourBalance": "Your balance: {{balance}} coins",
+    "insufficientCoins": "Insufficient coins (need {{price}})",
+    "deleteMeme": "Delete Meme",
+    "videoLoadFailed": "Failed to load video source"
+  }
 }
 

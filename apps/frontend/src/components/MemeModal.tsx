@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Meme } from '../types';
 import { api } from '../lib/api';
 import toast from 'react-hot-toast';
@@ -25,6 +26,7 @@ export default function MemeModal({
   onActivate,
   walletBalance
 }: MemeModalProps) {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
@@ -93,7 +95,12 @@ export default function MemeModal({
     if (currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://')) {
       try {
         const url = new URL(currentMeme.fileUrl);
-        return url.hostname; // Show domain (e.g., memalerts.com)
+        const host = url.hostname.toLowerCase();
+        // Treat memalerts URLs as "imported" (viewer imported from external source)
+        if (host === 'memalerts.com' || host.endsWith('.memalerts.com') || host === 'cdns.memealerts.com') {
+          return 'imported';
+        }
+        return url.hostname; // Other external sources: show domain
       } catch {
         return 'imported';
       }
@@ -193,21 +200,25 @@ export default function MemeModal({
       aria-labelledby="meme-modal-title"
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex shadow-2xl"
+        className="bg-white dark:bg-gray-800 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="document"
       >
         {/* Video Section - Left */}
-        <section className="flex-1 bg-black flex items-center justify-center relative" aria-label="Video player">
+        <section className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto" aria-label="Video player">
           <video
             ref={videoRef}
             src={videoUrl}
             loop
             playsInline
-            className="max-w-full max-h-full object-contain"
+            className="w-full h-full object-contain"
             preload="auto"
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            onError={() => {
+              // Don't spam toasts; just give a useful hint.
+              toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Failed to load video source' }));
+            }}
             aria-label={`Video: ${currentMeme.title}`}
           />
           
@@ -247,7 +258,7 @@ export default function MemeModal({
         </section>
 
         {/* Info Section - Right */}
-        <aside className="w-80 border-l border-secondary/30 dark:border-secondary/30 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative" aria-label="Meme information">
+        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-secondary/30 dark:border-secondary/30 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative" aria-label="Meme information">
           {/* Action buttons in top right corner */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
             {mode === 'admin' && isOwner && (
@@ -306,7 +317,7 @@ export default function MemeModal({
             </button>
           </div>
 
-          <div className="p-6 space-y-6 pt-16">
+          <div className="p-5 md:p-6 space-y-5 md:space-y-6 pt-16">
             {/* Title */}
             <div>
               {isEditing && mode === 'admin' ? (
@@ -328,7 +339,7 @@ export default function MemeModal({
               <form onSubmit={handleSave} className="space-y-4" aria-label="Edit meme form">
                 <div>
                   <label htmlFor="meme-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Price (coins)
+                    {t('memeModal.priceCoins', { defaultValue: 'Price (coins)' })}
                   </label>
                   <input
                     id="meme-price"
@@ -343,13 +354,13 @@ export default function MemeModal({
                 </div>
                 <div>
                   <label htmlFor="meme-duration" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Duration (ms)
+                    {t('memeModal.durationSeconds', { defaultValue: 'Duration (seconds)' })}
                   </label>
                   <input
                     id="meme-duration"
                     type="number"
-                    value={formData.durationMs}
-                    onChange={(e) => setFormData({ ...formData, durationMs: parseInt(e.target.value) || 0 })}
+                    value={Math.round((formData.durationMs || 0) / 1000)}
+                    onChange={(e) => setFormData({ ...formData, durationMs: (parseInt(e.target.value) || 0) * 1000 })}
                     className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                     min="1"
                     required
@@ -362,14 +373,14 @@ export default function MemeModal({
                     disabled={loading}
                     className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors font-medium border border-secondary/30"
                   >
-                    {loading ? 'Saving...' : 'Save'}
+                    {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('common.save', { defaultValue: 'Save' })}
                   </button>
                   <button
                     type="button"
                     onClick={handleCancel}
                     className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-secondary/20 dark:hover:bg-secondary/20 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition-colors font-medium border border-secondary/30"
                   >
-                    Cancel
+                    {t('common.cancel', { defaultValue: 'Cancel' })}
                   </button>
                 </div>
               </form>
@@ -377,40 +388,56 @@ export default function MemeModal({
               <>
                 <div className="space-y-4">
                   <div>
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Price</div>
-                    <div className="text-lg font-semibold text-accent">{currentMeme.priceCoins} coins</div>
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                      {t('memeModal.price', { defaultValue: 'Price' })}
+                    </div>
+                    <div className="text-lg font-semibold text-accent">
+                      {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: currentMeme.priceCoins })}
+                    </div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Duration</div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{currentMeme.durationMs}ms</div>
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                      {t('memeModal.duration', { defaultValue: 'Duration' })}
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {t('memeModal.durationValue', { defaultValue: '{{seconds}}s', seconds: (currentMeme.durationMs / 1000).toFixed(2) })}
+                    </div>
                   </div>
                   {mode === 'admin' && (
                     <>
                       <div>
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Created by</div>
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          {t('memeModal.createdBy', { defaultValue: 'Created by' })}
+                        </div>
                         <div className="text-base text-gray-900 dark:text-white">{creatorName}</div>
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Source</div>
-                        <div className="text-base text-gray-900 dark:text-white capitalize">{source}</div>
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          {t('memeModal.source', { defaultValue: 'Source' })}
+                        </div>
+                        <div className="text-base text-gray-900 dark:text-white capitalize">
+                          {source === 'imported'
+                            ? t('memeModal.sourceImported', { defaultValue: 'imported' })
+                            : source === 'uploaded'
+                              ? t('memeModal.sourceUploaded', { defaultValue: 'uploaded' })
+                              : source}
+                        </div>
                       </div>
                       {currentMeme.status && (
                         <div>
-                          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Status</div>
+                          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                            {t('memeModal.status', { defaultValue: 'Status' })}
+                          </div>
                           <div className="text-base text-gray-900 dark:text-white capitalize">{currentMeme.status}</div>
                         </div>
                       )}
                       {currentMeme.createdAt && (
                         <div>
-                          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Created</div>
+                          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                            {t('memeModal.createdAt', { defaultValue: 'Created' })}
+                          </div>
                           <div className="text-base text-gray-900 dark:text-white">
-                            {new Date(currentMeme.createdAt).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {new Date(currentMeme.createdAt).toLocaleString()}
                           </div>
                         </div>
                       )}
@@ -427,14 +454,14 @@ export default function MemeModal({
                       className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-secondary/30"
                     >
                       {walletBalance === undefined 
-                        ? 'Loading...' 
+                        ? (t('common.loading', { defaultValue: 'Loading...' }))
                         : walletBalance < (currentMeme.priceCoins || 0)
-                        ? `Insufficient coins (need ${currentMeme.priceCoins})`
-                        : 'Activate'}
+                        ? t('memeModal.insufficientCoins', { defaultValue: 'Insufficient coins (need {{price}})', price: currentMeme.priceCoins })
+                        : t('dashboard.activate', { defaultValue: 'Activate' })}
                     </button>
                     {walletBalance !== undefined && (
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
-                        Your balance: {walletBalance} coins
+                        {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
                       </p>
                     )}
                   </div>
@@ -448,7 +475,7 @@ export default function MemeModal({
                       disabled={loading}
                       className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-red-500/30"
                     >
-                      {loading ? 'Deleting...' : 'Delete Meme'}
+                      {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
                     </button>
                   </div>
                 )}

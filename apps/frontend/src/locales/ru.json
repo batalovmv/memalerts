@@ -331,5 +331,24 @@
     "useProduction": "Пока нет доступа к beta, используйте продакшн-версию сайта.",
     "requestButton": "Запросить доступ к Beta"
   }
+  ,
+  "memeModal": {
+    "price": "Цена",
+    "priceValue": "{{price}} монет",
+    "priceCoins": "Цена (монеты)",
+    "duration": "Длительность",
+    "durationValue": "{{seconds}}с",
+    "durationSeconds": "Длительность (секунды)",
+    "createdBy": "Добавил",
+    "source": "Источник",
+    "sourceImported": "импорт",
+    "sourceUploaded": "загрузка",
+    "status": "Статус",
+    "createdAt": "Создано",
+    "yourBalance": "Ваш баланс: {{balance}} монет",
+    "insufficientCoins": "Недостаточно монет (нужно {{price}})",
+    "deleteMeme": "Удалить мем",
+    "videoLoadFailed": "Не удалось загрузить видео"
+  }
 }
 
