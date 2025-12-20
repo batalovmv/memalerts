@@ -14,6 +14,7 @@ import { viewerController } from '../controllers/viewerController.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, isInternalWalletRelayRequest, WalletUpdatedEvent } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, isInternalSubmissionRelayRequest, SubmissionEvent } from '../realtime/submissionBridge.js';
+import { debugLog, isDebugLogsEnabled } from '../utils/debug.js';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
@@ -58,24 +59,27 @@ export function setupRoutes(app: Express) {
     return res.json({ ok: true });
   });
 
-  // Temporary endpoint to debug IP detection (remove after IP is identified)
-  app.get('/debug-ip', (req, res) => {
-    const ipInfo = {
-      'cf-connecting-ip': req.headers['cf-connecting-ip'],
-      'x-real-ip': req.headers['x-real-ip'],
-      'x-forwarded-for': req.headers['x-forwarded-for'],
-      'socket.remoteAddress': req.socket.remoteAddress,
-      'req.ip': req.ip,
-      'all-ip-headers': {
+  // Temporary endpoint to debug IP detection.
+  // Must be opt-in via DEBUG_LOGS=1 (beta only) to avoid exposing debug info on production.
+  if (isDebugLogsEnabled()) {
+    app.get('/debug-ip', (req, res) => {
+      const ipInfo = {
         'cf-connecting-ip': req.headers['cf-connecting-ip'],
         'x-real-ip': req.headers['x-real-ip'],
         'x-forwarded-for': req.headers['x-forwarded-for'],
-        'true-client-ip': req.headers['true-client-ip'],
-      }
-    };
-    console.log('[DEBUG_IP] Request IP info:', JSON.stringify(ipInfo, null, 2));
-    res.json(ipInfo);
-  });
+        'socket.remoteAddress': req.socket.remoteAddress,
+        'req.ip': req.ip,
+        'all-ip-headers': {
+          'cf-connecting-ip': req.headers['cf-connecting-ip'],
+          'x-real-ip': req.headers['x-real-ip'],
+          'x-forwarded-for': req.headers['x-forwarded-for'],
+          'true-client-ip': req.headers['true-client-ip'],
+        },
+      };
+      debugLog('[DEBUG_IP] Request IP info:', ipInfo);
+      res.json(ipInfo);
+    });
+  }
 
   // Apply beta access middleware to all routes (except public routes and routes that use authenticate)
   // The middleware will check if request is for beta domain and verify access

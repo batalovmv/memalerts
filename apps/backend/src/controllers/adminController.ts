@@ -24,6 +24,7 @@ import {
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 import jwt from 'jsonwebtoken';
+import { debugLog, debugError } from '../utils/debug.js';
 
 export const adminController = {
   getOverlayToken: async (req: AuthRequest, res: Response) => {
@@ -237,9 +238,7 @@ export const adminController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    // #region agent log
-    console.log('[DEBUG] approveSubmission started', JSON.stringify({ location: 'adminController.ts:119', message: 'approveSubmission started', data: { submissionId: id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-    // #endregion
+    debugLog('[DEBUG] approveSubmission started', { submissionId: id, channelId });
 
     let submission: any; // Declare submission in outer scope for error handling
     let submissionRewardEvent: any = null;
@@ -281,18 +280,14 @@ export const adminController = {
         }
 
         // Get channel to use default price and slug for Socket.IO
-        // #region agent log
-        console.log('[DEBUG] Fetching channel for default price', JSON.stringify({ location: 'adminController.ts:162', message: 'Fetching channel for default price', data: { channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
-        // #endregion
+        debugLog('[DEBUG] Fetching channel for default price', { channelId });
         
         const channel = await tx.channel.findUnique({
           where: { id: channelId },
           select: { defaultPriceCoins: true, slug: true, submissionRewardCoins: true },
         });
         
-        // #region agent log
-        console.log('[DEBUG] Channel fetched', JSON.stringify({ location: 'adminController.ts:166', message: 'Channel fetched', data: { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
-        // #endregion
+        debugLog('[DEBUG] Channel fetched', { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins });
         
         const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
         const rewardForApproval = channel?.submissionRewardCoins ?? 0;
@@ -302,9 +297,7 @@ export const adminController = {
         let fileHash: string | null = null;
         let filePath: string | null = null; // Declare filePath in wider scope
         
-        // #region agent log
-        console.log('[DEBUG] Processing file URL', JSON.stringify({ location: 'adminController.ts:165', message: 'Processing file URL', data: { submissionId: id, hasSourceUrl: !!submission.sourceUrl, fileUrlTemp: submission.fileUrlTemp }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-        // #endregion
+        debugLog('[DEBUG] Processing file URL', { submissionId: id, hasSourceUrl: !!submission.sourceUrl, fileUrlTemp: submission.fileUrlTemp });
         
         if (submission.sourceUrl) {
           // Imported meme - use sourceUrl temporarily, download will happen in background
@@ -320,19 +313,13 @@ export const adminController = {
               ? submission.fileUrlTemp.slice(1) 
               : submission.fileUrlTemp;
             
-            // #region agent log
-            console.log('[DEBUG] Validating file path', JSON.stringify({ location: 'adminController.ts:178', message: 'Validating file path', data: { submissionId: id, fileUrlTemp: submission.fileUrlTemp, relativePath, uploadsDir }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
-            // #endregion
+            debugLog('[DEBUG] Validating file path', { submissionId: id, fileUrlTemp: submission.fileUrlTemp, relativePath, uploadsDir });
             
             filePath = validatePathWithinDirectory(relativePath, uploadsDir);
             
-            // #region agent log
-            console.log('[DEBUG] Path validated', JSON.stringify({ location: 'adminController.ts:184', message: 'Path validated', data: { submissionId: id, filePath, fileExists: fs.existsSync(filePath) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
-            // #endregion
+            debugLog('[DEBUG] Path validated', { submissionId: id, filePath, fileExists: fs.existsSync(filePath) });
           } catch (pathError: any) {
-            // #region agent log
-            console.log('[DEBUG] Path validation failed', JSON.stringify({ location: 'adminController.ts:186', message: 'Path validation failed', data: { submissionId: id, fileUrlTemp: submission.fileUrlTemp, error: pathError.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
-            // #endregion
+            debugLog('[DEBUG] Path validation failed', { submissionId: id, fileUrlTemp: submission.fileUrlTemp, error: pathError?.message });
             console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
             throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
           }
@@ -359,7 +346,7 @@ export const adminController = {
               const result = await findOrCreateFileHash(filePath, hash, stats.mimeType, stats.size);
               finalFileUrl = result.filePath;
               fileHash = hash;
-              console.log(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
+              debugLog(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
             } catch (error: any) {
               console.error('File hash calculation failed during approve:', error.message);
               // Fallback to original path - don't fail the approval
@@ -454,9 +441,7 @@ export const adminController = {
         }
 
         try {
-          // #region agent log
-          console.log('[DEBUG] Creating meme in transaction', JSON.stringify({ location: 'adminController.ts:333', message: 'Creating meme in transaction', data: { submissionId: id, channelId: submission.channelId, hasTags: tagIds.length > 0, fileUrl: finalFileUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
-          // #endregion
+          debugLog('[DEBUG] Creating meme in transaction', { submissionId: id, channelId: submission.channelId, hasTags: tagIds.length > 0, fileUrl: finalFileUrl });
           
           const meme = await tx.meme.create({
             data: memeData,
@@ -482,9 +467,7 @@ export const adminController = {
             },
           });
 
-          // #region agent log
-          console.log('[DEBUG] Meme created successfully', JSON.stringify({ location: 'adminController.ts:357', message: 'Meme created successfully', data: { submissionId: id, memeId: meme.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
-          // #endregion
+          debugLog('[DEBUG] Meme created successfully', { submissionId: id, memeId: meme.id });
 
           // Reward submitter for approved submission (per-channel setting)
           // Only if enabled (>0) and submitter is not the moderator approving.
@@ -521,9 +504,12 @@ export const adminController = {
 
           return meme;
         } catch (error: any) {
-          // #region agent log
-          console.log('[DEBUG] Error creating meme', JSON.stringify({ location: 'adminController.ts:360', message: 'Error creating meme', data: { submissionId: id, errorMessage: error.message, errorName: error.name, errorCode: error instanceof PrismaClientKnownRequestError ? error.code : undefined, stack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
-          // #endregion
+          debugLog('[DEBUG] Error creating meme', {
+            submissionId: id,
+            errorMessage: error?.message,
+            errorName: error?.name,
+            errorCode: error instanceof PrismaClientKnownRequestError ? error.code : undefined,
+          });
           console.error('Error creating meme:', error);
           // Check if it's a constraint violation or other Prisma error
           if (error instanceof PrismaClientKnownRequestError) {
@@ -540,15 +526,11 @@ export const adminController = {
         timeout: 30000, // 30 second timeout for transaction
         maxWait: 10000, // 10 second max wait for transaction to start
       }).catch((txError: any) => {
-        // #region agent log
-        console.log('[DEBUG] Transaction failed', JSON.stringify({ location: 'adminController.ts:375', message: 'Transaction failed', data: { submissionId: id, errorMessage: txError.message, errorName: txError.name, errorCode: txError.code, stack: txError.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
-        // #endregion
+        debugLog('[DEBUG] Transaction failed', { submissionId: id, errorMessage: txError?.message, errorName: txError?.name, errorCode: txError?.code });
         throw txError;
       });
       
-      // #region agent log
-      console.log('[DEBUG] Transaction completed successfully', JSON.stringify({ location: 'adminController.ts:380', message: 'Transaction completed successfully', data: { submissionId: id, resultId: result?.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
-      // #endregion
+      debugLog('[DEBUG] Transaction completed successfully', { submissionId: id, resultId: result?.id });
 
       // Emit Socket.IO event for submission approval
       try {
@@ -592,9 +574,7 @@ export const adminController = {
 
       res.json(result);
     } catch (error: any) {
-      // #region agent log
-      console.log('[DEBUG] Error in approveSubmission', JSON.stringify({ location: 'adminController.ts:377', message: 'Error in approveSubmission', data: { submissionId: id, errorMessage: error.message, errorName: error.name, errorCode: error.code, stack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }));
-      // #endregion
+      debugError('[DEBUG] Error in approveSubmission', error);
       console.error('Error in approveSubmission:', error);
 
       // Don't send response if headers already sent
@@ -617,9 +597,7 @@ export const adminController = {
         const errorCode = error instanceof PrismaClientKnownRequestError ? error.code : undefined;
         const errorMeta = error instanceof PrismaClientKnownRequestError ? error.meta : undefined;
         
-        // #region agent log
-        console.log('[DEBUG] Prisma error in approveSubmission', JSON.stringify({ location: 'adminController.ts:426', message: 'Prisma error in approveSubmission', data: { submissionId: id, errorCode, errorMessage: error.message, meta: errorMeta }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'H' }));
-        // #endregion
+        debugLog('[DEBUG] Prisma error in approveSubmission', { submissionId: id, errorCode, errorMessage: error.message, meta: errorMeta });
         console.error('Prisma error in approveSubmission:', error.message, errorCode, errorMeta);
         
         // Handle transaction aborted error (25P02)

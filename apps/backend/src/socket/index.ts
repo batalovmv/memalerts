@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import { debugLog, debugError } from '../utils/debug.js';
 
 type JwtPayload = {
   userId?: string;
@@ -35,7 +36,7 @@ function isBetaHost(host: string | undefined): boolean {
 
 export function setupSocketIO(io: Server) {
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    debugLog('Client connected:', socket.id);
 
     // Best-effort auth context extracted from cookies for permissioned room joins (dashboard/settings).
     // Overlay (OBS) is anonymous and must join via a signed overlay token instead.
@@ -58,7 +59,7 @@ export function setupSocketIO(io: Server) {
       if (!raw) return;
       // Only authenticated streamers/admins can join channel rooms.
       if (!auth.userId || !auth.channelId || !(auth.role === 'streamer' || auth.role === 'admin')) {
-        console.warn('[socket] join:channel denied (unauthenticated or wrong role)', { socketId: socket.id });
+        debugLog('[socket] join:channel denied (unauthenticated or wrong role)', { socketId: socket.id });
         return;
       }
 
@@ -71,14 +72,14 @@ export function setupSocketIO(io: Server) {
       const allowedSlug = String(channel?.slug || '').toLowerCase();
       if (!allowedSlug) return;
       if (raw.toLowerCase() !== allowedSlug) {
-        console.warn('[socket] join:channel denied (slug mismatch)', { socketId: socket.id, requested: raw, allowed: allowedSlug });
+        debugLog('[socket] join:channel denied (slug mismatch)', { socketId: socket.id, requested: raw, allowed: allowedSlug });
         return;
       }
 
       socket.join(`channel:${allowedSlug}`);
       socket.data.isOverlay = false;
       socket.data.channelSlug = allowedSlug;
-      console.log(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
+      debugLog(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
     });
 
     socket.on('join:overlay', async (data: { token?: string }) => {
@@ -109,7 +110,7 @@ export function setupSocketIO(io: Server) {
           ? Number((channel as any)?.overlayTokenVersion)
           : 1;
         if (tokenVersion !== currentVersion) {
-          console.warn('[socket] join:overlay denied (token rotated)', {
+          debugLog('[socket] join:overlay denied (token rotated)', {
             socketId: socket.id,
             channelId: decoded.channelId,
             tokenVersion,
@@ -125,7 +126,7 @@ export function setupSocketIO(io: Server) {
         socket.join(`channel:${slug}`);
         socket.data.isOverlay = true;
         socket.data.channelSlug = slug;
-        console.log(`Client ${socket.id} joined channel:${slug} (overlay token)`);
+        debugLog(`Client ${socket.id} joined channel:${slug} (overlay token)`);
 
         // Private config (sent only to the overlay client socket).
         socket.emit('overlay:config', {
@@ -134,7 +135,7 @@ export function setupSocketIO(io: Server) {
           overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
         });
       } catch (e) {
-        console.warn('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
+        debugLog('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
       }
     });
 
@@ -143,7 +144,7 @@ export function setupSocketIO(io: Server) {
       if (!auth.userId) return;
       if (String(userId) !== auth.userId) return;
       socket.join(`user:${auth.userId}`);
-      console.log(`Client ${socket.id} joined user:${auth.userId}`);
+      debugLog(`Client ${socket.id} joined user:${auth.userId}`);
     });
 
     socket.on('activation:ackDone', async (data: { activationId: string }) => {
@@ -155,12 +156,12 @@ export function setupSocketIO(io: Server) {
           data: { status: 'done' },
         });
       } catch (error) {
-        console.error('Error updating activation:', error);
+        debugError('Error updating activation:', error);
       }
     });
 
     socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
+      debugLog('Client disconnected:', socket.id);
     });
   });
 }

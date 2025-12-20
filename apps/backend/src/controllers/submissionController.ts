@@ -11,12 +11,11 @@ import { logFileUpload, logSecurityEvent } from '../utils/auditLogger.js';
 import path from 'path';
 import fs from 'fs';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
+import { debugLog, debugError } from '../utils/debug.js';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
-    // #region agent log
-    console.log('[DEBUG] createSubmission started', JSON.stringify({ location: 'submissionController.ts:14', message: 'createSubmission started', data: { hasFile: !!req.file, userId: req.userId, channelId: req.channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
-    // #endregion
+    debugLog('[DEBUG] createSubmission started', { hasFile: !!req.file, userId: req.userId, channelId: req.channelId });
     
     if (!req.file) {
       return res.status(400).json({ error: 'File is required' });
@@ -341,7 +340,7 @@ export const submissionController = {
       await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
 
       // #region agent log
-      console.log('[DEBUG] Submission created successfully, sending response', JSON.stringify({ location: 'submissionController.ts:306', message: 'Submission created successfully, sending response', data: { submissionId: submission.id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
+      debugLog('[DEBUG] Submission created successfully, sending response', { submissionId: submission.id, channelId });
       // #endregion
 
       // Emit Socket.IO event for new submission

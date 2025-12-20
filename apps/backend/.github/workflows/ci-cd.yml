@@ -202,6 +202,9 @@ jobs:
             # Rate Limiting
             # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
+
+            # Debug logging (beta only)
+            DEBUG_LOGS=1
             EOF
             
             # Ensure uploads directory exists

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { debugLog, debugError } from '../utils/debug.js';
 import { activateMemeSchema } from '../shared/index.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promotions.js';
 import { logMemeActivation } from '../utils/auditLogger.js';
@@ -163,9 +164,7 @@ export const viewerController = {
   },
 
   getMe: async (req: AuthRequest, res: Response) => {
-    // #region agent log
-    console.log('[DEBUG] getMe started', JSON.stringify({ location: 'viewerController.ts:154', message: 'getMe started', data: { userId: req.userId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-    // #endregion
+    debugLog('[DEBUG] getMe started', { userId: req.userId });
     try {
       const startTime = Date.now();
       const user = await prisma.user.findUnique({
@@ -182,9 +181,7 @@ export const viewerController = {
         },
       });
       const dbDuration = Date.now() - startTime;
-      // #region agent log
-      console.log('[DEBUG] getMe db query completed', JSON.stringify({ location: 'viewerController.ts:167', message: 'getMe db query completed', data: { userId: req.userId, found: !!user, dbDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-      // #endregion
+      debugLog('[DEBUG] getMe db query completed', { userId: req.userId, found: !!user, dbDuration });
 
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -199,14 +196,10 @@ export const viewerController = {
         channel: user.channel,
         wallets: user.wallets,
       };
-      // #region agent log
-      console.log('[DEBUG] getMe sending response', JSON.stringify({ location: 'viewerController.ts:181', message: 'getMe sending response', data: { userId: user.id, hasChannel: !!user.channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-      // #endregion
+      debugLog('[DEBUG] getMe sending response', { userId: user.id, hasChannel: !!user.channelId });
       res.json(response);
     } catch (error: any) {
-      // #region agent log
-      console.log('[DEBUG] getMe error', JSON.stringify({ location: 'viewerController.ts:185', message: 'getMe error', data: { userId: req.userId, error: error.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-      // #endregion
+      debugError('[DEBUG] getMe error', error);
       throw error;
     }
   },

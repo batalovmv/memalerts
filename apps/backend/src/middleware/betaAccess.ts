@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
+import { debugLog, debugError } from '../utils/debug.js';
 
 // Simple in-memory cache for beta access checks (5 minute TTL)
 // This reduces database load for frequent beta access checks
@@ -95,7 +96,7 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
 
     // If user doesn't have beta access, deny access
     if (!hasAccess) {
-      console.log('[requireBetaAccess] User does not have beta access:', req.userId);
+      debugLog('[requireBetaAccess] User does not have beta access', { userId: req.userId });
       return res.status(403).json({ 
         error: 'Forbidden', 
         message: 'Beta access required. Please request access or contact an administrator.' 
@@ -104,7 +105,7 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
 
     next();
   } catch (error) {
-    console.error('Error checking beta access:', error);
+    debugError('Error checking beta access', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
