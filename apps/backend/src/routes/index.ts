@@ -83,7 +83,9 @@ export function setupRoutes(app: Express) {
         req.path === '/memes' ||
         req.path.startsWith('/admin') ||
         req.path.startsWith('/submissions') ||
-        // Channels memes will be handled explicitly below (beta: auth+beta; prod: public)
+        // Channel routes handled explicitly below (beta: auth+beta; prod: public where applicable)
+        /^\/channels\/[^\/]+$/.test(req.path) ||
+        /^\/channels\/[^\/]+\/wallet$/.test(req.path) ||
         /^\/channels\/[^\/]+\/memes$/.test(req.path) ||
         // Keep public endpoints on production only (beta should be gated)
         (!isBeta && (req.path.startsWith('/channels/memes/search') ||
@@ -104,6 +106,19 @@ export function setupRoutes(app: Express) {
   app.get('/me', authenticate, requireBetaAccess, viewerController.getMe);
   app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
   app.get('/memes', authenticate, requireBetaAccess, viewerController.getMemes);
+
+  // Public on production; gated on beta (auth + requireBetaAccess)
+  app.get('/channels/:slug', (req, res) => {
+    if (isBetaDomain(req)) {
+      return authenticate(req as AuthRequest, res, () =>
+        requireBetaAccess(req as AuthRequest, res, () => viewerController.getChannelBySlug(req as any, res))
+      );
+    }
+    return viewerController.getChannelBySlug(req as any, res);
+  });
+
+  // Wallet for specific channel: requires auth everywhere; on beta also requires beta access.
+  app.get('/channels/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
 
   // Public on production; gated on beta (auth + requireBetaAccess)
   app.get('/channels/:slug/memes', (req, res, next) => {
