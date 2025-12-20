@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import TagInput from './TagInput';
@@ -18,7 +18,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
-  const location = useLocation();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState<boolean>(false);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
