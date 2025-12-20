@@ -30,4 +30,7 @@ adminRoutes.delete('/promotions/:id', adminController.deletePromotion);
 // Statistics
 adminRoutes.get('/stats/channel', adminController.getChannelStats);
 
+// OBS overlay token (used to generate unguessable Browser Source URL)
+adminRoutes.get('/overlay/token', adminController.getOverlayToken);
+
 

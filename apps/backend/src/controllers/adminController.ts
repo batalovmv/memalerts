@@ -23,8 +23,44 @@ import {
 } from '../utils/twitchApi.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
+import jwt from 'jsonwebtoken';
 
 export const adminController = {
+  getOverlayToken: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    if (!channelId) {
+      return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    try {
+      const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { slug: true },
+      });
+
+      if (!channel?.slug) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+
+      // Long-lived token intended to be pasted into OBS. It is opaque and unguessable (signed).
+      // Environment separation is preserved because JWT_SECRET differs between beta and production.
+      const token = jwt.sign(
+        {
+          kind: 'overlay',
+          v: 1,
+          channelId,
+          channelSlug: String(channel.slug).toLowerCase(),
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '3650d' } // ~10 years
+      );
+
+      return res.json({ token });
+    } catch (e: any) {
+      console.error('Error generating overlay token:', e);
+      return res.status(500).json({ error: 'Failed to generate overlay token' });
+    }
+  },
   getSubmissions: async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
     const channelId = req.channelId;
@@ -1420,7 +1456,6 @@ export const adminController = {
         by: ['userId'],
         where: {
           channelId,
-          status: 'done',
         },
         _sum: {
           coinsSpent: true,
@@ -1455,7 +1490,6 @@ export const adminController = {
         by: ['memeId'],
         where: {
           channelId,
-          status: 'done',
         },
         _count: {
           id: true,
@@ -1489,14 +1523,12 @@ export const adminController = {
       const totalActivations = await prisma.memeActivation.count({
         where: {
           channelId,
-          status: 'done',
         },
       });
 
       const totalCoinsSpent = await prisma.memeActivation.aggregate({
         where: {
           channelId,
-          status: 'done',
         },
         _sum: {
           coinsSpent: true,
@@ -1510,22 +1542,52 @@ export const adminController = {
         },
       });
 
+      const userSpendingOut = userSpending.map((s) => ({
+        user: users.find((u) => u.id === s.userId) || { id: s.userId, displayName: 'Unknown' },
+        totalCoinsSpent: s._sum.coinsSpent || 0,
+        activationsCount: s._count.id,
+      }));
+      // Stable ordering even when coinsSpent is 0 (e.g., channel-owner free activations).
+      userSpendingOut.sort((a, b) => {
+        if (b.totalCoinsSpent !== a.totalCoinsSpent) return b.totalCoinsSpent - a.totalCoinsSpent;
+        return b.activationsCount - a.activationsCount;
+      });
+
+      const memePopularityOut = memeStats.map((s) => ({
+        meme: memes.find((m) => m.id === s.memeId) || null,
+        activationsCount: s._count.id,
+        totalCoinsSpent: s._sum.coinsSpent || 0,
+      }));
+      memePopularityOut.sort((a, b) => {
+        if (b.activationsCount !== a.activationsCount) return b.activationsCount - a.activationsCount;
+        return b.totalCoinsSpent - a.totalCoinsSpent;
+      });
+
+      // Daily activity (last 14 days) for charts
+      const daily = await prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
+        SELECT date_trunc('day', "createdAt") as day,
+               COUNT(*)::bigint as activations,
+               COALESCE(SUM("coinsSpent"), 0)::bigint as coins
+        FROM "MemeActivation"
+        WHERE "channelId" = ${channelId}
+          AND "createdAt" >= (NOW() - INTERVAL '14 days')
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `;
+
       res.json({
-        userSpending: userSpending.map((s) => ({
-          user: users.find((u) => u.id === s.userId) || { id: s.userId, displayName: 'Unknown' },
-          totalCoinsSpent: s._sum.coinsSpent || 0,
-          activationsCount: s._count.id,
-        })),
-        memePopularity: memeStats.map((s) => ({
-          meme: memes.find((m) => m.id === s.memeId) || null,
-          activationsCount: s._count.id,
-          totalCoinsSpent: s._sum.coinsSpent || 0,
-        })),
+        userSpending: userSpendingOut.slice(0, 20),
+        memePopularity: memePopularityOut.slice(0, 20),
         overall: {
           totalActivations,
           totalCoinsSpent: totalCoinsSpent._sum.coinsSpent || 0,
           totalMemes,
         },
+        daily: daily.map((d) => ({
+          day: d.day.toISOString(),
+          activations: Number(d.activations),
+          coins: Number(d.coins),
+        })),
       });
     } catch (error) {
       throw error;

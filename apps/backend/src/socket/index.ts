@@ -1,23 +1,106 @@
 import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
+
+type JwtPayload = {
+  userId: string;
+  role: string;
+  channelId?: string;
+  // Overlay token fields
+  kind?: string;
+  channelSlug?: string;
+  v?: number;
+};
+
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  const raw = String(cookieHeader || '').trim();
+  if (!raw) return {};
+  const out: Record<string, string> = {};
+  for (const part of raw.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    const val = part.slice(idx + 1).trim();
+    if (!key) continue;
+    out[key] = decodeURIComponent(val);
+  }
+  return out;
+}
+
+function isBetaHost(host: string | undefined): boolean {
+  const h = String(host || '').toLowerCase();
+  const domain = String(process.env.DOMAIN || '').toLowerCase();
+  return h.includes('beta.') || domain.includes('beta.');
+}
 
 export function setupSocketIO(io: Server) {
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
 
-    socket.on('join:channel', (channelSlug: string) => {
+    // Best-effort auth context extracted from cookies for permissioned room joins (dashboard/settings).
+    // Overlay (OBS) is anonymous and must join via a signed overlay token instead.
+    let auth: { userId?: string; role?: string; channelId?: string } = {};
+    try {
+      const cookies = parseCookies(socket.handshake.headers.cookie);
+      const host = socket.handshake.headers.host;
+      const beta = isBetaHost(host);
+      const token = beta ? (cookies.token_beta ?? cookies.token) : cookies.token;
+      if (token) {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+        auth = { userId: decoded.userId, role: decoded.role, channelId: decoded.channelId };
+      }
+    } catch {
+      // ignore (unauthenticated socket)
+    }
+
+    socket.on('join:channel', async (channelSlug: string) => {
       const raw = String(channelSlug || '').trim();
       if (!raw) return;
-      const normalized = raw.toLowerCase();
-      // Backward-compatible: join both the raw and normalized rooms.
-      // Server emits are generally normalized, but some older code may emit raw.
-      socket.join(`channel:${raw}`);
-      socket.join(`channel:${normalized}`);
-      console.log(`Client ${socket.id} joined channel:${normalized} (raw: ${raw})`);
+      // Only authenticated streamers/admins can join channel rooms.
+      if (!auth.userId || !auth.channelId || !(auth.role === 'streamer' || auth.role === 'admin')) {
+        console.warn('[socket] join:channel denied (unauthenticated or wrong role)', { socketId: socket.id });
+        return;
+      }
+
+      // Verify slug matches the authenticated user's channel to prevent joining arbitrary channels.
+      const { prisma } = await import('../lib/prisma.js');
+      const channel = await prisma.channel.findUnique({
+        where: { id: auth.channelId },
+        select: { slug: true },
+      });
+      const allowedSlug = String(channel?.slug || '').toLowerCase();
+      if (!allowedSlug) return;
+      if (raw.toLowerCase() !== allowedSlug) {
+        console.warn('[socket] join:channel denied (slug mismatch)', { socketId: socket.id, requested: raw, allowed: allowedSlug });
+        return;
+      }
+
+      socket.join(`channel:${allowedSlug}`);
+      console.log(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
+    });
+
+    socket.on('join:overlay', async (data: { token?: string }) => {
+      const token = String(data?.token || '').trim();
+      if (!token) return;
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+        if (decoded.kind !== 'overlay' || !decoded.channelSlug) {
+          return;
+        }
+        const slug = String(decoded.channelSlug).toLowerCase();
+        // Join the normalized channel room only.
+        socket.join(`channel:${slug}`);
+        console.log(`Client ${socket.id} joined channel:${slug} (overlay token)`);
+      } catch (e) {
+        console.warn('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
+      }
     });
 
     socket.on('join:user', (userId: string) => {
-      socket.join(`user:${userId}`);
-      console.log(`Client ${socket.id} joined user:${userId}`);
+      // User rooms must be authenticated; do not allow joining arbitrary users.
+      if (!auth.userId) return;
+      if (String(userId) !== auth.userId) return;
+      socket.join(`user:${auth.userId}`);
+      console.log(`Client ${socket.id} joined user:${auth.userId}`);
     });
 
     socket.on('activation:ackDone', async (data: { activationId: string }) => {
