@@ -613,16 +613,25 @@ function ObsLinksSettings() {
 
       const cached = getCachedChannelData(channelSlug);
       if (cached) {
-        setOverlayMode(cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
-        setOverlayShowSender(Boolean(cached.overlayShowSender));
+        const nextMode = cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
+        const nextShowSender = Boolean(cached.overlayShowSender);
+        setOverlayMode(nextMode);
+        setOverlayShowSender(nextShowSender);
+        // Mark current server state as "already saved" to prevent auto-save on first load.
+        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender });
+        lastChangeRef.current = null;
         overlaySettingsLoadedRef.current = channelSlug;
         return;
       }
 
       const data = await getChannelData(channelSlug, false);
       if (data) {
-        setOverlayMode(data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
-        setOverlayShowSender(Boolean(data.overlayShowSender));
+        const nextMode = data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
+        const nextShowSender = Boolean(data.overlayShowSender);
+        setOverlayMode(nextMode);
+        setOverlayShowSender(nextShowSender);
+        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender });
+        lastChangeRef.current = null;
         overlaySettingsLoadedRef.current = channelSlug;
       } else {
         overlaySettingsLoadedRef.current = null;
@@ -672,6 +681,12 @@ function ObsLinksSettings() {
     if (!overlaySettingsLoadedRef.current) return;
 
     const payload = JSON.stringify({ overlayMode, overlayShowSender });
+    // If we don't yet have a baseline, set it and do nothing (prevents save/toast on mount).
+    if (lastSavedOverlaySettingsRef.current === null) {
+      lastSavedOverlaySettingsRef.current = payload;
+      lastChangeRef.current = null;
+      return;
+    }
     if (payload === lastSavedOverlaySettingsRef.current) return;
 
     if (saveOverlayTimerRef.current) clearTimeout(saveOverlayTimerRef.current);
@@ -701,9 +716,6 @@ function ObsLinksSettings() {
                 ? t('admin.obsOverlaySenderEnabled', { defaultValue: 'Sender name enabled' })
                 : t('admin.obsOverlaySenderDisabled', { defaultValue: 'Sender name disabled' })
             );
-          } else {
-            // Generic fallback (should be rare)
-            toast.success(t('admin.settingsSaved', { defaultValue: 'Saved' }));
           }
           lastChangeRef.current = null;
         } catch (error: unknown) {
