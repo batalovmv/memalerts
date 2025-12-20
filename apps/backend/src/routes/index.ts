@@ -97,6 +97,9 @@ export function setupRoutes(app: Express) {
         req.path.startsWith('/auth/twitch') ||
         req.path === '/auth/logout' || // Logout doesn't require authentication
         req.path.startsWith('/uploads') || // Static files should not require beta access
+        // This route runs authenticate + requireBetaAccess explicitly below.
+        // IMPORTANT: requireBetaAccess needs req.userId which is set by authenticate.
+        /^\/memes\/[^\/]+\/activate$/.test(req.path) ||
         // Routes that will run authenticate + requireBetaAccess explicitly
         req.path === '/me' ||
         req.path === '/wallet' ||
@@ -149,7 +152,9 @@ export function setupRoutes(app: Express) {
   });
   app.get('/channels/memes/search', viewerController.searchMemes); // Public search endpoint
   app.get('/memes/stats', viewerController.getMemeStats); // Public stats endpoint
-  app.post('/memes/:id/activate', authenticate, activateMemeLimiter, viewerController.activateMeme);
+  // Activation is a user-paid action (wallet) and must be authenticated everywhere.
+  // On beta, it is additionally gated by requireBetaAccess.
+  app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);
   
   // Router-based routes
   app.use('/auth', authRoutes);
