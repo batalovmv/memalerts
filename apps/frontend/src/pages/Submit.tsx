@@ -91,8 +91,10 @@ export default function Submit() {
         video.src = URL.createObjectURL(file);
       });
 
+      let durationMsToSend: number | null = null;
       try {
         const duration = await durationCheck;
+        durationMsToSend = Number.isFinite(duration) ? Math.round(duration * 1000) : null;
         if (duration > 15) {
           toast.error(`Video duration exceeds 15 seconds. Current duration: ${duration.toFixed(2)}s`);
           return;
@@ -114,6 +116,10 @@ export default function Submit() {
         // Add tags as JSON string (backend will parse it)
         if (formData.tags && formData.tags.length > 0) {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
+        }
+        // Provide durationMs as a fallback for servers where ffprobe is unavailable
+        if (durationMsToSend !== null) {
+          formDataToSend.append('durationMs', String(durationMsToSend));
         }
 
         // Use axios directly for upload progress tracking

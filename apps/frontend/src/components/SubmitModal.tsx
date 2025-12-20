@@ -102,8 +102,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         video.src = URL.createObjectURL(file);
       });
 
+      let durationMsToSend: number | null = null;
       try {
         const duration = await durationCheck;
+        durationMsToSend = Number.isFinite(duration) ? Math.round(duration * 1000) : null;
         if (duration > 15) {
           toast.error(t('submitModal.videoDurationExceeds', { duration: duration.toFixed(2) }));
           return;
@@ -125,6 +127,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         // Add tags as JSON string (backend will parse it)
         if (formData.tags && formData.tags.length > 0) {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
+        }
+        // Provide durationMs as a fallback for servers where ffprobe is unavailable
+        if (durationMsToSend !== null) {
+          formDataToSend.append('durationMs', String(durationMsToSend));
         }
         // Add channelId if provided (for submitting to another channel)
         if (channelId) {
