@@ -107,9 +107,10 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video type is allowed' });
       }
 
-      // Skip video validation completely to avoid ffprobe hanging
-      // Just check file size limit
-      // Note: filePath is already set above during content validation
+      // Enforce limits:
+      // - size <= 50MB
+      // - duration <= 15s (strict, because memes go to OBS)
+      // Note: getVideoMetadata has an internal timeout to avoid hanging.
       const MAX_SIZE = 50 * 1024 * 1024; // 50MB
       if (req.file.size > MAX_SIZE) {
         try {
@@ -119,6 +120,29 @@ export const submissionController = {
         }
         return res.status(400).json({ 
           error: `Video file size (${(req.file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)` 
+        });
+      }
+
+      // Validate duration using ffprobe (strict)
+      const metadata = await getVideoMetadata(filePath);
+      if (!metadata || !metadata.duration || metadata.duration <= 0) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          console.error('Failed to delete file with unknown duration:', unlinkError);
+        }
+        return res.status(400).json({
+          error: 'Unable to determine video duration. Please re-encode the file and try again.',
+        });
+      }
+      if (metadata.duration > 15) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          console.error('Failed to delete over-duration file:', unlinkError);
+        }
+        return res.status(400).json({
+          error: `Video duration (${metadata.duration.toFixed(2)}s) exceeds maximum allowed duration (15s)`,
         });
       }
 
@@ -164,19 +188,8 @@ export const submissionController = {
       if (isOwner) {
         console.log('Owner submitting meme, creating directly as approved');
         
-        // Get video duration from metadata if available
-        let durationMs = 0; // Default duration
-        if (fs.existsSync(filePath)) {
-          try {
-            const metadata = await getVideoMetadata(filePath);
-            if (metadata && metadata.duration > 0) {
-              durationMs = Math.round(metadata.duration * 1000); // Convert seconds to milliseconds
-            }
-          } catch (error: any) {
-            console.warn('Failed to get video duration for owner submission:', error.message);
-            durationMs = 0; // Keep default
-          }
-        }
+        // Duration already validated above
+        const durationMs = Math.round(metadata.duration * 1000);
         
         // Get default price from channel
         const defaultPrice = channel.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
