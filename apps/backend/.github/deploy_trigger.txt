@@ -1,0 +1,2 @@
+﻿trigger deploy after rollback: 2025-12-20T23:19:00+03:00
+reason: rollback main to adef123 then trigger CI
