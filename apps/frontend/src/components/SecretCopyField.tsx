@@ -8,6 +8,7 @@ type Props = {
   description?: string;
   masked?: boolean;
   emptyText?: string;
+  rightActions?: React.ReactNode;
 };
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -51,7 +52,7 @@ function CopyIcon() {
   );
 }
 
-export default function SecretCopyField({ label, value, description, masked = true, emptyText = '—' }: Props) {
+export default function SecretCopyField({ label, value, description, masked = true, emptyText = '—', rightActions }: Props) {
   const [isRevealed, setIsRevealed] = useState(false);
   const { t } = useTranslation();
 
@@ -98,6 +99,8 @@ export default function SecretCopyField({ label, value, description, masked = tr
         <div className="flex-1 min-w-0">
           <div className="font-mono text-sm text-gray-900 dark:text-gray-100 truncate">{displayValue}</div>
         </div>
+
+        {rightActions}
 
         {masked && (
           <button

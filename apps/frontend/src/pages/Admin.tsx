@@ -590,6 +590,17 @@ function ObsLinksSettings() {
   const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
   const overlaySettingsLoadedRef = useRef<string | null>(null);
 
+  const RotateIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4.5 12a7.5 7.5 0 0112.8-5.303M19.5 12a7.5 7.5 0 01-12.8 5.303M16 6.5h1.8a.7.7 0 01.7.7V9M8 17.5H6.2a.7.7 0 01-.7-.7V15"
+      />
+    </svg>
+  );
+
   const loadOverlaySettings = useCallback(async () => {
     if (!channelSlug) return;
     if (overlaySettingsLoadedRef.current === channelSlug) return;
@@ -704,23 +715,22 @@ function ObsLinksSettings() {
           masked={true}
           emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
           description={loadingToken ? t('common.loading', { defaultValue: 'Loading...' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
+          rightActions={
+            <button
+              type="button"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-gray-700 dark:text-gray-200 disabled:opacity-60"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleRotateOverlayToken();
+              }}
+              disabled={rotatingOverlayToken || loadingToken || !overlayToken}
+              title={t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
+              aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
+            >
+              <RotateIcon />
+            </button>
+          }
         />
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleRotateOverlayToken}
-            disabled={rotatingOverlayToken || loadingToken}
-            className="px-4 py-2 rounded border border-secondary/30 bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 text-sm font-medium"
-          >
-            {rotatingOverlayToken
-              ? t('common.loading', { defaultValue: 'Loading...' })
-              : t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
-          </button>
-          <div className="text-xs text-gray-600 dark:text-gray-300">
-            {t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
-          </div>
-        </div>
 
         <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
