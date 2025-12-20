@@ -36,8 +36,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
-  const [coinUpdateCount, setCoinUpdateCount] = useState(0);
-  const [lastCoinDelta, setLastCoinDelta] = useState<number | null>(null);
+  // Aggregated "coins gained" badge (avoid confusing "+100 (2)" UI; show the total delta instead).
+  const [coinUpdateDelta, setCoinUpdateDelta] = useState<number | null>(null);
   const coinUpdateHideTimerRef = useRef<number | null>(null);
   const submissionsLoadedRef = useRef(false);
   const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
@@ -303,15 +303,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
           // Show a header badge when coins are added from Twitch reward
           if (delta > 0 && (data.reason === 'twitch_reward' || data.reason === undefined)) {
-            setCoinUpdateCount((c) => c + 1);
-            setLastCoinDelta(delta);
+            setCoinUpdateDelta((prevDelta) => (prevDelta ?? 0) + delta);
 
             if (coinUpdateHideTimerRef.current) {
               window.clearTimeout(coinUpdateHideTimerRef.current);
             }
             coinUpdateHideTimerRef.current = window.setTimeout(() => {
-              setCoinUpdateCount(0);
-              setLastCoinDelta(null);
+              setCoinUpdateDelta(null);
               coinUpdateHideTimerRef.current = null;
             }, 8000);
           }
@@ -397,7 +395,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
 
   const handlePendingSubmissionsClick = () => {
-    navigate('/settings?tab=submissions');
+    navigate('/dashboard?tab=submissions');
   };
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
@@ -497,15 +495,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                   <div
                     className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
                     onClick={() => {
-                      setCoinUpdateCount(0);
-                      setLastCoinDelta(null);
+                      setCoinUpdateDelta(null);
                     }}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
-                        setCoinUpdateCount(0);
-                        setLastCoinDelta(null);
+                        setCoinUpdateDelta(null);
                       }
                     }}
                     aria-label={t('header.balance', 'Balance')}
@@ -524,9 +520,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       <span className="text-xs text-gray-600 dark:text-gray-400">coins</span>
                     </div>
                   </div>
-                  {coinUpdateCount > 0 && lastCoinDelta !== null && (
+                  {coinUpdateDelta !== null && coinUpdateDelta > 0 && (
                     <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
-                      +{lastCoinDelta}{coinUpdateCount > 1 ? ` (${coinUpdateCount})` : ''}
+                      +{coinUpdateDelta}
                     </span>
                   )}
                   {/* Tooltip */}

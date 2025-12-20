@@ -13,6 +13,7 @@ import MemeModal from '../components/MemeModal';
 import { api } from '../lib/api';
 import toast from 'react-hot-toast';
 import type { Meme } from '../types';
+import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
 
 type TabType = 'submissions' | 'memes' | 'settings' | 'rewards' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
@@ -24,7 +25,8 @@ export default function Admin() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>('submissions');
+  const [activeTab, setActiveTab] = useState<TabType>('settings');
+  const { autoplayMemesEnabled } = useAutoplayMemes();
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
@@ -47,10 +49,15 @@ export default function Admin() {
   // Handle tab parameter from URL
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['submissions', 'memes', 'settings', 'wallets', 'promotions', 'statistics'].includes(tabParam)) {
+    if (tabParam === 'submissions') {
+      // Pending submissions live on the dashboard now.
+      navigate('/dashboard?tab=submissions', { replace: true });
+      return;
+    }
+    if (tabParam && ['memes', 'settings', 'rewards', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
@@ -148,7 +155,8 @@ export default function Admin() {
       return;
     }
 
-    // Duration is auto-detected; enforce 1s..15s and don't allow manual override.
+    // Duration is auto-detected; enforce 1s..15s.
+    // We still send it so backend can persist correct duration when available.
     if (isNaN(durationMs) || durationMs < 1000 || durationMs > 15000) {
       toast.error(t('admin.invalidDuration') || 'Video must be 1s..15s');
       return;
@@ -157,8 +165,8 @@ export default function Admin() {
     try {
       await dispatch(approveSubmission({ 
         submissionId: approveModal.submissionId, 
-        priceCoins, 
-        durationMs 
+        priceCoins,
+        durationMs,
       })).unwrap();
       toast.success(t('admin.approve') + '!');
       closeApproveModal();
@@ -218,16 +226,6 @@ export default function Admin() {
         <div className="mb-6">
           <div className="flex gap-4 items-center border-b border-secondary/30">
             {/* Основные вкладки */}
-            <button
-              onClick={() => setActiveTab('submissions')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'submissions'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.pendingSubmissions')} ({submissions.length})
-            </button>
             <button
               onClick={() => setActiveTab('memes')}
               className={`pb-2 px-4 transition-colors ${
@@ -574,6 +572,7 @@ export default function Admin() {
                       setIsModalOpen(true);
                     }}
                     isOwner={isOwner}
+                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
                   />
                 );
               })}
@@ -1022,6 +1021,7 @@ function ChannelSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { getChannelData, getCachedChannelData } = useChannelColors();
+  const { autoplayMemesEnabled, setAutoplayMemesEnabled } = useAutoplayMemes();
   const [settings, setSettings] = useState({
     primaryColor: '',
     secondaryColor: '',
@@ -1102,6 +1102,32 @@ function ChannelSettings() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
+
+      {/* Preferences */}
+      <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold mb-3 dark:text-white">
+          {t('admin.preferences', 'Предпочтения')}
+        </h3>
+        <div className="flex items-start justify-between gap-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-secondary/20">
+          <div className="min-w-0">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.autoplayMemesTitle', { defaultValue: 'Autoplay memes' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.autoplayMemesDescription', { defaultValue: 'When enabled, meme previews autoplay (muted) on pages with many memes.' })}
+            </div>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={autoplayMemesEnabled}
+              onChange={(e) => setAutoplayMemesEnabled(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+          </label>
+        </div>
+      </div>
       
       {/* Profile Link Section */}
       {profileUrl && (

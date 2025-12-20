@@ -63,16 +63,17 @@ export const createSubmission = createAsyncThunk<
 
 export const approveSubmission = createAsyncThunk<
   void,
-  { submissionId: string; priceCoins: number; durationMs: number },
+  { submissionId: string; priceCoins: number; durationMs?: number },
   { rejectValue: ApiError }
 >(
   'submissions/approveSubmission',
   async ({ submissionId, priceCoins, durationMs }, { rejectWithValue }) => {
     try {
-      await api.post(`/admin/submissions/${submissionId}/approve`, {
-        priceCoins,
-        durationMs,
-      });
+      const payload: Record<string, unknown> = { priceCoins };
+      if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs > 0) {
+        payload.durationMs = durationMs;
+      }
+      await api.post(`/admin/submissions/${submissionId}/approve`, payload);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: ApiError; status?: number } };
       return rejectWithValue({

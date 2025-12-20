@@ -13,6 +13,7 @@ import CoinsInfoModal from '../components/CoinsInfoModal';
 import ChannelThemeProvider from '../components/ChannelThemeProvider';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
+import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
 import type { Meme, Wallet } from '../types';
 
 interface ChannelInfo {
@@ -63,6 +64,7 @@ export default function StreamerProfile() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const { autoplayMemesEnabled } = useAutoplayMemes();
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
 
@@ -436,7 +438,7 @@ export default function StreamerProfile() {
                     onActivate={handleActivate}
                     walletBalance={wallet?.balance}
                     canActivate={wallet ? wallet.balance >= meme.priceCoins : false}
-                    previewMode="autoplayMuted"
+                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
                   />
                 ))}
               </div>

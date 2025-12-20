@@ -77,22 +77,16 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
   useEffect(() => {
     if (videoRef.current && meme.type === 'video') {
       const video = videoRef.current;
-
-      // Autoplay preview mode (profile feed-style): always muted + looping.
       if (previewMode === 'autoplayMuted') {
+        // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
         video.muted = true;
-        // Try to keep playing (browser allows autoplay only if muted).
-        video.play().catch(() => {
-          // Ignore autoplay errors (e.g., low power mode / browser policy quirks)
-        });
+        void video.play().catch(() => {});
         return;
       }
 
-      // Default mode: play on hover, unmute only after user interaction.
+      // Default: hover preview, unmute only after user interaction.
       if (isHovered) {
-        video.play().catch(() => {
-          // Ignore autoplay errors
-        });
+        void video.play().catch(() => {});
         video.muted = !hasUserInteracted;
       } else {
         video.pause();
@@ -142,7 +136,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
       onMouseEnter={() => {
         setIsHovered(true);
         if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
-          // Restart preview on hover (as requested).
           try {
             videoRef.current.currentTime = 0;
           } catch {
@@ -154,7 +147,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
       onMouseLeave={() => {
         setIsHovered(false);
         if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
-          // Restart again when leaving hover (so it always begins from start).
           try {
             videoRef.current.currentTime = 0;
           } catch {
