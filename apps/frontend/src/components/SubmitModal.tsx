@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
 import TagInput from './TagInput';
 import toast from 'react-hot-toast';
+import { fetchSubmissions } from '../store/slices/submissionsSlice';
+import { fetchMemes } from '../store/slices/memesSlice';
 
 interface SubmitModalProps {
   isOpen: boolean;
@@ -17,6 +19,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const [loading, setLoading] = useState<boolean>(false);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
@@ -173,11 +176,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         
         toast.success(t('submit.submitted'));
         onClose();
-        // Optionally navigate to dashboard
-        if (channelSlug) {
-          navigate(`/channel/${channelSlug}`);
-        } else {
-          navigate('/dashboard');
+
+        // Refresh relevant lists without forcing navigation.
+        if (respStatus === 'pending') {
+          dispatch(fetchSubmissions({ status: 'pending' }));
+        } else if (respStatus === 'approved') {
+          const targetChannelId = channelId || user?.channelId || null;
+          if (targetChannelId) {
+            dispatch(fetchMemes({ channelId: targetChannelId }));
+          }
         }
       } catch (error: unknown) {
         const apiError = error as { response?: { status?: number; data?: { error?: string } }; code?: string; message?: string };
@@ -187,11 +194,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           // Still close modal - submission might have been created
           setTimeout(() => {
             onClose();
-            if (channelSlug) {
-              navigate(`/channel/${channelSlug}`);
-            } else {
-              navigate('/dashboard');
-            }
           }, 2000);
         } else {
           toast.error(apiError.response?.data?.error || apiError.message || t('submitModal.failedToSubmit'));
