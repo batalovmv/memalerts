@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { activateMeme } from '../store/slices/memesSlice';
 import { updateWalletBalance } from '../store/slices/authSlice';
 import { api } from '../lib/api';
+import { login } from '../lib/auth';
 import Header from '../components/Header';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
@@ -68,6 +69,7 @@ export default function StreamerProfile() {
   const { autoplayMemesEnabled } = useAutoplayMemes();
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
+  const isAuthed = !!user;
 
   // Helpers: use CSS variables (set by ChannelThemeProvider) to build subtle tints safely.
   // We avoid Tailwind color opacity modifiers here because theme colors are CSS vars (hex), and
@@ -386,6 +388,17 @@ export default function StreamerProfile() {
                   <span>{t('profile.submitMeme')}</span>
                 </button>
               )}
+
+              {/* Guest CTA */}
+              {!user && (
+                <button
+                  onClick={() => login(`/channel/${normalizedSlug || slug || ''}`)}
+                  className="flex items-center gap-2 glass-btn px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white"
+                  title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
+                >
+                  {t('auth.login', 'Log in with Twitch')}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -422,11 +435,20 @@ export default function StreamerProfile() {
           </div>
 
           <div className="mt-3 flex items-center gap-3">
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 glass px-3 py-2">
+            <label
+              className={`inline-flex items-center gap-2 text-sm glass px-3 py-2 ${
+                isAuthed ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'
+              }`}
+              title={isAuthed ? '' : t('auth.loginToUseFavorites', 'Log in to use favorites')}
+            >
               <input
                 type="checkbox"
                 checked={myFavorites}
-                onChange={(e) => setMyFavorites(e.target.checked)}
+                disabled={!isAuthed}
+                onChange={(e) => {
+                  if (!isAuthed) return;
+                  setMyFavorites(e.target.checked);
+                }}
                 className="h-4 w-4 rounded"
               />
               {t('search.myFavorites', 'My favorites')}
