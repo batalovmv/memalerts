@@ -11,6 +11,8 @@ import { useChannelColors } from '../contexts/ChannelColorsContext';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
 import type { Wallet } from '../types';
+import toast from 'react-hot-toast';
+import { login } from '../lib/auth';
 
 interface HeaderProps {
   channelSlug?: string;
@@ -58,6 +60,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     location.pathname.startsWith('/settings') ||
     isOwnProfile
   );
+
+  const requireAuth = (reasonKey?: string) => {
+    toast.error(
+      t(reasonKey || 'auth.loginRequired', { defaultValue: 'Please log in to use this feature.' })
+    );
+    login(location.pathname + location.search);
+  };
 
   // Load submissions for streamer/admin if not already loaded
   // Check Redux store with TTL to avoid duplicate requests on navigation
@@ -456,7 +465,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               Mem Alerts
             </h1>
             
-            {user && (
+            {(user ? (
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 {/* Pending Submissions Indicator - always show for streamer/admin */}
                 {showPendingIndicator && (
@@ -563,7 +572,74 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* User Menu */}
                 <UserMenu />
               </div>
-            )}
+            ) : (
+              <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+                {/* Pending Submissions (guest preview) */}
+                <button
+                  onClick={() => requireAuth()}
+                  className="relative p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
+                  title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
+                  aria-label={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
+                >
+                  <svg className="w-6 h-6 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </button>
+
+                {/* Submit Meme (guest preview) */}
+                <button
+                  onClick={() => requireAuth()}
+                  className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
+                  title={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
+                  aria-label={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-sm hidden sm:inline">{t('header.submitMeme', { defaultValue: 'Submit Meme' })}</span>
+                </button>
+
+                {/* Balance (guest preview) */}
+                <div className="relative group">
+                  <div
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm cursor-pointer"
+                    onClick={() => requireAuth()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') requireAuth();
+                    }}
+                    aria-label={t('header.balance', 'Balance')}
+                  >
+                    <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">0</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
+                    </div>
+                  </div>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
+                    {t('auth.loginToUseWallet', { defaultValue: 'Log in to earn coins and activate memes' })}
+                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45" />
+                  </div>
+                </div>
+
+                {/* Guest identity */}
+                <button
+                  onClick={() => requireAuth()}
+                  className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title={t('auth.login', { defaultValue: 'Log in with Twitch' })}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-200 font-bold">
+                    ?
+                  </div>
+                  <span className="text-sm hidden sm:inline text-gray-800 dark:text-gray-100">
+                    {t('auth.guest', { defaultValue: 'Guest' })}
+                  </span>
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </nav>

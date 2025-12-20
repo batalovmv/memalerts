@@ -260,8 +260,8 @@ export default function StreamerProfile() {
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
-      toast.error(t('toast.pleaseLogInToActivate'));
-      navigate('/');
+      toast.error(t('auth.loginRequired', { defaultValue: 'Please log in to use this feature.' }));
+      login(`/channel/${normalizedSlug || slug || ''}`);
       return;
     }
 

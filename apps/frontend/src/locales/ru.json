@@ -22,6 +22,15 @@
     "logout": "Выйти",
     "myChannel": "Мой канал"
   },
+  "auth": {
+    "login": "Войти через Twitch",
+    "guest": "Гость",
+    "loginRequired": "Войдите, чтобы пользоваться этим функционалом.",
+    "loginToInteract": "Войдите, чтобы отправлять мемы и использовать избранное",
+    "loginToUseFavorites": "Войдите, чтобы использовать избранное",
+    "loginToUseWallet": "Войдите, чтобы получать монеты и активировать мемы",
+    "loginToUse": "Войти, чтобы использовать"
+  },
   "landing": {
     "title": "Channel Points Mem Alerts",
     "subtitle": "Тратьте очки канала Twitch на активацию мемов в стриме!",

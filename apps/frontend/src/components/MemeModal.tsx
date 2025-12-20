@@ -32,7 +32,6 @@ export default function MemeModal({
   const [formData, setFormData] = useState({
     title: '',
     priceCoins: 0,
-    durationMs: 0,
   });
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -47,7 +46,6 @@ export default function MemeModal({
       setFormData({
         title: meme.title,
         priceCoins: meme.priceCoins,
-        durationMs: meme.durationMs,
       });
       setIsEditing(false);
     }
@@ -155,7 +153,6 @@ export default function MemeModal({
       setFormData({
         title: currentMeme.title,
         priceCoins: currentMeme.priceCoins,
-        durationMs: currentMeme.durationMs,
       });
     }
   };
@@ -190,6 +187,7 @@ export default function MemeModal({
   };
 
   const canActivate = mode === 'viewer' && onActivate && walletBalance !== undefined && currentMeme && walletBalance >= currentMeme.priceCoins;
+  const isGuestViewer = mode === 'viewer' && onActivate && walletBalance === undefined;
 
   return (
     <div
@@ -352,21 +350,6 @@ export default function MemeModal({
                     aria-required="true"
                   />
                 </div>
-                <div>
-                  <label htmlFor="meme-duration" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('memeModal.durationSeconds', { defaultValue: 'Duration (seconds)' })}
-                  </label>
-                  <input
-                    id="meme-duration"
-                    type="number"
-                    value={Math.round((formData.durationMs || 0) / 1000)}
-                    onChange={(e) => setFormData({ ...formData, durationMs: (parseInt(e.target.value) || 0) * 1000 })}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    min="1"
-                    required
-                    aria-required="true"
-                  />
-                </div>
                 <div className="flex gap-2 pt-2">
                   <button
                     type="submit"
@@ -393,14 +376,6 @@ export default function MemeModal({
                     </div>
                     <div className="text-lg font-semibold text-accent">
                       {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: currentMeme.priceCoins })}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                      {t('memeModal.duration', { defaultValue: 'Duration' })}
-                    </div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {t('memeModal.durationValue', { defaultValue: '{{seconds}}s', seconds: (currentMeme.durationMs / 1000).toFixed(2) })}
                     </div>
                   </div>
                   {mode === 'admin' && (
@@ -450,10 +425,12 @@ export default function MemeModal({
                   <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
                     <button
                       onClick={handleActivate}
-                      disabled={!canActivate}
+                      disabled={!canActivate && !isGuestViewer}
                       className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-secondary/30"
                     >
-                      {walletBalance === undefined 
+                      {isGuestViewer
+                        ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
+                        : walletBalance === undefined 
                         ? (t('common.loading', { defaultValue: 'Loading...' }))
                         : walletBalance < (currentMeme.priceCoins || 0)
                         ? t('memeModal.insufficientCoins', { defaultValue: 'Insufficient coins (need {{price}})', price: currentMeme.priceCoins })

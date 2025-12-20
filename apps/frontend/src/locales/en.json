@@ -22,6 +22,15 @@
     "logout": "Logout",
     "myChannel": "My Channel"
   },
+  "auth": {
+    "login": "Log in with Twitch",
+    "guest": "Guest",
+    "loginRequired": "Please log in to use this feature.",
+    "loginToInteract": "Log in to submit memes and use favorites",
+    "loginToUseFavorites": "Log in to use favorites",
+    "loginToUseWallet": "Log in to earn coins and activate memes",
+    "loginToUse": "Log in to use"
+  },
   "landing": {
     "title": "Channel Points Mem Alerts",
     "subtitle": "Spend your Twitch channel points to activate memes on stream!",
