@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { store } from '../store/index';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
-import { fetchMemes } from '../store/slices/memesSlice';
+import { api } from '../lib/api';
 import Header from '../components/Header';
 import SubmitModal from '../components/SubmitModal';
 import MemeModal from '../components/MemeModal';
@@ -19,13 +19,12 @@ export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const { submissions, loading: submissionsLoading, loadingMore: submissionsLoadingMore, total: submissionsTotal } = useAppSelector((state) => state.submissions);
-  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
+  const [memesCount, setMemesCount] = useState<number | null>(null);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
-  const memesLoadedRef = useRef(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -113,40 +112,28 @@ export default function Dashboard() {
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
 
-  // Load memes for own channel (needed for dashboard "All memes" panel)
+  // Load memes count (lightweight) for own channel (do NOT load all memes here)
   useEffect(() => {
-    const userId = user?.id;
-    const userRole = user?.role;
-    const userChannelId = user?.channelId;
-    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) {
-      memesLoadedRef.current = false;
-      return;
-    }
-
-    // If already loaded for this channel (or currently loading), skip.
-    if (memesLoading) return;
-    if (memesLoadedRef.current) return;
-
-    // If memes for this channel exist in store, consider it loaded.
-    const channelMemes = memes.filter((m) => m.channelId === userChannelId);
-    if (channelMemes.length > 0) {
-      memesLoadedRef.current = true;
-      return;
-    }
-
-    memesLoadedRef.current = true;
-    dispatch(fetchMemes({ channelId: userChannelId }));
-  }, [user?.id, user?.role, user?.channelId, memesLoading, memes, dispatch]);
+    if (!user?.channel?.slug) return;
+    void (async () => {
+      try {
+        const slug = user.channel?.slug;
+        if (!slug) return;
+        const data = await api.get<any>(`/channels/${slug}`, { params: { includeMemes: false } });
+        const count = data?.stats?.memesCount;
+        if (typeof count === 'number') setMemesCount(count);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [user?.channel?.slug]);
 
   const pendingSubmissionsCount =
     typeof submissionsTotal === 'number'
       ? submissionsTotal
       : submissions.filter(s => s.status === 'pending').length;
 
-  const myChannelMemes = useMemo(() => {
-    if (!user?.channelId) return [];
-    return memes.filter((m) => m.channelId === user.channelId);
-  }, [memes, user?.channelId]);
+  const myChannelMemesCount = memesCount ?? 0;
 
   if (authLoading || !user) {
     return (
@@ -221,7 +208,7 @@ export default function Dashboard() {
                     {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
                   </h2>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {memesLoading ? '…' : myChannelMemes.length}
+                    {memesCount === null ? '…' : myChannelMemesCount}
                   </span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
@@ -289,8 +276,7 @@ export default function Dashboard() {
 
                 <AllMemesPanel
                   isOpen={panel === 'memes'}
-                  memes={myChannelMemes}
-                  memesLoading={memesLoading}
+                  channelId={user.channelId}
                   autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
                   onClose={() => setPanel(null)}
                   onSelectMeme={(meme) => {
@@ -348,9 +334,7 @@ export default function Dashboard() {
             setSelectedMeme(null);
           }}
           onUpdate={() => {
-            if (user?.channelId) {
-              dispatch(fetchMemes({ channelId: user.channelId }));
-            }
+            // All memes panel is loaded via paginated search; no global refresh needed here.
           }}
           isOwner={true}
           mode="admin"
@@ -413,10 +397,7 @@ export default function Dashboard() {
                         await dispatch(approveSubmission({ submissionId: approveModal.submissionId, priceCoins: parsed })).unwrap();
                         toast.success(t('admin.approve', { defaultValue: 'Approve' }));
                         setApproveModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending' }));
-                        if (user?.channelId) {
-                          dispatch(fetchMemes({ channelId: user.channelId }));
-                        }
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
                       } catch {
                         toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
                       }
@@ -490,7 +471,7 @@ export default function Dashboard() {
                         await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: rejectReason.trim() })).unwrap();
                         toast.success(t('admin.reject', { defaultValue: 'Reject' }));
                         setRejectModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending' }));
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
                       } catch {
                         toast.error(t('admin.failedToReject', { defaultValue: 'Failed to reject submission' }));
                       }
