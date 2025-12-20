@@ -116,3 +116,19 @@ body {
   column-gap: 5px;     /* horizontal spacing between columns (match reference) */
 }
 
+@layer components {
+  /* Modern surfaces: no borders, soft shadows (works in dark too) */
+  .surface {
+    @apply bg-white dark:bg-gray-900/40 rounded-xl shadow-sm;
+  }
+  .surface-hover {
+    @apply transition-shadow hover:shadow-md;
+  }
+  .surface-header {
+    @apply px-6 py-4 flex items-center justify-between;
+  }
+  .surface-body {
+    @apply p-6;
+  }
+}
+

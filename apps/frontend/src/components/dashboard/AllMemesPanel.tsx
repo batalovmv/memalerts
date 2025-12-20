@@ -16,10 +16,10 @@ export function AllMemesPanel({ isOpen, memes, memesLoading, autoplayPreview, on
 
   return (
     <section
-      className={`${isOpen ? 'block' : 'hidden'} bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-secondary/20`}
+      className={`${isOpen ? 'block' : 'hidden'} surface`}
       aria-label={t('dashboard.allMemesTitle', { defaultValue: 'All memes' })}
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-secondary/20">
+      <div className="surface-header">
         <div className="flex items-center gap-3 min-w-0">
           <h2 className="text-xl font-bold dark:text-white truncate">
             {t('dashboard.allMemesTitle', { defaultValue: 'All memes' })}
@@ -39,11 +39,11 @@ export function AllMemesPanel({ isOpen, memes, memesLoading, autoplayPreview, on
         </button>
       </div>
 
-      <div className="p-6">
+      <div className="surface-body">
         {memesLoading && memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
         ) : memes.length === 0 ? (
-          <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300">
+          <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
             <div className="font-semibold mb-1">{t('dashboard.noMemes', { defaultValue: 'No memes yet' })}</div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
               {t('dashboard.noMemesHint', { defaultValue: 'Submit your first meme to build your library.' })}

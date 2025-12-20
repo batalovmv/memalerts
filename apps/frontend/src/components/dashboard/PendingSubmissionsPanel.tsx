@@ -27,10 +27,10 @@ export function PendingSubmissionsPanel({
 
   return (
     <section
-      className={`${isOpen ? 'block' : 'hidden'} bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-secondary/20`}
+      className={`${isOpen ? 'block' : 'hidden'} surface`}
       aria-label={t('dashboard.pendingSubmissionsTitle', 'Pending submissions')}
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-secondary/20">
+      <div className="surface-header">
         <div className="flex items-center gap-3 min-w-0">
           <h2 className="text-xl font-bold dark:text-white truncate">
             {t('dashboard.pendingSubmissionsTitle', 'Pending submissions')}
@@ -55,9 +55,9 @@ export function PendingSubmissionsPanel({
         </button>
       </div>
 
-      <div className="p-6">
+      <div className="surface-body">
         {pendingSubmissions.length === 0 ? (
-          <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300">
+          <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
             <div className="font-semibold mb-1">{t('dashboard.noPendingSubmissions', 'No pending submissions')}</div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
               {t('dashboard.noPendingSubmissionsHint', { defaultValue: 'New submissions will appear here automatically.' })}
@@ -66,7 +66,7 @@ export function PendingSubmissionsPanel({
         ) : (
           <div className="space-y-4">
             {pendingSubmissions.map((submission) => (
-              <div key={submission.id} className="rounded-xl border border-secondary/20 bg-white dark:bg-gray-800 p-5 shadow-sm">
+              <div key={submission.id} className="rounded-xl bg-white dark:bg-gray-900/30 p-5 shadow-sm">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-lg dark:text-white truncate">{submission.title}</h3>

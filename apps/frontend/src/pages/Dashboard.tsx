@@ -170,7 +170,7 @@ export default function Dashboard() {
             {/* Quick Actions Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
               {/* Submit Meme Card - Primary */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-primary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
@@ -184,7 +184,7 @@ export default function Dashboard() {
               </div>
 
               {/* Pending Submissions Card - Secondary */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
                   {pendingSubmissionsCount > 0 && (
@@ -214,7 +214,7 @@ export default function Dashboard() {
               </div>
 
               {/* All Memes Card */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">
                     {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
@@ -241,7 +241,7 @@ export default function Dashboard() {
               </div>
 
               {/* Settings Card - Tertiary */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.settings', 'Settings')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
@@ -300,7 +300,7 @@ export default function Dashboard() {
                     navigate(`/channel/${user.channel.slug}`);
                   }
                 }}
-                className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-semibold py-3 px-5 rounded-xl transition-colors border border-secondary/20 shadow-sm"
+                className="inline-flex items-center gap-2 bg-white/70 dark:bg-gray-900/40 hover:bg-white dark:hover:bg-gray-900/60 text-gray-900 dark:text-white font-semibold py-3 px-5 rounded-xl transition-colors shadow-sm"
               >
                 <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -311,7 +311,7 @@ export default function Dashboard() {
             </div>
           </>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <div className="surface p-6">
             <p className="text-gray-600 dark:text-gray-400">
               {t('dashboard.noChannel', 'You don\'t have a channel yet. Create one to start using the platform.')}
             </p>
