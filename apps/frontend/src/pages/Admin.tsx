@@ -763,7 +763,8 @@ function RewardsSettings() {
     rewardCoins: '',
     submissionRewardCoins: '0',
   });
-  const [loading, setLoading] = useState(false);
+  const [savingTwitchReward, setSavingTwitchReward] = useState(false);
+  const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
   const settingsLoadedRef = useRef<string | null>(null);
 
   const loadRewardSettings = useCallback(async () => {
@@ -814,18 +815,18 @@ function RewardsSettings() {
     }
   }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
 
-  const handleSaveReward = async (e: React.FormEvent) => {
+  const handleSaveTwitchReward = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSavingTwitchReward(true);
     try {
       const { api } = await import('../lib/api');
       await api.patch('/admin/channel/settings', {
+        // Twitch reward only (do NOT include submissionRewardCoins here)
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
         rewardTitle: rewardSettings.rewardTitle || null,
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
-        submissionRewardCoins: rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0,
       });
       toast.success(t('admin.settingsSaved'));
       await loadRewardSettings();
@@ -833,7 +834,7 @@ function RewardsSettings() {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
       toast.error(errorMessage);
-      
+
       if (apiError.response?.data && typeof apiError.response.data === 'object' && 'requiresReauth' in apiError.response.data) {
         setTimeout(() => {
           if (window.confirm(t('admin.requiresReauth') || 'You need to log out and log in again to enable Twitch rewards. Log out now?')) {
@@ -842,23 +843,34 @@ function RewardsSettings() {
         }, 2000);
       }
     } finally {
-      setLoading(false);
+      setSavingTwitchReward(false);
     }
   };
 
-  // Structure ready for multiple rewards - currently showing one reward card
-  const rewards = [
-    {
-      id: 'coins',
-      name: t('admin.coinsReward', 'Награда за монеты'),
-      description: t('admin.enableRewardDescription'),
-      enabled: rewardSettings.rewardEnabled,
-      title: rewardSettings.rewardTitle,
-      cost: rewardSettings.rewardCost,
-      coins: rewardSettings.rewardCoins,
-      rewardId: rewardSettings.rewardIdForCoins,
-    },
-  ];
+  const handleSaveApprovedMemeReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingApprovedMemeReward(true);
+    try {
+      const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+      if (Number.isNaN(coins) || coins < 0) {
+        toast.error(t('admin.invalidSubmissionRewardCoins', 'Введите корректное число (0 или больше)'));
+        return;
+      }
+      const { api } = await import('../lib/api');
+      await api.patch('/admin/channel/settings', {
+        // Approved meme reward only (do NOT include Twitch reward fields here)
+        submissionRewardCoins: coins,
+      });
+      toast.success(t('admin.settingsSaved'));
+      await loadRewardSettings();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
+      toast.error(errorMessage);
+    } finally {
+      setSavingApprovedMemeReward(false);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
@@ -875,121 +887,145 @@ function RewardsSettings() {
       </div>
 
       <div className="space-y-4">
-        {rewards.map((reward) => (
-          <form key={reward.id} onSubmit={handleSaveReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold dark:text-white mb-1">{reward.name}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{reward.description}</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={reward.enabled}
-                  onChange={(e) => setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-              </label>
+        {/* Card A: Twitch reward (Channel Points -> coins) */}
+        <form onSubmit={handleSaveTwitchReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold dark:text-white mb-1">
+                {t('admin.twitchCoinsRewardTitle', 'Награда за монеты (Twitch)')}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('admin.twitchCoinsRewardDescription', 'Зритель тратит Channel Points на Twitch и получает монеты на сайте.')}
+              </p>
             </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rewardSettings.rewardEnabled}
+                onChange={(e) => setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
+          </div>
 
-            {reward.enabled && (
-              <div className="space-y-4 mt-4">
+          {rewardSettings.rewardEnabled && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.rewardTitle')}
+                </label>
+                <input
+                  type="text"
+                  value={rewardSettings.rewardTitle}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
+                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  placeholder={t('admin.rewardTitlePlaceholder')}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rewardTitle')}
+                    {t('admin.rewardCost')}
                   </label>
                   <input
-                    type="text"
-                    value={reward.title}
-                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
+                    type="number"
+                    min="1"
+                    value={rewardSettings.rewardCost}
+                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCost: e.target.value })}
                     className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    placeholder={t('admin.rewardTitlePlaceholder')}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.rewardCost')}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={reward.cost}
-                      onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCost: e.target.value })}
-                      className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="100"
-                      required={reward.enabled}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rewardCostDescription')}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.rewardCoins')}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={reward.coins}
-                      onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCoins: e.target.value })}
-                      className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="100"
-                      required={reward.enabled}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rewardCoinsDescription')}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rewardIdForCoins')} ({t('admin.autoGenerated')})
-                  </label>
-                  <input
-                    type="text"
-                    value={reward.rewardId}
-                    readOnly
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
-                    placeholder={t('admin.rewardIdPlaceholder')}
+                    placeholder="100"
+                    required={rewardSettings.rewardEnabled}
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('admin.rewardIdDescription')}
+                    {t('admin.rewardCostDescription')}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.rewardCoins')}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={rewardSettings.rewardCoins}
+                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCoins: e.target.value })}
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="100"
+                    required={rewardSettings.rewardEnabled}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.rewardCoinsDescription')}
                   </p>
                 </div>
               </div>
-            )}
-
-            {/* Reward for approved submissions (independent of Twitch reward) */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={rewardSettings.submissionRewardCoins}
-                onChange={(e) => setRewardSettings({ ...rewardSettings, submissionRewardCoins: e.target.value })}
-                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                placeholder="0"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}
-              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.rewardIdForCoins')} ({t('admin.autoGenerated')})
+                </label>
+                <input
+                  type="text"
+                  value={rewardSettings.rewardIdForCoins}
+                  readOnly
+                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
+                  placeholder={t('admin.rewardIdPlaceholder')}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.rewardIdDescription')}
+                </p>
+              </div>
             </div>
+          )}
 
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-              >
-                {loading ? t('admin.saving') : t('admin.saveSettings')}
-              </button>
-            </div>
-          </form>
-        ))}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
+            <button
+              type="submit"
+              disabled={savingTwitchReward}
+              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              {savingTwitchReward ? t('admin.saving') : t('admin.saveTwitchReward', 'Сохранить награду Twitch')}
+            </button>
+          </div>
+        </form>
+
+        {/* Card B: Approved meme reward (coins) */}
+        <form onSubmit={handleSaveApprovedMemeReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold dark:text-white mb-1">
+              {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения. 0 — выключено.')}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={rewardSettings.submissionRewardCoins}
+              onChange={(e) => setRewardSettings({ ...rewardSettings, submissionRewardCoins: e.target.value })}
+              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+              placeholder="0"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}
+            </p>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
+            <button
+              type="submit"
+              disabled={savingApprovedMemeReward}
+              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              {savingApprovedMemeReward ? t('admin.saving') : t('admin.saveApprovedMemeReward', 'Сохранить награду за одобренный мем')}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
