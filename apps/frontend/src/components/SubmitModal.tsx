@@ -70,10 +70,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:entry',message:'SubmitModal submit started',data:{mode,fromPath:location.pathname,fromSearch:location.search,channelSlug:channelSlug||null,hasChannelId:!!channelId,role:user?.role||null,titleLen:formData.title.length,hasFile:!!file,tagsCount:(formData.tags||[]).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
-    // #endregion
     
     if (!user) {
       toast.error(t('submitModal.pleaseLogIn'));
@@ -159,20 +155,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           },
         });
 
-        // #region agent log
         const d = respData as Record<string, unknown> | null;
-        const navTarget = channelSlug ? `/channel/${channelSlug}` : '/dashboard';
-        const respIdPrefix = typeof d?.id === 'string' ? d.id.slice(0, 8) : '';
         const respStatus = typeof d?.status === 'string' ? d.status : null;
-        const respIsDirectApproval = typeof d?.isDirectApproval === 'boolean' ? d.isDirectApproval : null;
-        const respHasFileUrlTemp = typeof d?.fileUrlTemp === 'string' && d.fileUrlTemp.length > 0;
-        const respHasFileUrl = typeof d?.fileUrl === 'string' && d.fileUrl.length > 0;
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:success',message:'SubmitModal submit success',data:{fromPath:location.pathname,channelSlug:channelSlug||null,hasChannelId:!!channelId,navTarget,respKeys:d&&typeof d==="object"?Object.keys(d).slice(0,20):null,respIdPrefix,respStatus,respIsDirectApproval,respHasFileUrlTemp,respHasFileUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
-        // #endregion
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:success:typed',message:'SubmitModal submit success (typed extract)',data:{respIdPrefix,respStatus,respIsDirectApproval,respHasFileUrlTemp,respHasFileUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
-        // #endregion
         
         toast.success(t('submit.submitted'));
         onClose();

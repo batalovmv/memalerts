@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import VideoPreview from '../VideoPreview';
 import type { Submission } from '../../types';
 
 type Props = {
@@ -24,6 +23,17 @@ export function PendingSubmissionsPanel({
 }: Props) {
   const { t } = useTranslation();
   const pendingSubmissions = useMemo(() => submissions.filter((s) => s.status === 'pending'), [submissions]);
+
+  const resolveMediaUrl = (src: string): string => {
+    const normalizedSrc = (src || '').trim();
+    if (!normalizedSrc) return '';
+    if (normalizedSrc.startsWith('http://') || normalizedSrc.startsWith('https://')) return normalizedSrc;
+    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+    if (isBetaDomain && normalizedSrc.startsWith('/uploads/')) return `https://twitchmemes.ru${normalizedSrc}`;
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    if (apiUrl && !normalizedSrc.startsWith('/')) return `${apiUrl}/${normalizedSrc}`;
+    return normalizedSrc.startsWith('/') ? normalizedSrc : `/${normalizedSrc}`;
+  };
 
   return (
     <section
@@ -66,39 +76,126 @@ export function PendingSubmissionsPanel({
         ) : (
           <div className="space-y-4">
             {pendingSubmissions.map((submission) => (
-              <div key={submission.id} className="rounded-xl bg-white dark:bg-gray-900/30 p-5 shadow-sm">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
-                  <div className="min-w-0">
-                    <h3 className="font-semibold text-lg dark:text-white truncate">{submission.title}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {t('dashboard.submittedBy', { defaultValue: 'Submitted by {{name}}', name: submission.submitter?.displayName || 'Unknown' })}
-                    </p>
-                    {submission.notes && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{submission.notes}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => onApprove(submission.id)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
-                    >
-                      {t('admin.approve', 'Approve')}
-                    </button>
-                    <button
-                      onClick={() => onReject(submission.id)}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
-                    >
-                      {t('admin.reject', 'Reject')}
-                    </button>
-                  </div>
-                </div>
-                <VideoPreview src={submission.fileUrlTemp} title={submission.title} className="w-full" />
-              </div>
+              <PendingSubmissionCard
+                key={submission.id}
+                submission={submission}
+                resolveMediaUrl={resolveMediaUrl}
+                onApprove={onApprove}
+                onReject={onReject}
+              />
             ))}
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+function PendingSubmissionCard({
+  submission,
+  resolveMediaUrl,
+  onApprove,
+  onReject,
+}: {
+  submission: Submission;
+  resolveMediaUrl: (src: string) => string;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const src = resolveMediaUrl(submission.fileUrlTemp || '');
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || shouldLoad) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setShouldLoad(true);
+            obs.disconnect();
+            return;
+          }
+        }
+      },
+      { root: null, rootMargin: '300px 0px', threshold: 0.01 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [shouldLoad]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !shouldLoad) return;
+    const handleLoadedMetadata = () => {
+      if (video.videoWidth && video.videoHeight) {
+        const r = video.videoWidth / video.videoHeight;
+        if (Number.isFinite(r) && r > 0) setAspectRatio(r);
+      }
+    };
+    if (video.readyState >= 1) handleLoadedMetadata();
+    else video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+    return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+  }, [shouldLoad, src]);
+
+  return (
+    <div ref={cardRef} className="glass p-4">
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="shrink-0 w-full lg:w-[249px]">
+          <div className="rounded-xl overflow-hidden bg-black/80" style={{ aspectRatio }}>
+            {!shouldLoad || !src ? (
+              <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
+                {t('common.loading', { defaultValue: 'Loading...' })}
+              </div>
+            ) : (
+              <video
+                ref={videoRef}
+                src={src}
+                playsInline
+                loop
+                muted
+                autoPlay
+                className="w-full h-full object-contain"
+                preload="metadata"
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-lg dark:text-white truncate">{submission.title}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                {t('dashboard.submittedBy', { defaultValue: 'Submitted by {{name}}', name: submission.submitter?.displayName || 'Unknown' })}
+              </p>
+              {submission.notes && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{submission.notes}</p>
+              )}
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => onApprove(submission.id)}
+                className="glass-btn bg-emerald-500/90 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-semibold"
+              >
+                {t('admin.approve', 'Approve')}
+              </button>
+              <button
+                onClick={() => onReject(submission.id)}
+                className="glass-btn bg-rose-500/85 hover:bg-rose-500 text-white px-4 py-2 rounded-xl font-semibold"
+              >
+                {t('admin.reject', 'Reject')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

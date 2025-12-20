@@ -3,9 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --primary-color: #9333ea;
-  --secondary-color: #7c3aed;
-  --accent-color: #a855f7;
+  /* iOS-like default palette (can be overridden per channel) */
+  --primary-color: #0a84ff;   /* iOS system blue */
+  --secondary-color: #64d2ff; /* iOS system teal/cyan */
+  --accent-color: #30d158;    /* iOS system green */
 }
 
 body {

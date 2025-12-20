@@ -120,9 +120,6 @@ const submissionsSlice = createSlice({
       // Add a lightweight placeholder if full payload is not available
       const exists = state.submissions.some((s) => s.id === action.payload.submissionId);
       if (exists) return;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/store/slices/submissionsSlice.ts:submissionCreated',message:'submissionCreated placeholder inserted',data:{submissionIdPrefix:String(action.payload.submissionId||'').slice(0,8),hasSubmitterId:!!action.payload.submitterId,submissionsLenBefore:state.submissions.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_placeholder'})}).catch(()=>{});
-      // #endregion
       state.submissions.unshift({
         id: action.payload.submissionId,
         channelId: action.payload.channelId,

@@ -396,9 +396,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     const panel = (params.get('panel') || '').toLowerCase();
     const tab = (params.get('tab') || '').toLowerCase();
     const pendingCount = submissions.filter((s) => s.status === 'pending').length;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/Header.tsx:location',message:'Header location changed',data:{pathname:location.pathname,search:location.search,panel:panel||null,tab:tab||null,role:user?.role||null,pendingCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_bell_nav'})}).catch(()=>{});
-    // #endregion
+    void pendingCount;
+    void tab;
+    void panel;
   }, [location.pathname, location.search, submissions, user?.role]);
 
 
@@ -407,9 +407,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     const currentPanel = (params.get('panel') || params.get('tab') || '').toLowerCase();
     const isOnDashboard = location.pathname.startsWith('/dashboard');
     const isOpen = isOnDashboard && currentPanel === 'submissions';
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/Header.tsx:handlePendingSubmissionsClick',message:'Bell clicked',data:{fromPath:location.pathname,fromSearch:location.search,currentPanel:currentPanel||null,isOnDashboard,isOpen},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_bell_nav'})}).catch(()=>{});
-    // #endregion
 
     // Canonical open state is `panel=submissions` (works even if Dashboard is already mounted).
     params.delete('tab');

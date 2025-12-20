@@ -1293,6 +1293,8 @@ function ChannelSettings() {
     accentColor: '',
   });
   const [loading, setLoading] = useState(false);
+  const saveTimerRef = useRef<number | null>(null);
+  const lastSavedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null); // Track which channel's settings were loaded
 
   const loadSettings = useCallback(async () => {
@@ -1307,24 +1309,48 @@ function ChannelSettings() {
       // Check cache first
       const cached = getCachedChannelData(user.channel.slug);
       if (cached) {
-        setSettings({
+        const nextSettings = {
           primaryColor: cached.primaryColor || '',
           secondaryColor: cached.secondaryColor || '',
           accentColor: cached.accentColor || '',
+        };
+        setSettings({
+          primaryColor: nextSettings.primaryColor,
+          secondaryColor: nextSettings.secondaryColor,
+          accentColor: nextSettings.accentColor,
         });
         settingsLoadedRef.current = user.channel.slug;
+        // Seed lastSaved to prevent immediate auto-save right after initial load.
+        lastSavedRef.current = JSON.stringify({
+          primaryColor: nextSettings.primaryColor || null,
+          secondaryColor: nextSettings.secondaryColor || null,
+          accentColor: nextSettings.accentColor || null,
+          autoplayMemesEnabled,
+        });
         return;
       }
 
       // If not in cache, fetch it
       const channelData = await getChannelData(user.channel.slug);
       if (channelData) {
-        setSettings({
+        const nextSettings = {
           primaryColor: channelData.primaryColor || '',
           secondaryColor: channelData.secondaryColor || '',
           accentColor: channelData.accentColor || '',
+        };
+        setSettings({
+          primaryColor: nextSettings.primaryColor,
+          secondaryColor: nextSettings.secondaryColor,
+          accentColor: nextSettings.accentColor,
         });
         settingsLoadedRef.current = user.channel.slug;
+        // Seed lastSaved to prevent immediate auto-save right after initial load.
+        lastSavedRef.current = JSON.stringify({
+          primaryColor: nextSettings.primaryColor || null,
+          secondaryColor: nextSettings.secondaryColor || null,
+          accentColor: nextSettings.accentColor || null,
+          autoplayMemesEnabled,
+        });
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -1341,26 +1367,56 @@ function ChannelSettings() {
     }
   }, [loadSettings, user?.channelId, user?.channel?.slug]);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { api } = await import('../lib/api');
-      await api.patch('/admin/channel/settings', {
-        primaryColor: settings.primaryColor || null,
-        secondaryColor: settings.secondaryColor || null,
-        accentColor: settings.accentColor || null,
-      });
-      toast.success(t('admin.settingsSaved'));
-      await loadSettings();
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Auto-save channel design settings (no explicit Save button).
+  useEffect(() => {
+    if (!user?.channelId) return;
+    if (!settingsLoadedRef.current) return; // don't save before initial load
+
+    const payload = JSON.stringify({
+      primaryColor: settings.primaryColor || null,
+      secondaryColor: settings.secondaryColor || null,
+      accentColor: settings.accentColor || null,
+      autoplayMemesEnabled,
+    });
+
+    // Skip if nothing changed from last saved.
+    if (payload === lastSavedRef.current) return;
+
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          setLoading(true);
+          const { api } = await import('../lib/api');
+          await api.patch('/admin/channel/settings', {
+            primaryColor: settings.primaryColor || null,
+            secondaryColor: settings.secondaryColor || null,
+            accentColor: settings.accentColor || null,
+          });
+          lastSavedRef.current = payload;
+        } catch (error: unknown) {
+          const apiError = error as { response?: { data?: { error?: string } } };
+          toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings');
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }, 350);
+
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
+  }, [
+    settings.primaryColor,
+    settings.secondaryColor,
+    settings.accentColor,
+    autoplayMemesEnabled,
+    user?.channelId,
+    t,
+  ]);
+
+  // Note: lastSavedRef is seeded during initial loadSettings to avoid immediate autosave.
 
   const profileUrl = user?.channel?.slug ? `https://twitchmemes.ru/channel/${user.channel.slug}` : '';
 
@@ -1431,7 +1487,7 @@ function ChannelSettings() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-4">
+      <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1504,14 +1560,10 @@ function ChannelSettings() {
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-sm"
-        >
-          {loading ? t('admin.saving') : t('admin.saveSettings')}
-        </button>
-      </form>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {loading ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
+        </div>
+      </div>
     </div>
   );
 }
