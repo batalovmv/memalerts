@@ -12,6 +12,7 @@ import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
 import path from 'path';
+import { isProdStrictDto } from '../utils/envMode.js';
 import {
   createChannelReward,
   updateChannelReward,
@@ -215,6 +216,21 @@ export const adminController = {
         } else {
           throw error;
         }
+      }
+
+      if (isProdStrictDto()) {
+        const out = submissions.map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          type: s.type,
+          fileUrlTemp: s.fileUrlTemp,
+          sourceUrl: s.sourceUrl,
+          status: s.status,
+          createdAt: s.createdAt,
+          tags: Array.isArray(s.tags) ? s.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
+          submitter: s.submitter ? { displayName: s.submitter.displayName } : null,
+        }));
+        return res.json(out);
       }
 
       res.json(submissions);

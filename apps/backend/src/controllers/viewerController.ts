@@ -8,7 +8,7 @@ import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { isProdStrictDto } from '../utils/envMode.js';
-import { toPublicChannelDto } from '../utils/dto.js';
+import { toPublicChannelDto, toPublicMemeDto } from '../utils/dto.js';
 
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
@@ -400,6 +400,11 @@ export const viewerController = {
       skip: Number.isFinite(offset) ? offset : 0,
     });
 
+    if (isProdStrictDto()) {
+      const out = memes.map((m: any) => toPublicMemeDto(m));
+      return res.json(out);
+    }
+
     res.json(memes);
   },
 
@@ -445,6 +450,11 @@ export const viewerController = {
       ...(limit !== undefined && { take: limit }),
       ...(offset !== undefined && { skip: offset }),
     });
+
+    if (isProdStrictDto()) {
+      const out = memes.map((m: any) => toPublicMemeDto(m));
+      return res.json(out);
+    }
 
     res.json(memes);
   },
