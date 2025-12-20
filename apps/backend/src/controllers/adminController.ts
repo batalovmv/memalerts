@@ -146,18 +146,24 @@ export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
     const channelId = req.channelId;
+    const limitRaw = req.query.limit as string | undefined;
+    const offsetRaw = req.query.offset as string | undefined;
+    const limit = limitRaw !== undefined ? parseInt(limitRaw, 10) : undefined;
+    const offset = offsetRaw !== undefined ? parseInt(offsetRaw, 10) : undefined;
 
     if (!channelId) {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
     try {
+      const where = {
+        channelId,
+        ...(status ? { status } : {}),
+      };
+
       // Try to get submissions with tags first
       const submissionsPromise = prisma.memeSubmission.findMany({
-        where: {
-          channelId,
-          ...(status ? { status } : {}),
-        },
+        where,
         include: {
           tags: {
             include: {
@@ -174,6 +180,8 @@ export const adminController = {
         orderBy: {
           createdAt: 'desc',
         },
+        ...(limit !== undefined && Number.isFinite(limit) ? { take: limit } : {}),
+        ...(offset !== undefined && Number.isFinite(offset) ? { skip: offset } : {}),
       });
 
       // Add timeout protection
@@ -189,10 +197,7 @@ export const adminController = {
         if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
           console.warn('MemeSubmissionTag table not found, fetching submissions without tags');
           submissions = await prisma.memeSubmission.findMany({
-            where: {
-              channelId,
-              ...(status ? { status } : {}),
-            },
+            where,
             include: {
               submitter: {
                 select: {
@@ -204,6 +209,8 @@ export const adminController = {
             orderBy: {
               createdAt: 'desc',
             },
+            ...(limit !== undefined && Number.isFinite(limit) ? { take: limit } : {}),
+            ...(offset !== undefined && Number.isFinite(offset) ? { skip: offset } : {}),
           });
           // Add empty tags array to match expected structure
           submissions = submissions.map((s: any) => ({ ...s, tags: [] }));
@@ -217,7 +224,13 @@ export const adminController = {
         }
       }
 
-      res.json(submissions);
+      // Back-compat: if client didn't request pagination, keep legacy array response.
+      if (limit === undefined && offset === undefined) {
+        return res.json(submissions);
+      }
+
+      const total = await prisma.memeSubmission.count({ where });
+      return res.json({ items: submissions, total });
     } catch (error: any) {
       console.error('Error in getSubmissions:', error);
       if (!res.headersSent) {
