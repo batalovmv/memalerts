@@ -593,21 +593,6 @@ function ObsLinksSettings() {
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
   const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const safeDecodeOverlayTokenMeta = useCallback((rawToken: string): { tv?: number; hasJti: boolean } => {
-    try {
-      const token = String(rawToken || '').trim();
-      if (!token) return { hasJti: false };
-      const parts = token.split('.');
-      if (parts.length < 2) return { hasJti: false };
-      const payloadB64 = parts[1];
-      const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payloadB64.length / 4) * 4, '=');
-      const json = JSON.parse(atob(base64)) as { tv?: number; jti?: string };
-      return { tv: typeof json.tv === 'number' ? json.tv : undefined, hasJti: typeof json.jti === 'string' && json.jti.length > 0 };
-    } catch {
-      return { hasJti: false };
-    }
-  }, []);
-
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path
@@ -664,15 +649,7 @@ function ObsLinksSettings() {
         setLoadingToken(true);
         const { api } = await import('../lib/api');
         const resp = await api.get<{ token: string }>('/admin/overlay/token');
-        if (mounted) {
-          const nextToken = resp.token || '';
-          const prevToken = overlayToken;
-          const meta = safeDecodeOverlayTokenMeta(nextToken);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/pages/Admin.tsx:ObsLinksSettings:getOverlayToken',message:'OBS token GET received',data:{changed:prevToken!==nextToken,prevHadToken:!!prevToken,nextHadToken:!!nextToken,tv:meta.tv,hasJti:meta.hasJti},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-          // #endregion
-          setOverlayToken(nextToken);
-        }
+        if (mounted) setOverlayToken(resp.token || '');
       } catch (e) {
         if (mounted) setOverlayToken('');
       } finally {
@@ -763,13 +740,7 @@ function ObsLinksSettings() {
       setRotatingOverlayToken(true);
       const { api } = await import('../lib/api');
       const resp = await api.post<{ token: string }>('/admin/overlay/token/rotate', {});
-      const nextToken = resp?.token || '';
-      const prevToken = overlayToken;
-      const meta = safeDecodeOverlayTokenMeta(nextToken);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/pages/Admin.tsx:ObsLinksSettings:rotateOverlayToken',message:'OBS token ROTATE received',data:{changed:prevToken!==nextToken,prevHadToken:!!prevToken,nextHadToken:!!nextToken,tv:meta.tv,hasJti:meta.hasJti},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
-      setOverlayToken(nextToken);
+      setOverlayToken(resp?.token || '');
       toast.success(t('admin.obsOverlayTokenRotated', { defaultValue: 'Overlay link updated. Paste the new URL into OBS.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
