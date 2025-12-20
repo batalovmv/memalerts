@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { store } from '../store/index';
 import { updateWalletBalance } from '../store/slices/authSlice';
-import { fetchSubmissions, submissionApproved, submissionCreated, submissionRejected } from '../store/slices/submissionsSlice';
+import { submissionApproved, submissionCreated, submissionRejected } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
@@ -39,7 +38,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Aggregated "coins gained" badge (avoid confusing "+100 (2)" UI; show the total delta instead).
   const [coinUpdateDelta, setCoinUpdateDelta] = useState<number | null>(null);
   const coinUpdateHideTimerRef = useRef<number | null>(null);
-  const submissionsLoadedRef = useRef(false);
   const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
   const channelDataLoadedRef = useRef<string | null>(null); // Track which channel's data was loaded
 
