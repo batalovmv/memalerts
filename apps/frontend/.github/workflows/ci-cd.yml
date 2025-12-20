@@ -120,6 +120,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            # Atomic deploy: remove previous build output so old hashed assets can't be served
+            # (scp doesn't delete removed files)
+            sudo rm -rf /opt/memalerts-frontend/dist /opt/memalerts-frontend/overlay/dist || true
             sudo mkdir -p /opt/memalerts-frontend
             sudo chown -R $USER:$USER /opt/memalerts-frontend
             sudo chmod -R 755 /opt/memalerts-frontend

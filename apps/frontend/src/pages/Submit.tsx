@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
 import UserMenu from '../components/UserMenu';
 import TagInput from '../components/TagInput';
 import toast from 'react-hot-toast';
+import { api } from '../lib/api';
+
+type MySubmission = {
+  id: string;
+  title: string;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  createdAt: string;
+  moderatorNotes?: string | null;
+};
 
 export default function Submit() {
   const { user } = useAppSelector((state) => state.auth);
@@ -23,12 +32,31 @@ export default function Submit() {
   });
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
+  const [loadingMySubmissions, setLoadingMySubmissions] = useState(false);
 
   useEffect(() => {
     if (!user) {
       navigate('/');
     }
   }, [user, navigate]);
+
+  const loadMySubmissions = useCallback(async () => {
+    if (!user) return;
+    try {
+      setLoadingMySubmissions(true);
+      const data = await api.get<MySubmission[]>('/submissions', { timeout: 10000 });
+      setMySubmissions(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load my submissions:', err);
+    } finally {
+      setLoadingMySubmissions(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadMySubmissions();
+  }, [loadMySubmissions]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -63,8 +91,10 @@ export default function Submit() {
         video.src = URL.createObjectURL(file);
       });
 
+      let durationMsToSend: number | null = null;
       try {
         const duration = await durationCheck;
+        durationMsToSend = Number.isFinite(duration) ? Math.round(duration * 1000) : null;
         if (duration > 15) {
           toast.error(`Video duration exceeds 15 seconds. Current duration: ${duration.toFixed(2)}s`);
           return;
@@ -86,6 +116,10 @@ export default function Submit() {
         // Add tags as JSON string (backend will parse it)
         if (formData.tags && formData.tags.length > 0) {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
+        }
+        // Provide durationMs as a fallback for servers where ffprobe is unavailable
+        if (durationMsToSend !== null) {
+          formDataToSend.append('durationMs', String(durationMsToSend));
         }
 
         // Use axios directly for upload progress tracking
@@ -293,6 +327,59 @@ export default function Submit() {
             {loading ? (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Submitting...') : 'Submit'}
           </button>
         </form>
+
+        {/* My submissions (so submitter can see rejection reason / status) */}
+        <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold dark:text-white">My submissions</h3>
+            <button
+              type="button"
+              onClick={loadMySubmissions}
+              disabled={loadingMySubmissions}
+              className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-800 dark:text-gray-200 font-semibold py-2 px-3 rounded-lg transition-colors"
+            >
+              {loadingMySubmissions ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+
+          {mySubmissions.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400">No submissions yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {mySubmissions.slice(0, 20).map((s) => {
+                const statusColor =
+                  s.status === 'approved'
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    : s.status === 'rejected'
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+
+                return (
+                  <div key={s.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{s.title}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {new Date(s.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColor}`}>{s.status}</span>
+                    </div>
+
+                    {s.status === 'rejected' && (
+                      <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+                        <div className="font-semibold mb-1">Rejection reason</div>
+                        <div className="text-gray-600 dark:text-gray-400">
+                          {s.moderatorNotes?.trim() ? s.moderatorNotes : 'No reason provided.'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

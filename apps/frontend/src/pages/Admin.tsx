@@ -8,25 +8,21 @@ import { fetchMemes } from '../store/slices/memesSlice';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
 import Header from '../components/Header';
 import VideoPreview from '../components/VideoPreview';
-import MemeCard from '../components/MemeCard';
-import MemeModal from '../components/MemeModal';
 import { api } from '../lib/api';
 import toast from 'react-hot-toast';
-import type { Meme } from '../types';
+import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
+import SecretCopyField from '../components/SecretCopyField';
 
-type TabType = 'submissions' | 'memes' | 'settings' | 'rewards' | 'wallets' | 'promotions' | 'statistics' | 'beta';
+type TabType = 'submissions' | 'settings' | 'rewards' | 'obs' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
 export default function Admin() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const { submissions, loading: submissionsLoading, error: submissionsError } = useAppSelector((state) => state.submissions);
-  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>('submissions');
-  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('settings');
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -42,15 +38,24 @@ export default function Admin() {
   const [rejectReason, setRejectReason] = useState('');
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
-  const memesLoadedRef = useRef(false);
 
   // Handle tab parameter from URL
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['submissions', 'memes', 'settings', 'wallets', 'promotions', 'statistics'].includes(tabParam)) {
+    if (tabParam === 'submissions') {
+      // Pending submissions live on the dashboard now.
+      navigate('/dashboard?tab=submissions', { replace: true });
+      return;
+    }
+    if (tabParam === 'memes') {
+      // All memes now live on the dashboard for a more cohesive UX.
+      navigate('/dashboard?panel=memes', { replace: true });
+      return;
+    }
+    if (tabParam && ['settings', 'rewards', 'obs', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
@@ -80,26 +85,13 @@ export default function Admin() {
       } else if (hasFreshData) {
         submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
-      
-      // Load memes if not already loaded
-      if (!memesLoading && !memesLoadedRef.current && user.channelId) {
-        // Check if memes are already loaded for this channel
-        const channelMemes = memes.filter(m => m.channelId === user.channelId);
-        if (channelMemes.length === 0) {
-          memesLoadedRef.current = true;
-          dispatch(fetchMemes({ channelId: user.channelId }));
-        } else {
-          memesLoadedRef.current = true;
-        }
-      }
     }
     // Reset refs when user changes
     if (!user || !user.channelId) {
       submissionsLoadedRef.current = false;
-      memesLoadedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, user?.role, user?.channelId, dispatch, memesLoading]);
+  }, [user, user?.role, user?.channelId, dispatch]);
 
   // Auto-detect video duration when approve modal opens
   useEffect(() => {
@@ -148,16 +140,18 @@ export default function Admin() {
       return;
     }
 
+    // Duration is auto-detected; enforce 1s..15s.
+    // We still send it so backend can persist correct duration when available.
     if (isNaN(durationMs) || durationMs < 1000 || durationMs > 15000) {
-      toast.error(t('admin.invalidDuration') || 'Duration must be between 1000ms and 15000ms');
+      toast.error(t('admin.invalidDuration') || 'Video must be 1s..15s');
       return;
     }
 
     try {
       await dispatch(approveSubmission({ 
         submissionId: approveModal.submissionId, 
-        priceCoins, 
-        durationMs 
+        priceCoins,
+        durationMs,
       })).unwrap();
       toast.success(t('admin.approve') + '!');
       closeApproveModal();
@@ -218,26 +212,6 @@ export default function Admin() {
           <div className="flex gap-4 items-center border-b border-secondary/30">
             {/* Основные вкладки */}
             <button
-              onClick={() => setActiveTab('submissions')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'submissions'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.pendingSubmissions')} ({submissions.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('memes')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'memes'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.allMemes')} ({memes.length})
-            </button>
-            <button
               onClick={() => setActiveTab('settings')}
               className={`pb-2 px-4 transition-colors ${
                 activeTab === 'settings'
@@ -256,6 +230,16 @@ export default function Admin() {
               }`}
             >
               {t('admin.rewards', 'Награды')}
+            </button>
+            <button
+              onClick={() => setActiveTab('obs')}
+              className={`pb-2 px-4 transition-colors ${
+                activeTab === 'obs'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+              }`}
+            >
+              {t('admin.obsLinks', { defaultValue: 'OBS' })}
             </button>
 
             {/* Dropdown для дополнительных вкладок */}
@@ -437,7 +421,9 @@ export default function Admin() {
             <div className="flex min-h-full items-center justify-center p-4">
               <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
                 <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                  <h2 className="text-2xl font-bold dark:text-white">{t('admin.approveSubmission') || 'Approve Submission'}</h2>
+                  <h2 className="text-2xl font-bold dark:text-white">
+                    {t('admin.approveSubmission', { defaultValue: 'Approve submission' })}
+                  </h2>
                   <button
                     onClick={closeApproveModal}
                     className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -451,7 +437,7 @@ export default function Admin() {
                 <div className="p-6 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.priceCoins') || 'Price (coins)'}
+                      {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
                     </label>
                     <input
                       type="number"
@@ -462,25 +448,7 @@ export default function Admin() {
                       required
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.priceCoinsDescription') || 'Minimum 1 coin'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.durationMs') || 'Duration (milliseconds)'}
-                    </label>
-                    <input
-                      type="number"
-                      min="1000"
-                      max="15000"
-                      step="100"
-                      value={approveForm.durationMs}
-                      onChange={(e) => setApproveForm({ ...approveForm, durationMs: e.target.value })}
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.durationMsDescription') || 'Between 1000ms (1s) and 15000ms (15s)'}
+                      {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
                     </p>
                   </div>
                   <div className="flex gap-3 pt-4">
@@ -530,7 +498,7 @@ export default function Admin() {
                 <div className="p-6 space-y-4">
                   <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                     <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                      {t('admin.rejectWarning') || 'This action cannot be undone. Please provide a reason for rejection.'}
+                      {t('admin.rejectWarning', { defaultValue: 'This action cannot be undone. Please provide a reason for rejection.' })}
                     </p>
                   </div>
                   <div>
@@ -542,11 +510,11 @@ export default function Admin() {
                       onChange={(e) => setRejectReason(e.target.value)}
                       rows={4}
                       className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                      placeholder={t('admin.rejectionReasonPlaceholder') || 'Enter reason for rejection...'}
+                      placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter reason for rejection...' })}
                       required
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rejectionReasonDescription') || 'This reason will be visible to the submitter'}
+                      {t('admin.rejectionReasonDescription', { defaultValue: 'This reason will be visible to the submitter' })}
                     </p>
                   </div>
                   <div className="flex gap-3 pt-4">
@@ -572,51 +540,16 @@ export default function Admin() {
           </div>
         )}
 
-        {activeTab === 'memes' && (
-          <>
-            <div 
-              className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"
-              style={{ columnGap: 0 }}
-            >
-              {memes.map((meme: Meme) => {
-                const isOwner = user?.channelId === meme.channelId && (user?.role === 'streamer' || user?.role === 'admin');
-                return (
-                  <MemeCard
-                    key={meme.id}
-                    meme={meme}
-                    onClick={() => {
-                      setSelectedMeme(meme);
-                      setIsModalOpen(true);
-                    }}
-                    isOwner={isOwner}
-                  />
-                );
-              })}
-            </div>
-            <MemeModal
-              meme={selectedMeme}
-              isOpen={isModalOpen}
-              onClose={() => {
-                setIsModalOpen(false);
-                setSelectedMeme(null);
-              }}
-              onUpdate={() => {
-                if (user) {
-                  dispatch(fetchMemes({ channelId: user.channelId }));
-                }
-              }}
-              isOwner={user?.channelId === selectedMeme?.channelId && (user?.role === 'streamer' || user?.role === 'admin')}
-              mode="admin"
-            />
-          </>
-        )}
-
         {activeTab === 'settings' && (
           <ChannelSettings />
         )}
 
         {activeTab === 'rewards' && (
           <RewardsSettings />
+        )}
+
+        {activeTab === 'obs' && (
+          <ObsLinksSettings />
         )}
 
         {activeTab === 'wallets' && user?.role === 'admin' && (
@@ -635,6 +568,301 @@ export default function Admin() {
           <BetaAccessManagement />
         )}
       </main>
+    </div>
+  );
+}
+
+function ObsLinksSettings() {
+  const { t } = useTranslation();
+  const { user } = useAppSelector((state) => state.auth);
+  const { getChannelData, getCachedChannelData } = useChannelColors();
+
+  const channelSlug = user?.channel?.slug || '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const [overlayToken, setOverlayToken] = useState<string>('');
+  const [loadingToken, setLoadingToken] = useState(false);
+
+  const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
+  const [overlayShowSender, setOverlayShowSender] = useState(false);
+  const [loadingOverlaySettings, setLoadingOverlaySettings] = useState(false);
+  const [savingOverlaySettings, setSavingOverlaySettings] = useState(false);
+  const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
+  const overlaySettingsLoadedRef = useRef<string | null>(null);
+  const lastSavedOverlaySettingsRef = useRef<string | null>(null);
+  const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
+  const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const RotateIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4.5 12a7.5 7.5 0 0112.8-5.303M19.5 12a7.5 7.5 0 01-12.8 5.303M16 6.5h1.8a.7.7 0 01.7.7V9M8 17.5H6.2a.7.7 0 01-.7-.7V15"
+      />
+    </svg>
+  );
+
+  const loadOverlaySettings = useCallback(async () => {
+    if (!channelSlug) return;
+    if (overlaySettingsLoadedRef.current === channelSlug) return;
+
+    try {
+      setLoadingOverlaySettings(true);
+
+      const cached = getCachedChannelData(channelSlug);
+      if (cached) {
+        const nextMode = cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
+        const nextShowSender = Boolean(cached.overlayShowSender);
+        setOverlayMode(nextMode);
+        setOverlayShowSender(nextShowSender);
+        // Mark current server state as "already saved" to prevent auto-save on first load.
+        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender });
+        lastChangeRef.current = null;
+        overlaySettingsLoadedRef.current = channelSlug;
+        return;
+      }
+
+      const data = await getChannelData(channelSlug, false);
+      if (data) {
+        const nextMode = data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
+        const nextShowSender = Boolean(data.overlayShowSender);
+        setOverlayMode(nextMode);
+        setOverlayShowSender(nextShowSender);
+        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender });
+        lastChangeRef.current = null;
+        overlaySettingsLoadedRef.current = channelSlug;
+      } else {
+        overlaySettingsLoadedRef.current = null;
+      }
+    } finally {
+      setLoadingOverlaySettings(false);
+    }
+  }, [channelSlug, getCachedChannelData, getChannelData]);
+
+  useEffect(() => {
+    if (!channelSlug) return;
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingToken(true);
+        const { api } = await import('../lib/api');
+        const resp = await api.get<{ token: string }>('/admin/overlay/token');
+        if (mounted) setOverlayToken(resp.token || '');
+      } catch (e) {
+        if (mounted) setOverlayToken('');
+      } finally {
+        if (mounted) setLoadingToken(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [channelSlug]);
+
+  useEffect(() => {
+    loadOverlaySettings();
+  }, [loadOverlaySettings]);
+
+  // Overlay is deployed under /overlay/ and expects /overlay/t/:token
+  const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
+
+  // Useful optional params for OBS:
+  // - position: random|center|top|bottom|top-left|top-right|bottom-left|bottom-right
+  // - scale: number
+  // - volume: number (0..1)
+  const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=random&scale=1&volume=1` : '';
+
+  // Auto-save overlay settings (no explicit Save button).
+  useEffect(() => {
+    if (!channelSlug) return;
+    if (loadingOverlaySettings) return;
+    if (!overlaySettingsLoadedRef.current) return;
+
+    const payload = JSON.stringify({ overlayMode, overlayShowSender });
+    // If we don't yet have a baseline, set it and do nothing (prevents save/toast on mount).
+    if (lastSavedOverlaySettingsRef.current === null) {
+      lastSavedOverlaySettingsRef.current = payload;
+      lastChangeRef.current = null;
+      return;
+    }
+    if (payload === lastSavedOverlaySettingsRef.current) return;
+
+    if (saveOverlayTimerRef.current) clearTimeout(saveOverlayTimerRef.current);
+    saveOverlayTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          setSavingOverlaySettings(true);
+          const { api } = await import('../lib/api');
+          await api.patch('/admin/channel/settings', {
+            overlayMode,
+            overlayShowSender,
+          });
+          lastSavedOverlaySettingsRef.current = payload;
+          // Keep channel cache consistent (used by other panels).
+          await getChannelData(channelSlug, false, true);
+
+          // Explicit confirmation for the user.
+          if (lastChangeRef.current === 'mode') {
+            toast.success(
+              overlayMode === 'queue'
+                ? t('admin.obsOverlayModeSavedQueue', { defaultValue: 'Mode updated: Queue' })
+                : t('admin.obsOverlayModeSavedUnlimited', { defaultValue: 'Mode updated: Unlimited' })
+            );
+          } else if (lastChangeRef.current === 'sender') {
+            toast.success(
+              overlayShowSender
+                ? t('admin.obsOverlaySenderEnabled', { defaultValue: 'Sender name enabled' })
+                : t('admin.obsOverlaySenderDisabled', { defaultValue: 'Sender name disabled' })
+            );
+          }
+          lastChangeRef.current = null;
+        } catch (error: unknown) {
+          const apiError = error as { response?: { data?: { error?: string } } };
+          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+        } finally {
+          setSavingOverlaySettings(false);
+        }
+      })();
+    }, 250);
+  }, [channelSlug, getChannelData, loadingOverlaySettings, overlayMode, overlayShowSender, t]);
+
+  useEffect(() => {
+    return () => {
+      if (saveOverlayTimerRef.current) clearTimeout(saveOverlayTimerRef.current);
+    };
+  }, []);
+
+  const handleRotateOverlayToken = async (): Promise<void> => {
+    if (!channelSlug) return;
+    try {
+      setRotatingOverlayToken(true);
+      const { api } = await import('../lib/api');
+      const resp = await api.post<{ token: string }>('/admin/overlay/token/rotate', {});
+      setOverlayToken(resp?.token || '');
+      toast.success(t('admin.obsOverlayTokenRotated', { defaultValue: 'Overlay link updated. Paste the new URL into OBS.' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+    } finally {
+      setRotatingOverlayToken(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.obsLinksTitle', { defaultValue: 'OBS links' })}</h2>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        {t('admin.obsLinksDescription', { defaultValue: 'Copy the overlay link and paste it into OBS as a Browser Source. The overlay will show activated memes in real time.' })}
+      </p>
+
+      <div className="space-y-6">
+        <SecretCopyField
+          label={t('admin.obsOverlayUrl', { defaultValue: 'Overlay URL (Browser Source)' })}
+          value={overlayUrlWithDefaults}
+          masked={true}
+          emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
+          description={loadingToken ? t('common.loading', { defaultValue: 'Loading...' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
+          rightActions={
+            <button
+              type="button"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-gray-700 dark:text-gray-200 disabled:opacity-60"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleRotateOverlayToken();
+              }}
+              disabled={rotatingOverlayToken || loadingToken || !overlayToken}
+              title={t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
+              aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
+            >
+              <RotateIcon />
+            </button>
+          }
+        />
+
+        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+          <div className="font-semibold text-gray-900 dark:text-white mb-3">
+            {t('admin.obsOverlaySettingsTitle', { defaultValue: 'Overlay settings' })}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
+              </label>
+              <div className="inline-flex rounded border border-secondary/30 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => {
+                    lastChangeRef.current = 'mode';
+                    setOverlayMode('queue');
+                  }}
+                  disabled={loadingOverlaySettings || savingOverlaySettings}
+                  className={`px-3 py-2 text-sm font-medium ${
+                    overlayMode === 'queue'
+                      ? 'bg-primary text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    lastChangeRef.current = 'mode';
+                    setOverlayMode('simultaneous');
+                  }}
+                  disabled={loadingOverlaySettings || savingOverlaySettings}
+                  className={`px-3 py-2 text-sm font-medium border-l border-secondary/30 ${
+                    overlayMode === 'simultaneous'
+                      ? 'bg-primary text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
+                </button>
+              </div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                {overlayMode === 'queue'
+                  ? t('admin.obsOverlayModeQueueHint', { defaultValue: 'Shows one meme at a time.' })
+                  : t('admin.obsOverlayModeUnlimitedHint', { defaultValue: 'Shows all incoming memes at once (no limit).' })}
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 pt-6">
+              <input
+                id="overlayShowSender"
+                type="checkbox"
+                checked={overlayShowSender}
+                onChange={(e) => {
+                  lastChangeRef.current = 'sender';
+                  setOverlayShowSender(e.target.checked);
+                }}
+                className="mt-1 h-4 w-4 rounded border-secondary/30"
+                disabled={loadingOverlaySettings || savingOverlaySettings}
+              />
+              <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
+                <div className="font-medium">{t('admin.obsOverlayShowSender', { defaultValue: 'Show sender name' })}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Name is provided by the server (not the client).' })}
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+          <div className="font-semibold text-gray-900 dark:text-white mb-2">
+            {t('admin.obsHowToTitle', { defaultValue: 'How to add in OBS' })}
+          </div>
+          <ol className="list-decimal list-inside text-sm text-gray-700 dark:text-gray-200 space-y-1">
+            <li>{t('admin.obsHowToStep1', { defaultValue: 'Add a new Browser Source.' })}</li>
+            <li>{t('admin.obsHowToStep2', { defaultValue: 'Paste the Overlay URL.' })}</li>
+            <li>{t('admin.obsHowToStep3', { defaultValue: 'Set Width/Height (e.g. 1920×1080) and enable “Shutdown source when not visible” if you want.' })}</li>
+          </ol>
+        </div>
+      </div>
     </div>
   );
 }
@@ -762,8 +990,10 @@ function RewardsSettings() {
     rewardTitle: '',
     rewardCost: '',
     rewardCoins: '',
+    submissionRewardCoins: '0',
   });
-  const [loading, setLoading] = useState(false);
+  const [savingTwitchReward, setSavingTwitchReward] = useState(false);
+  const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
   const settingsLoadedRef = useRef<string | null>(null);
 
   const loadRewardSettings = useCallback(async () => {
@@ -782,6 +1012,7 @@ function RewardsSettings() {
           rewardTitle: cached.rewardTitle || '',
           rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
           rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
+          submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
         return;
@@ -795,6 +1026,7 @@ function RewardsSettings() {
           rewardTitle: channelData.rewardTitle || '',
           rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
           rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
+          submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
       }
@@ -812,12 +1044,13 @@ function RewardsSettings() {
     }
   }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
 
-  const handleSaveReward = async (e: React.FormEvent) => {
+  const handleSaveTwitchReward = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSavingTwitchReward(true);
     try {
       const { api } = await import('../lib/api');
       await api.patch('/admin/channel/settings', {
+        // Twitch reward only (do NOT include submissionRewardCoins here)
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
         rewardTitle: rewardSettings.rewardTitle || null,
@@ -830,7 +1063,7 @@ function RewardsSettings() {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
       toast.error(errorMessage);
-      
+
       if (apiError.response?.data && typeof apiError.response.data === 'object' && 'requiresReauth' in apiError.response.data) {
         setTimeout(() => {
           if (window.confirm(t('admin.requiresReauth') || 'You need to log out and log in again to enable Twitch rewards. Log out now?')) {
@@ -839,23 +1072,34 @@ function RewardsSettings() {
         }, 2000);
       }
     } finally {
-      setLoading(false);
+      setSavingTwitchReward(false);
     }
   };
 
-  // Structure ready for multiple rewards - currently showing one reward card
-  const rewards = [
-    {
-      id: 'coins',
-      name: t('admin.coinsReward', 'Награда за монеты'),
-      description: t('admin.enableRewardDescription'),
-      enabled: rewardSettings.rewardEnabled,
-      title: rewardSettings.rewardTitle,
-      cost: rewardSettings.rewardCost,
-      coins: rewardSettings.rewardCoins,
-      rewardId: rewardSettings.rewardIdForCoins,
-    },
-  ];
+  const handleSaveApprovedMemeReward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingApprovedMemeReward(true);
+    try {
+      const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+      if (Number.isNaN(coins) || coins < 0) {
+        toast.error(t('admin.invalidSubmissionRewardCoins', 'Введите корректное число (0 или больше)'));
+        return;
+      }
+      const { api } = await import('../lib/api');
+      await api.patch('/admin/channel/settings', {
+        // Approved meme reward only (do NOT include Twitch reward fields here)
+        submissionRewardCoins: coins,
+      });
+      toast.success(t('admin.settingsSaved'));
+      await loadRewardSettings();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
+      toast.error(errorMessage);
+    } finally {
+      setSavingApprovedMemeReward(false);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
@@ -872,103 +1116,166 @@ function RewardsSettings() {
       </div>
 
       <div className="space-y-4">
-        {rewards.map((reward) => (
-          <form key={reward.id} onSubmit={handleSaveReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold dark:text-white mb-1">{reward.name}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{reward.description}</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={reward.enabled}
-                  onChange={(e) => setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-              </label>
+        {/* Card A: Twitch reward (Channel Points -> coins) */}
+        <form onSubmit={handleSaveTwitchReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold dark:text-white mb-1">
+                {t('admin.twitchCoinsRewardTitle', 'Награда за монеты (Twitch)')}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('admin.twitchCoinsRewardDescription', 'Зритель тратит Channel Points на Twitch и получает монеты на сайте.')}
+              </p>
             </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rewardSettings.rewardEnabled}
+                onChange={(e) => setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
+          </div>
 
-            {reward.enabled && (
-              <div className="space-y-4 mt-4">
-                <div>
+          {rewardSettings.rewardEnabled && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.rewardTitle')}
+                </label>
+                <input
+                  type="text"
+                  value={rewardSettings.rewardTitle}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
+                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  placeholder={t('admin.rewardTitlePlaceholder')}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rewardTitle')}
+                    {t('admin.rewardCost')}
                   </label>
                   <input
                     type="text"
-                    value={reward.title}
-                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.rewardCost}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings({ ...rewardSettings, rewardCost: next });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
                     className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    placeholder={t('admin.rewardTitlePlaceholder')}
+                    placeholder="100"
+                    required={rewardSettings.rewardEnabled}
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
+                    {t('admin.rewardCostDescription')}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.rewardCost')}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={reward.cost}
-                      onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCost: e.target.value })}
-                      className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="100"
-                      required={reward.enabled}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rewardCostDescription')}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.rewardCoins')}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={reward.coins}
-                      onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCoins: e.target.value })}
-                      className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="100"
-                      required={reward.enabled}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rewardCoinsDescription')}
-                    </p>
-                  </div>
-                </div>
-                <div>
+                <div className="flex flex-col">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rewardIdForCoins')} ({t('admin.autoGenerated')})
+                    {t('admin.rewardCoins')}
                   </label>
                   <input
                     type="text"
-                    value={reward.rewardId}
-                    readOnly
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
-                    placeholder={t('admin.rewardIdPlaceholder')}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.rewardCoins}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings({ ...rewardSettings, rewardCoins: next });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="100"
+                    required={rewardSettings.rewardEnabled}
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('admin.rewardIdDescription')}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
+                    {t('admin.rewardCoinsDescription')}
                   </p>
                 </div>
               </div>
-            )}
-
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-              >
-                {loading ? t('admin.saving') : t('admin.saveSettings')}
-              </button>
+              <div>
+                <SecretCopyField
+                  label={`${t('admin.rewardIdForCoins', { defaultValue: 'Reward ID' })} (${t('admin.autoGenerated', { defaultValue: 'auto-generated' })})`}
+                  value={rewardSettings.rewardIdForCoins}
+                  masked={true}
+                  description={t('admin.rewardIdDescription', { defaultValue: 'Click to copy. Use the eye icon to reveal.' })}
+                  emptyText={t('common.notSet', { defaultValue: 'Not set' })}
+                />
+              </div>
             </div>
-          </form>
-        ))}
+          )}
+
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
+            <button
+              type="submit"
+              disabled={savingTwitchReward}
+              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              {savingTwitchReward ? t('admin.saving') : t('admin.saveTwitchReward', 'Сохранить награду Twitch')}
+            </button>
+          </div>
+        </form>
+
+        {/* Card B: Approved meme reward (coins) */}
+        <form onSubmit={handleSaveApprovedMemeReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold dark:text-white mb-1">
+              {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения. 0 — выключено.')}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={rewardSettings.submissionRewardCoins}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d]/g, '');
+                setRewardSettings({ ...rewardSettings, submissionRewardCoins: next });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                  e.preventDefault();
+                }
+              }}
+              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+              placeholder="0"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}
+            </p>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
+            <button
+              type="submit"
+              disabled={savingApprovedMemeReward}
+              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              {savingApprovedMemeReward ? t('admin.saving') : t('admin.saveApprovedMemeReward', 'Сохранить награду за одобренный мем')}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -979,6 +1286,7 @@ function ChannelSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { getChannelData, getCachedChannelData } = useChannelColors();
+  const { autoplayMemesEnabled, setAutoplayMemesEnabled } = useAutoplayMemes();
   const [settings, setSettings] = useState({
     primaryColor: '',
     secondaryColor: '',
@@ -1059,6 +1367,32 @@ function ChannelSettings() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
+
+      {/* Preferences */}
+      <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold mb-3 dark:text-white">
+          {t('admin.preferences', 'Предпочтения')}
+        </h3>
+        <div className="flex items-start justify-between gap-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-secondary/20">
+          <div className="min-w-0">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.autoplayMemesTitle', { defaultValue: 'Autoplay memes' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.autoplayMemesDescription', { defaultValue: 'When enabled, meme previews autoplay (muted) on pages with many memes.' })}
+            </div>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={autoplayMemesEnabled}
+              onChange={(e) => setAutoplayMemesEnabled(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+          </label>
+        </div>
+      </div>
       
       {/* Profile Link Section */}
       {profileUrl && (
@@ -1100,7 +1434,7 @@ function ChannelSettings() {
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('admin.primaryColor')}
@@ -1216,14 +1550,74 @@ function ChannelStatistics() {
   }
 
   if (!stats) {
-    return <div className="text-center py-8 text-gray-500">{t('admin.noStatistics')}</div>;
+    return <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('admin.noStatistics')}</div>;
   }
+
+  const daily = (stats.daily as Array<{ day: string; activations: number; coins: number }> | undefined) || [];
+  const maxDailyActivations = daily.reduce((m, d) => Math.max(m, d.activations || 0), 0) || 1;
+  const maxDailyCoins = daily.reduce((m, d) => Math.max(m, d.coins || 0), 0) || 1;
 
   return (
     <div className="space-y-6">
+      {/* Activity chart (last 14 days) */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">
+          {t('admin.activityLast14Days', { defaultValue: 'Activity (last 14 days)' })}
+        </h2>
+        {daily.length === 0 ? (
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {t('admin.noActivityYet', { defaultValue: 'No activity yet.' })}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                {t('admin.dailyActivations', { defaultValue: 'Daily activations' })}
+              </div>
+              <div className="grid grid-cols-14 gap-1 items-end h-24">
+                {daily.slice(-14).map((d) => {
+                  const h = Math.round(((d.activations || 0) / maxDailyActivations) * 100);
+                  const label = new Date(d.day).toLocaleDateString();
+                  return (
+                    <div key={`a-${d.day}`} className="h-full flex items-end">
+                      <div
+                        className="w-full rounded bg-primary/70"
+                        style={{ height: `${Math.max(3, h)}%` }}
+                        title={`${label}: ${d.activations || 0}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                {t('admin.dailyCoinsSpent', { defaultValue: 'Daily coins spent' })}
+              </div>
+              <div className="grid grid-cols-14 gap-1 items-end h-24">
+                {daily.slice(-14).map((d) => {
+                  const h = Math.round(((d.coins || 0) / maxDailyCoins) * 100);
+                  const label = new Date(d.day).toLocaleDateString();
+                  return (
+                    <div key={`c-${d.day}`} className="h-full flex items-end">
+                      <div
+                        className="w-full rounded bg-accent/70"
+                        style={{ height: `${Math.max(3, h)}%` }}
+                        title={`${label}: ${d.coins || 0}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Overall Stats */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">{t('admin.overallStatistics') || 'Overall Statistics'}</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.overallStatistics') || 'Overall Statistics'}</h2>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-4 bg-primary/10 rounded-lg border border-secondary/20">
             <p className="text-3xl font-bold text-primary">{(stats.overall as { totalActivations: number })?.totalActivations || 0}</p>
@@ -1241,24 +1635,24 @@ function ChannelStatistics() {
       </div>
 
       {/* Top Users */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">{t('admin.topUsersBySpending')}</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.topUsersBySpending')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b">
-                <th className="text-left p-2">{t('admin.user')}</th>
-                <th className="text-left p-2">{t('admin.activations')}</th>
-                <th className="text-left p-2">{t('admin.totalCoins')}</th>
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.user')}</th>
+                <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.activations')}</th>
+                <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.totalCoins')}</th>
               </tr>
             </thead>
             <tbody>
               {Array.isArray(stats.userSpending) && stats.userSpending.map((item: Record<string, unknown>) => {
                 const i = item as { user: { id: string; displayName: string }; activationsCount: number; totalCoinsSpent: number };
                 return (
-                <tr key={i.user.id} className="border-b">
-                  <td className="p-2">{i.user.displayName}</td>
-                  <td className="p-2">{i.activationsCount}</td>
+                <tr key={i.user.id} className="border-b border-gray-200 dark:border-gray-700">
+                  <td className="p-2 text-gray-900 dark:text-gray-100">{i.user.displayName}</td>
+                  <td className="p-2 text-gray-900 dark:text-gray-100">{i.activationsCount}</td>
                   <td className="p-2 font-bold text-accent">{i.totalCoinsSpent}</td>
                 </tr>
                 );
@@ -1269,24 +1663,24 @@ function ChannelStatistics() {
       </div>
 
       {/* Top Memes */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">{t('admin.mostPopularMemes')}</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.mostPopularMemes')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b">
-                <th className="text-left p-2">{t('admin.meme')}</th>
-                <th className="text-left p-2">{t('admin.activations')}</th>
-                <th className="text-left p-2">{t('admin.totalCoins')}</th>
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.meme')}</th>
+                <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.activations')}</th>
+                <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.totalCoins')}</th>
               </tr>
             </thead>
             <tbody>
               {Array.isArray(stats.memePopularity) && stats.memePopularity.map((item: Record<string, unknown>, index: number) => {
                 const i = item as { meme?: { id: string; title: string }; activationsCount: number; totalCoinsSpent: number };
                 return (
-                <tr key={i.meme?.id || index} className="border-b">
-                  <td className="p-2">{i.meme?.title || t('common.unknown') || 'Unknown'}</td>
-                  <td className="p-2">{i.activationsCount}</td>
+                <tr key={i.meme?.id || index} className="border-b border-gray-200 dark:border-gray-700">
+                  <td className="p-2 text-gray-900 dark:text-gray-100">{i.meme?.title || t('common.unknown') || 'Unknown'}</td>
+                  <td className="p-2 text-gray-900 dark:text-gray-100">{i.activationsCount}</td>
                   <td className="p-2 font-bold text-accent">{i.totalCoinsSpent}</td>
                 </tr>
                 );
@@ -1553,11 +1947,18 @@ function PromotionManagement() {
 function BetaAccessManagement() {
   const { t } = useTranslation();
   const [requests, setRequests] = useState<Array<Record<string, unknown>>>([]);
+  const [grantedUsers, setGrantedUsers] = useState<Array<Record<string, unknown>>>([]);
+  const [revokedUsers, setRevokedUsers] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
+  const [grantedLoading, setGrantedLoading] = useState(true);
+  const [revokedLoading, setRevokedLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const requestsLoadedRef = useRef(false);
+  const grantedLoadedRef = useRef(false);
+  const revokedLoadedRef = useRef(false);
 
-  const loadRequests = useCallback(async () => {
-    if (requestsLoadedRef.current) return; // Prevent duplicate requests
+  const loadRequests = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && requestsLoadedRef.current) return; // Prevent duplicate requests
     
     try {
       setLoading(true);
@@ -1574,15 +1975,57 @@ function BetaAccessManagement() {
     }
   }, [t]);
 
+  const loadGrantedUsers = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && grantedLoadedRef.current) return; // Prevent duplicate requests
+
+    try {
+      setGrantedLoading(true);
+      grantedLoadedRef.current = true;
+      const users = await api.get<Array<Record<string, unknown>>>('/admin/beta/users');
+      setGrantedUsers(users);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      grantedLoadedRef.current = false; // Reset on error to allow retry
+      console.error('Error loading granted beta users:', error);
+      toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
+    } finally {
+      setGrantedLoading(false);
+    }
+  }, [t]);
+
+  const loadRevokedUsers = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && revokedLoadedRef.current) return; // Prevent duplicate requests
+
+    try {
+      setRevokedLoading(true);
+      revokedLoadedRef.current = true;
+      const revoked = await api.get<Array<Record<string, unknown>>>('/admin/beta/users/revoked');
+      setRevokedUsers(revoked);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      revokedLoadedRef.current = false; // Reset on error to allow retry
+      console.error('Error loading revoked beta users:', error);
+      toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
+    } finally {
+      setRevokedLoading(false);
+    }
+  }, [t]);
+
   useEffect(() => {
     loadRequests();
-  }, [loadRequests]);
+    loadGrantedUsers();
+    loadRevokedUsers();
+  }, [loadRequests, loadGrantedUsers, loadRevokedUsers]);
 
   const handleApprove = async (requestId: string) => {
     try {
       await api.post(`/admin/beta/requests/${requestId}/approve`);
       toast.success(t('toast.betaAccessApproved'));
-      loadRequests();
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
+      ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToApprove'));
@@ -1593,10 +2036,52 @@ function BetaAccessManagement() {
     try {
       await api.post(`/admin/beta/requests/${requestId}/reject`);
       toast.success(t('toast.betaAccessRejected'));
-      loadRequests();
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
+      ]);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToReject'));
+    }
+  };
+
+  const handleRevoke = async (targetUserId: string, displayName?: string) => {
+    const label = displayName ? `@${displayName}` : targetUserId;
+    const confirmed = window.confirm(t('admin.betaAccessRevokeConfirm', { user: label }));
+    if (!confirmed) return;
+
+    try {
+      await api.post(`/admin/beta/users/${targetUserId}/revoke`);
+      toast.success(t('toast.betaAccessRevoked'));
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
+      ]);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToRevoke'));
+    }
+  };
+
+  const handleRestore = async (targetUserId: string, displayName?: string) => {
+    const label = displayName ? `@${displayName}` : targetUserId;
+    const confirmed = window.confirm(t('admin.betaAccessRestoreConfirm', { user: label }));
+    if (!confirmed) return;
+
+    try {
+      await api.post(`/admin/beta/users/${targetUserId}/restore`);
+      toast.success(t('toast.betaAccessRestored'));
+      await Promise.all([
+        loadRequests({ force: true }),
+        loadGrantedUsers({ force: true }),
+        loadRevokedUsers({ force: true }),
+      ]);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('toast.failedToRestore'));
     }
   };
 
@@ -1616,6 +2101,26 @@ function BetaAccessManagement() {
   if (loading) {
     return <div className="text-center py-8">{t('common.loading')}</div>;
   }
+
+  const filteredGrantedUsers = grantedUsers.filter((u: Record<string, unknown>) => {
+    const user = u as { displayName?: string; twitchUserId?: string };
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      (user.displayName || '').toLowerCase().includes(q) ||
+      (user.twitchUserId || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredRevokedUsers = revokedUsers.filter((r: Record<string, unknown>) => {
+    const row = r as { user?: { displayName?: string; twitchUserId?: string } };
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      (row.user?.displayName || '').toLowerCase().includes(q) ||
+      (row.user?.twitchUserId || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-4">
@@ -1671,6 +2176,107 @@ function BetaAccessManagement() {
           })}
         </div>
       )}
+
+      <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <h3 className="text-xl font-bold dark:text-white">{t('admin.betaAccessGranted')}</h3>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('admin.searchUsers', 'Search users...')}
+            className="w-full max-w-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+        </div>
+
+        {grantedLoading ? (
+          <div className="text-center py-6">{t('common.loading')}</div>
+        ) : filteredGrantedUsers.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+            {t('admin.noGrantedBetaUsers')}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredGrantedUsers.map((u: Record<string, unknown>) => {
+              const user = u as { id: string; displayName: string; twitchUserId?: string; role?: string; hasBetaAccess?: boolean };
+              return (
+                <div key={user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-white">{user.displayName || user.id}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {user.twitchUserId || 'N/A'}{user.role ? ` • ${user.role}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        {t('admin.betaAccessGrantedBadge', 'granted')}
+                      </span>
+                      <button
+                        onClick={() => handleRevoke(user.id, user.displayName)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+                      >
+                        {t('admin.revoke', 'Revoke')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <h3 className="text-xl font-bold dark:text-white">{t('admin.betaAccessRevoked')}</h3>
+        </div>
+
+        {revokedLoading ? (
+          <div className="text-center py-6">{t('common.loading')}</div>
+        ) : filteredRevokedUsers.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+            {t('admin.noRevokedBetaUsers')}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredRevokedUsers.map((row: Record<string, unknown>) => {
+              const r = row as {
+                id: string;
+                approvedAt?: string | null;
+                user: { id: string; displayName: string; twitchUserId?: string; role?: string };
+              };
+              return (
+                <div key={r.user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-white">{r.user.displayName || r.user.id}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {r.user.twitchUserId || 'N/A'}{r.user.role ? ` • ${r.user.role}` : ''}
+                      </div>
+                      {r.approvedAt && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {t('admin.revokedAt', { defaultValue: 'Revoked:' })} {new Date(r.approvedAt).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                        {t('admin.betaAccessRevokedBadge', { defaultValue: 'revoked' })}
+                      </span>
+                      <button
+                        onClick={() => handleRestore(r.user.id, r.user.displayName)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+                      >
+                        {t('admin.restore', { defaultValue: 'Restore' })}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

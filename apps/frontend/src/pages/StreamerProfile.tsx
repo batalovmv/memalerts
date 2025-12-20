@@ -13,6 +13,7 @@ import CoinsInfoModal from '../components/CoinsInfoModal';
 import ChannelThemeProvider from '../components/ChannelThemeProvider';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
+import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
 import type { Meme, Wallet } from '../types';
 
 interface ChannelInfo {
@@ -63,8 +64,15 @@ export default function StreamerProfile() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const { autoplayMemesEnabled } = useAutoplayMemes();
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
+
+  // Helpers: use CSS variables (set by ChannelThemeProvider) to build subtle tints safely.
+  // We avoid Tailwind color opacity modifiers here because theme colors are CSS vars (hex), and
+  // utilities like `border-secondary/30` may not render as expected with `var(--color)`.
+  const mix = (cssVar: '--primary-color' | '--secondary-color' | '--accent-color', percent: number) =>
+    `color-mix(in srgb, var(${cssVar}) ${percent}%, transparent)`;
 
   useEffect(() => {
     if (!normalizedSlug) {
@@ -195,7 +203,7 @@ export default function StreamerProfile() {
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
-    if (!loadMoreRef.current || searchQuery.trim() || !channelInfo) {
+    if (!loadMoreRef.current || searchQuery.trim() || !channelInfo?.id) {
       return;
     }
 
@@ -305,7 +313,10 @@ export default function StreamerProfile() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Channel Header */}
         {loading ? (
-          <div className="mb-8 border-b border-secondary/30 pb-4">
+          <div
+            className="mb-8 border-b pb-4"
+            style={{ borderColor: mix('--secondary-color', 28) }}
+          >
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
               <div>
@@ -315,7 +326,10 @@ export default function StreamerProfile() {
             </div>
           </div>
         ) : channelInfo && (
-          <div className="mb-8 border-b border-secondary/30 pb-4">
+          <div
+            className="mb-8 border-b pb-4"
+            style={{ borderColor: mix('--secondary-color', 28) }}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 {/* Avatar */}
@@ -323,18 +337,26 @@ export default function StreamerProfile() {
                   <img 
                     src={channelInfo.owner.profileImageUrl} 
                     alt={channelInfo.owner.displayName}
-                    className="w-20 h-20 rounded-lg object-cover border-2 border-secondary/30"
+                    className="w-20 h-20 rounded-lg object-cover border-2"
+                    style={{ borderColor: mix('--secondary-color', 35) }}
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl border-2 border-secondary/30">
+                  <div
+                    className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl border-2"
+                    style={{ borderColor: mix('--secondary-color', 35) }}
+                  >
                     {channelInfo.name.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div>
                   <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
                   <div className="mt-4 flex gap-4 text-sm">
-                    <span className="text-accent font-semibold">{channelInfo.stats.memesCount} {t('profile.memes')}</span>
-                    <span className="text-accent font-semibold">{channelInfo.stats.usersCount} {t('profile.users')}</span>
+                    <span
+                      className="inline-flex items-center rounded-full px-3 py-1 text-accent font-semibold"
+                      style={{ backgroundColor: mix('--accent-color', 14) }}
+                    >
+                      {channelInfo.stats.memesCount} {t('profile.memes')}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -342,7 +364,8 @@ export default function StreamerProfile() {
               {user && !isOwner && (
                 <button
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors border"
+                  style={{ borderColor: mix('--secondary-color', 28) }}
                   title={t('profile.submitMeme')}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -363,7 +386,7 @@ export default function StreamerProfile() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder') || 'Search memes...'}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pl-10 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pl-10 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
             />
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -433,9 +456,7 @@ export default function StreamerProfile() {
                       setIsModalOpen(true);
                     }}
                     isOwner={isOwner}
-                    onActivate={handleActivate}
-                    walletBalance={wallet?.balance}
-                    canActivate={wallet ? wallet.balance >= meme.priceCoins : false}
+                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
                   />
                 ))}
               </div>
@@ -449,7 +470,7 @@ export default function StreamerProfile() {
                   )}
                   {!hasMore && memes.length > 0 && (
                     <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                      {t('profile.allMemesLoaded') || 'All memes loaded'}
+                      {t('profile.allMemesLoaded', { defaultValue: 'All memes loaded' })}
                     </div>
                   )}
                 </div>

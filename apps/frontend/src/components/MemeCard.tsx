@@ -5,12 +5,10 @@ interface MemeCardProps {
   meme: Meme;
   onClick: () => void;
   isOwner?: boolean;
-  onActivate?: (memeId: string) => void;
-  walletBalance?: number;
-  canActivate?: boolean;
+  previewMode?: 'hoverWithSound' | 'autoplayMuted';
 }
 
-export default function MemeCard({ meme, onClick, onActivate, walletBalance, canActivate }: MemeCardProps) {
+export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -76,22 +74,24 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
   useEffect(() => {
     if (videoRef.current && meme.type === 'video') {
       const video = videoRef.current;
-      
+      if (previewMode === 'autoplayMuted') {
+        // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
+        video.muted = true;
+        void video.play().catch(() => {});
+        return;
+      }
+
+      // Default: hover preview, unmute only after user interaction.
       if (isHovered) {
-        // When hovered, play video
-        video.play().catch(() => {
-          // Ignore autoplay errors
-        });
-        // Enable sound if user has interacted with page
+        void video.play().catch(() => {});
         video.muted = !hasUserInteracted;
       } else {
-        // When not hovered, pause and reset
         video.pause();
         video.currentTime = 0;
-        video.muted = true; // Always mute when not hovered
+        video.muted = true;
       }
     }
-  }, [meme.type, isHovered, hasUserInteracted]);
+  }, [meme.type, isHovered, hasUserInteracted, previewMode]);
 
   const handleCardClick = () => {
     setHasUserInteracted(true);
@@ -129,9 +129,29 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
 
   return (
     <article
-      className="bg-white dark:bg-gray-800 overflow-hidden cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
+      onMouseEnter={() => {
+        setIsHovered(true);
+        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
+          try {
+            videoRef.current.currentTime = 0;
+          } catch {
+            // ignore
+          }
+          void videoRef.current.play().catch(() => {});
+        }
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
+          try {
+            videoRef.current.currentTime = 0;
+          } catch {
+            // ignore
+          }
+          void videoRef.current.play().catch(() => {});
+        }
+      }}
       onClick={handleCardClick}
       onMouseDown={handleCardInteraction}
       onTouchStart={handleCardInteraction}
@@ -150,7 +170,8 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
           <video
             ref={videoRef}
             src={videoUrl}
-            muted={!hasUserInteracted || !isHovered}
+            muted={previewMode === 'autoplayMuted' ? true : (!hasUserInteracted || !isHovered)}
+            autoPlay={previewMode === 'autoplayMuted'}
             loop
             playsInline
             className="w-full h-full object-contain"
@@ -165,31 +186,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
             loading="lazy"
           />
         )}
-        {onActivate && (
-          <div className="absolute top-2 right-2 z-10">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onActivate(meme.id);
-              }}
-              disabled={!canActivate}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md shadow-lg transition-colors text-xs font-medium ${
-                canActivate
-                  ? 'bg-[var(--primary-color)] hover:bg-[var(--secondary-color)] text-white'
-                  : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-              }`}
-              title={!canActivate && walletBalance !== undefined 
-                ? `Need ${meme.priceCoins - walletBalance} more coins` 
-                : 'Activate Meme'}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="hidden sm:inline">Activate</span>
-            </button>
-          </div>
-        )}
         {isHovered && (
           <div 
             className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-0"
@@ -199,32 +195,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
           </div>
         )}
       </div>
-      {/* Mobile: Always visible compact activate button */}
-      {onActivate && (
-        <div className="md:hidden absolute top-2 right-2 z-10">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onActivate(meme.id);
-            }}
-            disabled={!canActivate}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md shadow-lg transition-colors text-xs font-medium ${
-              canActivate
-                ? 'bg-[var(--primary-color)] hover:bg-[var(--secondary-color)] text-white'
-                : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-            }`}
-            title={!canActivate && walletBalance !== undefined 
-              ? `Need ${meme.priceCoins - walletBalance} more coins` 
-              : 'Activate Meme'}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Activate</span>
-          </button>
-        </div>
-      )}
     </article>
   );
 }

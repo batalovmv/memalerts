@@ -493,7 +493,9 @@ export default function MemeModal({
         title="Delete Meme"
         message={
           <div>
-            <p className="mb-2">Are you sure you want to delete <strong>"{currentMeme?.title}"</strong>?</p>
+            <p className="mb-2">
+              Are you sure you want to delete <strong>&quot;{currentMeme?.title}&quot;</strong>?
+            </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
           </div>
         }

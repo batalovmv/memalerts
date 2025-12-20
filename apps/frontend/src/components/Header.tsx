@@ -36,8 +36,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
-  const [coinUpdateCount, setCoinUpdateCount] = useState(0);
-  const [lastCoinDelta, setLastCoinDelta] = useState<number | null>(null);
+  // Aggregated "coins gained" badge (avoid confusing "+100 (2)" UI; show the total delta instead).
+  const [coinUpdateDelta, setCoinUpdateDelta] = useState<number | null>(null);
   const coinUpdateHideTimerRef = useRef<number | null>(null);
   const submissionsLoadedRef = useRef(false);
   const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
@@ -62,7 +62,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Load submissions for streamer/admin if not already loaded
   // Check Redux store with TTL to avoid duplicate requests on navigation
   useEffect(() => {
-    if (user && (user.role === 'streamer' || user.role === 'admin') && user.channelId) {
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userChannelId = user?.channelId;
+
+    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
       const currentState = store.getState();
       const submissionsState = currentState.submissions;
       const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -88,7 +92,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       }
     }
     // Reset ref when user changes
-    if (!user || !user.channelId) {
+    if (!userId || !userChannelId) {
       submissionsLoadedRef.current = false;
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
@@ -209,7 +213,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch]);
+  }, [user, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch, location.pathname]);
 
   // Load channel coin icon and reward title if not provided via props
   useEffect(() => {
@@ -281,7 +285,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     };
 
     loadChannelData();
-  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug]);
+  }, [coinIconUrl, rewardTitle, user?.channel?.slug, currentChannelSlug, getCachedChannelData, getChannelData, location.pathname]);
 
   // Setup Socket.IO listeners for real-time wallet updates
   // Socket connection is managed by SocketContext at app level
@@ -299,15 +303,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
           // Show a header badge when coins are added from Twitch reward
           if (delta > 0 && (data.reason === 'twitch_reward' || data.reason === undefined)) {
-            setCoinUpdateCount((c) => c + 1);
-            setLastCoinDelta(delta);
+            setCoinUpdateDelta((prevDelta) => (prevDelta ?? 0) + delta);
 
             if (coinUpdateHideTimerRef.current) {
               window.clearTimeout(coinUpdateHideTimerRef.current);
             }
             coinUpdateHideTimerRef.current = window.setTimeout(() => {
-              setCoinUpdateCount(0);
-              setLastCoinDelta(null);
+              setCoinUpdateDelta(null);
               coinUpdateHideTimerRef.current = null;
             }, 8000);
           }
@@ -324,8 +326,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
             balance: data.balance,
           };
         });
-        // Update Redux store
-        dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
       }
     };
 
@@ -344,7 +344,10 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
   // Realtime pending submissions badge updates (no polling)
   useEffect(() => {
-    if (!socket || !user || !(user.role === 'streamer' || user.role === 'admin')) {
+    const userId = user?.id;
+    const userRole = user?.role;
+
+    if (!socket || !userId || !(userRole === 'streamer' || userRole === 'admin')) {
       return;
     }
 
@@ -390,7 +393,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
 
   const handlePendingSubmissionsClick = () => {
-    navigate('/settings?tab=submissions');
+    navigate('/dashboard?tab=submissions');
   };
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
@@ -417,9 +420,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         style={navStyle}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
+          <div className="flex justify-between h-16 items-center gap-2 min-w-0">
             <h1 
-              className="text-xl font-bold dark:text-white cursor-pointer channel-theme-logo"
+              className="text-lg sm:text-xl font-bold dark:text-white cursor-pointer channel-theme-logo truncate min-w-0"
               onClick={() => navigate('/')}
               style={logoStyle}
             >
@@ -427,7 +430,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
             </h1>
             
             {user && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 {/* Pending Submissions Indicator - always show for streamer/admin */}
                 {showPendingIndicator && (
                   <button
@@ -474,31 +477,29 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {showSubmitButton && (
                   <button
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
                     title={t('header.submitMeme')}
                     aria-label={t('header.submitMeme')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    <span className="text-sm">{t('header.submitMeme')}</span>
+                    <span className="text-sm hidden sm:inline">{t('header.submitMeme')}</span>
                   </button>
                 )}
 
                 {/* Balance Display */}
                 <div className="relative group">
                   <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
                     onClick={() => {
-                      setCoinUpdateCount(0);
-                      setLastCoinDelta(null);
+                      setCoinUpdateDelta(null);
                     }}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
-                        setCoinUpdateCount(0);
-                        setLastCoinDelta(null);
+                        setCoinUpdateDelta(null);
                       }
                     }}
                     aria-label={t('header.balance', 'Balance')}
@@ -511,15 +512,15 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       </svg>
                     )}
                     <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-gray-900 dark:text-white">
+                      <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
                         {isLoadingWallet ? '...' : balance}
                       </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">coins</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
                     </div>
                   </div>
-                  {coinUpdateCount > 0 && lastCoinDelta !== null && (
+                  {coinUpdateDelta !== null && coinUpdateDelta > 0 && (
                     <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
-                      +{lastCoinDelta}{coinUpdateCount > 1 ? ` (${coinUpdateCount})` : ''}
+                      +{coinUpdateDelta}
                     </span>
                   )}
                   {/* Tooltip */}

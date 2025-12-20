@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAppDispatch } from './store/hooks';
@@ -15,9 +15,14 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import Footer from './components/Footer';
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
+import { useAppSelector } from './store/hooks';
+import { api } from './lib/api';
 
 function App() {
   const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  const [betaChecked, setBetaChecked] = useState(false);
+  const [betaHasAccess, setBetaHasAccess] = useState<boolean>(true);
 
   useEffect(() => {
     dispatch(fetchUser());
@@ -26,11 +31,50 @@ function App() {
   // Check if we're on beta domain
   const isBetaDomain = window.location.hostname.includes('beta.');
 
+  // On beta, block the entire app UI unless user has beta access.
+  // Backend allows only /me and /beta/* without access; everything else is 403.
+  useEffect(() => {
+    if (!isBetaDomain) return;
+    if (!user) {
+      setBetaChecked(true);
+      setBetaHasAccess(true); // not logged in -> landing page still usable
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ hasAccess: boolean }>('/beta/status', { timeout: 10000 });
+        if (cancelled) return;
+        setBetaHasAccess(!!res?.hasAccess);
+      } catch (e) {
+        if (cancelled) return;
+        // If status check fails, be safe: treat as no access.
+        setBetaHasAccess(false);
+      } finally {
+        if (!cancelled) setBetaChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBetaDomain, user]);
+
+  // Beta gating: only show access request screen (after login) until approved.
+  if (isBetaDomain && user && betaChecked && !betaHasAccess) {
+    return (
+      <>
+        <Toaster position="top-right" />
+        <BetaAccessRequest />
+      </>
+    );
+  }
+
   return (
     <SocketProvider>
       <Toaster position="top-right" />
       <div className="flex flex-col min-h-screen overflow-x-hidden">
-        {isBetaDomain && <BetaAccessRequest />}
         <div className="flex-1">
           <Routes>
             <Route path="/" element={<Landing />} />
