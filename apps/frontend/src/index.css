@@ -113,6 +113,6 @@ body {
 /* Meme masonry grid (reference: memealerts.com cards) */
 .meme-masonry {
   column-width: 249px; /* fixed card width target */
-  column-gap: 8px;     /* horizontal spacing between columns */
+  column-gap: 5px;     /* horizontal spacing between columns (match reference) */
 }
 

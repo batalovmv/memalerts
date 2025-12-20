@@ -12,6 +12,8 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
+  const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Track user interaction at page level (any click/touch on page)
@@ -29,6 +31,32 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       document.removeEventListener('touchstart', handlePageInteraction);
     };
   }, []);
+
+  // Lazy-load heavy media only when card is near/inside viewport.
+  // This matches the "seen N cards -> load N previews" behavior from the reference grid.
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    // If we've already decided to load media, keep it loaded (avoid re-buffering while scrolling).
+    if (shouldLoadMedia) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setShouldLoadMedia(true);
+            obs.disconnect();
+            return;
+          }
+        }
+      },
+      { root: null, rootMargin: '300px 0px', threshold: 0.01 }
+    );
+
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [shouldLoadMedia]);
 
   // Resolve preview URL for images/videos
   const getVideoUrl = () => {
@@ -56,6 +84,8 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   // Handle media metadata loading and precise aspect ratio (video/image)
   useEffect(() => {
     let cancelled = false;
+
+    if (!shouldLoadMedia) return;
 
     if (meme.type === 'video') {
       const video = videoRef.current;
@@ -99,12 +129,16 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
     return () => {
       cancelled = true;
     };
-  }, [meme.id, meme.type, mediaUrl]);
+  }, [meme.id, meme.type, mediaUrl, shouldLoadMedia]);
 
   // Handle video playback on hover (unified logic)
   useEffect(() => {
     if (videoRef.current && meme.type === 'video') {
       const video = videoRef.current;
+      if (!shouldLoadMedia) {
+        video.pause();
+        return;
+      }
       if (previewMode === 'autoplayMuted') {
         // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
         video.muted = true;
@@ -122,7 +156,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
         video.muted = true;
       }
     }
-  }, [meme.type, isHovered, hasUserInteracted, previewMode]);
+  }, [meme.type, isHovered, hasUserInteracted, previewMode, shouldLoadMedia]);
 
   const handleCardClick = () => {
     setHasUserInteracted(true);
@@ -138,9 +172,13 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
 
   return (
     <article
-      className="inline-block w-full bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-2 border border-secondary/10 hover:border-secondary/30 transition-colors"
+      ref={(node) => {
+        cardRef.current = node;
+      }}
+      className="inline-block w-full bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] shadow-sm hover:shadow-md transition-shadow"
       onMouseEnter={() => {
         setIsHovered(true);
+        if (!shouldLoadMedia) return;
         if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
           try {
             videoRef.current.currentTime = 0;
@@ -152,6 +190,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       }}
       onMouseLeave={() => {
         setIsHovered(false);
+        if (!shouldLoadMedia) return;
         if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
           try {
             videoRef.current.currentTime = 0;
@@ -175,7 +214,9 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       }}
     >
       <div className="relative w-full bg-gray-900" style={{ aspectRatio }}>
-        {meme.type === 'video' ? (
+        {!shouldLoadMedia ? (
+          <div className="w-full h-full bg-gray-900" aria-hidden="true" />
+        ) : meme.type === 'video' ? (
           <video
             ref={videoRef}
             src={mediaUrl}
