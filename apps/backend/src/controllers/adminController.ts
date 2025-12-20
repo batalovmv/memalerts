@@ -24,7 +24,6 @@ import {
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 import jwt from 'jsonwebtoken';
-import { randomUUID } from 'crypto';
 
 export const adminController = {
   getOverlayToken: async (req: AuthRequest, res: Response) => {
@@ -109,11 +108,10 @@ export const adminController = {
           channelId,
           channelSlug: String(channel.slug).toLowerCase(),
           tv: channel.overlayTokenVersion ?? 1,
-          // Ensure token string changes even if called repeatedly within the same second.
-          jti: randomUUID(),
+          // NOTE: keep payload deterministic (no jti/iat/exp). Rotation is done via tv increment.
         },
         process.env.JWT_SECRET!,
-        // No iat/exp to avoid surprises; jti already guarantees uniqueness.
+        // No iat/exp: keep the token deterministic (stable for this tv).
         { noTimestamp: true }
       );
 
