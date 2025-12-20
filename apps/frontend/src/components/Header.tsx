@@ -326,8 +326,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
             balance: data.balance,
           };
         });
-        // Update Redux store
-        dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
       }
     };
 

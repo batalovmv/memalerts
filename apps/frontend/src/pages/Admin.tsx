@@ -54,6 +54,11 @@ export default function Admin() {
       navigate('/dashboard?tab=submissions', { replace: true });
       return;
     }
+    if (tabParam === 'memes') {
+      // All memes now live on the dashboard for a more cohesive UX.
+      navigate('/dashboard?panel=memes', { replace: true });
+      return;
+    }
     if (tabParam && ['memes', 'settings', 'rewards', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }

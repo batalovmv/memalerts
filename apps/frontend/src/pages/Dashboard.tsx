@@ -1,24 +1,32 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { store } from '../store/index';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
+import { fetchMemes } from '../store/slices/memesSlice';
 import Header from '../components/Header';
 import SubmitModal from '../components/SubmitModal';
-import VideoPreview from '../components/VideoPreview';
+import MemeCard from '../components/MemeCard';
+import MemeModal from '../components/MemeModal';
 import toast from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
+import type { Meme } from '../types';
+import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
+import { PendingSubmissionsPanel } from '../components/dashboard/PendingSubmissionsPanel';
+import { AllMemesPanel } from '../components/dashboard/AllMemesPanel';
 
 export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
+  const memesLoadedRef = useRef(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -29,6 +37,21 @@ export default function Dashboard() {
   });
   const [priceCoins, setPriceCoins] = useState('100');
   const [rejectReason, setRejectReason] = useState('');
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
+  const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
+  const { autoplayMemesEnabled } = useAutoplayMemes();
+
+  const panel = (searchParams.get('panel') || '').toLowerCase();
+  const isPanelOpen = panel === 'submissions' || panel === 'memes';
+
+  const setPanel = (next: 'submissions' | 'memes' | null, replace = false) => {
+    const nextParams = new URLSearchParams(searchParams);
+    // Back-compat: remove older tab param
+    nextParams.delete('tab');
+    if (next) nextParams.set('panel', next);
+    else nextParams.delete('panel');
+    setSearchParams(nextParams, { replace });
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -38,6 +61,15 @@ export default function Dashboard() {
   }, [user, authLoading, navigate]);
 
   // Removed role restrictions - Dashboard is accessible to all users
+
+  // Back-compat: if someone navigates to /dashboard?tab=submissions, open the submissions panel.
+  useEffect(() => {
+    const tab = (searchParams.get('tab') || '').toLowerCase();
+    if (tab === 'submissions') {
+      setPanel('submissions', true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load pending submissions if user is streamer/admin
   // Check Redux store with TTL to avoid duplicate requests on navigation
@@ -77,10 +109,37 @@ export default function Dashboard() {
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
 
+  // Load memes for own channel (needed for dashboard "All memes" panel)
+  useEffect(() => {
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userChannelId = user?.channelId;
+    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) {
+      memesLoadedRef.current = false;
+      return;
+    }
+
+    // If already loaded for this channel (or currently loading), skip.
+    if (memesLoading) return;
+    if (memesLoadedRef.current) return;
+
+    // If memes for this channel exist in store, consider it loaded.
+    const channelMemes = memes.filter((m) => m.channelId === userChannelId);
+    if (channelMemes.length > 0) {
+      memesLoadedRef.current = true;
+      return;
+    }
+
+    memesLoadedRef.current = true;
+    dispatch(fetchMemes({ channelId: userChannelId }));
+  }, [user?.id, user?.role, user?.channelId, memesLoading, memes, dispatch]);
+
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
-  const showSubmissionsPanel = (user?.role === 'streamer' || user?.role === 'admin') && user?.channelId && (
-    searchParams.get('tab') === 'submissions' || pendingSubmissionsCount > 0
-  );
+
+  const myChannelMemes = useMemo(() => {
+    if (!user?.channelId) return [];
+    return memes.filter((m) => m.channelId === user.channelId);
+  }, [memes, user?.channelId]);
 
   if (authLoading || !user) {
     return (
@@ -125,7 +184,7 @@ export default function Dashboard() {
             )}
 
             {/* Quick Actions Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
               {/* Submit Meme Card - Primary */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 hover:shadow-2xl transition-shadow border-2 border-primary/20">
                 <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
@@ -141,9 +200,7 @@ export default function Dashboard() {
               </div>
 
               {/* Pending Submissions Card - Secondary */}
-              <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow ${
-                pendingSubmissionsCount === 0 ? 'opacity-60' : ''
-              }`}>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-secondary/20">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-xl font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
                   {pendingSubmissionsCount > 0 && (
@@ -156,17 +213,46 @@ export default function Dashboard() {
                   {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
                 </p>
                 <button
-                  onClick={() => navigate('/dashboard?tab=submissions')}
+                  onClick={() => setPanel(panel === 'submissions' ? null : 'submissions')}
                   className={`w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
-                    pendingSubmissionsCount > 0
-                      ? 'bg-red-500 hover:bg-red-600 text-white'
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    panel === 'submissions'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : pendingSubmissionsCount > 0
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
                   }`}
                 >
                   {pendingSubmissionsCount > 0 
                     ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, { count: pendingSubmissionsCount })
                     : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')
                   }
+                </button>
+              </div>
+
+              {/* All Memes Card */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-md transition-shadow border border-secondary/20">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg font-medium dark:text-white">
+                    {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
+                  </h2>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {memesLoading ? '…' : myChannelMemes.length}
+                  </span>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                  {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
+                </p>
+                <button
+                  onClick={() => setPanel(panel === 'memes' ? null : 'memes')}
+                  className={`w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
+                    panel === 'memes'
+                      ? 'bg-primary hover:bg-secondary text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
+                  }`}
+                >
+                  {panel === 'memes'
+                    ? t('common.close', { defaultValue: 'Close' })
+                    : t('dashboard.quickActions.openAllMemes', { defaultValue: 'Open' })}
                 </button>
               </div>
 
@@ -185,6 +271,43 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Expandable panels */}
+            <div className={`transition-all duration-300 ${isPanelOpen ? 'mb-8' : 'mb-2'}`}>
+              <div
+                className={`overflow-hidden transition-all duration-300 ${
+                  panel === 'submissions' || panel === 'memes' ? 'max-h-[4000px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
+                <PendingSubmissionsPanel
+                  isOpen={panel === 'submissions'}
+                  submissions={submissions}
+                  submissionsLoading={submissionsLoading}
+                  pendingCount={pendingSubmissionsCount}
+                  onClose={() => setPanel(null)}
+                  onApprove={(submissionId) => {
+                    setApproveModal({ open: true, submissionId });
+                    setPriceCoins('100');
+                  }}
+                  onReject={(submissionId) => {
+                    setRejectModal({ open: true, submissionId });
+                    setRejectReason('');
+                  }}
+                />
+
+                <AllMemesPanel
+                  isOpen={panel === 'memes'}
+                  memes={myChannelMemes}
+                  memesLoading={memesLoading}
+                  autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
+                  onClose={() => setPanel(null)}
+                  onSelectMeme={(meme) => {
+                    setSelectedMeme(meme);
+                    setIsMemeModalOpen(true);
+                  }}
+                />
+              </div>
+            </div>
+
             {/* Additional Actions */}
             <div className="mb-6 flex flex-wrap gap-4">
               <button
@@ -198,68 +321,6 @@ export default function Dashboard() {
                 {t('dashboard.viewPublicProfile')}
               </button>
             </div>
-
-            {/* Pending submissions (moved from Settings) */}
-            {showSubmissionsPanel && (
-              <section className="mt-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold dark:text-white">
-                    {t('dashboard.pendingSubmissionsTitle', 'Pending submissions')}
-                  </h2>
-                  {pendingSubmissionsCount > 0 && (
-                    <span className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1">
-                      {pendingSubmissionsCount}
-                    </span>
-                  )}
-                </div>
-
-                {submissions.filter(s => s.status === 'pending').length === 0 ? (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-gray-600 dark:text-gray-400">
-                    {t('dashboard.noPendingSubmissions', 'No pending submissions')}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {submissions.filter(s => s.status === 'pending').map((submission) => (
-                      <div key={submission.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                        <div className="flex items-start justify-between gap-4 mb-3">
-                          <div className="min-w-0">
-                            <h3 className="font-semibold text-lg dark:text-white truncate">{submission.title}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {t('dashboard.submittedBy', { defaultValue: 'Submitted by {{name}}', name: submission.submitter?.displayName || 'Unknown' })}
-                            </p>
-                            {submission.notes && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{submission.notes}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            <button
-                              onClick={() => {
-                                setApproveModal({ open: true, submissionId: submission.id });
-                                setPriceCoins('100');
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors font-semibold"
-                            >
-                              {t('admin.approve', 'Approve')}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setRejectModal({ open: true, submissionId: submission.id });
-                                setRejectReason('');
-                              }}
-                              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors font-semibold"
-                            >
-                              {t('admin.reject', 'Reject')}
-                            </button>
-                          </div>
-                        </div>
-
-                        <VideoPreview src={submission.fileUrlTemp} title={submission.title} className="w-full" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
           </>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
@@ -277,6 +338,25 @@ export default function Dashboard() {
           onClose={() => setIsSubmitModalOpen(false)}
           channelSlug={user.channel?.slug}
           channelId={user.channelId}
+        />
+      )}
+
+      {/* Meme Modal */}
+      {isMemeModalOpen && (
+        <MemeModal
+          meme={selectedMeme}
+          isOpen={isMemeModalOpen}
+          onClose={() => {
+            setIsMemeModalOpen(false);
+            setSelectedMeme(null);
+          }}
+          onUpdate={() => {
+            if (user?.channelId) {
+              dispatch(fetchMemes({ channelId: user.channelId }));
+            }
+          }}
+          isOwner={true}
+          mode="admin"
         />
       )}
 

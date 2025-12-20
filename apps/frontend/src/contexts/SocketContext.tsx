@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { useAppSelector } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { getRuntimeConfig } from '../lib/runtimeConfig';
+import { updateWalletBalance } from '../store/slices/authSlice';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -22,6 +23,7 @@ interface SocketProviderProps {
 
 export function SocketProvider({ children }: SocketProviderProps) {
   const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -156,6 +158,23 @@ export function SocketProvider({ children }: SocketProviderProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user === null ? 'loading' : user ? 'authenticated' : 'unauthenticated']); // More specific dependencies
+
+  // Global wallet updates: keep Redux in sync everywhere (dashboard, settings, profile, etc.)
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !user || !isConnected) return;
+
+    const onWalletUpdated = (data: { userId: string; channelId: string; balance: number; delta?: number; reason?: string }) => {
+      if (!data?.userId || data.userId !== user.id) return;
+      if (!data?.channelId || typeof data.balance !== 'number') return;
+      dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
+    };
+
+    socket.on('wallet:updated', onWalletUpdated);
+    return () => {
+      socket.off('wallet:updated', onWalletUpdated);
+    };
+  }, [dispatch, isConnected, user?.id]);
 
   return (
     <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>

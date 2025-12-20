@@ -11,7 +11,8 @@ export default function AdminRedirect() {
       navigate(`/settings?tab=${tab}`, { replace: true });
     } else {
       // Default to submissions tab
-      navigate('/settings?tab=submissions', { replace: true });
+      // Submissions now live on the dashboard panels.
+      navigate('/dashboard?panel=submissions', { replace: true });
     }
   }, [navigate, searchParams]);
 
