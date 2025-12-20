@@ -31,17 +31,12 @@ export const submissionController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    // Validate that the channel exists and get owner info
+    // Validate that the channel exists
     const channel = await prisma.channel.findUnique({
       where: { id: channelId as string },
       select: {
         id: true,
         defaultPriceCoins: true,
-        users: {
-          where: { role: 'streamer' },
-          take: 1,
-          select: { id: true },
-        },
       },
     });
 
@@ -49,9 +44,14 @@ export const submissionController = {
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    // Check if submitter is the channel owner
-    const channelOwner = channel.users?.[0];
-    const isOwner = channelOwner && channelOwner.id === req.userId;
+    // Owner bypass must be based on JWT channelId to avoid mismatches.
+    // If the authenticated user is the streamer/admin for this channel (req.channelId === target channelId),
+    // then submissions should be auto-approved (no pending request).
+    const isOwner =
+      !!req.userId &&
+      !!req.channelId &&
+      (req.userRole === 'streamer' || req.userRole === 'admin') &&
+      String(req.channelId) === String(channelId);
 
     try {
       // Validate file is video
