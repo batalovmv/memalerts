@@ -152,6 +152,11 @@ export const adminController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
+    const limitRaw = Number.parseInt(String(req.query.limit || ''), 10);
+    const offsetRaw = Number.parseInt(String(req.query.offset || ''), 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
+
     try {
       // Try to get submissions with tags first
       const submissionsPromise = prisma.memeSubmission.findMany({
@@ -175,6 +180,8 @@ export const adminController = {
         orderBy: {
           createdAt: 'desc',
         },
+        take: limit,
+        skip: offset,
       });
 
       // Add timeout protection
@@ -218,6 +225,13 @@ export const adminController = {
         }
       }
 
+      const total = await prisma.memeSubmission.count({
+        where: {
+          channelId,
+          ...(status ? { status } : {}),
+        },
+      });
+
       if (isProdStrictDto()) {
         const out = submissions.map((s: any) => ({
           id: s.id,
@@ -230,10 +244,10 @@ export const adminController = {
           tags: Array.isArray(s.tags) ? s.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
           submitter: s.submitter ? { displayName: s.submitter.displayName } : null,
         }));
-        return res.json(out);
+        return res.json({ items: out, total });
       }
 
-      res.json(submissions);
+      res.json({ items: submissions, total });
     } catch (error: any) {
       console.error('Error in getSubmissions:', error);
       if (!res.headersSent) {
