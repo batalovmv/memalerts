@@ -59,6 +59,7 @@ export default function StreamerProfile() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortPopular, setSortPopular] = useState(false);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -226,7 +227,7 @@ export default function StreamerProfile() {
 
   // Perform search when debounced query changes
   useEffect(() => {
-    if (!normalizedSlug || !debouncedSearchQuery.trim()) {
+    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !sortPopular)) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -235,11 +236,17 @@ export default function StreamerProfile() {
     const performSearch = async () => {
       setIsSearching(true);
       try {
-        const params = new URLSearchParams({
-          q: debouncedSearchQuery,
-          channelSlug: normalizedSlug,
-          limit: '100',
-        });
+        const params = new URLSearchParams();
+        if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
+        params.set('channelSlug', normalizedSlug);
+        params.set('limit', '100');
+        if (sortPopular) {
+          params.set('sortBy', 'popularity');
+          params.set('sortOrder', 'desc');
+        } else {
+          params.set('sortBy', 'createdAt');
+          params.set('sortOrder', 'desc');
+        }
         const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
         setSearchResults(memes);
       } catch (error: unknown) {
@@ -251,7 +258,7 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [debouncedSearchQuery, normalizedSlug]);
+  }, [debouncedSearchQuery, normalizedSlug, sortPopular]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
@@ -395,7 +402,7 @@ export default function StreamerProfile() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder') || 'Search memes...'}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pl-10 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
             />
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -417,6 +424,19 @@ export default function StreamerProfile() {
               </button>
             )}
           </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 glass px-3 py-2">
+              <input
+                type="checkbox"
+                checked={sortPopular}
+                onChange={(e) => setSortPopular(e.target.checked)}
+                className="h-4 w-4 rounded"
+              />
+              {t('search.popular30d', 'Popular (30d)')}
+            </label>
+          </div>
+
           {searchQuery && (
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               {isSearching ? t('search.searching') || 'Searching...' : 
