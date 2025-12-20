@@ -5,13 +5,10 @@ interface MemeCardProps {
   meme: Meme;
   onClick: () => void;
   isOwner?: boolean;
-  onActivate?: (memeId: string) => void;
-  walletBalance?: number;
-  canActivate?: boolean;
   previewMode?: 'hoverWithSound' | 'autoplayMuted';
 }
 
-export default function MemeCard({ meme, onClick, onActivate, walletBalance, canActivate, previewMode = 'hoverWithSound' }: MemeCardProps) {
+export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
