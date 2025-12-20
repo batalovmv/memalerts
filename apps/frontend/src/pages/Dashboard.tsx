@@ -63,13 +63,13 @@ export default function Dashboard() {
   // Removed role restrictions - Dashboard is accessible to all users
 
   // Back-compat: if someone navigates to /dashboard?tab=submissions, open the submissions panel.
+  // This must work even when Dashboard is already mounted (e.g. via Header bell click).
   useEffect(() => {
     const tab = (searchParams.get('tab') || '').toLowerCase();
-    if (tab === 'submissions') {
+    if (tab === 'submissions' && panel !== 'submissions') {
       setPanel('submissions', true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [panel, searchParams]);
 
   useEffect(() => {
     // #region agent log
