@@ -994,6 +994,10 @@ function RewardsSettings() {
   });
   const [savingTwitchReward, setSavingTwitchReward] = useState(false);
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
+  const saveTwitchTimerRef = useRef<number | null>(null);
+  const saveApprovedTimerRef = useRef<number | null>(null);
+  const lastSavedTwitchRef = useRef<string | null>(null);
+  const lastSavedApprovedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null);
 
   const loadRewardSettings = useCallback(async () => {
@@ -1015,6 +1019,16 @@ function RewardsSettings() {
           submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
+        lastSavedTwitchRef.current = JSON.stringify({
+          rewardIdForCoins: cached.rewardIdForCoins || null,
+          rewardEnabled: cached.rewardEnabled || false,
+          rewardTitle: cached.rewardTitle || null,
+          rewardCost: cached.rewardCost ?? null,
+          rewardCoins: cached.rewardCoins ?? null,
+        });
+        lastSavedApprovedRef.current = JSON.stringify({
+          submissionRewardCoins: cached.submissionRewardCoins !== undefined ? cached.submissionRewardCoins : 0,
+        });
         return;
       }
 
@@ -1029,6 +1043,16 @@ function RewardsSettings() {
           submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
+        lastSavedTwitchRef.current = JSON.stringify({
+          rewardIdForCoins: channelData.rewardIdForCoins || null,
+          rewardEnabled: channelData.rewardEnabled || false,
+          rewardTitle: channelData.rewardTitle || null,
+          rewardCost: channelData.rewardCost ?? null,
+          rewardCoins: channelData.rewardCoins ?? null,
+        });
+        lastSavedApprovedRef.current = JSON.stringify({
+          submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? channelData.submissionRewardCoins : 0,
+        });
       }
     } catch (error) {
       console.error('Failed to load reward settings:', error);
@@ -1044,8 +1068,7 @@ function RewardsSettings() {
     }
   }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
 
-  const handleSaveTwitchReward = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveTwitchReward = async () => {
     setSavingTwitchReward(true);
     try {
       const { api } = await import('../lib/api');
@@ -1057,8 +1080,13 @@ function RewardsSettings() {
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
       });
-      toast.success(t('admin.settingsSaved'));
-      await loadRewardSettings();
+      lastSavedTwitchRef.current = JSON.stringify({
+        rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
+        rewardEnabled: rewardSettings.rewardEnabled,
+        rewardTitle: rewardSettings.rewardTitle || null,
+        rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
+        rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+      });
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
@@ -1076,8 +1104,7 @@ function RewardsSettings() {
     }
   };
 
-  const handleSaveApprovedMemeReward = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveApprovedMemeReward = async () => {
     setSavingApprovedMemeReward(true);
     try {
       const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
@@ -1090,8 +1117,7 @@ function RewardsSettings() {
         // Approved meme reward only (do NOT include Twitch reward fields here)
         submissionRewardCoins: coins,
       });
-      toast.success(t('admin.settingsSaved'));
-      await loadRewardSettings();
+      lastSavedApprovedRef.current = JSON.stringify({ submissionRewardCoins: coins });
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
@@ -1100,6 +1126,60 @@ function RewardsSettings() {
       setSavingApprovedMemeReward(false);
     }
   };
+
+  // Autosave: Twitch reward fields (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const payload = JSON.stringify({
+      rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
+      rewardEnabled: rewardSettings.rewardEnabled,
+      rewardTitle: rewardSettings.rewardTitle || null,
+      rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
+      rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+    });
+
+    if (payload === lastSavedTwitchRef.current) return;
+    if (saveTwitchTimerRef.current) window.clearTimeout(saveTwitchTimerRef.current);
+    saveTwitchTimerRef.current = window.setTimeout(() => {
+      void handleSaveTwitchReward();
+    }, 500);
+
+    return () => {
+      if (saveTwitchTimerRef.current) window.clearTimeout(saveTwitchTimerRef.current);
+      saveTwitchTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rewardSettings.rewardIdForCoins,
+    rewardSettings.rewardEnabled,
+    rewardSettings.rewardTitle,
+    rewardSettings.rewardCost,
+    rewardSettings.rewardCoins,
+    user?.channel?.slug,
+  ]);
+
+  // Autosave: Approved meme reward coins (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+    const payload = JSON.stringify({ submissionRewardCoins: Number.isFinite(coins) ? coins : 0 });
+
+    if (payload === lastSavedApprovedRef.current) return;
+    if (saveApprovedTimerRef.current) window.clearTimeout(saveApprovedTimerRef.current);
+    saveApprovedTimerRef.current = window.setTimeout(() => {
+      void handleSaveApprovedMemeReward();
+    }, 500);
+
+    return () => {
+      if (saveApprovedTimerRef.current) window.clearTimeout(saveApprovedTimerRef.current);
+      saveApprovedTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewardSettings.submissionRewardCoins, user?.channel?.slug]);
 
   return (
     <div className="surface p-6">
@@ -1117,7 +1197,7 @@ function RewardsSettings() {
 
       <div className="space-y-4">
         {/* Card A: Twitch reward (Channel Points -> coins) */}
-        <form onSubmit={handleSaveTwitchReward} className="glass p-6">
+        <div className="glass p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold dark:text-white mb-1">
@@ -1218,19 +1298,13 @@ function RewardsSettings() {
             </div>
           )}
 
-          <div className="mt-4 pt-4 flex justify-end">
-            <button
-              type="submit"
-              disabled={savingTwitchReward}
-              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              {savingTwitchReward ? t('admin.saving') : t('admin.saveTwitchReward', 'Сохранить награду Twitch')}
-            </button>
+          <div className="mt-4 pt-4 text-xs text-gray-500 dark:text-gray-300">
+            {savingTwitchReward ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
           </div>
-        </form>
+        </div>
 
         {/* Card B: Approved meme reward (coins) */}
-        <form onSubmit={handleSaveApprovedMemeReward} className="glass p-6">
+        <div className="glass p-6">
           <div className="mb-4">
             <h3 className="text-lg font-semibold dark:text-white mb-1">
               {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
@@ -1266,16 +1340,10 @@ function RewardsSettings() {
             </p>
           </div>
 
-          <div className="mt-4 pt-4 flex justify-end">
-            <button
-              type="submit"
-              disabled={savingApprovedMemeReward}
-              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              {savingApprovedMemeReward ? t('admin.saving') : t('admin.saveApprovedMemeReward', 'Сохранить награду за одобренный мем')}
-            </button>
+          <div className="mt-4 pt-4 text-xs text-gray-500 dark:text-gray-300">
+            {savingApprovedMemeReward ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
