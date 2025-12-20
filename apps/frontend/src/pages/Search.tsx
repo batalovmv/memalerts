@@ -63,7 +63,6 @@ export default function Search() {
       // Update URL
       setSearchParams(params);
     } catch (error: unknown) {
-      console.error('Search failed:', error);
     } finally {
       setLoading(false);
     }

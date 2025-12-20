@@ -179,11 +179,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 walletLoadedRef.current = targetChannelSlug || null; // Mark as loaded (even if default)
               }
             }
-            console.warn('Failed to load wallet:', error);
           }
         }
       } catch (error) {
-        console.error('Error loading wallet:', error);
       } finally {
         setIsLoadingWallet(false);
       }

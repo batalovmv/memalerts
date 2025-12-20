@@ -29,10 +29,8 @@ export default function BetaAccessRequest() {
         timeout: 10000, // 10 seconds timeout
       });
       const duration = Date.now() - startTime;
-      console.log('[BetaAccessRequest] loadStatus completed', { hasAccess: response?.hasAccess, duration });
       setStatus(response);
     } catch (error) {
-      console.error('Error loading beta access status:', error);
     } finally {
       setLoading(false);
     }

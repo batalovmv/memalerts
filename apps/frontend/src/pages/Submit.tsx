@@ -48,7 +48,6 @@ export default function Submit() {
       const data = await api.get<MySubmission[]>('/submissions', { timeout: 10000 });
       setMySubmissions(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Failed to load my submissions:', err);
     } finally {
       setLoadingMySubmissions(false);
     }
@@ -100,7 +99,6 @@ export default function Submit() {
           return;
         }
       } catch (error) {
-        console.warn('Could not check video duration on frontend, will validate on backend');
       }
 
       setLoading(true);

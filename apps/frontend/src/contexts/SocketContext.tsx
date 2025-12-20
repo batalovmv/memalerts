@@ -43,21 +43,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
       if (envUrl === '') {
         // Empty string means use relative URLs - use current origin
         const origin = window.location.origin;
-        console.log('[SocketContext] Using relative URLs (empty VITE_API_URL), origin:', origin);
         return origin;
       }
-      console.log('[SocketContext] Using VITE_API_URL:', envUrl);
       return envUrl;
     }
     
     // If VITE_API_URL is not set at all, determine based on environment
     if (import.meta.env.PROD) {
       const origin = window.location.origin;
-      console.log('[SocketContext] Using window.location.origin:', origin);
       return origin;
     }
     
-    console.log('[SocketContext] Using localhost fallback');
     return 'http://localhost:3001';
   };
 
@@ -72,7 +68,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
     if (!user) {
       // User is logged out - disconnect socket
       if (socketRef.current) {
-        console.log('[SocketContext] User logged out, disconnecting socket');
         socketRef.current.disconnect();
         socketRef.current = null;
         setIsConnected(false);
@@ -83,7 +78,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
     // Only create socket if it doesn't exist
     if (!socketRef.current) {
       const socketUrl = getSocketUrl();
-      console.log('[SocketContext] Initializing Socket.IO connection to:', socketUrl, { userId: user.id });
       
       // Prevent multiple initialization attempts
       const socket = io(socketUrl, {
@@ -100,41 +94,26 @@ export function SocketProvider({ children }: SocketProviderProps) {
       socketRef.current = socket;
 
       socket.on('connect', () => {
-        console.log('[SocketContext] ✅ Socket.IO connected', { 
-          socketId: socket.id, 
-          socketUrl,
-          userId: user?.id 
-        });
         setIsConnected(true);
         // Join user room for wallet updates
         if (user) {
           socket.emit('join:user', user.id);
-          console.log('[SocketContext] Joined user room:', `user:${user.id}`);
         }
       });
 
       socket.on('disconnect', (reason: string) => {
-        console.log('[SocketContext] ❌ Socket.IO disconnected', { reason, socketUrl, socketId: socket.id });
         setIsConnected(false);
       });
 
       socket.on('connect_error', (error: Error) => {
-        console.error('[SocketContext] ❌ Socket.IO connection error:', error.message, {
-          socketUrl,
-          userId: user?.id,
-          connected: socket.connected,
-          disconnected: socket.disconnected,
-        });
         setIsConnected(false);
         // Don't manually retry - let Socket.IO handle reconnection with exponential backoff
       });
 
       socket.on('reconnect_attempt', (attemptNumber: number) => {
-        console.log(`[SocketContext] 🔄 Reconnection attempt ${attemptNumber} for ${socketUrl}`);
       });
 
       socket.on('reconnect_failed', () => {
-        console.error('[SocketContext] ❌ Reconnection failed, stopping attempts');
         // After failed reconnection, don't try again automatically
         // User will need to refresh page or reconnect manually
       });
@@ -146,7 +125,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
         setIsConnected(true);
       } else if (!socket.connected && user) {
         // Socket exists but not connected - try to connect
-        console.log('[SocketContext] Socket exists but not connected, attempting to connect');
         socket.connect();
       }
     }

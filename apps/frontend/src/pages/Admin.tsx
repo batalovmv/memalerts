@@ -1031,7 +1031,6 @@ function RewardsSettings() {
         settingsLoadedRef.current = user.channel.slug;
       }
     } catch (error) {
-      console.error('Failed to load reward settings:', error);
       settingsLoadedRef.current = null;
     }
   }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
@@ -1327,7 +1326,6 @@ function ChannelSettings() {
         settingsLoadedRef.current = user.channel.slug;
       }
     } catch (error) {
-      console.error('Failed to load settings:', error);
       settingsLoadedRef.current = null; // Reset on error to allow retry
     }
   }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
@@ -1968,7 +1966,6 @@ function BetaAccessManagement() {
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       requestsLoadedRef.current = false; // Reset on error to allow retry
-      console.error('Error loading beta access requests:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setLoading(false);
@@ -1986,7 +1983,6 @@ function BetaAccessManagement() {
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       grantedLoadedRef.current = false; // Reset on error to allow retry
-      console.error('Error loading granted beta users:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setGrantedLoading(false);
@@ -2004,7 +2000,6 @@ function BetaAccessManagement() {
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       revokedLoadedRef.current = false; // Reset on error to allow retry
-      console.error('Error loading revoked beta users:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setRevokedLoading(false);

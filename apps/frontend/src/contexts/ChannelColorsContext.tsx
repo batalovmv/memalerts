@@ -89,7 +89,6 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
       
       return data;
     } catch (error) {
-      console.warn(`Failed to fetch channel data for ${slug}:`, error);
       return null;
     }
   }, []);
@@ -139,7 +138,6 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       // If error, use default colors
-      console.warn('Failed to fetch channel colors, using defaults:', error);
       setColors(defaultColors);
       setChannelData(null);
       colorsLoadedRef.current = null; // Reset on error to allow retry
