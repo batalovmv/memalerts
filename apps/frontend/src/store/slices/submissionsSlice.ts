@@ -5,30 +5,36 @@ import type { Submission, ApiError } from '../../types';
 interface SubmissionsState {
   submissions: Submission[];
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   lastFetchedAt: number | null;
   lastErrorAt: number | null; // Track when error occurred to prevent infinite retries
+  total: number;
 }
 
 const initialState: SubmissionsState = {
   submissions: [],
   loading: false,
+  loadingMore: false,
   error: null,
   lastFetchedAt: null,
   lastErrorAt: null,
+  total: 0,
 };
 
+type SubmissionsPage = { items: Submission[]; total: number };
+
 export const fetchSubmissions = createAsyncThunk<
-  Submission[],
-  { status?: string },
+  { items: Submission[]; total: number; append: boolean },
+  { status?: string; offset?: number; limit?: number; append?: boolean },
   { rejectValue: ApiError }
->('submissions/fetchSubmissions', async ({ status = 'pending' }, { rejectWithValue }) => {
+>('submissions/fetchSubmissions', async ({ status = 'pending', offset = 0, limit = 20, append = false }, { rejectWithValue }) => {
   try {
-    const submissions = await api.get<Submission[]>('/admin/submissions', {
-      params: { status },
+    const page = await api.get<SubmissionsPage>('/admin/submissions', {
+      params: { status, offset, limit },
       timeout: 15000, // 15 seconds timeout
     });
-    return submissions;
+    return { items: page.items, total: page.total, append };
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({
@@ -143,18 +149,30 @@ const submissionsSlice = createSlice({
     builder
       // fetchSubmissions
       .addCase(fetchSubmissions.pending, (state) => {
-        state.loading = true;
+        // Distinguish between initial load and pagination
+        if (state.submissions.length > 0) {
+          state.loadingMore = true;
+        } else {
+          state.loading = true;
+        }
         state.error = null;
       })
       .addCase(fetchSubmissions.fulfilled, (state, action) => {
         state.loading = false;
-        state.submissions = action.payload;
+        state.loadingMore = false;
+        if (action.payload.append) {
+          state.submissions = [...state.submissions, ...action.payload.items];
+        } else {
+          state.submissions = action.payload.items;
+        }
+        state.total = action.payload.total;
         state.error = null;
         state.lastFetchedAt = Date.now();
         state.lastErrorAt = null; // Clear error timestamp on success
       })
       .addCase(fetchSubmissions.rejected, (state, action) => {
         state.loading = false;
+        state.loadingMore = false;
         state.error = action.payload?.message || 'Failed to fetch submissions';
         // Track error time to prevent infinite retries
         // If error is 403 (Forbidden), don't retry for 5 minutes

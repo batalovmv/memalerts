@@ -59,44 +59,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     isOwnProfile
   );
 
-  // Load submissions for streamer/admin if not already loaded
-  // Check Redux store with TTL to avoid duplicate requests on navigation
-  useEffect(() => {
-    const userId = user?.id;
-    const userRole = user?.role;
-    const userChannelId = user?.channelId;
-
-    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
-      const currentState = store.getState();
-      const submissionsState = currentState.submissions;
-      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-      const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
-      
-      // Check if we have fresh data based on timestamp
-      const hasFreshData = submissionsState.submissions.length > 0 && 
-        submissionsState.lastFetchedAt !== null &&
-        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
-      
-      // Check if we had a recent error (especially 403) - don't retry immediately
-      const hasRecentError = submissionsState.lastErrorAt !== null &&
-        (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
-      
-      const isLoading = submissionsState.loading;
-      
-      // Only fetch if no fresh data, not loading, no recent error, and not already loaded
-      if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
-        submissionsLoadedRef.current = true;
-        dispatch(fetchSubmissions({ status: 'pending' }));
-      } else if (hasFreshData) {
-        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
-      }
-    }
-    // Reset ref when user changes
-    if (!userId || !userChannelId) {
-      submissionsLoadedRef.current = false;
-    }
-  }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
-
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {

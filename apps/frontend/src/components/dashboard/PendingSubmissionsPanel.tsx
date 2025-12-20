@@ -7,20 +7,26 @@ type Props = {
   isOpen: boolean;
   submissions: Submission[];
   submissionsLoading: boolean;
+  loadingMore: boolean;
   pendingCount: number;
+  hasMore: boolean;
   onClose: () => void;
   onApprove: (submissionId: string) => void;
   onReject: (submissionId: string) => void;
+  onLoadMore: () => void;
 };
 
 export function PendingSubmissionsPanel({
   isOpen,
   submissions,
   submissionsLoading,
+  loadingMore,
   pendingCount,
+  hasMore,
   onClose,
   onApprove,
   onReject,
+  onLoadMore,
 }: Props) {
   const { t } = useTranslation();
   const pendingSubmissions = useMemo(() => submissions.filter((s) => s.status === 'pending'), [submissions]);
@@ -95,6 +101,17 @@ export function PendingSubmissionsPanel({
                 <VideoPreview src={submission.fileUrlTemp} title={submission.title} className="w-full" />
               </div>
             ))}
+            {hasMore && (
+              <div className="flex justify-center pt-2">
+                <button
+                  onClick={onLoadMore}
+                  disabled={submissionsLoading || loadingMore}
+                  className="px-4 py-2 rounded-lg border border-secondary/30 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-60"
+                >
+                  {loadingMore ? t('common.loading') : t('common.loadMore', { defaultValue: 'Load more' })}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

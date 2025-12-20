@@ -18,7 +18,7 @@ import { AllMemesPanel } from '../components/dashboard/AllMemesPanel';
 export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading, loadingMore: submissionsLoadingMore, total: submissionsTotal } = useAppSelector((state) => state.submissions);
   const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -69,43 +69,40 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load pending submissions if user is streamer/admin
-  // Check Redux store with TTL to avoid duplicate requests on navigation
+  // Load pending submissions lazily when the submissions panel is opened
   useEffect(() => {
     const userId = user?.id;
     const userRole = user?.role;
     const userChannelId = user?.channelId;
 
-    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
-      const currentState = store.getState();
-      const submissionsState = currentState.submissions;
-      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-      const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
-      
-      // Check if we have fresh data based on timestamp
-      const hasFreshData = submissionsState.submissions.length > 0 && 
-        submissionsState.lastFetchedAt !== null &&
-        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
-      
-      // Check if we had a recent error (especially 403) - don't retry immediately
-      const hasRecentError = submissionsState.lastErrorAt !== null &&
-        (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
-      
-      const isLoading = submissionsState.loading;
-      
-      // Only fetch if no fresh data, not loading, no recent error, and not already loaded
-      if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
-        submissionsLoadedRef.current = true;
-        dispatch(fetchSubmissions({ status: 'pending' }));
-      } else if (hasFreshData) {
-        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
-      }
-    }
-    // Reset ref when user changes
-    if (!userId || !userChannelId) {
+    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) {
       submissionsLoadedRef.current = false;
+      return;
     }
-  }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
+
+    if (panel !== 'submissions') return;
+
+    const currentState = store.getState();
+    const submissionsState = currentState.submissions;
+    const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+    const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
+    
+    const hasFreshData = submissionsState.submissions.length > 0 && 
+      submissionsState.lastFetchedAt !== null &&
+      (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
+    
+    const hasRecentError = submissionsState.lastErrorAt !== null &&
+      (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
+    
+    const isLoading = submissionsState.loading || submissionsState.loadingMore;
+    
+    if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
+      submissionsLoadedRef.current = true;
+      dispatch(fetchSubmissions({ status: 'pending', offset: 0, limit: 20, append: false }));
+    } else if (hasFreshData) {
+      submissionsLoadedRef.current = true;
+    }
+  }, [panel, user?.id, user?.role, user?.channelId, dispatch]);
 
   // Load memes for own channel (needed for dashboard "All memes" panel)
   useEffect(() => {
@@ -133,6 +130,11 @@ export default function Dashboard() {
   }, [user?.id, user?.role, user?.channelId, memesLoading, memes, dispatch]);
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
+  const hasMoreSubmissions = submissions.length < submissionsTotal;
+  const handleLoadMoreSubmissions = () => {
+    if (submissionsLoading || submissionsLoadingMore) return;
+    dispatch(fetchSubmissions({ status: 'pending', offset: submissions.length, limit: 20, append: true }));
+  };
 
   const myChannelMemes = useMemo(() => {
     if (!user?.channelId) return [];
@@ -258,7 +260,9 @@ export default function Dashboard() {
                   isOpen={panel === 'submissions'}
                   submissions={submissions}
                   submissionsLoading={submissionsLoading}
+                  loadingMore={submissionsLoadingMore}
                   pendingCount={pendingSubmissionsCount}
+                  hasMore={hasMoreSubmissions}
                   onClose={() => setPanel(null)}
                   onApprove={(submissionId) => {
                     setApproveModal({ open: true, submissionId });
@@ -268,6 +272,7 @@ export default function Dashboard() {
                     setRejectModal({ open: true, submissionId });
                     setRejectReason('');
                   }}
+                  onLoadMore={handleLoadMoreSubmissions}
                 />
 
                 <AllMemesPanel
