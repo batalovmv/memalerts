@@ -41,6 +41,7 @@ export default function Dashboard() {
   const { autoplayMemesEnabled } = useAutoplayMemes();
 
   const panel = (searchParams.get('panel') || '').toLowerCase();
+  const tab = (searchParams.get('tab') || '').toLowerCase();
   const isPanelOpen = panel === 'submissions' || panel === 'memes';
 
   const setPanel = (next: 'submissions' | 'memes' | null, replace = false) => {
@@ -69,6 +70,12 @@ export default function Dashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/pages/Dashboard.tsx:panelState',message:'Dashboard panel state',data:{search:searchParams.toString(),panel:panel||null,tab:tab||null,isPanelOpen},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_bell_nav'})}).catch(()=>{});
+    // #endregion
+  }, [panel, tab, isPanelOpen, searchParams]);
 
   // Load pending submissions if user is streamer/admin
   // Check Redux store with TTL to avoid duplicate requests on navigation
