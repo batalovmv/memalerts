@@ -19,6 +19,11 @@ interface QueuedActivation extends Activation {
   // Used when position=random
   xPct?: number;
   yPct?: number;
+  // After first render, we may clamp the activation inside the viewport.
+  // These are the desired center coordinates in px (used when position=random).
+  xPx?: number;
+  yPx?: number;
+  layoutTick?: number;
   // Optional, derived from real media metadata (video/audio), preferred over durationMs when available.
   effectiveDurationMs?: number;
   // When we start fading out, keep the item briefly so OBS doesn't "stick" the last frame.
@@ -63,6 +68,7 @@ export default function OverlayView() {
 
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
   const [active, setActive] = useState<QueuedActivation[]>([]);
+  const itemRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
   const ackSentRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -241,6 +247,53 @@ export default function OverlayView() {
     setActive((prev) => [...prev, ...toStart]);
   }, [active.length, maxActive, pickRandomPosition, position, queue]);
 
+  // Clamp random-position activations so they never get clipped by the OBS canvas.
+  // We do this after render using the actual DOM rect (covers unknown aspect ratios and scale).
+  useEffect(() => {
+    if (position !== 'random') return;
+    if (active.length === 0) return;
+    if (typeof window === 'undefined') return;
+
+    const padding = 28; // px safe area around the edges
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    if (vw <= padding * 2 || vh <= padding * 2) return;
+
+    setActive((prev) => {
+      let changed = false;
+      const next = prev.map((a) => {
+        if (!a?.id) return a;
+        if (a.isExiting) return a;
+        const el = itemRefs.current.get(a.id);
+        if (!el) return a;
+
+        const rect = el.getBoundingClientRect();
+        if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return a;
+
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const minX = padding + rect.width / 2;
+        const maxX = vw - padding - rect.width / 2;
+        const minY = padding + rect.height / 2;
+        const maxY = vh - padding - rect.height / 2;
+
+        const clampedX = Math.min(maxX, Math.max(minX, centerX));
+        const clampedY = Math.min(maxY, Math.max(minY, centerY));
+
+        // Only update if we are actually out of bounds by more than 1px.
+        if (Math.abs(clampedX - centerX) > 1 || Math.abs(clampedY - centerY) > 1) {
+          changed = true;
+          return { ...a, xPx: clampedX, yPx: clampedY };
+        }
+
+        return a;
+      });
+
+      return changed ? next : prev;
+    });
+  }, [active, position]);
+
   // Ensure per-activation fallback timers exist while active (prevents "stuck" videos in OBS).
   useEffect(() => {
     const activeIds = new Set(active.map((a) => a.id));
@@ -306,8 +359,8 @@ export default function OverlayView() {
           return {
             ...base,
             ...sizeClamp,
-            top: `${item?.yPct ?? 50}%`,
-            left: `${item?.xPct ?? 50}%`,
+            top: Number.isFinite(item?.yPx) ? `${item.yPx}px` : `${item?.yPct ?? 50}%`,
+            left: Number.isFinite(item?.xPx) ? `${item.xPx}px` : `${item?.xPct ?? 50}%`,
             transform: `translate(-50%, -50%) scale(${safeScale})`,
           };
         case 'center':
@@ -387,7 +440,8 @@ export default function OverlayView() {
     return {
       borderRadius: 20,
       overflow: 'hidden',
-      border: '1px solid rgba(255,255,255,0.26)',
+      border: '2px solid rgba(255,255,255,0.38)',
+      outline: '1px solid rgba(0,0,0,0.35)',
       boxShadow: '0 22px 70px rgba(0,0,0,0.60)',
       background: 'rgba(0,0,0,0.18)',
       backdropFilter: 'blur(3px)',
@@ -428,10 +482,24 @@ export default function OverlayView() {
   return (
     <>
       {active.map((item) => (
-        <div key={item.id} style={getPositionStyles(item)}>
+        <div
+          key={item.id}
+          style={getPositionStyles(item)}
+          ref={(el) => {
+            itemRefs.current.set(item.id, el);
+          }}
+        >
           <div style={{ ...cardStyle, opacity: item.isExiting ? 0 : 1 }}>
             {(item.type === 'image' || item.type === 'gif') && (
-              <img src={getMediaUrl(item.fileUrl)} alt={item.title} style={mediaStyle} />
+              <img
+                src={getMediaUrl(item.fileUrl)}
+                alt={item.title}
+                style={mediaStyle}
+                onLoad={() => {
+                  // Trigger clamp recalculation after media loads (size becomes known).
+                  setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
+                }}
+              />
             )}
 
             {item.type === 'video' && (
@@ -451,6 +519,8 @@ export default function OverlayView() {
                     setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
                     updateFallbackTimer(item.id, ms);
                   }
+                  // Trigger clamp recalculation (video intrinsic size becomes known).
+                  setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
                 }}
                 onError={() => doneActivation(item.id)}
                 onStalled={() => doneActivation(item.id)}
@@ -473,6 +543,8 @@ export default function OverlayView() {
                     setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
                     updateFallbackTimer(item.id, ms);
                   }
+                  // Trigger clamp recalculation (audio tag layout can change once metadata loads).
+                  setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
                 }}
                 onError={() => doneActivation(item.id)}
                 onStalled={() => doneActivation(item.id)}

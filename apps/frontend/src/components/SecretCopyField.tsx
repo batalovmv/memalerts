@@ -61,8 +61,10 @@ export default function SecretCopyField({ label, value, description, masked = tr
     if (!v) return emptyText;
     if (!masked) return v;
     if (isRevealed) return v;
-    // Show fixed-length mask (do not leak real length).
-    return '****************';
+    // Mask, but include a small suffix so the user can see that the value changed after rotation,
+    // without revealing the full secret.
+    const suffix = v.length > 8 ? v.slice(-8) : v;
+    return `****************${suffix}`;
   }, [value, masked, isRevealed, emptyText]);
 
   const canCopy = (value || '').trim().length > 0;
