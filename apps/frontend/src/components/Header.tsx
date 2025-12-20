@@ -391,7 +391,21 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
 
   const handlePendingSubmissionsClick = () => {
-    navigate('/dashboard?tab=submissions');
+    // Toggle submissions panel on dashboard via query param `panel=submissions`.
+    const params = new URLSearchParams(location.search);
+    const currentPanel = (params.get('panel') || params.get('tab') || '').toLowerCase();
+    const isOpen = location.pathname.startsWith('/dashboard') && currentPanel === 'submissions';
+
+    // Always drop legacy tab param for consistency.
+    params.delete('tab');
+    params.delete('panel');
+    if (!isOpen) {
+      params.set('panel', 'submissions');
+    }
+
+    const search = params.toString();
+    const target = search ? `/dashboard?${search}` : '/dashboard';
+    navigate(target);
   };
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
