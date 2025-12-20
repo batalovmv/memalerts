@@ -7,6 +7,8 @@ import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promoti
 import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
+import { isProdStrictDto } from '../utils/envMode.js';
+import { toPublicChannelDto } from '../utils/dto.js';
 
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
@@ -59,6 +61,19 @@ export const viewerController = {
       }
 
       const owner = channel.users?.[0] || null;
+      const stats = {
+        memesCount: channel._count.memes,
+        usersCount: channel._count.users,
+      };
+
+      // Production strict DTO: whitelist public fields to avoid leaking internal config/IDs.
+      if (isProdStrictDto()) {
+        const base = toPublicChannelDto(channel as any, stats);
+        const out: any = { ...base };
+        if (includeMemes) out.memes = channel.memes || [];
+        return res.json(out);
+      }
+
       const response: any = {
         id: channel.id,
         slug: channel.slug,
@@ -83,10 +98,7 @@ export const viewerController = {
           displayName: owner.displayName,
           profileImageUrl: owner.profileImageUrl,
         } : null,
-        stats: {
-          memesCount: channel._count.memes,
-          usersCount: channel._count.users,
-        },
+        stats,
       };
 
       // Only include memes if includeMemes is true
@@ -136,6 +148,28 @@ export const viewerController = {
           where: { channelId: channel[0].id },
         });
         
+        const stats = { memesCount, usersCount };
+
+        // Strict DTO on production even for fallback path (older schema).
+        if (isProdStrictDto()) {
+          const out: any = {
+            slug: channel[0].slug,
+            name: channel[0].name,
+            coinPerPointRatio: channel[0].coinPerPointRatio,
+            submissionRewardCoins: 0,
+            overlayMode: 'queue',
+            overlayShowSender: false,
+            overlayMaxConcurrent: 3,
+            coinIconUrl: null,
+            primaryColor: null,
+            secondaryColor: null,
+            accentColor: null,
+            stats,
+          };
+          if (includeMemes) out.memes = memes;
+          return res.json(out);
+        }
+
         const response: any = {
           id: channel[0].id,
           slug: channel[0].slug,
@@ -146,10 +180,7 @@ export const viewerController = {
           secondaryColor: null,
           accentColor: null,
           createdAt: channel[0].createdAt,
-          stats: {
-            memesCount,
-            usersCount,
-          },
+          stats,
         };
 
         // Only include memes if includeMemes is true
@@ -553,6 +584,22 @@ export const viewerController = {
       });
     }
 
+    if (isProdStrictDto()) {
+      const out = memes.map((m: any) => ({
+        id: m.id,
+        title: m.title,
+        type: m.type,
+        fileUrl: m.fileUrl,
+        durationMs: m.durationMs,
+        priceCoins: m.priceCoins,
+        createdAt: m.createdAt,
+        createdBy: m.createdBy ? { displayName: m.createdBy.displayName } : null,
+        tags: Array.isArray(m.tags) ? m.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
+        activationsCount: m?._count?.activations ?? 0,
+      }));
+      return res.json(out);
+    }
+
     res.json(memes);
   },
 
@@ -667,6 +714,22 @@ export const viewerController = {
         totalCoinsSpent: activation._sum.coinsSpent || 0,
       };
     });
+
+    if (isProdStrictDto()) {
+      const outStats = stats.map((s: any) => ({
+        meme: s.meme
+          ? {
+              id: s.meme.id,
+              title: s.meme.title,
+              priceCoins: s.meme.priceCoins,
+              tags: Array.isArray(s.meme.tags) ? s.meme.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
+            }
+          : null,
+        activationsCount: s.activationsCount,
+        totalCoinsSpent: s.totalCoinsSpent,
+      }));
+      return res.json({ period, startDate, endDate: now, stats: outStats });
+    }
 
     res.json({
       period,
