@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+
+type OverlayMode = 'queue' | 'simultaneous';
 
 interface Activation {
   id: string;
@@ -9,6 +11,7 @@ interface Activation {
   fileUrl: string;
   durationMs: number;
   title: string;
+  senderDisplayName?: string | null;
 }
 
 interface QueuedActivation extends Activation {
@@ -16,20 +19,73 @@ interface QueuedActivation extends Activation {
   // Used when position=random
   xPct?: number;
   yPct?: number;
+  // Optional, derived from real media metadata (video/audio), preferred over durationMs when available.
+  effectiveDurationMs?: number;
+  // When we start fading out, keep the item briefly so OBS doesn't "stick" the last frame.
+  isExiting?: boolean;
+}
+
+interface OverlayConfig {
+  overlayMode: OverlayMode;
+  overlayShowSender: boolean;
+  overlayMaxConcurrent: number;
+}
+
+type OverlayPosition =
+  | 'random'
+  | 'center'
+  | 'top'
+  | 'bottom'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
+
+function clampInt(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
 export default function OverlayView() {
   const { channelSlug, token } = useParams<{ channelSlug?: string; token?: string }>();
   const [searchParams] = useSearchParams();
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  const [config, setConfig] = useState<OverlayConfig>({
+    overlayMode: 'queue',
+    overlayShowSender: false,
+    overlayMaxConcurrent: 3,
+  });
+
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
-  const [current, setCurrent] = useState<QueuedActivation | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [active, setActive] = useState<QueuedActivation[]>([]);
+
+  const ackSentRef = useRef<Set<string>>(new Set());
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const fadeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const scale = parseFloat(searchParams.get('scale') || '1');
-  const position = (searchParams.get('position') || 'random').toLowerCase();
+  const position = (searchParams.get('position') || 'random').toLowerCase() as OverlayPosition;
   const volume = parseFloat(searchParams.get('volume') || '1');
+
+  const safeScale = useMemo(() => {
+    const s = Number.isFinite(scale) ? scale : 1;
+    // Keep within a sane range; prevents accidental huge overlays.
+    return Math.min(2.5, Math.max(0.25, s));
+  }, [scale]);
+
+  const isProbablyOBS = useMemo(() => {
+    const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
+    // Heuristic: OBS Browser Source typically includes "OBS" in the UA.
+    return /obs/i.test(ua);
+  }, []);
+
+  const mutedByDefault = useMemo(() => {
+    // In OBS: allow sound (controlled by volume).
+    // In normal browsers: autoplay-with-sound is often blocked and can cause "stuck frame" UX,
+    // so we default to muted for reliability.
+    return !isProbablyOBS;
+  }, [isProbablyOBS]);
 
   const getMediaUrl = (fileUrl: string): string => {
     const v = (fileUrl || '').trim();
@@ -74,6 +130,13 @@ export default function OverlayView() {
       }
     });
 
+    newSocket.on('overlay:config', (incoming: Partial<OverlayConfig> | null | undefined) => {
+      const overlayMode = incoming?.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
+      const overlayShowSender = Boolean(incoming?.overlayShowSender);
+      const overlayMaxConcurrent = clampInt(Number(incoming?.overlayMaxConcurrent ?? 3), 1, 10);
+      setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent });
+    });
+
     newSocket.on('activation:new', (activation: Activation) => {
       console.log('New activation:', activation);
       setQueue((prev) => [
@@ -85,177 +148,340 @@ export default function OverlayView() {
       ]);
     });
 
-    setSocket(newSocket);
+    socketRef.current = newSocket;
 
     return () => {
+      socketRef.current = null;
       newSocket.disconnect();
     };
   }, [channelSlug, token]);
 
-  useEffect(() => {
-    if (current && timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+  const maxActive = useMemo(() => {
+    if (config.overlayMode === 'queue') return 1;
+    return clampInt(config.overlayMaxConcurrent, 1, 10);
+  }, [config.overlayMaxConcurrent, config.overlayMode]);
+
+  const pickRandomPosition = useCallback((): { xPct: number; yPct: number } => {
+    // Safe margin in % to reduce clipping risk. Increase margin when scale grows.
+    // This isn't perfect (we don't know exact media aspect), but reduces "going off-screen" in OBS.
+    const baseMargin = 12;
+    const margin = Math.min(24, Math.max(10, Math.round(baseMargin * safeScale)));
+    const xPct = margin + Math.random() * (100 - margin * 2);
+    const yPct = margin + Math.random() * (100 - margin * 2);
+    return { xPct, yPct };
+  }, [safeScale]);
+
+  const emitAckDoneOnce = useCallback((activationId: string) => {
+    const id = String(activationId || '').trim();
+    if (!id) return;
+    if (ackSentRef.current.has(id)) return;
+    ackSentRef.current.add(id);
+    socketRef.current?.emit('activation:ackDone', { activationId: id });
+  }, []);
+
+  const doneActivation = useCallback((activationId: string) => {
+    const id = String(activationId || '').trim();
+    if (!id) return;
+
+    emitAckDoneOnce(id);
+
+    // Clear any pending fallback timer.
+    const t = timersRef.current.get(id);
+    if (t) {
+      clearTimeout(t);
+      timersRef.current.delete(id);
     }
 
-    if (current) {
-      timeoutRef.current = setTimeout(() => {
-        // Send ack
-        if (socket) {
-          socket.emit('activation:ackDone', { activationId: current.id });
-        }
-        setCurrent(null);
-      }, current.durationMs);
-    }
+    // Mark as exiting first (fade-out), then remove after a short delay.
+    setActive((prev) => prev.map((a) => (a.id === id ? { ...a, isExiting: true } : a)));
+    const existingFade = fadeTimersRef.current.get(id);
+    if (existingFade) clearTimeout(existingFade);
+    const fadeTimer = setTimeout(() => {
+      fadeTimersRef.current.delete(id);
+      setActive((prev) => prev.filter((a) => a.id !== id));
+    }, 220);
+    fadeTimersRef.current.set(id, fadeTimer);
+  }, [emitAckDoneOnce]);
 
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [current, socket]);
+  const updateFallbackTimer = useCallback((activationId: string, durationMs: number) => {
+    const id = String(activationId || '').trim();
+    if (!id) return;
+    const duration = clampInt(Number(durationMs ?? 0), 800, 120000);
+    const fallbackMs = clampInt(duration + 900, 1200, 130000);
 
+    const old = timersRef.current.get(id);
+    if (old) clearTimeout(old);
+    const timer = setTimeout(() => doneActivation(id), fallbackMs);
+    timersRef.current.set(id, timer);
+  }, [doneActivation]);
+
+  // Start as many as allowed when queue/config/active changes.
   useEffect(() => {
-    if (!current && queue.length > 0) {
-      const next = queue[0];
-      setQueue((prev) => prev.slice(1));
+    if (queue.length === 0) return;
+    if (active.length >= maxActive) return;
+
+    const available = maxActive - active.length;
+    const toStartRaw = queue.slice(0, available);
+    if (toStartRaw.length === 0) return;
+
+    const toStart = toStartRaw.map((a) => {
       if (position === 'random') {
-        // Choose a random on-screen anchor point (in percentages).
-        // We keep a safe margin so it doesn't clip too often.
-        const margin = 10; // %
-        const xPct = margin + Math.random() * (100 - margin * 2);
-        const yPct = margin + Math.random() * (100 - margin * 2);
-        setCurrent({ ...next, xPct, yPct });
-      } else {
-        setCurrent(next);
+        const { xPct, yPct } = pickRandomPosition();
+        return { ...a, xPct, yPct };
+      }
+      return a;
+    });
+
+    setQueue((prev) => prev.slice(toStartRaw.length));
+    setActive((prev) => [...prev, ...toStart]);
+  }, [active.length, maxActive, pickRandomPosition, position, queue]);
+
+  // Ensure per-activation fallback timers exist while active (prevents "stuck" videos in OBS).
+  useEffect(() => {
+    const activeIds = new Set(active.map((a) => a.id));
+
+    // Clear timers for activations that are no longer active.
+    for (const [id, timer] of timersRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        clearTimeout(timer);
+        timersRef.current.delete(id);
       }
     }
-  }, [current, queue, position]);
+    for (const [id, timer] of fadeTimersRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        clearTimeout(timer);
+        fadeTimersRef.current.delete(id);
+      }
+    }
 
+    // Add timers for newly-active items.
+    for (const a of active) {
+      if (!a?.id) continue;
+      if (timersRef.current.has(a.id)) continue;
+      const duration = clampInt(Number(a.effectiveDurationMs ?? a.durationMs ?? 0), 1000, 120000);
+      // Extra grace to allow media decode / buffering.
+      const fallbackMs = clampInt(duration + 1000, 1500, 130000);
+      const timer = setTimeout(() => doneActivation(a.id), fallbackMs);
+      timersRef.current.set(a.id, timer);
+    }
+  }, [active, doneActivation]);
+
+  // Cleanup on unmount.
   useEffect(() => {
-    if (current && current.type === 'audio' && audioRef.current) {
-      audioRef.current.play().catch(console.error);
-    }
-  }, [current]);
-
-  if (!current) {
-    return null;
-  }
-
-  const getPositionStyles = (): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      position: 'fixed',
-      zIndex: 9999,
-      maxWidth: '90vw',
-      maxHeight: '90vh',
+    return () => {
+      for (const timer of timersRef.current.values()) clearTimeout(timer);
+      timersRef.current.clear();
+      for (const timer of fadeTimersRef.current.values()) clearTimeout(timer);
+      fadeTimersRef.current.clear();
+      ackSentRef.current.clear();
     };
+  }, []);
 
-    switch (position) {
-      case 'random':
-        return {
-          ...base,
-          top: `${current?.yPct ?? 50}%`,
-          left: `${current?.xPct ?? 50}%`,
-          transform: `translate(-50%, -50%) scale(${scale})`,
-        };
-      case 'center':
-        return {
-          ...base,
-          top: '50%',
-          left: '50%',
-          transform: `translate(-50%, -50%) scale(${scale})`,
-        };
-      case 'top':
-        return {
-          ...base,
-          top: '20px',
-          left: '50%',
-          transform: `translateX(-50%) scale(${scale})`,
-        };
-      case 'bottom':
-        return {
-          ...base,
-          bottom: '20px',
-          left: '50%',
-          transform: `translateX(-50%) scale(${scale})`,
-        };
-      case 'top-left':
-        return {
-          ...base,
-          top: '20px',
-          left: '20px',
-          transform: `scale(${scale})`,
-        };
-      case 'top-right':
-        return {
-          ...base,
-          top: '20px',
-          right: '20px',
-          transform: `scale(${scale})`,
-        };
-      case 'bottom-left':
-        return {
-          ...base,
-          bottom: '20px',
-          left: '20px',
-          transform: `scale(${scale})`,
-        };
-      case 'bottom-right':
-        return {
-          ...base,
-          bottom: '20px',
-          right: '20px',
-          transform: `scale(${scale})`,
-        };
-      default:
-        return {
-          ...base,
-          top: '50%',
-          left: '50%',
-          transform: `translate(-50%, -50%) scale(${scale})`,
-        };
-    }
-  };
+  const getPositionStyles = useCallback(
+    (item: QueuedActivation): React.CSSProperties => {
+      const base: React.CSSProperties = {
+        position: 'fixed',
+        zIndex: 9999,
+        pointerEvents: 'none',
+        // Default; overridden per-position below when needed.
+        transformOrigin: 'center',
+      };
 
-  const containerStyle = getPositionStyles();
+      // Clamp size to feel like an overlay (not a full web page).
+      // Since scale applies via transform, reduce pre-scale bounds to keep the final size within viewport.
+      const preScaleMaxVw = Math.max(18, Math.min(55, 50 / safeScale));
+      const preScaleMaxVh = Math.max(18, Math.min(55, 50 / safeScale));
+      const sizeClamp: React.CSSProperties = {
+        maxWidth: `${preScaleMaxVw}vw`,
+        maxHeight: `${preScaleMaxVh}vh`,
+      };
+
+      switch (position) {
+        case 'random':
+          return {
+            ...base,
+            ...sizeClamp,
+            top: `${item?.yPct ?? 50}%`,
+            left: `${item?.xPct ?? 50}%`,
+            transform: `translate(-50%, -50%) scale(${safeScale})`,
+          };
+        case 'center':
+          return {
+            ...base,
+            ...sizeClamp,
+            top: '50%',
+            left: '50%',
+            transform: `translate(-50%, -50%) scale(${safeScale})`,
+          };
+        case 'top':
+          return {
+            ...base,
+            ...sizeClamp,
+            top: '24px',
+            left: '50%',
+            transform: `translateX(-50%) scale(${safeScale})`,
+          };
+        case 'bottom':
+          return {
+            ...base,
+            ...sizeClamp,
+            bottom: '24px',
+            left: '50%',
+            transform: `translateX(-50%) scale(${safeScale})`,
+          };
+        case 'top-left':
+          return {
+            ...base,
+            ...sizeClamp,
+            top: '24px',
+            left: '24px',
+            transformOrigin: 'top left',
+            transform: `scale(${safeScale})`,
+          };
+        case 'top-right':
+          return {
+            ...base,
+            ...sizeClamp,
+            top: '24px',
+            right: '24px',
+            transformOrigin: 'top right',
+            transform: `scale(${safeScale})`,
+          };
+        case 'bottom-left':
+          return {
+            ...base,
+            ...sizeClamp,
+            bottom: '24px',
+            left: '24px',
+            transformOrigin: 'bottom left',
+            transform: `scale(${safeScale})`,
+          };
+        case 'bottom-right':
+          return {
+            ...base,
+            ...sizeClamp,
+            bottom: '24px',
+            right: '24px',
+            transformOrigin: 'bottom right',
+            transform: `scale(${safeScale})`,
+          };
+        default:
+          return {
+            ...base,
+            ...sizeClamp,
+            top: '50%',
+            left: '50%',
+            transform: `translate(-50%, -50%) scale(${safeScale})`,
+          };
+      }
+    },
+    [position, safeScale]
+  );
+
+  const cardStyle = useMemo<React.CSSProperties>(() => {
+    return {
+      borderRadius: 20,
+      overflow: 'hidden',
+      border: '1px solid rgba(255,255,255,0.26)',
+      boxShadow: '0 22px 70px rgba(0,0,0,0.60)',
+      background: 'rgba(0,0,0,0.18)',
+      backdropFilter: 'blur(3px)',
+      opacity: 1,
+      transition: 'opacity 220ms ease',
+    };
+  }, []);
+
+  const mediaStyle = useMemo<React.CSSProperties>(() => {
+    return {
+      display: 'block',
+      width: '100%',
+      height: '100%',
+      maxWidth: '100%',
+      maxHeight: '100%',
+      objectFit: 'contain',
+      background: 'rgba(0,0,0,0.35)',
+    };
+  }, []);
+
+  const badgeStyle = useMemo<React.CSSProperties>(() => {
+    return {
+      padding: '8px 12px',
+      fontSize: 13,
+      lineHeight: 1.2,
+      color: 'rgba(255,255,255,0.92)',
+      background: 'rgba(0,0,0,0.55)',
+      borderTop: '1px solid rgba(255,255,255,0.10)',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      maxWidth: '100%',
+    };
+  }, []);
+
+  if (active.length === 0) return null;
 
   return (
-    <div style={containerStyle}>
-      {current.type === 'image' && (
-        <img
-          src={getMediaUrl(current.fileUrl)}
-          alt={current.title}
-          style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
-        />
-      )}
-      {current.type === 'gif' && (
-        <img
-          src={getMediaUrl(current.fileUrl)}
-          alt={current.title}
-          style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
-        />
-      )}
-      {current.type === 'video' && (
-        <video
-          src={getMediaUrl(current.fileUrl)}
-          autoPlay
-          muted={false}
-          style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
-          onLoadedData={(e) => {
-            e.currentTarget.volume = volume;
-          }}
-        />
-      )}
-      {current.type === 'audio' && (
-        <audio
-          ref={audioRef}
-          src={getMediaUrl(current.fileUrl)}
-          autoPlay
-          onLoadedData={(e) => {
-            e.currentTarget.volume = volume;
-          }}
-        />
-      )}
-    </div>
+    <>
+      {active.map((item) => (
+        <div key={item.id} style={getPositionStyles(item)}>
+          <div style={{ ...cardStyle, opacity: item.isExiting ? 0 : 1 }}>
+            {(item.type === 'image' || item.type === 'gif') && (
+              <img src={getMediaUrl(item.fileUrl)} alt={item.title} style={mediaStyle} />
+            )}
+
+            {item.type === 'video' && (
+              <video
+                src={getMediaUrl(item.fileUrl)}
+                autoPlay
+                playsInline
+                muted={mutedByDefault || volume <= 0}
+                style={mediaStyle}
+                onLoadedData={(e) => {
+                  e.currentTarget.volume = Math.min(1, Math.max(0, volume));
+                }}
+                onLoadedMetadata={(e) => {
+                  const dur = e.currentTarget.duration;
+                  if (Number.isFinite(dur) && dur > 0) {
+                    const ms = Math.round(dur * 1000);
+                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
+                    updateFallbackTimer(item.id, ms);
+                  }
+                }}
+                onError={() => doneActivation(item.id)}
+                onStalled={() => doneActivation(item.id)}
+                onEnded={() => doneActivation(item.id)}
+              />
+            )}
+
+            {item.type === 'audio' && (
+              <audio
+                src={getMediaUrl(item.fileUrl)}
+                autoPlay
+                muted={mutedByDefault || volume <= 0}
+                onLoadedData={(e) => {
+                  e.currentTarget.volume = Math.min(1, Math.max(0, volume));
+                }}
+                onLoadedMetadata={(e) => {
+                  const dur = (e.currentTarget as HTMLAudioElement).duration;
+                  if (Number.isFinite(dur) && dur > 0) {
+                    const ms = Math.round(dur * 1000);
+                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
+                    updateFallbackTimer(item.id, ms);
+                  }
+                }}
+                onError={() => doneActivation(item.id)}
+                onStalled={() => doneActivation(item.id)}
+                onEnded={() => doneActivation(item.id)}
+              />
+            )}
+
+            {config.overlayShowSender && item.senderDisplayName && (
+              <div style={badgeStyle}>{item.senderDisplayName}</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
