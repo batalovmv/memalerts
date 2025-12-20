@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { updateWalletBalance } from '../store/slices/authSlice';
-import { submissionApproved, submissionCreated, submissionRejected } from '../store/slices/submissionsSlice';
+import { submissionApproved, submissionCreated, submissionRejected, fetchSubmissionsCount } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
@@ -22,7 +22,7 @@ interface HeaderProps {
 export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading, loadingCount: submissionsLoadingCount, total: submissionsTotal, lastCountFetchedAt } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -369,10 +369,24 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   };
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
+  const badgeCount = pendingSubmissionsCount || submissionsTotal;
   // Show indicator for streamers/admins always, even if submissions are not loaded yet
   const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin');
-  const hasPendingSubmissions = pendingSubmissionsCount > 0;
-  const isLoadingSubmissions = submissionsLoading && submissions.length === 0;
+  const hasPendingSubmissions = badgeCount > 0;
+  const isLoadingSubmissions = submissionsLoading || submissionsLoadingCount;
+
+  // Lightweight badge fetch to avoid “gray” bell on initial load (without opening panel)
+  useEffect(() => {
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userChannelId = user?.channelId;
+    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) return;
+    const COUNT_TTL = 5 * 60 * 1000;
+    const isStale = !lastCountFetchedAt || (Date.now() - lastCountFetchedAt) > COUNT_TTL;
+    if (badgeCount === 0 && isStale && !submissionsLoadingCount) {
+      dispatch(fetchSubmissionsCount({ status: 'pending' }));
+    }
+  }, [user?.id, user?.role, user?.channelId, badgeCount, lastCountFetchedAt, submissionsLoadingCount, dispatch]);
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
 
@@ -421,7 +435,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     aria-label={isLoadingSubmissions
                       ? t('header.loadingSubmissions', 'Loading submissions...')
                       : hasPendingSubmissions 
-                        ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
+                        ? (badgeCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: badgeCount }))
                         : t('header.noPendingSubmissions', 'No pending submissions')
                     }
                   >
@@ -439,7 +453,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     </svg>
                     {hasPendingSubmissions && !isLoadingSubmissions && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                        {pendingSubmissionsCount}
+                        {badgeCount}
                       </span>
                     )}
                   </button>

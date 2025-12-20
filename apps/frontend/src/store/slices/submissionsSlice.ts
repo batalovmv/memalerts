@@ -6,20 +6,24 @@ interface SubmissionsState {
   submissions: Submission[];
   loading: boolean;
   loadingMore: boolean;
+  loadingCount: boolean;
   error: string | null;
   lastFetchedAt: number | null;
   lastErrorAt: number | null; // Track when error occurred to prevent infinite retries
   total: number;
+  lastCountFetchedAt: number | null;
 }
 
 const initialState: SubmissionsState = {
   submissions: [],
   loading: false,
   loadingMore: false,
+  loadingCount: false,
   error: null,
   lastFetchedAt: null,
   lastErrorAt: null,
   total: 0,
+  lastCountFetchedAt: null,
 };
 
 type SubmissionsPage = { items: Submission[]; total: number };
@@ -110,6 +114,27 @@ export const rejectSubmission = createAsyncThunk<
   }
 });
 
+export const fetchSubmissionsCount = createAsyncThunk<
+  { total: number },
+  { status?: string },
+  { rejectValue: ApiError }
+>('submissions/fetchSubmissionsCount', async ({ status = 'pending' }, { rejectWithValue }) => {
+  try {
+    const page = await api.get<SubmissionsPage>('/admin/submissions', {
+      params: { status, offset: 0, limit: 1 },
+      timeout: 10000,
+    });
+    return { total: page.total };
+  } catch (error: unknown) {
+    const apiError = error as { response?: { data?: ApiError; status?: number } };
+    return rejectWithValue({
+      message: apiError.response?.data?.message || 'Failed to fetch submissions count',
+      error: apiError.response?.data?.error,
+      statusCode: apiError.response?.status,
+    });
+  }
+});
+
 const submissionsSlice = createSlice({
   name: 'submissions',
   initialState,
@@ -191,6 +216,19 @@ const submissionsSlice = createSlice({
         state.submissions = state.submissions.filter(
           (s) => s.id !== action.meta.arg.submissionId
         );
+      })
+      // fetchSubmissionsCount (lightweight badge)
+      .addCase(fetchSubmissionsCount.pending, (state) => {
+        state.loadingCount = true;
+      })
+      .addCase(fetchSubmissionsCount.fulfilled, (state, action) => {
+        state.loadingCount = false;
+        state.total = action.payload.total;
+        state.lastCountFetchedAt = Date.now();
+      })
+      .addCase(fetchSubmissionsCount.rejected, (state, action) => {
+        state.loadingCount = false;
+        state.error = state.error || action.payload?.message || null;
       });
   },
 });
