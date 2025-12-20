@@ -357,12 +357,6 @@ export default function StreamerProfile() {
                     >
                       {channelInfo.stats.memesCount} {t('profile.memes')}
                     </span>
-                    <span
-                      className="inline-flex items-center rounded-full px-3 py-1 text-accent font-semibold"
-                      style={{ backgroundColor: mix('--accent-color', 14) }}
-                    >
-                      {channelInfo.stats.usersCount} {t('profile.users')}
-                    </span>
                   </div>
                 </div>
               </div>

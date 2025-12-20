@@ -41,6 +41,7 @@
   },
   "dashboard": {
     "title": "Панель управления",
+    "subtitle": "Управляйте мемами и настройками канала",
     "wallet": "Ваш кошелек",
     "balance": "монет",
     "noWallets": "Кошельки не найдены.",
@@ -62,6 +63,9 @@
       "pendingSubmissionsDescription": "Проверьте и одобрите заявки на мемы",
       "pendingSubmissionsButton": "{{count}} Ожидает",
       "noPendingSubmissions": "Нет заявок",
+      "allMemes": "Все мемы",
+      "allMemesDescription": "Просматривайте и редактируйте библиотеку мемов",
+      "openAllMemes": "Открыть",
       "settings": "Настройки",
       "settingsDescription": "Настройте свой канал и предпочтения",
       "settingsButton": "Открыть настройки"

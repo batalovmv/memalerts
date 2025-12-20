@@ -41,6 +41,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "subtitle": "Manage your memes and channel settings",
     "wallet": "Your Wallet",
     "balance": "coins",
     "noWallets": "No wallets found.",
@@ -62,6 +63,9 @@
       "pendingSubmissionsDescription": "Review and approve meme submissions",
       "pendingSubmissionsButton": "{{count}} Pending",
       "noPendingSubmissions": "No Pending",
+      "allMemes": "All memes",
+      "allMemesDescription": "Browse and edit your meme library",
+      "openAllMemes": "Open",
       "settings": "Settings",
       "settingsDescription": "Configure your channel and preferences",
       "settingsButton": "Open Settings"

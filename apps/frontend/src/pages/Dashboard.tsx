@@ -160,48 +160,26 @@ export default function Dashboard() {
         
         {user.channelId ? (
           <>
-            {/* Wallet Balance - Prominent Display */}
-            {user.wallets && user.wallets.length > 0 && (
-              <div className="mb-8">
-                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-purple-100 text-sm mb-1">{t('dashboard.yourBalance', 'Your Balance')}</p>
-                      <div className="text-4xl font-bold">
-                        {user.wallets.find(w => w.channelId === user.channelId)?.balance || 0} 
-                        <span className="text-2xl text-purple-200"> coins</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-purple-100 text-sm">
-                        {t('dashboard.redeemChannelPoints', 'Redeem channel points on Twitch to earn more!')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Quick Actions Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
               {/* Submit Meme Card - Primary */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 hover:shadow-2xl transition-shadow border-2 border-primary/20">
-                <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-primary/20 flex flex-col min-h-[210px]">
+                <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
                 </p>
                 <button
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="w-full bg-primary hover:bg-secondary text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-lg"
+                  className="mt-auto w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-6 rounded-lg transition-colors"
                 >
                   {t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}
                 </button>
               </div>
 
               {/* Pending Submissions Card - Secondary */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-secondary/20">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-xl font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
+                  <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
                   {pendingSubmissionsCount > 0 && (
                     <span className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1">
                       {pendingSubmissionsCount}
@@ -213,7 +191,7 @@ export default function Dashboard() {
                 </p>
                 <button
                   onClick={() => setPanel(panel === 'submissions' ? null : 'submissions')}
-                  className={`w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
+                  className={`mt-auto w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
                     panel === 'submissions'
                       ? 'bg-red-600 hover:bg-red-700 text-white'
                       : pendingSubmissionsCount > 0
@@ -229,9 +207,9 @@ export default function Dashboard() {
               </div>
 
               {/* All Memes Card */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-md transition-shadow border border-secondary/20">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-medium dark:text-white">
+                  <h2 className="text-lg font-semibold dark:text-white">
                     {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
                   </h2>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -243,7 +221,7 @@ export default function Dashboard() {
                 </p>
                 <button
                   onClick={() => setPanel(panel === 'memes' ? null : 'memes')}
-                  className={`w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
+                  className={`mt-auto w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
                     panel === 'memes'
                       ? 'bg-primary hover:bg-secondary text-white'
                       : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
@@ -256,14 +234,14 @@ export default function Dashboard() {
               </div>
 
               {/* Settings Card - Tertiary */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-md transition-shadow opacity-90">
-                <h2 className="text-lg font-medium mb-4 dark:text-white">{t('dashboard.quickActions.settings', 'Settings')}</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+                <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.settings', 'Settings')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
                 </p>
                 <button
                   onClick={() => navigate('/settings?tab=settings')}
-                  className="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-3 px-6 rounded-lg transition-colors"
+                  className="mt-auto w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-3 px-6 rounded-lg transition-colors"
                 >
                   {t('dashboard.quickActions.settingsButton', 'Open Settings')}
                 </button>
@@ -315,8 +293,12 @@ export default function Dashboard() {
                     navigate(`/channel/${user.channel.slug}`);
                   }
                 }}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-semibold py-3 px-5 rounded-xl transition-colors border border-secondary/20 shadow-sm"
               >
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
                 {t('dashboard.viewPublicProfile')}
               </button>
             </div>
