@@ -7,7 +7,6 @@ import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/
 import { fetchMemes } from '../store/slices/memesSlice';
 import Header from '../components/Header';
 import SubmitModal from '../components/SubmitModal';
-import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
 import toast from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
