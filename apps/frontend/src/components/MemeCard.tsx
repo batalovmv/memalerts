@@ -175,7 +175,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       ref={(node) => {
         cardRef.current = node;
       }}
-      className="inline-block w-full bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] shadow-sm hover:shadow-md transition-shadow"
+      className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px]"
       onMouseEnter={() => {
         setIsHovered(true);
         if (!shouldLoadMedia) return;
