@@ -18,7 +18,7 @@ import { AllMemesPanel } from '../components/dashboard/AllMemesPanel';
 export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading, loadingMore: submissionsLoadingMore, total: submissionsTotal } = useAppSelector((state) => state.submissions);
   const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -102,7 +102,7 @@ export default function Dashboard() {
       // Only fetch if no fresh data, not loading, no recent error, and not already loaded
       if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
         submissionsLoadedRef.current = true;
-        dispatch(fetchSubmissions({ status: 'pending' }));
+        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
       } else if (hasFreshData) {
         submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
@@ -138,7 +138,10 @@ export default function Dashboard() {
     dispatch(fetchMemes({ channelId: userChannelId }));
   }, [user?.id, user?.role, user?.channelId, memesLoading, memes, dispatch]);
 
-  const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
+  const pendingSubmissionsCount =
+    typeof submissionsTotal === 'number'
+      ? submissionsTotal
+      : submissions.filter(s => s.status === 'pending').length;
 
   const myChannelMemes = useMemo(() => {
     if (!user?.channelId) return [];
@@ -264,8 +267,16 @@ export default function Dashboard() {
                   isOpen={panel === 'submissions'}
                   submissions={submissions}
                   submissionsLoading={submissionsLoading}
+                  submissionsLoadingMore={submissionsLoadingMore}
                   pendingCount={pendingSubmissionsCount}
+                  total={submissionsTotal}
                   onClose={() => setPanel(null)}
+                  onLoadMore={() => {
+                    const offset = submissions.length;
+                    // If we know total and already loaded everything, skip.
+                    if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
+                    dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
+                  }}
                   onApprove={(submissionId) => {
                     setApproveModal({ open: true, submissionId });
                     setPriceCoins('100');

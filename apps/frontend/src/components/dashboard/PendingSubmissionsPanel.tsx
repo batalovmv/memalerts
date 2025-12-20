@@ -6,8 +6,11 @@ type Props = {
   isOpen: boolean;
   submissions: Submission[];
   submissionsLoading: boolean;
+  submissionsLoadingMore: boolean;
   pendingCount: number;
+  total: number | null;
   onClose: () => void;
+  onLoadMore: () => void;
   onApprove: (submissionId: string) => void;
   onReject: (submissionId: string) => void;
 };
@@ -16,13 +19,41 @@ export function PendingSubmissionsPanel({
   isOpen,
   submissions,
   submissionsLoading,
+  submissionsLoadingMore,
   pendingCount,
+  total,
   onClose,
+  onLoadMore,
   onApprove,
   onReject,
 }: Props) {
   const { t } = useTranslation();
   const pendingSubmissions = useMemo(() => submissions.filter((s) => s.status === 'pending'), [submissions]);
+  const hasMore = typeof total === 'number' ? pendingSubmissions.length < total : true;
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!hasMore) return;
+    if (submissionsLoading || submissionsLoadingMore) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            onLoadMore();
+            return;
+          }
+        }
+      },
+      { root: null, rootMargin: '400px 0px', threshold: 0.01 }
+    );
+
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [isOpen, hasMore, submissionsLoading, submissionsLoadingMore, onLoadMore]);
 
   const resolveMediaUrl = (src: string): string => {
     const normalizedSrc = (src || '').trim();
@@ -37,7 +68,7 @@ export function PendingSubmissionsPanel({
 
   return (
     <section
-      className={`${isOpen ? 'block' : 'hidden'} surface`}
+      className={`${isOpen ? 'block' : 'hidden'} surface max-w-6xl mx-auto`}
       aria-label={t('dashboard.pendingSubmissionsTitle', 'Pending submissions')}
     >
       <div className="surface-header">
@@ -65,7 +96,7 @@ export function PendingSubmissionsPanel({
         </button>
       </div>
 
-      <div className="surface-body">
+      <div className="surface-body max-h-[70vh] overflow-y-auto">
         {pendingSubmissions.length === 0 ? (
           <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
             <div className="font-semibold mb-1">{t('dashboard.noPendingSubmissions', 'No pending submissions')}</div>
@@ -84,6 +115,13 @@ export function PendingSubmissionsPanel({
                 onReject={onReject}
               />
             ))}
+            {/* Infinite-scroll sentinel */}
+            <div ref={loadMoreRef} className="h-8" />
+            {submissionsLoadingMore && (
+              <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+                {t('common.loading', { defaultValue: 'Loading...' })}
+              </div>
+            )}
           </div>
         )}
       </div>

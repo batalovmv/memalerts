@@ -5,30 +5,41 @@ import type { Submission, ApiError } from '../../types';
 interface SubmissionsState {
   submissions: Submission[];
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   lastFetchedAt: number | null;
   lastErrorAt: number | null; // Track when error occurred to prevent infinite retries
+  total: number | null;
 }
 
 const initialState: SubmissionsState = {
   submissions: [],
   loading: false,
+  loadingMore: false,
   error: null,
   lastFetchedAt: null,
   lastErrorAt: null,
+  total: null,
 };
 
+type SubmissionsPage = { items: Submission[]; total: number };
+
 export const fetchSubmissions = createAsyncThunk<
-  Submission[],
-  { status?: string },
+  SubmissionsPage,
+  { status?: string; limit?: number; offset?: number; append?: boolean },
   { rejectValue: ApiError }
->('submissions/fetchSubmissions', async ({ status = 'pending' }, { rejectWithValue }) => {
+>('submissions/fetchSubmissions', async ({ status = 'pending', limit = 20, offset = 0 }, { rejectWithValue }) => {
   try {
-    const submissions = await api.get<Submission[]>('/admin/submissions', {
-      params: { status },
+    const resp = await api.get<Submission[] | SubmissionsPage>('/admin/submissions', {
+      params: { status, limit, offset },
       timeout: 15000, // 15 seconds timeout
     });
-    return submissions;
+
+    // Back-compat: older backend returns array
+    if (Array.isArray(resp)) {
+      return { items: resp, total: resp.length };
+    }
+    return { items: resp.items || [], total: typeof resp.total === 'number' ? resp.total : 0 };
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({
@@ -143,18 +154,33 @@ const submissionsSlice = createSlice({
     builder
       // fetchSubmissions
       .addCase(fetchSubmissions.pending, (state) => {
-        state.loading = true;
+        // If we already have some data, treat as "load more" for nicer UX
+        state.loadingMore = state.submissions.length > 0;
+        state.loading = !state.loadingMore;
         state.error = null;
       })
       .addCase(fetchSubmissions.fulfilled, (state, action) => {
         state.loading = false;
-        state.submissions = action.payload;
+        state.loadingMore = false;
+        state.total = action.payload.total;
+
+        // append if offset > 0 (pagination); otherwise replace
+        const offset = (action.meta.arg as any)?.offset ?? 0;
+        if (offset > 0) {
+          const existing = new Set(state.submissions.map((s) => s.id));
+          for (const item of action.payload.items) {
+            if (!existing.has(item.id)) state.submissions.push(item);
+          }
+        } else {
+          state.submissions = action.payload.items;
+        }
         state.error = null;
         state.lastFetchedAt = Date.now();
         state.lastErrorAt = null; // Clear error timestamp on success
       })
       .addCase(fetchSubmissions.rejected, (state, action) => {
         state.loading = false;
+        state.loadingMore = false;
         state.error = action.payload?.message || 'Failed to fetch submissions';
         // Track error time to prevent infinite retries
         // If error is 403 (Forbidden), don't retry for 5 minutes
