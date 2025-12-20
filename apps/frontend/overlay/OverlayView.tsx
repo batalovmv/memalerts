@@ -13,10 +13,13 @@ interface Activation {
 
 interface QueuedActivation extends Activation {
   startTime: number;
+  // Used when position=random
+  xPct?: number;
+  yPct?: number;
 }
 
 export default function OverlayView() {
-  const { channelSlug } = useParams<{ channelSlug: string }>();
+  const { channelSlug, token } = useParams<{ channelSlug?: string; token?: string }>();
   const [searchParams] = useSearchParams();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
@@ -25,7 +28,7 @@ export default function OverlayView() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const scale = parseFloat(searchParams.get('scale') || '1');
-  const position = searchParams.get('position') || 'center';
+  const position = (searchParams.get('position') || 'random').toLowerCase();
   const volume = parseFloat(searchParams.get('volume') || '1');
 
   const getMediaUrl = (fileUrl: string): string => {
@@ -49,7 +52,9 @@ export default function OverlayView() {
   };
 
   useEffect(() => {
-    if (!channelSlug) return;
+    const overlayToken = String(token || '').trim();
+    const slug = String(channelSlug || '').trim();
+    if (!overlayToken && !slug) return;
 
     const envUrl = import.meta.env.VITE_API_URL;
     // In production/beta deployments, always use same-origin to avoid cross-environment calls.
@@ -61,7 +66,12 @@ export default function OverlayView() {
 
     newSocket.on('connect', () => {
       console.log('Connected to server');
-      newSocket.emit('join:channel', channelSlug);
+      if (overlayToken) {
+        newSocket.emit('join:overlay', { token: overlayToken });
+      } else if (slug) {
+        // Back-compat only; new OBS links should use tokenized route.
+        newSocket.emit('join:channel', slug);
+      }
     });
 
     newSocket.on('activation:new', (activation: Activation) => {
@@ -80,7 +90,7 @@ export default function OverlayView() {
     return () => {
       newSocket.disconnect();
     };
-  }, [channelSlug]);
+  }, [channelSlug, token]);
 
   useEffect(() => {
     if (current && timeoutRef.current) {
@@ -108,9 +118,18 @@ export default function OverlayView() {
     if (!current && queue.length > 0) {
       const next = queue[0];
       setQueue((prev) => prev.slice(1));
-      setCurrent(next);
+      if (position === 'random') {
+        // Choose a random on-screen anchor point (in percentages).
+        // We keep a safe margin so it doesn't clip too often.
+        const margin = 10; // %
+        const xPct = margin + Math.random() * (100 - margin * 2);
+        const yPct = margin + Math.random() * (100 - margin * 2);
+        setCurrent({ ...next, xPct, yPct });
+      } else {
+        setCurrent(next);
+      }
     }
-  }, [current, queue]);
+  }, [current, queue, position]);
 
   useEffect(() => {
     if (current && current.type === 'audio' && audioRef.current) {
@@ -131,6 +150,13 @@ export default function OverlayView() {
     };
 
     switch (position) {
+      case 'random':
+        return {
+          ...base,
+          top: `${current?.yPct ?? 50}%`,
+          left: `${current?.xPct ?? 50}%`,
+          transform: `translate(-50%, -50%) scale(${scale})`,
+        };
       case 'center':
         return {
           ...base,

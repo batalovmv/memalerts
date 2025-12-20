@@ -96,6 +96,10 @@
     "importSubmitted": "Заявка на импорт мема отправлена! Ожидает одобрения."
   },
   "admin": {
+    "activityLast14Days": "Активность (последние 14 дней)",
+    "noActivityYet": "Пока нет активности.",
+    "dailyActivations": "Активации по дням",
+    "dailyCoinsSpent": "Потрачено монет по дням",
     "obsLinks": "OBS",
     "obsLinksTitle": "Ссылки для OBS",
     "obsLinksDescription": "Скопируйте ссылку оверлея и вставьте её в OBS как Browser Source. Оверлей будет показывать отправленные мемы в реальном времени.",

@@ -579,14 +579,37 @@ function ObsLinksSettings() {
   const channelSlug = user?.channel?.slug || '';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-  // Overlay is deployed under /overlay/ and expects /overlay/:channelSlug
-  const overlayUrl = channelSlug ? `${origin}/overlay/${channelSlug}` : '';
+  const [overlayToken, setOverlayToken] = useState<string>('');
+  const [loadingToken, setLoadingToken] = useState(false);
+
+  useEffect(() => {
+    if (!channelSlug) return;
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingToken(true);
+        const { api } = await import('../lib/api');
+        const resp = await api.get<{ token: string }>('/admin/overlay/token');
+        if (mounted) setOverlayToken(resp.token || '');
+      } catch (e) {
+        if (mounted) setOverlayToken('');
+      } finally {
+        if (mounted) setLoadingToken(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [channelSlug]);
+
+  // Overlay is deployed under /overlay/ and expects /overlay/t/:token
+  const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
 
   // Useful optional params for OBS:
-  // - position: center|top|bottom|top-left|top-right|bottom-left|bottom-right
+  // - position: random|center|top|bottom|top-left|top-right|bottom-left|bottom-right
   // - scale: number
   // - volume: number (0..1)
-  const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=center&scale=1&volume=1` : '';
+  const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=random&scale=1&volume=1` : '';
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
@@ -601,7 +624,7 @@ function ObsLinksSettings() {
           value={overlayUrlWithDefaults}
           masked={true}
           emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
-          description={t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
+          description={loadingToken ? t('common.loading', { defaultValue: 'Loading...' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
         />
 
         <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
@@ -1278,8 +1301,68 @@ function ChannelStatistics() {
     return <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('admin.noStatistics')}</div>;
   }
 
+  const daily = (stats.daily as Array<{ day: string; activations: number; coins: number }> | undefined) || [];
+  const maxDailyActivations = daily.reduce((m, d) => Math.max(m, d.activations || 0), 0) || 1;
+  const maxDailyCoins = daily.reduce((m, d) => Math.max(m, d.coins || 0), 0) || 1;
+
   return (
     <div className="space-y-6">
+      {/* Activity chart (last 14 days) */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">
+          {t('admin.activityLast14Days', { defaultValue: 'Activity (last 14 days)' })}
+        </h2>
+        {daily.length === 0 ? (
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {t('admin.noActivityYet', { defaultValue: 'No activity yet.' })}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                {t('admin.dailyActivations', { defaultValue: 'Daily activations' })}
+              </div>
+              <div className="grid grid-cols-14 gap-1 items-end h-24">
+                {daily.slice(-14).map((d) => {
+                  const h = Math.round(((d.activations || 0) / maxDailyActivations) * 100);
+                  const label = new Date(d.day).toLocaleDateString();
+                  return (
+                    <div key={`a-${d.day}`} className="h-full flex items-end">
+                      <div
+                        className="w-full rounded bg-primary/70"
+                        style={{ height: `${Math.max(3, h)}%` }}
+                        title={`${label}: ${d.activations || 0}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                {t('admin.dailyCoinsSpent', { defaultValue: 'Daily coins spent' })}
+              </div>
+              <div className="grid grid-cols-14 gap-1 items-end h-24">
+                {daily.slice(-14).map((d) => {
+                  const h = Math.round(((d.coins || 0) / maxDailyCoins) * 100);
+                  const label = new Date(d.day).toLocaleDateString();
+                  return (
+                    <div key={`c-${d.day}`} className="h-full flex items-end">
+                      <div
+                        className="w-full rounded bg-accent/70"
+                        style={{ height: `${Math.max(3, h)}%` }}
+                        title={`${label}: ${d.coins || 0}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Overall Stats */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.overallStatistics') || 'Overall Statistics'}</h2>

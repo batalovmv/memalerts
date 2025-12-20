@@ -96,6 +96,10 @@
     "importSubmitted": "Meme import submitted! Waiting for approval."
   },
   "admin": {
+    "activityLast14Days": "Activity (last 14 days)",
+    "noActivityYet": "No activity yet.",
+    "dailyActivations": "Daily activations",
+    "dailyCoinsSpent": "Daily coins spent",
     "obsLinks": "OBS",
     "obsLinksTitle": "OBS links",
     "obsLinksDescription": "Copy the overlay link and paste it into OBS as a Browser Source. The overlay will show activated memes in real time.",
