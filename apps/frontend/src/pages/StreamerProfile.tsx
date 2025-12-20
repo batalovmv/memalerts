@@ -436,6 +436,7 @@ export default function StreamerProfile() {
                     onActivate={handleActivate}
                     walletBalance={wallet?.balance}
                     canActivate={wallet ? wallet.balance >= meme.priceCoins : false}
+                    previewMode="autoplayMuted"
                   />
                 ))}
               </div>

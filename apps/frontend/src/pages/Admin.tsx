@@ -148,8 +148,9 @@ export default function Admin() {
       return;
     }
 
+    // Duration is auto-detected; enforce 1s..15s and don't allow manual override.
     if (isNaN(durationMs) || durationMs < 1000 || durationMs > 15000) {
-      toast.error(t('admin.invalidDuration') || 'Duration must be between 1000ms and 15000ms');
+      toast.error(t('admin.invalidDuration') || 'Video must be 1s..15s');
       return;
     }
 
@@ -467,20 +468,18 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.durationMs') || 'Duration (milliseconds)'}
+                      {t('admin.durationMs') || 'Duration'}
                     </label>
-                    <input
-                      type="number"
-                      min="1000"
-                      max="15000"
-                      step="100"
-                      value={approveForm.durationMs}
-                      onChange={(e) => setApproveForm({ ...approveForm, durationMs: e.target.value })}
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      required
-                    />
+                    <div className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2">
+                      {(() => {
+                        const ms = Number(approveForm.durationMs);
+                        if (!Number.isFinite(ms) || ms <= 0) return t('common.loading') || 'Loading...';
+                        const seconds = (ms / 1000).toFixed(2);
+                        return `${seconds}s (${ms}ms) • auto`;
+                      })()}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.durationMsDescription') || 'Between 1000ms (1s) and 15000ms (15s)'}
+                      {t('admin.durationMsDescription') || 'Auto-detected from file (max 15s)'}
                     </p>
                   </div>
                   <div className="flex gap-3 pt-4">

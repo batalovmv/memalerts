@@ -8,9 +8,10 @@ interface MemeCardProps {
   onActivate?: (memeId: string) => void;
   walletBalance?: number;
   canActivate?: boolean;
+  previewMode?: 'hoverWithSound' | 'autoplayMuted';
 }
 
-export default function MemeCard({ meme, onClick, onActivate, walletBalance, canActivate }: MemeCardProps) {
+export default function MemeCard({ meme, onClick, onActivate, walletBalance, canActivate, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -76,22 +77,30 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
   useEffect(() => {
     if (videoRef.current && meme.type === 'video') {
       const video = videoRef.current;
-      
+
+      // Autoplay preview mode (profile feed-style): always muted + looping.
+      if (previewMode === 'autoplayMuted') {
+        video.muted = true;
+        // Try to keep playing (browser allows autoplay only if muted).
+        video.play().catch(() => {
+          // Ignore autoplay errors (e.g., low power mode / browser policy quirks)
+        });
+        return;
+      }
+
+      // Default mode: play on hover, unmute only after user interaction.
       if (isHovered) {
-        // When hovered, play video
         video.play().catch(() => {
           // Ignore autoplay errors
         });
-        // Enable sound if user has interacted with page
         video.muted = !hasUserInteracted;
       } else {
-        // When not hovered, pause and reset
         video.pause();
         video.currentTime = 0;
-        video.muted = true; // Always mute when not hovered
+        video.muted = true;
       }
     }
-  }, [meme.type, isHovered, hasUserInteracted]);
+  }, [meme.type, isHovered, hasUserInteracted, previewMode]);
 
   const handleCardClick = () => {
     setHasUserInteracted(true);
@@ -130,8 +139,30 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
   return (
     <article
       className="bg-white dark:bg-gray-800 overflow-hidden cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
+          // Restart preview on hover (as requested).
+          try {
+            videoRef.current.currentTime = 0;
+          } catch {
+            // ignore
+          }
+          void videoRef.current.play().catch(() => {});
+        }
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
+          // Restart again when leaving hover (so it always begins from start).
+          try {
+            videoRef.current.currentTime = 0;
+          } catch {
+            // ignore
+          }
+          void videoRef.current.play().catch(() => {});
+        }
+      }}
       onClick={handleCardClick}
       onMouseDown={handleCardInteraction}
       onTouchStart={handleCardInteraction}
@@ -150,7 +181,8 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
           <video
             ref={videoRef}
             src={videoUrl}
-            muted={!hasUserInteracted || !isHovered}
+            muted={previewMode === 'autoplayMuted' ? true : (!hasUserInteracted || !isHovered)}
+            autoPlay={previewMode === 'autoplayMuted'}
             loop
             playsInline
             className="w-full h-full object-contain"
