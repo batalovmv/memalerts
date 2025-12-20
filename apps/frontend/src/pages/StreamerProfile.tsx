@@ -314,8 +314,7 @@ export default function StreamerProfile() {
         {/* Channel Header */}
         {loading ? (
           <div
-            className="mb-8 border-b pb-4"
-            style={{ borderColor: mix('--secondary-color', 28) }}
+            className="mb-8 pb-6"
           >
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
@@ -327,23 +326,34 @@ export default function StreamerProfile() {
           </div>
         ) : channelInfo && (
           <div
-            className="mb-8 border-b pb-4"
-            style={{ borderColor: mix('--secondary-color', 28) }}
+            className="mb-8 pb-6"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 {/* Avatar */}
-                {channelInfo.owner?.profileImageUrl ? (
-                  <img 
-                    src={channelInfo.owner.profileImageUrl} 
-                    alt={channelInfo.owner.displayName}
-                    className="w-20 h-20 rounded-lg object-cover border-2"
-                    style={{ borderColor: mix('--secondary-color', 35) }}
-                  />
-                ) : (
+                {(() => {
+                  const rawUrl = (isOwner ? (user?.profileImageUrl || channelInfo.owner?.profileImageUrl) : channelInfo.owner?.profileImageUrl) || '';
+                  const normalized = rawUrl.trim();
+                  if (!normalized) return null;
+                  const isAbsolute = normalized.startsWith('http://') || normalized.startsWith('https://');
+                  const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+                  const resolved = isAbsolute
+                    ? normalized
+                    : (isBetaDomain && normalized.startsWith('/uploads/'))
+                      ? `https://twitchmemes.ru${normalized}`
+                      : normalized;
+
+                  return (
+                    <img
+                      src={resolved}
+                      alt={channelInfo.owner?.displayName || channelInfo.name}
+                      className="w-20 h-20 rounded-lg object-cover"
+                      loading="lazy"
+                    />
+                  );
+                })() || (
                   <div
-                    className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl border-2"
-                    style={{ borderColor: mix('--secondary-color', 35) }}
+                    className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl"
                   >
                     {channelInfo.name.charAt(0).toUpperCase()}
                   </div>
@@ -364,8 +374,7 @@ export default function StreamerProfile() {
               {user && !isOwner && (
                 <button
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors border"
-                  style={{ borderColor: mix('--secondary-color', 28) }}
+                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-sm"
                   title={t('profile.submitMeme')}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

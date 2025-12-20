@@ -516,7 +516,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* Balance Display */}
                 <div className="relative group">
                   <div
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm"
                     onClick={() => {
                       setCoinUpdateDelta(null);
                     }}

@@ -926,26 +926,26 @@ function WalletManagement() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">{t('admin.walletManagement')}</h2>
+      <div className="surface p-6">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.walletManagement')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b">
-                <th className="text-left p-2">{t('admin.user')}</th>
-                <th className="text-left p-2">{t('admin.channel') || 'Channel'}</th>
-                <th className="text-left p-2">{t('admin.balance') || 'Balance'}</th>
-                <th className="text-left p-2">{t('common.actions') || 'Actions'}</th>
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="p-2">{t('admin.user')}</th>
+                <th className="p-2">{t('admin.channel') || 'Channel'}</th>
+                <th className="p-2">{t('admin.balance') || 'Balance'}</th>
+                <th className="p-2">{t('common.actions') || 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
               {wallets.map((wallet) => {
                 const w = wallet as { id: string; userId: string; channelId: string; balance: number; user: { displayName: string }; channel: { name: string } };
                 return (
-                <tr key={w.id} className="border-b">
-                  <td className="p-2">{w.user.displayName}</td>
-                  <td className="p-2">{w.channel.name}</td>
-                  <td className="p-2 font-bold">{w.balance} coins</td>
+                <tr key={w.id} className="border-t border-gray-200/70 dark:border-white/10">
+                  <td className="p-2 dark:text-gray-100">{w.user.displayName}</td>
+                  <td className="p-2 dark:text-gray-100">{w.channel.name}</td>
+                  <td className="p-2 font-bold dark:text-white">{w.balance} coins</td>
                   <td className="p-2">
                     <div className="flex gap-2 items-center">
                       <input
@@ -953,7 +953,7 @@ function WalletManagement() {
                         value={adjusting === `${w.userId}-${w.channelId}` ? adjustAmount : ''}
                         onChange={(e) => setAdjustAmount(e.target.value)}
                         placeholder={t('admin.amount')}
-                        className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
+                        className="w-24 rounded px-2 py-1 text-sm bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                         disabled={adjusting !== null && adjusting !== `${w.userId}-${w.channelId}`}
                       />
                       <button
@@ -972,7 +972,7 @@ function WalletManagement() {
           </table>
         </div>
         {wallets.length === 0 && (
-          <div className="text-center py-8 text-gray-500">{t('admin.noWallets')}</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('admin.noWallets')}</div>
         )}
       </div>
     </div>

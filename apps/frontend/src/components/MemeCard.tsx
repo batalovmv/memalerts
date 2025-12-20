@@ -13,6 +13,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
+  const [hasEverHovered, setHasEverHovered] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -146,17 +147,20 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
         return;
       }
 
-      // Default: hover preview, unmute only after user interaction.
+      // Hover preview: start from 0 on hover, but do NOT restart when leaving.
+      // When leaving, keep playing muted (so previous meme continues), and the newly hovered meme restarts.
       if (isHovered) {
         void video.play().catch(() => {});
         video.muted = !hasUserInteracted;
+      } else if (hasEverHovered) {
+        video.muted = true;
+        void video.play().catch(() => {});
       } else {
         video.pause();
-        video.currentTime = 0;
         video.muted = true;
       }
     }
-  }, [meme.type, isHovered, hasUserInteracted, previewMode, shouldLoadMedia]);
+  }, [meme.type, isHovered, hasUserInteracted, previewMode, shouldLoadMedia, hasEverHovered]);
 
   const handleCardClick = () => {
     setHasUserInteracted(true);
@@ -178,8 +182,10 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px]"
       onMouseEnter={() => {
         setIsHovered(true);
+        setHasEverHovered(true);
         if (!shouldLoadMedia) return;
-        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
+        if (videoRef.current && meme.type === 'video') {
+          // Restart on hover (matches expected UX)
           try {
             videoRef.current.currentTime = 0;
           } catch {
@@ -190,15 +196,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       }}
       onMouseLeave={() => {
         setIsHovered(false);
-        if (!shouldLoadMedia) return;
-        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
-          try {
-            videoRef.current.currentTime = 0;
-          } catch {
-            // ignore
-          }
-          void videoRef.current.play().catch(() => {});
-        }
+        // Important: don't reset/restart here. Leaving should not cause a replay.
       }}
       onClick={handleCardClick}
       onMouseDown={handleCardInteraction}
