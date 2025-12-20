@@ -590,6 +590,7 @@ function ObsLinksSettings() {
   const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
   const overlaySettingsLoadedRef = useRef<string | null>(null);
   const lastSavedOverlaySettingsRef = useRef<string | null>(null);
+  const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
   const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const RotateIcon = () => (
@@ -686,6 +687,25 @@ function ObsLinksSettings() {
           lastSavedOverlaySettingsRef.current = payload;
           // Keep channel cache consistent (used by other panels).
           await getChannelData(channelSlug, false, true);
+
+          // Explicit confirmation for the user.
+          if (lastChangeRef.current === 'mode') {
+            toast.success(
+              overlayMode === 'queue'
+                ? t('admin.obsOverlayModeSavedQueue', { defaultValue: 'Mode updated: Queue' })
+                : t('admin.obsOverlayModeSavedUnlimited', { defaultValue: 'Mode updated: Unlimited' })
+            );
+          } else if (lastChangeRef.current === 'sender') {
+            toast.success(
+              overlayShowSender
+                ? t('admin.obsOverlaySenderEnabled', { defaultValue: 'Sender name enabled' })
+                : t('admin.obsOverlaySenderDisabled', { defaultValue: 'Sender name disabled' })
+            );
+          } else {
+            // Generic fallback (should be rare)
+            toast.success(t('admin.settingsSaved', { defaultValue: 'Saved' }));
+          }
+          lastChangeRef.current = null;
         } catch (error: unknown) {
           const apiError = error as { response?: { data?: { error?: string } } };
           toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
@@ -762,7 +782,10 @@ function ObsLinksSettings() {
               <div className="inline-flex rounded border border-secondary/30 overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => setOverlayMode('queue')}
+                  onClick={() => {
+                    lastChangeRef.current = 'mode';
+                    setOverlayMode('queue');
+                  }}
                   disabled={loadingOverlaySettings || savingOverlaySettings}
                   className={`px-3 py-2 text-sm font-medium ${
                     overlayMode === 'queue'
@@ -774,7 +797,10 @@ function ObsLinksSettings() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOverlayMode('simultaneous')}
+                  onClick={() => {
+                    lastChangeRef.current = 'mode';
+                    setOverlayMode('simultaneous');
+                  }}
                   disabled={loadingOverlaySettings || savingOverlaySettings}
                   className={`px-3 py-2 text-sm font-medium border-l border-secondary/30 ${
                     overlayMode === 'simultaneous'
@@ -797,7 +823,10 @@ function ObsLinksSettings() {
                 id="overlayShowSender"
                 type="checkbox"
                 checked={overlayShowSender}
-                onChange={(e) => setOverlayShowSender(e.target.checked)}
+                onChange={(e) => {
+                  lastChangeRef.current = 'sender';
+                  setOverlayShowSender(e.target.checked);
+                }}
                 className="mt-1 h-4 w-4 rounded border-secondary/30"
                 disabled={loadingOverlaySettings || savingOverlaySettings}
               />
