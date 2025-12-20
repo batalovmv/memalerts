@@ -751,7 +751,7 @@ function ObsLinksSettings() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+    <div className="surface p-6">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.obsLinksTitle', { defaultValue: 'OBS links' })}</h2>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
         {t('admin.obsLinksDescription', { defaultValue: 'Copy the overlay link and paste it into OBS as a Browser Source. The overlay will show activated memes in real time.' })}
@@ -781,7 +781,7 @@ function ObsLinksSettings() {
           }
         />
 
-        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+        <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
             {t('admin.obsOverlaySettingsTitle', { defaultValue: 'Overlay settings' })}
           </div>
@@ -791,7 +791,7 @@ function ObsLinksSettings() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
               </label>
-              <div className="inline-flex rounded border border-secondary/30 overflow-hidden">
+              <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
                 <button
                   type="button"
                   onClick={() => {
@@ -802,7 +802,7 @@ function ObsLinksSettings() {
                   className={`px-3 py-2 text-sm font-medium ${
                     overlayMode === 'queue'
                       ? 'bg-primary text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                      : 'bg-transparent text-gray-900 dark:text-white'
                   }`}
                 >
                   {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
@@ -814,10 +814,10 @@ function ObsLinksSettings() {
                     setOverlayMode('simultaneous');
                   }}
                   disabled={loadingOverlaySettings || savingOverlaySettings}
-                  className={`px-3 py-2 text-sm font-medium border-l border-secondary/30 ${
+                  className={`px-3 py-2 text-sm font-medium border-l border-white/20 dark:border-white/10 ${
                     overlayMode === 'simultaneous'
                       ? 'bg-primary text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                      : 'bg-transparent text-gray-900 dark:text-white'
                   }`}
                 >
                   {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
@@ -839,7 +839,7 @@ function ObsLinksSettings() {
                   lastChangeRef.current = 'sender';
                   setOverlayShowSender(e.target.checked);
                 }}
-                className="mt-1 h-4 w-4 rounded border-secondary/30"
+                className="mt-1 h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
                 disabled={loadingOverlaySettings || savingOverlaySettings}
               />
               <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
@@ -852,7 +852,7 @@ function ObsLinksSettings() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+        <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">
             {t('admin.obsHowToTitle', { defaultValue: 'How to add in OBS' })}
           </div>
@@ -1102,7 +1102,7 @@ function RewardsSettings() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+    <div className="surface p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold dark:text-white">{t('admin.rewards', 'Награды')}</h2>
         {/* Future: Add new reward button - пока скрыто, так как только одна награда */}
@@ -1117,7 +1117,7 @@ function RewardsSettings() {
 
       <div className="space-y-4">
         {/* Card A: Twitch reward (Channel Points -> coins) */}
-        <form onSubmit={handleSaveTwitchReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+        <form onSubmit={handleSaveTwitchReward} className="glass p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold dark:text-white mb-1">
@@ -1148,7 +1148,7 @@ function RewardsSettings() {
                   type="text"
                   value={rewardSettings.rewardTitle}
                   onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
-                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   placeholder={t('admin.rewardTitlePlaceholder')}
                 />
               </div>
@@ -1171,7 +1171,7 @@ function RewardsSettings() {
                         e.preventDefault();
                       }
                     }}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
@@ -1197,7 +1197,7 @@ function RewardsSettings() {
                         e.preventDefault();
                       }
                     }}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
@@ -1218,7 +1218,7 @@ function RewardsSettings() {
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
+          <div className="mt-4 pt-4 flex justify-end">
             <button
               type="submit"
               disabled={savingTwitchReward}
@@ -1230,7 +1230,7 @@ function RewardsSettings() {
         </form>
 
         {/* Card B: Approved meme reward (coins) */}
-        <form onSubmit={handleSaveApprovedMemeReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+        <form onSubmit={handleSaveApprovedMemeReward} className="glass p-6">
           <div className="mb-4">
             <h3 className="text-lg font-semibold dark:text-white mb-1">
               {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
@@ -1258,7 +1258,7 @@ function RewardsSettings() {
                   e.preventDefault();
                 }
               }}
-              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+              className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               placeholder="0"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -1266,7 +1266,7 @@ function RewardsSettings() {
             </p>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
+          <div className="mt-4 pt-4 flex justify-end">
             <button
               type="submit"
               disabled={savingApprovedMemeReward}
@@ -1365,15 +1365,15 @@ function ChannelSettings() {
   const profileUrl = user?.channel?.slug ? `https://twitchmemes.ru/channel/${user.channel.slug}` : '';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+    <div className="surface p-6">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
 
       {/* Preferences */}
-      <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="mb-6 pb-6">
         <h3 className="text-lg font-semibold mb-3 dark:text-white">
           {t('admin.preferences', 'Предпочтения')}
         </h3>
-        <div className="flex items-start justify-between gap-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-secondary/20">
+        <div className="flex items-start justify-between gap-4 glass p-4">
           <div className="min-w-0">
             <div className="font-semibold text-gray-900 dark:text-white">
               {t('admin.autoplayMemesTitle', { defaultValue: 'Autoplay memes' })}
@@ -1396,7 +1396,7 @@ function ChannelSettings() {
       
       {/* Profile Link Section */}
       {profileUrl && (
-        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="mb-6 pb-6">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {t('admin.profileLink')}
           </label>
@@ -1405,7 +1405,7 @@ function ChannelSettings() {
               type="text"
               readOnly
               value={profileUrl}
-              className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-700 text-sm"
+              className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm text-sm"
             />
             <button
               type="button"
@@ -1417,7 +1417,7 @@ function ChannelSettings() {
                   toast.error(t('toast.failedToCopyLink'));
                 }
               }}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
+              className="p-2 rounded-lg hover:bg-white/70 dark:hover:bg-white/10 transition-colors glass-btn bg-white/40 dark:bg-white/5"
               title={t('dashboard.copyLink')}
             >
               <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1433,7 +1433,7 @@ function ChannelSettings() {
 
       <form onSubmit={handleSave} className="space-y-4">
         <div>
-          <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1444,7 +1444,7 @@ function ChannelSettings() {
                   type="color"
                   value={settings.primaryColor || '#9333ea'}
                   onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
-                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                  className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
                 />
                 <input
                   type="text"
@@ -1452,7 +1452,7 @@ function ChannelSettings() {
                   onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
                   placeholder="#9333ea"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
                 />
               </div>
             </div>
@@ -1465,7 +1465,7 @@ function ChannelSettings() {
                   type="color"
                   value={settings.secondaryColor || '#4f46e5'}
                   onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
-                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                  className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
                 />
                 <input
                   type="text"
@@ -1473,7 +1473,7 @@ function ChannelSettings() {
                   onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
                   placeholder="#4f46e5"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
                 />
               </div>
             </div>
@@ -1486,7 +1486,7 @@ function ChannelSettings() {
                   type="color"
                   value={settings.accentColor || '#ec4899'}
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
-                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                  className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
                 />
                 <input
                   type="text"
@@ -1494,7 +1494,7 @@ function ChannelSettings() {
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
                   placeholder="#ec4899"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
                 />
               </div>
             </div>
@@ -1507,7 +1507,7 @@ function ChannelSettings() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-sm"
         >
           {loading ? t('admin.saving') : t('admin.saveSettings')}
         </button>
