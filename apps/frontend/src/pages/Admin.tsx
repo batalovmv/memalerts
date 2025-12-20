@@ -438,7 +438,9 @@ export default function Admin() {
             <div className="flex min-h-full items-center justify-center p-4">
               <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
                 <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                  <h2 className="text-2xl font-bold dark:text-white">{t('admin.approveSubmission') || 'Approve Submission'}</h2>
+                  <h2 className="text-2xl font-bold dark:text-white">
+                    {t('admin.approveSubmission', { defaultValue: 'Approve submission' })}
+                  </h2>
                   <button
                     onClick={closeApproveModal}
                     className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -452,7 +454,7 @@ export default function Admin() {
                 <div className="p-6 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.priceCoins') || 'Price (coins)'}
+                      {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
                     </label>
                     <input
                       type="number"
@@ -463,23 +465,7 @@ export default function Admin() {
                       required
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.priceCoinsDescription') || 'Minimum 1 coin'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.durationMs') || 'Duration'}
-                    </label>
-                    <div className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2">
-                      {(() => {
-                        const ms = Number(approveForm.durationMs);
-                        if (!Number.isFinite(ms) || ms <= 0) return t('common.loading') || 'Loading...';
-                        const seconds = (ms / 1000).toFixed(2);
-                        return `${seconds}s (${ms}ms) • auto`;
-                      })()}
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.durationMsDescription') || 'Auto-detected from file (max 15s)'}
+                      {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
                     </p>
                   </div>
                   <div className="flex gap-3 pt-4">
