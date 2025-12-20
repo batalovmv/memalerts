@@ -101,16 +101,16 @@ export function SocketProvider({ children }: SocketProviderProps) {
         }
       });
 
-      socket.on('disconnect', (reason: string) => {
+      socket.on('disconnect', () => {
         setIsConnected(false);
       });
 
-      socket.on('connect_error', (error: Error) => {
+      socket.on('connect_error', () => {
         setIsConnected(false);
         // Don't manually retry - let Socket.IO handle reconnection with exponential backoff
       });
 
-      socket.on('reconnect_attempt', (attemptNumber: number) => {
+      socket.on('reconnect_attempt', () => {
       });
 
       socket.on('reconnect_failed', () => {

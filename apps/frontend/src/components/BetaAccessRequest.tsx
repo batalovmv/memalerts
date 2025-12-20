@@ -24,11 +24,9 @@ export default function BetaAccessRequest() {
   const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
-      const startTime = Date.now();
       const response = await api.get<BetaAccessStatus>('/beta/status', {
         timeout: 10000, // 10 seconds timeout
       });
-      const duration = Date.now() - startTime;
       setStatus(response);
     } catch (error) {
     } finally {
