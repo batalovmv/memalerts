@@ -416,6 +416,9 @@ export default function Dashboard() {
                         toast.success(t('admin.approve', { defaultValue: 'Approve' }));
                         setApproveModal({ open: false, submissionId: null });
                         dispatch(fetchSubmissions({ status: 'pending' }));
+                        if (user?.channelId) {
+                          dispatch(fetchMemes({ channelId: user.channelId }));
+                        }
                       } catch {
                         toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
                       }

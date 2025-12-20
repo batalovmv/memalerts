@@ -132,7 +132,7 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
 
   return (
     <article
-      className="bg-white dark:bg-gray-800 overflow-hidden cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
+      className="bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
       onMouseEnter={() => {
         setIsHovered(true);
         if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
@@ -189,31 +189,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
             loading="lazy"
           />
         )}
-        {onActivate && (
-          <div className="absolute top-2 right-2 z-10">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onActivate(meme.id);
-              }}
-              disabled={!canActivate}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md shadow-lg transition-colors text-xs font-medium ${
-                canActivate
-                  ? 'bg-[var(--primary-color)] hover:bg-[var(--secondary-color)] text-white'
-                  : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-              }`}
-              title={!canActivate && walletBalance !== undefined 
-                ? `Need ${meme.priceCoins - walletBalance} more coins` 
-                : 'Activate Meme'}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="hidden sm:inline">Activate</span>
-            </button>
-          </div>
-        )}
         {isHovered && (
           <div 
             className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-0"
@@ -223,32 +198,6 @@ export default function MemeCard({ meme, onClick, onActivate, walletBalance, can
           </div>
         )}
       </div>
-      {/* Mobile: Always visible compact activate button */}
-      {onActivate && (
-        <div className="md:hidden absolute top-2 right-2 z-10">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onActivate(meme.id);
-            }}
-            disabled={!canActivate}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md shadow-lg transition-colors text-xs font-medium ${
-              canActivate
-                ? 'bg-[var(--primary-color)] hover:bg-[var(--secondary-color)] text-white'
-                : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-            }`}
-            title={!canActivate && walletBalance !== undefined 
-              ? `Need ${meme.priceCoins - walletBalance} more coins` 
-              : 'Activate Meme'}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Activate</span>
-          </button>
-        </div>
-      )}
     </article>
   );
 }

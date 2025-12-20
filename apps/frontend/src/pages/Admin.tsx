@@ -8,27 +8,20 @@ import { fetchMemes } from '../store/slices/memesSlice';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
 import Header from '../components/Header';
 import VideoPreview from '../components/VideoPreview';
-import MemeCard from '../components/MemeCard';
-import MemeModal from '../components/MemeModal';
 import { api } from '../lib/api';
 import toast from 'react-hot-toast';
-import type { Meme } from '../types';
 import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
 
-type TabType = 'submissions' | 'memes' | 'settings' | 'rewards' | 'wallets' | 'promotions' | 'statistics' | 'beta';
+type TabType = 'submissions' | 'settings' | 'rewards' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
 export default function Admin() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const { submissions, loading: submissionsLoading, error: submissionsError } = useAppSelector((state) => state.submissions);
-  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('settings');
-  const { autoplayMemesEnabled } = useAutoplayMemes();
-  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -44,7 +37,6 @@ export default function Admin() {
   const [rejectReason, setRejectReason] = useState('');
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
-  const memesLoadedRef = useRef(false);
 
   // Handle tab parameter from URL
   useEffect(() => {
@@ -59,7 +51,7 @@ export default function Admin() {
       navigate('/dashboard?panel=memes', { replace: true });
       return;
     }
-    if (tabParam && ['memes', 'settings', 'rewards', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
+    if (tabParam && ['settings', 'rewards', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams, navigate]);
@@ -92,26 +84,13 @@ export default function Admin() {
       } else if (hasFreshData) {
         submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
-      
-      // Load memes if not already loaded
-      if (!memesLoading && !memesLoadedRef.current && user.channelId) {
-        // Check if memes are already loaded for this channel
-        const channelMemes = memes.filter(m => m.channelId === user.channelId);
-        if (channelMemes.length === 0) {
-          memesLoadedRef.current = true;
-          dispatch(fetchMemes({ channelId: user.channelId }));
-        } else {
-          memesLoadedRef.current = true;
-        }
-      }
     }
     // Reset refs when user changes
     if (!user || !user.channelId) {
       submissionsLoadedRef.current = false;
-      memesLoadedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, user?.role, user?.channelId, dispatch, memesLoading]);
+  }, [user, user?.role, user?.channelId, dispatch]);
 
   // Auto-detect video duration when approve modal opens
   useEffect(() => {
@@ -231,16 +210,6 @@ export default function Admin() {
         <div className="mb-6">
           <div className="flex gap-4 items-center border-b border-secondary/30">
             {/* Основные вкладки */}
-            <button
-              onClick={() => setActiveTab('memes')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'memes'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.allMemes')} ({memes.length})
-            </button>
             <button
               onClick={() => setActiveTab('settings')}
               className={`pb-2 px-4 transition-colors ${
@@ -558,46 +527,6 @@ export default function Admin() {
               </div>
             </div>
           </div>
-        )}
-
-        {activeTab === 'memes' && (
-          <>
-            <div 
-              className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"
-              style={{ columnGap: 0 }}
-            >
-              {memes.map((meme: Meme) => {
-                const isOwner = user?.channelId === meme.channelId && (user?.role === 'streamer' || user?.role === 'admin');
-                return (
-                  <MemeCard
-                    key={meme.id}
-                    meme={meme}
-                    onClick={() => {
-                      setSelectedMeme(meme);
-                      setIsModalOpen(true);
-                    }}
-                    isOwner={isOwner}
-                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
-                  />
-                );
-              })}
-            </div>
-            <MemeModal
-              meme={selectedMeme}
-              isOpen={isModalOpen}
-              onClose={() => {
-                setIsModalOpen(false);
-                setSelectedMeme(null);
-              }}
-              onUpdate={() => {
-                if (user) {
-                  dispatch(fetchMemes({ channelId: user.channelId }));
-                }
-              }}
-              isOwner={user?.channelId === selectedMeme?.channelId && (user?.role === 'streamer' || user?.role === 'admin')}
-              mode="admin"
-            />
-          </>
         )}
 
         {activeTab === 'settings' && (

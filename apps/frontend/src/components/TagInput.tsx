@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, ClipboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface TagInputProps {
@@ -12,21 +12,36 @@ export default function TagInput({ tags, onChange, placeholder }: TagInputProps)
   const [inputValue, setInputValue] = useState('');
   const defaultPlaceholder = placeholder || t('submit.addTags');
 
+  const normalizeTag = (raw: string): string => raw.trim().toLowerCase();
+
+  const addTags = (raw: string) => {
+    // Tag is always one "word": split by comma/whitespace/newlines
+    const parts = raw
+      .split(/[,\s]+/g)
+      .map(normalizeTag)
+      .filter(Boolean);
+
+    if (parts.length === 0) return;
+
+    const next = [...tags];
+    for (const p of parts) {
+      if (p.length > 50) continue;
+      if (!next.includes(p)) next.push(p);
+    }
+    if (next.length !== tags.length) onChange(next);
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
       e.preventDefault();
-      addTag();
+      // Don't add empty tag on space spam
+      if (inputValue.trim()) {
+        addTags(inputValue);
+        setInputValue('');
+      }
     } else if (e.key === 'Backspace' && inputValue === '' && tags.length > 0) {
       // Remove last tag if backspace is pressed on empty input
       removeTag(tags.length - 1);
-    }
-  };
-
-  const addTag = () => {
-    const trimmed = inputValue.trim().toLowerCase();
-    if (trimmed && !tags.includes(trimmed) && trimmed.length <= 50) {
-      onChange([...tags, trimmed]);
-      setInputValue('');
     }
   };
 
@@ -36,7 +51,18 @@ export default function TagInput({ tags, onChange, placeholder }: TagInputProps)
 
   const handleBlur = () => {
     if (inputValue.trim()) {
-      addTag();
+      addTags(inputValue);
+      setInputValue('');
+    }
+  };
+
+  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text');
+    // If user pastes multiple words, treat them as multiple tags.
+    if (/[,\s]/.test(text)) {
+      e.preventDefault();
+      addTags(text);
+      setInputValue('');
     }
   };
 
@@ -64,6 +90,7 @@ export default function TagInput({ tags, onChange, placeholder }: TagInputProps)
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
+          onPaste={handlePaste}
           placeholder={tags.length === 0 ? defaultPlaceholder : ''}
           className="flex-1 min-w-[120px] border-none outline-none text-sm"
           maxLength={50}

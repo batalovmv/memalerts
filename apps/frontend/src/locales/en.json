@@ -310,7 +310,7 @@
     "close": "Close"
   },
   "tagInput": {
-    "pressEnterToAdd": "Press Enter or comma to add a tag. Maximum 50 characters per tag."
+    "pressEnterToAdd": "Press Enter, space, or comma to add a tag. Tag is one word. Maximum 50 characters per tag."
   },
   "toast": {
     "channelNotFound": "Channel not found",
