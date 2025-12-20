@@ -21,8 +21,128 @@ import {
   getEventSubSubscriptions,
   deleteEventSubSubscription,
 } from '../utils/twitchApi.js';
+import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
+import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
+import jwt from 'jsonwebtoken';
+import { debugLog, debugError } from '../utils/debug.js';
 
 export const adminController = {
+  getOverlayToken: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    if (!channelId) {
+      return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    try {
+      const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: {
+          slug: true,
+          overlayMode: true,
+          overlayShowSender: true,
+          overlayMaxConcurrent: true,
+          overlayTokenVersion: true,
+        },
+      });
+
+      if (!channel?.slug) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+
+      // Long-lived token intended to be pasted into OBS. It is opaque and unguessable (signed).
+      // Environment separation is preserved because JWT_SECRET differs between beta and production.
+      const token = jwt.sign(
+        {
+          kind: 'overlay',
+          v: 1,
+          channelId,
+          channelSlug: String(channel.slug).toLowerCase(),
+          tv: channel.overlayTokenVersion ?? 1,
+        },
+        process.env.JWT_SECRET!,
+        // IMPORTANT: keep token stable across page reloads.
+        // We avoid iat/exp so the string doesn't change unless streamer explicitly rotates it.
+        { noTimestamp: true }
+      );
+
+      return res.json({
+        token,
+        overlayMode: channel.overlayMode ?? 'queue',
+        overlayShowSender: channel.overlayShowSender ?? false,
+        overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
+      });
+    } catch (e: any) {
+      console.error('Error generating overlay token:', e);
+      return res.status(500).json({ error: 'Failed to generate overlay token' });
+    }
+  },
+
+  rotateOverlayToken: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    if (!channelId) {
+      return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    try {
+      const channel = await prisma.channel.update({
+        where: { id: channelId },
+        data: {
+          overlayTokenVersion: { increment: 1 },
+        },
+        select: {
+          slug: true,
+          overlayMode: true,
+          overlayShowSender: true,
+          overlayMaxConcurrent: true,
+          overlayTokenVersion: true,
+        },
+      });
+
+      if (!channel?.slug) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+
+      const token = jwt.sign(
+        {
+          kind: 'overlay',
+          v: 1,
+          channelId,
+          channelSlug: String(channel.slug).toLowerCase(),
+          tv: channel.overlayTokenVersion ?? 1,
+          // NOTE: keep payload deterministic (no jti/iat/exp). Rotation is done via tv increment.
+        },
+        process.env.JWT_SECRET!,
+        // No iat/exp: keep the token deterministic (stable for this tv).
+        { noTimestamp: true }
+      );
+
+      // Best-effort: disconnect existing overlay sockets so old leaked links stop "working" immediately.
+      // Otherwise, an already-connected OBS Browser Source would keep receiving activations until reloaded.
+      try {
+        const io: Server = req.app.get('io');
+        const slug = String(channel.slug).toLowerCase();
+        const room = `channel:${slug}`;
+        const sockets = await io.in(room).fetchSockets();
+        for (const s of sockets) {
+          if ((s.data as any)?.isOverlay) {
+            s.disconnect(true);
+          }
+        }
+      } catch (kickErr) {
+        console.error('Error disconnecting overlay sockets after token rotation:', kickErr);
+      }
+
+      return res.json({
+        token,
+        overlayMode: channel.overlayMode ?? 'queue',
+        overlayShowSender: channel.overlayShowSender ?? false,
+        overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
+      });
+    } catch (e: any) {
+      console.error('Error rotating overlay token:', e);
+      return res.status(500).json({ error: 'Failed to rotate overlay token' });
+    }
+  },
   getSubmissions: async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
     const channelId = req.channelId;
@@ -118,11 +238,10 @@ export const adminController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    // #region agent log
-    console.log('[DEBUG] approveSubmission started', JSON.stringify({ location: 'adminController.ts:119', message: 'approveSubmission started', data: { submissionId: id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-    // #endregion
+    debugLog('[DEBUG] approveSubmission started', { submissionId: id, channelId });
 
     let submission: any; // Declare submission in outer scope for error handling
+    let submissionRewardEvent: any = null;
     try {
       const body = approveSubmissionSchema.parse(req.body);
 
@@ -161,29 +280,24 @@ export const adminController = {
         }
 
         // Get channel to use default price and slug for Socket.IO
-        // #region agent log
-        console.log('[DEBUG] Fetching channel for default price', JSON.stringify({ location: 'adminController.ts:162', message: 'Fetching channel for default price', data: { channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
-        // #endregion
+        debugLog('[DEBUG] Fetching channel for default price', { channelId });
         
         const channel = await tx.channel.findUnique({
           where: { id: channelId },
-          select: { defaultPriceCoins: true, slug: true },
+          select: { defaultPriceCoins: true, slug: true, submissionRewardCoins: true },
         });
         
-        // #region agent log
-        console.log('[DEBUG] Channel fetched', JSON.stringify({ location: 'adminController.ts:166', message: 'Channel fetched', data: { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }));
-        // #endregion
+        debugLog('[DEBUG] Channel fetched', { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins });
         
         const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
+        const rewardForApproval = channel?.submissionRewardCoins ?? 0;
 
         // Determine fileUrl: handle deduplication for both uploaded and imported files
         let finalFileUrl: string;
         let fileHash: string | null = null;
         let filePath: string | null = null; // Declare filePath in wider scope
         
-        // #region agent log
-        console.log('[DEBUG] Processing file URL', JSON.stringify({ location: 'adminController.ts:165', message: 'Processing file URL', data: { submissionId: id, hasSourceUrl: !!submission.sourceUrl, fileUrlTemp: submission.fileUrlTemp }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-        // #endregion
+        debugLog('[DEBUG] Processing file URL', { submissionId: id, hasSourceUrl: !!submission.sourceUrl, fileUrlTemp: submission.fileUrlTemp });
         
         if (submission.sourceUrl) {
           // Imported meme - use sourceUrl temporarily, download will happen in background
@@ -199,19 +313,13 @@ export const adminController = {
               ? submission.fileUrlTemp.slice(1) 
               : submission.fileUrlTemp;
             
-            // #region agent log
-            console.log('[DEBUG] Validating file path', JSON.stringify({ location: 'adminController.ts:178', message: 'Validating file path', data: { submissionId: id, fileUrlTemp: submission.fileUrlTemp, relativePath, uploadsDir }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
-            // #endregion
+            debugLog('[DEBUG] Validating file path', { submissionId: id, fileUrlTemp: submission.fileUrlTemp, relativePath, uploadsDir });
             
             filePath = validatePathWithinDirectory(relativePath, uploadsDir);
             
-            // #region agent log
-            console.log('[DEBUG] Path validated', JSON.stringify({ location: 'adminController.ts:184', message: 'Path validated', data: { submissionId: id, filePath, fileExists: fs.existsSync(filePath) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
-            // #endregion
+            debugLog('[DEBUG] Path validated', { submissionId: id, filePath, fileExists: fs.existsSync(filePath) });
           } catch (pathError: any) {
-            // #region agent log
-            console.log('[DEBUG] Path validation failed', JSON.stringify({ location: 'adminController.ts:186', message: 'Path validation failed', data: { submissionId: id, fileUrlTemp: submission.fileUrlTemp, error: pathError.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }));
-            // #endregion
+            debugLog('[DEBUG] Path validation failed', { submissionId: id, fileUrlTemp: submission.fileUrlTemp, error: pathError?.message });
             console.error(`Path validation failed for submission.fileUrlTemp: ${submission.fileUrlTemp}`, pathError.message);
             throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
           }
@@ -238,7 +346,7 @@ export const adminController = {
               const result = await findOrCreateFileHash(filePath, hash, stats.mimeType, stats.size);
               finalFileUrl = result.filePath;
               fileHash = hash;
-              console.log(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
+              debugLog(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
             } catch (error: any) {
               console.error('File hash calculation failed during approve:', error.message);
               // Fallback to original path - don't fail the approval
@@ -333,9 +441,7 @@ export const adminController = {
         }
 
         try {
-          // #region agent log
-          console.log('[DEBUG] Creating meme in transaction', JSON.stringify({ location: 'adminController.ts:333', message: 'Creating meme in transaction', data: { submissionId: id, channelId: submission.channelId, hasTags: tagIds.length > 0, fileUrl: finalFileUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
-          // #endregion
+          debugLog('[DEBUG] Creating meme in transaction', { submissionId: id, channelId: submission.channelId, hasTags: tagIds.length > 0, fileUrl: finalFileUrl });
           
           const meme = await tx.meme.create({
             data: memeData,
@@ -361,15 +467,49 @@ export const adminController = {
             },
           });
 
-          // #region agent log
-          console.log('[DEBUG] Meme created successfully', JSON.stringify({ location: 'adminController.ts:357', message: 'Meme created successfully', data: { submissionId: id, memeId: meme.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
-          // #endregion
+          debugLog('[DEBUG] Meme created successfully', { submissionId: id, memeId: meme.id });
+
+          // Reward submitter for approved submission (per-channel setting)
+          // Only if enabled (>0) and submitter is not the moderator approving.
+          if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
+            const updatedWallet = await tx.wallet.upsert({
+              where: {
+                userId_channelId: {
+                  userId: submission.submitterUserId,
+                  channelId: submission.channelId,
+                },
+              },
+              create: {
+                userId: submission.submitterUserId,
+                channelId: submission.channelId,
+                balance: rewardForApproval,
+              },
+              update: {
+                balance: { increment: rewardForApproval },
+              },
+              select: {
+                balance: true,
+              },
+            });
+
+            submissionRewardEvent = {
+              userId: submission.submitterUserId,
+              channelId: submission.channelId,
+              balance: updatedWallet.balance,
+              delta: rewardForApproval,
+              reason: 'submission_approved_reward',
+              channelSlug: channel?.slug,
+            };
+          }
 
           return meme;
         } catch (error: any) {
-          // #region agent log
-          console.log('[DEBUG] Error creating meme', JSON.stringify({ location: 'adminController.ts:360', message: 'Error creating meme', data: { submissionId: id, errorMessage: error.message, errorName: error.name, errorCode: error instanceof PrismaClientKnownRequestError ? error.code : undefined, stack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'I' }));
-          // #endregion
+          debugLog('[DEBUG] Error creating meme', {
+            submissionId: id,
+            errorMessage: error?.message,
+            errorName: error?.name,
+            errorCode: error instanceof PrismaClientKnownRequestError ? error.code : undefined,
+          });
           console.error('Error creating meme:', error);
           // Check if it's a constraint violation or other Prisma error
           if (error instanceof PrismaClientKnownRequestError) {
@@ -386,15 +526,11 @@ export const adminController = {
         timeout: 30000, // 30 second timeout for transaction
         maxWait: 10000, // 10 second max wait for transaction to start
       }).catch((txError: any) => {
-        // #region agent log
-        console.log('[DEBUG] Transaction failed', JSON.stringify({ location: 'adminController.ts:375', message: 'Transaction failed', data: { submissionId: id, errorMessage: txError.message, errorName: txError.name, errorCode: txError.code, stack: txError.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
-        // #endregion
+        debugLog('[DEBUG] Transaction failed', { submissionId: id, errorMessage: txError?.message, errorName: txError?.name, errorCode: txError?.code });
         throw txError;
       });
       
-      // #region agent log
-      console.log('[DEBUG] Transaction completed successfully', JSON.stringify({ location: 'adminController.ts:380', message: 'Transaction completed successfully', data: { submissionId: id, resultId: result?.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'J' }));
-      // #endregion
+      debugLog('[DEBUG] Transaction completed successfully', { submissionId: id, resultId: result?.id });
 
       // Emit Socket.IO event for submission approval
       try {
@@ -404,23 +540,33 @@ export const adminController = {
           select: { slug: true },
         });
         if (channel) {
-          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:approved', {
+          const channelSlug = String(channel.slug).toLowerCase();
+          const evt = {
+            event: 'submission:approved' as const,
             submissionId: id,
             channelId,
-            moderatorId: req.userId,
-          });
-          // Also emit to user room for the moderator
-          if (req.userId) {
-            io.to(`user:${req.userId}`).emit('submission:approved', {
-              submissionId: id,
-              channelId,
-              moderatorId: req.userId,
-            });
-          }
+            channelSlug,
+            moderatorId: req.userId || undefined,
+            userIds: req.userId ? [req.userId] : undefined,
+            source: 'local' as const,
+          };
+          emitSubmissionEvent(io, evt);
+          void relaySubmissionEventToPeer(evt);
         }
       } catch (error) {
         console.error('Error emitting submission:approved event:', error);
         // Don't fail the request if Socket.IO emit fails
+      }
+
+      // Emit wallet update for rewarded submitter (if configured)
+      if (submissionRewardEvent) {
+        try {
+          const io: Server = req.app.get('io');
+          emitWalletUpdated(io, submissionRewardEvent);
+          void relayWalletUpdatedToPeer(submissionRewardEvent);
+        } catch (err) {
+          console.error('Error emitting wallet:updated for submission reward:', err);
+        }
       }
 
       // Imported memes keep using their original sourceUrl as fileUrl.
@@ -428,9 +574,7 @@ export const adminController = {
 
       res.json(result);
     } catch (error: any) {
-      // #region agent log
-      console.log('[DEBUG] Error in approveSubmission', JSON.stringify({ location: 'adminController.ts:377', message: 'Error in approveSubmission', data: { submissionId: id, errorMessage: error.message, errorName: error.name, errorCode: error.code, stack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }));
-      // #endregion
+      debugError('[DEBUG] Error in approveSubmission', error);
       console.error('Error in approveSubmission:', error);
 
       // Don't send response if headers already sent
@@ -453,9 +597,7 @@ export const adminController = {
         const errorCode = error instanceof PrismaClientKnownRequestError ? error.code : undefined;
         const errorMeta = error instanceof PrismaClientKnownRequestError ? error.meta : undefined;
         
-        // #region agent log
-        console.log('[DEBUG] Prisma error in approveSubmission', JSON.stringify({ location: 'adminController.ts:426', message: 'Prisma error in approveSubmission', data: { submissionId: id, errorCode, errorMessage: error.message, meta: errorMeta }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'H' }));
-        // #endregion
+        debugLog('[DEBUG] Prisma error in approveSubmission', { submissionId: id, errorCode, errorMessage: error.message, meta: errorMeta });
         console.error('Prisma error in approveSubmission:', error.message, errorCode, errorMeta);
         
         // Handle transaction aborted error (25P02)
@@ -582,19 +724,18 @@ export const adminController = {
           select: { slug: true },
         });
         if (channel) {
-          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:rejected', {
+          const channelSlug = String(channel.slug).toLowerCase();
+          const evt = {
+            event: 'submission:rejected' as const,
             submissionId: id,
             channelId,
-            moderatorId: req.userId,
-          });
-          // Also emit to user room for the moderator
-          if (req.userId) {
-            io.to(`user:${req.userId}`).emit('submission:rejected', {
-              submissionId: id,
-              channelId,
-              moderatorId: req.userId,
-            });
-          }
+            channelSlug,
+            moderatorId: req.userId || undefined,
+            userIds: req.userId ? [req.userId] : undefined,
+            source: 'local' as const,
+          };
+          emitSubmissionEvent(io, evt);
+          void relaySubmissionEventToPeer(evt);
         }
       } catch (error) {
         console.error('Error emitting submission:rejected event:', error);
@@ -1066,9 +1207,13 @@ export const adminController = {
         rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : (channel as any).rewardTitle,
         rewardCost: body.rewardCost !== undefined ? body.rewardCost : (channel as any).rewardCost,
         rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : (channel as any).rewardCoins,
+        submissionRewardCoins: body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : (channel as any).submissionRewardCoins,
         primaryColor: body.primaryColor !== undefined ? body.primaryColor : (channel as any).primaryColor,
         secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : (channel as any).secondaryColor,
         accentColor: body.accentColor !== undefined ? body.accentColor : (channel as any).accentColor,
+        overlayMode: body.overlayMode !== undefined ? body.overlayMode : (channel as any).overlayMode,
+        overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : (channel as any).overlayShowSender,
+        overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
       };
       
       // Only update coinIconUrl if we have a value or if reward is being disabled
@@ -1080,6 +1225,22 @@ export const adminController = {
         where: { id: channelId },
         data: updateData,
       });
+
+      // Push overlay config to connected overlay clients (OBS) in real-time.
+      // Overlay listens to overlay:config, so settings apply without requiring OBS reload.
+      try {
+        const io: Server = req.app.get('io');
+        const slug = String((updatedChannel as any).slug || channel.slug || '').toLowerCase();
+        if (slug) {
+          io.to(`channel:${slug}`).emit('overlay:config', {
+            overlayMode: (updatedChannel as any).overlayMode ?? 'queue',
+            overlayShowSender: (updatedChannel as any).overlayShowSender ?? false,
+            overlayMaxConcurrent: (updatedChannel as any).overlayMaxConcurrent ?? 3,
+          });
+        }
+      } catch (emitErr) {
+        console.error('Error emitting overlay:config after settings update:', emitErr);
+      }
 
       res.json(updatedChannel);
     } catch (error: any) {
@@ -1373,7 +1534,6 @@ export const adminController = {
         by: ['userId'],
         where: {
           channelId,
-          status: 'done',
         },
         _sum: {
           coinsSpent: true,
@@ -1408,7 +1568,6 @@ export const adminController = {
         by: ['memeId'],
         where: {
           channelId,
-          status: 'done',
         },
         _count: {
           id: true,
@@ -1442,14 +1601,12 @@ export const adminController = {
       const totalActivations = await prisma.memeActivation.count({
         where: {
           channelId,
-          status: 'done',
         },
       });
 
       const totalCoinsSpent = await prisma.memeActivation.aggregate({
         where: {
           channelId,
-          status: 'done',
         },
         _sum: {
           coinsSpent: true,
@@ -1463,22 +1620,52 @@ export const adminController = {
         },
       });
 
+      const userSpendingOut = userSpending.map((s) => ({
+        user: users.find((u) => u.id === s.userId) || { id: s.userId, displayName: 'Unknown' },
+        totalCoinsSpent: s._sum.coinsSpent || 0,
+        activationsCount: s._count.id,
+      }));
+      // Stable ordering even when coinsSpent is 0 (e.g., channel-owner free activations).
+      userSpendingOut.sort((a, b) => {
+        if (b.totalCoinsSpent !== a.totalCoinsSpent) return b.totalCoinsSpent - a.totalCoinsSpent;
+        return b.activationsCount - a.activationsCount;
+      });
+
+      const memePopularityOut = memeStats.map((s) => ({
+        meme: memes.find((m) => m.id === s.memeId) || null,
+        activationsCount: s._count.id,
+        totalCoinsSpent: s._sum.coinsSpent || 0,
+      }));
+      memePopularityOut.sort((a, b) => {
+        if (b.activationsCount !== a.activationsCount) return b.activationsCount - a.activationsCount;
+        return b.totalCoinsSpent - a.totalCoinsSpent;
+      });
+
+      // Daily activity (last 14 days) for charts
+      const daily = await prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
+        SELECT date_trunc('day', "createdAt") as day,
+               COUNT(*)::bigint as activations,
+               COALESCE(SUM("coinsSpent"), 0)::bigint as coins
+        FROM "MemeActivation"
+        WHERE "channelId" = ${channelId}
+          AND "createdAt" >= (NOW() - INTERVAL '14 days')
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `;
+
       res.json({
-        userSpending: userSpending.map((s) => ({
-          user: users.find((u) => u.id === s.userId) || { id: s.userId, displayName: 'Unknown' },
-          totalCoinsSpent: s._sum.coinsSpent || 0,
-          activationsCount: s._count.id,
-        })),
-        memePopularity: memeStats.map((s) => ({
-          meme: memes.find((m) => m.id === s.memeId) || null,
-          activationsCount: s._count.id,
-          totalCoinsSpent: s._sum.coinsSpent || 0,
-        })),
+        userSpending: userSpendingOut.slice(0, 20),
+        memePopularity: memePopularityOut.slice(0, 20),
         overall: {
           totalActivations,
           totalCoinsSpent: totalCoinsSpent._sum.coinsSpent || 0,
           totalMemes,
         },
+        daily: daily.map((d) => ({
+          day: d.day.toISOString(),
+          activations: Number(d.activations),
+          coins: Number(d.coins),
+        })),
       });
     } catch (error) {
       throw error;

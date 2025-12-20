@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { debugLog, debugError } from '../utils/debug.js';
+import { invalidateBetaAccessCache } from '../middleware/betaAccess.js';
+import { auditLog, getRequestMetadata } from '../utils/auditLogger.js';
 
 export const betaAccessController = {
   // Request beta access
@@ -28,9 +31,42 @@ export const betaAccessController = {
       });
 
       if (existingRequest) {
-        return res.status(400).json({
-          error: 'Request already exists',
-          status: existingRequest.status,
+        // If user is explicitly revoked (banned), they cannot re-request.
+        if (existingRequest.status === 'revoked') {
+          return res.status(403).json({ error: 'Forbidden', message: 'Beta access revoked by administrator' });
+        }
+
+        // If a request exists but was already processed (approved/rejected),
+        // allow the user to request again by resetting it to pending.
+        if (existingRequest.status === 'pending') {
+          return res.status(400).json({
+            error: 'Request already exists',
+            status: existingRequest.status,
+          });
+        }
+
+        const refreshed = await prisma.betaAccess.update({
+          where: { userId },
+          data: {
+            status: 'pending',
+            requestedAt: new Date(),
+            approvedAt: null,
+            approvedBy: null,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                displayName: true,
+                twitchUserId: true,
+              },
+            },
+          },
+        });
+
+        return res.status(200).json({
+          message: 'Beta access request submitted',
+          request: refreshed,
         });
       }
 
@@ -64,9 +100,7 @@ export const betaAccessController = {
   // Get user's beta access status
   getStatus: async (req: AuthRequest, res: Response) => {
     try {
-      // #region agent log
-      console.log('[DEBUG] getStatus started', JSON.stringify({ location: 'betaAccessController.ts:65', message: 'getStatus started', data: { userId: req.userId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-      // #endregion
+      debugLog('[DEBUG] getStatus started', { userId: req.userId });
       const { userId } = req;
 
       if (!userId) {
@@ -79,9 +113,7 @@ export const betaAccessController = {
         select: { hasBetaAccess: true },
       });
       const userDuration = Date.now() - startTime;
-      // #region agent log
-      console.log('[DEBUG] getStatus user query completed', JSON.stringify({ location: 'betaAccessController.ts:78', message: 'getStatus user query completed', data: { userId, found: !!user, userDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-      // #endregion
+      debugLog('[DEBUG] getStatus user query completed', { userId, found: !!user, userDuration });
 
       const betaStartTime = Date.now();
       const betaAccess = await prisma.betaAccess.findUnique({
@@ -94,22 +126,16 @@ export const betaAccessController = {
         },
       });
       const betaDuration = Date.now() - betaStartTime;
-      // #region agent log
-      console.log('[DEBUG] getStatus betaAccess query completed', JSON.stringify({ location: 'betaAccessController.ts:87', message: 'getStatus betaAccess query completed', data: { userId, found: !!betaAccess, betaDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-      // #endregion
+      debugLog('[DEBUG] getStatus betaAccess query completed', { userId, found: !!betaAccess, betaDuration });
 
       const response = {
         hasAccess: user?.hasBetaAccess || false,
         request: betaAccess,
       };
-      // #region agent log
-      console.log('[DEBUG] getStatus sending response', JSON.stringify({ location: 'betaAccessController.ts:92', message: 'getStatus sending response', data: { userId, hasAccess: response.hasAccess }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-      // #endregion
+      debugLog('[DEBUG] getStatus sending response', { userId, hasAccess: response.hasAccess });
       return res.json(response);
     } catch (error: any) {
-      // #region agent log
-      console.log('[DEBUG] getStatus error', JSON.stringify({ location: 'betaAccessController.ts:95', message: 'getStatus error', data: { userId: req.userId, error: error.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }));
-      // #endregion
+      debugError('[DEBUG] getStatus error', error);
       console.error('Error getting beta access status:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
@@ -125,6 +151,10 @@ export const betaAccessController = {
       }
 
       const requests = await prisma.betaAccess.findMany({
+        where: {
+          // Keep revoked users in the dedicated "banned" view
+          status: { in: ['pending', 'approved', 'rejected'] },
+        },
         include: {
           user: {
             select: {
@@ -197,6 +227,9 @@ export const betaAccessController = {
         }),
       ]);
 
+      // Ensure beta access changes are visible immediately (cache TTL is 5 minutes)
+      invalidateBetaAccessCache(betaAccess.userId);
+
       return res.json({
         message: 'Beta access approved',
         request: {
@@ -259,6 +292,235 @@ export const betaAccessController = {
       });
     } catch (error: any) {
       console.error('Error rejecting beta access:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Get users with beta access granted (admin only)
+  getGrantedUsers: async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.userRole !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
+      }
+
+      const users = await prisma.user.findMany({
+        where: { hasBetaAccess: true },
+        select: {
+          id: true,
+          displayName: true,
+          twitchUserId: true,
+          role: true,
+          hasBetaAccess: true,
+          createdAt: true,
+          betaAccess: {
+            select: {
+              id: true,
+              status: true,
+              requestedAt: true,
+              approvedAt: true,
+              approvedBy: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return res.json(users);
+    } catch (error: any) {
+      console.error('Error getting granted beta users:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Get users whose beta access is revoked (admin only)
+  getRevokedUsers: async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.userRole !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
+      }
+
+      const revoked = await prisma.betaAccess.findMany({
+        where: { status: 'revoked' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              twitchUserId: true,
+              role: true,
+              hasBetaAccess: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { approvedAt: 'desc' },
+      });
+
+      return res.json(revoked);
+    } catch (error: any) {
+      console.error('Error getting revoked beta users:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Revoke beta access for a user (admin only)
+  revokeUserAccess: async (req: AuthRequest, res: Response) => {
+    const { userId: actorId, userRole } = req;
+    if (userRole !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
+    }
+
+    const { userId } = req.params as { userId?: string };
+    if (!userId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Missing userId' });
+    }
+
+    try {
+      const target = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, displayName: true, hasBetaAccess: true },
+      });
+
+      if (!target) {
+        return res.status(404).json({ error: 'Not Found', message: 'User not found' });
+      }
+
+      if (!target.hasBetaAccess) {
+        // Still invalidate cache to be safe
+        invalidateBetaAccessCache(userId);
+        return res.status(200).json({ message: 'User already has no beta access' });
+      }
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: { hasBetaAccess: false },
+        }),
+        prisma.betaAccess.upsert({
+          where: { userId },
+          create: {
+            userId,
+            status: 'revoked',
+            approvedAt: new Date(),
+            approvedBy: actorId || null,
+          },
+          update: {
+            status: 'revoked',
+            approvedAt: new Date(),
+            approvedBy: actorId || null,
+          },
+        }),
+      ]);
+
+      invalidateBetaAccessCache(userId);
+
+      const { ipAddress, userAgent } = getRequestMetadata(req);
+      await auditLog({
+        action: 'beta_access.revoke',
+        actorId: actorId || null,
+        channelId: undefined,
+        payload: {
+          targetUserId: target.id,
+          targetDisplayName: target.displayName,
+          previousHasBetaAccess: true,
+        },
+        ipAddress,
+        userAgent,
+        success: true,
+      });
+
+      return res.json({ message: 'Beta access revoked', userId: target.id });
+    } catch (error: any) {
+      console.error('Error revoking beta access:', error);
+      const { ipAddress, userAgent } = getRequestMetadata(req);
+      await auditLog({
+        action: 'beta_access.revoke',
+        actorId: actorId || null,
+        channelId: undefined,
+        payload: { targetUserId: userId },
+        ipAddress,
+        userAgent,
+        success: false,
+        error: error?.message,
+      });
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Restore beta access for a user (admin only)
+  restoreUserAccess: async (req: AuthRequest, res: Response) => {
+    const { userId: actorId, userRole } = req;
+    if (userRole !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
+    }
+
+    const { userId } = req.params as { userId?: string };
+    if (!userId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Missing userId' });
+    }
+
+    try {
+      const target = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, displayName: true, hasBetaAccess: true },
+      });
+
+      if (!target) {
+        return res.status(404).json({ error: 'Not Found', message: 'User not found' });
+      }
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: { hasBetaAccess: true },
+        }),
+        prisma.betaAccess.upsert({
+          where: { userId },
+          create: {
+            userId,
+            status: 'approved',
+            approvedAt: new Date(),
+            approvedBy: actorId || null,
+          },
+          update: {
+            status: 'approved',
+            approvedAt: new Date(),
+            approvedBy: actorId || null,
+          },
+        }),
+      ]);
+
+      invalidateBetaAccessCache(userId);
+
+      const { ipAddress, userAgent } = getRequestMetadata(req);
+      await auditLog({
+        action: 'beta_access.restore',
+        actorId: actorId || null,
+        channelId: undefined,
+        payload: {
+          targetUserId: target.id,
+          targetDisplayName: target.displayName,
+          previousHasBetaAccess: target.hasBetaAccess,
+        },
+        ipAddress,
+        userAgent,
+        success: true,
+      });
+
+      return res.json({ message: 'Beta access restored', userId: target.id });
+    } catch (error: any) {
+      console.error('Error restoring beta access:', error);
+      const { ipAddress, userAgent } = getRequestMetadata(req);
+      await auditLog({
+        action: 'beta_access.restore',
+        actorId: actorId || null,
+        channelId: undefined,
+        payload: { targetUserId: userId },
+        ipAddress,
+        userAgent,
+        success: false,
+        error: error?.message,
+      });
       return res.status(500).json({ error: 'Internal server error' });
     }
   },

@@ -10,12 +10,12 @@ import { validateFileContent } from '../utils/fileTypeValidator.js';
 import { logFileUpload, logSecurityEvent } from '../utils/auditLogger.js';
 import path from 'path';
 import fs from 'fs';
+import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
+import { debugLog, debugError } from '../utils/debug.js';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
-    // #region agent log
-    console.log('[DEBUG] createSubmission started', JSON.stringify({ location: 'submissionController.ts:14', message: 'createSubmission started', data: { hasFile: !!req.file, userId: req.userId, channelId: req.channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
-    // #endregion
+    debugLog('[DEBUG] createSubmission started', { hasFile: !!req.file, userId: req.userId, channelId: req.channelId });
     
     if (!req.file) {
       return res.status(400).json({ error: 'File is required' });
@@ -107,9 +107,11 @@ export const submissionController = {
         return res.status(400).json({ error: 'Only video type is allowed' });
       }
 
-      // Skip video validation completely to avoid ffprobe hanging
-      // Just check file size limit
-      // Note: filePath is already set above during content validation
+      // Enforce limits:
+      // - size <= 50MB
+      // - duration <= 15s (strict, because memes go to OBS)
+      // Note: server-side duration detection relies on ffprobe which might be unavailable on some hosts.
+      // We enforce duration using server metadata when available, and fall back to client-provided durationMs (from frontend metadata) when not.
       const MAX_SIZE = 50 * 1024 * 1024; // 50MB
       if (req.file.size > MAX_SIZE) {
         try {
@@ -119,6 +121,36 @@ export const submissionController = {
         }
         return res.status(400).json({ 
           error: `Video file size (${(req.file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)` 
+        });
+      }
+
+      // Duration detection (prefer server-side; fallback to client-provided)
+      const metadata = await getVideoMetadata(filePath);
+      const clientDurationMsRaw = (req.body?.durationMs ?? req.body?.duration_ms) as unknown;
+      const clientDurationMs = typeof clientDurationMsRaw === 'string'
+        ? parseInt(clientDurationMsRaw, 10)
+        : (typeof clientDurationMsRaw === 'number' ? clientDurationMsRaw : null);
+
+      const serverDurationSec = metadata?.duration && metadata.duration > 0 ? metadata.duration : null;
+      const serverDurationMs = serverDurationSec !== null ? Math.round(serverDurationSec * 1000) : null;
+
+      const effectiveDurationMs = serverDurationMs ?? (Number.isFinite(clientDurationMs as number) ? (clientDurationMs as number) : null);
+
+      if (effectiveDurationMs === null) {
+        console.warn('[createSubmission] Unable to determine duration; allowing upload but approval will enforce max duration', {
+          userId: req.userId,
+          channelId,
+          file: req.file?.originalname,
+          mime: req.file?.mimetype,
+        });
+      } else if (effectiveDurationMs > 15000) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          console.error('Failed to delete over-duration file:', unlinkError);
+        }
+        return res.status(400).json({
+          error: `Video duration (${(effectiveDurationMs / 1000).toFixed(2)}s) exceeds maximum allowed duration (15s)`,
         });
       }
 
@@ -164,19 +196,8 @@ export const submissionController = {
       if (isOwner) {
         console.log('Owner submitting meme, creating directly as approved');
         
-        // Get video duration from metadata if available
-        let durationMs = 0; // Default duration
-        if (fs.existsSync(filePath)) {
-          try {
-            const metadata = await getVideoMetadata(filePath);
-            if (metadata && metadata.duration > 0) {
-              durationMs = Math.round(metadata.duration * 1000); // Convert seconds to milliseconds
-            }
-          } catch (error: any) {
-            console.warn('Failed to get video duration for owner submission:', error.message);
-            durationMs = 0; // Keep default
-          }
-        }
+        // Best-effort duration for storage (server preferred, client fallback)
+        const durationMs = Math.max(0, Math.min(effectiveDurationMs ?? 0, 15000));
         
         // Get default price from channel
         const defaultPrice = channel.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
@@ -319,7 +340,7 @@ export const submissionController = {
       await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
 
       // #region agent log
-      console.log('[DEBUG] Submission created successfully, sending response', JSON.stringify({ location: 'submissionController.ts:306', message: 'Submission created successfully, sending response', data: { submissionId: submission.id, channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'K' }));
+      debugLog('[DEBUG] Submission created successfully, sending response', { submissionId: submission.id, channelId });
       // #endregion
 
       // Emit Socket.IO event for new submission
@@ -330,19 +351,19 @@ export const submissionController = {
           select: { slug: true, users: { where: { role: 'streamer' }, take: 1, select: { id: true } } },
         });
         if (channel) {
-          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:created', {
+          const channelSlug = String(channel.slug).toLowerCase();
+          const streamerUserId = channel.users?.[0]?.id;
+          const evt = {
+            event: 'submission:created' as const,
             submissionId: submission.id,
             channelId: channelId as string,
-            submitterId: req.userId,
-          });
-          // Also emit to streamer's user room
-          if (channel.users && channel.users.length > 0) {
-            io.to(`user:${channel.users[0].id}`).emit('submission:created', {
-              submissionId: submission.id,
-              channelId: channelId as string,
-              submitterId: req.userId,
-            });
-          }
+            channelSlug,
+            submitterId: req.userId || undefined,
+            userIds: streamerUserId ? [streamerUserId] : undefined,
+            source: 'local' as const,
+          };
+          emitSubmissionEvent(io, evt);
+          void relaySubmissionEventToPeer(evt);
         }
       } catch (error) {
         console.error('Error emitting submission:created event:', error);
@@ -458,39 +479,13 @@ export const submissionController = {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    // Validate that the channel exists and user has access to it
+    // Validate that the channel exists
     const channel = await prisma.channel.findUnique({
       where: { id: channelId as string },
     });
 
     if (!channel) {
       return res.status(404).json({ error: 'Channel not found' });
-    }
-
-    // Check if user is the owner of this channel
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId! },
-      select: { channelId: true },
-    });
-
-    if (!user || user.channelId !== channelId) {
-      // Log security event for unauthorized import attempt
-      await logSecurityEvent(
-        'unauthorized_access',
-        req.userId!,
-        channelId as string,
-        {
-          action: 'import_meme',
-          attemptedChannelId: channelId,
-          userChannelId: user?.channelId || null,
-        },
-        req
-      );
-      
-      return res.status(403).json({ 
-        error: 'Forbidden',
-        message: 'You can only import memes to your own channel'
-      });
     }
 
     try {

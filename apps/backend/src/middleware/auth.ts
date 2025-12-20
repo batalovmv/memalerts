@@ -7,8 +7,20 @@ export interface AuthRequest extends Request {
   channelId?: string;
 }
 
+function isBetaDomain(req: Request): boolean {
+  const host = req.get('host') || '';
+  const domain = process.env.DOMAIN || '';
+  return host.includes('beta.') || domain.includes('beta.');
+}
+
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
-  const token = req.cookies?.token;
+  // IMPORTANT:
+  // - Production and beta use different JWT secrets.
+  // - If we reuse the same cookie name across subdomains (Domain=twitchmemes.ru),
+  //   the prod cookie can be sent to beta and break auth with 401.
+  // - Therefore beta uses a dedicated cookie name: token_beta.
+  const isBeta = isBetaDomain(req);
+  const token = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
 
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized', message: 'No token cookie found' });

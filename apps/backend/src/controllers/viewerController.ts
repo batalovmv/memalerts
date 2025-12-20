@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { debugLog, debugError } from '../utils/debug.js';
 import { activateMemeSchema } from '../shared/index.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promotions.js';
 import { logMemeActivation } from '../utils/auditLogger.js';
@@ -63,11 +64,15 @@ export const viewerController = {
         slug: channel.slug,
         name: channel.name,
         coinPerPointRatio: channel.coinPerPointRatio,
+        overlayMode: (channel as any).overlayMode ?? 'queue',
+        overlayShowSender: (channel as any).overlayShowSender ?? false,
+        overlayMaxConcurrent: (channel as any).overlayMaxConcurrent ?? 3,
         rewardIdForCoins: (channel as any).rewardIdForCoins ?? null,
         rewardEnabled: (channel as any).rewardEnabled ?? false,
         rewardTitle: (channel as any).rewardTitle ?? null,
         rewardCost: (channel as any).rewardCost ?? null,
         rewardCoins: (channel as any).rewardCoins ?? null,
+        submissionRewardCoins: (channel as any).submissionRewardCoins ?? 0,
         coinIconUrl: (channel as any).coinIconUrl ?? null,
         primaryColor: (channel as any).primaryColor ?? null,
         secondaryColor: (channel as any).secondaryColor ?? null,
@@ -136,6 +141,7 @@ export const viewerController = {
           slug: channel[0].slug,
           name: channel[0].name,
           coinPerPointRatio: channel[0].coinPerPointRatio,
+          submissionRewardCoins: 0,
           primaryColor: null,
           secondaryColor: null,
           accentColor: null,
@@ -158,9 +164,7 @@ export const viewerController = {
   },
 
   getMe: async (req: AuthRequest, res: Response) => {
-    // #region agent log
-    console.log('[DEBUG] getMe started', JSON.stringify({ location: 'viewerController.ts:154', message: 'getMe started', data: { userId: req.userId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-    // #endregion
+    debugLog('[DEBUG] getMe started', { userId: req.userId });
     try {
       const startTime = Date.now();
       const user = await prisma.user.findUnique({
@@ -177,9 +181,7 @@ export const viewerController = {
         },
       });
       const dbDuration = Date.now() - startTime;
-      // #region agent log
-      console.log('[DEBUG] getMe db query completed', JSON.stringify({ location: 'viewerController.ts:167', message: 'getMe db query completed', data: { userId: req.userId, found: !!user, dbDuration }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-      // #endregion
+      debugLog('[DEBUG] getMe db query completed', { userId: req.userId, found: !!user, dbDuration });
 
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -194,14 +196,10 @@ export const viewerController = {
         channel: user.channel,
         wallets: user.wallets,
       };
-      // #region agent log
-      console.log('[DEBUG] getMe sending response', JSON.stringify({ location: 'viewerController.ts:181', message: 'getMe sending response', data: { userId: user.id, hasChannel: !!user.channelId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-      // #endregion
+      debugLog('[DEBUG] getMe sending response', { userId: user.id, hasChannel: !!user.channelId });
       res.json(response);
     } catch (error: any) {
-      // #region agent log
-      console.log('[DEBUG] getMe error', JSON.stringify({ location: 'viewerController.ts:185', message: 'getMe error', data: { userId: req.userId, error: error.message }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }));
-      // #endregion
+      debugError('[DEBUG] getMe error', error);
       throw error;
     }
   },
@@ -767,17 +765,26 @@ export const viewerController = {
           },
         });
 
-        return { activation, meme, wallet: updatedWallet };
+        const sender = await tx.user.findUnique({
+          where: { id: req.userId! },
+          select: { displayName: true },
+        });
+
+        return { activation, meme, wallet: updatedWallet, senderDisplayName: sender?.displayName ?? null };
       });
 
-      // Emit to overlay
-      io.to(`channel:${result.meme.channel.slug}`).emit('activation:new', {
+      // Emit to overlay.
+      // IMPORTANT: Always emit to a normalized room name to avoid case mismatches
+      // between stored slugs, older clients, and token-based overlay joins.
+      const channelSlug = String(result.meme.channel.slug || '').toLowerCase();
+      io.to(`channel:${channelSlug}`).emit('activation:new', {
         id: result.activation.id,
         memeId: result.activation.memeId,
         type: result.meme.type,
         fileUrl: result.meme.fileUrl,
         durationMs: result.meme.durationMs,
         title: result.meme.title,
+        senderDisplayName: result.senderDisplayName,
       });
 
       // Publish wallet update so other instances (beta/prod) can emit it to connected clients.

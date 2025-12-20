@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { logAuthEvent } from '../utils/auditLogger.js';
+import { debugLog, debugError } from '../utils/debug.js';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -96,7 +97,7 @@ export const authController = {
     const state = encodeURIComponent(JSON.stringify(stateData));
 
     const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}${state ? `&state=${state}` : ''}`;
-    console.log('Initiating Twitch auth, redirecting to:', authUrl);
+    debugLog('Initiating Twitch auth, redirecting to:', authUrl);
     res.redirect(authUrl);
   },
 
@@ -117,7 +118,7 @@ export const authController = {
       }
     }
 
-    console.log('Twitch callback received:', { code: code ? 'present' : 'missing', error, stateOrigin, state });
+    debugLog('Twitch callback received', { code: code ? 'present' : 'missing', error, stateOrigin });
 
     if (error) {
       console.error('Twitch OAuth error:', error);
@@ -132,7 +133,7 @@ export const authController = {
     }
 
     try {
-      console.log('Exchanging code for token...');
+      debugLog('Exchanging code for token...');
       
       // Check if this is production backend handling beta callback
       // If callback came to production domain but state indicates beta origin,
@@ -159,8 +160,8 @@ export const authController = {
       });
 
       const tokenData = await tokenResponse.json();
-      console.log('Token response status:', tokenResponse.status);
-      console.log('Token response keys:', Object.keys(tokenData));
+      debugLog('Token response status:', tokenResponse.status);
+      debugLog('Token response keys:', Object.keys(tokenData || {}));
 
       if (!tokenData.access_token) {
         console.error('No access token received from Twitch:', tokenData);
@@ -168,7 +169,7 @@ export const authController = {
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
       }
 
-      console.log('Access token received, fetching user info...');
+      debugLog('Access token received, fetching user info...');
 
       // Get user info from Twitch
       const userResponse = await fetch('https://api.twitch.tv/helix/users', {
@@ -179,8 +180,14 @@ export const authController = {
       });
 
       const userData = await userResponse.json();
-      console.log('User response status:', userResponse.status);
-      console.log('User data:', userData);
+      debugLog('User response status:', userResponse.status);
+      // Never log full user payload in production; keep minimal even in debug.
+      debugLog('User data (sanitized):', {
+        hasData: !!userData?.data?.[0],
+        id: userData?.data?.[0]?.id,
+        login: userData?.data?.[0]?.login,
+        display_name: userData?.data?.[0]?.display_name,
+      });
 
       const twitchUser = userData.data?.[0];
 
@@ -191,7 +198,7 @@ export const authController = {
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
       }
 
-      console.log('Twitch user found:', twitchUser.login);
+      debugLog('Twitch user found', { login: twitchUser.login });
 
       // Find or create user with proper error handling
       let user;
@@ -226,7 +233,7 @@ export const authController = {
       }
 
       if (!user) {
-        console.log('User not found, creating new user...');
+        debugLog('User not found, creating new user...');
         try {
           // Use transaction to ensure atomicity
           user = await prisma.$transaction(async (tx) => {
@@ -271,11 +278,11 @@ export const authController = {
                 },
               });
               role = 'streamer'; // First user who creates channel is streamer
-              console.log('Created new channel:', channel.slug);
+              debugLog('Created new channel', { slug: channel.slug });
             } else {
               // Channel exists - user owns this channel
               role = 'streamer';
-              console.log('Found existing channel:', channel.slug);
+              debugLog('Found existing channel', { slug: channel.slug });
             }
             
             channelId = channel.id;
@@ -313,14 +320,14 @@ export const authController = {
               where: { id: newUser.id },
               include: { wallets: true, channel: true },
             });
-            console.log('Created new user:', newUser.id);
+            debugLog('Created new user:', { userId: newUser.id });
             return userWithWallets!;
           });
         } catch (error: any) {
           console.error('Error creating user:', error);
           // If user was created in a previous attempt, try to find it
           if (error.code === 'P2002') {
-            console.log('User or channel already exists, trying to find user...');
+            debugLog('User or channel already exists, trying to find user...');
             // Update existing user with new tokens
             user = await prisma.user.update({
               where: { twitchUserId: twitchUser.id },
@@ -340,7 +347,7 @@ export const authController = {
           }
         }
       } else {
-        console.log('User found:', user.id);
+        debugLog('User found:', { userId: user.id });
         // Update tokens for existing user
         user = await prisma.user.update({
           where: { id: user.id },
@@ -359,7 +366,7 @@ export const authController = {
         const userChannelId = user.channelId; // Store to avoid null check issues
         const existingWallet = user.wallets?.find(w => w.channelId === userChannelId);
         if (!existingWallet) {
-          console.log('Wallet missing for channel, creating wallet...');
+          debugLog('Wallet missing for channel, creating wallet...');
           try {
             await prisma.wallet.create({
               data: {
@@ -372,7 +379,7 @@ export const authController = {
               where: { id: user.id },
               include: { wallets: true, channel: true },
             });
-            console.log('Wallet created for channel');
+            debugLog('Wallet created for channel');
           } catch (error: any) {
             console.error('Error creating wallet:', error);
             if (user) {
@@ -399,40 +406,33 @@ export const authController = {
       // Check both stateOrigin and redirectUrl for beta detection
       const isBetaRedirect = (stateOrigin && stateOrigin.includes('beta.')) || (redirectUrl && redirectUrl.includes('beta.'));
       
-      // If this is beta backend and user logged in on beta domain, grant beta access automatically
+      // Beta access is gated by explicit admin approval (hasBetaAccess).
+      // Do NOT auto-grant access on login. This ensures revoked users cannot regain access by re-logging in.
       const isBetaBackend = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
       const isBetaLogin = isBetaRedirect || (stateOrigin && stateOrigin.includes('beta.'));
       
-      // #region agent log
-      try{const logData={location:'authController.ts:404',message:'Checking beta access grant conditions',data:{userId:user.id,isBetaBackend,isBetaLogin,hasBetaAccess:user.hasBetaAccess,stateOrigin,redirectUrl,domain:process.env.DOMAIN,port:process.env.PORT},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
-      // #endregion
-      console.log('[BETA_ACCESS_DEBUG] Checking conditions:', { isBetaBackend, isBetaLogin, hasBetaAccess: user.hasBetaAccess, domain: process.env.DOMAIN, port: process.env.PORT, stateOrigin, redirectUrl });
+      debugLog('[BETA_ACCESS_DEBUG] Checking conditions', {
+        isBetaBackend,
+        isBetaLogin,
+        hasBetaAccess: user.hasBetaAccess,
+        domain: process.env.DOMAIN,
+        port: process.env.PORT,
+        stateOrigin,
+        redirectUrl,
+      });
       
-      if (isBetaBackend && isBetaLogin && !user.hasBetaAccess) {
-        // #region agent log
-        try{const logData={location:'authController.ts:410',message:'Granting beta access to user',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
-        // #endregion
-        console.log('[BETA_ACCESS_DEBUG] Granting beta access to user:', user.id);
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { hasBetaAccess: true },
-          include: { wallets: true, channel: true },
-        });
-        // Invalidate cache so next request picks up the new beta access status
-        const { invalidateBetaAccessCache } = await import('../middleware/betaAccess.js');
-        invalidateBetaAccessCache(user.id);
-        console.log('[BETA_ACCESS_DEBUG] Beta access granted, cache invalidated for user:', user.id);
-        // #region agent log
-        try{const logData={location:'authController.ts:420',message:'Beta access granted successfully, cache invalidated',data:{userId:user.id,hasBetaAccess:user.hasBetaAccess},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
-        // #endregion
-      } else {
-        console.log('[BETA_ACCESS_DEBUG] Conditions not met - NOT granting beta access:', { isBetaBackend, isBetaLogin, hasBetaAccess: user.hasBetaAccess });
-        // #region agent log
-        try{const logData={location:'authController.ts:425',message:'Beta access grant conditions not met',data:{isBetaBackend,isBetaLogin,hasBetaAccess:user.hasBetaAccess},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'};fs.appendFileSync(path.join(process.cwd(),'.cursor','debug.log'),JSON.stringify(logData)+'\n');}catch(e){}
-        // #endregion
-      }
+      // Keep debug logs to understand beta login context, but never mutate hasBetaAccess here.
+      debugLog('[BETA_ACCESS_DEBUG] Beta login context (no auto-grant)', {
+        isBetaBackend,
+        isBetaLogin,
+        hasBetaAccess: user.hasBetaAccess,
+        domain: process.env.DOMAIN,
+        port: process.env.PORT,
+        stateOrigin,
+        redirectUrl,
+      });
 
-      console.log('User created/found, generating JWT...');
+      debugLog('User created/found, generating JWT...');
       
       // If production backend received callback for beta, create temporary token and redirect to beta
       if (isProductionBackend && isBetaCallback && callbackCameToProduction) {
@@ -451,7 +451,7 @@ export const authController = {
         // Redirect to beta backend with temporary token
         // Beta backend will exchange this for a proper cookie
         const betaAuthUrl = `${stateOrigin}/auth/twitch/complete?token=${encodeURIComponent(tempToken)}&state=${encodeURIComponent(state as string)}`;
-        console.log('Redirecting to beta backend for cookie setup:', betaAuthUrl);
+        debugLog('Redirecting to beta backend for cookie setup:', betaAuthUrl);
         return res.redirect(betaAuthUrl);
       }
       
@@ -474,7 +474,7 @@ export const authController = {
       // We'll create a temporary token and redirect to beta backend
       // (isProductionBackend, isBetaCallback, callbackCameToProduction are already declared above)
       if (isProductionBackend && isBetaCallback && callbackCameToProduction) {
-        console.log('Production backend received beta callback, will redirect to beta backend after token exchange');
+        debugLog('Production backend received beta callback, will redirect to beta backend after token exchange');
       }
       
       // Determine cookie domain based on redirect URL
@@ -515,7 +515,7 @@ export const authController = {
         cookieOptions.domain = cookieDomain;
       }
       // Otherwise, don't set domain explicitly - let browser handle it
-      console.log('Setting cookie with options:', {
+      debugLog('Setting cookie with options:', {
         httpOnly: cookieOptions.httpOnly,
         secure: cookieOptions.secure,
         sameSite: cookieOptions.sameSite,
@@ -529,12 +529,14 @@ export const authController = {
       });
 
       // Set cookie
-      res.cookie('token', token, cookieOptions);
+      // Use dedicated cookie name for beta to avoid cross-subdomain collisions with production.
+      const cookieName = isBetaRedirect ? 'token_beta' : 'token';
+      res.cookie(cookieName, token, cookieOptions);
       
       // Verify cookie was set in response
       const setCookieHeader = res.getHeader('Set-Cookie');
-      console.log('Set-Cookie header:', setCookieHeader);
-      console.log('Response headers before redirect:', Object.keys(res.getHeaders()));
+      debugLog('Set-Cookie header:', setCookieHeader);
+      debugLog('Response headers before redirect:', Object.keys(res.getHeaders()));
       
       if (!setCookieHeader) {
         console.error('WARNING: Set-Cookie header is not set!');
@@ -548,16 +550,16 @@ export const authController = {
       if (stateRedirectTo) {
         // Use redirect path from state - this preserves where user was before login
         redirectPath = stateRedirectTo;
-        console.log('Using redirectTo from state:', redirectPath);
+        debugLog('Using redirectTo from state:', redirectPath);
       } else if (user.role === 'streamer' && user.channel?.slug) {
         // Second priority: If user is streamer with channel, redirect to dashboard
         // (but only if no redirectTo was specified)
         redirectPath = '/dashboard';
-        console.log('Redirecting streamer to dashboard (no redirectTo in state)');
+        debugLog('Redirecting streamer to dashboard (no redirectTo in state)');
       } else {
         // Default: redirect to home
         redirectPath = '/';
-        console.log('Redirecting to home (default)');
+        debugLog('Redirecting to home (default)');
       }
       
       // Build final redirect URL
@@ -571,12 +573,17 @@ export const authController = {
         finalRedirectUrl = `${redirectUrl}${redirectPath}`;
       }
       
-      console.log('Auth successful, redirecting to:', finalRedirectUrl, 'redirectPath:', redirectPath, 'stateRedirectTo:', stateRedirectTo);
+      debugLog('Auth successful, redirecting to:', {
+        finalRedirectUrl,
+        redirectPath,
+        stateRedirectTo,
+      });
       
       // Use 302 redirect (temporary) to ensure cookie is sent
       res.status(302).redirect(finalRedirectUrl);
     } catch (error) {
       console.error('Auth error:', error);
+      debugError('Auth error (debug)', error);
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
@@ -616,17 +623,27 @@ export const authController = {
       sameSite: 'lax',
       path: '/',
     };
-    // Determine cookie domain based on request host
-    const host = req.get('host') || '';
-    const isBetaDomain = host.includes('beta.');
-    if (isBetaDomain) {
-      // For beta domain, set cookie domain to beta domain
-      const domain = process.env.DOMAIN || 'twitchmemes.ru';
-      cookieOptions.domain = domain.includes('beta.') ? domain : `beta.${domain}`;
-    } else if (process.env.DOMAIN) {
-      cookieOptions.domain = process.env.DOMAIN;
+
+    // Clear BOTH prod and beta cookies to prevent "stuck" sessions when domains overlap.
+    // We clear:
+    // - token (prod cookie name)
+    // - token_beta (beta cookie name)
+    // With several domain variants to reliably remove old cookies that might have been set with Domain=twitchmemes.ru.
+    const host = (req.get('host') || '').split(':')[0];
+    const baseDomain = process.env.DOMAIN || 'twitchmemes.ru';
+    const domainVariants = Array.from(new Set<string | undefined>([
+      undefined,
+      host || undefined,
+      baseDomain || undefined,
+      baseDomain ? `beta.${baseDomain.replace(/^beta\./, '')}` : undefined,
+      baseDomain ? baseDomain.replace(/^beta\./, '') : undefined,
+    ]));
+
+    for (const domain of domainVariants) {
+      const opts = domain ? { ...cookieOptions, domain } : cookieOptions;
+      res.clearCookie('token', opts);
+      res.clearCookie('token_beta', opts);
     }
-    res.clearCookie('token', cookieOptions);
     
     // Log logout
     if (req.userId) {
@@ -657,28 +674,8 @@ export const authController = {
         return res.redirect('/?error=auth_failed&reason=invalid_token');
       }
 
-      // Grant beta access to user if they don't have it
-      // This endpoint is only called on beta backend, so we should grant access
-      try {
-        const user = await prisma.user.findUnique({
-          where: { id: decoded.userId },
-          select: { hasBetaAccess: true },
-        });
-        
-        if (user && !user.hasBetaAccess) {
-          console.log('Granting beta access to user:', decoded.userId);
-          await prisma.user.update({
-            where: { id: decoded.userId },
-            data: { hasBetaAccess: true },
-          });
-          // Invalidate cache so next request picks up the new beta access status
-          const { invalidateBetaAccessCache } = await import('../middleware/betaAccess.js');
-          invalidateBetaAccessCache(decoded.userId);
-        }
-      } catch (error) {
-        console.error('Error granting beta access:', error);
-        // Continue anyway - beta access can be granted later
-      }
+      // NOTE: Do NOT auto-grant beta access on login.
+      // Beta access must be explicitly approved by an admin.
 
       // Extract redirect path from state if present
       let redirectPath = '/';
@@ -734,11 +731,12 @@ export const authController = {
         cookieOptions.domain = cookieDomain;
       }
 
-      res.cookie('token', betaToken, cookieOptions);
+      // Use dedicated cookie name for beta to avoid cross-subdomain collisions with production.
+      res.cookie('token_beta', betaToken, cookieOptions);
 
       // Redirect to appropriate page
       const finalRedirectUrl = `${redirectUrl}${redirectPath}`;
-      console.log('Beta auth completed, redirecting to:', finalRedirectUrl);
+      debugLog('Beta auth completed, redirecting to:', finalRedirectUrl);
       res.redirect(finalRedirectUrl);
     } catch (error) {
       console.error('Error completing beta auth:', error);

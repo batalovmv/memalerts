@@ -23,6 +23,13 @@ model Channel {
   secondaryColor    String? // Hex color for secondary theme
   accentColor       String? // Hex color for accent
   defaultPriceCoins Int?    @default(100) // Default price for memes in this channel
+  submissionRewardCoins Int @default(0) // Coins granted to submitter when their submission is approved
+  // OBS overlay settings (server-side defaults for tokenized overlay URLs)
+  overlayMode       String  @default("queue") // queue | simultaneous
+  overlayShowSender Boolean @default(false)
+  overlayMaxConcurrent Int  @default(3)
+  // Increment to invalidate previously issued overlay tokens.
+  overlayTokenVersion Int @default(1)
   createdAt         DateTime @default(now())
 
   users       User[]

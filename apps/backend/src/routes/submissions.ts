@@ -17,7 +17,7 @@ submissionRoutes.use(requireBetaAccess);
 submissionRoutes.use(logRequest);
 
 submissionRoutes.post('/', uploadLimiter, uploadWithLogging, submissionController.createSubmission);
-submissionRoutes.post('/import', submissionController.importMeme);
+submissionRoutes.post('/import', uploadLimiter, submissionController.importMeme);
 submissionRoutes.get('/mine', submissionController.getMySubmissions);
 // Add GET /submissions endpoint to prevent hanging requests
 // This endpoint returns user's own submissions (same as /mine)
