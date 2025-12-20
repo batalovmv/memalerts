@@ -76,6 +76,8 @@ export function setupSocketIO(io: Server) {
       }
 
       socket.join(`channel:${allowedSlug}`);
+      socket.data.isOverlay = false;
+      socket.data.channelSlug = allowedSlug;
       console.log(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
     });
 
@@ -121,6 +123,8 @@ export function setupSocketIO(io: Server) {
 
         // Join the normalized channel room only.
         socket.join(`channel:${slug}`);
+        socket.data.isOverlay = true;
+        socket.data.channelSlug = slug;
         console.log(`Client ${socket.id} joined channel:${slug} (overlay token)`);
 
         // Private config (sent only to the overlay client socket).

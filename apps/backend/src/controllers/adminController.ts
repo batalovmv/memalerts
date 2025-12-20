@@ -116,6 +116,22 @@ export const adminController = {
         { expiresIn: '3650d' }
       );
 
+      // Best-effort: disconnect existing overlay sockets so old leaked links stop "working" immediately.
+      // Otherwise, an already-connected OBS Browser Source would keep receiving activations until reloaded.
+      try {
+        const io: Server = req.app.get('io');
+        const slug = String(channel.slug).toLowerCase();
+        const room = `channel:${slug}`;
+        const sockets = await io.in(room).fetchSockets();
+        for (const s of sockets) {
+          if ((s.data as any)?.isOverlay) {
+            s.disconnect(true);
+          }
+        }
+      } catch (kickErr) {
+        console.error('Error disconnecting overlay sockets after token rotation:', kickErr);
+      }
+
       return res.json({
         token,
         overlayMode: channel.overlayMode ?? 'queue',
@@ -1232,6 +1248,22 @@ export const adminController = {
         where: { id: channelId },
         data: updateData,
       });
+
+      // Push overlay config to connected overlay clients (OBS) in real-time.
+      // Overlay listens to overlay:config, so settings apply without requiring OBS reload.
+      try {
+        const io: Server = req.app.get('io');
+        const slug = String((updatedChannel as any).slug || channel.slug || '').toLowerCase();
+        if (slug) {
+          io.to(`channel:${slug}`).emit('overlay:config', {
+            overlayMode: (updatedChannel as any).overlayMode ?? 'queue',
+            overlayShowSender: (updatedChannel as any).overlayShowSender ?? false,
+            overlayMaxConcurrent: (updatedChannel as any).overlayMaxConcurrent ?? 3,
+          });
+        }
+      } catch (emitErr) {
+        console.error('Error emitting overlay:config after settings update:', emitErr);
+      }
 
       res.json(updatedChannel);
     } catch (error: any) {
