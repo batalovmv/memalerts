@@ -47,6 +47,10 @@ export const updateChannelSettingsSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
+  // OBS overlay settings (server-side defaults, applied to token-based overlay joins)
+  overlayMode: z.enum(['queue', 'simultaneous']).optional(),
+  overlayShowSender: z.boolean().optional(),
+  overlayMaxConcurrent: z.number().int().min(1).max(5).optional(),
 });
 
 export const createPromotionSchema = z.object({

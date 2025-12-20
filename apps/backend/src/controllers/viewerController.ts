@@ -63,6 +63,9 @@ export const viewerController = {
         slug: channel.slug,
         name: channel.name,
         coinPerPointRatio: channel.coinPerPointRatio,
+        overlayMode: (channel as any).overlayMode ?? 'queue',
+        overlayShowSender: (channel as any).overlayShowSender ?? false,
+        overlayMaxConcurrent: (channel as any).overlayMaxConcurrent ?? 3,
         rewardIdForCoins: (channel as any).rewardIdForCoins ?? null,
         rewardEnabled: (channel as any).rewardEnabled ?? false,
         rewardTitle: (channel as any).rewardTitle ?? null,
@@ -769,7 +772,12 @@ export const viewerController = {
           },
         });
 
-        return { activation, meme, wallet: updatedWallet };
+        const sender = await tx.user.findUnique({
+          where: { id: req.userId! },
+          select: { displayName: true },
+        });
+
+        return { activation, meme, wallet: updatedWallet, senderDisplayName: sender?.displayName ?? null };
       });
 
       // Emit to overlay.
@@ -783,6 +791,7 @@ export const viewerController = {
         fileUrl: result.meme.fileUrl,
         durationMs: result.meme.durationMs,
         title: result.meme.title,
+        senderDisplayName: result.senderDisplayName,
       });
 
       // Publish wallet update so other instances (beta/prod) can emit it to connected clients.

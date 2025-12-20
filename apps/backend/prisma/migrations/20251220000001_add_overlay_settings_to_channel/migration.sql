@@ -1,0 +1,7 @@
+-- Add OBS overlay settings to Channel
+ALTER TABLE "Channel"
+  ADD COLUMN IF NOT EXISTS "overlayMode" TEXT NOT NULL DEFAULT 'queue',
+  ADD COLUMN IF NOT EXISTS "overlayShowSender" BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS "overlayMaxConcurrent" INTEGER NOT NULL DEFAULT 3;
+
+
