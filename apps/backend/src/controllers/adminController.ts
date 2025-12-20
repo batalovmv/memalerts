@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { Server } from 'socket.io';
 import { approveSubmissionSchema, rejectSubmissionSchema, updateMemeSchema, updateChannelSettingsSchema } from '../shared/index.js';
 import { getOrCreateTags } from '../utils/tags.js';
-import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference, downloadAndDeduplicateFile } from '../utils/fileHash.js';
+import { calculateFileHash, findOrCreateFileHash, getFileStats, getFileHashByPath, incrementFileHashReference } from '../utils/fileHash.js';
 import { validatePathWithinDirectory } from '../utils/pathSecurity.js';
 import { logAdminAction } from '../utils/auditLogger.js';
 import { getVideoMetadata } from '../utils/videoValidator.js';
@@ -423,31 +423,8 @@ export const adminController = {
         // Don't fail the request if Socket.IO emit fails
       }
 
-      // If this is an imported meme, start background download and update
-      if (submissionForBackground?.sourceUrl && result && 'id' in result) {
-        const memeId = result.id;
-        const sourceUrl = submissionForBackground.sourceUrl;
-        
-        // Start background download and deduplication (don't await - fire and forget)
-        // This will update the meme's fileUrl once download completes
-        downloadAndDeduplicateFile(sourceUrl).then((downloadResult) => {
-          // Update meme with local file path after download completes
-          prisma.meme.update({
-            where: { id: memeId },
-            data: {
-              fileUrl: downloadResult.filePath,
-              fileHash: downloadResult.fileHash,
-            },
-          }).then(() => {
-            console.log(`Background download completed for meme ${memeId}: ${downloadResult.isNew ? 'new file' : 'duplicate found'}, hash: ${downloadResult.fileHash}`);
-          }).catch((err) => {
-            console.error(`Failed to update meme ${memeId} after background download:`, err);
-          });
-        }).catch((error: any) => {
-          console.error(`Background download failed for meme ${memeId}:`, error.message);
-          // File will continue using sourceUrl - that's okay, it will work
-        });
-      }
+      // Imported memes keep using their original sourceUrl as fileUrl.
+      // This avoids broken local /uploads links if background downloads fail or go to a different instance/dir.
 
       res.json(result);
     } catch (error: any) {
