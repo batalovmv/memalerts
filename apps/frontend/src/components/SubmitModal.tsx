@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '../store/hooks';
 import TagInput from './TagInput';
@@ -16,6 +16,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState<boolean>(false);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
@@ -66,6 +67,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:entry',message:'SubmitModal submit started',data:{mode,fromPath:location.pathname,fromSearch:location.search,channelSlug:channelSlug||null,hasChannelId:!!channelId,role:user?.role||null,titleLen:formData.title.length,hasFile:!!file,tagsCount:(formData.tags||[]).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
+    // #endregion
     
     if (!user) {
       toast.error(t('submitModal.pleaseLogIn'));
@@ -139,7 +144,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
 
         // Use axios directly for upload progress tracking
         const { api } = await import('../lib/api');
-        await api.post('/submissions', formDataToSend, {
+        const resp = await api.post('/submissions', formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -150,6 +155,12 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
             }
           },
         });
+
+        // #region agent log
+        const d: any = resp?.data;
+        const navTarget = channelSlug ? `/channel/${channelSlug}` : '/dashboard';
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:success',message:'SubmitModal submit success',data:{fromPath:location.pathname,channelSlug:channelSlug||null,hasChannelId:!!channelId,navTarget,respKeys:d&&typeof d==="object"?Object.keys(d).slice(0,20):null,respIdPrefix:String(d?.id||'').slice(0,8),respStatus:d?.status||null,respIsDirectApproval:typeof d?.isDirectApproval==="boolean"?d.isDirectApproval:null,respFileUrlTemp:d?.fileUrlTemp?true:false,respFileUrl:d?.fileUrl?true:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
+        // #endregion
         
         toast.success(t('submit.submitted'));
         onClose();
