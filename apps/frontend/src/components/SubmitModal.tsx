@@ -144,7 +144,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
 
         // Use axios directly for upload progress tracking
         const { api } = await import('../lib/api');
-        const resp = await api.post('/submissions', formDataToSend, {
+        const respData = await api.post<Record<string, unknown>>('/submissions', formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -157,9 +157,18 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         });
 
         // #region agent log
-        const d: any = resp?.data;
+        const d = respData as Record<string, unknown> | null;
         const navTarget = channelSlug ? `/channel/${channelSlug}` : '/dashboard';
-        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:success',message:'SubmitModal submit success',data:{fromPath:location.pathname,channelSlug:channelSlug||null,hasChannelId:!!channelId,navTarget,respKeys:d&&typeof d==="object"?Object.keys(d).slice(0,20):null,respIdPrefix:String(d?.id||'').slice(0,8),respStatus:d?.status||null,respIsDirectApproval:typeof d?.isDirectApproval==="boolean"?d.isDirectApproval:null,respFileUrlTemp:d?.fileUrlTemp?true:false,respFileUrl:d?.fileUrl?true:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
+        const respIdPrefix = typeof d?.id === 'string' ? d.id.slice(0, 8) : '';
+        const respStatus = typeof d?.status === 'string' ? d.status : null;
+        const respIsDirectApproval = typeof d?.isDirectApproval === 'boolean' ? d.isDirectApproval : null;
+        const respHasFileUrlTemp = typeof d?.fileUrlTemp === 'string' && d.fileUrlTemp.length > 0;
+        const respHasFileUrl = typeof d?.fileUrl === 'string' && d.fileUrl.length > 0;
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:success',message:'SubmitModal submit success',data:{fromPath:location.pathname,channelSlug:channelSlug||null,hasChannelId:!!channelId,navTarget,respKeys:d&&typeof d==="object"?Object.keys(d).slice(0,20):null,respIdPrefix,respStatus,respIsDirectApproval,respHasFileUrlTemp,respHasFileUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
+        // #endregion
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'memalerts-frontend/src/components/SubmitModal.tsx:handleSubmit:success:typed',message:'SubmitModal submit success (typed extract)',data:{respIdPrefix,respStatus,respIsDirectApproval,respHasFileUrlTemp,respHasFileUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H_submit_flow'})}).catch(()=>{});
         // #endregion
         
         toast.success(t('submit.submitted'));
