@@ -13,6 +13,7 @@ import SubmitModal from './SubmitModal';
 import type { Wallet } from '../types';
 import toast from 'react-hot-toast';
 import { login } from '../lib/auth';
+import AuthRequiredModal from './AuthRequiredModal';
 
 interface HeaderProps {
   channelSlug?: string;
@@ -35,6 +36,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
@@ -61,12 +63,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     isOwnProfile
   );
 
-  const requireAuth = (reasonKey?: string) => {
-    toast.error(
-      t(reasonKey || 'auth.loginRequired', { defaultValue: 'Please log in to use this feature.' })
-    );
-    login(location.pathname + location.search);
-  };
+  const requireAuth = () => setAuthModalOpen(true);
 
   // Load submissions for streamer/admin if not already loaded
   // Check Redux store with TTL to avoid duplicate requests on navigation
@@ -576,7 +573,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 {/* Pending Submissions (guest preview) */}
                 <button
-                  onClick={() => requireAuth()}
+                  onClick={requireAuth}
                   className="relative p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
                   title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                   aria-label={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
@@ -588,7 +585,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Submit Meme (guest preview) */}
                 <button
-                  onClick={() => requireAuth()}
+                  onClick={requireAuth}
                   className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
                   title={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
                   aria-label={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
@@ -603,7 +600,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 <div className="relative group">
                   <div
                     className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm cursor-pointer"
-                    onClick={() => requireAuth()}
+                    onClick={requireAuth}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -627,7 +624,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Guest identity */}
                 <button
-                  onClick={() => requireAuth()}
+                  onClick={requireAuth}
                   className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   title={t('auth.login', { defaultValue: 'Log in with Twitch' })}
                 >
@@ -650,6 +647,16 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         onClose={() => setIsSubmitModalOpen(false)}
         channelSlug={currentChannelSlug}
         channelId={isOwnProfile ? channelId : undefined}
+      />
+
+      <AuthRequiredModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onCtaClick={() => {
+          setAuthModalOpen(false);
+          toast.error(t('auth.loginRequired', { defaultValue: 'Please log in to use this feature.' }));
+          login(location.pathname + location.search);
+        }}
       />
 
     </>

@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
 import type { Meme, Wallet } from '../types';
+import AuthRequiredModal from '../components/AuthRequiredModal';
 
 interface ChannelInfo {
   id: string;
@@ -61,6 +62,7 @@ export default function StreamerProfile() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [myFavorites, setMyFavorites] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -260,8 +262,7 @@ export default function StreamerProfile() {
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
-      toast.error(t('auth.loginRequired', { defaultValue: 'Please log in to use this feature.' }));
-      login(`/channel/${normalizedSlug || slug || ''}`);
+      setAuthModalOpen(true);
       return;
     }
 
@@ -392,7 +393,7 @@ export default function StreamerProfile() {
               {/* Guest CTA */}
               {!user && (
                 <button
-                  onClick={() => login(`/channel/${normalizedSlug || slug || ''}`)}
+                  onClick={() => setAuthModalOpen(true)}
                   className="flex items-center gap-2 glass-btn px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white"
                   title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                 >
@@ -446,7 +447,10 @@ export default function StreamerProfile() {
                 checked={myFavorites}
                 disabled={!isAuthed}
                 onChange={(e) => {
-                  if (!isAuthed) return;
+                  if (!isAuthed) {
+                    setAuthModalOpen(true);
+                    return;
+                  }
                   setMyFavorites(e.target.checked);
                 }}
                 className="h-4 w-4 rounded"
@@ -562,6 +566,16 @@ export default function StreamerProfile() {
 
       {/* Coins Info Modal */}
       {channelInfo && <CoinsInfoModal rewardTitle={channelInfo.rewardTitle || null} />}
+
+      <AuthRequiredModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onCtaClick={() => {
+          setAuthModalOpen(false);
+          toast.error(t('auth.loginRequired', { defaultValue: 'Please log in to use this feature.' }));
+          login(`/channel/${normalizedSlug || slug || ''}`);
+        }}
+      />
       </div>
     </ChannelThemeProvider>
   );

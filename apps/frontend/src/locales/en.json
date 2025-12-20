@@ -29,7 +29,11 @@
     "loginToInteract": "Log in to submit memes and use favorites",
     "loginToUseFavorites": "Log in to use favorites",
     "loginToUseWallet": "Log in to earn coins and activate memes",
-    "loginToUse": "Log in to use"
+    "loginToUse": "Log in to use",
+    "modal": {
+      "title": "Login required",
+      "description": "Log in with Twitch to use this feature."
+    }
   },
   "landing": {
     "title": "Channel Points Mem Alerts",
