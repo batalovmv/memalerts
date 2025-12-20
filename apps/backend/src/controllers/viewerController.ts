@@ -772,8 +772,11 @@ export const viewerController = {
         return { activation, meme, wallet: updatedWallet };
       });
 
-      // Emit to overlay
-      io.to(`channel:${result.meme.channel.slug}`).emit('activation:new', {
+      // Emit to overlay.
+      // IMPORTANT: Always emit to a normalized room name to avoid case mismatches
+      // between stored slugs, older clients, and token-based overlay joins.
+      const channelSlug = String(result.meme.channel.slug || '').toLowerCase();
+      io.to(`channel:${channelSlug}`).emit('activation:new', {
         id: result.activation.id,
         memeId: result.activation.memeId,
         type: result.meme.type,

@@ -175,6 +175,25 @@ server {
     root /opt/memalerts-frontend/dist;
     index index.html;
 
+    # OBS Overlay (served from separate build under /overlay/)
+    # This must be BEFORE the main `location /` SPA fallback.
+    location ^~ /overlay/ {
+        alias /opt/memalerts-frontend/overlay/dist/;
+        index index.html;
+
+        # Runtime config not needed here; overlay is same-origin.
+        # Never cache overlay HTML (ensures fresh hashed assets after deploy).
+        location = /overlay/index.html {
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+            add_header Pragma "no-cache" always;
+            add_header Expires "0" always;
+            try_files \$uri =404;
+        }
+
+        # SPA routing for overlay (e.g. /overlay/t/<token>)
+        try_files \$uri \$uri/ /overlay/index.html;
+    }
+
     # Runtime config (no secrets) - prevents cross-environment API mistakes
     location = /config.json {
         default_type application/json;
@@ -378,6 +397,21 @@ server {
     # Frontend static files (beta)
     root /opt/memalerts-frontend-beta/dist;
     index index.html;
+
+    # OBS Overlay (beta) - served from separate build under /overlay/
+    location ^~ /overlay/ {
+        alias /opt/memalerts-frontend-beta/overlay/dist/;
+        index index.html;
+
+        location = /overlay/index.html {
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+            add_header Pragma "no-cache" always;
+            add_header Expires "0" always;
+            try_files \$uri =404;
+        }
+
+        try_files \$uri \$uri/ /overlay/index.html;
+    }
 
     # Runtime config (no secrets) - prevents cross-environment API mistakes
     location = /config.json {
@@ -608,6 +642,21 @@ server {
     root /opt/memalerts-frontend/dist;
     index index.html;
 
+    # OBS Overlay (served from separate build under /overlay/)
+    location ^~ /overlay/ {
+        alias /opt/memalerts-frontend/overlay/dist/;
+        index index.html;
+
+        location = /overlay/index.html {
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+            add_header Pragma "no-cache" always;
+            add_header Expires "0" always;
+            try_files \$uri =404;
+        }
+
+        try_files \$uri \$uri/ /overlay/index.html;
+    }
+
     # Runtime config (no secrets) - prevents cross-environment API mistakes
     location = /config.json {
         default_type application/json;
@@ -794,6 +843,21 @@ server {
     # Frontend static files (beta)
     root /opt/memalerts-frontend-beta/dist;
     index index.html;
+
+    # OBS Overlay (beta)
+    location ^~ /overlay/ {
+        alias /opt/memalerts-frontend-beta/overlay/dist/;
+        index index.html;
+
+        location = /overlay/index.html {
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+            add_header Pragma "no-cache" always;
+            add_header Expires "0" always;
+            try_files \$uri =404;
+        }
+
+        try_files \$uri \$uri/ /overlay/index.html;
+    }
 
     # Runtime config (no secrets) - prevents cross-environment API mistakes
     location = /config.json {
@@ -1015,11 +1079,19 @@ fi
 # Ensure frontend directories exist
 mkdir -p /opt/memalerts-frontend/dist
 mkdir -p /opt/memalerts-frontend-beta/dist
+mkdir -p /opt/memalerts-frontend/overlay/dist
+mkdir -p /opt/memalerts-frontend-beta/overlay/dist
 if [ ! -f /opt/memalerts-frontend/dist/index.html ]; then
   echo "<!DOCTYPE html><html><head><title>MemAlerts</title></head><body><h1>Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend/dist/index.html
 fi
 if [ ! -f /opt/memalerts-frontend-beta/dist/index.html ]; then
   echo "<!DOCTYPE html><html><head><title>MemAlerts Beta</title></head><body><h1>Beta Frontend deploying...</h1></body></html>" > /opt/memalerts-frontend-beta/dist/index.html
+fi
+if [ ! -f /opt/memalerts-frontend/overlay/dist/index.html ]; then
+  echo "<!DOCTYPE html><html><head><title>Mem Alerts Overlay</title></head><body style='margin:0;background:transparent;overflow:hidden;'><div>Overlay deploying...</div></body></html>" > /opt/memalerts-frontend/overlay/dist/index.html
+fi
+if [ ! -f /opt/memalerts-frontend-beta/overlay/dist/index.html ]; then
+  echo "<!DOCTYPE html><html><head><title>Mem Alerts Overlay</title></head><body style='margin:0;background:transparent;overflow:hidden;'><div>Overlay deploying...</div></body></html>" > /opt/memalerts-frontend-beta/overlay/dist/index.html
 fi
 
 # Verify the config file was created
