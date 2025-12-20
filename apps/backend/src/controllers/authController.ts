@@ -517,7 +517,9 @@ export const authController = {
       });
 
       // Set cookie
-      res.cookie('token', token, cookieOptions);
+      // Use dedicated cookie name for beta to avoid cross-subdomain collisions with production.
+      const cookieName = isBetaRedirect ? 'token_beta' : 'token';
+      res.cookie(cookieName, token, cookieOptions);
       
       // Verify cookie was set in response
       const setCookieHeader = res.getHeader('Set-Cookie');
@@ -604,17 +606,27 @@ export const authController = {
       sameSite: 'lax',
       path: '/',
     };
-    // Determine cookie domain based on request host
-    const host = req.get('host') || '';
-    const isBetaDomain = host.includes('beta.');
-    if (isBetaDomain) {
-      // For beta domain, set cookie domain to beta domain
-      const domain = process.env.DOMAIN || 'twitchmemes.ru';
-      cookieOptions.domain = domain.includes('beta.') ? domain : `beta.${domain}`;
-    } else if (process.env.DOMAIN) {
-      cookieOptions.domain = process.env.DOMAIN;
+
+    // Clear BOTH prod and beta cookies to prevent "stuck" sessions when domains overlap.
+    // We clear:
+    // - token (prod cookie name)
+    // - token_beta (beta cookie name)
+    // With several domain variants to reliably remove old cookies that might have been set with Domain=twitchmemes.ru.
+    const host = (req.get('host') || '').split(':')[0];
+    const baseDomain = process.env.DOMAIN || 'twitchmemes.ru';
+    const domainVariants = Array.from(new Set<string | undefined>([
+      undefined,
+      host || undefined,
+      baseDomain || undefined,
+      baseDomain ? `beta.${baseDomain.replace(/^beta\./, '')}` : undefined,
+      baseDomain ? baseDomain.replace(/^beta\./, '') : undefined,
+    ]));
+
+    for (const domain of domainVariants) {
+      const opts = domain ? { ...cookieOptions, domain } : cookieOptions;
+      res.clearCookie('token', opts);
+      res.clearCookie('token_beta', opts);
     }
-    res.clearCookie('token', cookieOptions);
     
     // Log logout
     if (req.userId) {
@@ -645,28 +657,8 @@ export const authController = {
         return res.redirect('/?error=auth_failed&reason=invalid_token');
       }
 
-      // Grant beta access to user if they don't have it
-      // This endpoint is only called on beta backend, so we should grant access
-      try {
-        const user = await prisma.user.findUnique({
-          where: { id: decoded.userId },
-          select: { hasBetaAccess: true },
-        });
-        
-        if (user && !user.hasBetaAccess) {
-          console.log('Granting beta access to user:', decoded.userId);
-          await prisma.user.update({
-            where: { id: decoded.userId },
-            data: { hasBetaAccess: true },
-          });
-          // Invalidate cache so next request picks up the new beta access status
-          const { invalidateBetaAccessCache } = await import('../middleware/betaAccess.js');
-          invalidateBetaAccessCache(decoded.userId);
-        }
-      } catch (error) {
-        console.error('Error granting beta access:', error);
-        // Continue anyway - beta access can be granted later
-      }
+      // NOTE: Do NOT auto-grant beta access on login.
+      // Beta access must be explicitly approved by an admin.
 
       // Extract redirect path from state if present
       let redirectPath = '/';
@@ -722,7 +714,8 @@ export const authController = {
         cookieOptions.domain = cookieDomain;
       }
 
-      res.cookie('token', betaToken, cookieOptions);
+      // Use dedicated cookie name for beta to avoid cross-subdomain collisions with production.
+      res.cookie('token_beta', betaToken, cookieOptions);
 
       // Redirect to appropriate page
       const finalRedirectUrl = `${redirectUrl}${redirectPath}`;
