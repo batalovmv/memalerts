@@ -59,7 +59,7 @@ export default function StreamerProfile() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortPopular, setSortPopular] = useState(false);
+  const [myFavorites, setMyFavorites] = useState(false);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -227,7 +227,7 @@ export default function StreamerProfile() {
 
   // Perform search when debounced query changes
   useEffect(() => {
-    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !sortPopular)) {
+    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !myFavorites)) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -240,13 +240,9 @@ export default function StreamerProfile() {
         if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
         params.set('channelSlug', normalizedSlug);
         params.set('limit', '100');
-        if (sortPopular) {
-          params.set('sortBy', 'popularity');
-          params.set('sortOrder', 'desc');
-        } else {
-          params.set('sortBy', 'createdAt');
-          params.set('sortOrder', 'desc');
-        }
+        if (myFavorites) params.set('favorites', '1');
+        params.set('sortBy', 'createdAt');
+        params.set('sortOrder', 'desc');
         const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
         setSearchResults(memes);
       } catch (error: unknown) {
@@ -258,7 +254,7 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [debouncedSearchQuery, normalizedSlug, sortPopular]);
+  }, [debouncedSearchQuery, normalizedSlug, myFavorites]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
@@ -429,11 +425,11 @@ export default function StreamerProfile() {
             <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 glass px-3 py-2">
               <input
                 type="checkbox"
-                checked={sortPopular}
-                onChange={(e) => setSortPopular(e.target.checked)}
+                checked={myFavorites}
+                onChange={(e) => setMyFavorites(e.target.checked)}
                 className="h-4 w-4 rounded"
               />
-              {t('search.popular30d', 'Popular (30d)')}
+              {t('search.myFavorites', 'My favorites')}
             </label>
           </div>
 
