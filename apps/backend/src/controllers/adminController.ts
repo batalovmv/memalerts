@@ -182,9 +182,9 @@ export const adminController = {
         setTimeout(() => reject(new Error('Database query timeout')), 10000); // 10 seconds
       });
 
-      let submissions;
+      let submissions: any[];
       try {
-        submissions = await Promise.race([submissionsPromise, timeoutPromise]);
+        submissions = await Promise.race<any>([submissionsPromise, timeoutPromise]);
       } catch (error: any) {
         // If error is about MemeSubmissionTag table, retry without tags
         if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
