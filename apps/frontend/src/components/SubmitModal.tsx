@@ -23,12 +23,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
     title: string;
-    notes: string;
     sourceUrl?: string;
     tags?: string[];
   }>({
     title: '',
-    notes: '',
     sourceUrl: '',
     tags: [],
   });
@@ -41,7 +39,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
     if (!isOpen) {
       setFormData({
         title: '',
-        notes: '',
         sourceUrl: '',
         tags: [],
       });
@@ -124,9 +121,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         formDataToSend.append('file', file);
         formDataToSend.append('title', formData.title);
         formDataToSend.append('type', 'video'); // Only video allowed
-        if (formData.notes) {
-          formDataToSend.append('notes', formData.notes);
-        }
         // Add tags as JSON string (backend will parse it)
         if (formData.tags && formData.tags.length > 0) {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
@@ -205,7 +199,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         await api.post('/submissions/import', {
           title: formData.title,
           sourceUrl: formData.sourceUrl,
-          notes: formData.notes || null,
           tags: formData.tags || [],
           ...(channelId && { channelId }), // Add channelId if provided
         });
@@ -365,17 +358,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('submit.notes')}
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
+
 
               {loading && uploadProgress > 0 && (
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">

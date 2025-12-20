@@ -425,6 +425,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const isLoadingSubmissions = submissionsLoading && submissions.length === 0;
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
+  const isInfiniteBalance = !!user && (user.role === 'streamer' || user.role === 'admin') && (
+    location.pathname === '/dashboard' ||
+    location.pathname.startsWith('/settings') ||
+    isOwnProfile
+  );
 
   // Use CSS variables for colors when on public channel page, fallback to inline styles for other pages
   const navStyle: React.CSSProperties = {
@@ -535,7 +540,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     )}
                     <div className="flex items-baseline gap-1">
                       <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
-                        {isLoadingWallet ? '...' : balance}
+                        {isInfiniteBalance ? '∞' : (isLoadingWallet ? '...' : balance)}
                       </span>
                       <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
                     </div>

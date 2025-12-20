@@ -212,9 +212,7 @@ function PendingSubmissionCard({
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 {t('dashboard.submittedBy', { defaultValue: 'Submitted by {{name}}', name: submission.submitter?.displayName || 'Unknown' })}
               </p>
-              {submission.notes && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{submission.notes}</p>
-              )}
+
             </div>
             <div className="flex gap-2 shrink-0">
               <button

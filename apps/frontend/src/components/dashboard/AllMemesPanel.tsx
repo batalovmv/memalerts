@@ -17,9 +17,8 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 350);
+  const [includeUploader, setIncludeUploader] = useState(false);
   const [filters, setFilters] = useState({
-    minPrice: '',
-    maxPrice: '',
     sortBy: 'createdAt',
     sortOrder: 'desc',
   });
@@ -36,13 +35,12 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
     const params = new URLSearchParams();
     params.set('channelId', channelId);
     if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
-    if (filters.minPrice) params.set('minPrice', filters.minPrice);
-    if (filters.maxPrice) params.set('maxPrice', filters.maxPrice);
+    if (includeUploader) params.set('includeUploader', '1');
     params.set('sortBy', filters.sortBy);
     params.set('sortOrder', filters.sortOrder);
     params.set('limit', String(limit));
     return params;
-  }, [channelId, debouncedQuery, filters]);
+  }, [channelId, debouncedQuery, filters, includeUploader]);
 
   const loadPage = async (offset: number) => {
     const params = new URLSearchParams(paramsBase);
@@ -146,26 +144,18 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
             >
               <option value="createdAt:desc">{t('search.sortNewest', 'Newest')}</option>
               <option value="createdAt:asc">{t('search.sortOldest', 'Oldest')}</option>
-              <option value="priceCoins:asc">{t('search.sortCheapest', 'Cheapest')}</option>
-              <option value="priceCoins:desc">{t('search.sortExpensive', 'Most expensive')}</option>
-              <option value="popularity:desc">{t('search.sortPopular', 'Popular')}</option>
+              <option value="popularity:desc">{t('search.sortPopular', 'Popular (30d)')}</option>
             </select>
-            <div className="flex gap-2">
-              <input
-                value={filters.minPrice}
-                onChange={(e) => setFilters((p) => ({ ...p, minPrice: e.target.value.replace(/[^\d]/g, '') }))}
-                placeholder={t('search.minPrice', 'Min')}
-                inputMode="numeric"
-                className="w-1/2 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-              <input
-                value={filters.maxPrice}
-                onChange={(e) => setFilters((p) => ({ ...p, maxPrice: e.target.value.replace(/[^\d]/g, '') }))}
-                placeholder={t('search.maxPrice', 'Max')}
-                inputMode="numeric"
-                className="w-1/2 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setIncludeUploader((v) => !v)}
+              className={`glass-btn px-3 py-2 text-sm font-medium ${
+                includeUploader ? 'bg-primary text-white' : 'bg-white/40 dark:bg-white/5 text-gray-900 dark:text-white'
+              }`}
+              title={t('search.includeUploader', 'Search uploader nick')}
+            >
+              {t('search.uploader', 'Uploader')}
+            </button>
           </div>
         </div>
 
