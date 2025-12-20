@@ -2,13 +2,14 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
 type JwtPayload = {
-  userId: string;
-  role: string;
+  userId?: string;
+  role?: string;
   channelId?: string;
   // Overlay token fields
   kind?: string;
   channelSlug?: string;
   v?: number;
+  tv?: number; // overlay token version (rotation)
 };
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
@@ -83,13 +84,51 @@ export function setupSocketIO(io: Server) {
       if (!token) return;
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-        if (decoded.kind !== 'overlay' || !decoded.channelSlug) {
+        if (decoded.kind !== 'overlay' || !decoded.channelId) {
           return;
         }
-        const slug = String(decoded.channelSlug).toLowerCase();
+
+        // Resolve current channel slug + overlay defaults from DB so tokens survive slug changes.
+        const { prisma } = await import('../lib/prisma.js');
+        const channel = await prisma.channel.findUnique({
+          where: { id: decoded.channelId },
+          select: {
+            slug: true,
+            overlayMode: true,
+            overlayShowSender: true,
+            overlayMaxConcurrent: true,
+            overlayTokenVersion: true,
+          },
+        });
+
+        // Token rotation: deny old links after streamer regenerates overlay URL.
+        const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
+        const currentVersion = Number.isFinite((channel as any)?.overlayTokenVersion)
+          ? Number((channel as any)?.overlayTokenVersion)
+          : 1;
+        if (tokenVersion !== currentVersion) {
+          console.warn('[socket] join:overlay denied (token rotated)', {
+            socketId: socket.id,
+            channelId: decoded.channelId,
+            tokenVersion,
+            currentVersion,
+          });
+          return;
+        }
+
+        const slug = String(channel?.slug || decoded.channelSlug || '').toLowerCase();
+        if (!slug) return;
+
         // Join the normalized channel room only.
         socket.join(`channel:${slug}`);
         console.log(`Client ${socket.id} joined channel:${slug} (overlay token)`);
+
+        // Private config (sent only to the overlay client socket).
+        socket.emit('overlay:config', {
+          overlayMode: channel?.overlayMode ?? 'queue',
+          overlayShowSender: channel?.overlayShowSender ?? false,
+          overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
+        });
       } catch (e) {
         console.warn('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
       }

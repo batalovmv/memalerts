@@ -35,7 +35,13 @@ export const adminController = {
     try {
       const channel = await prisma.channel.findUnique({
         where: { id: channelId },
-        select: { slug: true },
+        select: {
+          slug: true,
+          overlayMode: true,
+          overlayShowSender: true,
+          overlayMaxConcurrent: true,
+          overlayTokenVersion: true,
+        },
       });
 
       if (!channel?.slug) {
@@ -50,15 +56,70 @@ export const adminController = {
           v: 1,
           channelId,
           channelSlug: String(channel.slug).toLowerCase(),
+          tv: channel.overlayTokenVersion ?? 1,
         },
         process.env.JWT_SECRET!,
         { expiresIn: '3650d' } // ~10 years
       );
 
-      return res.json({ token });
+      return res.json({
+        token,
+        overlayMode: channel.overlayMode ?? 'queue',
+        overlayShowSender: channel.overlayShowSender ?? false,
+        overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
+      });
     } catch (e: any) {
       console.error('Error generating overlay token:', e);
       return res.status(500).json({ error: 'Failed to generate overlay token' });
+    }
+  },
+
+  rotateOverlayToken: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    if (!channelId) {
+      return res.status(400).json({ error: 'Channel ID required' });
+    }
+
+    try {
+      const channel = await prisma.channel.update({
+        where: { id: channelId },
+        data: {
+          overlayTokenVersion: { increment: 1 },
+        },
+        select: {
+          slug: true,
+          overlayMode: true,
+          overlayShowSender: true,
+          overlayMaxConcurrent: true,
+          overlayTokenVersion: true,
+        },
+      });
+
+      if (!channel?.slug) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
+
+      const token = jwt.sign(
+        {
+          kind: 'overlay',
+          v: 1,
+          channelId,
+          channelSlug: String(channel.slug).toLowerCase(),
+          tv: channel.overlayTokenVersion ?? 1,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '3650d' }
+      );
+
+      return res.json({
+        token,
+        overlayMode: channel.overlayMode ?? 'queue',
+        overlayShowSender: channel.overlayShowSender ?? false,
+        overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
+      });
+    } catch (e: any) {
+      console.error('Error rotating overlay token:', e);
+      return res.status(500).json({ error: 'Failed to rotate overlay token' });
     }
   },
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -1152,6 +1213,9 @@ export const adminController = {
         primaryColor: body.primaryColor !== undefined ? body.primaryColor : (channel as any).primaryColor,
         secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : (channel as any).secondaryColor,
         accentColor: body.accentColor !== undefined ? body.accentColor : (channel as any).accentColor,
+        overlayMode: body.overlayMode !== undefined ? body.overlayMode : (channel as any).overlayMode,
+        overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : (channel as any).overlayShowSender,
+        overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
       };
       
       // Only update coinIconUrl if we have a value or if reward is being disabled

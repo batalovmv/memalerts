@@ -32,5 +32,6 @@ adminRoutes.get('/stats/channel', adminController.getChannelStats);
 
 // OBS overlay token (used to generate unguessable Browser Source URL)
 adminRoutes.get('/overlay/token', adminController.getOverlayToken);
+adminRoutes.post('/overlay/token/rotate', adminController.rotateOverlayToken);
 
 
