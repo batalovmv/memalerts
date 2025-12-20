@@ -60,7 +60,9 @@ export const adminController = {
           tv: channel.overlayTokenVersion ?? 1,
         },
         process.env.JWT_SECRET!,
-        { expiresIn: '3650d' } // ~10 years
+        // IMPORTANT: keep token stable across page reloads.
+        // We avoid iat/exp so the string doesn't change unless streamer explicitly rotates it.
+        { noTimestamp: true }
       );
 
       return res.json({
@@ -111,7 +113,8 @@ export const adminController = {
           jti: randomUUID(),
         },
         process.env.JWT_SECRET!,
-        { expiresIn: '3650d' }
+        // No iat/exp to avoid surprises; jti already guarantees uniqueness.
+        { noTimestamp: true }
       );
 
       // Best-effort: disconnect existing overlay sockets so old leaked links stop "working" immediately.
