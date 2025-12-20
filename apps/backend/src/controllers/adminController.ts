@@ -22,6 +22,7 @@ import {
   deleteEventSubSubscription,
 } from '../utils/twitchApi.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
+import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 
 export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -440,19 +441,18 @@ export const adminController = {
           select: { slug: true },
         });
         if (channel) {
-          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:approved', {
+          const channelSlug = String(channel.slug).toLowerCase();
+          const evt = {
+            event: 'submission:approved' as const,
             submissionId: id,
             channelId,
-            moderatorId: req.userId,
-          });
-          // Also emit to user room for the moderator
-          if (req.userId) {
-            io.to(`user:${req.userId}`).emit('submission:approved', {
-              submissionId: id,
-              channelId,
-              moderatorId: req.userId,
-            });
-          }
+            channelSlug,
+            moderatorId: req.userId || undefined,
+            userIds: req.userId ? [req.userId] : undefined,
+            source: 'local' as const,
+          };
+          emitSubmissionEvent(io, evt);
+          void relaySubmissionEventToPeer(evt);
         }
       } catch (error) {
         console.error('Error emitting submission:approved event:', error);
@@ -629,19 +629,18 @@ export const adminController = {
           select: { slug: true },
         });
         if (channel) {
-          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:rejected', {
+          const channelSlug = String(channel.slug).toLowerCase();
+          const evt = {
+            event: 'submission:rejected' as const,
             submissionId: id,
             channelId,
-            moderatorId: req.userId,
-          });
-          // Also emit to user room for the moderator
-          if (req.userId) {
-            io.to(`user:${req.userId}`).emit('submission:rejected', {
-              submissionId: id,
-              channelId,
-              moderatorId: req.userId,
-            });
-          }
+            channelSlug,
+            moderatorId: req.userId || undefined,
+            userIds: req.userId ? [req.userId] : undefined,
+            source: 'local' as const,
+          };
+          emitSubmissionEvent(io, evt);
+          void relaySubmissionEventToPeer(evt);
         }
       } catch (error) {
         console.error('Error emitting submission:rejected event:', error);

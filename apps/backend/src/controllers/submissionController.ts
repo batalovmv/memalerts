@@ -10,6 +10,7 @@ import { validateFileContent } from '../utils/fileTypeValidator.js';
 import { logFileUpload, logSecurityEvent } from '../utils/auditLogger.js';
 import path from 'path';
 import fs from 'fs';
+import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 
 export const submissionController = {
   createSubmission: async (req: AuthRequest, res: Response) => {
@@ -351,19 +352,19 @@ export const submissionController = {
           select: { slug: true, users: { where: { role: 'streamer' }, take: 1, select: { id: true } } },
         });
         if (channel) {
-          io.to(`channel:${String(channel.slug).toLowerCase()}`).emit('submission:created', {
+          const channelSlug = String(channel.slug).toLowerCase();
+          const streamerUserId = channel.users?.[0]?.id;
+          const evt = {
+            event: 'submission:created' as const,
             submissionId: submission.id,
             channelId: channelId as string,
-            submitterId: req.userId,
-          });
-          // Also emit to streamer's user room
-          if (channel.users && channel.users.length > 0) {
-            io.to(`user:${channel.users[0].id}`).emit('submission:created', {
-              submissionId: submission.id,
-              channelId: channelId as string,
-              submitterId: req.userId,
-            });
-          }
+            channelSlug,
+            submitterId: req.userId || undefined,
+            userIds: streamerUserId ? [streamerUserId] : undefined,
+            source: 'local' as const,
+          };
+          emitSubmissionEvent(io, evt);
+          void relaySubmissionEventToPeer(evt);
         }
       } catch (error) {
         console.error('Error emitting submission:created event:', error);
