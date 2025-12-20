@@ -420,9 +420,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         style={navStyle}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
+          <div className="flex justify-between h-16 items-center gap-2 min-w-0">
             <h1 
-              className="text-xl font-bold dark:text-white cursor-pointer channel-theme-logo"
+              className="text-lg sm:text-xl font-bold dark:text-white cursor-pointer channel-theme-logo truncate min-w-0"
               onClick={() => navigate('/')}
               style={logoStyle}
             >
@@ -430,7 +430,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
             </h1>
             
             {user && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 {/* Pending Submissions Indicator - always show for streamer/admin */}
                 {showPendingIndicator && (
                   <button
@@ -477,21 +477,21 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {showSubmitButton && (
                   <button
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
                     title={t('header.submitMeme')}
                     aria-label={t('header.submitMeme')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    <span className="text-sm">{t('header.submitMeme')}</span>
+                    <span className="text-sm hidden sm:inline">{t('header.submitMeme')}</span>
                   </button>
                 )}
 
                 {/* Balance Display */}
                 <div className="relative group">
                   <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
                     onClick={() => {
                       setCoinUpdateDelta(null);
                     }}
@@ -512,10 +512,10 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       </svg>
                     )}
                     <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-gray-900 dark:text-white">
+                      <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
                         {isLoadingWallet ? '...' : balance}
                       </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">coins</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
                     </div>
                   </div>
                   {coinUpdateDelta !== null && coinUpdateDelta > 0 && (

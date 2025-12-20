@@ -1152,38 +1152,56 @@ function RewardsSettings() {
                   placeholder={t('admin.rewardTitlePlaceholder')}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {t('admin.rewardCost')}
                   </label>
                   <input
-                    type="number"
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={rewardSettings.rewardCost}
-                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCost: e.target.value })}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings({ ...rewardSettings, rewardCost: next });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
                     className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
                     {t('admin.rewardCostDescription')}
                   </p>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {t('admin.rewardCoins')}
                   </label>
                   <input
-                    type="number"
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={rewardSettings.rewardCoins}
-                    onChange={(e) => setRewardSettings({ ...rewardSettings, rewardCoins: e.target.value })}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings({ ...rewardSettings, rewardCoins: next });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
                     className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
                     {t('admin.rewardCoinsDescription')}
                   </p>
                 </div>
@@ -1227,10 +1245,19 @@ function RewardsSettings() {
               {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
             </label>
             <input
-              type="number"
-              min="0"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={rewardSettings.submissionRewardCoins}
-              onChange={(e) => setRewardSettings({ ...rewardSettings, submissionRewardCoins: e.target.value })}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d]/g, '');
+                setRewardSettings({ ...rewardSettings, submissionRewardCoins: next });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                  e.preventDefault();
+                }
+              }}
               className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
               placeholder="0"
             />
@@ -1407,7 +1434,7 @@ function ChannelSettings() {
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('admin.primaryColor')}
