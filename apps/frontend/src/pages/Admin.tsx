@@ -585,9 +585,9 @@ function ObsLinksSettings() {
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
-  const [overlayMaxConcurrent, setOverlayMaxConcurrent] = useState('3');
   const [loadingOverlaySettings, setLoadingOverlaySettings] = useState(false);
   const [savingOverlaySettings, setSavingOverlaySettings] = useState(false);
+  const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
   const overlaySettingsLoadedRef = useRef<string | null>(null);
 
   const loadOverlaySettings = useCallback(async () => {
@@ -601,7 +601,6 @@ function ObsLinksSettings() {
       if (cached) {
         setOverlayMode(cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
         setOverlayShowSender(Boolean(cached.overlayShowSender));
-        setOverlayMaxConcurrent(String(cached.overlayMaxConcurrent ?? 3));
         overlaySettingsLoadedRef.current = channelSlug;
         return;
       }
@@ -610,7 +609,6 @@ function ObsLinksSettings() {
       if (data) {
         setOverlayMode(data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
         setOverlayShowSender(Boolean(data.overlayShowSender));
-        setOverlayMaxConcurrent(String(data.overlayMaxConcurrent ?? 3));
         overlaySettingsLoadedRef.current = channelSlug;
       } else {
         overlaySettingsLoadedRef.current = null;
@@ -656,19 +654,15 @@ function ObsLinksSettings() {
   const handleSaveOverlaySettings = async (): Promise<void> => {
     if (!channelSlug) return;
 
-    const max = Math.min(5, Math.max(1, parseInt(overlayMaxConcurrent || '3', 10) || 3));
-
     try {
       setSavingOverlaySettings(true);
       const { api } = await import('../lib/api');
       await api.patch('/admin/channel/settings', {
         overlayMode,
         overlayShowSender,
-        overlayMaxConcurrent: max,
       });
 
       toast.success(t('admin.saved', { defaultValue: 'Saved' }));
-      setOverlayMaxConcurrent(String(max));
 
       // Refresh cached channel data so other settings panels stay consistent.
       await getChannelData(channelSlug, false, true);
@@ -677,6 +671,22 @@ function ObsLinksSettings() {
       toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
     } finally {
       setSavingOverlaySettings(false);
+    }
+  };
+
+  const handleRotateOverlayToken = async (): Promise<void> => {
+    if (!channelSlug) return;
+    try {
+      setRotatingOverlayToken(true);
+      const { api } = await import('../lib/api');
+      const resp = await api.post<{ token: string }>('/admin/overlay/token/rotate', {});
+      setOverlayToken(resp?.token || '');
+      toast.success(t('admin.obsOverlayTokenRotated', { defaultValue: 'Overlay link updated. Paste the new URL into OBS.' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+    } finally {
+      setRotatingOverlayToken(false);
     }
   };
 
@@ -696,44 +706,62 @@ function ObsLinksSettings() {
           description={loadingToken ? t('common.loading', { defaultValue: 'Loading...' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
         />
 
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleRotateOverlayToken}
+            disabled={rotatingOverlayToken || loadingToken}
+            className="px-4 py-2 rounded border border-secondary/30 bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 text-sm font-medium"
+          >
+            {rotatingOverlayToken
+              ? t('common.loading', { defaultValue: 'Loading...' })
+              : t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
+          </button>
+          <div className="text-xs text-gray-600 dark:text-gray-300">
+            {t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
+          </div>
+        </div>
+
         <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
             {t('admin.obsOverlaySettingsTitle', { defaultValue: 'Overlay settings' })}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
               </label>
-              <select
-                value={overlayMode}
-                onChange={(e) => setOverlayMode(e.target.value === 'simultaneous' ? 'simultaneous' : 'queue')}
-                className="w-full rounded border border-secondary/30 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm"
-                disabled={loadingOverlaySettings || savingOverlaySettings}
-              >
-                <option value="queue">{t('admin.obsOverlayModeQueue', { defaultValue: 'Queue (one at a time)' })}</option>
-                <option value="simultaneous">{t('admin.obsOverlayModeSimultaneous', { defaultValue: 'Simultaneous' })}</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                {t('admin.obsOverlayMaxConcurrent', { defaultValue: 'Max concurrent' })}
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={5}
-                value={overlayMaxConcurrent}
-                onChange={(e) => setOverlayMaxConcurrent(e.target.value)}
-                className="w-full rounded border border-secondary/30 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm"
-                disabled={loadingOverlaySettings || savingOverlaySettings || overlayMode !== 'simultaneous'}
-              />
+              <div className="inline-flex rounded border border-secondary/30 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOverlayMode('queue')}
+                  disabled={loadingOverlaySettings || savingOverlaySettings}
+                  className={`px-3 py-2 text-sm font-medium ${
+                    overlayMode === 'queue'
+                      ? 'bg-primary text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOverlayMode('simultaneous')}
+                  disabled={loadingOverlaySettings || savingOverlaySettings}
+                  className={`px-3 py-2 text-sm font-medium border-l border-secondary/30 ${
+                    overlayMode === 'simultaneous'
+                      ? 'bg-primary text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
+                </button>
+              </div>
               <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                {overlayMode === 'simultaneous'
-                  ? t('admin.obsOverlayMaxConcurrentHint', { defaultValue: 'How many memes can be shown at the same time.' })
-                  : t('admin.obsOverlayMaxConcurrentHintQueue', { defaultValue: 'In queue mode, memes play one-by-one.' })}
+                {overlayMode === 'queue'
+                  ? t('admin.obsOverlayModeQueueHint', { defaultValue: 'Shows one meme at a time.' })
+                  : t('admin.obsOverlayModeUnlimitedHint', { defaultValue: 'Shows all incoming memes at once (no limit).' })}
               </div>
             </div>
 

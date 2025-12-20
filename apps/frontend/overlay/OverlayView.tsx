@@ -57,6 +57,10 @@ export default function OverlayView() {
     overlayMaxConcurrent: 3,
   });
 
+  // Unlimited mode should not require a user-configured limit, but we still need a hard cap
+  // to prevent OBS/browser from melting down if spammed.
+  const SIMULTANEOUS_HARD_CAP = 500;
+
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
   const [active, setActive] = useState<QueuedActivation[]>([]);
 
@@ -133,7 +137,7 @@ export default function OverlayView() {
     newSocket.on('overlay:config', (incoming: Partial<OverlayConfig> | null | undefined) => {
       const overlayMode = incoming?.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
       const overlayShowSender = Boolean(incoming?.overlayShowSender);
-      const overlayMaxConcurrent = clampInt(Number(incoming?.overlayMaxConcurrent ?? 3), 1, 10);
+      const overlayMaxConcurrent = clampInt(Number(incoming?.overlayMaxConcurrent ?? 3), 1, SIMULTANEOUS_HARD_CAP);
       setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent });
     });
 
@@ -158,7 +162,8 @@ export default function OverlayView() {
 
   const maxActive = useMemo(() => {
     if (config.overlayMode === 'queue') return 1;
-    return clampInt(config.overlayMaxConcurrent, 1, 10);
+    // “Unlimited” (no user-facing cap). Hard cap is for safety only.
+    return SIMULTANEOUS_HARD_CAP;
   }, [config.overlayMaxConcurrent, config.overlayMode]);
 
   const pickRandomPosition = useCallback((): { xPct: number; yPct: number } => {
