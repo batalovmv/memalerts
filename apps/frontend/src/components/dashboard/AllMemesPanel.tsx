@@ -50,7 +50,7 @@ export function AllMemesPanel({ isOpen, memes, memesLoading, autoplayPreview, on
             </div>
           </div>
         ) : (
-          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0" style={{ columnGap: 0 }}>
+          <div className="meme-masonry">
             {memes.map((meme) => (
               <MemeCard
                 key={meme.id}

@@ -444,8 +444,7 @@ export default function StreamerProfile() {
           return (
             <>
               <div 
-                className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"
-                style={{ columnGap: 0 }}
+                className="meme-masonry"
               >
                 {memesToDisplay.map((meme: Meme) => (
                   <MemeCard

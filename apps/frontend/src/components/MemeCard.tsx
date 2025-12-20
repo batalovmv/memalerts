@@ -10,7 +10,7 @@ interface MemeCardProps {
 
 export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
+  const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -30,45 +30,76 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
     };
   }, []);
 
-  // Handle video metadata loading and aspect ratio (runs once when video loads)
+  // Resolve preview URL for images/videos
+  const getVideoUrl = () => {
+    // If already absolute URL, return as is
+    if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
+      return meme.fileUrl;
+    }
+    
+    // For beta domain, always use production domain for static files (uploads)
+    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+    if (isBetaDomain && meme.fileUrl.startsWith('/uploads/')) {
+      return `https://twitchmemes.ru${meme.fileUrl}`;
+    }
+    
+    // For production or non-upload paths, use normal logic
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    if (apiUrl && !meme.fileUrl.startsWith('/')) {
+      return `${apiUrl}/${meme.fileUrl}`;
+    }
+    return meme.fileUrl.startsWith('/') ? meme.fileUrl : `/${meme.fileUrl}`;
+  };
+
+  const mediaUrl = getVideoUrl();
+
+  // Handle media metadata loading and precise aspect ratio (video/image)
   useEffect(() => {
-    if (videoRef.current && meme.type === 'video') {
+    let cancelled = false;
+
+    if (meme.type === 'video') {
       const video = videoRef.current;
-      
+      if (!video) return;
+
       const handleLoadedMetadata = () => {
+        if (cancelled) return;
         if (video.videoWidth && video.videoHeight) {
           const ratio = video.videoWidth / video.videoHeight;
-          
-          // Determine aspect ratio class based on actual dimensions
-          if (ratio > 1.3) {
-            // Horizontal (16:9 or wider)
-            setAspectRatio('aspect-video');
-          } else if (ratio < 0.8) {
-            // Vertical (9:16 or taller)
-            setAspectRatio('aspect-[9/16]');
-          } else {
-            // Square (approximately 1:1)
-            setAspectRatio('aspect-square');
+          if (Number.isFinite(ratio) && ratio > 0) {
+            setAspectRatio(ratio);
           }
         }
       };
 
-      // If metadata is already loaded, set aspect ratio immediately
       if (video.readyState >= 1) {
         handleLoadedMetadata();
       } else {
-        // Listen for metadata load (only once per video)
         video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
       }
 
       return () => {
+        cancelled = true;
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       };
-    } else if (meme.type !== 'video') {
-      // For images/gifs, use default aspect ratio
-      setAspectRatio('aspect-video');
     }
-  }, [meme.type, meme.fileUrl, meme.id]);
+
+    // Images/GIFs: load dimensions
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const ratio = w && h ? w / h : null;
+      if (ratio && Number.isFinite(ratio) && ratio > 0) {
+        setAspectRatio(ratio);
+      }
+    };
+    img.src = mediaUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [meme.id, meme.type, mediaUrl]);
 
   // Handle video playback on hover (unified logic)
   useEffect(() => {
@@ -105,31 +136,9 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
     }
   };
 
-  const getVideoUrl = () => {
-    // If already absolute URL, return as is
-    if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
-      return meme.fileUrl;
-    }
-    
-    // For beta domain, always use production domain for static files (uploads)
-    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
-    if (isBetaDomain && meme.fileUrl.startsWith('/uploads/')) {
-      return `https://twitchmemes.ru${meme.fileUrl}`;
-    }
-    
-    // For production or non-upload paths, use normal logic
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-    if (apiUrl && !meme.fileUrl.startsWith('/')) {
-      return `${apiUrl}/${meme.fileUrl}`;
-    }
-    return meme.fileUrl.startsWith('/') ? meme.fileUrl : `/${meme.fileUrl}`;
-  };
-
-  const videoUrl = getVideoUrl();
-
   return (
     <article
-      className="bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
+      className="inline-block w-full bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-2 border border-secondary/10 hover:border-secondary/30 transition-colors"
       onMouseEnter={() => {
         setIsHovered(true);
         if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
@@ -165,11 +174,11 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
         }
       }}
     >
-      <div className={`relative w-full ${aspectRatio} bg-gray-900`}>
+      <div className="relative w-full bg-gray-900" style={{ aspectRatio }}>
         {meme.type === 'video' ? (
           <video
             ref={videoRef}
-            src={videoUrl}
+            src={mediaUrl}
             muted={previewMode === 'autoplayMuted' ? true : (!hasUserInteracted || !isHovered)}
             autoPlay={previewMode === 'autoplayMuted'}
             loop
@@ -180,7 +189,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           />
         ) : (
           <img
-            src={videoUrl}
+            src={mediaUrl}
             alt={meme.title}
             className="w-full h-full object-contain"
             loading="lazy"
