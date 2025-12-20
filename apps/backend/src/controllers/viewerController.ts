@@ -428,6 +428,7 @@ export const viewerController = {
       maxPrice,
       sortBy = 'createdAt', // createdAt, priceCoins, popularity
       sortOrder = 'desc', // asc, desc
+      includeUploader, // "1" enables searching by uploader name (dashboard only)
       limit = 50,
       offset = 0,
     } = req.query;
@@ -455,15 +456,22 @@ export const viewerController = {
       where.channelId = targetChannelId;
     }
 
-    // Search query - search in title (case-insensitive, partial match)
+    // Search query - search in title + tags; optionally uploader (dashboard)
     if (q) {
-      where.title = {
-        contains: q as string,
-        mode: 'insensitive',
-      };
+      const qStr = String(q).trim();
+      if (qStr) {
+        const or: any[] = [
+          { title: { contains: qStr, mode: 'insensitive' } },
+          { tags: { some: { tag: { name: { contains: qStr.toLowerCase(), mode: 'insensitive' } } } } },
+        ];
+        if (String(includeUploader || '') === '1') {
+          or.push({ createdBy: { displayName: { contains: qStr, mode: 'insensitive' } } });
+        }
+        where.OR = or;
+      }
     }
 
-    // Price filters
+    // Price filters (optional)
     if (minPrice) {
       where.priceCoins = {
         ...where.priceCoins,
@@ -516,6 +524,7 @@ export const viewerController = {
     }
 
     // Execute query
+    const popularityStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const memes = await prisma.meme.findMany({
       where,
       include: {
@@ -532,7 +541,9 @@ export const viewerController = {
         },
         _count: {
           select: {
-            activations: true,
+            activations: sortBy === 'popularity'
+              ? { where: { status: 'done', createdAt: { gte: popularityStartDate } } }
+              : true,
           },
         },
       },
