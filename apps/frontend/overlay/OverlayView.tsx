@@ -97,6 +97,21 @@ export default function OverlayView() {
     return !isProbablyOBS;
   }, [isProbablyOBS]);
 
+  const safeDecodeOverlayTokenMeta = useCallback((rawToken: string): { tv?: number; hasJti: boolean } => {
+    try {
+      const t = String(rawToken || '').trim();
+      if (!t) return { hasJti: false };
+      const parts = t.split('.');
+      if (parts.length < 2) return { hasJti: false };
+      const payloadB64 = parts[1];
+      const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payloadB64.length / 4) * 4, '=');
+      const json = JSON.parse(atob(base64)) as { tv?: number; jti?: string };
+      return { tv: typeof json.tv === 'number' ? json.tv : undefined, hasJti: typeof json.jti === 'string' && json.jti.length > 0 };
+    } catch {
+      return { hasJti: false };
+    }
+  }, []);
+
   const getMediaUrl = (fileUrl: string): string => {
     const v = (fileUrl || '').trim();
     if (!v) return '';
@@ -133,6 +148,10 @@ export default function OverlayView() {
     newSocket.on('connect', () => {
       console.log('Connected to server');
       if (overlayToken) {
+        const meta = safeDecodeOverlayTokenMeta(overlayToken);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'overlay/OverlayView.tsx:connect:joinOverlay',message:'Overlay join:overlay emit',data:{tv:meta.tv,hasJti:meta.hasJti},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
         newSocket.emit('join:overlay', { token: overlayToken });
       } else if (slug) {
         // Back-compat only; new OBS links should use tokenized route.
@@ -144,6 +163,9 @@ export default function OverlayView() {
       const overlayMode = incoming?.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
       const overlayShowSender = Boolean(incoming?.overlayShowSender);
       const overlayMaxConcurrent = clampInt(Number(incoming?.overlayMaxConcurrent ?? 3), 1, SIMULTANEOUS_HARD_CAP);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f52f537a-c023-4ae4-bc11-acead46bc13e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'overlay/OverlayView.tsx:socket:onOverlayConfig',message:'Overlay received overlay:config',data:{overlayMode,overlayShowSender,overlayMaxConcurrent},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent });
     });
 
