@@ -5,8 +5,14 @@ export function setupSocketIO(io: Server) {
     console.log('Client connected:', socket.id);
 
     socket.on('join:channel', (channelSlug: string) => {
-      socket.join(`channel:${channelSlug}`);
-      console.log(`Client ${socket.id} joined channel:${channelSlug}`);
+      const raw = String(channelSlug || '').trim();
+      if (!raw) return;
+      const normalized = raw.toLowerCase();
+      // Backward-compatible: join both the raw and normalized rooms.
+      // Server emits are generally normalized, but some older code may emit raw.
+      socket.join(`channel:${raw}`);
+      socket.join(`channel:${normalized}`);
+      console.log(`Client ${socket.id} joined channel:${normalized} (raw: ${raw})`);
     });
 
     socket.on('join:user', (userId: string) => {

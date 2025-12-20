@@ -23,9 +23,9 @@ function getPeerBaseUrl(): string | null {
 
 export function emitWalletUpdated(io: Server, data: WalletUpdatedEvent): void {
   io.to(`user:${data.userId}`).emit('wallet:updated', data);
-  if (data.channelSlug) {
-    io.to(`channel:${String(data.channelSlug).toLowerCase()}`).emit('wallet:updated', data);
-  }
+  // IMPORTANT: wallet balance is user-specific.
+  // Emitting to channel rooms causes duplicate events for clients that join both user and channel rooms,
+  // and can also leak per-user balances to other viewers in the same channel room.
 }
 
 export async function relayWalletUpdatedToPeer(data: WalletUpdatedEvent): Promise<void> {
