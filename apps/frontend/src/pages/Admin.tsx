@@ -575,12 +575,50 @@ export default function Admin() {
 function ObsLinksSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
+  const { getChannelData, getCachedChannelData } = useChannelColors();
 
   const channelSlug = user?.channel?.slug || '';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
   const [overlayToken, setOverlayToken] = useState<string>('');
   const [loadingToken, setLoadingToken] = useState(false);
+
+  const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
+  const [overlayShowSender, setOverlayShowSender] = useState(false);
+  const [overlayMaxConcurrent, setOverlayMaxConcurrent] = useState('3');
+  const [loadingOverlaySettings, setLoadingOverlaySettings] = useState(false);
+  const [savingOverlaySettings, setSavingOverlaySettings] = useState(false);
+  const overlaySettingsLoadedRef = useRef<string | null>(null);
+
+  const loadOverlaySettings = useCallback(async () => {
+    if (!channelSlug) return;
+    if (overlaySettingsLoadedRef.current === channelSlug) return;
+
+    try {
+      setLoadingOverlaySettings(true);
+
+      const cached = getCachedChannelData(channelSlug);
+      if (cached) {
+        setOverlayMode(cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
+        setOverlayShowSender(Boolean(cached.overlayShowSender));
+        setOverlayMaxConcurrent(String(cached.overlayMaxConcurrent ?? 3));
+        overlaySettingsLoadedRef.current = channelSlug;
+        return;
+      }
+
+      const data = await getChannelData(channelSlug, false);
+      if (data) {
+        setOverlayMode(data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
+        setOverlayShowSender(Boolean(data.overlayShowSender));
+        setOverlayMaxConcurrent(String(data.overlayMaxConcurrent ?? 3));
+        overlaySettingsLoadedRef.current = channelSlug;
+      } else {
+        overlaySettingsLoadedRef.current = null;
+      }
+    } finally {
+      setLoadingOverlaySettings(false);
+    }
+  }, [channelSlug, getCachedChannelData, getChannelData]);
 
   useEffect(() => {
     if (!channelSlug) return;
@@ -602,6 +640,10 @@ function ObsLinksSettings() {
     };
   }, [channelSlug]);
 
+  useEffect(() => {
+    loadOverlaySettings();
+  }, [loadOverlaySettings]);
+
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
 
@@ -610,6 +652,33 @@ function ObsLinksSettings() {
   // - scale: number
   // - volume: number (0..1)
   const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=random&scale=1&volume=1` : '';
+
+  const handleSaveOverlaySettings = async (): Promise<void> => {
+    if (!channelSlug) return;
+
+    const max = Math.min(5, Math.max(1, parseInt(overlayMaxConcurrent || '3', 10) || 3));
+
+    try {
+      setSavingOverlaySettings(true);
+      const { api } = await import('../lib/api');
+      await api.patch('/admin/channel/settings', {
+        overlayMode,
+        overlayShowSender,
+        overlayMaxConcurrent: max,
+      });
+
+      toast.success(t('admin.saved', { defaultValue: 'Saved' }));
+      setOverlayMaxConcurrent(String(max));
+
+      // Refresh cached channel data so other settings panels stay consistent.
+      await getChannelData(channelSlug, false, true);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+    } finally {
+      setSavingOverlaySettings(false);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
@@ -626,6 +695,79 @@ function ObsLinksSettings() {
           emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
           description={loadingToken ? t('common.loading', { defaultValue: 'Loading...' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
         />
+
+        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+          <div className="font-semibold text-gray-900 dark:text-white mb-3">
+            {t('admin.obsOverlaySettingsTitle', { defaultValue: 'Overlay settings' })}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
+              </label>
+              <select
+                value={overlayMode}
+                onChange={(e) => setOverlayMode(e.target.value === 'simultaneous' ? 'simultaneous' : 'queue')}
+                className="w-full rounded border border-secondary/30 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm"
+                disabled={loadingOverlaySettings || savingOverlaySettings}
+              >
+                <option value="queue">{t('admin.obsOverlayModeQueue', { defaultValue: 'Queue (one at a time)' })}</option>
+                <option value="simultaneous">{t('admin.obsOverlayModeSimultaneous', { defaultValue: 'Simultaneous' })}</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {t('admin.obsOverlayMaxConcurrent', { defaultValue: 'Max concurrent' })}
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={overlayMaxConcurrent}
+                onChange={(e) => setOverlayMaxConcurrent(e.target.value)}
+                className="w-full rounded border border-secondary/30 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm"
+                disabled={loadingOverlaySettings || savingOverlaySettings || overlayMode !== 'simultaneous'}
+              />
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                {overlayMode === 'simultaneous'
+                  ? t('admin.obsOverlayMaxConcurrentHint', { defaultValue: 'How many memes can be shown at the same time.' })
+                  : t('admin.obsOverlayMaxConcurrentHintQueue', { defaultValue: 'In queue mode, memes play one-by-one.' })}
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 pt-6">
+              <input
+                id="overlayShowSender"
+                type="checkbox"
+                checked={overlayShowSender}
+                onChange={(e) => setOverlayShowSender(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-secondary/30"
+                disabled={loadingOverlaySettings || savingOverlaySettings}
+              />
+              <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
+                <div className="font-medium">{t('admin.obsOverlayShowSender', { defaultValue: 'Show sender name' })}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Name is provided by the server (not the client).' })}
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={handleSaveOverlaySettings}
+              disabled={savingOverlaySettings || loadingOverlaySettings}
+              className="px-4 py-2 rounded bg-primary text-white hover:opacity-90 disabled:opacity-60 text-sm font-medium"
+            >
+              {savingOverlaySettings ? t('common.saving', { defaultValue: 'Saving...' }) : t('common.save', { defaultValue: 'Save' })}
+            </button>
+            <div className="text-xs text-gray-600 dark:text-gray-300">
+              {t('admin.obsOverlaySettingsNote', { defaultValue: 'After saving, reload the OBS Browser Source to apply.' })}
+            </div>
+          </div>
+        </div>
 
         <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">

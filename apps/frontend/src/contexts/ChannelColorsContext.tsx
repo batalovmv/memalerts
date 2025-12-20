@@ -13,6 +13,9 @@ interface ChannelData {
   slug: string;
   name: string;
   coinPerPointRatio: number;
+  overlayMode?: 'queue' | 'simultaneous';
+  overlayShowSender?: boolean;
+  overlayMaxConcurrent?: number;
   coinIconUrl?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
@@ -40,7 +43,7 @@ interface ChannelColorsContextType {
   channelData: ChannelData | null;
   isLoading: boolean;
   refreshColors: () => Promise<void>;
-  getChannelData: (slug: string) => Promise<ChannelData | null>;
+  getChannelData: (slug: string, includeMemes?: boolean, forceRefresh?: boolean) => Promise<ChannelData | null>;
   getCachedChannelData: (slug: string) => ChannelData | null;
 }
 
@@ -64,12 +67,14 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
   const colorsLoadedRef = useRef<string | null>(null); // Track which channel's colors were loaded
 
   // Get cached channel data or fetch it
-  const getChannelData = useCallback(async (slug: string, includeMemes: boolean = false): Promise<ChannelData | null> => {
+  const getChannelData = useCallback(async (slug: string, includeMemes: boolean = false, forceRefresh: boolean = false): Promise<ChannelData | null> => {
     const cacheKey = (slug || '').trim().toLowerCase();
     // Check cache first
-    const cached = channelDataCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return cached.data;
+    if (!forceRefresh) {
+      const cached = channelDataCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+      }
     }
 
     try {
@@ -117,7 +122,7 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsLoading(true);
-      const data = await getChannelData(slug);
+      const data = await getChannelData(slug, false, true);
       
       if (data) {
         setChannelData(data);
