@@ -24,6 +24,7 @@ import {
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 
 export const adminController = {
   getOverlayToken: async (req: AuthRequest, res: Response) => {
@@ -57,6 +58,8 @@ export const adminController = {
           channelId,
           channelSlug: String(channel.slug).toLowerCase(),
           tv: channel.overlayTokenVersion ?? 1,
+          // Ensure token string changes even if called repeatedly within the same second.
+          jti: randomUUID(),
         },
         process.env.JWT_SECRET!,
         { expiresIn: '3650d' } // ~10 years
@@ -106,6 +109,8 @@ export const adminController = {
           channelId,
           channelSlug: String(channel.slug).toLowerCase(),
           tv: channel.overlayTokenVersion ?? 1,
+          // Ensure token string changes even if called repeatedly within the same second.
+          jti: randomUUID(),
         },
         process.env.JWT_SECRET!,
         { expiresIn: '3650d' }
