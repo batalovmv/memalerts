@@ -478,27 +478,41 @@ export default function StreamerProfile() {
           </div>
 
           <div className="mt-3 flex items-center gap-3 flex-wrap">
-            <label
-              className={`inline-flex items-center gap-2 text-sm glass px-3 py-2 ${
-                isAuthed ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'
+            <button
+              type="button"
+              className={`inline-flex items-center gap-2 text-sm rounded-full px-4 py-2 border shadow-sm transition-colors select-none ${
+                !isAuthed
+                  ? 'opacity-60 cursor-not-allowed bg-white/60 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-500 dark:text-gray-400'
+                  : myFavorites
+                    ? 'bg-white/80 dark:bg-gray-900/60 border-accent/30 text-accent'
+                    : 'bg-white/70 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10'
               }`}
+              onClick={() => {
+                if (!isAuthed) {
+                  setAuthModalOpen(true);
+                  return;
+                }
+                setMyFavorites((v) => !v);
+              }}
               title={isAuthed ? '' : t('auth.loginToUseFavorites', 'Log in to use favorites')}
+              aria-pressed={myFavorites}
             >
-              <input
-                type="checkbox"
-                checked={myFavorites}
-                disabled={!isAuthed}
-                onChange={(e) => {
-                  if (!isAuthed) {
-                    setAuthModalOpen(true);
-                    return;
-                  }
-                  setMyFavorites(e.target.checked);
-                }}
-                className="h-4 w-4 rounded"
-              />
+              <svg
+                className={`w-4 h-4 ${myFavorites ? 'text-accent' : 'text-gray-500 dark:text-gray-300'}`}
+                viewBox="0 0 24 24"
+                fill={myFavorites ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 21s-7-4.535-9.5-8.5C.5 9.5 2.5 6 6.5 6c2.04 0 3.57 1.1 4.5 2.2C11.93 7.1 13.46 6 15.5 6c4 0 6 3.5 4 6.5C19 16.465 12 21 12 21z"
+                />
+              </svg>
               {t('search.myFavorites', 'My favorites')}
-            </label>
+            </button>
           </div>
 
           {searchQuery && (

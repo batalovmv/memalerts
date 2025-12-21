@@ -161,6 +161,8 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
             await video.play();
             if (cancelled) return;
             if (previewMode === 'hoverWithSound' && hasUserInteractedRef.current) {
+              // Ensure non-zero volume and unmute only after playback started (avoids autoplay policy issues).
+              video.volume = 1;
               video.muted = false;
             }
           } catch {
@@ -214,7 +216,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           } catch {
             // ignore
           }
-          void videoRef.current.play().catch(() => {});
+          // Do not call play() here; playback/unmute is coordinated in the effect to avoid races.
         }
       }}
       onMouseLeave={() => {
