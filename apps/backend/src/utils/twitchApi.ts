@@ -213,10 +213,32 @@ export async function getChannelInformation(
   userId: string,
   broadcasterId: string
 ): Promise<{ broadcaster_type?: string | null } | null> {
-  const resp = await twitchApiRequest(`channels?broadcaster_id=${broadcasterId}`, 'GET', userId);
-  const item = resp?.data?.[0];
-  if (!item) return null;
-  return { broadcaster_type: item.broadcaster_type ?? null };
+  // Prefer user token (keeps behavior consistent), but fall back to app token when user token
+  // is missing scopes/invalid. Affiliate/partner eligibility should not depend on user scopes.
+  try {
+    const resp = await twitchApiRequest(`channels?broadcaster_id=${broadcasterId}`, 'GET', userId);
+    const item = resp?.data?.[0];
+    if (!item) return null;
+    return { broadcaster_type: item.broadcaster_type ?? null };
+  } catch (e: any) {
+    // Fall back to app access token
+    const accessToken = await getAppAccessToken();
+    const response = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${broadcasterId}`, {
+      method: 'GET',
+      headers: {
+        'Client-ID': process.env.TWITCH_CLIENT_ID!,
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    const resp = await response.json();
+    const item = resp?.data?.[0];
+    if (!item) return null;
+    return { broadcaster_type: item.broadcaster_type ?? null };
+  }
 }
 
 /**
