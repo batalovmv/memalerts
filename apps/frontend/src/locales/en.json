@@ -3,6 +3,8 @@
     "loading": "Loading...",
     "error": "Error",
     "errorId": "Error ID",
+    "copyId": "Copy ID",
+    "copied": "Copied",
     "details": "Details",
     "hideDetails": "Hide details",
     "requestFailed": "Request failed",

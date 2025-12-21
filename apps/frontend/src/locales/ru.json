@@ -3,6 +3,8 @@
     "loading": "Загрузка...",
     "error": "Ошибка",
     "errorId": "ID ошибки",
+    "copyId": "Скопировать ID",
+    "copied": "Скопировано",
     "details": "Подробнее",
     "hideDetails": "Скрыть",
     "requestFailed": "Ошибка запроса",
