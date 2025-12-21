@@ -206,6 +206,20 @@ export async function getChannelRewards(
 }
 
 /**
+ * Get broadcaster/channel information (used to detect affiliate/partner status).
+ * Helix: GET /channels?broadcaster_id=...
+ */
+export async function getChannelInformation(
+  userId: string,
+  broadcasterId: string
+): Promise<{ broadcaster_type?: string | null } | null> {
+  const resp = await twitchApiRequest(`channels?broadcaster_id=${broadcasterId}`, 'GET', userId);
+  const item = resp?.data?.[0];
+  if (!item) return null;
+  return { broadcaster_type: item.broadcaster_type ?? null };
+}
+
+/**
  * Get app access token for EventSub subscriptions
  */
 async function getAppAccessToken(): Promise<string> {
