@@ -12,6 +12,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const hasUserInteractedRef = useRef(false);
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
   const [hasEverHovered, setHasEverHovered] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -21,6 +22,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   useEffect(() => {
     const handlePageInteraction = () => {
       setHasUserInteracted(true);
+      hasUserInteractedRef.current = true;
     };
     
     // Listen for any user interaction on the page
@@ -158,7 +160,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           try {
             await video.play();
             if (cancelled) return;
-            if (previewMode === 'hoverWithSound' && hasUserInteracted) {
+            if (previewMode === 'hoverWithSound' && hasUserInteractedRef.current) {
               video.muted = false;
             }
           } catch {
@@ -180,11 +182,13 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
 
   const handleCardClick = () => {
     setHasUserInteracted(true);
+    hasUserInteractedRef.current = true;
     onClick();
   };
 
   const handleCardInteraction = () => {
     setHasUserInteracted(true);
+    hasUserInteractedRef.current = true;
     if (videoRef.current) {
       // Only unmute on direct user interaction if sound-on mode is enabled.
       if (previewMode === 'hoverWithSound') {
