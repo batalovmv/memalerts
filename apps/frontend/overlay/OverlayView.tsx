@@ -77,6 +77,17 @@ function clampAlpha(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'none';
 
 export default function OverlayView() {
@@ -98,19 +109,49 @@ export default function OverlayView() {
   const [queue, setQueue] = useState<QueuedActivation[]>([]);
   const [active, setActive] = useState<QueuedActivation[]>([]);
   const itemRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [liveParams, setLiveParams] = useState<Record<string, string>>({});
+  const demoSeqRef = useRef(0);
 
   const ackSentRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const fadeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const scale = parseFloat(searchParams.get('scale') || '1');
-  const urlScaleMode = String(searchParams.get('scaleMode') || '').trim().toLowerCase();
-  const urlScaleFixed = parseFloat(String(searchParams.get('scaleFixed') || ''));
-  const urlScaleMin = parseFloat(String(searchParams.get('scaleMin') || ''));
-  const urlScaleMax = parseFloat(String(searchParams.get('scaleMax') || ''));
-  const position = (searchParams.get('position') || 'random').toLowerCase() as OverlayPosition;
-  const volume = parseFloat(searchParams.get('volume') || '1');
-  const demo = searchParams.get('demo') === '1';
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      // Only accept messages from same-origin parent (Admin page).
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as any;
+      if (!data || typeof data !== 'object') return;
+      if (data.type !== 'memalerts:overlayParams') return;
+      const params = data.params as Record<string, unknown>;
+      if (!params || typeof params !== 'object') return;
+      const next: Record<string, string> = {};
+      for (const [k, v] of Object.entries(params)) {
+        if (typeof v === 'string') next[k] = v;
+      }
+      setLiveParams(next);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  const getParam = useCallback(
+    (key: string): string | null => {
+      const v = liveParams[key];
+      if (typeof v === 'string') return v;
+      return searchParams.get(key);
+    },
+    [liveParams, searchParams]
+  );
+
+  const scale = parseFloat(getParam('scale') || '1');
+  const urlScaleMode = String(getParam('scaleMode') || '').trim().toLowerCase();
+  const urlScaleFixed = parseFloat(String(getParam('scaleFixed') || ''));
+  const urlScaleMin = parseFloat(String(getParam('scaleMin') || ''));
+  const urlScaleMax = parseFloat(String(getParam('scaleMax') || ''));
+  const position = (getParam('position') || 'random').toLowerCase() as OverlayPosition;
+  const volume = parseFloat(getParam('volume') || '1');
+  const demo = (getParam('demo') || '') === '1';
   const previewUrlsParam = useMemo(
     () => searchParams.getAll('previewUrl').map((v) => String(v || '').trim()).filter(Boolean),
     [searchParams]
@@ -119,9 +160,10 @@ export default function OverlayView() {
     () => searchParams.getAll('previewType').map((v) => String(v || '').trim().toLowerCase()).filter(Boolean),
     [searchParams]
   );
-  const previewCount = clampInt(parseInt(String(searchParams.get('previewCount') || ''), 10), 1, 5);
-  const previewRepeat = searchParams.get('repeat') === '1';
-  const previewModeParam = String(searchParams.get('previewMode') || '').trim().toLowerCase();
+  const previewCount = clampInt(parseInt(String(getParam('previewCount') || ''), 10), 1, 5);
+  const previewRepeat = (getParam('repeat') || '') === '1';
+  const previewModeParam = String(getParam('previewMode') || '').trim().toLowerCase();
+  const demoSeed = clampInt(parseInt(String(getParam('seed') || '1'), 10), 0, 1000000000);
 
   // Appearance / animation: prefer server config; allow URL overrides (useful for preview).
   const parsedStyle = useMemo(() => {
@@ -135,33 +177,33 @@ export default function OverlayView() {
     }
   }, [config.overlayStyleJson]);
 
-  const radius = clampInt(parseInt(String(searchParams.get('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 80);
+  const radius = clampInt(parseInt(String(getParam('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 80);
   // Shadow params (back-compat: `shadow` = blur)
-  const shadowBlur = clampInt(parseInt(String(searchParams.get('shadowBlur') || (parsedStyle as any)?.shadowBlur || searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 240);
-  const shadowSpread = clampInt(parseInt(String(searchParams.get('shadowSpread') || (parsedStyle as any)?.shadowSpread || ''), 10), 0, 120);
-  const shadowDistance = clampInt(parseInt(String(searchParams.get('shadowDistance') || (parsedStyle as any)?.shadowDistance || ''), 10), 0, 120);
-  const shadowAngle = clampDeg(parseFloat(String(searchParams.get('shadowAngle') || (parsedStyle as any)?.shadowAngle || '')));
-  const shadowOpacity = clampAlpha(parseFloat(String(searchParams.get('shadowOpacity') || (parsedStyle as any)?.shadowOpacity || '0.60')), 0, 1);
-  const shadowColorRaw = String(searchParams.get('shadowColor') || (parsedStyle as any)?.shadowColor || '').trim();
+  const shadowBlur = clampInt(parseInt(String(getParam('shadowBlur') || (parsedStyle as any)?.shadowBlur || searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 240);
+  const shadowSpread = clampInt(parseInt(String(getParam('shadowSpread') || (parsedStyle as any)?.shadowSpread || ''), 10), 0, 120);
+  const shadowDistance = clampInt(parseInt(String(getParam('shadowDistance') || (parsedStyle as any)?.shadowDistance || ''), 10), 0, 120);
+  const shadowAngle = clampDeg(parseFloat(String(getParam('shadowAngle') || (parsedStyle as any)?.shadowAngle || '')));
+  const shadowOpacity = clampAlpha(parseFloat(String(getParam('shadowOpacity') || (parsedStyle as any)?.shadowOpacity || '0.60')), 0, 1);
+  const shadowColorRaw = String(getParam('shadowColor') || (parsedStyle as any)?.shadowColor || '').trim();
   const shadowColor = isHexColor(shadowColorRaw) ? shadowColorRaw : '#000000';
-  const blur = clampInt(parseInt(String(searchParams.get('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 40);
-  const border = clampInt(parseInt(String(searchParams.get('border') || (parsedStyle as any)?.border || ''), 10), 0, 12);
+  const blur = clampInt(parseInt(String(getParam('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 40);
+  const border = clampInt(parseInt(String(getParam('border') || (parsedStyle as any)?.border || ''), 10), 0, 12);
 
-  const borderModeRaw = String(searchParams.get('borderMode') || (parsedStyle as any)?.borderMode || 'solid').trim().toLowerCase();
+  const borderModeRaw = String(getParam('borderMode') || (parsedStyle as any)?.borderMode || 'solid').trim().toLowerCase();
   const borderMode: 'solid' | 'gradient' = borderModeRaw === 'gradient' ? 'gradient' : 'solid';
-  const borderColorRaw = String(searchParams.get('borderColor') || (parsedStyle as any)?.borderColor || '').trim();
+  const borderColorRaw = String(getParam('borderColor') || (parsedStyle as any)?.borderColor || '').trim();
   const borderColor = isHexColor(borderColorRaw) ? borderColorRaw : '#FFFFFF';
-  const borderColor2Raw = String(searchParams.get('borderColor2') || (parsedStyle as any)?.borderColor2 || '').trim();
+  const borderColor2Raw = String(getParam('borderColor2') || (parsedStyle as any)?.borderColor2 || '').trim();
   const borderColor2 = isHexColor(borderColor2Raw) ? borderColor2Raw : '#00E5FF';
-  const borderGradientAngle = clampDeg(parseFloat(String(searchParams.get('borderGradientAngle') || (parsedStyle as any)?.borderGradientAngle || '135')));
-  const bgOpacity = clampFloat(parseFloat(String(searchParams.get('bgOpacity') || (parsedStyle as any)?.bgOpacity || '')), 0, 0.65);
-  const anim = (String(searchParams.get('anim') || (parsedStyle as any)?.anim || 'fade').toLowerCase() as OverlayAnim) || 'fade';
-  const enterMs = clampInt(parseInt(String(searchParams.get('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
-  const exitMs = clampInt(parseInt(String(searchParams.get('exitMs') || (parsedStyle as any)?.exitMs || ''), 10), 0, 1200);
+  const borderGradientAngle = clampDeg(parseFloat(String(getParam('borderGradientAngle') || (parsedStyle as any)?.borderGradientAngle || '135')));
+  const bgOpacity = clampFloat(parseFloat(String(getParam('bgOpacity') || (parsedStyle as any)?.bgOpacity || '')), 0, 0.65);
+  const anim = (String(getParam('anim') || (parsedStyle as any)?.anim || 'fade').toLowerCase() as OverlayAnim) || 'fade';
+  const enterMs = clampInt(parseInt(String(getParam('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
+  const exitMs = clampInt(parseInt(String(getParam('exitMs') || (parsedStyle as any)?.exitMs || ''), 10), 0, 1200);
 
-  const senderFontSize = clampInt(parseInt(String(searchParams.get('senderFontSize') || (parsedStyle as any)?.senderFontSize || ''), 10), 10, 28);
-  const senderFontWeight = clampInt(parseInt(String(searchParams.get('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
-  const senderFontFamily = String(searchParams.get('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
+  const senderFontSize = clampInt(parseInt(String(getParam('senderFontSize') || (parsedStyle as any)?.senderFontSize || ''), 10), 10, 28);
+  const senderFontWeight = clampInt(parseInt(String(getParam('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
+  const senderFontFamily = String(getParam('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
 
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
@@ -328,15 +370,18 @@ export default function OverlayView() {
     // This isn't perfect (we don't know exact media aspect), but reduces "going off-screen" in OBS.
     const baseMargin = 12;
     const margin = Math.min(24, Math.max(10, Math.round(baseMargin * safeScale)));
-    const xPct = margin + Math.random() * (100 - margin * 2);
-    const yPct = margin + Math.random() * (100 - margin * 2);
+    // Deterministic RNG for demo so sliders don't reshuffle positions (when iframe does not reload).
+    const rng = mulberry32((demoSeed + demoSeqRef.current * 9973) >>> 0);
+    const xPct = margin + rng() * (100 - margin * 2);
+    const yPct = margin + rng() * (100 - margin * 2);
     return { xPct, yPct };
-  }, [safeScale]);
+  }, [demoSeed, safeScale]);
 
   // Demo seeding: spawn N preview items and optionally repeat.
   useEffect(() => {
     if (!demo) return;
 
+    demoSeqRef.current += 1;
     const mode: OverlayMode =
       previewModeParam === 'queue' ? 'queue' : previewCount > 1 ? 'simultaneous' : 'queue';
 
@@ -405,6 +450,7 @@ export default function OverlayView() {
       // Demo repeat: enqueue a fresh item after it fully disappears.
       if (demo && previewRepeat) {
         setTimeout(() => {
+          demoSeqRef.current += 1;
           const next: QueuedActivation = {
             id: `__demo__${Date.now()}_${Math.random().toString(16).slice(2)}`,
             memeId: '__demo__',

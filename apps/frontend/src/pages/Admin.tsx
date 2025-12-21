@@ -736,6 +736,8 @@ function ObsLinksSettings() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(false);
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
+  const [previewSeed, setPreviewSeed] = useState<number>(1);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -989,50 +991,14 @@ function ObsLinksSettings() {
   // OBS URL should stay constant.
   const overlayUrlWithDefaults = overlayUrl;
 
-  // Preview URL: same settings, but uses a real random meme and safe positioning.
-  const overlayPreviewUrl = useMemo(() => {
+  // Preview iframe URL should be stable while tweaking sliders (avoid network reloads).
+  // We only change iframe src when the actual preview media changes (Next meme).
+  const overlayPreviewBaseUrl = useMemo(() => {
     if (!overlayUrl) return '';
     const u = new URL(overlayUrl);
     u.searchParams.set('demo', '1');
-    u.searchParams.set('position', urlPosition);
-    u.searchParams.set('previewCount', String(previewCount));
-    u.searchParams.set('previewMode', overlayMode);
-    u.searchParams.set('repeat', previewLoopEnabled ? '1' : '0');
-    // Live overrides so sliders affect preview immediately (demo doesn't use sockets).
-    u.searchParams.set('volume', String(urlVolume));
-    u.searchParams.set('anim', urlAnim);
-    u.searchParams.set('enterMs', String(urlEnterMs));
-    u.searchParams.set('exitMs', String(urlExitMs));
-    u.searchParams.set('radius', String(urlRadius));
-    u.searchParams.set('shadowBlur', String(shadowBlur));
-    u.searchParams.set('shadowSpread', String(shadowSpread));
-    u.searchParams.set('shadowDistance', String(shadowDistance));
-    u.searchParams.set('shadowAngle', String(shadowAngle));
-    u.searchParams.set('shadowOpacity', String(shadowOpacity));
-    u.searchParams.set('shadowColor', String(shadowColor));
-    u.searchParams.set('blur', String(urlBlur));
-    u.searchParams.set('border', String(urlBorder));
-    u.searchParams.set('borderMode', borderMode);
-    u.searchParams.set('borderColor', String(urlBorderColor));
-    u.searchParams.set('borderColor2', String(urlBorderColor2));
-    u.searchParams.set('borderGradientAngle', String(urlBorderGradientAngle));
-    u.searchParams.set('bgOpacity', String(urlBgOpacity));
-    u.searchParams.set('senderFontSize', String(senderFontSize));
-    u.searchParams.set('senderFontWeight', String(senderFontWeight));
-    u.searchParams.set('senderFontFamily', String(senderFontFamily));
-    u.searchParams.set('scaleMode', scaleMode);
-    if (scaleMode === 'fixed') {
-      u.searchParams.set('scaleFixed', String(scaleFixed));
-      u.searchParams.set('scale', String(scaleFixed));
-      u.searchParams.delete('scaleMin');
-      u.searchParams.delete('scaleMax');
-    } else {
-      u.searchParams.set('scaleMin', String(scaleMin));
-      u.searchParams.set('scaleMax', String(scaleMax));
-      u.searchParams.delete('scaleFixed');
-    }
-
-    // Multi-meme preview: pass N urls/types (overlay uses getAll()).
+    u.searchParams.set('seed', String(previewSeed));
+    // Multi-meme preview: pass up to 5 urls/types (overlay uses getAll()).
     u.searchParams.delete('previewUrl');
     u.searchParams.delete('previewType');
     const target = Math.min(5, Math.max(1, previewCount));
@@ -1043,47 +1009,94 @@ function ObsLinksSettings() {
       if (m?.type) u.searchParams.append('previewType', m.type);
     }
     return u.toString();
+  }, [overlayUrl, previewCount, previewMemes, previewSeed]);
+
+  const overlayPreviewParams = useMemo(() => {
+    // These values are pushed into the iframe via postMessage to avoid reloading.
+    const p: Record<string, string> = {
+      demo: '1',
+      seed: String(previewSeed),
+      position: urlPosition,
+      previewCount: String(previewCount),
+      previewMode: overlayMode,
+      repeat: previewLoopEnabled ? '1' : '0',
+      volume: String(urlVolume),
+      anim: urlAnim,
+      enterMs: String(urlEnterMs),
+      exitMs: String(urlExitMs),
+      radius: String(urlRadius),
+      shadowBlur: String(shadowBlur),
+      shadowSpread: String(shadowSpread),
+      shadowDistance: String(shadowDistance),
+      shadowAngle: String(shadowAngle),
+      shadowOpacity: String(shadowOpacity),
+      shadowColor: String(shadowColor),
+      blur: String(urlBlur),
+      border: String(urlBorder),
+      borderMode,
+      borderColor: String(urlBorderColor),
+      borderColor2: String(urlBorderColor2),
+      borderGradientAngle: String(urlBorderGradientAngle),
+      bgOpacity: String(urlBgOpacity),
+      senderFontSize: String(senderFontSize),
+      senderFontWeight: String(senderFontWeight),
+      senderFontFamily: String(senderFontFamily),
+      scaleMode,
+    };
+    if (scaleMode === 'fixed') {
+      p.scaleFixed = String(scaleFixed);
+      p.scale = String(scaleFixed);
+    } else {
+      p.scaleMin = String(scaleMin);
+      p.scaleMax = String(scaleMax);
+    }
+    return p;
   }, [
-    overlayUrl,
+    borderMode,
+    overlayMode,
     previewCount,
     previewLoopEnabled,
-    previewMemes,
-    overlayMode,
+    previewSeed,
     scaleFixed,
     scaleMax,
     scaleMin,
     scaleMode,
-    urlAnim,
-    urlBgOpacity,
-    urlBlur,
-    urlBorder,
-    urlEnterMs,
-    urlExitMs,
-    urlPosition,
-    urlRadius,
+    senderFontFamily,
+    senderFontSize,
+    senderFontWeight,
     shadowAngle,
     shadowBlur,
     shadowColor,
     shadowDistance,
     shadowOpacity,
     shadowSpread,
+    urlAnim,
+    urlBgOpacity,
+    urlBlur,
+    urlBorder,
+    urlBorderColor,
+    urlBorderColor2,
+    urlBorderGradientAngle,
+    urlEnterMs,
+    urlExitMs,
+    urlPosition,
+    urlRadius,
     urlVolume,
   ]);
 
-  // Debounce iframe reloads while dragging sliders.
-  const [debouncedPreviewUrl, setDebouncedPreviewUrl] = useState<string>('');
-  useEffect(() => {
-    const next = overlayPreviewUrl;
-    const t = window.setTimeout(() => setDebouncedPreviewUrl(next), 350);
-    return () => window.clearTimeout(t);
-  }, [overlayPreviewUrl]);
+  const postPreviewParams = useCallback(() => {
+    const win = previewIframeRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      win.postMessage({ type: 'memalerts:overlayParams', params: overlayPreviewParams }, window.location.origin);
+    } catch {
+      // ignore
+    }
+  }, [overlayPreviewParams]);
 
-  // Apply instantly for "discrete" controls where users expect immediate feedback (e.g. color pickers).
   useEffect(() => {
-    if (!overlayPreviewUrl) return;
-    setDebouncedPreviewUrl(overlayPreviewUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlBorderColor, urlBorderColor2, urlBorderGradientAngle, borderMode, shadowColor]);
+    postPreviewParams();
+  }, [postPreviewParams]);
 
   const animSpeedPct = useMemo(() => {
     const slow = 800;
@@ -1375,7 +1388,10 @@ function ObsLinksSettings() {
                   type="button"
                   className="glass-btn p-2 shrink-0"
                   disabled={loadingPreview || !overlayToken}
-                  onClick={() => void fetchPreviewMemes(previewCount)}
+                  onClick={() => {
+                    setPreviewSeed((s) => (s >= 1000000000 ? 1 : s + 1));
+                    void fetchPreviewMemes(previewCount);
+                  }}
                   title={t('admin.obsPreviewNextMeme', { defaultValue: 'Следующий мем' })}
                   aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'Следующий мем' })}
                 >
@@ -1403,11 +1419,13 @@ function ObsLinksSettings() {
               </div>
               <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
                 <iframe
+                  ref={previewIframeRef}
                   title="Overlay preview"
-                  src={debouncedPreviewUrl || overlayPreviewUrl}
+                  src={overlayPreviewBaseUrl}
                   className="w-full"
                   style={{ aspectRatio: '16 / 9', border: '0' }}
                   allow="autoplay"
+                  onLoad={() => postPreviewParams()}
                 />
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
