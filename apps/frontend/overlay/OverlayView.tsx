@@ -30,12 +30,15 @@ interface QueuedActivation extends Activation {
   isExiting?: boolean;
   // Auto-fit scale to keep the item inside viewport (used mainly for preview / extreme aspect ratios).
   fitScale?: number;
+  // Per-item scale (supports fixed vs range).
+  userScale?: number;
 }
 
 interface OverlayConfig {
   overlayMode: OverlayMode;
   overlayShowSender: boolean;
   overlayMaxConcurrent: number;
+  overlayStyleJson?: string | null;
 }
 
 type OverlayPosition =
@@ -69,6 +72,7 @@ export default function OverlayView() {
     overlayMode: 'queue',
     overlayShowSender: false,
     overlayMaxConcurrent: 3,
+    overlayStyleJson: null,
   });
 
   // Unlimited mode should not require a user-configured limit, but we still need a hard cap
@@ -89,22 +93,68 @@ export default function OverlayView() {
   const demo = searchParams.get('demo') === '1';
   const previewUrlParam = String(searchParams.get('previewUrl') || '').trim();
   const previewTypeParam = String(searchParams.get('previewType') || '').trim().toLowerCase();
+  const previewCount = clampInt(parseInt(String(searchParams.get('previewCount') || ''), 10), 1, 5);
+  const previewRepeat = searchParams.get('repeat') === '1';
+  const previewModeParam = String(searchParams.get('previewMode') || '').trim().toLowerCase();
 
-  // Appearance / animation params (iPhone-ish defaults).
-  const radius = clampInt(parseInt(String(searchParams.get('radius') || ''), 10), 0, 48);
-  const shadow = clampInt(parseInt(String(searchParams.get('shadow') || ''), 10), 0, 120);
-  const blur = clampInt(parseInt(String(searchParams.get('blur') || ''), 10), 0, 30);
-  const border = clampInt(parseInt(String(searchParams.get('border') || ''), 10), 0, 4);
-  const bgOpacity = clampFloat(parseFloat(String(searchParams.get('bgOpacity') || '')), 0, 0.65);
-  const anim = (String(searchParams.get('anim') || 'fade').toLowerCase() as OverlayAnim) || 'fade';
-  const enterMs = clampInt(parseInt(String(searchParams.get('enterMs') || ''), 10), 0, 1200);
-  const exitMs = clampInt(parseInt(String(searchParams.get('exitMs') || ''), 10), 0, 1200);
+  // Appearance / animation: prefer server config; allow URL overrides (useful for preview).
+  const parsedStyle = useMemo(() => {
+    try {
+      const raw = String(config.overlayStyleJson || '').trim();
+      if (!raw) return null;
+      const j = JSON.parse(raw) as any;
+      return j && typeof j === 'object' ? j : null;
+    } catch {
+      return null;
+    }
+  }, [config.overlayStyleJson]);
+
+  const radius = clampInt(parseInt(String(searchParams.get('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 48);
+  const shadow = clampInt(parseInt(String(searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 120);
+  const blur = clampInt(parseInt(String(searchParams.get('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 30);
+  const border = clampInt(parseInt(String(searchParams.get('border') || (parsedStyle as any)?.border || ''), 10), 0, 4);
+  const bgOpacity = clampFloat(parseFloat(String(searchParams.get('bgOpacity') || (parsedStyle as any)?.bgOpacity || '')), 0, 0.65);
+  const anim = (String(searchParams.get('anim') || (parsedStyle as any)?.anim || 'fade').toLowerCase() as OverlayAnim) || 'fade';
+  const enterMs = clampInt(parseInt(String(searchParams.get('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
+  const exitMs = clampInt(parseInt(String(searchParams.get('exitMs') || (parsedStyle as any)?.exitMs || ''), 10), 0, 1200);
 
   const safeScale = useMemo(() => {
-    const s = Number.isFinite(scale) ? scale : 1;
-    // Keep within a sane range; prevents accidental huge overlays.
+    // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
+    const fixed = Number((parsedStyle as any)?.scaleFixed);
+    const s = Number.isFinite(fixed) && fixed > 0 ? fixed : (Number.isFinite(scale) ? scale : 1);
     return Math.min(2.5, Math.max(0.25, s));
-  }, [scale]);
+  }, [parsedStyle, scale]);
+
+  const resolvedPosition = useMemo<OverlayPosition>(() => {
+    const p = String((parsedStyle as any)?.position || '').toLowerCase();
+    if (
+      p === 'random' ||
+      p === 'center' ||
+      p === 'top' ||
+      p === 'bottom' ||
+      p === 'top-left' ||
+      p === 'top-right' ||
+      p === 'bottom-left' ||
+      p === 'bottom-right'
+    ) {
+      return p as OverlayPosition;
+    }
+    return position;
+  }, [parsedStyle, position]);
+
+  const getNextUserScale = useCallback((): number => {
+    const mode = String((parsedStyle as any)?.scaleMode || '').toLowerCase();
+    if (mode === 'range') {
+      const min = clampFloat(Number((parsedStyle as any)?.scaleMin), 0.25, 2.5);
+      const max = clampFloat(Number((parsedStyle as any)?.scaleMax), 0.25, 2.5);
+      const lo = Math.min(min, max);
+      const hi = Math.max(min, max);
+      return clampFloat(lo + Math.random() * (hi - lo), 0.25, 2.5);
+    }
+    const fixed = clampFloat(Number((parsedStyle as any)?.scaleFixed), 0.25, 2.5);
+    if (Number.isFinite(fixed) && fixed > 0) return fixed;
+    return safeScale;
+  }, [parsedStyle, safeScale]);
 
   const isProbablyOBS = useMemo(() => {
     const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
@@ -143,6 +193,8 @@ export default function OverlayView() {
     const overlayToken = String(token || '').trim();
     const slug = String(channelSlug || '').trim();
     if (!overlayToken && !slug) return;
+    // Demo preview should not connect to sockets (avoid side effects/acks).
+    if (demo) return;
 
     const envUrl = import.meta.env.VITE_API_URL;
     // In production/beta deployments, always use same-origin to avoid cross-environment calls.
@@ -165,7 +217,8 @@ export default function OverlayView() {
       const overlayMode = incoming?.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
       const overlayShowSender = Boolean(incoming?.overlayShowSender);
       const overlayMaxConcurrent = clampInt(Number(incoming?.overlayMaxConcurrent ?? 3), 1, SIMULTANEOUS_HARD_CAP);
-      setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent });
+      const overlayStyleJson = (incoming as any)?.overlayStyleJson ?? null;
+      setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent, overlayStyleJson });
     });
 
     newSocket.on('activation:new', (activation: Activation) => {
@@ -184,7 +237,7 @@ export default function OverlayView() {
       socketRef.current = null;
       newSocket.disconnect();
     };
-  }, [channelSlug, token]);
+  }, [channelSlug, demo, token]);
 
   const maxActive = useMemo(() => {
     if (config.overlayMode === 'queue') return 1;
@@ -203,13 +256,46 @@ export default function OverlayView() {
     return { xPct, yPct };
   }, [safeScale]);
 
+  // Demo seeding: spawn N preview items and optionally repeat.
+  useEffect(() => {
+    if (!demo) return;
+
+    const mode: OverlayMode =
+      previewModeParam === 'queue' ? 'queue' : previewCount > 1 ? 'simultaneous' : 'queue';
+
+    // Override config locally for preview.
+    setConfig((p) => ({
+      ...p,
+      overlayMode: mode,
+      overlayMaxConcurrent: clampInt(previewCount, 1, 5),
+    }));
+
+    const seed: QueuedActivation[] = Array.from({ length: previewCount }).map((_, idx) => ({
+      id: `__demo_seed__${Date.now()}_${idx}`,
+      memeId: '__demo__',
+      type: previewTypeParam || 'demo',
+      fileUrl: previewUrlParam || '',
+      durationMs: 8000,
+      title: 'DEMO',
+      senderDisplayName: 'Viewer123',
+      startTime: Date.now(),
+      ...(mode === 'simultaneous' ? pickRandomPosition() : { xPct: 50, yPct: 50 }),
+      userScale: getNextUserScale(),
+    }));
+
+    setQueue(seed);
+    setActive([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, previewCount, previewModeParam, previewTypeParam, previewUrlParam]);
+
   const emitAckDoneOnce = useCallback((activationId: string) => {
     const id = String(activationId || '').trim();
     if (!id) return;
+    if (demo) return;
     if (ackSentRef.current.has(id)) return;
     ackSentRef.current.add(id);
     socketRef.current?.emit('activation:ackDone', { activationId: id });
-  }, []);
+  }, [demo]);
 
   const doneActivation = useCallback((activationId: string) => {
     const id = String(activationId || '').trim();
@@ -231,9 +317,30 @@ export default function OverlayView() {
     const fadeTimer = setTimeout(() => {
       fadeTimersRef.current.delete(id);
       setActive((prev) => prev.filter((a) => a.id !== id));
+
+      // Demo repeat: enqueue a fresh item after it fully disappears.
+      if (demo && previewRepeat) {
+        setTimeout(() => {
+          setQueue((prevQ) => [
+            ...prevQ,
+            {
+              id: `__demo__${Date.now()}_${Math.random().toString(16).slice(2)}`,
+              memeId: '__demo__',
+              type: previewTypeParam || 'demo',
+              fileUrl: previewUrlParam || '',
+              durationMs: 8000,
+              title: 'DEMO',
+              senderDisplayName: 'Viewer123',
+              startTime: Date.now(),
+              ...(resolvedPosition === 'random' ? pickRandomPosition() : { xPct: 50, yPct: 50 }),
+              userScale: getNextUserScale(),
+            } as any,
+          ]);
+        }, 150);
+      }
     }, 220);
     fadeTimersRef.current.set(id, fadeTimer);
-  }, [emitAckDoneOnce]);
+  }, [demo, emitAckDoneOnce, getNextUserScale, pickRandomPosition, previewRepeat, previewTypeParam, previewUrlParam, resolvedPosition]);
 
   const updateFallbackTimer = useCallback((activationId: string, durationMs: number) => {
     const id = String(activationId || '').trim();
@@ -257,16 +364,17 @@ export default function OverlayView() {
     if (toStartRaw.length === 0) return;
 
     const toStart = toStartRaw.map((a) => {
-      if (position === 'random') {
+      const base = { ...a, userScale: a.userScale ?? getNextUserScale() };
+      if (resolvedPosition === 'random') {
         const { xPct, yPct } = pickRandomPosition();
-        return { ...a, xPct, yPct };
+        return { ...base, xPct, yPct };
       }
-      return a;
+      return base;
     });
 
     setQueue((prev) => prev.slice(toStartRaw.length));
     setActive((prev) => [...prev, ...toStart]);
-  }, [active.length, maxActive, pickRandomPosition, position, queue]);
+  }, [active.length, getNextUserScale, maxActive, pickRandomPosition, queue, resolvedPosition]);
 
   // Clamp random-position activations so they never get clipped by the OBS canvas.
   // We do this after render using the actual DOM rect (covers unknown aspect ratios and scale).
@@ -274,8 +382,8 @@ export default function OverlayView() {
     if (active.length === 0) return;
     if (typeof window === 'undefined') return;
 
-    const requestedPad = parseInt(String(searchParams.get('pad') || ''), 10);
-    const padding = clampInt(Number.isFinite(requestedPad) ? requestedPad : 80, 0, 400); // px safe area around the edges
+    // Padding is not user-configurable; keep a safe default.
+    const padding = 80;
     const vw = window.innerWidth || 0;
     const vh = window.innerHeight || 0;
     if (vw <= padding * 2 || vh <= padding * 2) return;
@@ -302,7 +410,7 @@ export default function OverlayView() {
         }
 
         // Only random positioning needs coordinate clamping.
-        if (position !== 'random') return a;
+        if (resolvedPosition !== 'random') return a;
 
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
@@ -326,7 +434,7 @@ export default function OverlayView() {
 
       return changed ? next : prev;
     });
-  }, [active, position, searchParams]);
+  }, [active, resolvedPosition]);
 
   // Ensure per-activation fallback timers exist while active (prevents "stuck" videos in OBS).
   useEffect(() => {
@@ -379,23 +487,26 @@ export default function OverlayView() {
         transformOrigin: 'center',
       };
 
+      const baseScale = clampFloat(Number(item.userScale ?? safeScale), 0.25, 2.5);
+      const finalScale = baseScale * (item.fitScale ?? 1);
+
       // Clamp size to feel like an overlay (not a full web page).
       // Since scale applies via transform, reduce pre-scale bounds to keep the final size within viewport.
-      const preScaleMaxVw = Math.max(16, Math.min(50, 42 / safeScale));
-      const preScaleMaxVh = Math.max(16, Math.min(50, 42 / safeScale));
+      const preScaleMaxVw = Math.max(16, Math.min(50, 42 / baseScale));
+      const preScaleMaxVh = Math.max(16, Math.min(50, 42 / baseScale));
       const sizeClamp: React.CSSProperties = {
         maxWidth: `${preScaleMaxVw}vw`,
         maxHeight: `${preScaleMaxVh}vh`,
       };
 
-      switch (position) {
+      switch (resolvedPosition) {
         case 'random':
           return {
             ...base,
             ...sizeClamp,
             top: Number.isFinite(item?.yPx) ? `${item.yPx}px` : `${item?.yPct ?? 50}%`,
             left: Number.isFinite(item?.xPx) ? `${item.xPx}px` : `${item?.xPct ?? 50}%`,
-            transform: `translate(-50%, -50%) scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `translate(-50%, -50%) scale(${finalScale})`,
           };
         case 'center':
           return {
@@ -403,7 +514,7 @@ export default function OverlayView() {
             ...sizeClamp,
             top: '50%',
             left: '50%',
-            transform: `translate(-50%, -50%) scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `translate(-50%, -50%) scale(${finalScale})`,
           };
         case 'top':
           return {
@@ -411,7 +522,7 @@ export default function OverlayView() {
             ...sizeClamp,
             top: '24px',
             left: '50%',
-            transform: `translateX(-50%) scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `translateX(-50%) scale(${finalScale})`,
           };
         case 'bottom':
           return {
@@ -419,7 +530,7 @@ export default function OverlayView() {
             ...sizeClamp,
             bottom: '24px',
             left: '50%',
-            transform: `translateX(-50%) scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `translateX(-50%) scale(${finalScale})`,
           };
         case 'top-left':
           return {
@@ -428,7 +539,7 @@ export default function OverlayView() {
             top: '24px',
             left: '24px',
             transformOrigin: 'top left',
-            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `scale(${finalScale})`,
           };
         case 'top-right':
           return {
@@ -437,7 +548,7 @@ export default function OverlayView() {
             top: '24px',
             right: '24px',
             transformOrigin: 'top right',
-            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `scale(${finalScale})`,
           };
         case 'bottom-left':
           return {
@@ -446,7 +557,7 @@ export default function OverlayView() {
             bottom: '24px',
             left: '24px',
             transformOrigin: 'bottom left',
-            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `scale(${finalScale})`,
           };
         case 'bottom-right':
           return {
@@ -455,7 +566,7 @@ export default function OverlayView() {
             bottom: '24px',
             right: '24px',
             transformOrigin: 'bottom right',
-            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
+            transform: `scale(${finalScale})`,
           };
         default:
           return {
@@ -463,11 +574,11 @@ export default function OverlayView() {
             ...sizeClamp,
             top: '50%',
             left: '50%',
-            transform: `translate(-50%, -50%) scale(${safeScale})`,
+            transform: `translate(-50%, -50%) scale(${finalScale})`,
           };
       }
     },
-    [position, safeScale]
+    [resolvedPosition, safeScale]
   );
 
   const cardStyle = useMemo<React.CSSProperties>(() => {
@@ -531,29 +642,14 @@ export default function OverlayView() {
     };
   }, []);
 
-  const demoItem: QueuedActivation | null = useMemo(() => {
-    if (!demo) return null;
-    return {
-      id: '__demo__',
-      memeId: '__demo__',
-      type: previewTypeParam || 'demo',
-      fileUrl: previewUrlParam || '',
-      durationMs: 4000,
-      title: 'DEMO',
-      senderDisplayName: 'Viewer123',
-      startTime: Date.now(),
-      xPct: 50,
-      yPct: 50,
-    };
-  }, [demo, previewTypeParam, previewUrlParam]);
-
-  const renderItems = active.length > 0 ? active : demoItem ? [demoItem] : [];
+  const renderItems = active;
   if (renderItems.length === 0) return null;
 
   return (
     <>
       <style>
         {`
+          ${demo ? `body { background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.85) 60%), linear-gradient(135deg, rgba(56,189,248,0.12), rgba(167,139,250,0.12)); }` : ''}
           @keyframes memalertsFadeIn {
             from { opacity: 0; }
             to { opacity: 1; }

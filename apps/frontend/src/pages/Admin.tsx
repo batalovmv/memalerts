@@ -734,6 +734,9 @@ function ObsLinksSettings() {
   const [loadingToken, setLoadingToken] = useState(false);
   const [previewMeme, setPreviewMeme] = useState<{ fileUrl: string; type: string; title?: string } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewCount, setPreviewCount] = useState<number>(1);
+  const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(false);
+  const [previewSimultaneous, setPreviewSimultaneous] = useState<boolean>(true);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -747,13 +750,15 @@ function ObsLinksSettings() {
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
   const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Advanced overlay URL builder (stored in the URL, not in DB).
+  // Advanced overlay style (saved server-side; OBS link stays constant).
   const [urlPosition, setUrlPosition] = useState<'random' | 'center' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>(
     'random'
   );
-  const [urlScale, setUrlScale] = useState<number>(1);
-  const [urlPad, setUrlPad] = useState<number>(80);
   const [urlVolume, setUrlVolume] = useState<number>(1);
+  const [scaleMode, setScaleMode] = useState<'fixed' | 'range'>('fixed');
+  const [scaleFixed, setScaleFixed] = useState<number>(1);
+  const [scaleMin, setScaleMin] = useState<number>(0.7);
+  const [scaleMax, setScaleMax] = useState<number>(1);
   const [urlRadius, setUrlRadius] = useState<number>(20);
   const [urlShadow, setUrlShadow] = useState<number>(70);
   const [urlBlur, setUrlBlur] = useState<number>(6);
@@ -823,8 +828,39 @@ function ObsLinksSettings() {
       try {
         setLoadingToken(true);
         const { api } = await import('../lib/api');
-        const resp = await api.get<{ token: string }>('/admin/overlay/token');
-        if (mounted) setOverlayToken(resp.token || '');
+        const resp = await api.get<{ token: string; overlayMode?: string; overlayShowSender?: boolean; overlayMaxConcurrent?: number; overlayStyleJson?: string | null }>(
+          '/admin/overlay/token'
+        );
+        if (!mounted) return;
+        setOverlayToken(resp.token || '');
+        if (resp.overlayMode) setOverlayMode(resp.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
+        setOverlayShowSender(Boolean(resp.overlayShowSender));
+        if (typeof resp.overlayMaxConcurrent === 'number') setOverlayMaxConcurrent(Math.min(5, Math.max(1, resp.overlayMaxConcurrent)));
+        // Hydrate advanced style if present
+        if (resp.overlayStyleJson) {
+          try {
+            const j = JSON.parse(resp.overlayStyleJson) as any;
+            if (j && typeof j === 'object') {
+              if (j.position) setUrlPosition(j.position);
+              if (typeof j.volume === 'number') setUrlVolume(j.volume);
+              if (j.scaleMode === 'range') setScaleMode('range');
+              else setScaleMode('fixed');
+              if (typeof j.scaleFixed === 'number') setScaleFixed(j.scaleFixed);
+              if (typeof j.scaleMin === 'number') setScaleMin(j.scaleMin);
+              if (typeof j.scaleMax === 'number') setScaleMax(j.scaleMax);
+              if (typeof j.radius === 'number') setUrlRadius(j.radius);
+              if (typeof j.shadow === 'number') setUrlShadow(j.shadow);
+              if (typeof j.blur === 'number') setUrlBlur(j.blur);
+              if (typeof j.border === 'number') setUrlBorder(j.border);
+              if (typeof j.bgOpacity === 'number') setUrlBgOpacity(j.bgOpacity);
+              if (j.anim) setUrlAnim(j.anim);
+              if (typeof j.enterMs === 'number') setUrlEnterMs(j.enterMs);
+              if (typeof j.exitMs === 'number') setUrlExitMs(j.exitMs);
+            }
+          } catch {
+            // ignore
+          }
+        }
       } catch (e) {
         if (mounted) setOverlayToken('');
       } finally {
@@ -835,6 +871,11 @@ function ObsLinksSettings() {
       mounted = false;
     };
   }, [channelSlug]);
+
+  // Keep preview mode sensible: if showing multiple memes, prefer simultaneous.
+  useEffect(() => {
+    if (previewCount > 1) setPreviewSimultaneous(true);
+  }, [previewCount]);
 
   const fetchPreviewMeme = useCallback(async () => {
     try {
@@ -861,51 +902,22 @@ function ObsLinksSettings() {
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
 
-  // Single URL for OBS: users copy ONLY this. All controls below modify this URL.
-  const overlayUrlForObs = useMemo(() => {
-    if (!overlayUrl) return '';
-    const sp = new URLSearchParams();
-    sp.set('position', urlPosition);
-    sp.set('scale', String(urlScale));
-    sp.set('pad', String(urlPad));
-    sp.set('volume', String(urlVolume));
-    sp.set('radius', String(urlRadius));
-    sp.set('shadow', String(urlShadow));
-    sp.set('blur', String(urlBlur));
-    sp.set('border', String(urlBorder));
-    sp.set('bgOpacity', String(urlBgOpacity));
-    sp.set('anim', String(urlAnim));
-    sp.set('enterMs', String(urlEnterMs));
-    sp.set('exitMs', String(urlExitMs));
-    return `${overlayUrl}?${sp.toString()}`;
-  }, [
-    overlayUrl,
-    urlAnim,
-    urlBgOpacity,
-    urlBlur,
-    urlBorder,
-    urlEnterMs,
-    urlExitMs,
-    urlPad,
-    urlPosition,
-    urlRadius,
-    urlScale,
-    urlShadow,
-    urlVolume,
-  ]);
-
-  const overlayUrlWithDefaults = overlayUrlForObs;
+  // OBS URL should stay constant.
+  const overlayUrlWithDefaults = overlayUrl;
 
   // Preview URL: same settings, but uses a real random meme and safe positioning.
   const overlayPreviewUrl = useMemo(() => {
-    if (!overlayUrlForObs) return '';
-    const u = new URL(overlayUrlForObs);
+    if (!overlayUrl) return '';
+    const u = new URL(overlayUrl);
     u.searchParams.set('demo', '1');
     u.searchParams.set('position', 'center');
+    u.searchParams.set('previewCount', String(previewCount));
+    u.searchParams.set('previewMode', previewSimultaneous ? 'simultaneous' : 'queue');
+    u.searchParams.set('repeat', previewLoopEnabled ? '1' : '0');
     if (previewMeme?.fileUrl) u.searchParams.set('previewUrl', previewMeme.fileUrl);
     if (previewMeme?.type) u.searchParams.set('previewType', previewMeme.type);
     return u.toString();
-  }, [overlayUrlForObs, previewMeme?.fileUrl, previewMeme?.type]);
+  }, [overlayUrl, previewCount, previewLoopEnabled, previewMeme?.fileUrl, previewMeme?.type, previewSimultaneous]);
 
   // Debounce iframe reloads while dragging sliders.
   const [debouncedPreviewUrl, setDebouncedPreviewUrl] = useState<string>('');
@@ -939,7 +951,24 @@ function ObsLinksSettings() {
     if (loadingOverlaySettings) return;
     if (!overlaySettingsLoadedRef.current) return;
 
-    const payload = JSON.stringify({ overlayMode, overlayShowSender, overlayMaxConcurrent });
+    const overlayStyleJson = JSON.stringify({
+      position: urlPosition,
+      volume: urlVolume,
+      scaleMode,
+      scaleFixed,
+      scaleMin,
+      scaleMax,
+      radius: urlRadius,
+      shadow: urlShadow,
+      blur: urlBlur,
+      border: urlBorder,
+      bgOpacity: urlBgOpacity,
+      anim: urlAnim,
+      enterMs: urlEnterMs,
+      exitMs: urlExitMs,
+    });
+
+    const payload = JSON.stringify({ overlayMode, overlayShowSender, overlayMaxConcurrent, overlayStyleJson });
     // If we don't yet have a baseline, set it and do nothing (prevents save/toast on mount).
     if (lastSavedOverlaySettingsRef.current === null) {
       lastSavedOverlaySettingsRef.current = payload;
@@ -959,6 +988,7 @@ function ObsLinksSettings() {
             overlayMode,
             overlayShowSender,
             overlayMaxConcurrent,
+            overlayStyleJson,
           });
           lastSavedOverlaySettingsRef.current = payload;
           // Keep channel cache consistent (used by other panels).
@@ -989,7 +1019,30 @@ function ObsLinksSettings() {
         }
       })();
     }, 250);
-  }, [channelSlug, getChannelData, loadingOverlaySettings, overlayMode, overlayShowSender, overlayMaxConcurrent, t]);
+  }, [
+    channelSlug,
+    getChannelData,
+    loadingOverlaySettings,
+    overlayMode,
+    overlayShowSender,
+    overlayMaxConcurrent,
+    // style deps
+    urlPosition,
+    urlVolume,
+    scaleMode,
+    scaleFixed,
+    scaleMin,
+    scaleMax,
+    urlRadius,
+    urlShadow,
+    urlBlur,
+    urlBorder,
+    urlBgOpacity,
+    urlAnim,
+    urlEnterMs,
+    urlExitMs,
+    t,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1076,34 +1129,71 @@ function ObsLinksSettings() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayScale', { defaultValue: 'Scale' })}: <span className="font-mono">{urlScale.toFixed(2)}</span>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  {t('admin.obsOverlayScaleMode', { defaultValue: 'Size' })}
                 </label>
-                <input
-                  type="range"
-                  min={0.25}
-                  max={2.5}
-                  step={0.05}
-                  value={urlScale}
-                  onChange={(e) => setUrlScale(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-              </div>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={scaleMode}
+                    onChange={(e) => setScaleMode(e.target.value as any)}
+                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="fixed">{t('admin.obsOverlayScaleFixed', { defaultValue: 'Fixed' })}</option>
+                    <option value="range">{t('admin.obsOverlayScaleRange', { defaultValue: 'Range' })}</option>
+                  </select>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayPadding', { defaultValue: 'Safe padding (px)' })}: <span className="font-mono">{urlPad}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={400}
-                  step={10}
-                  value={urlPad}
-                  onChange={(e) => setUrlPad(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
+                  {scaleMode === 'fixed' ? (
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                        {t('admin.obsOverlayScaleFixedValue', { defaultValue: 'Scale' })}:{' '}
+                        <span className="font-mono">{scaleFixed.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={2.5}
+                        step={0.05}
+                        value={scaleFixed}
+                        onChange={(e) => setScaleFixed(parseFloat(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {t('admin.obsOverlayScaleMin', { defaultValue: 'Min' })}:{' '}
+                          <span className="font-mono">{scaleMin.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={2.5}
+                          step={0.05}
+                          value={scaleMin}
+                          onChange={(e) => setScaleMin(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {t('admin.obsOverlayScaleMax', { defaultValue: 'Max' })}:{' '}
+                          <span className="font-mono">{scaleMax.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={2.5}
+                          step={0.05}
+                          value={scaleMax}
+                          onChange={(e) => setScaleMax(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1270,6 +1360,62 @@ function ObsLinksSettings() {
                 >
                   {loadingPreview ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Refresh' })}
                 </button>
+                <button
+                  type="button"
+                  className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
+                  title={t('admin.obsPreviewLoop', { defaultValue: 'Loop preview' })}
+                  onClick={() => setPreviewLoopEnabled((p) => !p)}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 1l4 4-4 4M7 23l-4-4 4-4M3 19a9 9 0 0015.5 2.5M21 5a9 9 0 00-15.5-2.5"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="mt-3">
+                <label className="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                  {t('admin.obsPreviewCount', { defaultValue: 'Preview memes on screen' })}: <span className="font-mono">{previewCount}</span>
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={previewCount}
+                  onChange={(e) => setPreviewCount(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+              <div className="mt-3">
+                <label className="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                  {t('admin.obsPreviewMode', { defaultValue: 'Preview mode' })}
+                </label>
+                <div className="inline-flex rounded-xl overflow-hidden bg-white/50 dark:bg-white/10 border border-white/20 dark:border-white/10">
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 text-xs font-semibold ${
+                      !previewSimultaneous ? 'bg-primary text-white' : 'text-gray-900 dark:text-white'
+                    }`}
+                    onClick={() => setPreviewSimultaneous(false)}
+                    disabled={previewCount > 1}
+                    title={previewCount > 1 ? t('admin.obsPreviewModeQueueDisabled', { defaultValue: 'Queue mode is disabled when previewCount > 1' }) : ''}
+                  >
+                    {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 text-xs font-semibold ${
+                      previewSimultaneous ? 'bg-primary text-white' : 'text-gray-900 dark:text-white'
+                    }`}
+                    onClick={() => setPreviewSimultaneous(true)}
+                  >
+                    {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
+                  </button>
+                </div>
               </div>
               <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
                 {t('admin.obsOverlayLivePreviewHint', {

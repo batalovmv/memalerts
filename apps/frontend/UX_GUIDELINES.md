@@ -627,3 +627,4 @@ className="bg-gray-300 text-gray-500 cursor-not-allowed px-4 py-2 rounded-lg"
 
 **Помни:** Лучше сделать просто и понятно, чем сложно и гибко.
 
+
