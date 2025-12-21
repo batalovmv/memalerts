@@ -165,7 +165,7 @@
     "twitchCoinsRewardTitle": "Coins reward (Twitch)",
     "twitchCoinsRewardDescription": "Viewers spend Twitch Channel Points and receive coins on the site.",
     "approvedMemeRewardTitle": "Reward for approved meme (coins)",
-    "approvedMemeRewardDescription": "Granted to the submitter when you approve their meme. 0 disables it.",
+    "approvedMemeRewardDescription": "Granted to the submitter when you approve their meme.",
     "saveTwitchReward": "Save Twitch reward",
     "saveApprovedMemeReward": "Save approved meme reward",
     "invalidSubmissionRewardCoins": "Please enter a valid number (0 or greater)",

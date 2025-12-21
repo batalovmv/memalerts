@@ -1563,7 +1563,7 @@ function RewardsSettings() {
                 {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения. 0 — выключено.')}
+                {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения.')}
               </p>
             </div>
 

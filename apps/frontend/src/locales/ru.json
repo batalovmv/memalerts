@@ -177,7 +177,7 @@
     "twitchCoinsRewardTitle": "Награда за монеты (Twitch)",
     "twitchCoinsRewardDescription": "Зритель тратит Channel Points на Twitch и получает монеты на сайте.",
     "approvedMemeRewardTitle": "Награда за одобренный мем (монеты)",
-    "approvedMemeRewardDescription": "Начисляется автору заявки после одобрения. 0 — выключено.",
+    "approvedMemeRewardDescription": "Начисляется автору заявки после одобрения.",
     "saveTwitchReward": "Сохранить награду Twitch",
     "saveApprovedMemeReward": "Сохранить награду за одобренный мем",
     "invalidSubmissionRewardCoins": "Введите корректное число (0 или больше)",
