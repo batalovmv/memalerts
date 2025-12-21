@@ -752,6 +752,14 @@ function ObsLinksSettings() {
   const [urlScale, setUrlScale] = useState<number>(1);
   const [urlPad, setUrlPad] = useState<number>(80);
   const [urlVolume, setUrlVolume] = useState<number>(1);
+  const [urlRadius, setUrlRadius] = useState<number>(20);
+  const [urlShadow, setUrlShadow] = useState<number>(70);
+  const [urlBlur, setUrlBlur] = useState<number>(6);
+  const [urlBorder, setUrlBorder] = useState<number>(2);
+  const [urlBgOpacity, setUrlBgOpacity] = useState<number>(0.18);
+  const [urlAnim, setUrlAnim] = useState<'fade' | 'zoom' | 'slide-up' | 'none'>('fade');
+  const [urlEnterMs, setUrlEnterMs] = useState<number>(220);
+  const [urlExitMs, setUrlExitMs] = useState<number>(220);
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -840,8 +848,31 @@ function ObsLinksSettings() {
     sp.set('scale', String(urlScale));
     sp.set('pad', String(urlPad));
     sp.set('volume', String(urlVolume));
+    sp.set('demo', '1');
+    sp.set('radius', String(urlRadius));
+    sp.set('shadow', String(urlShadow));
+    sp.set('blur', String(urlBlur));
+    sp.set('border', String(urlBorder));
+    sp.set('bgOpacity', String(urlBgOpacity));
+    sp.set('anim', String(urlAnim));
+    sp.set('enterMs', String(urlEnterMs));
+    sp.set('exitMs', String(urlExitMs));
     return `${overlayUrl}?${sp.toString()}`;
-  }, [overlayUrl, urlPad, urlPosition, urlScale, urlVolume]);
+  }, [
+    overlayUrl,
+    urlAnim,
+    urlBgOpacity,
+    urlBlur,
+    urlBorder,
+    urlEnterMs,
+    urlExitMs,
+    urlPad,
+    urlPosition,
+    urlRadius,
+    urlScale,
+    urlShadow,
+    urlVolume,
+  ]);
 
   // Auto-save overlay settings (no explicit Save button).
   useEffect(() => {
@@ -1033,6 +1064,151 @@ function ObsLinksSettings() {
                   onChange={(e) => setUrlVolume(parseFloat(e.target.value))}
                   className="w-full"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayAnim', { defaultValue: 'Animation' })}
+                </label>
+                <select
+                  value={urlAnim}
+                  onChange={(e) => setUrlAnim(e.target.value as any)}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
+                  <option value="zoom">{t('admin.obsOverlayAnimZoom', { defaultValue: 'Zoom' })}</option>
+                  <option value="slide-up">{t('admin.obsOverlayAnimSlideUp', { defaultValue: 'Slide up' })}</option>
+                  <option value="none">{t('admin.obsOverlayAnimNone', { defaultValue: 'None' })}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayEnterMs', { defaultValue: 'Enter (ms)' })}:{' '}
+                  <span className="font-mono">{urlEnterMs}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1200}
+                  step={20}
+                  value={urlEnterMs}
+                  onChange={(e) => setUrlEnterMs(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayExitMs', { defaultValue: 'Exit (ms)' })}:{' '}
+                  <span className="font-mono">{urlExitMs}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1200}
+                  step={20}
+                  value={urlExitMs}
+                  onChange={(e) => setUrlExitMs(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayRadius', { defaultValue: 'Corner radius' })}: <span className="font-mono">{urlRadius}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={48}
+                  step={1}
+                  value={urlRadius}
+                  onChange={(e) => setUrlRadius(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadow', { defaultValue: 'Shadow' })}: <span className="font-mono">{urlShadow}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={2}
+                  value={urlShadow}
+                  onChange={(e) => setUrlShadow(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBlur', { defaultValue: 'Glass blur' })}: <span className="font-mono">{urlBlur}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  step={1}
+                  value={urlBlur}
+                  onChange={(e) => setUrlBlur(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBorder', { defaultValue: 'Border' })}: <span className="font-mono">{urlBorder}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={4}
+                  step={1}
+                  value={urlBorder}
+                  onChange={(e) => setUrlBorder(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBgOpacity', { defaultValue: 'Glass opacity' })}:{' '}
+                  <span className="font-mono">{Math.round(urlBgOpacity * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.65}
+                  step={0.01}
+                  value={urlBgOpacity}
+                  onChange={(e) => setUrlBgOpacity(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                {t('admin.obsOverlayLivePreview', { defaultValue: 'Live preview' })}
+              </div>
+              <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
+                <iframe
+                  title="Overlay preview"
+                  src={overlayUrlAdvanced}
+                  className="w-full"
+                  style={{ aspectRatio: '16 / 9', border: '0' }}
+                  allow="autoplay"
+                />
+              </div>
+              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                {t('admin.obsOverlayLivePreviewHint', {
+                  defaultValue:
+                    'Preview uses a DEMO card inside the overlay (no real memes needed). Copy the URL above into OBS when ready.',
+                })}
               </div>
             </div>
           </div>

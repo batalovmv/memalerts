@@ -51,6 +51,13 @@ function clampInt(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
+function clampFloat(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+
+type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'none';
+
 export default function OverlayView() {
   const { channelSlug, token } = useParams<{ channelSlug?: string; token?: string }>();
   const [searchParams] = useSearchParams();
@@ -77,6 +84,17 @@ export default function OverlayView() {
   const scale = parseFloat(searchParams.get('scale') || '1');
   const position = (searchParams.get('position') || 'random').toLowerCase() as OverlayPosition;
   const volume = parseFloat(searchParams.get('volume') || '1');
+  const demo = searchParams.get('demo') === '1';
+
+  // Appearance / animation params (iPhone-ish defaults).
+  const radius = clampInt(parseInt(String(searchParams.get('radius') || ''), 10), 0, 48);
+  const shadow = clampInt(parseInt(String(searchParams.get('shadow') || ''), 10), 0, 120);
+  const blur = clampInt(parseInt(String(searchParams.get('blur') || ''), 10), 0, 30);
+  const border = clampInt(parseInt(String(searchParams.get('border') || ''), 10), 0, 4);
+  const bgOpacity = clampFloat(parseFloat(String(searchParams.get('bgOpacity') || '')), 0, 0.65);
+  const anim = (String(searchParams.get('anim') || 'fade').toLowerCase() as OverlayAnim) || 'fade';
+  const enterMs = clampInt(parseInt(String(searchParams.get('enterMs') || ''), 10), 0, 1200);
+  const exitMs = clampInt(parseInt(String(searchParams.get('exitMs') || ''), 10), 0, 1200);
 
   const safeScale = useMemo(() => {
     const s = Number.isFinite(scale) ? scale : 1;
@@ -437,18 +455,36 @@ export default function OverlayView() {
   );
 
   const cardStyle = useMemo<React.CSSProperties>(() => {
+    const effectiveRadius = radius || 20;
+    const effectiveShadow = shadow || 70;
+    const effectiveBlur = blur || 6;
+    const effectiveBorder = border || 2;
+    const effectiveBgOpacity = Number.isFinite(bgOpacity) ? bgOpacity : 0.18;
+    const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 220;
     return {
-      borderRadius: 20,
+      borderRadius: effectiveRadius,
       overflow: 'hidden',
-      border: '2px solid rgba(255,255,255,0.38)',
+      border: `${effectiveBorder}px solid rgba(255,255,255,0.38)`,
       outline: '1px solid rgba(0,0,0,0.35)',
-      boxShadow: '0 22px 70px rgba(0,0,0,0.60)',
-      background: 'rgba(0,0,0,0.18)',
-      backdropFilter: 'blur(3px)',
+      boxShadow: `0 22px ${effectiveShadow}px rgba(0,0,0,0.60)`,
+      background: `rgba(0,0,0,${effectiveBgOpacity})`,
+      backdropFilter: `blur(${effectiveBlur}px)`,
       opacity: 1,
-      transition: 'opacity 220ms ease',
+      willChange: 'transform, opacity',
+      transition: `opacity ${Math.max(0, Number.isFinite(exitMs) ? exitMs : 220)}ms ease, transform ${Math.max(
+        0,
+        Number.isFinite(exitMs) ? exitMs : 220
+      )}ms ease`,
+      animation:
+        anim === 'none'
+          ? undefined
+          : anim === 'zoom'
+            ? `memalertsZoomIn ${Math.max(0, effectiveEnterMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`
+            : anim === 'slide-up'
+              ? `memalertsSlideUp ${Math.max(0, effectiveEnterMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`
+              : `memalertsFadeIn ${Math.max(0, effectiveEnterMs)}ms ease`,
     };
-  }, []);
+  }, [anim, bgOpacity, blur, border, enterMs, exitMs, radius, shadow]);
 
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
@@ -480,11 +516,44 @@ export default function OverlayView() {
     };
   }, []);
 
-  if (active.length === 0) return null;
+  const demoItem: QueuedActivation | null = useMemo(() => {
+    if (!demo) return null;
+    return {
+      id: '__demo__',
+      memeId: '__demo__',
+      type: 'demo',
+      fileUrl: '',
+      durationMs: 4000,
+      title: 'DEMO',
+      senderDisplayName: 'Viewer123',
+      startTime: Date.now(),
+      xPct: 50,
+      yPct: 50,
+    };
+  }, [demo]);
+
+  const renderItems = active.length > 0 ? active : demoItem ? [demoItem] : [];
+  if (renderItems.length === 0) return null;
 
   return (
     <>
-      {active.map((item) => (
+      <style>
+        {`
+          @keyframes memalertsFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes memalertsZoomIn {
+            from { opacity: 0; transform: scale(0.92); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          @keyframes memalertsSlideUp {
+            from { opacity: 0; transform: translateY(24px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0px) scale(1); }
+          }
+        `}
+      </style>
+      {renderItems.map((item) => (
         <div
           key={item.id}
           style={getPositionStyles(item)}
@@ -493,7 +562,22 @@ export default function OverlayView() {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-            <div style={{ ...cardStyle, opacity: item.isExiting ? 0 : 1 }}>
+            <div
+              style={{
+                ...cardStyle,
+                opacity: item.isExiting ? 0 : 1,
+                transform:
+                  anim === 'zoom'
+                    ? item.isExiting
+                      ? 'scale(0.96)'
+                      : undefined
+                    : anim === 'slide-up'
+                      ? item.isExiting
+                        ? 'translateY(14px) scale(0.99)'
+                        : undefined
+                      : undefined,
+              }}
+            >
             {(item.type === 'image' || item.type === 'gif') && (
               <img
                 src={getMediaUrl(item.fileUrl)}
@@ -554,6 +638,27 @@ export default function OverlayView() {
                 onStalled={() => doneActivation(item.id)}
                 onEnded={() => doneActivation(item.id)}
               />
+            )}
+
+            {item.type === 'demo' && (
+              <div
+                style={{
+                  ...mediaStyle,
+                  height: Math.round(300 * safeScale),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background:
+                    'radial-gradient(80% 80% at 30% 20%, rgba(255,255,255,0.16) 0%, rgba(0,0,0,0.6) 60%), linear-gradient(135deg, rgba(56,189,248,0.55), rgba(167,139,250,0.55))',
+                  color: 'rgba(255,255,255,0.92)',
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textShadow: '0 6px 24px rgba(0,0,0,0.55)',
+                }}
+              >
+                DEMO
+              </div>
             )}
 
             </div>
