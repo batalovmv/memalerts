@@ -237,10 +237,15 @@ export async function getChannelInformation(
     }
   | null
 > {
+  // NOTE:
+  // Twitch affiliate/partner status is represented as `broadcaster_type` on Helix `users` endpoint.
+  // The `channels` endpoint may not include this field (as observed on beta diagnostics).
+  //
+  // We keep the function name for backward-compat, but it now queries `users?id=...`.
   // Prefer user token (keeps behavior consistent), but fall back to app token when user token
-  // is missing scopes/invalid. Affiliate/partner eligibility should not depend on user scopes.
+  // is missing scopes/invalid. Eligibility should not depend on user scopes.
   try {
-    const resp = await twitchApiRequest(`channels?broadcaster_id=${broadcasterId}`, 'GET', userId);
+    const resp = await twitchApiRequest(`users?id=${broadcasterId}`, 'GET', userId);
     const item = resp?.data?.[0];
     if (!item) return null;
     return {
@@ -254,7 +259,7 @@ export async function getChannelInformation(
   } catch (e: any) {
     // Fall back to app access token
     const accessToken = await getAppAccessToken();
-    const response = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${broadcasterId}`, {
+    const response = await fetch(`https://api.twitch.tv/helix/users?id=${broadcasterId}`, {
       method: 'GET',
       headers: {
         'Client-ID': process.env.TWITCH_CLIENT_ID!,
