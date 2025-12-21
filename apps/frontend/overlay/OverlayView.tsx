@@ -24,6 +24,10 @@ interface QueuedActivation extends Activation {
   xPx?: number;
   yPx?: number;
   layoutTick?: number;
+  // Media aspect ratio (w/h). Used to keep original aspect ratio and normalize visual size.
+  aspectRatio?: number;
+  boxW?: number;
+  boxH?: number;
   // Optional, derived from real media metadata (video/audio), preferred over durationMs when available.
   effectiveDurationMs?: number;
   // When we start fading out, keep the item briefly so OBS doesn't "stick" the last frame.
@@ -560,6 +564,22 @@ export default function OverlayView() {
         const availW = Math.max(1, vw - padL - padR);
         const availH = Math.max(1, vh - padT - padB);
 
+        // If we know media aspect ratio, compute a normalized box size that preserves the ratio
+        // and keeps a consistent "long side" across media (independent of source resolution).
+        const ar = Number(a.aspectRatio);
+        if (Number.isFinite(ar) && ar > 0.01) {
+          const targetLong = clampInt(Math.round(Math.min(vw * 0.32, vh * 0.48)), 220, 560);
+          let w = ar >= 1 ? targetLong : Math.round(targetLong * ar);
+          let h = ar >= 1 ? Math.round(targetLong / ar) : targetLong;
+          const s = Math.min(1, availW / Math.max(1, w), availH / Math.max(1, h));
+          w = Math.max(140, Math.round(w * s));
+          h = Math.max(140, Math.round(h * s));
+          if (!Number.isFinite(a.boxW) || !Number.isFinite(a.boxH) || Math.abs((a.boxW ?? 0) - w) > 2 || Math.abs((a.boxH ?? 0) - h) > 2) {
+            changed = true;
+            a = { ...a, boxW: w, boxH: h };
+          }
+        }
+
         // Compute fitScale based on the *un-fitted* size so we don't oscillate and so extreme
         // aspect ratios (very tall memes) never slip off-screen between frames.
         const currentFit = clampFloat(Number(a.fitScale ?? 1), 0.25, 1);
@@ -683,12 +703,15 @@ export default function OverlayView() {
       const fit = clampFloat(Number(item.fitScale ?? 1), 0.25, 1);
       const finalScale = baseScale * fit;
 
-      // IMPORTANT: normalize visual size across different source resolutions.
-      // We render the meme inside a fixed viewport-based box, then use object-fit: contain inside it.
-      // This avoids "low-res looks bigger / high-res looks smaller" and stabilizes viewport clamping.
+      // Normalize perceived size across different source resolutions:
+      // keep a consistent "long side" while preserving original aspect ratio.
+      // `boxW/boxH` are computed after media metadata loads.
+      const fallback = 420;
+      const boxW = clampInt(Number(item.boxW ?? fallback), 180, 900);
+      const boxH = clampInt(Number(item.boxH ?? fallback), 180, 900);
       const sizeClamp: React.CSSProperties = {
-        width: 'clamp(260px, 34vw, 560px)',
-        height: 'clamp(260px, 34vh, 560px)',
+        width: `${boxW}px`,
+        height: `${boxH}px`,
       };
 
       // Safety override: if we have clamped pixel-center coordinates, render as centered-by-px
@@ -877,8 +900,9 @@ export default function OverlayView() {
       height: '100%',
       maxWidth: '100%',
       maxHeight: '100%',
-      // Fill the fixed preview box without letterboxing (crop edges if needed).
-      objectFit: 'cover',
+      // Preserve original aspect ratio (no crop). Since the container is sized to the same ratio,
+      // this will not create letterboxing.
+      objectFit: 'contain',
       objectPosition: 'center',
       background: 'transparent',
     };
@@ -964,8 +988,24 @@ export default function OverlayView() {
                 alt={item.title}
                 style={mediaStyle}
                 onLoad={() => {
-                  // Trigger clamp recalculation after media loads (size becomes known).
-                  setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
+                  try {
+                    const img = itemRefs.current.get(item.id)?.querySelector('img') as HTMLImageElement | null;
+                    const w = img?.naturalWidth || 0;
+                    const h = img?.naturalHeight || 0;
+                    if (w > 0 && h > 0) {
+                      const ar = w / h;
+                      setActive((prev) =>
+                        prev.map((a) =>
+                          a.id === item.id ? { ...a, aspectRatio: ar, layoutTick: (a.layoutTick ?? 0) + 1 } : a
+                        )
+                      );
+                    } else {
+                      setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
+                    }
+                  } catch {
+                    // Trigger clamp recalculation after media loads (size becomes known).
+                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
+                  }
                 }}
               />
             )}
@@ -987,8 +1027,19 @@ export default function OverlayView() {
                     setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
                     updateFallbackTimer(item.id, ms);
                   }
+                  const w = e.currentTarget.videoWidth;
+                  const h = e.currentTarget.videoHeight;
+                  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+                    const ar = w / h;
+                    setActive((prev) =>
+                      prev.map((a) =>
+                        a.id === item.id ? { ...a, aspectRatio: ar, layoutTick: (a.layoutTick ?? 0) + 1 } : a
+                      )
+                    );
+                  } else {
                   // Trigger clamp recalculation (video intrinsic size becomes known).
-                  setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
+                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
+                  }
                 }}
                 onError={() => doneActivation(item.id)}
                 onStalled={() => doneActivation(item.id)}
