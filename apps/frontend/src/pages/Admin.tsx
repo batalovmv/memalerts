@@ -29,6 +29,32 @@ function SavingOverlay({ label }: { label: string }) {
   );
 }
 
+function SavedOverlay({ label }: { label: string }) {
+  return (
+    <div className="absolute inset-0 z-10 rounded-xl bg-white/45 dark:bg-gray-900/45 backdrop-blur-sm">
+      <div className="absolute inset-0 rounded-xl ring-1 ring-black/5 dark:ring-white/10" />
+      <div className="flex h-full w-full items-center justify-center p-4">
+        <div className="flex items-center gap-3 rounded-xl bg-white/85 dark:bg-gray-900/85 px-4 py-3 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500/15 text-green-600 dark:text-green-300">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+async function ensureMinDuration(startTs: number, minMs: number) {
+  const elapsed = Date.now() - startTs;
+  const remaining = minMs - elapsed;
+  if (remaining > 0) {
+    await new Promise((r) => setTimeout(r, remaining));
+  }
+}
+
 export default function Admin() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -711,6 +737,7 @@ function ObsLinksSettings() {
   const [overlayShowSender, setOverlayShowSender] = useState(false);
   const [loadingOverlaySettings, setLoadingOverlaySettings] = useState(false);
   const [savingOverlaySettings, setSavingOverlaySettings] = useState(false);
+  const [overlaySettingsSavedPulse, setOverlaySettingsSavedPulse] = useState(false);
   const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
   const overlaySettingsLoadedRef = useRef<string | null>(null);
   const lastSavedOverlaySettingsRef = useRef<string | null>(null);
@@ -816,6 +843,7 @@ function ObsLinksSettings() {
     if (saveOverlayTimerRef.current) clearTimeout(saveOverlayTimerRef.current);
     saveOverlayTimerRef.current = setTimeout(() => {
       void (async () => {
+        const startedAt = Date.now();
         try {
           setSavingOverlaySettings(true);
           const { api } = await import('../lib/api');
@@ -844,7 +872,11 @@ function ObsLinksSettings() {
           const apiError = error as { response?: { data?: { error?: string } } };
           toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
         } finally {
+          await ensureMinDuration(startedAt, 1000);
           setSavingOverlaySettings(false);
+          // Short confirmation pulse so user sees result (avoid relying on toasts).
+          setOverlaySettingsSavedPulse(true);
+          window.setTimeout(() => setOverlaySettingsSavedPulse(false), 700);
         }
       })();
     }, 250);
@@ -905,6 +937,9 @@ function ObsLinksSettings() {
 
         <div className="glass p-4 relative">
           {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+          {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && (
+            <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />
+          )}
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
             {t('admin.obsOverlaySettingsTitle')}
           </div>
@@ -1124,6 +1159,8 @@ function RewardsSettings() {
   });
   const [savingTwitchReward, setSavingTwitchReward] = useState(false);
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
+  const [twitchSavedPulse, setTwitchSavedPulse] = useState(false);
+  const [approvedSavedPulse, setApprovedSavedPulse] = useState(false);
   const saveTwitchTimerRef = useRef<number | null>(null);
   const saveApprovedTimerRef = useRef<number | null>(null);
   const lastSavedTwitchRef = useRef<string | null>(null);
@@ -1225,6 +1262,7 @@ function RewardsSettings() {
   }, [user?.channelId]);
 
   const handleSaveTwitchReward = async () => {
+    const startedAt = Date.now();
     setSavingTwitchReward(true);
     try {
       const { api } = await import('../lib/api');
@@ -1271,11 +1309,15 @@ function RewardsSettings() {
         }, 2000);
       }
     } finally {
+      await ensureMinDuration(startedAt, 1000);
       setSavingTwitchReward(false);
+      setTwitchSavedPulse(true);
+      window.setTimeout(() => setTwitchSavedPulse(false), 700);
     }
   };
 
   const handleSaveApprovedMemeReward = async () => {
+    const startedAt = Date.now();
     setSavingApprovedMemeReward(true);
     try {
       const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
@@ -1294,7 +1336,10 @@ function RewardsSettings() {
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
       toast.error(errorMessage);
     } finally {
+      await ensureMinDuration(startedAt, 1000);
       setSavingApprovedMemeReward(false);
+      setApprovedSavedPulse(true);
+      window.setTimeout(() => setApprovedSavedPulse(false), 700);
     }
   };
 
@@ -1370,6 +1415,7 @@ function RewardsSettings() {
         {/* Card A: Twitch reward (Channel Points -> coins) */}
         <div className="glass p-6 relative">
           {savingTwitchReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+          {twitchSavedPulse && !savingTwitchReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold dark:text-white mb-1">
@@ -1495,14 +1541,13 @@ function RewardsSettings() {
             </div>
           )}
 
-          <div className="mt-4 pt-4 text-xs text-gray-500 dark:text-gray-300">
-            {savingTwitchReward ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
-          </div>
+          {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
         </div>
 
         {/* Card B: Approved meme reward (coins) */}
         <div className="glass p-6 relative">
           {savingApprovedMemeReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+          {approvedSavedPulse && !savingApprovedMemeReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
           <div className="mb-4">
             <h3 className="text-lg font-semibold dark:text-white mb-1">
               {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
@@ -1538,9 +1583,7 @@ function RewardsSettings() {
             </p>
           </div>
 
-          <div className="mt-4 pt-4 text-xs text-gray-500 dark:text-gray-300">
-            {savingApprovedMemeReward ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
-          </div>
+          {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
         </div>
       </div>
     </div>
@@ -1559,6 +1602,7 @@ function ChannelSettings() {
     accentColor: '',
   });
   const [loading, setLoading] = useState(false);
+  const [savedPulse, setSavedPulse] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null); // Track which channel's settings were loaded
@@ -1650,6 +1694,7 @@ function ChannelSettings() {
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
       void (async () => {
+        const startedAt = Date.now();
         try {
           setLoading(true);
           const { api } = await import('../lib/api');
@@ -1663,7 +1708,10 @@ function ChannelSettings() {
           const apiError = error as { response?: { data?: { error?: string } } };
           toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings');
         } finally {
+          await ensureMinDuration(startedAt, 1000);
           setLoading(false);
+          setSavedPulse(true);
+          window.setTimeout(() => setSavedPulse(false), 700);
         }
       })();
     }, 350);
@@ -1688,6 +1736,7 @@ function ChannelSettings() {
   return (
     <div className="surface p-6 relative">
       {loading && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+      {savedPulse && !loading && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
 
       {/* Preferences */}
@@ -1826,9 +1875,7 @@ function ChannelSettings() {
           </p>
         </div>
 
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {loading ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
-        </div>
+        {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
       </div>
     </div>
   );
