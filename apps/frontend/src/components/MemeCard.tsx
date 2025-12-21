@@ -5,7 +5,7 @@ interface MemeCardProps {
   meme: Meme;
   onClick: () => void;
   isOwner?: boolean;
-  previewMode?: 'hoverWithSound' | 'autoplayMuted';
+  previewMode?: 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 }
 
 export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
@@ -151,7 +151,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       // When leaving, keep playing muted (so previous meme continues), and the newly hovered meme restarts.
       if (isHovered) {
         void video.play().catch(() => {});
-        video.muted = !hasUserInteracted;
+        video.muted = previewMode === 'hoverMuted' ? true : !hasUserInteracted;
       } else if (hasEverHovered) {
         video.muted = true;
         void video.play().catch(() => {});
@@ -218,7 +218,13 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           <video
             ref={videoRef}
             src={mediaUrl}
-            muted={previewMode === 'autoplayMuted' ? true : (!hasUserInteracted || !isHovered)}
+            muted={
+              previewMode === 'autoplayMuted'
+                ? true
+                : previewMode === 'hoverMuted'
+                  ? true
+                  : (!hasUserInteracted || !isHovered)
+            }
             autoPlay={previewMode === 'autoplayMuted'}
             loop
             playsInline

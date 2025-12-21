@@ -51,6 +51,20 @@ export default function MemeModal({
     }
   }, [meme]);
 
+  // Persist modal mute preference (separate from hover preview sound).
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const raw = window.localStorage.getItem('memalerts:memeModalMuted');
+      const nextMuted = raw === '1';
+      setIsMuted(nextMuted);
+      if (videoRef.current) videoRef.current.muted = nextMuted;
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentMeme?.id]);
+
   // Auto-play video when modal opens
   useEffect(() => {
     if (isOpen && videoRef.current && currentMeme) {
@@ -130,8 +144,14 @@ export default function MemeModal({
 
   const handleMute = () => {
     if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
+      const next = !isMuted;
+      videoRef.current.muted = next;
+      setIsMuted(next);
+      try {
+        window.localStorage.setItem('memalerts:memeModalMuted', next ? '1' : '0');
+      } catch {
+        // ignore
+      }
     }
   };
 
