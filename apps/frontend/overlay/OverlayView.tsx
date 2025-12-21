@@ -704,6 +704,7 @@ export default function OverlayView() {
             ...sizeClamp,
             top: '24px',
             left: '50%',
+            transformOrigin: 'top center',
             transform: `translateX(-50%) scale(${finalScale})`,
           };
         case 'bottom':
@@ -712,6 +713,7 @@ export default function OverlayView() {
             ...sizeClamp,
             bottom: '24px',
             left: '50%',
+            transformOrigin: 'bottom center',
             transform: `translateX(-50%) scale(${finalScale})`,
           };
         case 'top-left':
@@ -934,7 +936,7 @@ export default function OverlayView() {
               />
             )}
 
-            {item.type === 'video' && (
+            {(item.type === 'video' || item.type === 'webm') && (
               <video
                 src={getMediaUrl(item.fileUrl)}
                 autoPlay
