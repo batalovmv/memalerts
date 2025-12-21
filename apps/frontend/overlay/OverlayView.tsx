@@ -85,6 +85,8 @@ export default function OverlayView() {
   const position = (searchParams.get('position') || 'random').toLowerCase() as OverlayPosition;
   const volume = parseFloat(searchParams.get('volume') || '1');
   const demo = searchParams.get('demo') === '1';
+  const previewUrlParam = String(searchParams.get('previewUrl') || '').trim();
+  const previewTypeParam = String(searchParams.get('previewType') || '').trim().toLowerCase();
 
   // Appearance / animation params (iPhone-ish defaults).
   const radius = clampInt(parseInt(String(searchParams.get('radius') || ''), 10), 0, 48);
@@ -521,8 +523,8 @@ export default function OverlayView() {
     return {
       id: '__demo__',
       memeId: '__demo__',
-      type: 'demo',
-      fileUrl: '',
+      type: previewTypeParam || 'demo',
+      fileUrl: previewUrlParam || '',
       durationMs: 4000,
       title: 'DEMO',
       senderDisplayName: 'Viewer123',
@@ -530,7 +532,7 @@ export default function OverlayView() {
       xPct: 50,
       yPct: 50,
     };
-  }, [demo]);
+  }, [demo, previewTypeParam, previewUrlParam]);
 
   const renderItems = active.length > 0 ? active : demoItem ? [demoItem] : [];
   if (renderItems.length === 0) return null;

@@ -732,6 +732,8 @@ function ObsLinksSettings() {
 
   const [overlayToken, setOverlayToken] = useState<string>('');
   const [loadingToken, setLoadingToken] = useState(false);
+  const [previewMeme, setPreviewMeme] = useState<{ fileUrl: string; type: string; title?: string } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -833,6 +835,24 @@ function ObsLinksSettings() {
     };
   }, [channelSlug]);
 
+  const fetchPreviewMeme = useCallback(async () => {
+    try {
+      setLoadingPreview(true);
+      const { api } = await import('../lib/api');
+      const resp = await api.get<{ meme: null | { fileUrl: string; type: string; title?: string } }>('/admin/overlay/preview-meme');
+      setPreviewMeme(resp?.meme || null);
+    } catch {
+      setPreviewMeme(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!channelSlug) return;
+    void fetchPreviewMeme();
+  }, [channelSlug, fetchPreviewMeme]);
+
   useEffect(() => {
     loadOverlaySettings();
   }, [loadOverlaySettings]);
@@ -849,6 +869,8 @@ function ObsLinksSettings() {
     sp.set('pad', String(urlPad));
     sp.set('volume', String(urlVolume));
     sp.set('demo', '1');
+    if (previewMeme?.fileUrl) sp.set('previewUrl', previewMeme.fileUrl);
+    if (previewMeme?.type) sp.set('previewType', previewMeme.type);
     sp.set('radius', String(urlRadius));
     sp.set('shadow', String(urlShadow));
     sp.set('blur', String(urlBlur));
@@ -872,6 +894,8 @@ function ObsLinksSettings() {
     urlScale,
     urlShadow,
     urlVolume,
+    previewMeme?.fileUrl,
+    previewMeme?.type,
   ]);
 
   // Auto-save overlay settings (no explicit Save button).
@@ -1204,10 +1228,34 @@ function ObsLinksSettings() {
                   allow="autoplay"
                 />
               </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <div className="text-xs text-gray-600 dark:text-gray-300 min-w-0">
+                  {previewMeme?.title ? (
+                    <span className="truncate block">
+                      {t('admin.obsOverlayPreviewMeme', { defaultValue: 'Preview meme' })}: <span className="font-mono">{previewMeme.title}</span>
+                    </span>
+                  ) : (
+                    <span>
+                      {t('admin.obsOverlayLivePreviewHint', {
+                        defaultValue:
+                          'Preview uses a real random meme when available. Copy the URL above into OBS when ready.',
+                      })}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="glass-btn px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white disabled:opacity-60 shrink-0"
+                  disabled={loadingPreview || !overlayToken}
+                  onClick={() => void fetchPreviewMeme()}
+                >
+                  {loadingPreview ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Refresh' })}
+                </button>
+              </div>
               <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
                 {t('admin.obsOverlayLivePreviewHint', {
                   defaultValue:
-                    'Preview uses a DEMO card inside the overlay (no real memes needed). Copy the URL above into OBS when ready.',
+                    'Preview uses a real random meme when available (channel pool → your uploaded → global). Copy the URL above into OBS when ready.',
                 })}
               </div>
             </div>
