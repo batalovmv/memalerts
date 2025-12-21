@@ -12,6 +12,7 @@ import Admin from './pages/Admin';
 import Search from './pages/Search';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import BetaAccess from './pages/BetaAccess';
 import Footer from './components/Footer';
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
@@ -84,6 +85,7 @@ function App() {
             <Route path="/settings" element={<Admin />} />
             <Route path="/admin" element={<AdminRedirect />} />
             <Route path="/search" element={<Search />} />
+            <Route path="/beta-access" element={<BetaAccess />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
           </Routes>

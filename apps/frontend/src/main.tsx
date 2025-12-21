@@ -11,15 +11,23 @@ import { setApiBaseUrl } from './lib/api';
 import './i18n/config';
 import './index.css';
 
-console.log('[main.tsx] Script started', { timestamp: Date.now(), location: window.location.href });
+// In production we don't want any console noise in the browser.
+// Keep console.error intact for real issues.
+if (import.meta.env.PROD) {
+  // eslint-disable-next-line no-console
+  console.log = () => {};
+  // eslint-disable-next-line no-console
+  console.info = () => {};
+  // eslint-disable-next-line no-console
+  console.debug = () => {};
+  // eslint-disable-next-line no-console
+  console.warn = () => {};
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  console.error('[main.tsx] Root element not found');
   throw new Error('Root element not found');
 }
-
-console.log('[main.tsx] Root element found, creating root');
 
 async function bootstrap() {
   // Load runtime config first, so initial /me request uses correct origin (beta vs prod)
@@ -42,8 +50,6 @@ async function bootstrap() {
       </Provider>
     </StrictMode>,
   );
-
-  console.log('[main.tsx] Render completed');
 }
 
 bootstrap();

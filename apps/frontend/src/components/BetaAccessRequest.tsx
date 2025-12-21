@@ -24,15 +24,11 @@ export default function BetaAccessRequest() {
   const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
-      const startTime = Date.now();
       const response = await api.get<BetaAccessStatus>('/beta/status', {
         timeout: 10000, // 10 seconds timeout
       });
-      const duration = Date.now() - startTime;
-      console.log('[BetaAccessRequest] loadStatus completed', { hasAccess: response?.hasAccess, duration });
       setStatus(response);
     } catch (error) {
-      console.error('Error loading beta access status:', error);
     } finally {
       setLoading(false);
     }
@@ -49,13 +45,7 @@ export default function BetaAccessRequest() {
       setRequesting(true);
       await api.post('/beta/request');
       toast.success(t('toast.betaAccessRequested'));
-
-      // After submitting a request, redirect user to production to "wait" there.
-      // Beta should not be browsable without access.
-      const host = window.location.hostname;
-      const prodHost = host.startsWith('beta.') ? host.slice('beta.'.length) : host.replace('beta.', '');
-      const prodOrigin = `${window.location.protocol}//${prodHost}`;
-      window.location.href = `${prodOrigin}/`;
+      await loadStatus();
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToRequestBetaAccess'));

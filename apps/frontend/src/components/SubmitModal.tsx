@@ -111,7 +111,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           return;
         }
       } catch (error) {
-        console.warn('Could not check video duration on frontend, will validate on backend');
       }
 
       setLoading(true);

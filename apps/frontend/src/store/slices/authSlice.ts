@@ -18,11 +18,7 @@ export const fetchUser = createAsyncThunk<User, void, { rejectValue: ApiError }>
   'auth/fetchUser',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('[fetchUser] Making request to /me, baseURL:', api.defaults.baseURL, 'full URL:', api.defaults.baseURL + '/me');
-      const startTime = Date.now();
       const user = await api.get<User>('/me');
-      const duration = Date.now() - startTime;
-      console.log('[fetchUser] Response received:', user?.id, 'duration:', duration, 'ms');
       
       // If user has channelId, fetch channel info to get slug
       if (user.channelId) {
@@ -37,8 +33,6 @@ export const fetchUser = createAsyncThunk<User, void, { rejectValue: ApiError }>
       return user;
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: ApiError; status?: number }; message?: string };
-      console.error('[fetchUser] Error:', apiError.response?.status, apiError.response?.data, apiError.message);
-      console.error('[fetchUser] Request URL was:', api.defaults.baseURL + '/me');
       return rejectWithValue({
         message: apiError.response?.data?.message || 'Failed to fetch user',
         error: apiError.response?.data?.error,

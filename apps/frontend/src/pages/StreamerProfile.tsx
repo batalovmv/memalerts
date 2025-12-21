@@ -109,7 +109,6 @@ export default function StreamerProfile() {
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
         } catch (error) {
-          console.error('Error loading memes:', error);
           // Continue without memes - they can be loaded later
           setHasMore(false);
         } finally {
@@ -147,13 +146,11 @@ export default function StreamerProfile() {
                 });
               }
               // Don't show error for wallet - it's not critical for page display
-              console.warn('Failed to load wallet:', error);
             }
           }
         }
       } catch (error: unknown) {
         const apiError = error as { response?: { status?: number; data?: { error?: string } } };
-        console.error('Error loading channel:', error);
         if (apiError.response?.status === 404) {
           toast.error(t('toast.channelNotFound'));
           navigate('/');
@@ -199,7 +196,6 @@ export default function StreamerProfile() {
         setHasMore(false);
       }
     } catch (error) {
-      console.error('Error loading more memes:', error);
       setHasMore(false);
     } finally {
       setLoadingMore(false);
@@ -250,7 +246,6 @@ export default function StreamerProfile() {
         const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
         setSearchResults(memes);
       } catch (error: unknown) {
-        console.error('Search failed:', error);
         setSearchResults([]);
       } finally {
         setIsSearching(false);

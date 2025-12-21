@@ -38,6 +38,7 @@ export default function Admin() {
   const [rejectReason, setRejectReason] = useState('');
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
+  const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
 
   // Handle tab parameter from URL
   useEffect(() => {
@@ -56,6 +57,13 @@ export default function Admin() {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams, navigate]);
+
+  // Viewers should land on beta access tab in settings.
+  useEffect(() => {
+    if (user && !isStreamerAdmin && activeTab !== 'beta') {
+      setActiveTab('beta');
+    }
+  }, [user, isStreamerAdmin, activeTab]);
 
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
@@ -211,6 +219,7 @@ export default function Admin() {
         <div className="mb-6">
           <div className="flex gap-4 items-center border-b border-secondary/30">
             {/* Основные вкладки */}
+            {isStreamerAdmin && (
             <button
               onClick={() => setActiveTab('settings')}
               className={`pb-2 px-4 transition-colors ${
@@ -221,6 +230,8 @@ export default function Admin() {
             >
               {t('admin.channelDesign', 'Оформление')}
             </button>
+            )}
+            {isStreamerAdmin && (
             <button
               onClick={() => setActiveTab('rewards')}
               className={`pb-2 px-4 transition-colors ${
@@ -231,6 +242,8 @@ export default function Admin() {
             >
               {t('admin.rewards', 'Награды')}
             </button>
+            )}
+            {isStreamerAdmin && (
             <button
               onClick={() => setActiveTab('obs')}
               className={`pb-2 px-4 transition-colors ${
@@ -241,6 +254,7 @@ export default function Admin() {
             >
               {t('admin.obsLinks', { defaultValue: 'OBS' })}
             </button>
+            )}
 
             {/* Dropdown для дополнительных вкладок */}
             <div className="ml-auto relative">
@@ -297,36 +311,52 @@ export default function Admin() {
                     >
                       {t('admin.promotions')}
                     </button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+
                     {user?.role === 'admin' && (
-                      <>
-                        <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                        <button
-                          onClick={() => {
-                            setActiveTab('wallets');
-                            setIsMoreMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                            activeTab === 'wallets'
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          {t('admin.walletManagement')}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setActiveTab('beta');
-                            setIsMoreMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                            activeTab === 'beta'
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          {t('admin.betaAccess')}
-                        </button>
-                      </>
+                      <button
+                        onClick={() => {
+                          setActiveTab('wallets');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          activeTab === 'wallets'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {t('admin.walletManagement')}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setActiveTab('beta');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        activeTab === 'beta'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {t('admin.betaAccess')}
+                    </button>
+
+                    {isStreamerAdmin && (
+                      <button
+                        onClick={() => {
+                          setActiveTab('wallets');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          activeTab === 'wallets'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {t('admin.walletManagement')}
+                      </button>
                     )}
                   </div>
                 </>
@@ -540,15 +570,15 @@ export default function Admin() {
           </div>
         )}
 
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && isStreamerAdmin && (
           <ChannelSettings />
         )}
 
-        {activeTab === 'rewards' && (
+        {activeTab === 'rewards' && isStreamerAdmin && (
           <RewardsSettings />
         )}
 
-        {activeTab === 'obs' && (
+        {activeTab === 'obs' && isStreamerAdmin && (
           <ObsLinksSettings />
         )}
 
@@ -564,11 +594,90 @@ export default function Admin() {
           <ChannelStatistics />
         )}
 
-        {activeTab === 'beta' && user?.role === 'admin' && (
-          <BetaAccessManagement />
+        {activeTab === 'beta' && (
+          user?.role === 'admin' ? <BetaAccessManagement /> : <BetaAccessSelf />
         )}
       </main>
     </div>
+  );
+}
+
+function BetaAccessSelf() {
+  const { t } = useTranslation();
+  const { user } = useAppSelector((s) => s.auth);
+  const [loading, setLoading] = useState(true);
+  const [requesting, setRequesting] = useState(false);
+  const [status, setStatus] = useState<{ hasAccess: boolean; request: { status: string } | null } | null>(null);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const res = await api.get<{ hasAccess: boolean; request: { status: string } | null }>('/beta/status', { timeout: 10000 });
+      setStatus(res);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const request = async () => {
+    setRequesting(true);
+    try {
+      await api.post('/beta/request');
+      await load();
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const requestStatus = status?.request?.status;
+
+  return (
+    <section className="surface p-6">
+      <h2 className="text-2xl font-bold dark:text-white">{t('admin.betaAccess')}</h2>
+      <p className="mt-2 text-gray-700 dark:text-gray-200">
+        {t('betaAccess.pageDescription', { defaultValue: 'Beta is for testing new features. You can request access below.' })}
+      </p>
+
+      {loading ? (
+        <div className="mt-6 text-gray-600 dark:text-gray-300">{t('common.loading')}</div>
+      ) : status?.hasAccess ? (
+        <div className="mt-6 glass p-4 flex items-center gap-3 text-gray-900 dark:text-white">
+          <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div className="font-semibold">{t('betaAccess.hasAccess', { defaultValue: 'You already have beta access.' })}</div>
+        </div>
+      ) : requestStatus === 'pending' ? (
+        <div className="mt-6 glass p-4 text-gray-900 dark:text-white">
+          <div className="font-semibold">{t('betaAccess.pending')}</div>
+        </div>
+      ) : requestStatus === 'revoked' ? (
+        <div className="mt-6 glass p-4 text-gray-900 dark:text-white">
+          <div className="font-semibold">{t('betaAccess.blacklistedTitle', { defaultValue: 'Access denied' })}</div>
+          <div className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+            {t('betaAccess.blacklistedDescription', { defaultValue: 'Sorry, you cannot get beta access because you are on the blacklist.' })}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 glass p-4">
+          <button
+            type="button"
+            onClick={request}
+            disabled={requesting}
+            className="glass-btn px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white disabled:opacity-60"
+          >
+            {requesting ? t('common.loading') : t('betaAccess.requestButton')}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -705,11 +814,9 @@ function ObsLinksSettings() {
 
           // Explicit confirmation for the user.
           if (lastChangeRef.current === 'mode') {
-            toast.success(
-              overlayMode === 'queue'
-                ? t('admin.obsOverlayModeSavedQueue', { defaultValue: 'Mode updated: Queue' })
-                : t('admin.obsOverlayModeSavedUnlimited', { defaultValue: 'Mode updated: Unlimited' })
-            );
+            toast.success(overlayMode === 'queue'
+              ? t('admin.obsOverlayModeSavedQueue')
+              : t('admin.obsOverlayModeSavedUnlimited'));
           } else if (lastChangeRef.current === 'sender') {
             toast.success(
               overlayShowSender
@@ -783,13 +890,13 @@ function ObsLinksSettings() {
 
         <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
-            {t('admin.obsOverlaySettingsTitle', { defaultValue: 'Overlay settings' })}
+            {t('admin.obsOverlaySettingsTitle')}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
+                {t('admin.obsOverlayMode')}
               </label>
               <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
                 <button
@@ -984,6 +1091,8 @@ function RewardsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { getChannelData, getCachedChannelData } = useChannelColors();
+  const [twitchRewardEligible, setTwitchRewardEligible] = useState<boolean | null>(null);
+  const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [rewardSettings, setRewardSettings] = useState({
     rewardIdForCoins: '',
     rewardEnabled: false,
@@ -1055,7 +1164,6 @@ function RewardsSettings() {
         });
       }
     } catch (error) {
-      console.error('Failed to load reward settings:', error);
       settingsLoadedRef.current = null;
     }
   }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
@@ -1067,6 +1175,28 @@ function RewardsSettings() {
       settingsLoadedRef.current = null;
     }
   }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
+
+  // Check Twitch reward eligibility (affiliate/partner) to hide/disable reward UI.
+  useEffect(() => {
+    if (!user?.channelId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setEligibilityLoading(true);
+        const { api } = await import('../lib/api');
+        const res = await api.get<{ eligible: boolean }>('/admin/twitch/reward/eligibility', { timeout: 15000 });
+        if (cancelled) return;
+        setTwitchRewardEligible(!!res?.eligible);
+      } catch {
+        if (!cancelled) setTwitchRewardEligible(null);
+      } finally {
+        if (!cancelled) setEligibilityLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.channelId]);
 
   const handleSaveTwitchReward = async () => {
     setSavingTwitchReward(true);
@@ -1088,9 +1218,20 @@ function RewardsSettings() {
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
       });
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
-      toast.error(errorMessage);
+      const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+      const code = apiError.response?.data?.errorCode;
+      const raw = apiError.response?.data?.error || '';
+
+      if (code === 'TWITCH_REWARD_NOT_AVAILABLE' || raw.includes("doesn't have partner") || raw.includes('affiliate')) {
+        toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
+        // Ensure UI doesn't stay enabled after a failed enable attempt.
+        setRewardSettings((p) => ({ ...p, rewardEnabled: false }));
+      } else if (code === 'REWARD_COST_COINS_REQUIRED' || raw.includes('Reward cost and coins are required')) {
+        toast.error(t('admin.rewardCostCoinsRequired', { defaultValue: 'Reward cost and coins are required.' }));
+      } else {
+        const errorMessage = raw || t('admin.failedToSaveSettings') || 'Failed to save settings';
+        toast.error(errorMessage);
+      }
 
       if (apiError.response?.data && typeof apiError.response.data === 'object' && 'requiresReauth' in apiError.response.data) {
         setTimeout(() => {
@@ -1206,12 +1347,24 @@ function RewardsSettings() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t('admin.twitchCoinsRewardDescription', 'Зритель тратит Channel Points на Twitch и получает монеты на сайте.')}
               </p>
+              {twitchRewardEligible === false && (
+                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  {t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' })}
+                </p>
+              )}
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={rewardSettings.rewardEnabled}
-                onChange={(e) => setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked })}
+                disabled={eligibilityLoading || twitchRewardEligible === false}
+                onChange={(e) => {
+                  if (twitchRewardEligible === false) {
+                    toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
+                    return;
+                  }
+                  setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked });
+                }}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
@@ -1421,7 +1574,6 @@ function ChannelSettings() {
         });
       }
     } catch (error) {
-      console.error('Failed to load settings:', error);
       settingsLoadedRef.current = null; // Reset on error to allow retry
     }
   }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
@@ -2088,7 +2240,6 @@ function BetaAccessManagement() {
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       requestsLoadedRef.current = false; // Reset on error to allow retry
-      console.error('Error loading beta access requests:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setLoading(false);
@@ -2106,7 +2257,6 @@ function BetaAccessManagement() {
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       grantedLoadedRef.current = false; // Reset on error to allow retry
-      console.error('Error loading granted beta users:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setGrantedLoading(false);
@@ -2124,7 +2274,6 @@ function BetaAccessManagement() {
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       revokedLoadedRef.current = false; // Reset on error to allow retry
-      console.error('Error loading revoked beta users:', error);
       toast.error(apiError.response?.data?.error || t('toast.failedToLoad'));
     } finally {
       setRevokedLoading(false);

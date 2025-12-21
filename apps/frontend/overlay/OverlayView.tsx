@@ -131,7 +131,6 @@ export default function OverlayView() {
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to server');
       if (overlayToken) {
         newSocket.emit('join:overlay', { token: overlayToken });
       } else if (slug) {
@@ -148,7 +147,6 @@ export default function OverlayView() {
     });
 
     newSocket.on('activation:new', (activation: Activation) => {
-      console.log('New activation:', activation);
       setQueue((prev) => [
         ...prev,
         {

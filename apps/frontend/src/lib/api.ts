@@ -55,10 +55,8 @@ const getApiUrl = () => {
   if (envUrl !== undefined) {
     if (envUrl === '') {
       // Empty string means use relative URLs - return empty string for axios baseURL
-      console.log('[API] Using relative URLs (empty VITE_API_URL), current origin:', window.location.origin);
       return '';
     }
-    console.log('[API] Using VITE_API_URL from env:', envUrl);
     return envUrl;
   }
   
@@ -67,18 +65,15 @@ const getApiUrl = () => {
   // This ensures beta frontend uses beta API, production uses production API
   if (import.meta.env.PROD) {
     const relativeUrl = '';
-    console.log('[API] Using relative URL (same origin):', relativeUrl, 'Current origin:', window.location.origin);
     return relativeUrl;
   }
   
   // In development, use localhost
   const devUrl = 'http://localhost:3001';
-  console.log('[API] Using dev URL:', devUrl);
   return devUrl;
 };
 
 const apiBaseUrl = getApiUrl();
-console.log('[API] Final baseURL:', apiBaseUrl, 'Current origin:', window.location.origin);
 
 // Create base axios instance
 const axiosInstance: AxiosInstance = axios.create({
@@ -93,7 +88,6 @@ const axiosInstance: AxiosInstance = axios.create({
  */
 export function setApiBaseUrl(baseURL: string): void {
   axiosInstance.defaults.baseURL = baseURL;
-  console.log('[API] Runtime baseURL override:', baseURL, 'Current origin:', window.location.origin);
 }
 
 // Wrap axios instance with request deduplication
@@ -122,10 +116,8 @@ export const api: CustomAxiosInstance = {
         .catch((error: unknown) => {
           // Remove from pending on error
           pendingRequests.delete(requestKey);
-          // Log timeout errors
           const err = error as { isTimeout?: boolean; code?: string };
           if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-            console.error('[API] Request timeout:', config.url, config.method);
           }
           throw error;
         });
@@ -147,10 +139,8 @@ export const api: CustomAxiosInstance = {
     return axiosInstance.request<unknown>(requestConfig)
       .then((response: AxiosResponse<unknown>) => response.data as T)
       .catch((error: unknown) => {
-        // Log timeout errors
         const err = error as { isTimeout?: boolean; code?: string };
         if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-          console.error('[API] Request timeout:', requestConfig.url, requestConfig.method);
         }
         throw error;
       });
@@ -174,10 +164,8 @@ export const api: CustomAxiosInstance = {
       })
       .catch((error: unknown) => {
         pendingRequests.delete(requestKey);
-        // Log timeout errors
         const err = error as { isTimeout?: boolean; code?: string };
         if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-          console.error('[API] Request timeout:', requestConfig.url, requestConfig.method);
         }
         throw error;
       });
@@ -207,10 +195,8 @@ export const api: CustomAxiosInstance = {
     return axiosInstance.post<T>(url, data, requestConfig)
       .then(response => response.data as T)
       .catch((error: unknown) => {
-        // Log timeout errors
         const err = error as { isTimeout?: boolean; code?: string };
         if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-          console.error('[API] Request timeout:', url, 'POST');
         }
         throw error;
       });
@@ -233,7 +219,6 @@ axiosInstance.interceptors.response.use(
   (error: AxiosError) => {
     // Handle timeout errors
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      console.error('[API] Request timeout:', error.config?.url, error.config?.method);
       const timeoutError: Error & { isTimeout?: boolean; config?: AxiosRequestConfig } =
         new Error('Request timeout - the server took too long to respond');
       timeoutError.isTimeout = true;
