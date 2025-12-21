@@ -48,9 +48,22 @@ export const adminController = {
 
     try {
       const info = await getChannelInformation(userId, channel.twitchChannelId);
+      // If Twitch returns no data (null), treat as "unknown" instead of "not eligible".
+      if (!info) {
+        return res.json({
+          eligible: null,
+          broadcasterType: null,
+          checkedBroadcasterId: channel.twitchChannelId,
+          reason: 'TWITCH_CHANNEL_INFO_NOT_FOUND',
+        });
+      }
       const bt = String(info?.broadcaster_type || '').toLowerCase();
       const eligible = bt === 'affiliate' || bt === 'partner';
-      return res.json({ eligible, broadcasterType: bt || null });
+      return res.json({
+        eligible,
+        broadcasterType: bt || null,
+        checkedBroadcasterId: channel.twitchChannelId,
+      });
     } catch (e: any) {
       return res.status(502).json({
         error: e?.message || 'Failed to check Twitch channel eligibility',
