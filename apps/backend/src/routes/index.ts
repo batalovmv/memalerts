@@ -114,11 +114,9 @@ export function setupRoutes(app: Express) {
         /^\/channels\/[^\/]+$/.test(req.path) ||
         /^\/channels\/[^\/]+\/wallet$/.test(req.path) ||
         /^\/channels\/[^\/]+\/memes$/.test(req.path) ||
-        // Keep public endpoints on production only (beta should be gated)
-        (!isBeta && (req.path.startsWith('/channels/memes/search') ||
-          req.path === '/memes/stats' ||
-          /^\/channels\/[^\/]+$/.test(req.path) ||
-          /^\/channels\/[^\/]+\/wallet$/.test(req.path)));
+        // These endpoints are handled explicitly below (prod: public; beta: auth+beta access)
+        req.path.startsWith('/channels/memes/search') ||
+        req.path === '/memes/stats';
     if (isSkipped) {
       return next();
     }
@@ -154,10 +152,29 @@ export function setupRoutes(app: Express) {
     }
     return viewerController.getChannelMemesPublic(req as AuthRequest, res);
   });
-  // Public search endpoint (optionally uses auth to enable "favorites"/uploader search)
-  app.get('/channels/memes/search', optionalAuthenticate, viewerController.searchMemes);
-  // Public stats endpoint (optionally uses auth to exclude "self" from viewer stats)
-  app.get('/memes/stats', optionalAuthenticate, viewerController.getMemeStats);
+  // Search endpoint:
+  // - Production: public (optionally uses auth to enable "favorites"/uploader search)
+  // - Beta: gated (auth + requireBetaAccess), because beta is not public
+  app.get('/channels/memes/search', (req, res) => {
+    if (isBetaDomain(req)) {
+      return authenticate(req as AuthRequest, res, () =>
+        requireBetaAccess(req as AuthRequest, res, () => viewerController.searchMemes(req as any, res))
+      );
+    }
+    return optionalAuthenticate(req as AuthRequest, res, () => viewerController.searchMemes(req as any, res));
+  });
+
+  // Stats endpoint:
+  // - Production: public (optionally uses auth to exclude "self" from viewer stats)
+  // - Beta: gated (auth + requireBetaAccess)
+  app.get('/memes/stats', (req, res) => {
+    if (isBetaDomain(req)) {
+      return authenticate(req as AuthRequest, res, () =>
+        requireBetaAccess(req as AuthRequest, res, () => viewerController.getMemeStats(req as any, res))
+      );
+    }
+    return optionalAuthenticate(req as AuthRequest, res, () => viewerController.getMemeStats(req as any, res));
+  });
   // Activation is a user-paid action (wallet) and must be authenticated everywhere.
   // On beta, it is additionally gated by requireBetaAccess.
   app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);
