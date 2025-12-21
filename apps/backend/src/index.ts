@@ -13,6 +13,18 @@ import { globalLimiter } from './middleware/rateLimit.js';
 
 dotenv.config();
 
+// In production, remove console noise (keep console.error for real issues).
+if (process.env.NODE_ENV === 'production') {
+  // eslint-disable-next-line no-console
+  console.log = () => {};
+  // eslint-disable-next-line no-console
+  console.info = () => {};
+  // eslint-disable-next-line no-console
+  console.debug = () => {};
+  // eslint-disable-next-line no-console
+  console.warn = () => {};
+}
+
 const app = express();
 const httpServer = createServer(app);
 // Get allowed origins from env or use defaults
