@@ -681,6 +681,11 @@ export const viewerController = {
       where.channelId = targetChannelId;
     }
 
+    // Stats are meant to reflect viewer behavior; exclude "self" when authenticated (e.g. streamer viewing own stats).
+    if (req.userId) {
+      where.userId = { not: req.userId };
+    }
+
     // Get meme statistics
     const activations = await prisma.memeActivation.groupBy({
       by: ['memeId'],

@@ -156,7 +156,8 @@ export function setupRoutes(app: Express) {
   });
   // Public search endpoint (optionally uses auth to enable "favorites"/uploader search)
   app.get('/channels/memes/search', optionalAuthenticate, viewerController.searchMemes);
-  app.get('/memes/stats', viewerController.getMemeStats); // Public stats endpoint
+  // Public stats endpoint (optionally uses auth to exclude "self" from viewer stats)
+  app.get('/memes/stats', optionalAuthenticate, viewerController.getMemeStats);
   // Activation is a user-paid action (wallet) and must be authenticated everywhere.
   // On beta, it is additionally gated by requireBetaAccess.
   app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);
