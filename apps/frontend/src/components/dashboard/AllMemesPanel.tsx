@@ -31,6 +31,20 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
 
   const limit = 40;
 
+  // Remove deleted memes immediately (no refresh) when MemeModal deletes one.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ memeId?: string; channelId?: string }>;
+      const memeId = ce.detail?.memeId;
+      const deletedChannelId = ce.detail?.channelId;
+      if (!memeId) return;
+      if (deletedChannelId && deletedChannelId !== channelId) return;
+      setMemes((prev) => prev.filter((m) => m.id !== memeId));
+    };
+    window.addEventListener('memalerts:memeDeleted', handler as EventListener);
+    return () => window.removeEventListener('memalerts:memeDeleted', handler as EventListener);
+  }, [channelId]);
+
   const paramsBase = useMemo(() => {
     const params = new URLSearchParams();
     params.set('channelId', channelId);

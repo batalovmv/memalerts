@@ -152,3 +152,4 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
 **Полная версия:** [UX_IMPLEMENTATION_GUIDE.md](./UX_IMPLEMENTATION_GUIDE.md)
 
+

@@ -68,6 +68,7 @@
     "shareLinkDescription": "Share this link so others can submit memes and activate them on your channel!",
     "viewPublicProfile": "View Public Profile",
     "noChannel": "You don't have a channel yet. Create one to start using the platform.",
+    "allMemesTitle": "All memes",
     "quickActions": {
       "submitMeme": "Submit Meme",
       "submitMemeDescription": "Add a meme directly to your pool",
@@ -120,6 +121,7 @@
     }
   },
   "admin": {
+    "more": "More",
     "activityLast14Days": "Activity (last 14 days)",
     "noActivityYet": "No activity yet.",
     "dailyActivations": "Daily activations",

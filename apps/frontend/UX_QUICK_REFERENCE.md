@@ -189,3 +189,4 @@ Expected effect: [Что улучшилось]
 
 **Полная версия:** См. [UX_GUIDELINES.md](./UX_GUIDELINES.md)
 
+

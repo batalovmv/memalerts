@@ -236,8 +236,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="relative glass rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-pop-in">
           {/* Header */}
-          <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-white/20 dark:border-white/10 px-6 py-4 flex justify-between items-center">
-            <h2 className="text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
+          <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-white/20 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl sm:text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -250,10 +250,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {/* Mode selector */}
-            <div className="mb-6 glass p-4">
-              <div className="flex gap-4">
+            <div className="mb-6 glass p-3 sm:p-4">
+              <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setMode('upload')}
@@ -370,10 +370,13 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                 </div>
               )}
 
-              <div className="glass p-4">
-                <p className="text-sm text-gray-800 dark:text-gray-200">
-                  <strong>{t('submitModal.whatHappensNext')}</strong>{' '}
-                  {t('submitModal.approvalProcess')}
+              <div className="glass p-3 sm:p-4">
+                <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                  <strong>{t('submitModal.whatHappensNext', { defaultValue: 'What happens next?' })}</strong>{' '}
+                  {t('submitModal.approvalProcess', {
+                    defaultValue:
+                      'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.',
+                  })}
                 </p>
               </div>
               

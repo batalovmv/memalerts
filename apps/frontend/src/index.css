@@ -117,6 +117,15 @@ body {
   column-gap: 5px;     /* horizontal spacing between columns (match reference) */
 }
 
+/* Mobile: force exactly 2 columns so cards don't become "full screen" wide */
+@media (max-width: 640px) {
+  .meme-masonry {
+    column-count: 2;
+    column-width: auto;
+    column-gap: 8px;
+  }
+}
+
 @layer components {
   /*
     Modern surfaces:

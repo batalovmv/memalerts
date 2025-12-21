@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const { autoplayMemesEnabled } = useAutoplayMemes();
+  const submissionsPanelRef = useRef<HTMLDivElement | null>(null);
+  const memesPanelRef = useRef<HTMLDivElement | null>(null);
 
   const panel = (searchParams.get('panel') || '').toLowerCase();
   const tab = (searchParams.get('tab') || '').toLowerCase();
@@ -52,9 +54,25 @@ export default function Dashboard() {
     setSearchParams(nextParams, { replace });
   };
 
+  const scrollToPanelIfMobile = (next: 'submissions' | 'memes') => {
+    const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    if (!isMobile) return;
+    const target = next === 'submissions' ? submissionsPanelRef.current : memesPanelRef.current;
+    if (!target) return;
+    requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  // When panel is opened via URL (e.g. from Header bell), auto-scroll on mobile.
+  useEffect(() => {
+    if (panel === 'submissions') scrollToPanelIfMobile('submissions');
+    if (panel === 'memes') scrollToPanelIfMobile('memes');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel]);
+
   useEffect(() => {
     if (!authLoading && !user) {
-      console.log('[Dashboard] No user, redirecting to /', { authLoading, user });
       navigate('/');
     }
   }, [user, authLoading, navigate]);
@@ -185,7 +203,11 @@ export default function Dashboard() {
                   {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
                 </p>
                 <button
-                  onClick={() => setPanel(panel === 'submissions' ? null : 'submissions')}
+                  onClick={() => {
+                    const next = panel === 'submissions' ? null : 'submissions';
+                    if (next) scrollToPanelIfMobile('submissions');
+                    setPanel(next);
+                  }}
                   className={`mt-auto w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
                     panel === 'submissions'
                       ? 'bg-red-600 hover:bg-red-700 text-white'
@@ -215,7 +237,11 @@ export default function Dashboard() {
                   {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
                 </p>
                 <button
-                  onClick={() => setPanel(panel === 'memes' ? null : 'memes')}
+                  onClick={() => {
+                    const next = panel === 'memes' ? null : 'memes';
+                    if (next) scrollToPanelIfMobile('memes');
+                    setPanel(next);
+                  }}
                   className={`mt-auto w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
                     panel === 'memes'
                       ? 'bg-primary hover:bg-secondary text-white'
@@ -250,60 +276,47 @@ export default function Dashboard() {
                   panel === 'submissions' || panel === 'memes' ? 'max-h-[4000px] opacity-100' : 'max-h-0 opacity-0'
                 }`}
               >
-                <PendingSubmissionsPanel
-                  isOpen={panel === 'submissions'}
-                  submissions={submissions}
-                  submissionsLoading={submissionsLoading}
-                  submissionsLoadingMore={submissionsLoadingMore}
-                  pendingCount={pendingSubmissionsCount}
-                  total={submissionsTotal}
-                  onClose={() => setPanel(null)}
-                  onLoadMore={() => {
-                    const offset = submissions.length;
-                    // If we know total and already loaded everything, skip.
-                    if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
-                    dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
-                  }}
-                  onApprove={(submissionId) => {
-                    setApproveModal({ open: true, submissionId });
-                    setPriceCoins('100');
-                  }}
-                  onReject={(submissionId) => {
-                    setRejectModal({ open: true, submissionId });
-                    setRejectReason('');
-                  }}
-                />
+                <div ref={submissionsPanelRef}>
+                  <PendingSubmissionsPanel
+                    isOpen={panel === 'submissions'}
+                    submissions={submissions}
+                    submissionsLoading={submissionsLoading}
+                    submissionsLoadingMore={submissionsLoadingMore}
+                    pendingCount={pendingSubmissionsCount}
+                    total={submissionsTotal}
+                    onClose={() => setPanel(null)}
+                    onLoadMore={() => {
+                      const offset = submissions.length;
+                      // If we know total and already loaded everything, skip.
+                      if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
+                      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
+                    }}
+                    onApprove={(submissionId) => {
+                      setApproveModal({ open: true, submissionId });
+                      setPriceCoins('100');
+                    }}
+                    onReject={(submissionId) => {
+                      setRejectModal({ open: true, submissionId });
+                      setRejectReason('');
+                    }}
+                  />
+                </div>
 
-                <AllMemesPanel
-                  isOpen={panel === 'memes'}
-                  channelId={user.channelId}
-                  autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
-                  onClose={() => setPanel(null)}
-                  onSelectMeme={(meme) => {
-                    setSelectedMeme(meme);
-                    setIsMemeModalOpen(true);
-                  }}
-                />
+                <div ref={memesPanelRef}>
+                  <AllMemesPanel
+                    isOpen={panel === 'memes'}
+                    channelId={user.channelId}
+                    autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
+                    onClose={() => setPanel(null)}
+                    onSelectMeme={(meme) => {
+                      setSelectedMeme(meme);
+                      setIsMemeModalOpen(true);
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Additional Actions */}
-            <div className="mb-6 flex flex-wrap gap-4">
-              <button
-                onClick={() => {
-                  if (user.channel?.slug) {
-                    navigate(`/channel/${user.channel.slug}`);
-                  }
-                }}
-                className="inline-flex items-center gap-2 bg-white/70 dark:bg-gray-900/40 hover:bg-white dark:hover:bg-gray-900/60 text-gray-900 dark:text-white font-semibold py-3 px-5 rounded-xl transition-colors shadow-sm"
-              >
-                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                {t('dashboard.viewPublicProfile')}
-              </button>
-            </div>
           </>
         ) : (
           <div className="surface p-6">

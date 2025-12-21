@@ -66,10 +66,6 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
-  const handleBetaAccess = () => {
-    navigate('/settings?tab=beta');
-    setIsOpen(false);
-  };
 
   // Determine displayed role based on context
   // Show "streamer" only when viewing own profile, "viewer" when viewing someone else's profile
@@ -150,13 +146,6 @@ export default function UserMenu() {
 
           {/* Menu items */}
           <div className="py-1">
-            <button
-              onClick={handleBetaAccess}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              {t('userMenu.betaAccess', { defaultValue: 'Beta access' })}
-            </button>
-
             <button
               onClick={handleSettings}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

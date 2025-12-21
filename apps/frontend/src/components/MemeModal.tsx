@@ -37,6 +37,7 @@ export default function MemeModal({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Update currentMeme when meme prop changes
@@ -167,6 +168,7 @@ export default function MemeModal({
   };
 
   const handleDelete = () => {
+    setDeleteReason('');
     setShowDeleteConfirm(true);
   };
 
@@ -176,7 +178,17 @@ export default function MemeModal({
     setLoading(true);
     try {
       await api.delete(`/admin/memes/${currentMeme.id}`);
-      toast.success('Meme deleted successfully!');
+      toast.success(t('memeModal.deleted', { defaultValue: 'Meme deleted successfully!' }));
+      // Optimistically remove from any open lists (dashboard/public) without a full refresh.
+      try {
+        window.dispatchEvent(
+          new CustomEvent('memalerts:memeDeleted', {
+            detail: { memeId: currentMeme.id, channelId: currentMeme.channelId },
+          })
+        );
+      } catch {
+        // ignore (older browsers / non-DOM environments)
+      }
       setShowDeleteConfirm(false);
       onUpdate();
       onClose();
@@ -476,17 +488,36 @@ export default function MemeModal({
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={confirmDelete}
-        title="Delete Meme"
+        title={t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
         message={
           <div>
             <p className="mb-2">
-              Are you sure you want to delete <strong>&quot;{currentMeme?.title}&quot;</strong>?
+              {t('memeModal.deleteConfirm', {
+                defaultValue: 'Are you sure you want to delete "{{title}}"?',
+                title: currentMeme?.title || '',
+              })}
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('memeModal.deleteWarning', { defaultValue: 'This action cannot be undone.' })}
+            </p>
+
+            {/* Optional reason (nice-to-have for streamers) */}
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                {t('memeModal.deleteReasonLabel', { defaultValue: 'Reason (optional)' })}
+              </label>
+              <textarea
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder={t('memeModal.deleteReasonPlaceholder', { defaultValue: 'Write a short note… (optional)' })}
+              />
+            </div>
           </div>
         }
-        confirmText="Delete"
-        cancelText="Cancel"
+        confirmText={t('common.delete', { defaultValue: 'Delete' })}
+        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
         confirmButtonClass="bg-red-600 hover:bg-red-700"
         isLoading={loading}
       />

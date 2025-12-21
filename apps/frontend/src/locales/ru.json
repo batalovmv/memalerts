@@ -68,6 +68,7 @@
     "shareLinkDescription": "Поделитесь этой ссылкой, чтобы другие могли отправлять мемы и активировать их на вашем канале!",
     "viewPublicProfile": "Просмотр публичного профиля",
     "noChannel": "У вас пока нет канала. Создайте его, чтобы начать использовать платформу.",
+    "allMemesTitle": "Все мемы",
     "quickActions": {
       "submitMeme": "Отправить мем",
       "submitMemeDescription": "Добавьте мем напрямую в ваш пул",
@@ -115,9 +116,9 @@
   "search": {
     "sortNewest": "Сначала новые",
     "sortOldest": "Сначала старые",
-    "sortPopular": "Популярные",
+    "sortPopular": "Популярные (30д)",
     "scopeContent": "Поиск: название + теги",
-    "scopeContentUploader": "Поиск: название + теги + ник загрузившего",
+    "scopeContentUploader": "Поиск: название + теги + ник автора",
     "myFavorites": "Мои любимые"
   },
   "meme": {
@@ -128,6 +129,7 @@
     }
   },
   "admin": {
+    "more": "Ещё",
     "activityLast14Days": "Активность (последние 14 дней)",
     "noActivityYet": "Пока нет активности.",
     "dailyActivations": "Активации по дням",

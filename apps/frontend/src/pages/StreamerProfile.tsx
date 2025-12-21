@@ -63,6 +63,18 @@ export default function StreamerProfile() {
   const [searchQuery, setSearchQuery] = useState('');
   const [myFavorites, setMyFavorites] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  // Remove deleted memes immediately (no refresh) when streamer deletes from dashboard.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ memeId?: string }>;
+      const memeId = ce.detail?.memeId;
+      if (!memeId) return;
+      setMemes((prev) => prev.filter((m) => m.id !== memeId));
+    };
+    window.addEventListener('memalerts:memeDeleted', handler as EventListener);
+    return () => window.removeEventListener('memalerts:memeDeleted', handler as EventListener);
+  }, []);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);

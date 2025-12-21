@@ -36,27 +36,27 @@ export default function ConfirmDialog({
       aria-labelledby="confirm-dialog-title"
     >
       <div
-        className="glass rounded-2xl shadow-2xl max-w-md w-full p-6 modal-pop-in"
+        className="glass rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 modal-pop-in"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2 id="confirm-dialog-title" className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        <h2 id="confirm-dialog-title" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
           {title}
         </h2>
-        <div className="text-gray-700 dark:text-gray-300 mb-6">
+        <div className="text-gray-700 dark:text-gray-300 mb-4 sm:mb-6">
           {message}
         </div>
-        <div className="flex gap-3 justify-end">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className={`px-4 py-2 rounded-lg text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed ${confirmButtonClass}`}
+            className={`w-full sm:w-auto px-4 py-2.5 rounded-lg text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed ${confirmButtonClass}`}
           >
             {isLoading ? 'Processing...' : confirmText}
           </button>
