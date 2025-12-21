@@ -573,26 +573,49 @@ export default function OverlayView() {
           a = { ...a, fitScale: nextFit };
         }
 
-        // Coordinate clamping: for random we clamp center; for anchored modes we still want
-        // a safety net for extreme media (we'll render via xPx/yPx if needed).
+        // Coordinate clamping:
+        // - for random: keep random center but clamp it into the safe area
+        // - for anchored modes: compute an anchored center and clamp it into the safe area.
+        // We render via xPx/yPx when set, which guarantees "never off-screen".
 
         // Predict the size after nextFit is applied, then clamp center based on that size.
         const effectiveW = baseW * nextFit;
         const effectiveH = baseH * nextFit;
-        const centerX = Number.isFinite(a?.xPx) ? Number(a.xPx) : rect.left + rect.width / 2;
-        const centerY = Number.isFinite(a?.yPx) ? Number(a.yPx) : rect.top + rect.height / 2;
+        const currentCenterX = Number.isFinite(a?.xPx) ? Number(a.xPx) : rect.left + rect.width / 2;
+        const currentCenterY = Number.isFinite(a?.yPx) ? Number(a.yPx) : rect.top + rect.height / 2;
 
         const minX = padL + effectiveW / 2;
         const maxX = vw - padR - effectiveW / 2;
         const minY = padT + effectiveH / 2;
         const maxY = vh - padB - effectiveH / 2;
 
+        const defaultX =
+          resolvedPosition === 'top-left' || resolvedPosition === 'bottom-left'
+            ? padL + effectiveW / 2
+            : resolvedPosition === 'top-right' || resolvedPosition === 'bottom-right'
+              ? vw - padR - effectiveW / 2
+              : vw / 2;
+        const defaultY =
+          resolvedPosition === 'top' || resolvedPosition === 'top-left' || resolvedPosition === 'top-right'
+            ? padT + effectiveH / 2
+            : resolvedPosition === 'bottom' || resolvedPosition === 'bottom-left' || resolvedPosition === 'bottom-right'
+              ? vh - padB - effectiveH / 2
+              : vh / 2;
+
+        const desiredX = resolvedPosition === 'random' ? currentCenterX : defaultX;
+        const desiredY = resolvedPosition === 'random' ? currentCenterY : defaultY;
+
         // If the item is larger than available space even after fitting, fall back to center.
-        const safeX = minX > maxX ? vw / 2 : Math.min(maxX, Math.max(minX, centerX));
-        const safeY = minY > maxY ? vh / 2 : Math.min(maxY, Math.max(minY, centerY));
+        const safeX = minX > maxX ? vw / 2 : Math.min(maxX, Math.max(minX, desiredX));
+        const safeY = minY > maxY ? vh / 2 : Math.min(maxY, Math.max(minY, desiredY));
 
         // Only update if we are actually out of bounds by more than 1px.
-        if (Math.abs(safeX - centerX) > 1 || Math.abs(safeY - centerY) > 1) {
+        if (
+          !Number.isFinite(a?.xPx) ||
+          !Number.isFinite(a?.yPx) ||
+          Math.abs(safeX - currentCenterX) > 1 ||
+          Math.abs(safeY - currentCenterY) > 1
+        ) {
           changed = true;
           return { ...a, xPx: safeX, yPx: safeY };
         }
