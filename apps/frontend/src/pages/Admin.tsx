@@ -758,11 +758,20 @@ function ObsLinksSettings() {
   const [scaleMin, setScaleMin] = useState<number>(0.7);
   const [scaleMax, setScaleMax] = useState<number>(1);
   const [urlRadius, setUrlRadius] = useState<number>(20);
-  const [urlShadow, setUrlShadow] = useState<number>(70);
-  const [urlShadowAngle, setUrlShadowAngle] = useState<number>(90);
   const [urlBlur, setUrlBlur] = useState<number>(6);
   const [urlBorder, setUrlBorder] = useState<number>(2);
+  // Border
+  const [borderMode, setBorderMode] = useState<'solid' | 'gradient'>('solid');
   const [urlBorderColor, setUrlBorderColor] = useState<string>('#ffffff');
+  const [urlBorderColor2, setUrlBorderColor2] = useState<string>('#00e5ff');
+  const [urlBorderGradientAngle, setUrlBorderGradientAngle] = useState<number>(135);
+  // Shadow (back-compat: previous "Shadow" slider maps to shadowBlur)
+  const [shadowBlur, setShadowBlur] = useState<number>(70);
+  const [shadowSpread, setShadowSpread] = useState<number>(0);
+  const [shadowDistance, setShadowDistance] = useState<number>(22);
+  const [shadowAngle, setShadowAngle] = useState<number>(90);
+  const [shadowOpacity, setShadowOpacity] = useState<number>(0.6);
+  const [shadowColor, setShadowColor] = useState<string>('#000000');
   const [urlBgOpacity, setUrlBgOpacity] = useState<number>(0.18);
   const [urlAnim, setUrlAnim] = useState<'fade' | 'zoom' | 'slide-up' | 'none'>('fade');
   // Slightly slower "Apple-ish" defaults (less snappy, more premium).
@@ -823,11 +832,24 @@ function ObsLinksSettings() {
         const nextScaleMin = typeof styleFromServer?.scaleMin === 'number' ? styleFromServer.scaleMin : scaleMin;
         const nextScaleMax = typeof styleFromServer?.scaleMax === 'number' ? styleFromServer.scaleMax : scaleMax;
         const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : urlRadius;
-        const nextShadow = typeof styleFromServer?.shadow === 'number' ? styleFromServer.shadow : urlShadow;
-        const nextShadowAngle = typeof styleFromServer?.shadowAngle === 'number' ? styleFromServer.shadowAngle : urlShadowAngle;
+        const nextShadowBlur = typeof styleFromServer?.shadowBlur === 'number'
+          ? styleFromServer.shadowBlur
+          : typeof styleFromServer?.shadow === 'number'
+            ? styleFromServer.shadow
+            : shadowBlur;
+        const nextShadowSpread = typeof styleFromServer?.shadowSpread === 'number' ? styleFromServer.shadowSpread : shadowSpread;
+        const nextShadowDistance = typeof styleFromServer?.shadowDistance === 'number' ? styleFromServer.shadowDistance : shadowDistance;
+        const nextShadowAngle = typeof styleFromServer?.shadowAngle === 'number' ? styleFromServer.shadowAngle : shadowAngle;
+        const nextShadowOpacity = typeof styleFromServer?.shadowOpacity === 'number' ? styleFromServer.shadowOpacity : shadowOpacity;
+        const nextShadowColor = typeof styleFromServer?.shadowColor === 'string' ? styleFromServer.shadowColor : shadowColor;
         const nextBlur = typeof styleFromServer?.blur === 'number' ? styleFromServer.blur : urlBlur;
         const nextBorder = typeof styleFromServer?.border === 'number' ? styleFromServer.border : urlBorder;
+        const nextBorderMode: 'solid' | 'gradient' = styleFromServer?.borderMode === 'gradient' ? 'gradient' : 'solid';
         const nextBorderColor = typeof styleFromServer?.borderColor === 'string' ? styleFromServer.borderColor : urlBorderColor;
+        const nextBorderColor2 = typeof styleFromServer?.borderColor2 === 'string' ? styleFromServer.borderColor2 : urlBorderColor2;
+        const nextBorderGradientAngle = typeof styleFromServer?.borderGradientAngle === 'number'
+          ? styleFromServer.borderGradientAngle
+          : urlBorderGradientAngle;
         const nextBgOpacity = typeof styleFromServer?.bgOpacity === 'number' ? styleFromServer.bgOpacity : urlBgOpacity;
         const nextAnim = styleFromServer?.anim ?? urlAnim;
         const nextEnterMs = typeof styleFromServer?.enterMs === 'number' ? styleFromServer.enterMs : urlEnterMs;
@@ -843,11 +865,18 @@ function ObsLinksSettings() {
         setScaleMin(nextScaleMin);
         setScaleMax(nextScaleMax);
         setUrlRadius(nextRadius);
-        setUrlShadow(nextShadow);
-        setUrlShadowAngle(nextShadowAngle);
+        setShadowBlur(nextShadowBlur);
+        setShadowSpread(nextShadowSpread);
+        setShadowDistance(nextShadowDistance);
+        setShadowAngle(nextShadowAngle);
+        setShadowOpacity(nextShadowOpacity);
+        setShadowColor(nextShadowColor);
         setUrlBlur(nextBlur);
         setUrlBorder(nextBorder);
+        setBorderMode(nextBorderMode);
         setUrlBorderColor(nextBorderColor);
+        setUrlBorderColor2(nextBorderColor2);
+        setUrlBorderGradientAngle(nextBorderGradientAngle);
         setUrlBgOpacity(nextBgOpacity);
         setUrlAnim(nextAnim);
         setUrlEnterMs(nextEnterMs);
@@ -865,11 +894,18 @@ function ObsLinksSettings() {
           scaleMin: nextScaleMin,
           scaleMax: nextScaleMax,
           radius: nextRadius,
-          shadow: nextShadow,
+          shadowBlur: nextShadowBlur,
+          shadowSpread: nextShadowSpread,
+          shadowDistance: nextShadowDistance,
           shadowAngle: nextShadowAngle,
+          shadowOpacity: nextShadowOpacity,
+          shadowColor: nextShadowColor,
           blur: nextBlur,
           border: nextBorder,
+          borderMode: nextBorderMode,
           borderColor: nextBorderColor,
+          borderColor2: nextBorderColor2,
+          borderGradientAngle: nextBorderGradientAngle,
           bgOpacity: nextBgOpacity,
           anim: nextAnim,
           enterMs: nextEnterMs,
@@ -963,11 +999,18 @@ function ObsLinksSettings() {
     u.searchParams.set('enterMs', String(urlEnterMs));
     u.searchParams.set('exitMs', String(urlExitMs));
     u.searchParams.set('radius', String(urlRadius));
-    u.searchParams.set('shadow', String(urlShadow));
-    u.searchParams.set('shadowAngle', String(urlShadowAngle));
+    u.searchParams.set('shadowBlur', String(shadowBlur));
+    u.searchParams.set('shadowSpread', String(shadowSpread));
+    u.searchParams.set('shadowDistance', String(shadowDistance));
+    u.searchParams.set('shadowAngle', String(shadowAngle));
+    u.searchParams.set('shadowOpacity', String(shadowOpacity));
+    u.searchParams.set('shadowColor', String(shadowColor));
     u.searchParams.set('blur', String(urlBlur));
     u.searchParams.set('border', String(urlBorder));
+    u.searchParams.set('borderMode', borderMode);
     u.searchParams.set('borderColor', String(urlBorderColor));
+    u.searchParams.set('borderColor2', String(urlBorderColor2));
+    u.searchParams.set('borderGradientAngle', String(urlBorderGradientAngle));
     u.searchParams.set('bgOpacity', String(urlBgOpacity));
     u.searchParams.set('senderFontSize', String(senderFontSize));
     u.searchParams.set('senderFontWeight', String(senderFontWeight));
@@ -1013,7 +1056,12 @@ function ObsLinksSettings() {
     urlExitMs,
     urlPosition,
     urlRadius,
-    urlShadow,
+    shadowAngle,
+    shadowBlur,
+    shadowColor,
+    shadowDistance,
+    shadowOpacity,
+    shadowSpread,
     urlVolume,
   ]);
 
@@ -1024,6 +1072,13 @@ function ObsLinksSettings() {
     const t = window.setTimeout(() => setDebouncedPreviewUrl(next), 350);
     return () => window.clearTimeout(t);
   }, [overlayPreviewUrl]);
+
+  // Apply instantly for "discrete" controls where users expect immediate feedback (e.g. color pickers).
+  useEffect(() => {
+    if (!overlayPreviewUrl) return;
+    setDebouncedPreviewUrl(overlayPreviewUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlBorderColor, urlBorderColor2, urlBorderGradientAngle, borderMode, shadowColor]);
 
   const animSpeedPct = useMemo(() => {
     const slow = 800;
@@ -1057,11 +1112,18 @@ function ObsLinksSettings() {
       scaleMin,
       scaleMax,
       radius: urlRadius,
-      shadow: urlShadow,
-      shadowAngle: urlShadowAngle,
+      shadowBlur,
+      shadowSpread,
+      shadowDistance,
+      shadowAngle,
+      shadowOpacity,
+      shadowColor,
       blur: urlBlur,
       border: urlBorder,
+      borderMode,
       borderColor: urlBorderColor,
+      borderColor2: urlBorderColor2,
+      borderGradientAngle: urlBorderGradientAngle,
       bgOpacity: urlBgOpacity,
       anim: urlAnim,
       enterMs: urlEnterMs,
@@ -1137,7 +1199,15 @@ function ObsLinksSettings() {
     scaleMin,
     scaleMax,
     urlRadius,
-    urlShadow,
+    shadowBlur,
+    shadowSpread,
+    shadowDistance,
+    shadowAngle,
+    shadowOpacity,
+    shadowColor,
+    borderMode,
+    urlBorderColor2,
+    urlBorderGradientAngle,
     urlBlur,
     urlBorder,
     urlBgOpacity,
@@ -1466,15 +1536,15 @@ function ObsLinksSettings() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadow', { defaultValue: 'Shadow' })}: <span className="font-mono">{urlShadow}</span>
+                  {t('admin.obsOverlayShadow', { defaultValue: 'Shadow' })}: <span className="font-mono">{shadowBlur}</span>
                 </label>
                 <input
                   type="range"
                   min={0}
                   max={200}
                   step={2}
-                  value={urlShadow}
-                  onChange={(e) => setUrlShadow(parseInt(e.target.value, 10))}
+                  value={shadowBlur}
+                  onChange={(e) => setShadowBlur(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
               </div>
@@ -1482,17 +1552,81 @@ function ObsLinksSettings() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayShadowAngle', { defaultValue: 'Shadow direction' })}:{' '}
-                  <span className="font-mono">{Math.round(urlShadowAngle)}°</span>
+                  <span className="font-mono">{Math.round(shadowAngle)}°</span>
                 </label>
                 <input
                   type="range"
                   min={0}
                   max={360}
                   step={1}
-                  value={urlShadowAngle}
-                  onChange={(e) => setUrlShadowAngle(parseInt(e.target.value, 10))}
+                  value={shadowAngle}
+                  onChange={(e) => setShadowAngle(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowDistance', { defaultValue: 'Shadow distance' })}:{' '}
+                  <span className="font-mono">{shadowDistance}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={shadowDistance}
+                  onChange={(e) => setShadowDistance(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowSpread', { defaultValue: 'Shadow spread' })}:{' '}
+                  <span className="font-mono">{shadowSpread}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={shadowSpread}
+                  onChange={(e) => setShadowSpread(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowOpacity', { defaultValue: 'Shadow opacity' })}:{' '}
+                  <span className="font-mono">{Math.round(shadowOpacity * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.02}
+                  value={shadowOpacity}
+                  onChange={(e) => setShadowOpacity(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowColor', { defaultValue: 'Shadow color' })}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={shadowColor}
+                    onChange={(e) => setShadowColor(String(e.target.value || '').toLowerCase())}
+                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                    aria-label={t('admin.obsOverlayShadowColor', { defaultValue: 'Shadow color' })}
+                  />
+                  <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{shadowColor}</div>
+                </div>
               </div>
 
               <div>
@@ -1529,17 +1663,61 @@ function ObsLinksSettings() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <select
+                    value={borderMode}
+                    onChange={(e) => setBorderMode(e.target.value as any)}
+                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    aria-label={t('admin.obsOverlayBorderMode', { defaultValue: 'Border mode' })}
+                  >
+                    <option value="solid">{t('admin.obsOverlayBorderModeSolid', { defaultValue: 'Solid' })}</option>
+                    <option value="gradient">{t('admin.obsOverlayBorderModeGradient', { defaultValue: 'Gradient' })}</option>
+                  </select>
                   <input
                     type="color"
                     value={urlBorderColor}
-                    onChange={(e) => setUrlBorderColor(e.target.value)}
+                    onChange={(e) => setUrlBorderColor(String(e.target.value || '').toLowerCase())}
                     className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
                     aria-label={t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
                   />
                   <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{urlBorderColor}</div>
                 </div>
               </div>
+
+              {borderMode === 'gradient' && (
+                <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayBorderColor2', { defaultValue: 'Gradient color 2' })}
+                      </label>
+                      <input
+                        type="color"
+                        value={urlBorderColor2}
+                        onChange={(e) => setUrlBorderColor2(String(e.target.value || '').toLowerCase())}
+                        className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                        aria-label={t('admin.obsOverlayBorderColor2', { defaultValue: 'Gradient color 2' })}
+                      />
+                      <div className="text-xs text-gray-600 dark:text-gray-300 font-mono mt-1">{urlBorderColor2}</div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayBorderGradientAngle', { defaultValue: 'Gradient angle' })}:{' '}
+                        <span className="font-mono">{Math.round(urlBorderGradientAngle)}°</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        step={1}
+                        value={urlBorderGradientAngle}
+                        onChange={(e) => setUrlBorderGradientAngle(parseInt(e.target.value, 10))}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -1557,6 +1735,7 @@ function ObsLinksSettings() {
                 />
               </div>
 
+              {overlayShowSender && (
               <div className="md:col-span-2">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
                   {t('admin.obsOverlaySenderTypography', { defaultValue: 'Sender label' })}
@@ -1609,6 +1788,7 @@ function ObsLinksSettings() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
 
             <div className="pt-2">

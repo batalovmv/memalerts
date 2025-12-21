@@ -72,6 +72,11 @@ function isHexColor(v: string): boolean {
   return /^#([0-9a-fA-F]{6})$/.test(v);
 }
 
+function clampAlpha(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+
 type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'none';
 
 export default function OverlayView() {
@@ -131,12 +136,24 @@ export default function OverlayView() {
   }, [config.overlayStyleJson]);
 
   const radius = clampInt(parseInt(String(searchParams.get('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 80);
-  const shadow = clampInt(parseInt(String(searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 200);
+  // Shadow params (back-compat: `shadow` = blur)
+  const shadowBlur = clampInt(parseInt(String(searchParams.get('shadowBlur') || (parsedStyle as any)?.shadowBlur || searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 240);
+  const shadowSpread = clampInt(parseInt(String(searchParams.get('shadowSpread') || (parsedStyle as any)?.shadowSpread || ''), 10), 0, 120);
+  const shadowDistance = clampInt(parseInt(String(searchParams.get('shadowDistance') || (parsedStyle as any)?.shadowDistance || ''), 10), 0, 120);
   const shadowAngle = clampDeg(parseFloat(String(searchParams.get('shadowAngle') || (parsedStyle as any)?.shadowAngle || '')));
+  const shadowOpacity = clampAlpha(parseFloat(String(searchParams.get('shadowOpacity') || (parsedStyle as any)?.shadowOpacity || '0.60')), 0, 1);
+  const shadowColorRaw = String(searchParams.get('shadowColor') || (parsedStyle as any)?.shadowColor || '').trim();
+  const shadowColor = isHexColor(shadowColorRaw) ? shadowColorRaw : '#000000';
   const blur = clampInt(parseInt(String(searchParams.get('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 40);
   const border = clampInt(parseInt(String(searchParams.get('border') || (parsedStyle as any)?.border || ''), 10), 0, 12);
+
+  const borderModeRaw = String(searchParams.get('borderMode') || (parsedStyle as any)?.borderMode || 'solid').trim().toLowerCase();
+  const borderMode: 'solid' | 'gradient' = borderModeRaw === 'gradient' ? 'gradient' : 'solid';
   const borderColorRaw = String(searchParams.get('borderColor') || (parsedStyle as any)?.borderColor || '').trim();
   const borderColor = isHexColor(borderColorRaw) ? borderColorRaw : '#FFFFFF';
+  const borderColor2Raw = String(searchParams.get('borderColor2') || (parsedStyle as any)?.borderColor2 || '').trim();
+  const borderColor2 = isHexColor(borderColor2Raw) ? borderColor2Raw : '#00E5FF';
+  const borderGradientAngle = clampDeg(parseFloat(String(searchParams.get('borderGradientAngle') || (parsedStyle as any)?.borderGradientAngle || '135')));
   const bgOpacity = clampFloat(parseFloat(String(searchParams.get('bgOpacity') || (parsedStyle as any)?.bgOpacity || '')), 0, 0.65);
   const anim = (String(searchParams.get('anim') || (parsedStyle as any)?.anim || 'fade').toLowerCase() as OverlayAnim) || 'fade';
   const enterMs = clampInt(parseInt(String(searchParams.get('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
@@ -496,7 +513,8 @@ export default function OverlayView() {
 
         const availW = Math.max(1, vw - padL - padR);
         const availH = Math.max(1, vh - padT - padB);
-        const fit = Math.min(1, availW / rect.width, availH / rect.height);
+        // Safety factor to avoid 1px rounding/scrollbar issues leaving the element barely out of bounds.
+        const fit = Math.min(1, (availW / rect.width) * 0.985, (availH / rect.height) * 0.985);
         const nextFit = clampFloat(fit, 0.25, 1);
         if (!Number.isFinite(a.fitScale) || Math.abs((a.fitScale ?? 1) - nextFit) > 0.01) {
           changed = true;
@@ -678,26 +696,48 @@ export default function OverlayView() {
     [resolvedPosition, safeScale]
   );
 
+  const borderWrapStyle = useMemo<React.CSSProperties>(() => {
+    const w = border || 0;
+    if (w <= 0) {
+      return {
+        borderRadius: radius || 20,
+        padding: 0,
+        background: 'transparent',
+      };
+    }
+    const bg =
+      borderMode === 'gradient'
+        ? `linear-gradient(${borderGradientAngle}deg, ${borderColor}, ${borderColor2})`
+        : borderColor;
+    return {
+      borderRadius: radius || 20,
+      padding: w,
+      background: bg,
+    };
+  }, [border, borderColor, borderColor2, borderGradientAngle, borderMode, radius]);
+
   const cardStyle = useMemo<React.CSSProperties>(() => {
     const effectiveRadius = radius || 20;
-    const effectiveShadow = shadow || 70;
     const effectiveBlur = blur || 6;
-    const effectiveBorder = border || 2;
     const effectiveBgOpacity = Number.isFinite(bgOpacity) ? bgOpacity : 0.18;
-    // Shadow direction (angle). Keep distance constant (designers usually tune blur more than distance here).
-    const distance = 22;
+    // Shadow direction (angle).
+    const distance = Number.isFinite(shadowDistance) && shadowDistance > 0 ? shadowDistance : 22;
     const rad = (shadowAngle * Math.PI) / 180;
     const offX = Math.round(Math.cos(rad) * distance);
     const offY = Math.round(Math.sin(rad) * distance);
+    const shadowR = parseInt(shadowColor.slice(1, 3), 16);
+    const shadowG = parseInt(shadowColor.slice(3, 5), 16);
+    const shadowB = parseInt(shadowColor.slice(5, 7), 16);
+    const shadowRgba = `rgba(${shadowR},${shadowG},${shadowB},${shadowOpacity})`;
     // Premium/Apple-ish defaults: a bit slower and smoother.
     const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 420;
     const effectiveExitMs = Number.isFinite(exitMs) ? exitMs : 320;
     return {
-      borderRadius: effectiveRadius,
+      // Inner radius accounts for border padding wrapper.
+      borderRadius: Math.max(0, effectiveRadius - (border || 0)),
       overflow: 'hidden',
-      border: `${effectiveBorder}px solid ${borderColor}`,
       outline: '1px solid rgba(0,0,0,0.35)',
-      boxShadow: `${offX}px ${offY}px ${effectiveShadow}px rgba(0,0,0,0.60)`,
+      boxShadow: `${offX}px ${offY}px ${shadowBlur}px ${shadowSpread}px ${shadowRgba}`,
       // Stronger "glass" feel: add subtle light highlights + saturate.
       background: `linear-gradient(135deg, rgba(255,255,255,0.20), rgba(255,255,255,0.04)), rgba(0,0,0,${effectiveBgOpacity})`,
       backdropFilter: `blur(${effectiveBlur}px) saturate(1.35)`,
@@ -713,7 +753,21 @@ export default function OverlayView() {
               ? `memalertsSlideUp ${Math.max(0, effectiveEnterMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`
               : `memalertsFadeIn ${Math.max(0, effectiveEnterMs)}ms ease`,
     };
-  }, [anim, bgOpacity, blur, border, borderColor, enterMs, exitMs, radius, shadow, shadowAngle]);
+  }, [
+    anim,
+    bgOpacity,
+    blur,
+    border,
+    enterMs,
+    exitMs,
+    radius,
+    shadowAngle,
+    shadowBlur,
+    shadowColor,
+    shadowDistance,
+    shadowOpacity,
+    shadowSpread,
+  ]);
 
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
@@ -784,22 +838,23 @@ export default function OverlayView() {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-            <div
-              style={{
-                ...cardStyle,
-                opacity: item.isExiting ? 0 : 1,
-                transform:
-                  anim === 'zoom'
-                    ? item.isExiting
-                      ? 'scale(0.96)'
-                      : undefined
-                    : anim === 'slide-up'
+            <div style={borderWrapStyle}>
+              <div
+                style={{
+                  ...cardStyle,
+                  opacity: item.isExiting ? 0 : 1,
+                  transform:
+                    anim === 'zoom'
                       ? item.isExiting
-                        ? 'translateY(14px) scale(0.99)'
+                        ? 'scale(0.96)'
                         : undefined
-                      : undefined,
-              }}
-            >
+                      : anim === 'slide-up'
+                        ? item.isExiting
+                          ? 'translateY(14px) scale(0.99)'
+                          : undefined
+                        : undefined,
+                }}
+              >
             {(item.type === 'image' || item.type === 'gif') && (
               <img
                 src={getMediaUrl(item.fileUrl)}
@@ -883,6 +938,7 @@ export default function OverlayView() {
               </div>
             )}
 
+              </div>
             </div>
 
             {config.overlayShowSender && item.senderDisplayName && (
