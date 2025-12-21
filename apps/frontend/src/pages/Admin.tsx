@@ -1035,7 +1035,9 @@ function WalletManagement() {
   const [wallets, setWallets] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [adjusting, setAdjusting] = useState<string | null>(null);
-  const [adjustAmount, setAdjustAmount] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('');
+  const [adjustAmount, setAdjustAmount] = useState<string>('');
   const walletsLoadedRef = useRef(false);
 
   const fetchWallets = useCallback(async () => {
@@ -1060,8 +1062,77 @@ function WalletManagement() {
     fetchWallets();
   }, [fetchWallets]);
 
+  const normalize = (v: string) => String(v || '').trim().toLowerCase();
+
+  const rows = wallets as Array<{
+    id: string;
+    userId: string;
+    channelId: string;
+    balance: number;
+    user: { id: string; displayName: string; twitchUserId?: string | null };
+    channel: { id: string; name: string; slug: string };
+  }>;
+
+  const users = Array.from(
+    new Map(
+      rows.map((w) => [
+        w.userId,
+        { id: w.userId, displayName: w.user?.displayName || w.userId },
+      ])
+    ).values()
+  ).sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  const channels = Array.from(
+    new Map(
+      rows.map((w) => [
+        w.channelId,
+        { id: w.channelId, name: w.channel?.name || w.channelId, slug: w.channel?.slug || '' },
+      ])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  const selectedUser = users.find((u) => u.id === selectedUserId) || null;
+  const selectedChannel = channels.find((c) => c.id === selectedChannelId) || null;
+
+  const isSelfUnlimitedPair = (w: { user: { displayName: string }; channel: { name: string; slug: string } }) => {
+    const u = normalize(w.user?.displayName);
+    const cName = normalize(w.channel?.name);
+    const cSlug = normalize(w.channel?.slug);
+    return !!u && (u === cName || u === cSlug);
+  };
+
+  const candidatePairsForUser = selectedUserId
+    ? rows
+        .filter((w) => w.userId === selectedUserId)
+        .filter((w) => !isSelfUnlimitedPair(w))
+        .sort((a, b) => (a.channel?.name || '').localeCompare(b.channel?.name || ''))
+    : [];
+
+  // Keep selection sane when data changes.
+  useEffect(() => {
+    if (!selectedUserId && users.length > 0) {
+      setSelectedUserId(users[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users.length]);
+
+  useEffect(() => {
+    if (!selectedUserId) return;
+    const stillValid = candidatePairsForUser.some((p) => p.channelId === selectedChannelId);
+    if (!stillValid) {
+      setSelectedChannelId(candidatePairsForUser[0]?.channelId || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUserId, wallets.length]);
+
+  const selectedPair =
+    selectedUserId && selectedChannelId
+      ? rows.find((w) => w.userId === selectedUserId && w.channelId === selectedChannelId) || null
+      : null;
+
   const handleAdjust = async (userId: string, channelId: string) => {
-    const amount = parseInt(adjustAmount, 10);
+    const raw = adjustAmount.trim();
+    const amount = parseInt(raw, 10);
     if (isNaN(amount) || amount === 0) {
       toast.error(t('admin.enterAmount'));
       return;
@@ -1090,49 +1161,156 @@ function WalletManagement() {
     <div className="space-y-4">
       <div className="surface p-6">
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.walletManagement')}</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                <th className="p-2">{t('admin.user')}</th>
-                <th className="p-2">{t('admin.channel') || 'Channel'}</th>
-                <th className="p-2">{t('admin.balance') || 'Balance'}</th>
-                <th className="p-2">{t('common.actions') || 'Actions'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wallets.map((wallet) => {
-                const w = wallet as { id: string; userId: string; channelId: string; balance: number; user: { displayName: string }; channel: { name: string } };
-                return (
-                <tr key={w.id} className="border-t border-gray-200/70 dark:border-white/10">
-                  <td className="p-2 dark:text-gray-100">{w.user.displayName}</td>
-                  <td className="p-2 dark:text-gray-100">{w.channel.name}</td>
-                  <td className="p-2 font-bold dark:text-white">{w.balance} coins</td>
-                  <td className="p-2">
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="number"
-                        value={adjusting === `${w.userId}-${w.channelId}` ? adjustAmount : ''}
-                        onChange={(e) => setAdjustAmount(e.target.value)}
-                        placeholder={t('admin.amount')}
-                        className="w-24 rounded px-2 py-1 text-sm bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                        disabled={adjusting !== null && adjusting !== `${w.userId}-${w.channelId}`}
-                      />
-                      <button
-                        onClick={() => handleAdjust(w.userId, w.channelId)}
-                        disabled={adjusting !== null}
-                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
-                      >
-                        {adjusting === `${w.userId}-${w.channelId}` ? t('admin.adjusting') : t('admin.adjust')}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+              {t('admin.user')}
+            </div>
+            <select
+              value={selectedUserId}
+              onChange={(e) => {
+                setSelectedUserId(e.target.value);
+                setAdjustAmount('');
+              }}
+              className="w-full rounded-xl px-3 py-2 bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+              {t('admin.channel') || 'Channel'}
+            </div>
+            <select
+              value={selectedChannelId}
+              onChange={(e) => {
+                setSelectedChannelId(e.target.value);
+                setAdjustAmount('');
+              }}
+              className="w-full rounded-xl px-3 py-2 bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              disabled={!selectedUserId || candidatePairsForUser.length === 0}
+            >
+              {candidatePairsForUser.length === 0 ? (
+                <option value="">
+                  {selectedUserId
+                    ? t('admin.noWallets', { defaultValue: 'No wallets found' })
+                    : t('admin.loadingWallets', { defaultValue: 'Loading wallets...' })}
+                </option>
+              ) : (
+                candidatePairsForUser.map((p) => (
+                  <option key={p.channelId} value={p.channelId}>
+                    {p.channel?.name || p.channelId}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
         </div>
+
+        <div className="mt-4 glass p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="text-sm text-gray-800 dark:text-gray-100">
+              <div className="font-semibold">
+                {(selectedUser?.displayName || '') && (selectedChannel?.name || '')
+                  ? `${selectedUser?.displayName} → ${selectedChannel?.name}`
+                  : t('admin.walletManagement')}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                {selectedPair
+                  ? `${t('admin.balance') || 'Balance'}: ${selectedPair.balance} coins`
+                  : t('admin.noWallets', { defaultValue: 'No wallets found' })}
+              </div>
+              {(selectedUser && selectedChannel) && (
+                <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.walletHint', { defaultValue: 'Tip: choose a viewer and a streamer channel — streamer self-wallets are hidden (unlimited).' })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 items-center">
+              <input
+                inputMode="numeric"
+                pattern="^-?\\d*$"
+                value={adjustAmount}
+                onChange={(e) => {
+                  // Allow typing '-' and digits; prevent browser stepping behavior and keep UX stable.
+                  const v = e.target.value;
+                  if (/^-?\d*$/.test(v)) setAdjustAmount(v);
+                }}
+                placeholder={t('admin.amount')}
+                className="w-28 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                disabled={!selectedPair || adjusting !== null}
+              />
+              <button
+                onClick={() => selectedPair && handleAdjust(selectedPair.userId, selectedPair.channelId)}
+                disabled={!selectedPair || adjusting !== null}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-xl text-sm"
+              >
+                {adjusting ? t('admin.adjusting') : t('admin.adjust')}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              className="rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/15 px-3 py-2 text-xs text-gray-800 dark:text-gray-100"
+              disabled={!selectedPair || adjusting !== null}
+              onClick={() => setAdjustAmount((p) => String((parseInt(p || '0', 10) || 0) + 100))}
+            >
+              +100
+            </button>
+            <button
+              type="button"
+              className="rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/15 px-3 py-2 text-xs text-gray-800 dark:text-gray-100"
+              disabled={!selectedPair || adjusting !== null}
+              onClick={() => setAdjustAmount((p) => String((parseInt(p || '0', 10) || 0) + 1000))}
+            >
+              +1000
+            </button>
+            <button
+              type="button"
+              className="rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/15 px-3 py-2 text-xs text-gray-800 dark:text-gray-100"
+              disabled={!selectedPair || adjusting !== null}
+              onClick={() => setAdjustAmount('')}
+            >
+              {t('common.clear', { defaultValue: 'Clear' })}
+            </button>
+          </div>
+        </div>
+
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-200">
+            {t('admin.allWallets', { defaultValue: 'All wallets (advanced)' })}
+          </summary>
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="p-2">{t('admin.user')}</th>
+                  <th className="p-2">{t('admin.channel') || 'Channel'}</th>
+                  <th className="p-2">{t('admin.balance') || 'Balance'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows
+                  .filter((w) => !isSelfUnlimitedPair(w))
+                  .map((w) => (
+                    <tr key={w.id} className="border-t border-gray-200/70 dark:border-white/10">
+                      <td className="p-2 dark:text-gray-100">{w.user.displayName}</td>
+                      <td className="p-2 dark:text-gray-100">{w.channel.name}</td>
+                      <td className="p-2 font-bold dark:text-white">{w.balance} coins</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
         {wallets.length === 0 && (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('admin.noWallets')}</div>
         )}
