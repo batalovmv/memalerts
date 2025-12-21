@@ -192,6 +192,23 @@ body {
   .modal-pop-in {
     animation: modalPopIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+
+  /* iOS safe-area helpers (prevents bottom buttons from colliding with the home indicator) */
+  .pb-safe {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+  .pt-safe {
+    padding-top: calc(1rem + env(safe-area-inset-top));
+  }
+
+  /* Hide scrollbar (keep scroll via touch) */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; /* Firefox */
+  }
 }
 
 @keyframes modalBackdropIn {

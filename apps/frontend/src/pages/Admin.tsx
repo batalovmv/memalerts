@@ -217,63 +217,64 @@ export default function Admin() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <div className="flex gap-4 items-center border-b border-secondary/30">
-            {/* Основные вкладки */}
-            {isStreamerAdmin && (
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'settings'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.channelDesign', 'Оформление')}
-            </button>
-            )}
-            {isStreamerAdmin && (
-            <button
-              onClick={() => setActiveTab('rewards')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'rewards'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.rewards', 'Награды')}
-            </button>
-            )}
-            {isStreamerAdmin && (
-            <button
-              onClick={() => setActiveTab('obs')}
-              className={`pb-2 px-4 transition-colors ${
-                activeTab === 'obs'
-                  ? 'border-b-2 border-primary text-primary'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
-              }`}
-            >
-              {t('admin.obsLinks', { defaultValue: 'OBS' })}
-            </button>
-            )}
+          <div className="flex items-center border-b border-secondary/30">
+            {/* Tabs scroller (mobile) */}
+            <div className="flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] no-scrollbar">
+              <div className="flex gap-2 sm:gap-4 items-center pr-2">
+                {isStreamerAdmin && (
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className={`pb-2 px-4 transition-colors ${
+                      activeTab === 'settings'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+                    }`}
+                  >
+                    {t('admin.channelDesign', 'Оформление')}
+                  </button>
+                )}
+                {isStreamerAdmin && (
+                  <button
+                    onClick={() => setActiveTab('rewards')}
+                    className={`pb-2 px-4 transition-colors ${
+                      activeTab === 'rewards'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+                    }`}
+                  >
+                    {t('admin.rewards', 'Награды')}
+                  </button>
+                )}
+                {isStreamerAdmin && (
+                  <button
+                    onClick={() => setActiveTab('obs')}
+                    className={`pb-2 px-4 transition-colors ${
+                      activeTab === 'obs'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+                    }`}
+                  >
+                    {t('admin.obsLinks', { defaultValue: 'OBS' })}
+                  </button>
+                )}
+              </div>
+            </div>
 
-            {/* Dropdown для дополнительных вкладок */}
-            <div className="ml-auto relative">
+            {/* More menu (fixed on the right) */}
+            <div className="relative flex-shrink-0 pl-2">
               <button
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className={`pb-2 px-4 transition-colors flex items-center gap-1 ${
+                className={`pb-2 px-3 transition-colors flex items-center gap-1 ${
                   ['wallets', 'promotions', 'statistics', 'beta'].includes(activeTab)
                     ? 'border-b-2 border-primary text-primary'
                     : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
                 }`}
+                aria-label={t('admin.more', { defaultValue: 'More' })}
               >
-                {t('admin.more', 'More')}
-                <svg 
-                  className={`w-4 h-4 transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="19" cy="12" r="1.8" />
                 </svg>
               </button>
 
