@@ -877,8 +877,10 @@ export default function OverlayView() {
       height: '100%',
       maxWidth: '100%',
       maxHeight: '100%',
-      objectFit: 'contain',
-      background: 'rgba(0,0,0,0.35)',
+      // Fill the fixed preview box without letterboxing (crop edges if needed).
+      objectFit: 'cover',
+      objectPosition: 'center',
+      background: 'transparent',
     };
   }, []);
 
