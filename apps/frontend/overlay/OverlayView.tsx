@@ -574,15 +574,15 @@ export default function OverlayView() {
           const targetLong = clampInt(Math.round(Math.min(vw * 0.32, vh * 0.48)), 220, 560);
 
           // Desired INNER content size (excluding border padding), preserving ratio.
-          let innerW = ar >= 1 ? targetLong : Math.round(targetLong * ar);
-          let innerH = ar >= 1 ? Math.round(targetLong / ar) : targetLong;
+          let innerW = ar >= 1 ? targetLong : targetLong * ar;
+          let innerH = ar >= 1 ? targetLong / ar : targetLong;
 
           // Fit inner size so that (inner + 2*pad) fits in available area.
           const maxInnerW = Math.max(1, availW - 2 * pad);
           const maxInnerH = Math.max(1, availH - 2 * pad);
           const s = Math.min(1, maxInnerW / Math.max(1, innerW), maxInnerH / Math.max(1, innerH));
-          innerW = Math.max(120, Math.round(innerW * s));
-          innerH = Math.max(120, Math.round(innerH * s));
+          innerW = Math.max(120, innerW * s);
+          innerH = Math.max(120, innerH * s);
 
           // Outer box includes border padding.
           const w = Math.max(140, innerW + 2 * pad);
@@ -720,11 +720,11 @@ export default function OverlayView() {
       // keep a consistent "long side" while preserving original aspect ratio.
       // `boxW/boxH` are computed after media metadata loads.
       const fallback = 420 + 2 * clampInt(Number(border ?? 0), 0, 120);
-      const boxW = clampInt(Number(item.boxW ?? fallback), 180, 900);
-      const boxH = clampInt(Number(item.boxH ?? fallback), 180, 900);
+      const boxW = clampFloat(Number(item.boxW ?? fallback), 180, 900);
+      const boxH = clampFloat(Number(item.boxH ?? fallback), 180, 900);
       const sizeClamp: React.CSSProperties = {
-        width: `${boxW}px`,
-        height: `${boxH}px`,
+        width: `${boxW.toFixed(2)}px`,
+        height: `${boxH.toFixed(2)}px`,
       };
 
       // Safety override: if we have clamped pixel-center coordinates, render as centered-by-px
