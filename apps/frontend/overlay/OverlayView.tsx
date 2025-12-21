@@ -166,8 +166,9 @@ export default function OverlayView() {
 
   const maxActive = useMemo(() => {
     if (config.overlayMode === 'queue') return 1;
-    // “Unlimited” (no user-facing cap). Hard cap is for safety only.
-    return SIMULTANEOUS_HARD_CAP;
+    // In simultaneous mode, respect server-configured maxConcurrent (with a hard cap for safety).
+    const n = clampInt(Number(config.overlayMaxConcurrent ?? 3), 1, SIMULTANEOUS_HARD_CAP);
+    return n;
   }, [config.overlayMaxConcurrent, config.overlayMode]);
 
   const pickRandomPosition = useCallback((): { xPct: number; yPct: number } => {

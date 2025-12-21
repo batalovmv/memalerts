@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -735,6 +735,7 @@ function ObsLinksSettings() {
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
+  const [overlayMaxConcurrent, setOverlayMaxConcurrent] = useState<number>(3);
   const [loadingOverlaySettings, setLoadingOverlaySettings] = useState(false);
   const [savingOverlaySettings, setSavingOverlaySettings] = useState(false);
   const [overlaySettingsSavedPulse, setOverlaySettingsSavedPulse] = useState(false);
@@ -743,6 +744,14 @@ function ObsLinksSettings() {
   const lastSavedOverlaySettingsRef = useRef<string | null>(null);
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
   const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Advanced overlay URL builder (stored in the URL, not in DB).
+  const [urlPosition, setUrlPosition] = useState<'random' | 'center' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>(
+    'random'
+  );
+  const [urlScale, setUrlScale] = useState<number>(1);
+  const [urlPad, setUrlPad] = useState<number>(80);
+  const [urlVolume, setUrlVolume] = useState<number>(1);
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -766,10 +775,12 @@ function ObsLinksSettings() {
       if (cached) {
         const nextMode = cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
         const nextShowSender = Boolean(cached.overlayShowSender);
+        const nextMax = typeof cached.overlayMaxConcurrent === 'number' ? cached.overlayMaxConcurrent : 3;
         setOverlayMode(nextMode);
         setOverlayShowSender(nextShowSender);
+        setOverlayMaxConcurrent(Math.min(5, Math.max(1, nextMax)));
         // Mark current server state as "already saved" to prevent auto-save on first load.
-        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender });
+        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender, overlayMaxConcurrent: Math.min(5, Math.max(1, nextMax)) });
         lastChangeRef.current = null;
         overlaySettingsLoadedRef.current = channelSlug;
         return;
@@ -779,9 +790,11 @@ function ObsLinksSettings() {
       if (data) {
         const nextMode = data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
         const nextShowSender = Boolean(data.overlayShowSender);
+        const nextMax = typeof (data as any).overlayMaxConcurrent === 'number' ? (data as any).overlayMaxConcurrent : 3;
         setOverlayMode(nextMode);
         setOverlayShowSender(nextShowSender);
-        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender });
+        setOverlayMaxConcurrent(Math.min(5, Math.max(1, nextMax)));
+        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender, overlayMaxConcurrent: Math.min(5, Math.max(1, nextMax)) });
         lastChangeRef.current = null;
         overlaySettingsLoadedRef.current = channelSlug;
       } else {
@@ -819,11 +832,16 @@ function ObsLinksSettings() {
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
 
-  // Useful optional params for OBS:
-  // - position: random|center|top|bottom|top-left|top-right|bottom-left|bottom-right
-  // - scale: number
-  // - volume: number (0..1)
   const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=random&scale=1&volume=1` : '';
+  const overlayUrlAdvanced = useMemo(() => {
+    if (!overlayUrl) return '';
+    const sp = new URLSearchParams();
+    sp.set('position', urlPosition);
+    sp.set('scale', String(urlScale));
+    sp.set('pad', String(urlPad));
+    sp.set('volume', String(urlVolume));
+    return `${overlayUrl}?${sp.toString()}`;
+  }, [overlayUrl, urlPad, urlPosition, urlScale, urlVolume]);
 
   // Auto-save overlay settings (no explicit Save button).
   useEffect(() => {
@@ -831,7 +849,7 @@ function ObsLinksSettings() {
     if (loadingOverlaySettings) return;
     if (!overlaySettingsLoadedRef.current) return;
 
-    const payload = JSON.stringify({ overlayMode, overlayShowSender });
+    const payload = JSON.stringify({ overlayMode, overlayShowSender, overlayMaxConcurrent });
     // If we don't yet have a baseline, set it and do nothing (prevents save/toast on mount).
     if (lastSavedOverlaySettingsRef.current === null) {
       lastSavedOverlaySettingsRef.current = payload;
@@ -850,6 +868,7 @@ function ObsLinksSettings() {
           await api.patch('/admin/channel/settings', {
             overlayMode,
             overlayShowSender,
+            overlayMaxConcurrent,
           });
           lastSavedOverlaySettingsRef.current = payload;
           // Keep channel cache consistent (used by other panels).
@@ -880,7 +899,7 @@ function ObsLinksSettings() {
         }
       })();
     }, 250);
-  }, [channelSlug, getChannelData, loadingOverlaySettings, overlayMode, overlayShowSender, t]);
+  }, [channelSlug, getChannelData, loadingOverlaySettings, overlayMode, overlayShowSender, overlayMaxConcurrent, t]);
 
   useEffect(() => {
     return () => {
@@ -934,6 +953,90 @@ function ObsLinksSettings() {
             </button>
           }
         />
+
+        <details className="glass p-4">
+          <summary className="cursor-pointer font-semibold text-gray-900 dark:text-white">
+            {t('admin.obsAdvancedOverlayUrl', { defaultValue: 'Advanced overlay URL (customize)' })}
+          </summary>
+          <div className="mt-3 space-y-4">
+            <SecretCopyField
+              label={t('admin.obsOverlayUrlAdvanced', { defaultValue: 'Overlay URL (advanced)' })}
+              value={overlayUrlAdvanced}
+              masked={true}
+              emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
+              description={t('admin.obsOverlayUrlAdvancedHint', {
+                defaultValue: 'These options are stored in the URL. Copy/paste into OBS after you customize.',
+              })}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayPosition', { defaultValue: 'Position' })}
+                </label>
+                <select
+                  value={urlPosition}
+                  onChange={(e) => setUrlPosition(e.target.value as any)}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'Random' })}</option>
+                  <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Center' })}</option>
+                  <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'Top' })}</option>
+                  <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'Bottom' })}</option>
+                  <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'Top-left' })}</option>
+                  <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'Top-right' })}</option>
+                  <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'Bottom-left' })}</option>
+                  <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'Bottom-right' })}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayScale', { defaultValue: 'Scale' })}: <span className="font-mono">{urlScale.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0.25}
+                  max={2.5}
+                  step={0.05}
+                  value={urlScale}
+                  onChange={(e) => setUrlScale(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayPadding', { defaultValue: 'Safe padding (px)' })}: <span className="font-mono">{urlPad}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={400}
+                  step={10}
+                  value={urlPad}
+                  onChange={(e) => setUrlPad(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayVolume', { defaultValue: 'Volume' })}: <span className="font-mono">{Math.round(urlVolume * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={urlVolume}
+                  onChange={(e) => setUrlVolume(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </details>
 
         <div className="glass p-4 relative">
           {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
@@ -1011,6 +1114,27 @@ function ObsLinksSettings() {
                 </div>
               </label>
             </div>
+
+            {overlayMode === 'simultaneous' && (
+              <div className="pt-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayMaxConcurrent', { defaultValue: 'Max simultaneous memes' })}:{' '}
+                  <span className="font-mono">{overlayMaxConcurrent}</span>
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={overlayMaxConcurrent}
+                  onChange={(e) => setOverlayMaxConcurrent(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.obsOverlayMaxConcurrentHint', { defaultValue: 'Safety limit for unlimited mode (prevents OBS from lagging).' })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
