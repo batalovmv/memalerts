@@ -387,6 +387,12 @@ export default function StreamerProfile() {
                     >
                       {channelInfo.stats.memesCount} {t('profile.memes')}
                     </span>
+                    <span
+                      className="inline-flex items-center rounded-full px-3 py-1 text-secondary font-semibold"
+                      style={{ backgroundColor: mix('--secondary-color', 14) }}
+                    >
+                      {channelInfo.stats.usersCount} {t('profile.users', { defaultValue: 'users' })}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -426,7 +432,8 @@ export default function StreamerProfile() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder') || 'Search memes...'}
-              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border"
+              style={{ borderColor: mix('--secondary-color', 28) }}
             />
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -474,7 +481,9 @@ export default function StreamerProfile() {
 
             <button
               type="button"
-              className="inline-flex items-center gap-2 text-sm glass px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+              className={`inline-flex items-center gap-2 text-sm glass px-3 py-2 hover:bg-white/60 dark:hover:bg-white/10 transition-colors ${
+                hoverSoundEnabled ? 'text-accent' : 'text-gray-700 dark:text-gray-200'
+              }`}
               onClick={() => setHoverSoundEnabled((v) => !v)}
               title={hoverSoundEnabled ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
               aria-pressed={hoverSoundEnabled}
