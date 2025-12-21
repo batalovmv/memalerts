@@ -1459,23 +1459,38 @@ function RewardsSettings() {
           ? t('admin.rewardTitlePlaceholder', { defaultValue: 'Get Coins' })
           : rewardSettings.rewardTitle;
 
-      if (effectiveTitle !== rewardSettings.rewardTitle) {
-        setRewardSettings((p) => ({ ...p, rewardTitle: effectiveTitle }));
+      // Ensure reward cost/coins are never empty when enabling (prevents 400s; default 1000/1000).
+      const effectiveCostStr =
+        rewardSettings.rewardEnabled && !String(rewardSettings.rewardCost || '').trim() ? '1000' : rewardSettings.rewardCost;
+      const effectiveCoinsStr =
+        rewardSettings.rewardEnabled && !String(rewardSettings.rewardCoins || '').trim() ? '1000' : rewardSettings.rewardCoins;
+
+      if (
+        effectiveTitle !== rewardSettings.rewardTitle ||
+        effectiveCostStr !== rewardSettings.rewardCost ||
+        effectiveCoinsStr !== rewardSettings.rewardCoins
+      ) {
+        setRewardSettings((p) => ({
+          ...p,
+          rewardTitle: effectiveTitle,
+          rewardCost: effectiveCostStr,
+          rewardCoins: effectiveCoinsStr,
+        }));
       }
       await api.patch('/admin/channel/settings', {
         // Twitch reward only (do NOT include submissionRewardCoins here)
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
         rewardTitle: effectiveTitle || null,
-        rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
-        rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+        rewardCost: effectiveCostStr ? parseInt(effectiveCostStr, 10) : null,
+        rewardCoins: effectiveCoinsStr ? parseInt(effectiveCoinsStr, 10) : null,
       });
       lastSavedTwitchRef.current = JSON.stringify({
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
         rewardTitle: effectiveTitle || null,
-        rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
-        rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+        rewardCost: effectiveCostStr ? parseInt(effectiveCostStr, 10) : null,
+        rewardCoins: effectiveCoinsStr ? parseInt(effectiveCoinsStr, 10) : null,
       });
       setLastErrorRequestId(null);
     } catch (error: unknown) {
@@ -1649,7 +1664,21 @@ function RewardsSettings() {
                     toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
                     return;
                   }
-                  setRewardSettings({ ...rewardSettings, rewardEnabled: e.target.checked });
+                  const nextEnabled = e.target.checked;
+                  // Friendly defaults when enabling.
+                  if (nextEnabled) {
+                    setRewardSettings((p) => ({
+                      ...p,
+                      rewardEnabled: true,
+                      rewardTitle: p.rewardTitle?.trim()
+                        ? p.rewardTitle
+                        : t('admin.rewardTitlePlaceholder', { defaultValue: 'Get Coins' }),
+                      rewardCost: String(p.rewardCost || '').trim() ? p.rewardCost : '1000',
+                      rewardCoins: String(p.rewardCoins || '').trim() ? p.rewardCoins : '1000',
+                    }));
+                    return;
+                  }
+                  setRewardSettings((p) => ({ ...p, rewardEnabled: false }));
                 }}
                 className="sr-only peer"
               />
