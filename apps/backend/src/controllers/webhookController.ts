@@ -67,7 +67,7 @@ export const webhookController = {
           // Find or create user
           let user = await prisma.user.findUnique({
             where: { twitchUserId: event.user_id },
-            include: { wallet: true },
+            include: { wallets: { where: { channelId: channel.id } } },
           });
 
           if (!user) {
@@ -77,26 +77,16 @@ export const webhookController = {
                 displayName: event.user_name,
                 role: 'viewer',
                 channelId: channel.id,
-                wallet: {
+                wallets: {
                   create: {
+                    channelId: channel.id,
                     balance: 0,
                   },
                 },
               },
               include: {
-                wallet: true,
+                wallets: { where: { channelId: channel.id } },
               },
-            });
-          } else if (!user.wallet) {
-            await prisma.wallet.create({
-              data: {
-                userId: user.id,
-                balance: 0,
-              },
-            });
-            user = await prisma.user.findUnique({
-              where: { id: user.id },
-              include: { wallet: true },
             });
           }
 
@@ -116,9 +106,19 @@ export const webhookController = {
               },
             });
 
-            await tx.wallet.update({
-              where: { userId: user!.id },
-              data: {
+            await tx.wallet.upsert({
+              where: {
+                userId_channelId: {
+                  userId: user!.id,
+                  channelId: channel.id,
+                },
+              },
+              create: {
+                userId: user!.id,
+                channelId: channel.id,
+                balance: coinsGranted,
+              },
+              update: {
                 balance: {
                   increment: coinsGranted,
                 },
