@@ -732,7 +732,7 @@ function ObsLinksSettings() {
 
   const [overlayToken, setOverlayToken] = useState<string>('');
   const [loadingToken, setLoadingToken] = useState(false);
-  const [previewMeme, setPreviewMeme] = useState<{ fileUrl: string; type: string; title?: string } | null>(null);
+  const [previewMemes, setPreviewMemes] = useState<Array<{ fileUrl: string; type: string; title?: string }>>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewCount, setPreviewCount] = useState<number>(1);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(false);
@@ -877,23 +877,44 @@ function ObsLinksSettings() {
     if (previewCount > 1) setPreviewSimultaneous(true);
   }, [previewCount]);
 
-  const fetchPreviewMeme = useCallback(async () => {
+  const fetchPreviewMemes = useCallback(async (count?: number) => {
+    const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
     try {
       setLoadingPreview(true);
       const { api } = await import('../lib/api');
-      const resp = await api.get<{ meme: null | { fileUrl: string; type: string; title?: string } }>('/admin/overlay/preview-meme');
-      setPreviewMeme(resp?.meme || null);
+      const results = await Promise.all(
+        Array.from({ length: n }).map(async () => {
+          try {
+            const resp = await api.get<{ meme: null | { fileUrl: string; type: string; title?: string } }>(
+              '/admin/overlay/preview-meme'
+            );
+            return resp?.meme || null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      // Keep unique-by-fileUrl, preserve order.
+      const uniq: Array<{ fileUrl: string; type: string; title?: string }> = [];
+      const seen = new Set<string>();
+      for (const m of results) {
+        if (!m?.fileUrl) continue;
+        if (seen.has(m.fileUrl)) continue;
+        seen.add(m.fileUrl);
+        uniq.push(m);
+      }
+      setPreviewMemes(uniq);
     } catch {
-      setPreviewMeme(null);
+      setPreviewMemes([]);
     } finally {
       setLoadingPreview(false);
     }
-  }, []);
+  }, [previewCount]);
 
   useEffect(() => {
     if (!channelSlug) return;
-    void fetchPreviewMeme();
-  }, [channelSlug, fetchPreviewMeme]);
+    void fetchPreviewMemes(previewCount);
+  }, [channelSlug, fetchPreviewMemes, previewCount]);
 
   useEffect(() => {
     loadOverlaySettings();
@@ -910,14 +931,64 @@ function ObsLinksSettings() {
     if (!overlayUrl) return '';
     const u = new URL(overlayUrl);
     u.searchParams.set('demo', '1');
-    u.searchParams.set('position', 'center');
+    u.searchParams.set('position', urlPosition);
     u.searchParams.set('previewCount', String(previewCount));
     u.searchParams.set('previewMode', previewSimultaneous ? 'simultaneous' : 'queue');
     u.searchParams.set('repeat', previewLoopEnabled ? '1' : '0');
-    if (previewMeme?.fileUrl) u.searchParams.set('previewUrl', previewMeme.fileUrl);
-    if (previewMeme?.type) u.searchParams.set('previewType', previewMeme.type);
+    // Live overrides so sliders affect preview immediately (demo doesn't use sockets).
+    u.searchParams.set('volume', String(urlVolume));
+    u.searchParams.set('anim', urlAnim);
+    u.searchParams.set('enterMs', String(urlEnterMs));
+    u.searchParams.set('exitMs', String(urlExitMs));
+    u.searchParams.set('radius', String(urlRadius));
+    u.searchParams.set('shadow', String(urlShadow));
+    u.searchParams.set('blur', String(urlBlur));
+    u.searchParams.set('border', String(urlBorder));
+    u.searchParams.set('bgOpacity', String(urlBgOpacity));
+    u.searchParams.set('scaleMode', scaleMode);
+    if (scaleMode === 'fixed') {
+      u.searchParams.set('scaleFixed', String(scaleFixed));
+      u.searchParams.set('scale', String(scaleFixed));
+      u.searchParams.delete('scaleMin');
+      u.searchParams.delete('scaleMax');
+    } else {
+      u.searchParams.set('scaleMin', String(scaleMin));
+      u.searchParams.set('scaleMax', String(scaleMax));
+      u.searchParams.delete('scaleFixed');
+    }
+
+    // Multi-meme preview: pass N urls/types (overlay uses getAll()).
+    u.searchParams.delete('previewUrl');
+    u.searchParams.delete('previewType');
+    const target = Math.min(5, Math.max(1, previewCount));
+    const pool = previewMemes.length > 0 ? previewMemes : [];
+    for (let i = 0; i < target; i++) {
+      const m = pool[i % Math.max(1, pool.length)];
+      if (m?.fileUrl) u.searchParams.append('previewUrl', m.fileUrl);
+      if (m?.type) u.searchParams.append('previewType', m.type);
+    }
     return u.toString();
-  }, [overlayUrl, previewCount, previewLoopEnabled, previewMeme?.fileUrl, previewMeme?.type, previewSimultaneous]);
+  }, [
+    overlayUrl,
+    previewCount,
+    previewLoopEnabled,
+    previewMemes,
+    previewSimultaneous,
+    scaleFixed,
+    scaleMax,
+    scaleMin,
+    scaleMode,
+    urlAnim,
+    urlBgOpacity,
+    urlBlur,
+    urlBorder,
+    urlEnterMs,
+    urlExitMs,
+    urlPosition,
+    urlRadius,
+    urlShadow,
+    urlVolume,
+  ]);
 
   // Debounce iframe reloads while dragging sliders.
   const [debouncedPreviewUrl, setDebouncedPreviewUrl] = useState<string>('');
@@ -1339,9 +1410,10 @@ function ObsLinksSettings() {
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
                 <div className="text-xs text-gray-600 dark:text-gray-300 min-w-0">
-                  {previewMeme?.title ? (
+                  {previewMemes?.[0]?.title ? (
                     <span className="truncate block">
-                      {t('admin.obsOverlayPreviewMeme', { defaultValue: 'Preview meme' })}: <span className="font-mono">{previewMeme.title}</span>
+                      {t('admin.obsOverlayPreviewMeme', { defaultValue: 'Preview meme' })}:{' '}
+                      <span className="font-mono">{previewMemes[0].title}</span>
                     </span>
                   ) : (
                     <span>
@@ -1356,7 +1428,7 @@ function ObsLinksSettings() {
                   type="button"
                   className="glass-btn px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white disabled:opacity-60 shrink-0"
                   disabled={loadingPreview || !overlayToken}
-                  onClick={() => void fetchPreviewMeme()}
+                  onClick={() => void fetchPreviewMemes(previewCount)}
                 >
                   {loadingPreview ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Refresh' })}
                 </button>

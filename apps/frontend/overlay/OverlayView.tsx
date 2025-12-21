@@ -88,11 +88,21 @@ export default function OverlayView() {
   const fadeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const scale = parseFloat(searchParams.get('scale') || '1');
+  const urlScaleMode = String(searchParams.get('scaleMode') || '').trim().toLowerCase();
+  const urlScaleFixed = parseFloat(String(searchParams.get('scaleFixed') || ''));
+  const urlScaleMin = parseFloat(String(searchParams.get('scaleMin') || ''));
+  const urlScaleMax = parseFloat(String(searchParams.get('scaleMax') || ''));
   const position = (searchParams.get('position') || 'random').toLowerCase() as OverlayPosition;
   const volume = parseFloat(searchParams.get('volume') || '1');
   const demo = searchParams.get('demo') === '1';
-  const previewUrlParam = String(searchParams.get('previewUrl') || '').trim();
-  const previewTypeParam = String(searchParams.get('previewType') || '').trim().toLowerCase();
+  const previewUrlsParam = useMemo(
+    () => searchParams.getAll('previewUrl').map((v) => String(v || '').trim()).filter(Boolean),
+    [searchParams]
+  );
+  const previewTypesParam = useMemo(
+    () => searchParams.getAll('previewType').map((v) => String(v || '').trim().toLowerCase()).filter(Boolean),
+    [searchParams]
+  );
   const previewCount = clampInt(parseInt(String(searchParams.get('previewCount') || ''), 10), 1, 5);
   const previewRepeat = searchParams.get('repeat') === '1';
   const previewModeParam = String(searchParams.get('previewMode') || '').trim().toLowerCase();
@@ -120,10 +130,15 @@ export default function OverlayView() {
 
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
+    const urlFixed = Number.isFinite(urlScaleFixed) && urlScaleFixed > 0 ? urlScaleFixed : NaN;
     const fixed = Number((parsedStyle as any)?.scaleFixed);
-    const s = Number.isFinite(fixed) && fixed > 0 ? fixed : (Number.isFinite(scale) ? scale : 1);
+    const s = Number.isFinite(urlFixed)
+      ? urlFixed
+      : Number.isFinite(fixed) && fixed > 0
+        ? fixed
+        : (Number.isFinite(scale) ? scale : 1);
     return Math.min(2.5, Math.max(0.25, s));
-  }, [parsedStyle, scale]);
+  }, [parsedStyle, scale, urlScaleFixed]);
 
   const resolvedPosition = useMemo<OverlayPosition>(() => {
     const p = String((parsedStyle as any)?.position || '').toLowerCase();
@@ -143,18 +158,30 @@ export default function OverlayView() {
   }, [parsedStyle, position]);
 
   const getNextUserScale = useCallback((): number => {
-    const mode = String((parsedStyle as any)?.scaleMode || '').toLowerCase();
+    const mode = urlScaleMode || String((parsedStyle as any)?.scaleMode || '').toLowerCase();
     if (mode === 'range') {
-      const min = clampFloat(Number((parsedStyle as any)?.scaleMin), 0.25, 2.5);
-      const max = clampFloat(Number((parsedStyle as any)?.scaleMax), 0.25, 2.5);
+      const min = clampFloat(
+        Number.isFinite(urlScaleMin) ? urlScaleMin : Number((parsedStyle as any)?.scaleMin),
+        0.25,
+        2.5
+      );
+      const max = clampFloat(
+        Number.isFinite(urlScaleMax) ? urlScaleMax : Number((parsedStyle as any)?.scaleMax),
+        0.25,
+        2.5
+      );
       const lo = Math.min(min, max);
       const hi = Math.max(min, max);
       return clampFloat(lo + Math.random() * (hi - lo), 0.25, 2.5);
     }
-    const fixed = clampFloat(Number((parsedStyle as any)?.scaleFixed), 0.25, 2.5);
+    const fixed = clampFloat(
+      Number.isFinite(urlScaleFixed) ? urlScaleFixed : Number((parsedStyle as any)?.scaleFixed),
+      0.25,
+      2.5
+    );
     if (Number.isFinite(fixed) && fixed > 0) return fixed;
     return safeScale;
-  }, [parsedStyle, safeScale]);
+  }, [parsedStyle, safeScale, urlScaleFixed, urlScaleMax, urlScaleMin, urlScaleMode]);
 
   const isProbablyOBS = useMemo(() => {
     const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
@@ -246,6 +273,21 @@ export default function OverlayView() {
     return n;
   }, [config.overlayMaxConcurrent, config.overlayMode]);
 
+  const getPreviewMediaAt = useCallback(
+    (idx: number): { fileUrl: string; type: string } => {
+      const fallbackUrl = String(searchParams.get('previewUrl') || '').trim();
+      const fallbackType = String(searchParams.get('previewType') || '').trim().toLowerCase();
+
+      const urls = previewUrlsParam.length > 0 ? previewUrlsParam : (fallbackUrl ? [fallbackUrl] : []);
+      const types = previewTypesParam.length > 0 ? previewTypesParam : (fallbackType ? [fallbackType] : []);
+
+      const fileUrl = urls.length > 0 ? urls[Math.abs(idx) % urls.length] : '';
+      const type = types.length > 0 ? types[Math.abs(idx) % types.length] : 'demo';
+      return { fileUrl, type };
+    },
+    [previewTypesParam, previewUrlsParam, searchParams]
+  );
+
   const pickRandomPosition = useCallback((): { xPct: number; yPct: number } => {
     // Safe margin in % to reduce clipping risk. Increase margin when scale grows.
     // This isn't perfect (we don't know exact media aspect), but reduces "going off-screen" in OBS.
@@ -273,8 +315,7 @@ export default function OverlayView() {
     const seed: QueuedActivation[] = Array.from({ length: previewCount }).map((_, idx) => ({
       id: `__demo_seed__${Date.now()}_${idx}`,
       memeId: '__demo__',
-      type: previewTypeParam || 'demo',
-      fileUrl: previewUrlParam || '',
+      ...getPreviewMediaAt(idx),
       durationMs: 8000,
       title: 'DEMO',
       senderDisplayName: 'Viewer123',
@@ -286,7 +327,7 @@ export default function OverlayView() {
     setQueue(seed);
     setActive([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demo, previewCount, previewModeParam, previewTypeParam, previewUrlParam]);
+  }, [demo, getNextUserScale, getPreviewMediaAt, pickRandomPosition, previewCount, previewModeParam]);
 
   const emitAckDoneOnce = useCallback((activationId: string) => {
     const id = String(activationId || '').trim();
@@ -326,8 +367,7 @@ export default function OverlayView() {
             {
               id: `__demo__${Date.now()}_${Math.random().toString(16).slice(2)}`,
               memeId: '__demo__',
-              type: previewTypeParam || 'demo',
-              fileUrl: previewUrlParam || '',
+              ...getPreviewMediaAt(Date.now()),
               durationMs: 8000,
               title: 'DEMO',
               senderDisplayName: 'Viewer123',
@@ -340,7 +380,7 @@ export default function OverlayView() {
       }
     }, 220);
     fadeTimersRef.current.set(id, fadeTimer);
-  }, [demo, emitAckDoneOnce, getNextUserScale, pickRandomPosition, previewRepeat, previewTypeParam, previewUrlParam, resolvedPosition]);
+  }, [demo, emitAckDoneOnce, getNextUserScale, getPreviewMediaAt, pickRandomPosition, previewRepeat, resolvedPosition]);
 
   const updateFallbackTimer = useCallback((activationId: string, durationMs: number) => {
     const id = String(activationId || '').trim();
