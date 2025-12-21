@@ -62,7 +62,6 @@ export default function StreamerProfile() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [myFavorites, setMyFavorites] = useState(false);
-  const [hoverSoundEnabled, setHoverSoundEnabled] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -74,23 +73,7 @@ export default function StreamerProfile() {
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
 
-  // Public profile: hover-sound preference (separate from modal sound).
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem('memalerts:hoverSoundEnabled');
-      if (raw === '1') setHoverSoundEnabled(true);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('memalerts:hoverSoundEnabled', hoverSoundEnabled ? '1' : '0');
-    } catch {
-      // ignore
-    }
-  }, [hoverSoundEnabled]);
+  // (Removed) public-profile hover-sound toggle: keep current behavior without a user-visible switch.
 
   // Helpers: use CSS variables (set by ChannelThemeProvider) to build subtle tints safely.
   // We avoid Tailwind color opacity modifiers here because theme colors are CSS vars (hex), and
@@ -381,25 +364,6 @@ export default function StreamerProfile() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
-                    <button
-                      type="button"
-                      onClick={() => setHoverSoundEnabled((v) => !v)}
-                      aria-pressed={hoverSoundEnabled}
-                      className={`mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white/70 dark:bg-gray-900/40 shadow-sm transition-colors ${
-                        hoverSoundEnabled ? 'text-accent border-accent/30' : 'text-gray-600 dark:text-gray-200 border-gray-200/60 dark:border-white/10'
-                      }`}
-                      title={hoverSoundEnabled ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
-                      aria-label={hoverSoundEnabled ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
-                    >
-                      {/* Headphones icon (iOS-ish) */}
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 0116 0v7a2 2 0 01-2 2h-1v-6h3v-3" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v3h3v6H6a2 2 0 01-2-2v-7" />
-                        {!hoverSoundEnabled && (
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12" />
-                        )}
-                      </svg>
-                    </button>
                   </div>
                   <div className="mt-4 flex gap-4 text-sm">
                     <span
@@ -564,9 +528,7 @@ export default function StreamerProfile() {
                       setIsModalOpen(true);
                     }}
                     isOwner={isOwner}
-                    previewMode={
-                      autoplayMemesEnabled ? 'autoplayMuted' : (hoverSoundEnabled ? 'hoverWithSound' : 'hoverMuted')
-                    }
+                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverMuted'}
                   />
                 ))}
               </div>

@@ -735,6 +735,7 @@ function ObsLinksSettings() {
   const [previewMemes, setPreviewMemes] = useState<Array<{ fileUrl: string; type: string; title?: string }>>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(false);
+  const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -747,6 +748,11 @@ function ObsLinksSettings() {
   const lastSavedOverlaySettingsRef = useRef<string | null>(null);
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
   const saveOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // If sender settings tab is not applicable, fall back to a safe tab.
+    if (advancedTab === 'sender' && !overlayShowSender) setAdvancedTab('layout');
+  }, [advancedTab, overlayShowSender]);
 
   // Advanced overlay style (saved server-side; OBS link stays constant).
   const [urlPosition, setUrlPosition] = useState<'random' | 'center' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>(
@@ -1285,9 +1291,6 @@ function ObsLinksSettings() {
             />
             <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
               <div className="font-medium">{t('admin.obsOverlayShowSender', { defaultValue: 'Show sender name' })}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-300">
-                {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Name is provided by the server (not the client).' })}
-              </div>
             </label>
           </div>
         </div>
@@ -1380,417 +1383,6 @@ function ObsLinksSettings() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayPosition', { defaultValue: 'Position' })}
-                </label>
-                <select
-                  value={urlPosition}
-                  onChange={(e) => setUrlPosition(e.target.value as any)}
-                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                >
-                  <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'Random' })}</option>
-                  <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Center' })}</option>
-                  <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'Top' })}</option>
-                  <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'Bottom' })}</option>
-                  <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'Top-left' })}</option>
-                  <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'Top-right' })}</option>
-                  <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'Bottom-left' })}</option>
-                  <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'Bottom-right' })}</option>
-                </select>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                  {t('admin.obsOverlayScaleMode', { defaultValue: 'Size' })}
-                </label>
-                <div className="flex items-center gap-3">
-                  <select
-                    value={scaleMode}
-                    onChange={(e) => setScaleMode(e.target.value as any)}
-                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  >
-                    <option value="fixed">{t('admin.obsOverlayScaleFixed', { defaultValue: 'Fixed' })}</option>
-                    <option value="range">{t('admin.obsOverlayScaleRange', { defaultValue: 'Range' })}</option>
-                  </select>
-
-                  {scaleMode === 'fixed' ? (
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.obsOverlayScaleFixedValue', { defaultValue: 'Scale' })}:{' '}
-                        <span className="font-mono">{scaleFixed.toFixed(2)}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.25}
-                        max={2.5}
-                        step={0.05}
-                        value={scaleFixed}
-                        onChange={(e) => setScaleFixed(parseFloat(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex-1 grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
-                          {t('admin.obsOverlayScaleMin', { defaultValue: 'Min' })}:{' '}
-                          <span className="font-mono">{scaleMin.toFixed(2)}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0.25}
-                          max={2.5}
-                          step={0.05}
-                          value={scaleMin}
-                          onChange={(e) => setScaleMin(parseFloat(e.target.value))}
-                          className="w-full"
-                        />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
-                          {t('admin.obsOverlayScaleMax', { defaultValue: 'Max' })}:{' '}
-                          <span className="font-mono">{scaleMax.toFixed(2)}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0.25}
-                          max={2.5}
-                          step={0.05}
-                          value={scaleMax}
-                          onChange={(e) => setScaleMax(parseFloat(e.target.value))}
-                          className="w-full"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayVolume', { defaultValue: 'Volume' })}: <span className="font-mono">{Math.round(urlVolume * 100)}%</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={urlVolume}
-                  onChange={(e) => setUrlVolume(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayAnim', { defaultValue: 'Animation' })}
-                </label>
-                <select
-                  value={urlAnim}
-                  onChange={(e) => setUrlAnim(e.target.value as any)}
-                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                >
-                  <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
-                  <option value="zoom">{t('admin.obsOverlayAnimZoom', { defaultValue: 'Zoom' })}</option>
-                  <option value="slide-up">{t('admin.obsOverlayAnimSlideUp', { defaultValue: 'Slide up' })}</option>
-                  <option value="none">{t('admin.obsOverlayAnimNone', { defaultValue: 'None' })}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayAnimSpeed', { defaultValue: 'Animation speed' })}:{' '}
-                  <span className="font-mono">{animSpeedPct}%</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={animSpeedPct}
-                  onChange={(e) => setAnimSpeedPct(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="text-xs text-gray-600 dark:text-gray-300 -mt-2">
-                {t('admin.obsOverlayAnimSpeedHint', { defaultValue: 'Slower looks more premium; faster feels snappier.' })}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayRadius', { defaultValue: 'Corner radius' })}: <span className="font-mono">{urlRadius}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={80}
-                  step={1}
-                  value={urlRadius}
-                  onChange={(e) => setUrlRadius(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadow', { defaultValue: 'Shadow' })}: <span className="font-mono">{shadowBlur}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={200}
-                  step={2}
-                  value={shadowBlur}
-                  onChange={(e) => setShadowBlur(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadowAngle', { defaultValue: 'Shadow direction' })}:{' '}
-                  <span className="font-mono">{Math.round(shadowAngle)}°</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={360}
-                  step={1}
-                  value={shadowAngle}
-                  onChange={(e) => setShadowAngle(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadowDistance', { defaultValue: 'Shadow distance' })}:{' '}
-                  <span className="font-mono">{shadowDistance}px</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={120}
-                  step={1}
-                  value={shadowDistance}
-                  onChange={(e) => setShadowDistance(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadowSpread', { defaultValue: 'Shadow spread' })}:{' '}
-                  <span className="font-mono">{shadowSpread}px</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={120}
-                  step={1}
-                  value={shadowSpread}
-                  onChange={(e) => setShadowSpread(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadowOpacity', { defaultValue: 'Shadow opacity' })}:{' '}
-                  <span className="font-mono">{Math.round(shadowOpacity * 100)}%</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.02}
-                  value={shadowOpacity}
-                  onChange={(e) => setShadowOpacity(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayShadowColor', { defaultValue: 'Shadow color' })}
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={shadowColor}
-                    onChange={(e) => setShadowColor(String(e.target.value || '').toLowerCase())}
-                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
-                    aria-label={t('admin.obsOverlayShadowColor', { defaultValue: 'Shadow color' })}
-                  />
-                  <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{shadowColor}</div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayBlur', { defaultValue: 'Glass blur' })}: <span className="font-mono">{urlBlur}px</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={40}
-                  step={1}
-                  value={urlBlur}
-                  onChange={(e) => setUrlBlur(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayBorder', { defaultValue: 'Border' })}: <span className="font-mono">{urlBorder}px</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={12}
-                  step={1}
-                  value={urlBorder}
-                  onChange={(e) => setUrlBorder(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
-                </label>
-                <div className="flex items-center justify-between gap-3">
-                  <select
-                    value={borderMode}
-                    onChange={(e) => setBorderMode(e.target.value as any)}
-                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    aria-label={t('admin.obsOverlayBorderMode', { defaultValue: 'Border mode' })}
-                  >
-                    <option value="solid">{t('admin.obsOverlayBorderModeSolid', { defaultValue: 'Solid' })}</option>
-                    <option value="gradient">{t('admin.obsOverlayBorderModeGradient', { defaultValue: 'Gradient' })}</option>
-                  </select>
-                  <input
-                    type="color"
-                    value={urlBorderColor}
-                    onChange={(e) => setUrlBorderColor(String(e.target.value || '').toLowerCase())}
-                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
-                    aria-label={t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
-                  />
-                  <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{urlBorderColor}</div>
-                </div>
-              </div>
-
-              {borderMode === 'gradient' && (
-                <div className="md:col-span-2">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                        {t('admin.obsOverlayBorderColor2', { defaultValue: 'Gradient color 2' })}
-                      </label>
-                      <input
-                        type="color"
-                        value={urlBorderColor2}
-                        onChange={(e) => setUrlBorderColor2(String(e.target.value || '').toLowerCase())}
-                        className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
-                        aria-label={t('admin.obsOverlayBorderColor2', { defaultValue: 'Gradient color 2' })}
-                      />
-                      <div className="text-xs text-gray-600 dark:text-gray-300 font-mono mt-1">{urlBorderColor2}</div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                        {t('admin.obsOverlayBorderGradientAngle', { defaultValue: 'Gradient angle' })}:{' '}
-                        <span className="font-mono">{Math.round(urlBorderGradientAngle)}°</span>
-                      </label>
-                      <input
-                        type="range"
-                        min={0}
-                        max={360}
-                        step={1}
-                        value={urlBorderGradientAngle}
-                        onChange={(e) => setUrlBorderGradientAngle(parseInt(e.target.value, 10))}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayBgOpacity', { defaultValue: 'Glass opacity' })}:{' '}
-                  <span className="font-mono">{Math.round(urlBgOpacity * 100)}%</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={0.65}
-                  step={0.01}
-                  value={urlBgOpacity}
-                  onChange={(e) => setUrlBgOpacity(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              {overlayShowSender && (
-              <div className="md:col-span-2">
-                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                  {t('admin.obsOverlaySenderTypography', { defaultValue: 'Sender label' })}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                      {t('admin.obsOverlaySenderFontSize', { defaultValue: 'Font size' })}:{' '}
-                      <span className="font-mono">{senderFontSize}px</span>
-                    </label>
-                    <input
-                      type="range"
-                      min={10}
-                      max={28}
-                      step={1}
-                      value={senderFontSize}
-                      onChange={(e) => setSenderFontSize(parseInt(e.target.value, 10))}
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                      {t('admin.obsOverlaySenderFontWeight', { defaultValue: 'Weight' })}
-                    </label>
-                    <select
-                      value={senderFontWeight}
-                      onChange={(e) => setSenderFontWeight(parseInt(e.target.value, 10))}
-                      className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    >
-                      <option value={400}>400</option>
-                      <option value={500}>500</option>
-                      <option value={600}>600</option>
-                      <option value={700}>700</option>
-                      <option value={800}>800</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                      {t('admin.obsOverlaySenderFontFamily', { defaultValue: 'Font' })}
-                    </label>
-                    <select
-                      value={senderFontFamily}
-                      onChange={(e) => setSenderFontFamily(e.target.value as any)}
-                      className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    >
-                      <option value="system">{t('admin.obsOverlaySenderFontSystem', { defaultValue: 'System' })}</option>
-                      <option value="mono">{t('admin.obsOverlaySenderFontMono', { defaultValue: 'Monospace' })}</option>
-                      <option value="serif">{t('admin.obsOverlaySenderFontSerif', { defaultValue: 'Serif' })}</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              )}
-            </div>
-
             <div className="pt-2">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -1858,12 +1450,447 @@ function ObsLinksSettings() {
                   )}
                 </div>
               </div>
-              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                {t('admin.obsOverlayLivePreviewHint', {
-                  defaultValue:
-                    'Preview uses a real random meme when available (channel pool → your uploaded → global). Copy the URL above into OBS when ready.',
-                })}
+            </div>
+
+            <div className="glass p-3">
+              <div className="inline-flex w-full flex-wrap gap-2">
+                {(
+                  [
+                    ['layout', t('admin.obsAdvancedTabLayout', { defaultValue: 'Layout' })],
+                    ['animation', t('admin.obsAdvancedTabAnimation', { defaultValue: 'Animation' })],
+                    ['shadow', t('admin.obsAdvancedTabShadow', { defaultValue: 'Shadow' })],
+                    ['border', t('admin.obsAdvancedTabBorder', { defaultValue: 'Border' })],
+                    ['glass', t('admin.obsAdvancedTabGlass', { defaultValue: 'Glass' })],
+                    ['sender', t('admin.obsAdvancedTabSender', { defaultValue: 'Sender' })],
+                  ] as const
+                )
+                  .filter(([k]) => (k === 'sender' ? overlayShowSender : true))
+                  .map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setAdvancedTab(k)}
+                      className={`px-3 py-2 text-sm font-semibold rounded-full transition-colors ${
+                        advancedTab === k
+                          ? 'bg-primary text-white'
+                          : 'bg-white/50 dark:bg-white/10 text-gray-900 dark:text-white hover:bg-white/70 dark:hover:bg-white/15'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayPosition', { defaultValue: 'Позиция' })}
+                </label>
+                <select
+                  value={urlPosition}
+                  onChange={(e) => setUrlPosition(e.target.value as any)}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'Случайно' })}</option>
+                  <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Центр' })}</option>
+                  <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'Сверху' })}</option>
+                  <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'Снизу' })}</option>
+                  <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'Слева сверху' })}</option>
+                  <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'Справа сверху' })}</option>
+                  <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'Слева снизу' })}</option>
+                  <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'Справа снизу' })}</option>
+                </select>
+              </div>
+
+              <div className={`md:col-span-2 ${advancedTab === 'layout' ? '' : 'hidden'}`}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  {t('admin.obsOverlayScaleMode', { defaultValue: 'Size' })}
+                </label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={scaleMode}
+                    onChange={(e) => setScaleMode(e.target.value as any)}
+                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="fixed">{t('admin.obsOverlayScaleFixed', { defaultValue: 'Fixed' })}</option>
+                    <option value="range">{t('admin.obsOverlayScaleRange', { defaultValue: 'Range' })}</option>
+                  </select>
+
+                  {scaleMode === 'fixed' ? (
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                        {t('admin.obsOverlayScaleFixedValue', { defaultValue: 'Scale' })}:{' '}
+                        <span className="font-mono">{scaleFixed.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={2.5}
+                        step={0.05}
+                        value={scaleFixed}
+                        onChange={(e) => setScaleFixed(parseFloat(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {t('admin.obsOverlayScaleMin', { defaultValue: 'Min' })}:{' '}
+                          <span className="font-mono">{scaleMin.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={2.5}
+                          step={0.05}
+                          value={scaleMin}
+                          onChange={(e) => setScaleMin(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {t('admin.obsOverlayScaleMax', { defaultValue: 'Max' })}:{' '}
+                          <span className="font-mono">{scaleMax.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.25}
+                          max={2.5}
+                          step={0.05}
+                          value={scaleMax}
+                          onChange={(e) => setScaleMax(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayVolume', { defaultValue: 'Volume' })}: <span className="font-mono">{Math.round(urlVolume * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={urlVolume}
+                  onChange={(e) => setUrlVolume(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'animation' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayAnim', { defaultValue: 'Animation' })}
+                </label>
+                <select
+                  value={urlAnim}
+                  onChange={(e) => setUrlAnim(e.target.value as any)}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
+                  <option value="zoom">{t('admin.obsOverlayAnimZoom', { defaultValue: 'Zoom' })}</option>
+                  <option value="slide-up">{t('admin.obsOverlayAnimSlideUp', { defaultValue: 'Slide up' })}</option>
+                  <option value="none">{t('admin.obsOverlayAnimNone', { defaultValue: 'None' })}</option>
+                </select>
+              </div>
+
+              <div className={advancedTab === 'animation' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayAnimSpeed', { defaultValue: 'Animation speed' })}:{' '}
+                  <span className="font-mono">{animSpeedPct}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={animSpeedPct}
+                  onChange={(e) => setAnimSpeedPct(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={`text-xs text-gray-600 dark:text-gray-300 -mt-2 ${advancedTab === 'animation' ? '' : 'hidden'}`}>
+                {t('admin.obsOverlayAnimSpeedHint', { defaultValue: 'Slower looks more premium; faster feels snappier.' })}
+              </div>
+
+              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayRadius', { defaultValue: 'Corner radius' })}: <span className="font-mono">{urlRadius}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={1}
+                  value={urlRadius}
+                  onChange={(e) => setUrlRadius(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadow', { defaultValue: 'Shadow' })}: <span className="font-mono">{shadowBlur}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={200}
+                  step={2}
+                  value={shadowBlur}
+                  onChange={(e) => setShadowBlur(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowAngle', { defaultValue: 'Shadow direction' })}:{' '}
+                  <span className="font-mono">{Math.round(shadowAngle)}°</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={1}
+                  value={shadowAngle}
+                  onChange={(e) => setShadowAngle(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowDistance', { defaultValue: 'Shadow distance' })}:{' '}
+                  <span className="font-mono">{shadowDistance}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={shadowDistance}
+                  onChange={(e) => setShadowDistance(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowSpread', { defaultValue: 'Shadow spread' })}:{' '}
+                  <span className="font-mono">{shadowSpread}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={shadowSpread}
+                  onChange={(e) => setShadowSpread(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowOpacity', { defaultValue: 'Shadow opacity' })}:{' '}
+                  <span className="font-mono">{Math.round(shadowOpacity * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.02}
+                  value={shadowOpacity}
+                  onChange={(e) => setShadowOpacity(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowColor', { defaultValue: 'Shadow color' })}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={shadowColor}
+                    onChange={(e) => setShadowColor(String(e.target.value || '').toLowerCase())}
+                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                    aria-label={t('admin.obsOverlayShadowColor', { defaultValue: 'Shadow color' })}
+                  />
+                  <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{shadowColor}</div>
+                </div>
+              </div>
+
+              <div className={advancedTab === 'glass' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBlur', { defaultValue: 'Glass blur' })}: <span className="font-mono">{urlBlur}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={40}
+                  step={1}
+                  value={urlBlur}
+                  onChange={(e) => setUrlBlur(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'border' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBorder', { defaultValue: 'Border' })}: <span className="font-mono">{urlBorder}px</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={12}
+                  step={1}
+                  value={urlBorder}
+                  onChange={(e) => setUrlBorder(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'border' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
+                </label>
+                <div className="flex items-center justify-between gap-3">
+                  <select
+                    value={borderMode}
+                    onChange={(e) => setBorderMode(e.target.value as any)}
+                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    aria-label={t('admin.obsOverlayBorderMode', { defaultValue: 'Border mode' })}
+                  >
+                    <option value="solid">{t('admin.obsOverlayBorderModeSolid', { defaultValue: 'Solid' })}</option>
+                    <option value="gradient">{t('admin.obsOverlayBorderModeGradient', { defaultValue: 'Gradient' })}</option>
+                  </select>
+                  <input
+                    type="color"
+                    value={urlBorderColor}
+                    onChange={(e) => setUrlBorderColor(String(e.target.value || '').toLowerCase())}
+                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                    aria-label={t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
+                  />
+                  <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{urlBorderColor}</div>
+                </div>
+              </div>
+
+              {borderMode === 'gradient' && (
+                <div className={`md:col-span-2 ${advancedTab === 'border' ? '' : 'hidden'}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayBorderColor2', { defaultValue: 'Gradient color 2' })}
+                      </label>
+                      <input
+                        type="color"
+                        value={urlBorderColor2}
+                        onChange={(e) => setUrlBorderColor2(String(e.target.value || '').toLowerCase())}
+                        className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                        aria-label={t('admin.obsOverlayBorderColor2', { defaultValue: 'Gradient color 2' })}
+                      />
+                      <div className="text-xs text-gray-600 dark:text-gray-300 font-mono mt-1">{urlBorderColor2}</div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayBorderGradientAngle', { defaultValue: 'Gradient angle' })}:{' '}
+                        <span className="font-mono">{Math.round(urlBorderGradientAngle)}°</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        step={1}
+                        value={urlBorderGradientAngle}
+                        onChange={(e) => setUrlBorderGradientAngle(parseInt(e.target.value, 10))}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={advancedTab === 'glass' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBgOpacity', { defaultValue: 'Glass opacity' })}:{' '}
+                  <span className="font-mono">{Math.round(urlBgOpacity * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.65}
+                  step={0.01}
+                  value={urlBgOpacity}
+                  onChange={(e) => setUrlBgOpacity(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              {overlayShowSender && (
+              <div className={`md:col-span-2 ${advancedTab === 'sender' ? '' : 'hidden'}`}>
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                  {t('admin.obsOverlaySenderTypography', { defaultValue: 'Sender label' })}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontSize', { defaultValue: 'Font size' })}:{' '}
+                      <span className="font-mono">{senderFontSize}px</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={28}
+                      step={1}
+                      value={senderFontSize}
+                      onChange={(e) => setSenderFontSize(parseInt(e.target.value, 10))}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontWeight', { defaultValue: 'Weight' })}
+                    </label>
+                    <select
+                      value={senderFontWeight}
+                      onChange={(e) => setSenderFontWeight(parseInt(e.target.value, 10))}
+                      className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      <option value={400}>400</option>
+                      <option value={500}>500</option>
+                      <option value={600}>600</option>
+                      <option value={700}>700</option>
+                      <option value={800}>800</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontFamily', { defaultValue: 'Font' })}
+                    </label>
+                    <select
+                      value={senderFontFamily}
+                      onChange={(e) => setSenderFontFamily(e.target.value as any)}
+                      className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      <option value="system">{t('admin.obsOverlaySenderFontSystem', { defaultValue: 'System' })}</option>
+                      <option value="mono">{t('admin.obsOverlaySenderFontMono', { defaultValue: 'Monospace' })}</option>
+                      <option value="serif">{t('admin.obsOverlaySenderFontSerif', { defaultValue: 'Serif' })}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              )}
             </div>
           </div>
         </details>
