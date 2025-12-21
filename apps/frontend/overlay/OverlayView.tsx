@@ -209,6 +209,12 @@ export default function OverlayView() {
   const senderFontWeight = clampInt(parseInt(String(getParam('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
   const senderFontFamily = String(getParam('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
 
+  // Media fit mode:
+  // - cover: no bars, may crop a tiny bit (recommended for "premium"/designer look)
+  // - contain: never crop, may show bars if aspect ratios differ or bars are baked into the file
+  const mediaFitRaw = String(getParam('mediaFit') || (parsedStyle as any)?.mediaFit || 'cover').trim().toLowerCase();
+  const mediaFit: 'cover' | 'contain' = mediaFitRaw === 'contain' ? 'contain' : 'cover';
+
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
     const urlFixed = Number.isFinite(urlScaleFixed) && urlScaleFixed > 0 ? urlScaleFixed : NaN;
@@ -913,13 +919,11 @@ export default function OverlayView() {
       height: '100%',
       maxWidth: '100%',
       maxHeight: '100%',
-      // Preserve original aspect ratio (no crop). Since the container is sized to the same ratio,
-      // this will not create letterboxing.
-      objectFit: 'contain',
+      objectFit: mediaFit,
       objectPosition: 'center',
       background: 'transparent',
     };
-  }, []);
+  }, [mediaFit]);
 
   const badgeStyle = useMemo<React.CSSProperties>(() => {
     const family =
