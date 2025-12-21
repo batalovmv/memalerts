@@ -370,6 +370,10 @@
     "descriptionWithReward": "Activate the reward \"{{rewardTitle}}\" on the streamer's Twitch channel to get coins.",
     "afterActivation": "After activation, coins will appear in your balance.",
     "gotIt": "Got it",
+    "play": "Play",
+    "pause": "Pause",
+    "mute": "Mute",
+    "soundOn": "Sound on",
     "close": "Close"
   },
   "tagInput": {
