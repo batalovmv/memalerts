@@ -40,3 +40,4 @@ pnpm prisma migrate deploy || {
 
 echo "✅ Migrations applied successfully!"
 
+

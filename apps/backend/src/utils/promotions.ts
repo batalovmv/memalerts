@@ -41,3 +41,4 @@ export function calculatePriceWithDiscount(originalPrice: number, discountPercen
   return Math.max(0, Math.floor(originalPrice - discount));
 }
 
+

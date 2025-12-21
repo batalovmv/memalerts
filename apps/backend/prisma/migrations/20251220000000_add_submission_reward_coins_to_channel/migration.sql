@@ -3,3 +3,4 @@ ALTER TABLE "Channel"
 ADD COLUMN "submissionRewardCoins" INTEGER NOT NULL DEFAULT 0;
 
 
+

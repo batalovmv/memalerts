@@ -166,3 +166,4 @@ echo "4. Nginx not configured: Run setup-nginx-full.sh script"
 echo "5. SSL issues: Check /etc/nginx/ssl/cloudflare-origin.crt"
 echo "=========================================="
 
+

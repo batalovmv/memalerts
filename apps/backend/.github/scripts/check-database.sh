@@ -55,3 +55,4 @@ if [ -f /opt/memalerts-backend/.env ]; then
     fi
 fi
 
+

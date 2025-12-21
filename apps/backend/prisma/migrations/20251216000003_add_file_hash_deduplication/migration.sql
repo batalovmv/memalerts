@@ -22,3 +22,4 @@ CREATE INDEX "Meme_fileHash_idx" ON "Meme"("fileHash");
 -- AddForeignKey
 ALTER TABLE "Meme" ADD CONSTRAINT "Meme_fileHash_fkey" FOREIGN KEY ("fileHash") REFERENCES "FileHash"("hash") ON DELETE SET NULL ON UPDATE CASCADE;
 
+

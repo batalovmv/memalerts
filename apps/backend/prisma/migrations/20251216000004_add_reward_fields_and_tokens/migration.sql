@@ -8,3 +8,4 @@ ADD COLUMN "rewardCoins" INTEGER;
 ALTER TABLE "User" ADD COLUMN "twitchAccessToken" TEXT,
 ADD COLUMN "twitchRefreshToken" TEXT;
 
+
