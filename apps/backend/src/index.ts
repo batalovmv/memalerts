@@ -15,6 +15,9 @@ import { requestContext } from './middleware/requestContext.js';
 dotenv.config();
 
 const app = express();
+// API responses should not rely on ETag-based caching.
+// It causes confusing 304 Not Modified behaviors for dynamic endpoints like favorites/search.
+app.disable('etag');
 const httpServer = createServer(app);
 // Get allowed origins from env or use defaults
 // IMPORTANT: Beta and production must be isolated

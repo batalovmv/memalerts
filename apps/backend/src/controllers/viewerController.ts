@@ -419,6 +419,11 @@ export const viewerController = {
   },
 
   searchMemes: async (req: any, res: Response) => {
+    // Prevent browser/proxy caching for dynamic search/favorites results.
+    // This endpoint is used for personalized results (favorites) and must always be fresh.
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const {
       q, // search query
       tags, // comma-separated tag names
