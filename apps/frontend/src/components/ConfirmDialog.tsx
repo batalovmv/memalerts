@@ -27,7 +27,7 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-backdrop-in"
+      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4 pb-safe modal-backdrop-in"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -36,7 +36,7 @@ export default function ConfirmDialog({
       aria-labelledby="confirm-dialog-title"
     >
       <div
-        className="glass rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 modal-pop-in"
+        className="glass rounded-t-3xl sm:rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 modal-pop-in"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 id="confirm-dialog-title" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
@@ -49,14 +49,14 @@ export default function ConfirmDialog({
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className={`w-full sm:w-auto px-4 py-2.5 rounded-lg text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed ${confirmButtonClass}`}
+            className={`w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-white transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed ${confirmButtonClass}`}
           >
             {isLoading ? 'Processing...' : confirmText}
           </button>

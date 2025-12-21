@@ -29,12 +29,15 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4 pb-safe modal-backdrop-in"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="glass rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 relative modal-pop-in" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="glass rounded-t-3xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 max-w-md w-full relative modal-pop-in max-h-[85vh] overflow-y-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           onClick={handleClose}
@@ -47,7 +50,7 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
         </button>
 
         {/* Content */}
-        <h2 className="text-2xl font-bold mb-4 dark:text-white">
+        <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 dark:text-white">
           {t('coinsInfoModal.title', 'How to get coins')}
         </h2>
         
@@ -66,7 +69,7 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
         {/* Close button at bottom */}
         <button
           onClick={handleClose}
-          className="mt-6 w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          className="mt-5 sm:mt-6 w-full bg-primary hover:bg-secondary text-white font-semibold py-3 sm:py-2.5 px-4 rounded-xl transition-colors"
         >
           {t('coinsInfoModal.gotIt', 'Got it')}
         </button>
