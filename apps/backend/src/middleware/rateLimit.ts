@@ -168,10 +168,20 @@ export const activateMemeLimiter = rateLimit({
 
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10,
+  // Allow normal "upload a few memes in a row" behavior without tripping on shared IPs (mobile/NAT).
+  // Still strict enough to prevent abuse.
+  max: 30,
   message: 'Too many upload requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Prefer per-user limiting for authenticated routes; fallback to IP.
+    // This avoids punishing users behind NAT/mobile carriers.
+    const anyReq = req as any;
+    const userId = typeof anyReq.userId === 'string' ? anyReq.userId : null;
+    if (userId) return `user:${userId}`;
+    return `ip:${getClientIP(req)}`;
+  },
   skip: (req) => {
     // Check if IP is whitelisted
     const whitelistIPs = getWhitelistIPs();
