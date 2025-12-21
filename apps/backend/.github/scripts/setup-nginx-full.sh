@@ -331,7 +331,8 @@ server {
     }
 
     # Other backend routes (excluding /uploads and /socket.io which are handled above)
-    location ~ ^/(auth|webhooks|channels|wallet|memes|health) {
+    # IMPORTANT: include /beta/* so beta access endpoints never fall through to SPA static handler (would cause 405 on POST)
+    location ~ ^/(auth|webhooks|channels|wallet|memes|health|beta) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -794,7 +795,8 @@ server {
     }
 
     # Other backend routes (excluding /uploads and /socket.io which are handled above)
-    location ~ ^/(auth|webhooks|channels|wallet|memes|health) {
+    # IMPORTANT: include /beta/* so beta access endpoints never fall through to SPA static handler (would cause 405 on POST)
+    location ~ ^/(auth|webhooks|channels|wallet|memes|health|beta) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
