@@ -297,6 +297,8 @@
     "revokedAt": "Забанен:",
     "submissionRewardCoins": "Награда за одобренный мем (монет)",
     "submissionRewardCoinsDescription": "Монеты, которые получит зритель, если вы одобрите его заявку. Поставьте 0 чтобы отключить."
+    ,
+    "quickAdd100": "+100"
   },
   "search": {
     "title": "Mem Alerts - Поиск",

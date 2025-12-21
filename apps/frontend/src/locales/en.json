@@ -285,6 +285,8 @@
     "revokedAt": "Revoked:",
     "submissionRewardCoins": "Reward for approved submission (coins)",
     "submissionRewardCoinsDescription": "Coins granted to the viewer when you approve their submission. Set 0 to disable."
+    ,
+    "quickAdd100": "+100"
   },
   "search": {
     "title": "Mem Alerts - Search",

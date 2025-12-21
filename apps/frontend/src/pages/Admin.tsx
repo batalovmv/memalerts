@@ -1161,6 +1161,7 @@ function RewardsSettings() {
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
   const [twitchSavedPulse, setTwitchSavedPulse] = useState(false);
   const [approvedSavedPulse, setApprovedSavedPulse] = useState(false);
+  const lastApprovedNonZeroRef = useRef<number>(100);
   const saveTwitchTimerRef = useRef<number | null>(null);
   const saveApprovedTimerRef = useRef<number | null>(null);
   const lastSavedTwitchRef = useRef<string | null>(null);
@@ -1233,6 +1234,14 @@ function RewardsSettings() {
       settingsLoadedRef.current = null;
     }
   }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
+
+  // Track last non-zero value for the approved meme reward toggle.
+  useEffect(() => {
+    const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+    if (Number.isFinite(coins) && coins > 0) {
+      lastApprovedNonZeroRef.current = coins;
+    }
+  }, [rewardSettings.submissionRewardCoins]);
 
   // Check Twitch reward eligibility (affiliate/partner) to hide/disable reward UI.
   useEffect(() => {
@@ -1548,36 +1557,72 @@ function RewardsSettings() {
         <div className="glass p-6 relative">
           {savingApprovedMemeReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
           {approvedSavedPulse && !savingApprovedMemeReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold dark:text-white mb-1">
-              {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения. 0 — выключено.')}
-            </p>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="min-w-0">
+              <h3 className="text-lg font-semibold dark:text-white mb-1">
+                {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения. 0 — выключено.')}
+              </p>
+            </div>
+
+            <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
+              <input
+                type="checkbox"
+                checked={(parseInt(rewardSettings.submissionRewardCoins || '0', 10) || 0) > 0}
+                disabled={savingApprovedMemeReward}
+                onChange={(e) => {
+                  if (savingApprovedMemeReward) return;
+                  const enabled = e.target.checked;
+                  if (!enabled) {
+                    setRewardSettings({ ...rewardSettings, submissionRewardCoins: '0' });
+                    return;
+                  }
+                  const restore = lastApprovedNonZeroRef.current > 0 ? lastApprovedNonZeroRef.current : 100;
+                  setRewardSettings({ ...rewardSettings, submissionRewardCoins: String(restore) });
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
           </div>
 
           <div className={savingApprovedMemeReward ? 'pointer-events-none opacity-60' : ''}>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
             </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={rewardSettings.submissionRewardCoins}
-              onChange={(e) => {
-                const next = e.target.value.replace(/[^\d]/g, '');
-                setRewardSettings({ ...rewardSettings, submissionRewardCoins: next });
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
-                  e.preventDefault();
-                }
-              }}
-              className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              placeholder="0"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={rewardSettings.submissionRewardCoins}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^\d]/g, '');
+                  setRewardSettings({ ...rewardSettings, submissionRewardCoins: next });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                    e.preventDefault();
+                  }
+                }}
+                className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder="0"
+              />
+              <button
+                type="button"
+                className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold glass-btn bg-white/40 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+                onClick={() => {
+                  const current = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+                  const next = (Number.isFinite(current) ? current : 0) + 100;
+                  setRewardSettings({ ...rewardSettings, submissionRewardCoins: String(next) });
+                }}
+                disabled={savingApprovedMemeReward}
+              >
+                {t('admin.quickAdd100', { defaultValue: '+100' })}
+              </button>
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}
             </p>
