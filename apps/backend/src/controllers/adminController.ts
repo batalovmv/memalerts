@@ -28,6 +28,7 @@ import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/sub
 import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
 import { logger } from '../utils/logger.js';
+import { isBetaBackend } from '../utils/envMode.js';
 
 export const adminController = {
   getTwitchRewardEligibility: async (req: AuthRequest, res: Response) => {
@@ -62,6 +63,15 @@ export const adminController = {
           broadcasterType: null,
           checkedBroadcasterId: channel.twitchChannelId,
           reason: 'TWITCH_CHANNEL_INFO_NOT_FOUND',
+          ...(isBetaBackend()
+            ? {
+                debug: {
+                  tokenMode: null,
+                  itemKeys: null,
+                  rawBroadcasterType: null,
+                },
+              }
+            : {}),
         });
       }
       const btRaw = info?.broadcaster_type;
@@ -79,6 +89,15 @@ export const adminController = {
           broadcasterType: null,
           checkedBroadcasterId: channel.twitchChannelId,
           reason: 'TWITCH_BROADCASTER_TYPE_MISSING',
+          ...(isBetaBackend()
+            ? {
+                debug: {
+                  tokenMode: info?._meta?.tokenMode ?? null,
+                  itemKeys: info?._meta?.itemKeys ?? null,
+                  rawBroadcasterType: info?._meta?.rawBroadcasterType ?? null,
+                },
+              }
+            : {}),
         });
       }
 
@@ -90,6 +109,15 @@ export const adminController = {
         broadcasterType: bt,
         checkedBroadcasterId: channel.twitchChannelId,
         reason: eligible ? undefined : 'TWITCH_REWARD_NOT_AVAILABLE',
+        ...(isBetaBackend()
+          ? {
+              debug: {
+                tokenMode: info?._meta?.tokenMode ?? null,
+                itemKeys: info?._meta?.itemKeys ?? null,
+                rawBroadcasterType: info?._meta?.rawBroadcasterType ?? null,
+              },
+            }
+          : {}),
       });
     } catch (e: any) {
       logger.error('twitch.eligibility.failed', {
@@ -1083,17 +1111,23 @@ export const adminController = {
             const info = await getChannelInformation(userId, channel.twitchChannelId);
             const btRaw = info?.broadcaster_type;
             if (btRaw === null || btRaw === undefined) {
-              // We couldn't reliably check eligibility. Don't claim "not eligible" — ask user to retry.
+              // We couldn't reliably check eligibility. On beta, don't hard-block: allow attempt and let Twitch
+              // enforce the real rule. On prod, keep it strict to avoid confusing UX.
               logger.warn('twitch.eligibility.unknown', {
                 requestId: req.requestId,
                 userId,
                 channelId,
                 broadcasterId: channel.twitchChannelId,
+                tokenMode: info?._meta?.tokenMode,
+                itemKeys: info?._meta?.itemKeys,
+                rawBroadcasterType: info?._meta?.rawBroadcasterType,
               });
-              return res.status(502).json({
-                error: 'Unable to verify Twitch eligibility at the moment. Please try again later.',
-                errorCode: 'TWITCH_ELIGIBILITY_UNKNOWN',
-              });
+              if (!isBetaBackend()) {
+                return res.status(502).json({
+                  error: 'Unable to verify Twitch eligibility at the moment. Please try again later.',
+                  errorCode: 'TWITCH_ELIGIBILITY_UNKNOWN',
+                });
+              }
             }
 
             const bt = String(btRaw).toLowerCase();

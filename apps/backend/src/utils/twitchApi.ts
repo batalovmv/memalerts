@@ -226,14 +226,31 @@ export async function getChannelRewards(
 export async function getChannelInformation(
   userId: string,
   broadcasterId: string
-): Promise<{ broadcaster_type?: string | null } | null> {
+): Promise<
+  | {
+      broadcaster_type?: string | null;
+      _meta?: {
+        tokenMode: 'user' | 'app';
+        itemKeys?: string[];
+        rawBroadcasterType?: unknown;
+      };
+    }
+  | null
+> {
   // Prefer user token (keeps behavior consistent), but fall back to app token when user token
   // is missing scopes/invalid. Affiliate/partner eligibility should not depend on user scopes.
   try {
     const resp = await twitchApiRequest(`channels?broadcaster_id=${broadcasterId}`, 'GET', userId);
     const item = resp?.data?.[0];
     if (!item) return null;
-    return { broadcaster_type: item.broadcaster_type ?? null };
+    return {
+      broadcaster_type: item.broadcaster_type ?? null,
+      _meta: {
+        tokenMode: 'user',
+        itemKeys: typeof item === 'object' && item ? Object.keys(item) : undefined,
+        rawBroadcasterType: (item as any)?.broadcaster_type,
+      },
+    };
   } catch (e: any) {
     // Fall back to app access token
     const accessToken = await getAppAccessToken();
@@ -251,7 +268,14 @@ export async function getChannelInformation(
     const resp = await response.json();
     const item = resp?.data?.[0];
     if (!item) return null;
-    return { broadcaster_type: item.broadcaster_type ?? null };
+    return {
+      broadcaster_type: item.broadcaster_type ?? null,
+      _meta: {
+        tokenMode: 'app',
+        itemKeys: typeof item === 'object' && item ? Object.keys(item) : undefined,
+        rawBroadcasterType: (item as any)?.broadcaster_type,
+      },
+    };
   }
 }
 
