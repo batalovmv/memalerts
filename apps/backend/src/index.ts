@@ -10,14 +10,23 @@ import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
-import { requestContext } from './middleware/requestContext.js';
+import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
 
 dotenv.config();
 
+// In production, remove console noise (keep console.error for real issues).
+if (process.env.NODE_ENV === 'production') {
+  // eslint-disable-next-line no-console
+  console.log = () => {};
+  // eslint-disable-next-line no-console
+  console.info = () => {};
+  // eslint-disable-next-line no-console
+  console.debug = () => {};
+  // eslint-disable-next-line no-console
+  console.warn = () => {};
+}
+
 const app = express();
-// API responses should not rely on ETag-based caching.
-// It causes confusing 304 Not Modified behaviors for dynamic endpoints like favorites/search.
-app.disable('etag');
 const httpServer = createServer(app);
 // Get allowed origins from env or use defaults
 // IMPORTANT: Beta and production must be isolated
@@ -90,8 +99,6 @@ httpServer.on('timeout', (socket) => {
 app.set('trust proxy', 1);
 
 // Middleware
-// Request context & requestId (must be early so it is present in all logs/errors)
-app.use(requestContext);
 // Configure helmet with proper CSP
 app.use(
   helmet({
@@ -349,6 +356,8 @@ async function startServer() {
   httpServer.listen(PORT, () => {
     console.log(`🚀 API server running on http://localhost:${PORT}`);
     console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
+    // Economical storage: cleanup rejected submissions after TTL (default 30 days).
+    startRejectedSubmissionsCleanupScheduler();
   });
 }
 
