@@ -16,6 +16,7 @@ import {
   createChannelReward,
   updateChannelReward,
   deleteChannelReward,
+  getChannelInformation,
   getChannelRewards,
   createEventSubSubscription,
   getEventSubSubscriptions,
@@ -27,6 +28,35 @@ import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
 
 export const adminController = {
+  getTwitchRewardEligibility: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    const userId = req.userId;
+
+    if (!channelId || !userId) {
+      return res.status(400).json({ error: 'Channel ID and User ID required' });
+    }
+
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { twitchChannelId: true },
+    });
+
+    if (!channel?.twitchChannelId) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    try {
+      const info = await getChannelInformation(userId, channel.twitchChannelId);
+      const bt = String(info?.broadcaster_type || '').toLowerCase();
+      const eligible = bt === 'affiliate' || bt === 'partner';
+      return res.json({ eligible, broadcasterType: bt || null });
+    } catch (e: any) {
+      return res.status(502).json({
+        error: e?.message || 'Failed to check Twitch channel eligibility',
+        errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
+      });
+    }
+  },
   getOverlayToken: async (req: AuthRequest, res: Response) => {
     const channelId = req.channelId;
     if (!channelId) {
@@ -957,7 +987,10 @@ export const adminController = {
         if (body.rewardEnabled) {
           // Enable reward - create or update in Twitch
           if (!body.rewardCost || !body.rewardCoins) {
-            return res.status(400).json({ error: 'Reward cost and coins are required when enabling reward' });
+            return res.status(400).json({
+              error: 'Reward cost and coins are required when enabling reward',
+              errorCode: 'REWARD_COST_COINS_REQUIRED',
+            });
           }
 
           // Check if user has access token
@@ -970,6 +1003,24 @@ export const adminController = {
             return res.status(401).json({ 
               error: 'Twitch access token not found. Please log out and log in again to refresh your authorization.',
               requiresReauth: true 
+            });
+          }
+
+          // Prevent enabling rewards for channels without affiliate/partner status.
+          try {
+            const info = await getChannelInformation(userId, channel.twitchChannelId);
+            const bt = String(info?.broadcaster_type || '').toLowerCase();
+            const eligible = bt === 'affiliate' || bt === 'partner';
+            if (!eligible) {
+              return res.status(403).json({
+                error: 'The broadcaster does not have partner or affiliate status.',
+                errorCode: 'TWITCH_REWARD_NOT_AVAILABLE',
+              });
+            }
+          } catch (e: any) {
+            return res.status(502).json({
+              error: e?.message || 'Failed to check Twitch channel eligibility',
+              errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
             });
           }
 

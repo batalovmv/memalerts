@@ -16,6 +16,7 @@ adminRoutes.get('/memes', adminController.getMemes);
 adminRoutes.patch('/memes/:id', adminController.updateMeme);
 adminRoutes.delete('/memes/:id', adminController.deleteMeme);
 adminRoutes.patch('/channel/settings', adminController.updateChannelSettings);
+adminRoutes.get('/twitch/reward/eligibility', adminController.getTwitchRewardEligibility);
 
 // Admin-only routes for wallet management
 adminRoutes.get('/wallets', adminController.getAllWallets);
