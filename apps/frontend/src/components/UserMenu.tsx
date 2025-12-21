@@ -67,7 +67,7 @@ export default function UserMenu() {
   };
 
   const handleBetaAccess = () => {
-    navigate('/beta-access');
+    navigate('/settings?tab=beta');
     setIsOpen(false);
   };
 
@@ -157,6 +157,13 @@ export default function UserMenu() {
               {t('userMenu.betaAccess', { defaultValue: 'Beta access' })}
             </button>
 
+            <button
+              onClick={handleSettings}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              {t('userMenu.settings')}
+            </button>
+
             {(user.role === 'streamer' || user.role === 'admin') && (
               <>
                 <button
@@ -170,12 +177,6 @@ export default function UserMenu() {
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
                   {t('userMenu.dashboard')}
-                </button>
-                <button
-                  onClick={handleSettings}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  {t('userMenu.settings')}
                 </button>
               </>
             )}
