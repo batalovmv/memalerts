@@ -660,14 +660,12 @@ export default function OverlayView() {
       const fit = clampFloat(Number(item.fitScale ?? 1), 0.25, 1);
       const finalScale = baseScale * fit;
 
-      // Clamp size to feel like an overlay (not a full web page).
-      // Since scale applies via transform, reduce pre-scale bounds to keep the final size within viewport.
-      // Allow larger than before, but keep safe for tall/vertical memes.
-      const preScaleMaxVw = Math.max(18, Math.min(70, 62 / baseScale));
-      const preScaleMaxVh = Math.max(18, Math.min(70, 62 / baseScale));
+      // IMPORTANT: normalize visual size across different source resolutions.
+      // We render the meme inside a fixed viewport-based box, then use object-fit: contain inside it.
+      // This avoids "low-res looks bigger / high-res looks smaller" and stabilizes viewport clamping.
       const sizeClamp: React.CSSProperties = {
-        maxWidth: `${preScaleMaxVw}vw`,
-        maxHeight: `${preScaleMaxVh}vh`,
+        width: 'clamp(260px, 34vw, 560px)',
+        height: 'clamp(260px, 34vh, 560px)',
       };
 
       // Safety override: if we have clamped pixel-center coordinates, render as centered-by-px
