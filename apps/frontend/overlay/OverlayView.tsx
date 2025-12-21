@@ -449,10 +449,11 @@ export default function OverlayView() {
       timersRef.current.delete(id);
     }
 
-    // Mark as exiting first (fade-out), then remove after a short delay.
+    // Mark as exiting first (fade-out), then remove after the configured exit duration.
     setActive((prev) => prev.map((a) => (a.id === id ? { ...a, isExiting: true } : a)));
     const existingFade = fadeTimersRef.current.get(id);
     if (existingFade) clearTimeout(existingFade);
+    const removeAfterMs = clampInt(Number(exitMs) || 0, 120, 1400);
     const fadeTimer = setTimeout(() => {
       fadeTimersRef.current.delete(id);
       setActive((prev) => prev.filter((a) => a.id !== id));
@@ -488,11 +489,12 @@ export default function OverlayView() {
           }
         }, 150);
       }
-    }, 220);
+    }, removeAfterMs);
     fadeTimersRef.current.set(id, fadeTimer);
   }, [
     demo,
     emitAckDoneOnce,
+    exitMs,
     getNextUserScale,
     getPreviewMediaAt,
     pickRandomPosition,
@@ -842,9 +844,25 @@ export default function OverlayView() {
         background: 'transparent',
       };
     }
+    const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+      const h = hex.replace('#', '');
+      const r = parseInt(h.slice(0, 2), 16);
+      const g = parseInt(h.slice(2, 4), 16);
+      const b = parseInt(h.slice(4, 6), 16);
+      return { r, g, b };
+    };
+
     const bg =
       borderMode === 'gradient'
-        ? `linear-gradient(${borderGradientAngle}deg, ${borderColor}, ${borderColor2})`
+        ? (() => {
+            const c1 = hexToRgb(borderColor);
+            const c2 = hexToRgb(borderColor2);
+            // Multi-stop gradient + subtle highlight to feel more "Photoshop-like".
+            return [
+              `radial-gradient(140% 120% at 18% 12%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 55%)`,
+              `linear-gradient(${borderGradientAngle}deg, rgba(${c1.r},${c1.g},${c1.b},1) 0%, rgba(${c1.r},${c1.g},${c1.b},0.92) 28%, rgba(${c2.r},${c2.g},${c2.b},0.92) 72%, rgba(${c2.r},${c2.g},${c2.b},1) 100%)`,
+            ].join(', ');
+          })()
         : borderColor;
     return {
       width: '100%',
@@ -852,13 +870,13 @@ export default function OverlayView() {
       boxSizing: 'border-box',
       borderRadius: radius || 20,
       padding: w,
-      background: bg,
+      background: borderMode === 'gradient' ? undefined : bg,
+      backgroundImage: borderMode === 'gradient' ? bg : undefined,
     };
   }, [border, borderColor, borderColor2, borderGradientAngle, borderMode, radius]);
 
   const cardStyle = useMemo<React.CSSProperties>(() => {
     const effectiveRadius = radius || 20;
-    const effectiveBlur = blur || 6;
     const effectiveBgOpacity = Number.isFinite(bgOpacity) ? bgOpacity : 0.18;
     // Shadow direction (angle).
     const distance = Number.isFinite(shadowDistance) && shadowDistance > 0 ? shadowDistance : 22;
@@ -881,9 +899,8 @@ export default function OverlayView() {
       overflow: 'hidden',
       outline: '1px solid rgba(0,0,0,0.35)',
       boxShadow: `${offX}px ${offY}px ${shadowBlur}px ${shadowSpread}px ${shadowRgba}`,
-      // Stronger "glass" feel: add subtle light highlights + saturate.
-      background: `linear-gradient(135deg, rgba(255,255,255,0.20), rgba(255,255,255,0.04)), rgba(0,0,0,${effectiveBgOpacity})`,
-      backdropFilter: `blur(${effectiveBlur}px) saturate(1.35)`,
+      // Backplate under media. Keep subtle (main "glass" is rendered as a foreground overlay).
+      background: `rgba(0,0,0,${effectiveBgOpacity})`,
       opacity: 1,
       willChange: 'transform, opacity',
       transition: `opacity ${Math.max(0, effectiveExitMs)}ms ease, transform ${Math.max(0, effectiveExitMs)}ms ease`,
@@ -912,6 +929,26 @@ export default function OverlayView() {
     shadowSpread,
   ]);
 
+  const glassOverlayStyle = useMemo<React.CSSProperties>(() => {
+    const effectiveBlur = blur || 0;
+    // Interpret bgOpacity as "glass opacity" (surface tint strength), not as backplate opacity.
+    const glassOpacity = clampFloat(Number.isFinite(bgOpacity) ? bgOpacity : 0.18, 0, 0.65);
+    if (effectiveBlur <= 0 && glassOpacity <= 0) {
+      return { display: 'none' };
+    }
+    return {
+      position: 'absolute',
+      inset: 0,
+      pointerEvents: 'none',
+      // Blur the content behind (the video/image), so it looks like glass ON TOP of the meme.
+      backdropFilter: `blur(${effectiveBlur}px) saturate(1.25)`,
+      background:
+        // A subtle highlight + tint to make glass visible even on dark media.
+        `linear-gradient(135deg, rgba(255,255,255,${Math.min(0.26, glassOpacity + 0.08)}), rgba(255,255,255,0.02)), rgba(0,0,0,${Math.max(0, glassOpacity - 0.12)})`,
+      opacity: 1,
+    };
+  }, [bgOpacity, blur]);
+
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
       display: 'block',
@@ -933,9 +970,11 @@ export default function OverlayView() {
           ? 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
           : 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
     return {
-      marginTop: 10,
-      alignSelf: 'center',
-      padding: '7px 12px',
+      position: 'absolute',
+      left: '50%',
+      bottom: 10,
+      transform: 'translateX(-50%)',
+      padding: '8px 12px',
       fontSize: senderFontSize,
       fontWeight: senderFontWeight,
       fontFamily: family,
@@ -947,12 +986,18 @@ export default function OverlayView() {
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
-      maxWidth: '48vw',
+      maxWidth: 'calc(100% - 20px)',
     };
   }, [senderFontFamily, senderFontSize, senderFontWeight]);
 
   const renderItems = active;
   if (renderItems.length === 0) return null;
+
+  // In demo mode we want the sender label visible by default for styling feedback.
+  // In real overlay mode, it must be controlled by the server setting.
+  const showSender = demo
+    ? String(getParam('showSender') || getParam('overlayShowSender') || '1') !== '0'
+    : Boolean(config.overlayShowSender);
 
   return (
     <>
@@ -999,122 +1044,137 @@ export default function OverlayView() {
                         : undefined,
                 }}
               >
-            {(item.type === 'image' || item.type === 'gif') && (
-              <img
-                src={getMediaUrl(item.fileUrl)}
-                alt={item.title}
-                style={mediaStyle}
-                onLoad={() => {
-                  try {
-                    const img = itemRefs.current.get(item.id)?.querySelector('img') as HTMLImageElement | null;
-                    const w = img?.naturalWidth || 0;
-                    const h = img?.naturalHeight || 0;
-                    if (w > 0 && h > 0) {
-                      const ar = w / h;
-                      setActive((prev) =>
-                        prev.map((a) =>
-                          a.id === item.id ? { ...a, aspectRatio: ar, layoutTick: (a.layoutTick ?? 0) + 1 } : a
-                        )
-                      );
-                    } else {
-                      setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
-                    }
-                  } catch {
-                    // Trigger clamp recalculation after media loads (size becomes known).
-                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
-                  }
-                }}
-              />
-            )}
+                {/* Stage: keep everything inside the card so it fades as one and never clips */}
+                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                  {(item.type === 'image' || item.type === 'gif') && (
+                    <img
+                      src={getMediaUrl(item.fileUrl)}
+                      alt={item.title}
+                      style={mediaStyle}
+                      onLoad={() => {
+                        try {
+                          const img = itemRefs.current.get(item.id)?.querySelector('img') as HTMLImageElement | null;
+                          const w = img?.naturalWidth || 0;
+                          const h = img?.naturalHeight || 0;
+                          if (w > 0 && h > 0) {
+                            const ar = w / h;
+                            setActive((prev) =>
+                              prev.map((a) =>
+                                a.id === item.id ? { ...a, aspectRatio: ar, layoutTick: (a.layoutTick ?? 0) + 1 } : a
+                              )
+                            );
+                          } else {
+                            setActive((prev) =>
+                              prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a))
+                            );
+                          }
+                        } catch {
+                          // Trigger clamp recalculation after media loads (size becomes known).
+                          setActive((prev) =>
+                            prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a))
+                          );
+                        }
+                      }}
+                    />
+                  )}
 
-            {(item.type === 'video' || item.type === 'webm') && (
-              <video
-                src={getMediaUrl(item.fileUrl)}
-                autoPlay
-                playsInline
-                muted={mutedByDefault || volume <= 0}
-                style={mediaStyle}
-                onLoadedData={(e) => {
-                  e.currentTarget.volume = Math.min(1, Math.max(0, volume));
-                }}
-                onLoadedMetadata={(e) => {
-                  const dur = e.currentTarget.duration;
-                  if (Number.isFinite(dur) && dur > 0) {
-                    const ms = Math.round(dur * 1000);
-                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
-                    updateFallbackTimer(item.id, ms);
-                  }
-                  const w = e.currentTarget.videoWidth;
-                  const h = e.currentTarget.videoHeight;
-                  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
-                    const ar = w / h;
-                    setActive((prev) =>
-                      prev.map((a) =>
-                        a.id === item.id ? { ...a, aspectRatio: ar, layoutTick: (a.layoutTick ?? 0) + 1 } : a
-                      )
-                    );
-                  } else {
-                  // Trigger clamp recalculation (video intrinsic size becomes known).
-                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
-                  }
-                }}
-                onError={() => doneActivation(item.id)}
-                onStalled={() => doneActivation(item.id)}
-                onEnded={() => doneActivation(item.id)}
-              />
-            )}
+                  {(item.type === 'video' || item.type === 'webm') && (
+                    <video
+                      src={getMediaUrl(item.fileUrl)}
+                      autoPlay
+                      playsInline
+                      muted={mutedByDefault || volume <= 0}
+                      style={mediaStyle}
+                      onLoadedData={(e) => {
+                        e.currentTarget.volume = Math.min(1, Math.max(0, volume));
+                      }}
+                      onLoadedMetadata={(e) => {
+                        const dur = e.currentTarget.duration;
+                        if (Number.isFinite(dur) && dur > 0) {
+                          const ms = Math.round(dur * 1000);
+                          setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
+                          updateFallbackTimer(item.id, ms);
+                        }
+                        const w = e.currentTarget.videoWidth;
+                        const h = e.currentTarget.videoHeight;
+                        if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+                          const ar = w / h;
+                          setActive((prev) =>
+                            prev.map((a) =>
+                              a.id === item.id ? { ...a, aspectRatio: ar, layoutTick: (a.layoutTick ?? 0) + 1 } : a
+                            )
+                          );
+                        } else {
+                          // Trigger clamp recalculation (video intrinsic size becomes known).
+                          setActive((prev) =>
+                            prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a))
+                          );
+                        }
+                      }}
+                      onError={() => doneActivation(item.id)}
+                      onStalled={() => doneActivation(item.id)}
+                      onEnded={() => doneActivation(item.id)}
+                    />
+                  )}
 
-            {item.type === 'audio' && (
-              <audio
-                src={getMediaUrl(item.fileUrl)}
-                autoPlay
-                muted={mutedByDefault || volume <= 0}
-                onLoadedData={(e) => {
-                  e.currentTarget.volume = Math.min(1, Math.max(0, volume));
-                }}
-                onLoadedMetadata={(e) => {
-                  const dur = (e.currentTarget as HTMLAudioElement).duration;
-                  if (Number.isFinite(dur) && dur > 0) {
-                    const ms = Math.round(dur * 1000);
-                    setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
-                    updateFallbackTimer(item.id, ms);
-                  }
-                  // Trigger clamp recalculation (audio tag layout can change once metadata loads).
-                  setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a)));
-                }}
-                onError={() => doneActivation(item.id)}
-                onStalled={() => doneActivation(item.id)}
-                onEnded={() => doneActivation(item.id)}
-              />
-            )}
+                  {item.type === 'audio' && (
+                    <audio
+                      src={getMediaUrl(item.fileUrl)}
+                      autoPlay
+                      muted={mutedByDefault || volume <= 0}
+                      onLoadedData={(e) => {
+                        e.currentTarget.volume = Math.min(1, Math.max(0, volume));
+                      }}
+                      onLoadedMetadata={(e) => {
+                        const dur = (e.currentTarget as HTMLAudioElement).duration;
+                        if (Number.isFinite(dur) && dur > 0) {
+                          const ms = Math.round(dur * 1000);
+                          setActive((prev) => prev.map((a) => (a.id === item.id ? { ...a, effectiveDurationMs: ms } : a)));
+                          updateFallbackTimer(item.id, ms);
+                        }
+                        // Trigger clamp recalculation (audio tag layout can change once metadata loads).
+                        setActive((prev) =>
+                          prev.map((a) => (a.id === item.id ? { ...a, layoutTick: (a.layoutTick ?? 0) + 1 } : a))
+                        );
+                      }}
+                      onError={() => doneActivation(item.id)}
+                      onStalled={() => doneActivation(item.id)}
+                      onEnded={() => doneActivation(item.id)}
+                    />
+                  )}
 
-            {item.type === 'demo' && (
-              <div
-                style={{
-                  ...mediaStyle,
-                  height: Math.round(300 * safeScale),
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background:
-                    'radial-gradient(80% 80% at 30% 20%, rgba(255,255,255,0.16) 0%, rgba(0,0,0,0.6) 60%), linear-gradient(135deg, rgba(56,189,248,0.55), rgba(167,139,250,0.55))',
-                  color: 'rgba(255,255,255,0.92)',
-                  fontSize: 22,
-                  fontWeight: 700,
-                  letterSpacing: 0.4,
-                  textShadow: '0 6px 24px rgba(0,0,0,0.55)',
-                }}
-              >
-                DEMO
-              </div>
-            )}
+                  {item.type === 'demo' && (
+                    <div
+                      style={{
+                        ...mediaStyle,
+                        height: Math.round(300 * safeScale),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background:
+                          'radial-gradient(80% 80% at 30% 20%, rgba(255,255,255,0.16) 0%, rgba(0,0,0,0.6) 60%), linear-gradient(135deg, rgba(56,189,248,0.55), rgba(167,139,250,0.55))',
+                        color: 'rgba(255,255,255,0.92)',
+                        fontSize: 22,
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                        textShadow: '0 6px 24px rgba(0,0,0,0.55)',
+                      }}
+                    >
+                      DEMO
+                    </div>
+                  )}
+
+                  <div style={glassOverlayStyle} />
+                  {showSender && item.senderDisplayName ? (
+                    <div style={badgeStyle} title={String(item.senderDisplayName)}>
+                      {item.senderDisplayName}
+                    </div>
+                  ) : null}
+                </div>
 
               </div>
             </div>
 
-            {config.overlayShowSender && item.senderDisplayName && (
-              <div style={badgeStyle}>{item.senderDisplayName}</div>
-            )}
           </div>
         </div>
       ))}
