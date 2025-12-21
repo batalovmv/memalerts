@@ -559,8 +559,14 @@ export default function OverlayView() {
 
         const availW = Math.max(1, vw - padL - padR);
         const availH = Math.max(1, vh - padT - padB);
+
+        // Compute fitScale based on the *un-fitted* size so we don't oscillate and so extreme
+        // aspect ratios (very tall memes) never slip off-screen between frames.
+        const currentFit = clampFloat(Number(a.fitScale ?? 1), 0.25, 1);
+        const baseW = rect.width / Math.max(0.0001, currentFit);
+        const baseH = rect.height / Math.max(0.0001, currentFit);
         // Safety factor to avoid 1px rounding/scrollbar issues leaving the element barely out of bounds.
-        const fit = Math.min(1, (availW / rect.width) * 0.985, (availH / rect.height) * 0.985);
+        const fit = Math.min(1, (availW / baseW) * 0.985, (availH / baseH) * 0.985);
         const nextFit = clampFloat(fit, 0.25, 1);
         if (!Number.isFinite(a.fitScale) || Math.abs((a.fitScale ?? 1) - nextFit) > 0.01) {
           changed = true;
@@ -570,21 +576,25 @@ export default function OverlayView() {
         // Only random positioning needs coordinate clamping.
         if (resolvedPosition !== 'random') return a;
 
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+        // Predict the size after nextFit is applied, then clamp center based on that size.
+        const effectiveW = baseW * nextFit;
+        const effectiveH = baseH * nextFit;
+        const centerX = (Number.isFinite(a?.xPx) ? Number(a.xPx) : (rect.left + rect.width / 2));
+        const centerY = (Number.isFinite(a?.yPx) ? Number(a.yPx) : (rect.top + rect.height / 2));
 
-        const minX = basePad + rect.width / 2;
-        const maxX = vw - basePad - rect.width / 2;
-        const minY = basePad + rect.height / 2;
-        const maxY = vh - basePad - rect.height / 2;
+        const minX = basePad + effectiveW / 2;
+        const maxX = vw - basePad - effectiveW / 2;
+        const minY = basePad + effectiveH / 2;
+        const maxY = vh - basePad - effectiveH / 2;
 
-        const clampedX = Math.min(maxX, Math.max(minX, centerX));
-        const clampedY = Math.min(maxY, Math.max(minY, centerY));
+        // If the item is larger than available space even after fitting, fall back to center.
+        const safeX = minX > maxX ? vw / 2 : Math.min(maxX, Math.max(minX, centerX));
+        const safeY = minY > maxY ? vh / 2 : Math.min(maxY, Math.max(minY, centerY));
 
         // Only update if we are actually out of bounds by more than 1px.
-        if (Math.abs(clampedX - centerX) > 1 || Math.abs(clampedY - centerY) > 1) {
+        if (Math.abs(safeX - centerX) > 1 || Math.abs(safeY - centerY) > 1) {
           changed = true;
-          return { ...a, xPx: clampedX, yPx: clampedY };
+          return { ...a, xPx: safeX, yPx: safeY };
         }
 
         return a;

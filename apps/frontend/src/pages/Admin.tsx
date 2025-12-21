@@ -725,7 +725,6 @@ function BetaAccessSelf() {
 function ObsLinksSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
-  const { getChannelData } = useChannelColors();
 
   const channelSlug = user?.channel?.slug || '';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -747,7 +746,7 @@ function ObsLinksSettings() {
   const [overlaySettingsSavedPulse, setOverlaySettingsSavedPulse] = useState(false);
   const [rotatingOverlayToken, setRotatingOverlayToken] = useState(false);
   const overlaySettingsLoadedRef = useRef<string | null>(null);
-  const lastSavedOverlaySettingsRef = useRef<string | null>(null);
+  const [lastSavedOverlaySettingsPayload, setLastSavedOverlaySettingsPayload] = useState<string | null>(null);
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
 
   useEffect(() => {
@@ -921,12 +920,13 @@ function ObsLinksSettings() {
           senderFontWeight: nextSenderFontWeight,
           senderFontFamily: nextSenderFontFamily,
         });
-        lastSavedOverlaySettingsRef.current = JSON.stringify({
+        const baselinePayload = JSON.stringify({
           overlayMode: nextMode,
           overlayShowSender: nextShowSender,
           overlayMaxConcurrent: nextMax,
           overlayStyleJson: overlayStyleJsonBaseline,
         });
+        setLastSavedOverlaySettingsPayload(baselinePayload);
         overlaySettingsLoadedRef.current = channelSlug;
         lastChangeRef.current = null;
       } catch (e) {
@@ -1180,9 +1180,9 @@ function ObsLinksSettings() {
 
   const overlaySettingsDirty = useMemo(() => {
     if (!overlaySettingsLoadedRef.current) return false;
-    if (lastSavedOverlaySettingsRef.current === null) return false;
-    return overlaySettingsPayload !== lastSavedOverlaySettingsRef.current;
-  }, [overlaySettingsPayload]);
+    if (lastSavedOverlaySettingsPayload === null) return false;
+    return overlaySettingsPayload !== lastSavedOverlaySettingsPayload;
+  }, [lastSavedOverlaySettingsPayload, overlaySettingsPayload]);
 
   const handleSaveOverlaySettings = useCallback(async (): Promise<void> => {
     if (!channelSlug) return;
@@ -1199,9 +1199,9 @@ function ObsLinksSettings() {
         overlayMaxConcurrent,
         overlayStyleJson,
       });
-      lastSavedOverlaySettingsRef.current = overlaySettingsPayload;
+      setLastSavedOverlaySettingsPayload(overlaySettingsPayload);
       lastChangeRef.current = null;
-      await getChannelData(channelSlug, false, true);
+      // No extra GET here: saving should be a single request for better UX / lower load.
       toast.success(t('admin.settingsSaved', { defaultValue: 'Настройки сохранены!' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -1214,7 +1214,6 @@ function ObsLinksSettings() {
     }
   }, [
     channelSlug,
-    getChannelData,
     loadingOverlaySettings,
     overlayMaxConcurrent,
     overlayMode,
@@ -1302,17 +1301,23 @@ function ObsLinksSettings() {
               })}
             </div>
 
-            <div className="glass p-4 relative">
-              {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+            <div className="relative">
+              {(loadingOverlaySettings || savingOverlaySettings) && (
+                <SavingOverlay label={t('admin.saving', { defaultValue: 'Сохранение...' })} />
+              )}
               {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && (
-                <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />
+                <SavedOverlay label={t('admin.saved', { defaultValue: 'Сохранено' })} />
               )}
 
               <div
-                className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-opacity ${
+                className={`space-y-4 transition-opacity ${
                   loadingOverlaySettings || savingOverlaySettings ? 'pointer-events-none opacity-60' : ''
                 }`}
               >
+                <div className="glass p-4">
+                  <div
+                    className={`grid grid-cols-1 md:grid-cols-2 gap-4`}
+                  >
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     {t('admin.obsOverlayMode')}
@@ -1377,128 +1382,129 @@ function ObsLinksSettings() {
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="pt-2">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  {t('admin.obsOverlayLivePreview', { defaultValue: 'Демонстрация' })}
-                </div>
-                <button
-                  type="button"
-                  className="glass-btn p-2 shrink-0"
-                  disabled={loadingPreview || !overlayToken}
-                  onClick={() => {
-                    setPreviewSeed((s) => (s >= 1000000000 ? 1 : s + 1));
-                    void fetchPreviewMemes(previewCount);
-                  }}
-                  title={t('admin.obsPreviewNextMeme', { defaultValue: 'Следующий мем' })}
-                  aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'Следующий мем' })}
-                >
-                  {/* Next arrow icon */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h11" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5-5 5" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
-                  title={t('admin.obsPreviewLoop', { defaultValue: 'Зациклить' })}
-                  aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Зациклить' })}
-                  onClick={() => setPreviewLoopEnabled((p) => !p)}
-                >
-                  {/* Loop icon */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 1l4 4-4 4" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11V9a4 4 0 014-4h14" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 23l-4-4 4-4" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13v2a4 4 0 01-4 4H3" />
-                  </svg>
-                </button>
-              </div>
-              <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
-                <iframe
-                  ref={previewIframeRef}
-                  title="Overlay preview"
-                  src={overlayPreviewBaseUrl}
-                  className="w-full"
-                  style={{ aspectRatio: '16 / 9', border: '0' }}
-                  allow="autoplay"
-                  onLoad={() => postPreviewParams()}
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div className="text-xs text-gray-600 dark:text-gray-300 min-w-0">
-                  {previewMemes?.[0]?.title ? (
-                    <span className="truncate block">
-                      {t('admin.obsOverlayPreviewMeme', { defaultValue: 'Preview meme' })}:{' '}
-                      <span className="font-mono">{previewMemes[0].title}</span>
-                    </span>
-                  ) : (
-                    <span>
-                      {t('admin.obsOverlayLivePreviewHint', {
-                        defaultValue:
-                          'Preview uses a real random meme when available. Copy the URL above into OBS when ready.',
-                      })}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="glass p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 flex-1">
-                {(
-                  [
-                    ['layout', t('admin.obsAdvancedTabLayout', { defaultValue: 'Layout' })],
-                    ['animation', t('admin.obsAdvancedTabAnimation', { defaultValue: 'Animation' })],
-                    ['shadow', t('admin.obsAdvancedTabShadow', { defaultValue: 'Shadow' })],
-                    ['border', t('admin.obsAdvancedTabBorder', { defaultValue: 'Border' })],
-                    ['glass', t('admin.obsAdvancedTabGlass', { defaultValue: 'Glass' })],
-                    ['sender', t('admin.obsAdvancedTabSender', { defaultValue: 'Sender' })],
-                  ] as const
-                )
-                  .filter(([k]) => (k === 'sender' ? overlayShowSender : true))
-                  .map(([k, label]) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setAdvancedTab(k)}
-                      className={`h-11 w-full rounded-xl border text-xs sm:text-sm font-semibold transition-colors ${
-                        advancedTab === k
-                          ? 'bg-primary text-white border-primary/30 shadow-sm'
-                          : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border-white/30 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/15'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {overlaySettingsDirty && (
-                    <div className="hidden sm:flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                      <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-                      {t('admin.unsavedChanges', { defaultValue: 'Есть несохранённые изменения' })}
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      {t('admin.obsOverlayLivePreview', { defaultValue: 'Демонстрация' })}
                     </div>
-                  )}
-                  <button
-                    type="button"
-                    className={`glass-btn px-4 py-2 text-sm font-semibold ${
-                      overlaySettingsDirty ? '' : 'opacity-60'
-                    }`}
-                    disabled={!overlaySettingsDirty || savingOverlaySettings || loadingOverlaySettings}
-                    onClick={() => void handleSaveOverlaySettings()}
-                  >
-                    {savingOverlaySettings ? t('admin.saving', { defaultValue: 'Сохранение...' }) : t('common.save', { defaultValue: 'Сохранить' })}
-                  </button>
+                    <button
+                      type="button"
+                      className="glass-btn p-2 shrink-0"
+                      disabled={loadingPreview || !overlayToken}
+                      onClick={() => {
+                        setPreviewSeed((s) => (s >= 1000000000 ? 1 : s + 1));
+                        void fetchPreviewMemes(previewCount);
+                      }}
+                      title={t('admin.obsPreviewNextMeme', { defaultValue: 'Следующий мем' })}
+                      aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'Следующий мем' })}
+                    >
+                      {/* Next arrow icon */}
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h11" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5-5 5" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
+                      title={t('admin.obsPreviewLoop', { defaultValue: 'Зациклить' })}
+                      aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Зациклить' })}
+                      onClick={() => setPreviewLoopEnabled((p) => !p)}
+                    >
+                      {/* Loop icon */}
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 1l4 4-4 4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11V9a4 4 0 014-4h14" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 23l-4-4 4-4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13v2a4 4 0 01-4 4H3" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
+                    <iframe
+                      ref={previewIframeRef}
+                      title="Overlay preview"
+                      src={overlayPreviewBaseUrl}
+                      className="w-full"
+                      style={{ aspectRatio: '16 / 9', border: '0' }}
+                      allow="autoplay"
+                      onLoad={() => postPreviewParams()}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="text-xs text-gray-600 dark:text-gray-300 min-w-0">
+                      {previewMemes?.[0]?.title ? (
+                        <span className="truncate block">
+                          {t('admin.obsOverlayPreviewMeme', { defaultValue: 'Preview meme' })}:{' '}
+                          <span className="font-mono">{previewMemes[0].title}</span>
+                        </span>
+                      ) : (
+                        <span>
+                          {t('admin.obsOverlayLivePreviewHint', {
+                            defaultValue:
+                              'Preview uses a real random meme when available. Copy the URL above into OBS when ready.',
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="glass p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 flex-1">
+                      {(
+                        [
+                          ['layout', t('admin.obsAdvancedTabLayout', { defaultValue: 'Layout' })],
+                          ['animation', t('admin.obsAdvancedTabAnimation', { defaultValue: 'Animation' })],
+                          ['shadow', t('admin.obsAdvancedTabShadow', { defaultValue: 'Shadow' })],
+                          ['border', t('admin.obsAdvancedTabBorder', { defaultValue: 'Border' })],
+                          ['glass', t('admin.obsAdvancedTabGlass', { defaultValue: 'Glass' })],
+                          ['sender', t('admin.obsAdvancedTabSender', { defaultValue: 'Sender' })],
+                        ] as const
+                      )
+                        .filter(([k]) => (k === 'sender' ? overlayShowSender : true))
+                        .map(([k, label]) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => setAdvancedTab(k)}
+                            className={`h-11 w-full rounded-xl border text-xs sm:text-sm font-semibold transition-colors ${
+                              advancedTab === k
+                                ? 'bg-primary text-white border-primary/30 shadow-sm'
+                                : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border-white/30 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/15'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {overlaySettingsDirty && (
+                        <div className="hidden sm:flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                          <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+                          {t('admin.unsavedChanges', { defaultValue: 'Есть несохранённые изменения' })}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className={`glass-btn px-4 py-2 text-sm font-semibold ${overlaySettingsDirty ? '' : 'opacity-60'}`}
+                        disabled={!overlaySettingsDirty || savingOverlaySettings || loadingOverlaySettings}
+                        onClick={() => void handleSaveOverlaySettings()}
+                      >
+                        {savingOverlaySettings
+                          ? t('admin.saving', { defaultValue: 'Сохранение...' })
+                          : t('common.save', { defaultValue: 'Сохранить' })}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={advancedTab === 'layout' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayPosition', { defaultValue: 'Позиция' })}
@@ -1908,6 +1914,7 @@ function ObsLinksSettings() {
               </div>
               )}
             </div>
+          </div>
           </div>
         </details>
 
