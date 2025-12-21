@@ -146,6 +146,12 @@
     "obsOverlayModeUnlimitedHint": "Показывает все входящие мемы одновременно (без лимита).",
     "obsOverlayShowSender": "Показывать имя отправителя",
     "obsOverlayShowSenderHint": "Имя приходит от сервера (не от клиента).",
+    "obsOverlaySettingsTitle": "Настройки оверлея",
+    "obsOverlayMode": "Режим",
+    "obsOverlayModeSavedQueue": "Режим обновлён: Очередь",
+    "obsOverlayModeSavedUnlimited": "Режим обновлён: Без лимита",
+    "twitchRewardNotAvailable": "Награда Twitch доступна только для партнёров или компаньонов (affiliate).",
+    "rewardCostCoinsRequired": "Чтобы включить награду, нужно указать стоимость и количество монет.",
     "obsHowToTitle": "Как добавить в OBS",
     "obsHowToStep1": "Добавьте Browser Source.",
     "obsHowToStep2": "Вставьте ссылку оверлея.",
@@ -401,7 +407,9 @@
     "statusRejected": "отклонено",
     "statusRevoked": "отозвано",
     "statusNone": "заявка не отправлена",
-    "hasAccess": "У вас уже есть доступ к Beta."
+    "hasAccess": "У вас уже есть доступ к Beta.",
+    "blacklistedTitle": "Доступ запрещён",
+    "blacklistedDescription": "Извините, вы не можете получить доступ к Beta, потому что вы находитесь в чёрном списке."
   }
   ,
   "memeModal": {

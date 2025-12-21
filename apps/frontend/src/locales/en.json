@@ -138,6 +138,12 @@
     "obsOverlayModeUnlimitedHint": "Shows all incoming memes at once (no limit).",
     "obsOverlayShowSender": "Show sender name",
     "obsOverlayShowSenderHint": "Name is provided by the server (not the client).",
+    "obsOverlaySettingsTitle": "Overlay settings",
+    "obsOverlayMode": "Mode",
+    "obsOverlayModeSavedQueue": "Mode updated: Queue",
+    "obsOverlayModeSavedUnlimited": "Mode updated: Unlimited",
+    "twitchRewardNotAvailable": "This Twitch reward is available only for affiliate/partner channels.",
+    "rewardCostCoinsRequired": "Reward cost and coins are required.",
     "obsHowToTitle": "How to add in OBS",
     "obsHowToStep1": "Add a new Browser Source.",
     "obsHowToStep2": "Paste the Overlay URL.",
@@ -407,7 +413,9 @@
     "statusRejected": "rejected",
     "statusRevoked": "revoked",
     "statusNone": "not requested",
-    "hasAccess": "You already have beta access."
+    "hasAccess": "You already have beta access.",
+    "blacklistedTitle": "Access denied",
+    "blacklistedDescription": "Sorry, you cannot get beta access because you are on the blacklist."
   }
   ,
   "memeModal": {
