@@ -861,17 +861,14 @@ function ObsLinksSettings() {
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
 
-  const overlayUrlWithDefaults = overlayUrl ? `${overlayUrl}?position=random&scale=1&volume=1` : '';
-  const overlayUrlAdvanced = useMemo(() => {
+  // Single URL for OBS: users copy ONLY this. All controls below modify this URL.
+  const overlayUrlForObs = useMemo(() => {
     if (!overlayUrl) return '';
     const sp = new URLSearchParams();
     sp.set('position', urlPosition);
     sp.set('scale', String(urlScale));
     sp.set('pad', String(urlPad));
     sp.set('volume', String(urlVolume));
-    sp.set('demo', '1');
-    if (previewMeme?.fileUrl) sp.set('previewUrl', previewMeme.fileUrl);
-    if (previewMeme?.type) sp.set('previewType', previewMeme.type);
     sp.set('radius', String(urlRadius));
     sp.set('shadow', String(urlShadow));
     sp.set('blur', String(urlBlur));
@@ -895,23 +892,46 @@ function ObsLinksSettings() {
     urlScale,
     urlShadow,
     urlVolume,
-    previewMeme?.fileUrl,
-    previewMeme?.type,
   ]);
 
-  // Debounce live preview reloads while dragging sliders (avoid reloading iframe on every tick).
+  const overlayUrlWithDefaults = overlayUrlForObs;
+
+  // Preview URL: same settings, but uses a real random meme and safe positioning.
+  const overlayPreviewUrl = useMemo(() => {
+    if (!overlayUrlForObs) return '';
+    const u = new URL(overlayUrlForObs);
+    u.searchParams.set('demo', '1');
+    u.searchParams.set('position', 'center');
+    if (previewMeme?.fileUrl) u.searchParams.set('previewUrl', previewMeme.fileUrl);
+    if (previewMeme?.type) u.searchParams.set('previewType', previewMeme.type);
+    return u.toString();
+  }, [overlayUrlForObs, previewMeme?.fileUrl, previewMeme?.type]);
+
+  // Debounce iframe reloads while dragging sliders.
   const [debouncedPreviewUrl, setDebouncedPreviewUrl] = useState<string>('');
   useEffect(() => {
-    const next = overlayUrlAdvanced;
+    const next = overlayPreviewUrl;
     const t = window.setTimeout(() => setDebouncedPreviewUrl(next), 350);
     return () => window.clearTimeout(t);
-  }, [overlayUrlAdvanced]);
+  }, [overlayPreviewUrl]);
 
-  const overlayUrlAdvancedQuery = useMemo(() => {
-    if (!overlayUrlAdvanced) return '';
-    const idx = overlayUrlAdvanced.indexOf('?');
-    return idx >= 0 ? overlayUrlAdvanced.slice(idx + 1) : '';
-  }, [overlayUrlAdvanced]);
+  const animSpeedPct = useMemo(() => {
+    const slow = 800;
+    const fast = 180;
+    const v = Math.max(0, Math.min(1200, urlEnterMs));
+    const pct = Math.round(((slow - v) / (slow - fast)) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }, [urlEnterMs]);
+
+  const setAnimSpeedPct = (pct: number) => {
+    const slow = 800;
+    const fast = 180;
+    const p = Math.max(0, Math.min(100, pct));
+    const enter = Math.round(slow - (p / 100) * (slow - fast));
+    const exit = Math.round(enter * 0.75);
+    setUrlEnterMs(enter);
+    setUrlExitMs(exit);
+  };
 
   // Auto-save overlay settings (no explicit Save button).
   useEffect(() => {
@@ -1029,35 +1049,10 @@ function ObsLinksSettings() {
             {t('admin.obsAdvancedOverlayUrl', { defaultValue: 'Advanced overlay URL (customize)' })}
           </summary>
           <div className="mt-3 space-y-4">
-            {/* Don't duplicate the tokenized URL here; show only params so user understands it's "options". */}
-            <SecretCopyField
-              label={t('admin.obsOverlayAdvancedParams', { defaultValue: 'Advanced params' })}
-              value={overlayUrlAdvancedQuery}
-              masked={false}
-              emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
-              description={t('admin.obsOverlayUrlAdvancedHint', {
-                defaultValue: 'These options are stored in the URL. Copy the main overlay URL above into OBS; advanced options are applied automatically in preview and when you copy the advanced URL below.',
+            <div className="text-xs text-gray-600 dark:text-gray-300">
+              {t('admin.obsOverlayAdvancedHintShort', {
+                defaultValue: 'Change the look here — then copy the single overlay URL above into OBS.',
               })}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-gray-600 dark:text-gray-300">
-                {t('admin.obsOverlayUrlAdvanced', { defaultValue: 'Overlay URL (advanced)' })}
-              </div>
-              <button
-                type="button"
-                className="glass-btn px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white disabled:opacity-60"
-                disabled={!overlayUrlAdvanced}
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(overlayUrlAdvanced);
-                    toast.success(t('common.copied', { defaultValue: 'Copied' }));
-                  } catch {
-                    toast.error(t('common.failedToCopy', { defaultValue: 'Failed to copy' }));
-                  }
-                }}
-              >
-                {t('common.copy', { defaultValue: 'Copy' })}
-              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1144,34 +1139,22 @@ function ObsLinksSettings() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayEnterMs', { defaultValue: 'Enter (ms)' })}:{' '}
-                  <span className="font-mono">{urlEnterMs}</span>
+                  {t('admin.obsOverlayAnimSpeed', { defaultValue: 'Animation speed' })}:{' '}
+                  <span className="font-mono">{animSpeedPct}%</span>
                 </label>
                 <input
                   type="range"
                   min={0}
-                  max={1200}
-                  step={20}
-                  value={urlEnterMs}
-                  onChange={(e) => setUrlEnterMs(parseInt(e.target.value, 10))}
+                  max={100}
+                  step={1}
+                  value={animSpeedPct}
+                  onChange={(e) => setAnimSpeedPct(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayExitMs', { defaultValue: 'Exit (ms)' })}:{' '}
-                  <span className="font-mono">{urlExitMs}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1200}
-                  step={20}
-                  value={urlExitMs}
-                  onChange={(e) => setUrlExitMs(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
+              <div className="text-xs text-gray-600 dark:text-gray-300 -mt-2">
+                {t('admin.obsOverlayAnimSpeedHint', { defaultValue: 'Slower looks more premium; faster feels snappier.' })}
               </div>
 
               <div>
@@ -1258,7 +1241,7 @@ function ObsLinksSettings() {
               <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
                 <iframe
                   title="Overlay preview"
-                  src={debouncedPreviewUrl || overlayUrlAdvanced}
+                  src={debouncedPreviewUrl || overlayPreviewUrl}
                   className="w-full"
                   style={{ aspectRatio: '16 / 9', border: '0' }}
                   allow="autoplay"

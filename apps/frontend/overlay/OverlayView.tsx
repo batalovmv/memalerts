@@ -28,6 +28,8 @@ interface QueuedActivation extends Activation {
   effectiveDurationMs?: number;
   // When we start fading out, keep the item briefly so OBS doesn't "stick" the last frame.
   isExiting?: boolean;
+  // Auto-fit scale to keep the item inside viewport (used mainly for preview / extreme aspect ratios).
+  fitScale?: number;
 }
 
 interface OverlayConfig {
@@ -269,7 +271,6 @@ export default function OverlayView() {
   // Clamp random-position activations so they never get clipped by the OBS canvas.
   // We do this after render using the actual DOM rect (covers unknown aspect ratios and scale).
   useEffect(() => {
-    if (position !== 'random') return;
     if (active.length === 0) return;
     if (typeof window === 'undefined') return;
 
@@ -289,6 +290,19 @@ export default function OverlayView() {
 
         const rect = el.getBoundingClientRect();
         if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return a;
+
+        // Auto-fit: if the element is larger than the viewport safe area, scale it down.
+        const availW = Math.max(1, vw - padding * 2);
+        const availH = Math.max(1, vh - padding * 2);
+        const fit = Math.min(1, availW / rect.width, availH / rect.height);
+        const nextFit = clampFloat(fit, 0.25, 1);
+        if (!Number.isFinite(a.fitScale) || Math.abs((a.fitScale ?? 1) - nextFit) > 0.01) {
+          changed = true;
+          a = { ...a, fitScale: nextFit };
+        }
+
+        // Only random positioning needs coordinate clamping.
+        if (position !== 'random') return a;
 
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
@@ -381,7 +395,7 @@ export default function OverlayView() {
             ...sizeClamp,
             top: Number.isFinite(item?.yPx) ? `${item.yPx}px` : `${item?.yPct ?? 50}%`,
             left: Number.isFinite(item?.xPx) ? `${item.xPx}px` : `${item?.xPct ?? 50}%`,
-            transform: `translate(-50%, -50%) scale(${safeScale})`,
+            transform: `translate(-50%, -50%) scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'center':
           return {
@@ -389,7 +403,7 @@ export default function OverlayView() {
             ...sizeClamp,
             top: '50%',
             left: '50%',
-            transform: `translate(-50%, -50%) scale(${safeScale})`,
+            transform: `translate(-50%, -50%) scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'top':
           return {
@@ -397,7 +411,7 @@ export default function OverlayView() {
             ...sizeClamp,
             top: '24px',
             left: '50%',
-            transform: `translateX(-50%) scale(${safeScale})`,
+            transform: `translateX(-50%) scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'bottom':
           return {
@@ -405,7 +419,7 @@ export default function OverlayView() {
             ...sizeClamp,
             bottom: '24px',
             left: '50%',
-            transform: `translateX(-50%) scale(${safeScale})`,
+            transform: `translateX(-50%) scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'top-left':
           return {
@@ -414,7 +428,7 @@ export default function OverlayView() {
             top: '24px',
             left: '24px',
             transformOrigin: 'top left',
-            transform: `scale(${safeScale})`,
+            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'top-right':
           return {
@@ -423,7 +437,7 @@ export default function OverlayView() {
             top: '24px',
             right: '24px',
             transformOrigin: 'top right',
-            transform: `scale(${safeScale})`,
+            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'bottom-left':
           return {
@@ -432,7 +446,7 @@ export default function OverlayView() {
             bottom: '24px',
             left: '24px',
             transformOrigin: 'bottom left',
-            transform: `scale(${safeScale})`,
+            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         case 'bottom-right':
           return {
@@ -441,7 +455,7 @@ export default function OverlayView() {
             bottom: '24px',
             right: '24px',
             transformOrigin: 'bottom right',
-            transform: `scale(${safeScale})`,
+            transform: `scale(${safeScale * (item.fitScale ?? 1)})`,
           };
         default:
           return {
