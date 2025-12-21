@@ -760,8 +760,9 @@ function ObsLinksSettings() {
   const [urlBorder, setUrlBorder] = useState<number>(2);
   const [urlBgOpacity, setUrlBgOpacity] = useState<number>(0.18);
   const [urlAnim, setUrlAnim] = useState<'fade' | 'zoom' | 'slide-up' | 'none'>('fade');
-  const [urlEnterMs, setUrlEnterMs] = useState<number>(220);
-  const [urlExitMs, setUrlExitMs] = useState<number>(220);
+  // Slightly slower "Apple-ish" defaults (less snappy, more premium).
+  const [urlEnterMs, setUrlEnterMs] = useState<number>(420);
+  const [urlExitMs, setUrlExitMs] = useState<number>(320);
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -898,6 +899,20 @@ function ObsLinksSettings() {
     previewMeme?.type,
   ]);
 
+  // Debounce live preview reloads while dragging sliders (avoid reloading iframe on every tick).
+  const [debouncedPreviewUrl, setDebouncedPreviewUrl] = useState<string>('');
+  useEffect(() => {
+    const next = overlayUrlAdvanced;
+    const t = window.setTimeout(() => setDebouncedPreviewUrl(next), 350);
+    return () => window.clearTimeout(t);
+  }, [overlayUrlAdvanced]);
+
+  const overlayUrlAdvancedQuery = useMemo(() => {
+    if (!overlayUrlAdvanced) return '';
+    const idx = overlayUrlAdvanced.indexOf('?');
+    return idx >= 0 ? overlayUrlAdvanced.slice(idx + 1) : '';
+  }, [overlayUrlAdvanced]);
+
   // Auto-save overlay settings (no explicit Save button).
   useEffect(() => {
     if (!channelSlug) return;
@@ -1014,15 +1029,36 @@ function ObsLinksSettings() {
             {t('admin.obsAdvancedOverlayUrl', { defaultValue: 'Advanced overlay URL (customize)' })}
           </summary>
           <div className="mt-3 space-y-4">
+            {/* Don't duplicate the tokenized URL here; show only params so user understands it's "options". */}
             <SecretCopyField
-              label={t('admin.obsOverlayUrlAdvanced', { defaultValue: 'Overlay URL (advanced)' })}
-              value={overlayUrlAdvanced}
-              masked={true}
+              label={t('admin.obsOverlayAdvancedParams', { defaultValue: 'Advanced params' })}
+              value={overlayUrlAdvancedQuery}
+              masked={false}
               emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
               description={t('admin.obsOverlayUrlAdvancedHint', {
-                defaultValue: 'These options are stored in the URL. Copy/paste into OBS after you customize.',
+                defaultValue: 'These options are stored in the URL. Copy the main overlay URL above into OBS; advanced options are applied automatically in preview and when you copy the advanced URL below.',
               })}
             />
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-gray-600 dark:text-gray-300">
+                {t('admin.obsOverlayUrlAdvanced', { defaultValue: 'Overlay URL (advanced)' })}
+              </div>
+              <button
+                type="button"
+                className="glass-btn px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white disabled:opacity-60"
+                disabled={!overlayUrlAdvanced}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(overlayUrlAdvanced);
+                    toast.success(t('common.copied', { defaultValue: 'Copied' }));
+                  } catch {
+                    toast.error(t('common.failedToCopy', { defaultValue: 'Failed to copy' }));
+                  }
+                }}
+              >
+                {t('common.copy', { defaultValue: 'Copy' })}
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1222,7 +1258,7 @@ function ObsLinksSettings() {
               <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
                 <iframe
                   title="Overlay preview"
-                  src={overlayUrlAdvanced}
+                  src={debouncedPreviewUrl || overlayUrlAdvanced}
                   className="w-full"
                   style={{ aspectRatio: '16 / 9', border: '0' }}
                   allow="autoplay"

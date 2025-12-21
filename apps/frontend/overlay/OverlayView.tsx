@@ -462,7 +462,9 @@ export default function OverlayView() {
     const effectiveBlur = blur || 6;
     const effectiveBorder = border || 2;
     const effectiveBgOpacity = Number.isFinite(bgOpacity) ? bgOpacity : 0.18;
-    const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 220;
+    // Premium/Apple-ish defaults: a bit slower and smoother.
+    const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 420;
+    const effectiveExitMs = Number.isFinite(exitMs) ? exitMs : 320;
     return {
       borderRadius: effectiveRadius,
       overflow: 'hidden',
@@ -473,10 +475,7 @@ export default function OverlayView() {
       backdropFilter: `blur(${effectiveBlur}px)`,
       opacity: 1,
       willChange: 'transform, opacity',
-      transition: `opacity ${Math.max(0, Number.isFinite(exitMs) ? exitMs : 220)}ms ease, transform ${Math.max(
-        0,
-        Number.isFinite(exitMs) ? exitMs : 220
-      )}ms ease`,
+      transition: `opacity ${Math.max(0, effectiveExitMs)}ms ease, transform ${Math.max(0, effectiveExitMs)}ms ease`,
       animation:
         anim === 'none'
           ? undefined
