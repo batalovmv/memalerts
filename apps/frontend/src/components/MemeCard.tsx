@@ -14,7 +14,6 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const hasUserInteractedRef = useRef(false);
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
-  const [hasEverHovered, setHasEverHovered] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -184,7 +183,6 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] will-change-transform transition-transform duration-200 ease-out hover:scale-[1.02]"
       onMouseEnter={() => {
         setIsHovered(true);
-        setHasEverHovered(true);
         if (!shouldLoadMedia) return;
         if (videoRef.current && meme.type === 'video') {
           // Restart on hover (matches expected UX)
