@@ -28,6 +28,8 @@ model Channel {
   overlayMode       String  @default("queue") // queue | simultaneous
   overlayShowSender Boolean @default(false)
   overlayMaxConcurrent Int  @default(3)
+  // Advanced OBS overlay appearance/animation settings (stored as JSON string)
+  overlayStyleJson  String?  @db.Text
   // Increment to invalidate previously issued overlay tokens.
   overlayTokenVersion Int @default(1)
   createdAt         DateTime @default(now())

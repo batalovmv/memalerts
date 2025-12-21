@@ -21,3 +21,4 @@ chmod 0440 /etc/sudoers.d/$USER
 echo "Sudo configured successfully for $USER"
 echo "You can now use sudo without password"
 
+

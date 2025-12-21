@@ -32,3 +32,4 @@ ALTER TABLE "BetaAccess" ADD CONSTRAINT "BetaAccess_userId_fkey" FOREIGN KEY ("u
 -- CreateUniqueIndex
 CREATE UNIQUE INDEX "BetaAccess_userId_key" ON "BetaAccess"("userId");
 
+

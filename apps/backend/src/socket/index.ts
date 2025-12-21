@@ -100,6 +100,7 @@ export function setupSocketIO(io: Server) {
             overlayMode: true,
             overlayShowSender: true,
             overlayMaxConcurrent: true,
+            overlayStyleJson: true,
             overlayTokenVersion: true,
           },
         });
@@ -133,6 +134,7 @@ export function setupSocketIO(io: Server) {
           overlayMode: channel?.overlayMode ?? 'queue',
           overlayShowSender: channel?.overlayShowSender ?? false,
           overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
+          overlayStyleJson: (channel as any)?.overlayStyleJson ?? null,
         });
       } catch (e) {
         debugLog('[socket] join:overlay denied (invalid token)', { socketId: socket.id });

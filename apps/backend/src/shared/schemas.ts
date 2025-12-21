@@ -51,6 +51,7 @@ export const updateChannelSettingsSchema = z.object({
   overlayMode: z.enum(['queue', 'simultaneous']).optional(),
   overlayShowSender: z.boolean().optional(),
   overlayMaxConcurrent: z.number().int().min(1).max(5).optional(),
+  overlayStyleJson: z.string().max(50_000).optional().nullable(),
 });
 
 export const createPromotionSchema = z.object({

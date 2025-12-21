@@ -109,3 +109,4 @@ systemctl enable nginx
 echo "Nginx configured successfully!"
 echo "Backend should be accessible at: https://$DOMAIN"
 
+

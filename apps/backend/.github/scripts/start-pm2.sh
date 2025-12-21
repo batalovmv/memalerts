@@ -44,3 +44,4 @@ echo "Testing health endpoint..."
 sleep 2
 curl -f http://localhost:3001/health && echo "" || echo "❌ Health check failed"
 
+

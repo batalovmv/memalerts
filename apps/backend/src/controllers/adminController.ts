@@ -147,6 +147,7 @@ export const adminController = {
           overlayMode: true,
           overlayShowSender: true,
           overlayMaxConcurrent: true,
+          overlayStyleJson: true,
           overlayTokenVersion: true,
         },
       });
@@ -176,6 +177,7 @@ export const adminController = {
         overlayMode: channel.overlayMode ?? 'queue',
         overlayShowSender: channel.overlayShowSender ?? false,
         overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
+        overlayStyleJson: (channel as any).overlayStyleJson ?? null,
       });
     } catch (e: any) {
       console.error('Error generating overlay token:', e);
@@ -1501,6 +1503,7 @@ export const adminController = {
         overlayMode: body.overlayMode !== undefined ? body.overlayMode : (channel as any).overlayMode,
         overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : (channel as any).overlayShowSender,
         overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
+        overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : (channel as any).overlayStyleJson,
       };
       
       // Only update coinIconUrl if we have a value or if reward is being disabled
@@ -1523,6 +1526,7 @@ export const adminController = {
             overlayMode: (updatedChannel as any).overlayMode ?? 'queue',
             overlayShowSender: (updatedChannel as any).overlayShowSender ?? false,
             overlayMaxConcurrent: (updatedChannel as any).overlayMaxConcurrent ?? 3,
+            overlayStyleJson: (updatedChannel as any).overlayStyleJson ?? null,
           });
         }
       } catch (emitErr) {
