@@ -249,6 +249,63 @@ export const adminController = {
       return res.status(500).json({ error: 'Failed to rotate overlay token' });
     }
   },
+
+  // OBS overlay preview: return a "familiar" random meme for live preview in Admin UI.
+  // Priority:
+  // 1) Random approved meme from the streamer's channel pool
+  // 2) Random approved meme created by current user (any channel)
+  // 3) Random approved meme globally
+  getOverlayPreviewMeme: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const pick = async (whereSql: string, params: any[]) => {
+      const rows = await prisma.$queryRawUnsafe<
+        Array<{ id: string; type: string; fileUrl: string; title: string; channelId: string }>
+      >(
+        `
+        SELECT "id", "type", "fileUrl", "title", "channelId"
+        FROM "Meme"
+        WHERE "status" = 'approved' ${whereSql}
+        ORDER BY RANDOM()
+        LIMIT 1
+      `,
+        ...params
+      );
+      return rows?.[0] || null;
+    };
+
+    try {
+      let meme =
+        channelId ? await pick(`AND "channelId" = $1`, [channelId]) : null;
+
+      if (!meme) {
+        meme = await pick(`AND "createdByUserId" = $1`, [userId]);
+      }
+
+      if (!meme) {
+        meme = await pick(``, []);
+      }
+
+      if (!meme) {
+        return res.json({ meme: null });
+      }
+
+      return res.json({
+        meme: {
+          id: meme.id,
+          type: meme.type,
+          fileUrl: meme.fileUrl,
+          title: meme.title,
+          channelId: meme.channelId,
+        },
+      });
+    } catch (e: any) {
+      console.error('Error getting overlay preview meme:', e);
+      return res.status(500).json({ error: 'Failed to get preview meme' });
+    }
+  },
   getSubmissions: async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
     const channelId = req.channelId;
