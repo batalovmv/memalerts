@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { logger } from './logger.js';
 
 /**
  * Get valid access token for a user, refreshing if necessary
@@ -62,7 +63,7 @@ export async function refreshAccessToken(userId: string): Promise<string | null>
 
     return tokenData.access_token;
   } catch (error) {
-    console.error('Error refreshing token:', error);
+    logger.warn('twitch.token.refresh_failed', { userId });
     return null;
   }
 }

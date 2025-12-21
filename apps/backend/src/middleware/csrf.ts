@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.js';
 import { logSecurityEvent } from '../utils/auditLogger.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Get allowed origins for CSRF validation
@@ -102,7 +103,11 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   // In development, we allow requests without origin (e.g., Postman, curl)
   if (!requestOrigin) {
     if (process.env.NODE_ENV === 'production') {
-      console.warn(`[CSRF] Missing Origin/Referer header for ${req.method} ${req.path} from ${req.ip}`);
+      logger.warn('security.csrf.missing_origin', {
+        requestId: (req as any).requestId,
+        method: req.method,
+        path: req.path,
+      });
       return res.status(403).json({
         error: 'Forbidden',
         message: 'CSRF protection: Origin header is required for state-changing operations',
@@ -129,7 +134,12 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   });
   
   if (!isAllowed) {
-    console.warn(`[CSRF] Blocked request from unauthorized origin: ${requestOrigin} for ${req.method} ${req.path}`);
+    logger.warn('security.csrf.blocked', {
+      requestId: (req as any).requestId,
+      origin: requestOrigin,
+      method: req.method,
+      path: req.path,
+    });
     
     // Log security event
     const authReq = req as AuthRequest;

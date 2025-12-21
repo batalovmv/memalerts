@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request } from 'express';
+import { logger } from '../utils/logger.js';
 
 // Get whitelist IPs from environment variable (comma-separated)
 const getWhitelistIPs = (): string[] => {
@@ -53,15 +54,10 @@ const logRateLimitEvent = (type: 'hit' | 'blocked' | 'whitelist', req: Request, 
     ...details,
   };
   
-  // Log to console (will be captured by PM2 logs)
-  if (type === 'blocked') {
-    console.warn(`[RATE_LIMIT] BLOCKED: ${JSON.stringify(logData)}`);
-  } else if (type === 'hit') {
-    console.log(`[RATE_LIMIT] HIT: ${JSON.stringify(logData)}`);
-  } else if (type === 'whitelist') {
-    // Log whitelist requests for monitoring (even though they're not blocked)
-    console.log(`[RATE_LIMIT] WHITELIST: ${JSON.stringify(logData)}`);
-  }
+  const requestId = (req as any).requestId;
+  if (type === 'blocked') logger.warn('security.rate_limit.blocked', { requestId, ...logData });
+  else if (type === 'hit') logger.info('security.rate_limit.hit', { requestId, ...logData });
+  else logger.info('security.rate_limit.whitelist', { requestId, ...logData });
 };
 
 // Global rate limiter for all routes (prevents abuse)

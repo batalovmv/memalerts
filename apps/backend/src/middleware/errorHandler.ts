@@ -1,12 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { logger } from '../utils/logger.js';
 
 export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
-  console.error('Error:', err);
+  const anyReq = req as any;
+  const requestId = typeof anyReq.requestId === 'string' ? anyReq.requestId : undefined;
+  const userId = typeof anyReq.userId === 'string' ? anyReq.userId : null;
+  const channelId = typeof anyReq.channelId === 'string' ? anyReq.channelId : null;
+
+  logger.error('http.error', {
+    requestId,
+    method: req.method,
+    path: req.path,
+    userId,
+    channelId,
+    errorName: err?.name,
+    errorMessage: err?.message,
+    // Stack can contain sensitive paths; keep it only outside production.
+    ...(process.env.NODE_ENV === 'production' ? {} : { stack: err?.stack }),
+  });
 
   // Don't send response if headers already sent
   if (res.headersSent) {
-    console.error('Error occurred after response was sent, cannot send error response');
+    logger.warn('http.error.headersSent', { requestId, method: req.method, path: req.path });
     return next(err);
   }
 
@@ -15,6 +31,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
       error: 'Validation error',
       message: 'Validation failed',
       details: err.errors,
+      requestId,
     });
   }
 
@@ -22,6 +39,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(401).json({ 
       error: 'Unauthorized',
       message: 'Unauthorized',
+      requestId,
     });
   }
 
@@ -29,6 +47,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(403).json({ 
       error: 'Forbidden',
       message: 'Forbidden',
+      requestId,
     });
   }
 
@@ -36,6 +55,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(404).json({ 
       error: 'Not Found',
       message: 'Not Found',
+      requestId,
     });
   }
 
@@ -44,6 +64,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(400).json({
       error: 'File too large',
       message: 'File size exceeds maximum allowed size',
+      requestId,
     });
   }
 
@@ -51,6 +72,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(400).json({
       error: 'Unexpected file field',
       message: 'Unexpected file field name',
+      requestId,
     });
   }
 
@@ -58,6 +80,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(400).json({
       error: 'Too many files',
       message: 'Too many files in request',
+      requestId,
     });
   }
 
@@ -66,6 +89,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(408).json({
       error: 'Request timeout',
       message: 'Request timed out. Please try again.',
+      requestId,
     });
   }
 
@@ -74,6 +98,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(408).json({
       error: 'Connection error',
       message: 'Connection was reset or aborted. Please try again.',
+      requestId,
     });
   }
 
@@ -83,6 +108,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   res.status(500).json({
     error: 'Internal server error',
     message: 'Internal server error',
+    requestId,
     // Only include details in development
     ...(isProduction ? {} : { 
       details: err.message,

@@ -27,6 +27,7 @@ import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletB
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
+import { logger } from '../utils/logger.js';
 
 export const adminController = {
   getTwitchRewardEligibility: async (req: AuthRequest, res: Response) => {
@@ -50,6 +51,12 @@ export const adminController = {
       const info = await getChannelInformation(userId, channel.twitchChannelId);
       // If Twitch returns no data (null), treat as "unknown" instead of "not eligible".
       if (!info) {
+        logger.warn('twitch.eligibility.no_channel_info', {
+          requestId: req.requestId,
+          userId,
+          channelId,
+          broadcasterId: channel.twitchChannelId,
+        });
         return res.json({
           eligible: null,
           broadcasterType: null,
@@ -65,6 +72,13 @@ export const adminController = {
         checkedBroadcasterId: channel.twitchChannelId,
       });
     } catch (e: any) {
+      logger.error('twitch.eligibility.failed', {
+        requestId: req.requestId,
+        userId,
+        channelId,
+        broadcasterId: channel.twitchChannelId,
+        errorMessage: e?.message,
+      });
       return res.status(502).json({
         error: e?.message || 'Failed to check Twitch channel eligibility',
         errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
@@ -1036,6 +1050,12 @@ export const adminController = {
           } catch (e: any) {
             // If we can't validate identity, proceed; Twitch API calls below will still fail if mismatched.
             // On beta we still want to return a helpful error when possible.
+            logger.warn('twitch.identity_check.failed', {
+              requestId: req.requestId,
+              userId,
+              channelId,
+              errorMessage: e?.message,
+            });
           }
 
           // Prevent enabling rewards for channels without affiliate/partner status.
@@ -1050,6 +1070,13 @@ export const adminController = {
               });
             }
           } catch (e: any) {
+            logger.error('twitch.eligibility.check_failed', {
+              requestId: req.requestId,
+              userId,
+              channelId,
+              broadcasterId: channel.twitchChannelId,
+              errorMessage: e?.message,
+            });
             return res.status(502).json({
               error: e?.message || 'Failed to check Twitch channel eligibility',
               errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
@@ -1090,7 +1117,13 @@ export const adminController = {
                 .map((r: any) => r.id);
             }
           } catch (error: any) {
-            console.error('Error fetching rewards:', error);
+            logger.warn('twitch.rewards.fetch_failed', {
+              requestId: req.requestId,
+              userId,
+              channelId,
+              broadcasterId: channel.twitchChannelId,
+              errorMessage: error?.message,
+            });
             // Continue with create/update logic
           }
           
@@ -1099,7 +1132,14 @@ export const adminController = {
             try {
               await deleteChannelReward(userId, channel.twitchChannelId, oldRewardId);
             } catch (error: any) {
-              console.error('Error deleting old reward:', error);
+              logger.warn('twitch.rewards.delete_old_failed', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+                rewardId: oldRewardId,
+                errorMessage: error?.message,
+              });
               // Continue even if deletion fails
             }
           }
@@ -1128,10 +1168,23 @@ export const adminController = {
                   coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                 }
               } catch (error) {
-                console.error('Error fetching reward details for icon:', error);
+                logger.warn('twitch.rewards.fetch_icon_failed', {
+                  requestId: req.requestId,
+                  userId,
+                  channelId,
+                  broadcasterId: channel.twitchChannelId,
+                  rewardId: existingRewardId,
+                });
               }
             } catch (error: any) {
-              console.error('Error updating reward:', error);
+              logger.warn('twitch.rewards.update_failed', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+                rewardId: existingRewardId,
+                errorMessage: error?.message,
+              });
               // If update fails, create new one
               const rewardResponse = await createChannelReward(
                 userId,
@@ -1154,7 +1207,13 @@ export const adminController = {
                     coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                   }
                 } catch (error) {
-                  console.error('Error fetching reward details for icon:', error);
+                  logger.warn('twitch.rewards.fetch_icon_failed', {
+                    requestId: req.requestId,
+                    userId,
+                    channelId,
+                    broadcasterId: channel.twitchChannelId,
+                    rewardId: body.rewardIdForCoins ?? null,
+                  });
                 }
               }
             }
@@ -1181,7 +1240,13 @@ export const adminController = {
                   coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                 }
               } catch (error) {
-                console.error('Error fetching reward details for icon:', error);
+                logger.warn('twitch.rewards.fetch_icon_failed', {
+                  requestId: req.requestId,
+                  userId,
+                  channelId,
+                  broadcasterId: channel.twitchChannelId,
+                  rewardId: body.rewardIdForCoins ?? null,
+                });
               }
             }
           }

@@ -10,20 +10,9 @@ import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
+import { requestContext } from './middleware/requestContext.js';
 
 dotenv.config();
-
-// In production, remove console noise (keep console.error for real issues).
-if (process.env.NODE_ENV === 'production') {
-  // eslint-disable-next-line no-console
-  console.log = () => {};
-  // eslint-disable-next-line no-console
-  console.info = () => {};
-  // eslint-disable-next-line no-console
-  console.debug = () => {};
-  // eslint-disable-next-line no-console
-  console.warn = () => {};
-}
 
 const app = express();
 const httpServer = createServer(app);
@@ -98,6 +87,8 @@ httpServer.on('timeout', (socket) => {
 app.set('trust proxy', 1);
 
 // Middleware
+// Request context & requestId (must be early so it is present in all logs/errors)
+app.use(requestContext);
 // Configure helmet with proper CSP
 app.use(
   helmet({
