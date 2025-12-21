@@ -18,6 +18,7 @@ import {
   deleteChannelReward,
   getChannelInformation,
   getChannelRewards,
+  getAuthenticatedTwitchUser,
   createEventSubSubscription,
   getEventSubSubscriptions,
   deleteEventSubSubscription,
@@ -1004,6 +1005,24 @@ export const adminController = {
               error: 'Twitch access token not found. Please log out and log in again to refresh your authorization.',
               requiresReauth: true 
             });
+          }
+
+          // Ensure the logged-in Twitch account matches the broadcaster we are trying to manage.
+          // Otherwise Twitch will deny reward management, even if the channel is affiliate/partner.
+          try {
+            const who = await getAuthenticatedTwitchUser(userId);
+            const tokenTwitchUserId = who?.id || null;
+            const broadcasterId = channel.twitchChannelId || null;
+            if (tokenTwitchUserId && broadcasterId && tokenTwitchUserId !== String(broadcasterId)) {
+              return res.status(403).json({
+                error: 'Twitch account mismatch. Please log in as the channel owner to manage rewards.',
+                errorCode: 'TWITCH_ACCOUNT_MISMATCH',
+                requiresReauth: true,
+              });
+            }
+          } catch (e: any) {
+            // If we can't validate identity, proceed; Twitch API calls below will still fail if mismatched.
+            // On beta we still want to return a helpful error when possible.
           }
 
           // Prevent enabling rewards for channels without affiliate/partner status.

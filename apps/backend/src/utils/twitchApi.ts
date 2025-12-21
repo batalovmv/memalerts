@@ -126,6 +126,19 @@ async function twitchApiRequest(
 }
 
 /**
+ * Get Twitch user info for the current user token (who is logged in).
+ * Useful to detect "account mismatch" (trying to manage rewards for a different broadcaster).
+ */
+export async function getAuthenticatedTwitchUser(
+  userId: string
+): Promise<{ id: string; display_name?: string | null } | null> {
+  const resp = await twitchApiRequest('users', 'GET', userId);
+  const item = resp?.data?.[0];
+  if (!item) return null;
+  return { id: String(item.id), display_name: item.display_name ?? null };
+}
+
+/**
  * Create a custom channel point reward
  */
 export async function createChannelReward(
