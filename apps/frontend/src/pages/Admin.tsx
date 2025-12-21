@@ -15,6 +15,20 @@ import SecretCopyField from '../components/SecretCopyField';
 
 type TabType = 'submissions' | 'settings' | 'rewards' | 'obs' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
+function SavingOverlay({ label }: { label: string }) {
+  return (
+    <div className="absolute inset-0 z-10 rounded-xl bg-white/55 dark:bg-gray-900/55 backdrop-blur-sm">
+      <div className="absolute inset-0 rounded-xl ring-1 ring-black/5 dark:ring-white/10" />
+      <div className="flex h-full w-full items-center justify-center p-4">
+        <div className="flex items-center gap-3 rounded-xl bg-white/80 dark:bg-gray-900/80 px-4 py-3 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
+          <div className="h-4 w-4 rounded-full border-2 border-gray-300 dark:border-gray-600 border-t-primary animate-spin" aria-hidden="true" />
+          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -889,12 +903,17 @@ function ObsLinksSettings() {
           }
         />
 
-        <div className="glass p-4">
+        <div className="glass p-4 relative">
+          {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
             {t('admin.obsOverlaySettingsTitle')}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-opacity ${
+              loadingOverlaySettings || savingOverlaySettings ? 'pointer-events-none opacity-60' : ''
+            }`}
+          >
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 {t('admin.obsOverlayMode')}
@@ -1349,7 +1368,8 @@ function RewardsSettings() {
 
       <div className="space-y-4">
         {/* Card A: Twitch reward (Channel Points -> coins) */}
-        <div className="glass p-6">
+        <div className="glass p-6 relative">
+          {savingTwitchReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold dark:text-white mb-1">
@@ -1381,7 +1401,7 @@ function RewardsSettings() {
               <input
                 type="checkbox"
                 checked={rewardSettings.rewardEnabled}
-                disabled={eligibilityLoading || twitchRewardEligible === false}
+                disabled={savingTwitchReward || eligibilityLoading || twitchRewardEligible === false}
                 onChange={(e) => {
                   if (twitchRewardEligible === false) {
                     toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
@@ -1396,7 +1416,7 @@ function RewardsSettings() {
           </div>
 
           {rewardSettings.rewardEnabled && (
-            <div className="space-y-4 mt-4">
+            <div className={`space-y-4 mt-4 ${savingTwitchReward ? 'pointer-events-none opacity-60' : ''}`}>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('admin.rewardTitle')}
@@ -1481,7 +1501,8 @@ function RewardsSettings() {
         </div>
 
         {/* Card B: Approved meme reward (coins) */}
-        <div className="glass p-6">
+        <div className="glass p-6 relative">
+          {savingApprovedMemeReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
           <div className="mb-4">
             <h3 className="text-lg font-semibold dark:text-white mb-1">
               {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
@@ -1491,7 +1512,7 @@ function RewardsSettings() {
             </p>
           </div>
 
-          <div>
+          <div className={savingApprovedMemeReward ? 'pointer-events-none opacity-60' : ''}>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
             </label>
@@ -1665,11 +1686,12 @@ function ChannelSettings() {
   const profileUrl = user?.channel?.slug ? `https://twitchmemes.ru/channel/${user.channel.slug}` : '';
 
   return (
-    <div className="surface p-6">
+    <div className="surface p-6 relative">
+      {loading && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
 
       {/* Preferences */}
-      <div className="mb-6 pb-6">
+      <div className={`mb-6 pb-6 ${loading ? 'pointer-events-none opacity-60' : ''}`}>
         <h3 className="text-lg font-semibold mb-3 dark:text-white">
           {t('admin.preferences', 'Предпочтения')}
         </h3>
@@ -1731,7 +1753,7 @@ function ChannelSettings() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className={`space-y-4 ${loading ? 'pointer-events-none opacity-60' : ''}`}>
         <div>
           <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
