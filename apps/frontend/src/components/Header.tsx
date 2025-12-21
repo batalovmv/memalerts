@@ -11,7 +11,6 @@ import { useChannelColors } from '../contexts/ChannelColorsContext';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
 import type { Wallet } from '../types';
-import toast from 'react-hot-toast';
 import { login } from '../lib/auth';
 import AuthRequiredModal from './AuthRequiredModal';
 
