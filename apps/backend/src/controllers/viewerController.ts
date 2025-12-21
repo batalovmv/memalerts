@@ -535,7 +535,10 @@ export const viewerController = {
     const parsedLimit = parseInt(limit as string, 10);
     const parsedOffset = parseInt(offset as string, 10);
 
-    // "My favorites": when no other filters are applied, use a cheap groupBy ordering by activation count.
+    // "My favorites": order by the user's activation count for this channel.
+    // We intentionally include in-progress activations (queued/playing) so the list is useful immediately
+    // after a user activates a meme (otherwise it would stay empty until the activation completes).
+    const favoritesStatuses = ['queued', 'playing', 'done', 'completed'];
     if (
       favoritesEnabled &&
       !q &&
@@ -549,7 +552,7 @@ export const viewerController = {
         where: {
           channelId: targetChannelId!,
           userId: req.userId!,
-          status: { in: ['done', 'completed'] },
+          status: { in: favoritesStatuses },
         },
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
@@ -620,7 +623,7 @@ export const viewerController = {
         where: {
           channelId: targetChannelId!,
           userId: req.userId!,
-          status: { in: ['done', 'completed'] },
+          status: { in: favoritesStatuses },
           memeId: { in: memes.map((m: any) => m.id) },
         },
         _count: { id: true },
