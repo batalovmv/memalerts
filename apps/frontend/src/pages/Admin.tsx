@@ -1275,18 +1275,27 @@ function RewardsSettings() {
     setSavingTwitchReward(true);
     try {
       const { api } = await import('../lib/api');
+      // Ensure reward title is never empty when enabling (prevents 400s and creates a good default UX).
+      const effectiveTitle =
+        rewardSettings.rewardEnabled && !rewardSettings.rewardTitle.trim()
+          ? t('admin.rewardTitlePlaceholder', { defaultValue: 'Get Coins' })
+          : rewardSettings.rewardTitle;
+
+      if (effectiveTitle !== rewardSettings.rewardTitle) {
+        setRewardSettings((p) => ({ ...p, rewardTitle: effectiveTitle }));
+      }
       await api.patch('/admin/channel/settings', {
         // Twitch reward only (do NOT include submissionRewardCoins here)
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
-        rewardTitle: rewardSettings.rewardTitle || null,
+        rewardTitle: effectiveTitle || null,
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
       });
       lastSavedTwitchRef.current = JSON.stringify({
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
-        rewardTitle: rewardSettings.rewardTitle || null,
+        rewardTitle: effectiveTitle || null,
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
       });
