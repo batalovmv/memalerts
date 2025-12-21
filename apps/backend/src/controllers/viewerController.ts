@@ -544,7 +544,7 @@ export const viewerController = {
         where: {
           channelId: targetChannelId!,
           userId: req.userId!,
-          status: 'done',
+          status: { in: ['done', 'completed'] },
         },
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
@@ -586,7 +586,7 @@ export const viewerController = {
         _count: {
           select: {
             activations: sortBy === 'popularity'
-              ? { where: { status: 'done', createdAt: { gte: popularityStartDate } } }
+              ? { where: { status: { in: ['done', 'completed'] }, createdAt: { gte: popularityStartDate } } }
               : true,
           },
         },
@@ -615,7 +615,7 @@ export const viewerController = {
         where: {
           channelId: targetChannelId!,
           userId: req.userId!,
-          status: 'done',
+          status: { in: ['done', 'completed'] },
           memeId: { in: memes.map((m: any) => m.id) },
         },
         _count: { id: true },
@@ -671,7 +671,7 @@ export const viewerController = {
 
     // Build where clause
     const where: any = {
-      status: 'done', // Only count completed activations
+      status: { in: ['done', 'completed'] }, // Only count completed activations
       createdAt: {
         gte: startDate,
       },
