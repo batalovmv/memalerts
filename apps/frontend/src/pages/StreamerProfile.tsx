@@ -514,7 +514,9 @@ export default function StreamerProfile() {
         {/* Memes List */}
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('profile.availableMemes')}</h2>
         {(() => {
-          const memesToDisplay = searchQuery.trim() ? searchResults : memes;
+          // If favorites is enabled, we always render searchResults (even with empty query).
+          // Otherwise, only render searchResults when user is actually searching.
+          const memesToDisplay = (myFavorites || searchQuery.trim()) ? searchResults : memes;
           
           if (memesLoading && !searchQuery.trim()) {
             return (

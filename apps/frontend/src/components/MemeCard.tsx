@@ -241,13 +241,11 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           <video
             ref={videoRef}
             src={mediaUrl}
-            muted={
-              previewMode === 'autoplayMuted'
-                ? true
-                : previewMode === 'hoverMuted'
-                  ? true
-                  : (!hasUserInteracted || !isHovered)
-            }
+            // IMPORTANT:
+            // - For autoplay feeds and explicitly muted hover previews, keep `muted` controlled by React.
+            // - For hoverWithSound, we MUST NOT control `muted` via JSX, otherwise React can override
+            //   our imperative unmute (videoRef.current.muted = false) and sound never turns on.
+            muted={previewMode === 'hoverWithSound' ? undefined : true}
             autoPlay={previewMode === 'autoplayMuted'}
             loop
             playsInline
