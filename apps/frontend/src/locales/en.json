@@ -22,6 +22,19 @@
     "logout": "Logout",
     "myChannel": "My Channel"
   },
+  "auth": {
+    "login": "Log in with Twitch",
+    "guest": "Guest",
+    "loginRequired": "Please log in to use this feature.",
+    "loginToInteract": "Log in to submit memes and use favorites",
+    "loginToUseFavorites": "Log in to use favorites",
+    "loginToUseWallet": "Log in to earn coins and activate memes",
+    "loginToUse": "Log in to use",
+    "modal": {
+      "title": "Login required",
+      "description": "Log in with Twitch to use this feature."
+    }
+  },
   "landing": {
     "title": "Channel Points Mem Alerts",
     "subtitle": "Spend your Twitch channel points to activate memes on stream!",
@@ -95,6 +108,17 @@
     "submitted": "Submission created! Waiting for approval.",
     "importSubmitted": "Meme import submitted! Waiting for approval."
   },
+  "submitModal": {
+    "whatHappensNext": "What happens next?",
+    "approvalProcess": "Your submission will be reviewed by moderators. Once approved, it will appear in the meme list."
+  },
+  "meme": {
+    "status": {
+      "approved": "approved",
+      "pending": "pending",
+      "rejected": "rejected"
+    }
+  },
   "admin": {
     "activityLast14Days": "Activity (last 14 days)",
     "noActivityYet": "No activity yet.",
@@ -112,6 +136,8 @@
     "obsOverlayModeUnlimited": "Unlimited",
     "obsOverlayModeQueueHint": "Shows one meme at a time.",
     "obsOverlayModeUnlimitedHint": "Shows all incoming memes at once (no limit).",
+    "obsOverlayShowSender": "Show sender name",
+    "obsOverlayShowSenderHint": "Name is provided by the server (not the client).",
     "obsHowToTitle": "How to add in OBS",
     "obsHowToStep1": "Add a new Browser Source.",
     "obsHowToStep2": "Paste the Overlay URL.",
@@ -250,6 +276,12 @@
     "placeholder": "Search memes by title...",
     "searching": "Searching...",
     "resultsFound": "results found",
+    "sortNewest": "Newest",
+    "sortOldest": "Oldest",
+    "sortPopular": "Popular",
+    "scopeContent": "Search: title + tags",
+    "scopeContentUploader": "Search: title + tags + uploader nick",
+    "myFavorites": "My favorites",
     "minPrice": "Min Price",
     "maxPrice": "Max Price",
     "sortBy": "Sort By",
@@ -365,6 +397,25 @@
     "revoked": "Your beta access was revoked by an administrator.",
     "useProduction": "Please use the production site while you do not have beta access.",
     "requestButton": "Request beta access"
+  }
+  ,
+  "memeModal": {
+    "price": "Price",
+    "priceValue": "{{price}} coins",
+    "priceCoins": "Price (coins)",
+    "duration": "Duration",
+    "durationValue": "{{seconds}}s",
+    "durationSeconds": "Duration (seconds)",
+    "createdBy": "Created by",
+    "source": "Source",
+    "sourceImported": "imported",
+    "sourceUploaded": "uploaded",
+    "status": "Status",
+    "createdAt": "Created",
+    "yourBalance": "Your balance: {{balance}} coins",
+    "insufficientCoins": "Insufficient coins (need {{price}})",
+    "deleteMeme": "Delete Meme",
+    "videoLoadFailed": "Failed to load video source"
   }
   ,
   "memeModal": {

@@ -27,15 +27,17 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-backdrop-in"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6"
-        onClick={(e) => e.stopPropagation()}
+        className="glass rounded-2xl shadow-2xl max-w-md w-full p-6 modal-pop-in"
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 id="confirm-dialog-title" className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
           {title}

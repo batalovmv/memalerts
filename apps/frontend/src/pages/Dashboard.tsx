@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { store } from '../store/index';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
-import { fetchMemes } from '../store/slices/memesSlice';
+import { api } from '../lib/api';
 import Header from '../components/Header';
 import SubmitModal from '../components/SubmitModal';
 import MemeModal from '../components/MemeModal';
@@ -19,13 +19,12 @@ export default function Dashboard() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const { submissions, loading: submissionsLoading, loadingMore: submissionsLoadingMore, total: submissionsTotal } = useAppSelector((state) => state.submissions);
-  const { memes, loading: memesLoading } = useAppSelector((state) => state.memes);
+  const [memesCount, setMemesCount] = useState<number | null>(null);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
-  const memesLoadedRef = useRef(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -41,6 +40,7 @@ export default function Dashboard() {
   const { autoplayMemesEnabled } = useAutoplayMemes();
 
   const panel = (searchParams.get('panel') || '').toLowerCase();
+  const tab = (searchParams.get('tab') || '').toLowerCase();
   const isPanelOpen = panel === 'submissions' || panel === 'memes';
 
   const setPanel = (next: 'submissions' | 'memes' | null, replace = false) => {
@@ -54,6 +54,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!authLoading && !user) {
+      console.log('[Dashboard] No user, redirecting to /', { authLoading, user });
       navigate('/');
     }
   }, [user, authLoading, navigate]);
@@ -61,85 +62,78 @@ export default function Dashboard() {
   // Removed role restrictions - Dashboard is accessible to all users
 
   // Back-compat: if someone navigates to /dashboard?tab=submissions, open the submissions panel.
+  // This must work even when Dashboard is already mounted (e.g. via Header bell click).
   useEffect(() => {
     const tab = (searchParams.get('tab') || '').toLowerCase();
-    if (tab === 'submissions') {
+    if (tab === 'submissions' && panel !== 'submissions') {
       setPanel('submissions', true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [panel, searchParams]);
 
-  // Load pending submissions lazily when the submissions panel is opened
+  useEffect(() => {
+    // (debug logging removed)
+  }, [panel, tab, isPanelOpen, searchParams]);
+
+  // Load pending submissions if user is streamer/admin
+  // Check Redux store with TTL to avoid duplicate requests on navigation
   useEffect(() => {
     const userId = user?.id;
     const userRole = user?.role;
     const userChannelId = user?.channelId;
 
-    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) {
+    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
+      const currentState = store.getState();
+      const submissionsState = currentState.submissions;
+      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+      const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
+      
+      // Check if we have fresh data based on timestamp
+      const hasFreshData = submissionsState.submissions.length > 0 && 
+        submissionsState.lastFetchedAt !== null &&
+        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
+      
+      // Check if we had a recent error (especially 403) - don't retry immediately
+      const hasRecentError = submissionsState.lastErrorAt !== null &&
+        (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
+      
+      const isLoading = submissionsState.loading;
+      
+      // Only fetch if no fresh data, not loading, no recent error, and not already loaded
+      if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
+        submissionsLoadedRef.current = true;
+        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+      } else if (hasFreshData) {
+        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
+      }
+    }
+    // Reset ref when user changes
+    if (!userId || !userChannelId) {
       submissionsLoadedRef.current = false;
-      return;
     }
+  }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
 
-    if (panel !== 'submissions') return;
-
-    const currentState = store.getState();
-    const submissionsState = currentState.submissions;
-    const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-    const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
-    
-    const hasFreshData = submissionsState.submissions.length > 0 && 
-      submissionsState.lastFetchedAt !== null &&
-      (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
-    
-    const hasRecentError = submissionsState.lastErrorAt !== null &&
-      (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
-    
-    const isLoading = submissionsState.loading || submissionsState.loadingMore;
-    
-    if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
-      submissionsLoadedRef.current = true;
-      dispatch(fetchSubmissions({ status: 'pending', offset: 0, limit: 20, append: false }));
-    } else if (hasFreshData) {
-      submissionsLoadedRef.current = true;
-    }
-  }, [panel, user?.id, user?.role, user?.channelId, dispatch]);
-
-  // Load memes for own channel (needed for dashboard "All memes" panel)
+  // Load memes count (lightweight) for own channel (do NOT load all memes here)
   useEffect(() => {
-    const userId = user?.id;
-    const userRole = user?.role;
-    const userChannelId = user?.channelId;
-    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) {
-      memesLoadedRef.current = false;
-      return;
-    }
+    if (!user?.channel?.slug) return;
+    void (async () => {
+      try {
+        const slug = user.channel?.slug;
+        if (!slug) return;
+        const data = await api.get<any>(`/channels/${slug}`, { params: { includeMemes: false } });
+        const count = data?.stats?.memesCount;
+        if (typeof count === 'number') setMemesCount(count);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [user?.channel?.slug]);
 
-    // If already loaded for this channel (or currently loading), skip.
-    if (memesLoading) return;
-    if (memesLoadedRef.current) return;
+  const pendingSubmissionsCount =
+    typeof submissionsTotal === 'number'
+      ? submissionsTotal
+      : submissions.filter(s => s.status === 'pending').length;
 
-    // If memes for this channel exist in store, consider it loaded.
-    const channelMemes = memes.filter((m) => m.channelId === userChannelId);
-    if (channelMemes.length > 0) {
-      memesLoadedRef.current = true;
-      return;
-    }
-
-    memesLoadedRef.current = true;
-    dispatch(fetchMemes({ channelId: userChannelId }));
-  }, [user?.id, user?.role, user?.channelId, memesLoading, memes, dispatch]);
-
-  const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
-  const hasMoreSubmissions = submissions.length < submissionsTotal;
-  const handleLoadMoreSubmissions = () => {
-    if (submissionsLoading || submissionsLoadingMore) return;
-    dispatch(fetchSubmissions({ status: 'pending', offset: submissions.length, limit: 20, append: true }));
-  };
-
-  const myChannelMemes = useMemo(() => {
-    if (!user?.channelId) return [];
-    return memes.filter((m) => m.channelId === user.channelId);
-  }, [memes, user?.channelId]);
+  const myChannelMemesCount = memesCount ?? 0;
 
   if (authLoading || !user) {
     return (
@@ -164,7 +158,7 @@ export default function Dashboard() {
             {/* Quick Actions Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
               {/* Submit Meme Card - Primary */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-primary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
@@ -178,7 +172,7 @@ export default function Dashboard() {
               </div>
 
               {/* Pending Submissions Card - Secondary */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
                   {pendingSubmissionsCount > 0 && (
@@ -208,13 +202,13 @@ export default function Dashboard() {
               </div>
 
               {/* All Memes Card */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">
                     {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
                   </h2>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {memesLoading ? '…' : myChannelMemes.length}
+                    {memesCount === null ? '…' : myChannelMemesCount}
                   </span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
@@ -235,7 +229,7 @@ export default function Dashboard() {
               </div>
 
               {/* Settings Card - Tertiary */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow border border-secondary/20 flex flex-col min-h-[210px]">
+              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.settings', 'Settings')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
@@ -260,10 +254,16 @@ export default function Dashboard() {
                   isOpen={panel === 'submissions'}
                   submissions={submissions}
                   submissionsLoading={submissionsLoading}
-                  loadingMore={submissionsLoadingMore}
+                  submissionsLoadingMore={submissionsLoadingMore}
                   pendingCount={pendingSubmissionsCount}
-                  hasMore={hasMoreSubmissions}
+                  total={submissionsTotal}
                   onClose={() => setPanel(null)}
+                  onLoadMore={() => {
+                    const offset = submissions.length;
+                    // If we know total and already loaded everything, skip.
+                    if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
+                    dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
+                  }}
                   onApprove={(submissionId) => {
                     setApproveModal({ open: true, submissionId });
                     setPriceCoins('100');
@@ -272,13 +272,11 @@ export default function Dashboard() {
                     setRejectModal({ open: true, submissionId });
                     setRejectReason('');
                   }}
-                  onLoadMore={handleLoadMoreSubmissions}
                 />
 
                 <AllMemesPanel
                   isOpen={panel === 'memes'}
-                  memes={myChannelMemes}
-                  memesLoading={memesLoading}
+                  channelId={user.channelId}
                   autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
                   onClose={() => setPanel(null)}
                   onSelectMeme={(meme) => {
@@ -297,7 +295,7 @@ export default function Dashboard() {
                     navigate(`/channel/${user.channel.slug}`);
                   }
                 }}
-                className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-semibold py-3 px-5 rounded-xl transition-colors border border-secondary/20 shadow-sm"
+                className="inline-flex items-center gap-2 bg-white/70 dark:bg-gray-900/40 hover:bg-white dark:hover:bg-gray-900/60 text-gray-900 dark:text-white font-semibold py-3 px-5 rounded-xl transition-colors shadow-sm"
               >
                 <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -308,7 +306,7 @@ export default function Dashboard() {
             </div>
           </>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <div className="surface p-6">
             <p className="text-gray-600 dark:text-gray-400">
               {t('dashboard.noChannel', 'You don\'t have a channel yet. Create one to start using the platform.')}
             </p>
@@ -336,9 +334,7 @@ export default function Dashboard() {
             setSelectedMeme(null);
           }}
           onUpdate={() => {
-            if (user?.channelId) {
-              dispatch(fetchMemes({ channelId: user.channelId }));
-            }
+            // All memes panel is loaded via paginated search; no global refresh needed here.
           }}
           isOwner={true}
           mode="admin"
@@ -401,10 +397,7 @@ export default function Dashboard() {
                         await dispatch(approveSubmission({ submissionId: approveModal.submissionId, priceCoins: parsed })).unwrap();
                         toast.success(t('admin.approve', { defaultValue: 'Approve' }));
                         setApproveModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending' }));
-                        if (user?.channelId) {
-                          dispatch(fetchMemes({ channelId: user.channelId }));
-                        }
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
                       } catch {
                         toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
                       }
@@ -478,7 +471,7 @@ export default function Dashboard() {
                         await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: rejectReason.trim() })).unwrap();
                         toast.success(t('admin.reject', { defaultValue: 'Reject' }));
                         setRejectModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending' }));
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
                       } catch {
                         toast.error(t('admin.failedToReject', { defaultValue: 'Failed to reject submission' }));
                       }

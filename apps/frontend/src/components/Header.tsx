@@ -2,14 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { store } from '../store/index';
 import { updateWalletBalance } from '../store/slices/authSlice';
-import { submissionApproved, submissionCreated, submissionRejected, fetchSubmissionsCount } from '../store/slices/submissionsSlice';
+import { fetchSubmissions, submissionApproved, submissionCreated, submissionRejected } from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
 import UserMenu from './UserMenu';
 import SubmitModal from './SubmitModal';
 import type { Wallet } from '../types';
+import { login } from '../lib/auth';
+import AuthRequiredModal from './AuthRequiredModal';
 
 interface HeaderProps {
   channelSlug?: string;
@@ -22,7 +25,7 @@ interface HeaderProps {
 export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading, loadingCount: submissionsLoadingCount, total: submissionsTotal, lastCountFetchedAt } = useAppSelector((state) => state.submissions);
+  const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,12 +35,14 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
   const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
   // Aggregated "coins gained" badge (avoid confusing "+100 (2)" UI; show the total delta instead).
   const [coinUpdateDelta, setCoinUpdateDelta] = useState<number | null>(null);
   const coinUpdateHideTimerRef = useRef<number | null>(null);
+  const submissionsLoadedRef = useRef(false);
   const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
   const channelDataLoadedRef = useRef<string | null>(null); // Track which channel's data was loaded
 
@@ -56,6 +61,46 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     location.pathname.startsWith('/settings') ||
     isOwnProfile
   );
+
+  const requireAuth = () => setAuthModalOpen(true);
+
+  // Load submissions for streamer/admin if not already loaded
+  // Check Redux store with TTL to avoid duplicate requests on navigation
+  useEffect(() => {
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userChannelId = user?.channelId;
+
+    if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
+      const currentState = store.getState();
+      const submissionsState = currentState.submissions;
+      const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+      const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
+      
+      // Check if we have fresh data based on timestamp
+      const hasFreshData = submissionsState.submissions.length > 0 && 
+        submissionsState.lastFetchedAt !== null &&
+        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
+      
+      // Check if we had a recent error (especially 403) - don't retry immediately
+      const hasRecentError = submissionsState.lastErrorAt !== null &&
+        (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
+      
+      const isLoading = submissionsState.loading;
+      
+      // Only fetch if no fresh data, not loading, no recent error, and not already loaded
+      if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
+        submissionsLoadedRef.current = true;
+        dispatch(fetchSubmissions({ status: 'pending' }));
+      } else if (hasFreshData) {
+        submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
+      }
+    }
+    // Reset ref when user changes
+    if (!userId || !userChannelId) {
+      submissionsLoadedRef.current = false;
+    }
+  }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -139,9 +184,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 walletLoadedRef.current = targetChannelSlug || null; // Mark as loaded (even if default)
               }
             }
+            console.warn('Failed to load wallet:', error);
           }
         }
       } catch (error) {
+        console.error('Error loading wallet:', error);
       } finally {
         setIsLoadingWallet(false);
       }
@@ -349,46 +396,45 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     }
   }, [socket, isConnected, effectiveModeratorChannelSlug]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const panel = (params.get('panel') || '').toLowerCase();
+    const tab = (params.get('tab') || '').toLowerCase();
+    const pendingCount = submissions.filter((s) => s.status === 'pending').length;
+    void pendingCount;
+    void tab;
+    void panel;
+  }, [location.pathname, location.search, submissions, user?.role]);
+
 
   const handlePendingSubmissionsClick = () => {
-    // Toggle submissions panel on dashboard via query param `panel=submissions`.
     const params = new URLSearchParams(location.search);
     const currentPanel = (params.get('panel') || params.get('tab') || '').toLowerCase();
-    const isOpen = location.pathname.startsWith('/dashboard') && currentPanel === 'submissions';
+    const isOnDashboard = location.pathname.startsWith('/dashboard');
+    const isOpen = isOnDashboard && currentPanel === 'submissions';
 
-    // Always drop legacy tab param for consistency.
+    // Canonical open state is `panel=submissions` (works even if Dashboard is already mounted).
     params.delete('tab');
     params.delete('panel');
     if (!isOpen) {
       params.set('panel', 'submissions');
     }
-
     const search = params.toString();
-    const target = search ? `/dashboard?${search}` : '/dashboard';
-    navigate(target);
+    navigate(search ? `/dashboard?${search}` : '/dashboard');
   };
 
   const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length;
-  const badgeCount = pendingSubmissionsCount || submissionsTotal;
   // Show indicator for streamers/admins always, even if submissions are not loaded yet
   const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin');
-  const hasPendingSubmissions = badgeCount > 0;
-  const isLoadingSubmissions = submissionsLoading || submissionsLoadingCount;
-
-  // Lightweight badge fetch to avoid “gray” bell on initial load (without opening panel)
-  useEffect(() => {
-    const userId = user?.id;
-    const userRole = user?.role;
-    const userChannelId = user?.channelId;
-    if (!userId || !userChannelId || !(userRole === 'streamer' || userRole === 'admin')) return;
-    const COUNT_TTL = 5 * 60 * 1000;
-    const isStale = !lastCountFetchedAt || (Date.now() - lastCountFetchedAt) > COUNT_TTL;
-    if (badgeCount === 0 && isStale && !submissionsLoadingCount) {
-      dispatch(fetchSubmissionsCount({ status: 'pending' }));
-    }
-  }, [user?.id, user?.role, user?.channelId, badgeCount, lastCountFetchedAt, submissionsLoadingCount, dispatch]);
+  const hasPendingSubmissions = pendingSubmissionsCount > 0;
+  const isLoadingSubmissions = submissionsLoading && submissions.length === 0;
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
+  const isInfiniteBalance = !!user && (user.role === 'streamer' || user.role === 'admin') && (
+    location.pathname === '/dashboard' ||
+    location.pathname.startsWith('/settings') ||
+    isOwnProfile
+  );
 
   // Use CSS variables for colors when on public channel page, fallback to inline styles for other pages
   const navStyle: React.CSSProperties = {
@@ -415,7 +461,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               Mem Alerts
             </h1>
             
-            {user && (
+            {(user ? (
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 {/* Pending Submissions Indicator - always show for streamer/admin */}
                 {showPendingIndicator && (
@@ -435,7 +481,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     aria-label={isLoadingSubmissions
                       ? t('header.loadingSubmissions', 'Loading submissions...')
                       : hasPendingSubmissions 
-                        ? (badgeCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: badgeCount }))
+                        ? (pendingSubmissionsCount === 1 ? t('header.pendingSubmissions', { count: 1 }) : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount }))
                         : t('header.noPendingSubmissions', 'No pending submissions')
                     }
                   >
@@ -453,7 +499,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     </svg>
                     {hasPendingSubmissions && !isLoadingSubmissions && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                        {badgeCount}
+                        {pendingSubmissionsCount}
                       </span>
                     )}
                   </button>
@@ -477,7 +523,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* Balance Display */}
                 <div className="relative group">
                   <div
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 border border-primary/20"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm"
                     onClick={() => {
                       setCoinUpdateDelta(null);
                     }}
@@ -499,7 +545,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                     )}
                     <div className="flex items-baseline gap-1">
                       <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
-                        {isLoadingWallet ? '...' : balance}
+                        {isInfiniteBalance ? '∞' : (isLoadingWallet ? '...' : balance)}
                       </span>
                       <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
                     </div>
@@ -522,7 +568,74 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* User Menu */}
                 <UserMenu />
               </div>
-            )}
+            ) : (
+              <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+                {/* Pending Submissions (guest preview) */}
+                <button
+                  onClick={requireAuth}
+                  className="relative p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
+                  title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
+                  aria-label={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
+                >
+                  <svg className="w-6 h-6 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </button>
+
+                {/* Submit Meme (guest preview) */}
+                <button
+                  onClick={requireAuth}
+                  className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
+                  title={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
+                  aria-label={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-sm hidden sm:inline">{t('header.submitMeme', { defaultValue: 'Submit Meme' })}</span>
+                </button>
+
+                {/* Balance (guest preview) */}
+                <div className="relative group">
+                  <div
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm cursor-pointer"
+                    onClick={requireAuth}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') requireAuth();
+                    }}
+                    aria-label={t('header.balance', 'Balance')}
+                  >
+                    <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">0</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
+                    </div>
+                  </div>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
+                    {t('auth.loginToUseWallet', { defaultValue: 'Log in to earn coins and activate memes' })}
+                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45" />
+                  </div>
+                </div>
+
+                {/* Guest identity */}
+                <button
+                  onClick={requireAuth}
+                  className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title={t('auth.login', { defaultValue: 'Log in with Twitch' })}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-200 font-bold">
+                    ?
+                  </div>
+                  <span className="text-sm hidden sm:inline text-gray-800 dark:text-gray-100">
+                    {t('auth.guest', { defaultValue: 'Guest' })}
+                  </span>
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </nav>
@@ -533,6 +646,15 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         onClose={() => setIsSubmitModalOpen(false)}
         channelSlug={currentChannelSlug}
         channelId={isOwnProfile ? channelId : undefined}
+      />
+
+      <AuthRequiredModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onCtaClick={() => {
+          setAuthModalOpen(false);
+          login(location.pathname + location.search);
+        }}
       />
 
     </>

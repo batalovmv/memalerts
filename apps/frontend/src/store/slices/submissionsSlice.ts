@@ -6,39 +6,40 @@ interface SubmissionsState {
   submissions: Submission[];
   loading: boolean;
   loadingMore: boolean;
-  loadingCount: boolean;
   error: string | null;
   lastFetchedAt: number | null;
   lastErrorAt: number | null; // Track when error occurred to prevent infinite retries
-  total: number;
-  lastCountFetchedAt: number | null;
+  total: number | null;
 }
 
 const initialState: SubmissionsState = {
   submissions: [],
   loading: false,
   loadingMore: false,
-  loadingCount: false,
   error: null,
   lastFetchedAt: null,
   lastErrorAt: null,
-  total: 0,
-  lastCountFetchedAt: null,
+  total: null,
 };
 
 type SubmissionsPage = { items: Submission[]; total: number };
 
 export const fetchSubmissions = createAsyncThunk<
-  { items: Submission[]; total: number; append: boolean },
-  { status?: string; offset?: number; limit?: number; append?: boolean },
+  SubmissionsPage,
+  { status?: string; limit?: number; offset?: number; append?: boolean },
   { rejectValue: ApiError }
->('submissions/fetchSubmissions', async ({ status = 'pending', offset = 0, limit = 20, append = false }, { rejectWithValue }) => {
+>('submissions/fetchSubmissions', async ({ status = 'pending', limit = 20, offset = 0 }, { rejectWithValue }) => {
   try {
-    const page = await api.get<SubmissionsPage>('/admin/submissions', {
-      params: { status, offset, limit },
+    const resp = await api.get<Submission[] | SubmissionsPage>('/admin/submissions', {
+      params: { status, limit, offset },
       timeout: 15000, // 15 seconds timeout
     });
-    return { items: page.items, total: page.total, append };
+
+    // Back-compat: older backend returns array
+    if (Array.isArray(resp)) {
+      return { items: resp, total: resp.length };
+    }
+    return { items: resp.items || [], total: typeof resp.total === 'number' ? resp.total : 0 };
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({
@@ -114,27 +115,6 @@ export const rejectSubmission = createAsyncThunk<
   }
 });
 
-export const fetchSubmissionsCount = createAsyncThunk<
-  { total: number },
-  { status?: string },
-  { rejectValue: ApiError }
->('submissions/fetchSubmissionsCount', async ({ status = 'pending' }, { rejectWithValue }) => {
-  try {
-    const page = await api.get<SubmissionsPage>('/admin/submissions', {
-      params: { status, offset: 0, limit: 1 },
-      timeout: 10000,
-    });
-    return { total: page.total };
-  } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to fetch submissions count',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
-  }
-});
-
 const submissionsSlice = createSlice({
   name: 'submissions',
   initialState,
@@ -174,23 +154,26 @@ const submissionsSlice = createSlice({
     builder
       // fetchSubmissions
       .addCase(fetchSubmissions.pending, (state) => {
-        // Distinguish between initial load and pagination
-        if (state.submissions.length > 0) {
-          state.loadingMore = true;
-        } else {
-          state.loading = true;
-        }
+        // If we already have some data, treat as "load more" for nicer UX
+        state.loadingMore = state.submissions.length > 0;
+        state.loading = !state.loadingMore;
         state.error = null;
       })
       .addCase(fetchSubmissions.fulfilled, (state, action) => {
         state.loading = false;
         state.loadingMore = false;
-        if (action.payload.append) {
-          state.submissions = [...state.submissions, ...action.payload.items];
+        state.total = action.payload.total;
+
+        // append if offset > 0 (pagination); otherwise replace
+        const offset = (action.meta.arg as any)?.offset ?? 0;
+        if (offset > 0) {
+          const existing = new Set(state.submissions.map((s) => s.id));
+          for (const item of action.payload.items) {
+            if (!existing.has(item.id)) state.submissions.push(item);
+          }
         } else {
           state.submissions = action.payload.items;
         }
-        state.total = action.payload.total;
         state.error = null;
         state.lastFetchedAt = Date.now();
         state.lastErrorAt = null; // Clear error timestamp on success
@@ -216,19 +199,6 @@ const submissionsSlice = createSlice({
         state.submissions = state.submissions.filter(
           (s) => s.id !== action.meta.arg.submissionId
         );
-      })
-      // fetchSubmissionsCount (lightweight badge)
-      .addCase(fetchSubmissionsCount.pending, (state) => {
-        state.loadingCount = true;
-      })
-      .addCase(fetchSubmissionsCount.fulfilled, (state, action) => {
-        state.loadingCount = false;
-        state.total = action.payload.total;
-        state.lastCountFetchedAt = Date.now();
-      })
-      .addCase(fetchSubmissionsCount.rejected, (state, action) => {
-        state.loadingCount = false;
-        state.error = state.error || action.payload?.message || null;
       });
   },
 });

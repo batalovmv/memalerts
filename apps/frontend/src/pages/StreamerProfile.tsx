@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { activateMeme } from '../store/slices/memesSlice';
 import { updateWalletBalance } from '../store/slices/authSlice';
 import { api } from '../lib/api';
+import { login } from '../lib/auth';
 import Header from '../components/Header';
 import MemeCard from '../components/MemeCard';
 import MemeModal from '../components/MemeModal';
@@ -15,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { useAutoplayMemes } from '../hooks/useAutoplayMemes';
 import type { Meme, Wallet } from '../types';
+import AuthRequiredModal from '../components/AuthRequiredModal';
 
 interface ChannelInfo {
   id: string;
@@ -59,6 +61,8 @@ export default function StreamerProfile() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [myFavorites, setMyFavorites] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -67,6 +71,7 @@ export default function StreamerProfile() {
   const { autoplayMemesEnabled } = useAutoplayMemes();
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
+  const isAuthed = !!user;
 
   // Helpers: use CSS variables (set by ChannelThemeProvider) to build subtle tints safely.
   // We avoid Tailwind color opacity modifiers here because theme colors are CSS vars (hex), and
@@ -222,7 +227,7 @@ export default function StreamerProfile() {
 
   // Perform search when debounced query changes
   useEffect(() => {
-    if (!normalizedSlug || !debouncedSearchQuery.trim()) {
+    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !myFavorites)) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -231,11 +236,13 @@ export default function StreamerProfile() {
     const performSearch = async () => {
       setIsSearching(true);
       try {
-        const params = new URLSearchParams({
-          q: debouncedSearchQuery,
-          channelSlug: normalizedSlug,
-          limit: '100',
-        });
+        const params = new URLSearchParams();
+        if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
+        params.set('channelSlug', normalizedSlug);
+        params.set('limit', '100');
+        if (myFavorites) params.set('favorites', '1');
+        params.set('sortBy', 'createdAt');
+        params.set('sortOrder', 'desc');
         const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
         setSearchResults(memes);
       } catch (error: unknown) {
@@ -246,12 +253,11 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [debouncedSearchQuery, normalizedSlug]);
+  }, [debouncedSearchQuery, normalizedSlug, myFavorites]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
-      toast.error(t('toast.pleaseLogInToActivate'));
-      navigate('/');
+      setAuthModalOpen(true);
       return;
     }
 
@@ -309,8 +315,7 @@ export default function StreamerProfile() {
         {/* Channel Header */}
         {loading ? (
           <div
-            className="mb-8 border-b pb-4"
-            style={{ borderColor: mix('--secondary-color', 28) }}
+            className="mb-8 pb-6"
           >
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
@@ -322,23 +327,34 @@ export default function StreamerProfile() {
           </div>
         ) : channelInfo && (
           <div
-            className="mb-8 border-b pb-4"
-            style={{ borderColor: mix('--secondary-color', 28) }}
+            className="mb-8 pb-6"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 {/* Avatar */}
-                {channelInfo.owner?.profileImageUrl ? (
-                  <img 
-                    src={channelInfo.owner.profileImageUrl} 
-                    alt={channelInfo.owner.displayName}
-                    className="w-20 h-20 rounded-lg object-cover border-2"
-                    style={{ borderColor: mix('--secondary-color', 35) }}
-                  />
-                ) : (
+                {(() => {
+                  const rawUrl = (isOwner ? (user?.profileImageUrl || channelInfo.owner?.profileImageUrl) : channelInfo.owner?.profileImageUrl) || '';
+                  const normalized = rawUrl.trim();
+                  if (!normalized) return null;
+                  const isAbsolute = normalized.startsWith('http://') || normalized.startsWith('https://');
+                  const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
+                  const resolved = isAbsolute
+                    ? normalized
+                    : (isBetaDomain && normalized.startsWith('/uploads/'))
+                      ? `https://twitchmemes.ru${normalized}`
+                      : normalized;
+
+                  return (
+                    <img
+                      src={resolved}
+                      alt={channelInfo.owner?.displayName || channelInfo.name}
+                      className="w-20 h-20 rounded-lg object-cover"
+                      loading="lazy"
+                    />
+                  );
+                })() || (
                   <div
-                    className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl border-2"
-                    style={{ borderColor: mix('--secondary-color', 35) }}
+                    className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl"
                   >
                     {channelInfo.name.charAt(0).toUpperCase()}
                   </div>
@@ -359,14 +375,24 @@ export default function StreamerProfile() {
               {user && !isOwner && (
                 <button
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors border"
-                  style={{ borderColor: mix('--secondary-color', 28) }}
+                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-sm"
                   title={t('profile.submitMeme')}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   <span>{t('profile.submitMeme')}</span>
+                </button>
+              )}
+
+              {/* Guest CTA */}
+              {!user && (
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className="flex items-center gap-2 glass-btn px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white"
+                  title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
+                >
+                  {t('auth.login', 'Log in with Twitch')}
                 </button>
               )}
             </div>
@@ -381,7 +407,7 @@ export default function StreamerProfile() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder') || 'Search memes...'}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pl-10 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
             />
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -403,6 +429,31 @@ export default function StreamerProfile() {
               </button>
             )}
           </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <label
+              className={`inline-flex items-center gap-2 text-sm glass px-3 py-2 ${
+                isAuthed ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'
+              }`}
+              title={isAuthed ? '' : t('auth.loginToUseFavorites', 'Log in to use favorites')}
+            >
+              <input
+                type="checkbox"
+                checked={myFavorites}
+                disabled={!isAuthed}
+                onChange={(e) => {
+                  if (!isAuthed) {
+                    setAuthModalOpen(true);
+                    return;
+                  }
+                  setMyFavorites(e.target.checked);
+                }}
+                className="h-4 w-4 rounded"
+              />
+              {t('search.myFavorites', 'My favorites')}
+            </label>
+          </div>
+
           {searchQuery && (
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               {isSearching ? t('search.searching') || 'Searching...' : 
@@ -439,8 +490,7 @@ export default function StreamerProfile() {
           return (
             <>
               <div 
-                className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0"
-                style={{ columnGap: 0 }}
+                className="meme-masonry"
               >
                 {memesToDisplay.map((meme: Meme) => (
                   <MemeCard
@@ -511,6 +561,15 @@ export default function StreamerProfile() {
 
       {/* Coins Info Modal */}
       {channelInfo && <CoinsInfoModal rewardTitle={channelInfo.rewardTitle || null} />}
+
+      <AuthRequiredModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onCtaClick={() => {
+          setAuthModalOpen(false);
+          login(`/channel/${normalizedSlug || slug || ''}`);
+        }}
+      />
       </div>
     </ChannelThemeProvider>
   );

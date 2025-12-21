@@ -10,8 +10,11 @@ interface MemeCardProps {
 
 export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<string>('aspect-video');
+  const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
+  const [hasEverHovered, setHasEverHovered] = useState(false);
+  const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Track user interaction at page level (any click/touch on page)
@@ -30,81 +33,33 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
     };
   }, []);
 
-  // Handle video metadata loading and aspect ratio (runs once when video loads)
+  // Lazy-load heavy media only when card is near/inside viewport.
+  // This matches the "seen N cards -> load N previews" behavior from the reference grid.
   useEffect(() => {
-    if (videoRef.current && meme.type === 'video') {
-      const video = videoRef.current;
-      
-      const handleLoadedMetadata = () => {
-        if (video.videoWidth && video.videoHeight) {
-          const ratio = video.videoWidth / video.videoHeight;
-          
-          // Determine aspect ratio class based on actual dimensions
-          if (ratio > 1.3) {
-            // Horizontal (16:9 or wider)
-            setAspectRatio('aspect-video');
-          } else if (ratio < 0.8) {
-            // Vertical (9:16 or taller)
-            setAspectRatio('aspect-[9/16]');
-          } else {
-            // Square (approximately 1:1)
-            setAspectRatio('aspect-square');
+    const el = cardRef.current;
+    if (!el) return;
+
+    // If we've already decided to load media, keep it loaded (avoid re-buffering while scrolling).
+    if (shouldLoadMedia) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setShouldLoadMedia(true);
+            obs.disconnect();
+            return;
           }
         }
-      };
+      },
+      { root: null, rootMargin: '300px 0px', threshold: 0.01 }
+    );
 
-      // If metadata is already loaded, set aspect ratio immediately
-      if (video.readyState >= 1) {
-        handleLoadedMetadata();
-      } else {
-        // Listen for metadata load (only once per video)
-        video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
-      }
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [shouldLoadMedia]);
 
-      return () => {
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      };
-    } else if (meme.type !== 'video') {
-      // For images/gifs, use default aspect ratio
-      setAspectRatio('aspect-video');
-    }
-  }, [meme.type, meme.fileUrl, meme.id]);
-
-  // Handle video playback on hover (unified logic)
-  useEffect(() => {
-    if (videoRef.current && meme.type === 'video') {
-      const video = videoRef.current;
-      if (previewMode === 'autoplayMuted') {
-        // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
-        video.muted = true;
-        void video.play().catch(() => {});
-        return;
-      }
-
-      // Default: hover preview, unmute only after user interaction.
-      if (isHovered) {
-        void video.play().catch(() => {});
-        video.muted = !hasUserInteracted;
-      } else {
-        video.pause();
-        video.currentTime = 0;
-        video.muted = true;
-      }
-    }
-  }, [meme.type, isHovered, hasUserInteracted, previewMode]);
-
-  const handleCardClick = () => {
-    setHasUserInteracted(true);
-    onClick();
-  };
-
-  const handleCardInteraction = () => {
-    setHasUserInteracted(true);
-    if (videoRef.current) {
-      videoRef.current.muted = false;
-    }
-  };
-
+  // Resolve preview URL for images/videos
   const getVideoUrl = () => {
     // If already absolute URL, return as is
     if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
@@ -125,14 +80,112 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
     return meme.fileUrl.startsWith('/') ? meme.fileUrl : `/${meme.fileUrl}`;
   };
 
-  const videoUrl = getVideoUrl();
+  const mediaUrl = getVideoUrl();
+
+  // Handle media metadata loading and precise aspect ratio (video/image)
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!shouldLoadMedia) return;
+
+    if (meme.type === 'video') {
+      const video = videoRef.current;
+      if (!video) return;
+
+      const handleLoadedMetadata = () => {
+        if (cancelled) return;
+        if (video.videoWidth && video.videoHeight) {
+          const ratio = video.videoWidth / video.videoHeight;
+          if (Number.isFinite(ratio) && ratio > 0) {
+            setAspectRatio(ratio);
+          }
+        }
+      };
+
+      if (video.readyState >= 1) {
+        handleLoadedMetadata();
+      } else {
+        video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+      }
+
+      return () => {
+        cancelled = true;
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+    }
+
+    // Images/GIFs: load dimensions
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const ratio = w && h ? w / h : null;
+      if (ratio && Number.isFinite(ratio) && ratio > 0) {
+        setAspectRatio(ratio);
+      }
+    };
+    img.src = mediaUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [meme.id, meme.type, mediaUrl, shouldLoadMedia]);
+
+  // Handle video playback on hover (unified logic)
+  useEffect(() => {
+    if (videoRef.current && meme.type === 'video') {
+      const video = videoRef.current;
+      if (!shouldLoadMedia) {
+        video.pause();
+        return;
+      }
+      if (previewMode === 'autoplayMuted') {
+        // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
+        video.muted = true;
+        void video.play().catch(() => {});
+        return;
+      }
+
+      // Hover preview: start from 0 on hover, but do NOT restart when leaving.
+      // When leaving, keep playing muted (so previous meme continues), and the newly hovered meme restarts.
+      if (isHovered) {
+        void video.play().catch(() => {});
+        video.muted = !hasUserInteracted;
+      } else if (hasEverHovered) {
+        video.muted = true;
+        void video.play().catch(() => {});
+      } else {
+        video.pause();
+        video.muted = true;
+      }
+    }
+  }, [meme.type, isHovered, hasUserInteracted, previewMode, shouldLoadMedia, hasEverHovered]);
+
+  const handleCardClick = () => {
+    setHasUserInteracted(true);
+    onClick();
+  };
+
+  const handleCardInteraction = () => {
+    setHasUserInteracted(true);
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+    }
+  };
 
   return (
     <article
-      className="bg-white dark:bg-gray-800 overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-0 border border-secondary/10 hover:border-secondary/30 transition-colors"
+      ref={(node) => {
+        cardRef.current = node;
+      }}
+      className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] will-change-transform transition-transform duration-200 ease-out hover:scale-[1.02]"
       onMouseEnter={() => {
         setIsHovered(true);
-        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
+        setHasEverHovered(true);
+        if (!shouldLoadMedia) return;
+        if (videoRef.current && meme.type === 'video') {
+          // Restart on hover (matches expected UX)
           try {
             videoRef.current.currentTime = 0;
           } catch {
@@ -143,14 +196,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       }}
       onMouseLeave={() => {
         setIsHovered(false);
-        if (previewMode === 'autoplayMuted' && videoRef.current && meme.type === 'video') {
-          try {
-            videoRef.current.currentTime = 0;
-          } catch {
-            // ignore
-          }
-          void videoRef.current.play().catch(() => {});
-        }
+        // Important: don't reset/restart here. Leaving should not cause a replay.
       }}
       onClick={handleCardClick}
       onMouseDown={handleCardInteraction}
@@ -165,11 +211,13 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
         }
       }}
     >
-      <div className={`relative w-full ${aspectRatio} bg-gray-900`}>
-        {meme.type === 'video' ? (
+      <div className="relative w-full bg-gray-900" style={{ aspectRatio }}>
+        {!shouldLoadMedia ? (
+          <div className="w-full h-full bg-gray-900" aria-hidden="true" />
+        ) : meme.type === 'video' ? (
           <video
             ref={videoRef}
-            src={videoUrl}
+            src={mediaUrl}
             muted={previewMode === 'autoplayMuted' ? true : (!hasUserInteracted || !isHovered)}
             autoPlay={previewMode === 'autoplayMuted'}
             loop
@@ -180,7 +228,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           />
         ) : (
           <img
-            src={videoUrl}
+            src={mediaUrl}
             alt={meme.title}
             className="w-full h-full object-contain"
             loading="lazy"

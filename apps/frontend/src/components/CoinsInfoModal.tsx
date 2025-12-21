@@ -28,8 +28,13 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 relative">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop-in"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div className="glass rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 relative modal-pop-in" onMouseDown={(e) => e.stopPropagation()}>
         {/* Close button */}
         <button
           onClick={handleClose}

@@ -22,6 +22,19 @@
     "logout": "Выйти",
     "myChannel": "Мой канал"
   },
+  "auth": {
+    "login": "Войти через Twitch",
+    "guest": "Гость",
+    "loginRequired": "Войдите, чтобы пользоваться этим функционалом.",
+    "loginToInteract": "Войдите, чтобы отправлять мемы и использовать избранное",
+    "loginToUseFavorites": "Войдите, чтобы использовать избранное",
+    "loginToUseWallet": "Войдите, чтобы получать монеты и активировать мемы",
+    "loginToUse": "Войти, чтобы использовать",
+    "modal": {
+      "title": "Нужен вход",
+      "description": "Войдите через Twitch, чтобы пользоваться этой функцией."
+    }
+  },
   "landing": {
     "title": "Channel Points Mem Alerts",
     "subtitle": "Тратьте очки канала Twitch на активацию мемов в стриме!",
@@ -95,6 +108,25 @@
     "submitted": "Заявка создана! Ожидает одобрения.",
     "importSubmitted": "Заявка на импорт мема отправлена! Ожидает одобрения."
   },
+  "submitModal": {
+    "whatHappensNext": "Что дальше?",
+    "approvalProcess": "Ваша заявка будет проверена модераторами. После одобрения она появится в списке мемов."
+  },
+  "search": {
+    "sortNewest": "Сначала новые",
+    "sortOldest": "Сначала старые",
+    "sortPopular": "Популярные",
+    "scopeContent": "Поиск: название + теги",
+    "scopeContentUploader": "Поиск: название + теги + ник загрузившего",
+    "myFavorites": "Мои любимые"
+  },
+  "meme": {
+    "status": {
+      "approved": "одобрено",
+      "pending": "на проверке",
+      "rejected": "отклонено"
+    }
+  },
   "admin": {
     "activityLast14Days": "Активность (последние 14 дней)",
     "noActivityYet": "Пока нет активности.",
@@ -112,6 +144,8 @@
     "obsOverlayModeUnlimited": "Без лимита",
     "obsOverlayModeQueueHint": "Показывает по 1 мему за раз.",
     "obsOverlayModeUnlimitedHint": "Показывает все входящие мемы одновременно (без лимита).",
+    "obsOverlayShowSender": "Показывать имя отправителя",
+    "obsOverlayShowSenderHint": "Имя приходит от сервера (не от клиента).",
     "obsHowToTitle": "Как добавить в OBS",
     "obsHowToStep1": "Добавьте Browser Source.",
     "obsHowToStep2": "Вставьте ссылку оверлея.",
@@ -357,6 +391,25 @@
     "revoked": "Доступ к beta был забран администратором.",
     "useProduction": "Пока нет доступа к beta, используйте продакшн-версию сайта.",
     "requestButton": "Запросить доступ к Beta"
+  }
+  ,
+  "memeModal": {
+    "price": "Цена",
+    "priceValue": "{{price}} монет",
+    "priceCoins": "Цена (монеты)",
+    "duration": "Длительность",
+    "durationValue": "{{seconds}}с",
+    "durationSeconds": "Длительность (секунды)",
+    "createdBy": "Добавил",
+    "source": "Источник",
+    "sourceImported": "импорт",
+    "sourceUploaded": "загрузка",
+    "status": "Статус",
+    "createdAt": "Создано",
+    "yourBalance": "Ваш баланс: {{balance}} монет",
+    "insufficientCoins": "Недостаточно монет (нужно {{price}})",
+    "deleteMeme": "Удалить мем",
+    "videoLoadFailed": "Не удалось загрузить видео"
   }
   ,
   "memeModal": {

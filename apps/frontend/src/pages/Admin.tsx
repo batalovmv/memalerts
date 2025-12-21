@@ -751,7 +751,7 @@ function ObsLinksSettings() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+    <div className="surface p-6">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.obsLinksTitle', { defaultValue: 'OBS links' })}</h2>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
         {t('admin.obsLinksDescription', { defaultValue: 'Copy the overlay link and paste it into OBS as a Browser Source. The overlay will show activated memes in real time.' })}
@@ -781,7 +781,7 @@ function ObsLinksSettings() {
           }
         />
 
-        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+        <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-3">
             {t('admin.obsOverlaySettingsTitle', { defaultValue: 'Overlay settings' })}
           </div>
@@ -791,7 +791,7 @@ function ObsLinksSettings() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
               </label>
-              <div className="inline-flex rounded border border-secondary/30 overflow-hidden">
+              <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
                 <button
                   type="button"
                   onClick={() => {
@@ -802,7 +802,7 @@ function ObsLinksSettings() {
                   className={`px-3 py-2 text-sm font-medium ${
                     overlayMode === 'queue'
                       ? 'bg-primary text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                      : 'bg-transparent text-gray-900 dark:text-white'
                   }`}
                 >
                   {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
@@ -814,10 +814,10 @@ function ObsLinksSettings() {
                     setOverlayMode('simultaneous');
                   }}
                   disabled={loadingOverlaySettings || savingOverlaySettings}
-                  className={`px-3 py-2 text-sm font-medium border-l border-secondary/30 ${
+                  className={`px-3 py-2 text-sm font-medium border-l border-white/20 dark:border-white/10 ${
                     overlayMode === 'simultaneous'
                       ? 'bg-primary text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                      : 'bg-transparent text-gray-900 dark:text-white'
                   }`}
                 >
                   {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
@@ -839,7 +839,7 @@ function ObsLinksSettings() {
                   lastChangeRef.current = 'sender';
                   setOverlayShowSender(e.target.checked);
                 }}
-                className="mt-1 h-4 w-4 rounded border-secondary/30"
+                className="mt-1 h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
                 disabled={loadingOverlaySettings || savingOverlaySettings}
               />
               <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
@@ -852,7 +852,7 @@ function ObsLinksSettings() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 p-4">
+        <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">
             {t('admin.obsHowToTitle', { defaultValue: 'How to add in OBS' })}
           </div>
@@ -926,26 +926,26 @@ function WalletManagement() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">{t('admin.walletManagement')}</h2>
+      <div className="surface p-6">
+        <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.walletManagement')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b">
-                <th className="text-left p-2">{t('admin.user')}</th>
-                <th className="text-left p-2">{t('admin.channel') || 'Channel'}</th>
-                <th className="text-left p-2">{t('admin.balance') || 'Balance'}</th>
-                <th className="text-left p-2">{t('common.actions') || 'Actions'}</th>
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="p-2">{t('admin.user')}</th>
+                <th className="p-2">{t('admin.channel') || 'Channel'}</th>
+                <th className="p-2">{t('admin.balance') || 'Balance'}</th>
+                <th className="p-2">{t('common.actions') || 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
               {wallets.map((wallet) => {
                 const w = wallet as { id: string; userId: string; channelId: string; balance: number; user: { displayName: string }; channel: { name: string } };
                 return (
-                <tr key={w.id} className="border-b">
-                  <td className="p-2">{w.user.displayName}</td>
-                  <td className="p-2">{w.channel.name}</td>
-                  <td className="p-2 font-bold">{w.balance} coins</td>
+                <tr key={w.id} className="border-t border-gray-200/70 dark:border-white/10">
+                  <td className="p-2 dark:text-gray-100">{w.user.displayName}</td>
+                  <td className="p-2 dark:text-gray-100">{w.channel.name}</td>
+                  <td className="p-2 font-bold dark:text-white">{w.balance} coins</td>
                   <td className="p-2">
                     <div className="flex gap-2 items-center">
                       <input
@@ -953,7 +953,7 @@ function WalletManagement() {
                         value={adjusting === `${w.userId}-${w.channelId}` ? adjustAmount : ''}
                         onChange={(e) => setAdjustAmount(e.target.value)}
                         placeholder={t('admin.amount')}
-                        className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
+                        className="w-24 rounded px-2 py-1 text-sm bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                         disabled={adjusting !== null && adjusting !== `${w.userId}-${w.channelId}`}
                       />
                       <button
@@ -972,7 +972,7 @@ function WalletManagement() {
           </table>
         </div>
         {wallets.length === 0 && (
-          <div className="text-center py-8 text-gray-500">{t('admin.noWallets')}</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('admin.noWallets')}</div>
         )}
       </div>
     </div>
@@ -994,6 +994,10 @@ function RewardsSettings() {
   });
   const [savingTwitchReward, setSavingTwitchReward] = useState(false);
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
+  const saveTwitchTimerRef = useRef<number | null>(null);
+  const saveApprovedTimerRef = useRef<number | null>(null);
+  const lastSavedTwitchRef = useRef<string | null>(null);
+  const lastSavedApprovedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null);
 
   const loadRewardSettings = useCallback(async () => {
@@ -1015,6 +1019,16 @@ function RewardsSettings() {
           submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
+        lastSavedTwitchRef.current = JSON.stringify({
+          rewardIdForCoins: cached.rewardIdForCoins || null,
+          rewardEnabled: cached.rewardEnabled || false,
+          rewardTitle: cached.rewardTitle || null,
+          rewardCost: cached.rewardCost ?? null,
+          rewardCoins: cached.rewardCoins ?? null,
+        });
+        lastSavedApprovedRef.current = JSON.stringify({
+          submissionRewardCoins: cached.submissionRewardCoins !== undefined ? cached.submissionRewardCoins : 0,
+        });
         return;
       }
 
@@ -1029,6 +1043,16 @@ function RewardsSettings() {
           submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
         });
         settingsLoadedRef.current = user.channel.slug;
+        lastSavedTwitchRef.current = JSON.stringify({
+          rewardIdForCoins: channelData.rewardIdForCoins || null,
+          rewardEnabled: channelData.rewardEnabled || false,
+          rewardTitle: channelData.rewardTitle || null,
+          rewardCost: channelData.rewardCost ?? null,
+          rewardCoins: channelData.rewardCoins ?? null,
+        });
+        lastSavedApprovedRef.current = JSON.stringify({
+          submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? channelData.submissionRewardCoins : 0,
+        });
       }
     } catch (error) {
       settingsLoadedRef.current = null;
@@ -1043,8 +1067,7 @@ function RewardsSettings() {
     }
   }, [loadRewardSettings, user?.channelId, user?.channel?.slug]);
 
-  const handleSaveTwitchReward = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveTwitchReward = async () => {
     setSavingTwitchReward(true);
     try {
       const { api } = await import('../lib/api');
@@ -1056,8 +1079,13 @@ function RewardsSettings() {
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
       });
-      toast.success(t('admin.settingsSaved'));
-      await loadRewardSettings();
+      lastSavedTwitchRef.current = JSON.stringify({
+        rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
+        rewardEnabled: rewardSettings.rewardEnabled,
+        rewardTitle: rewardSettings.rewardTitle || null,
+        rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
+        rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+      });
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
@@ -1075,8 +1103,7 @@ function RewardsSettings() {
     }
   };
 
-  const handleSaveApprovedMemeReward = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveApprovedMemeReward = async () => {
     setSavingApprovedMemeReward(true);
     try {
       const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
@@ -1089,8 +1116,7 @@ function RewardsSettings() {
         // Approved meme reward only (do NOT include Twitch reward fields here)
         submissionRewardCoins: coins,
       });
-      toast.success(t('admin.settingsSaved'));
-      await loadRewardSettings();
+      lastSavedApprovedRef.current = JSON.stringify({ submissionRewardCoins: coins });
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
@@ -1100,8 +1126,62 @@ function RewardsSettings() {
     }
   };
 
+  // Autosave: Twitch reward fields (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const payload = JSON.stringify({
+      rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
+      rewardEnabled: rewardSettings.rewardEnabled,
+      rewardTitle: rewardSettings.rewardTitle || null,
+      rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
+      rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+    });
+
+    if (payload === lastSavedTwitchRef.current) return;
+    if (saveTwitchTimerRef.current) window.clearTimeout(saveTwitchTimerRef.current);
+    saveTwitchTimerRef.current = window.setTimeout(() => {
+      void handleSaveTwitchReward();
+    }, 500);
+
+    return () => {
+      if (saveTwitchTimerRef.current) window.clearTimeout(saveTwitchTimerRef.current);
+      saveTwitchTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rewardSettings.rewardIdForCoins,
+    rewardSettings.rewardEnabled,
+    rewardSettings.rewardTitle,
+    rewardSettings.rewardCost,
+    rewardSettings.rewardCoins,
+    user?.channel?.slug,
+  ]);
+
+  // Autosave: Approved meme reward coins (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+    const payload = JSON.stringify({ submissionRewardCoins: Number.isFinite(coins) ? coins : 0 });
+
+    if (payload === lastSavedApprovedRef.current) return;
+    if (saveApprovedTimerRef.current) window.clearTimeout(saveApprovedTimerRef.current);
+    saveApprovedTimerRef.current = window.setTimeout(() => {
+      void handleSaveApprovedMemeReward();
+    }, 500);
+
+    return () => {
+      if (saveApprovedTimerRef.current) window.clearTimeout(saveApprovedTimerRef.current);
+      saveApprovedTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewardSettings.submissionRewardCoins, user?.channel?.slug]);
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+    <div className="surface p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold dark:text-white">{t('admin.rewards', 'Награды')}</h2>
         {/* Future: Add new reward button - пока скрыто, так как только одна награда */}
@@ -1116,7 +1196,7 @@ function RewardsSettings() {
 
       <div className="space-y-4">
         {/* Card A: Twitch reward (Channel Points -> coins) */}
-        <form onSubmit={handleSaveTwitchReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+        <div className="glass p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold dark:text-white mb-1">
@@ -1147,7 +1227,7 @@ function RewardsSettings() {
                   type="text"
                   value={rewardSettings.rewardTitle}
                   onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
-                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   placeholder={t('admin.rewardTitlePlaceholder')}
                 />
               </div>
@@ -1170,7 +1250,7 @@ function RewardsSettings() {
                         e.preventDefault();
                       }
                     }}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
@@ -1196,7 +1276,7 @@ function RewardsSettings() {
                         e.preventDefault();
                       }
                     }}
-                    className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
@@ -1217,19 +1297,13 @@ function RewardsSettings() {
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
-            <button
-              type="submit"
-              disabled={savingTwitchReward}
-              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              {savingTwitchReward ? t('admin.saving') : t('admin.saveTwitchReward', 'Сохранить награду Twitch')}
-            </button>
+          <div className="mt-4 pt-4 text-xs text-gray-500 dark:text-gray-300">
+            {savingTwitchReward ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
           </div>
-        </form>
+        </div>
 
         {/* Card B: Approved meme reward (coins) */}
-        <form onSubmit={handleSaveApprovedMemeReward} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-secondary/20">
+        <div className="glass p-6">
           <div className="mb-4">
             <h3 className="text-lg font-semibold dark:text-white mb-1">
               {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
@@ -1257,7 +1331,7 @@ function RewardsSettings() {
                   e.preventDefault();
                 }
               }}
-              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+              className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               placeholder="0"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -1265,16 +1339,10 @@ function RewardsSettings() {
             </p>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 flex justify-end">
-            <button
-              type="submit"
-              disabled={savingApprovedMemeReward}
-              className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              {savingApprovedMemeReward ? t('admin.saving') : t('admin.saveApprovedMemeReward', 'Сохранить награду за одобренный мем')}
-            </button>
+          <div className="mt-4 pt-4 text-xs text-gray-500 dark:text-gray-300">
+            {savingApprovedMemeReward ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
@@ -1292,6 +1360,8 @@ function ChannelSettings() {
     accentColor: '',
   });
   const [loading, setLoading] = useState(false);
+  const saveTimerRef = useRef<number | null>(null);
+  const lastSavedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null); // Track which channel's settings were loaded
 
   const loadSettings = useCallback(async () => {
@@ -1306,24 +1376,48 @@ function ChannelSettings() {
       // Check cache first
       const cached = getCachedChannelData(user.channel.slug);
       if (cached) {
-        setSettings({
+        const nextSettings = {
           primaryColor: cached.primaryColor || '',
           secondaryColor: cached.secondaryColor || '',
           accentColor: cached.accentColor || '',
+        };
+        setSettings({
+          primaryColor: nextSettings.primaryColor,
+          secondaryColor: nextSettings.secondaryColor,
+          accentColor: nextSettings.accentColor,
         });
         settingsLoadedRef.current = user.channel.slug;
+        // Seed lastSaved to prevent immediate auto-save right after initial load.
+        lastSavedRef.current = JSON.stringify({
+          primaryColor: nextSettings.primaryColor || null,
+          secondaryColor: nextSettings.secondaryColor || null,
+          accentColor: nextSettings.accentColor || null,
+          autoplayMemesEnabled,
+        });
         return;
       }
 
       // If not in cache, fetch it
       const channelData = await getChannelData(user.channel.slug);
       if (channelData) {
-        setSettings({
+        const nextSettings = {
           primaryColor: channelData.primaryColor || '',
           secondaryColor: channelData.secondaryColor || '',
           accentColor: channelData.accentColor || '',
+        };
+        setSettings({
+          primaryColor: nextSettings.primaryColor,
+          secondaryColor: nextSettings.secondaryColor,
+          accentColor: nextSettings.accentColor,
         });
         settingsLoadedRef.current = user.channel.slug;
+        // Seed lastSaved to prevent immediate auto-save right after initial load.
+        lastSavedRef.current = JSON.stringify({
+          primaryColor: nextSettings.primaryColor || null,
+          secondaryColor: nextSettings.secondaryColor || null,
+          accentColor: nextSettings.accentColor || null,
+          autoplayMemesEnabled,
+        });
       }
     } catch (error) {
       settingsLoadedRef.current = null; // Reset on error to allow retry
@@ -1339,39 +1433,69 @@ function ChannelSettings() {
     }
   }, [loadSettings, user?.channelId, user?.channel?.slug]);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { api } = await import('../lib/api');
-      await api.patch('/admin/channel/settings', {
-        primaryColor: settings.primaryColor || null,
-        secondaryColor: settings.secondaryColor || null,
-        accentColor: settings.accentColor || null,
-      });
-      toast.success(t('admin.settingsSaved'));
-      await loadSettings();
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Auto-save channel design settings (no explicit Save button).
+  useEffect(() => {
+    if (!user?.channelId) return;
+    if (!settingsLoadedRef.current) return; // don't save before initial load
+
+    const payload = JSON.stringify({
+      primaryColor: settings.primaryColor || null,
+      secondaryColor: settings.secondaryColor || null,
+      accentColor: settings.accentColor || null,
+      autoplayMemesEnabled,
+    });
+
+    // Skip if nothing changed from last saved.
+    if (payload === lastSavedRef.current) return;
+
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          setLoading(true);
+          const { api } = await import('../lib/api');
+          await api.patch('/admin/channel/settings', {
+            primaryColor: settings.primaryColor || null,
+            secondaryColor: settings.secondaryColor || null,
+            accentColor: settings.accentColor || null,
+          });
+          lastSavedRef.current = payload;
+        } catch (error: unknown) {
+          const apiError = error as { response?: { data?: { error?: string } } };
+          toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings');
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }, 350);
+
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
+  }, [
+    settings.primaryColor,
+    settings.secondaryColor,
+    settings.accentColor,
+    autoplayMemesEnabled,
+    user?.channelId,
+    t,
+  ]);
+
+  // Note: lastSavedRef is seeded during initial loadSettings to avoid immediate autosave.
 
   const profileUrl = user?.channel?.slug ? `https://twitchmemes.ru/channel/${user.channel.slug}` : '';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+    <div className="surface p-6">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
 
       {/* Preferences */}
-      <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="mb-6 pb-6">
         <h3 className="text-lg font-semibold mb-3 dark:text-white">
           {t('admin.preferences', 'Предпочтения')}
         </h3>
-        <div className="flex items-start justify-between gap-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-secondary/20">
+        <div className="flex items-start justify-between gap-4 glass p-4">
           <div className="min-w-0">
             <div className="font-semibold text-gray-900 dark:text-white">
               {t('admin.autoplayMemesTitle', { defaultValue: 'Autoplay memes' })}
@@ -1394,7 +1518,7 @@ function ChannelSettings() {
       
       {/* Profile Link Section */}
       {profileUrl && (
-        <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="mb-6 pb-6">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {t('admin.profileLink')}
           </label>
@@ -1403,7 +1527,7 @@ function ChannelSettings() {
               type="text"
               readOnly
               value={profileUrl}
-              className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-700 text-sm"
+              className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm text-sm"
             />
             <button
               type="button"
@@ -1415,7 +1539,7 @@ function ChannelSettings() {
                   toast.error(t('toast.failedToCopyLink'));
                 }
               }}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600"
+              className="p-2 rounded-lg hover:bg-white/70 dark:hover:bg-white/10 transition-colors glass-btn bg-white/40 dark:bg-white/5"
               title={t('dashboard.copyLink')}
             >
               <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1429,9 +1553,9 @@ function ChannelSettings() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-4">
+      <div className="space-y-4">
         <div>
-          <h3 className="text-lg font-semibold mb-4">{t('admin.colorCustomization')}</h3>
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('admin.colorCustomization')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1442,7 +1566,7 @@ function ChannelSettings() {
                   type="color"
                   value={settings.primaryColor || '#9333ea'}
                   onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
-                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                  className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
                 />
                 <input
                   type="text"
@@ -1450,7 +1574,7 @@ function ChannelSettings() {
                   onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
                   placeholder="#9333ea"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
                 />
               </div>
             </div>
@@ -1463,7 +1587,7 @@ function ChannelSettings() {
                   type="color"
                   value={settings.secondaryColor || '#4f46e5'}
                   onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
-                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                  className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
                 />
                 <input
                   type="text"
@@ -1471,7 +1595,7 @@ function ChannelSettings() {
                   onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
                   placeholder="#4f46e5"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
                 />
               </div>
             </div>
@@ -1484,7 +1608,7 @@ function ChannelSettings() {
                   type="color"
                   value={settings.accentColor || '#ec4899'}
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
-                  className="w-16 h-10 rounded border border-gray-300 dark:border-gray-600"
+                  className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
                 />
                 <input
                   type="text"
@@ -1492,7 +1616,7 @@ function ChannelSettings() {
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
                   placeholder="#ec4899"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2"
+                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
                 />
               </div>
             </div>
@@ -1502,14 +1626,10 @@ function ChannelSettings() {
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-primary hover:bg-secondary disabled:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
-        >
-          {loading ? t('admin.saving') : t('admin.saveSettings')}
-        </button>
-      </form>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {loading ? t('admin.saving', { defaultValue: 'Saving…' }) : t('admin.saved', { defaultValue: 'Saved' })}
+        </div>
+      </div>
     </div>
   );
 }

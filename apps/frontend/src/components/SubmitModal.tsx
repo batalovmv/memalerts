@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
 import TagInput from './TagInput';
 import toast from 'react-hot-toast';
+import { fetchSubmissions } from '../store/slices/submissionsSlice';
+import { fetchMemes } from '../store/slices/memesSlice';
 
 interface SubmitModalProps {
   isOpen: boolean;
@@ -16,16 +18,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [loading, setLoading] = useState<boolean>(false);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
     title: string;
-    notes: string;
     sourceUrl?: string;
     tags?: string[];
   }>({
     title: '',
-    notes: '',
     sourceUrl: '',
     tags: [],
   });
@@ -38,7 +39,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
     if (!isOpen) {
       setFormData({
         title: '',
-        notes: '',
         sourceUrl: '',
         tags: [],
       });
@@ -120,9 +120,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         formDataToSend.append('file', file);
         formDataToSend.append('title', formData.title);
         formDataToSend.append('type', 'video'); // Only video allowed
-        if (formData.notes) {
-          formDataToSend.append('notes', formData.notes);
-        }
         // Add tags as JSON string (backend will parse it)
         if (formData.tags && formData.tags.length > 0) {
           formDataToSend.append('tags', JSON.stringify(formData.tags));
@@ -138,7 +135,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
 
         // Use axios directly for upload progress tracking
         const { api } = await import('../lib/api');
-        await api.post('/submissions', formDataToSend, {
+        const respData = await api.post<Record<string, unknown>>('/submissions', formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -149,14 +146,21 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
             }
           },
         });
+
+        const d = respData as Record<string, unknown> | null;
+        const respStatus = typeof d?.status === 'string' ? d.status : null;
         
         toast.success(t('submit.submitted'));
         onClose();
-        // Optionally navigate to dashboard
-        if (channelSlug) {
-          navigate(`/channel/${channelSlug}`);
-        } else {
-          navigate('/dashboard');
+
+        // Refresh relevant lists without forcing navigation.
+        if (respStatus === 'pending') {
+          dispatch(fetchSubmissions({ status: 'pending' }));
+        } else if (respStatus === 'approved') {
+          const targetChannelId = channelId || user?.channelId || null;
+          if (targetChannelId) {
+            dispatch(fetchMemes({ channelId: targetChannelId }));
+          }
         }
       } catch (error: unknown) {
         const apiError = error as { response?: { status?: number; data?: { error?: string } }; code?: string; message?: string };
@@ -166,11 +170,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           // Still close modal - submission might have been created
           setTimeout(() => {
             onClose();
-            if (channelSlug) {
-              navigate(`/channel/${channelSlug}`);
-            } else {
-              navigate('/dashboard');
-            }
           }, 2000);
         } else {
           toast.error(apiError.response?.data?.error || apiError.message || t('submitModal.failedToSubmit'));
@@ -199,7 +198,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         await api.post('/submissions/import', {
           title: formData.title,
           sourceUrl: formData.sourceUrl,
-          notes: formData.notes || null,
           tags: formData.tags || [],
           ...(channelId && { channelId }), // Add channelId if provided
         });
@@ -227,16 +225,18 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/50 transition-opacity"
-        onClick={onClose}
+        className="fixed inset-0 bg-black/50 transition-opacity modal-backdrop-in"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
         aria-hidden="true"
       />
       
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="relative glass rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-pop-in">
           {/* Header */}
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+          <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-white/20 dark:border-white/10 px-6 py-4 flex justify-between items-center">
             <h2 className="text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
             <button
               onClick={onClose}
@@ -252,15 +252,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           {/* Content */}
           <div className="p-6">
             {/* Mode selector */}
-            <div className="mb-6 bg-gray-50 dark:bg-gray-700 rounded-lg shadow p-4 border border-secondary/20">
+            <div className="mb-6 glass p-4">
               <div className="flex gap-4">
                 <button
                   type="button"
                   onClick={() => setMode('upload')}
                   className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                     mode === 'upload'
-                      ? 'bg-primary text-white border border-secondary/30'
-                      : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
+                      ? 'bg-primary text-white'
+                      : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
                   }`}
                 >
                   {t('submit.uploadVideo')}
@@ -359,17 +359,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('submit.notes')}
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
+
 
               {loading && uploadProgress > 0 && (
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">
@@ -380,10 +370,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                 </div>
               )}
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                  <strong>{t('submitModal.whatHappensNext', 'What happens next?')}</strong>{' '}
-                  {t('submitModal.approvalProcess', 'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.')}
+              <div className="glass p-4">
+                <p className="text-sm text-gray-800 dark:text-gray-200">
+                  <strong>{t('submitModal.whatHappensNext')}</strong>{' '}
+                  {t('submitModal.approvalProcess')}
                 </p>
               </div>
               
