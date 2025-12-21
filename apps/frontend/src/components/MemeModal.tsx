@@ -35,7 +35,13 @@ export default function MemeModal({
   });
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => {
+    try {
+      return window.localStorage.getItem('memalerts:memeModalMuted') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -51,19 +57,11 @@ export default function MemeModal({
     }
   }, [meme]);
 
-  // Persist modal mute preference (separate from hover preview sound).
+  // Sync mute onto the element as soon as the meme changes / modal opens.
   useEffect(() => {
     if (!isOpen) return;
-    try {
-      const raw = window.localStorage.getItem('memalerts:memeModalMuted');
-      const nextMuted = raw === '1';
-      setIsMuted(nextMuted);
-      if (videoRef.current) videoRef.current.muted = nextMuted;
-    } catch {
-      // ignore
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, currentMeme?.id]);
+    if (videoRef.current) videoRef.current.muted = isMuted;
+  }, [isOpen, currentMeme?.id, isMuted]);
 
   // Auto-play video when modal opens
   useEffect(() => {
@@ -236,6 +234,7 @@ export default function MemeModal({
           <video
             ref={videoRef}
             src={videoUrl}
+            muted={isMuted}
             loop
             playsInline
             className="w-full h-full object-contain"

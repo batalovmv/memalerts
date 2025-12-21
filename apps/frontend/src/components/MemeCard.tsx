@@ -136,6 +136,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   useEffect(() => {
     if (videoRef.current && meme.type === 'video') {
       const video = videoRef.current;
+      let cancelled = false;
       if (!shouldLoadMedia) {
         video.pause();
         return;
@@ -150,8 +151,20 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       // Hover preview: start from 0 on hover, but do NOT restart when leaving.
       // When leaving, keep playing muted (so previous meme continues), and the newly hovered meme restarts.
       if (isHovered) {
-        void video.play().catch(() => {});
-        video.muted = previewMode === 'hoverMuted' ? true : !hasUserInteracted;
+        // Important: many browsers block play() if video is unmuted at the moment play() is called.
+        // We always start playback muted, then unmute *after* it is playing if user has interacted.
+        video.muted = true;
+        void (async () => {
+          try {
+            await video.play();
+            if (cancelled) return;
+            if (previewMode === 'hoverWithSound' && hasUserInteracted) {
+              video.muted = false;
+            }
+          } catch {
+            // ignore
+          }
+        })();
       } else if (hasEverHovered) {
         video.muted = true;
         void video.play().catch(() => {});
@@ -159,6 +172,9 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
         video.pause();
         video.muted = true;
       }
+      return () => {
+        cancelled = true;
+      };
     }
   }, [meme.type, isHovered, hasUserInteracted, previewMode, shouldLoadMedia, hasEverHovered]);
 
@@ -170,7 +186,10 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   const handleCardInteraction = () => {
     setHasUserInteracted(true);
     if (videoRef.current) {
-      videoRef.current.muted = false;
+      // Only unmute on direct user interaction if sound-on mode is enabled.
+      if (previewMode === 'hoverWithSound') {
+        videoRef.current.muted = false;
+      }
     }
   };
 
