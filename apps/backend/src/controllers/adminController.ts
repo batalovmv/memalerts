@@ -64,12 +64,32 @@ export const adminController = {
           reason: 'TWITCH_CHANNEL_INFO_NOT_FOUND',
         });
       }
-      const bt = String(info?.broadcaster_type || '').toLowerCase();
+      const btRaw = info?.broadcaster_type;
+      // Twitch uses empty string ("") when broadcaster is neither affiliate nor partner.
+      // Null/undefined means we couldn't determine it (treat as unknown).
+      if (btRaw === null || btRaw === undefined) {
+        logger.warn('twitch.eligibility.missing_broadcaster_type', {
+          requestId: req.requestId,
+          userId,
+          channelId,
+          broadcasterId: channel.twitchChannelId,
+        });
+        return res.json({
+          eligible: null,
+          broadcasterType: null,
+          checkedBroadcasterId: channel.twitchChannelId,
+          reason: 'TWITCH_BROADCASTER_TYPE_MISSING',
+        });
+      }
+
+      const bt = String(btRaw).toLowerCase();
       const eligible = bt === 'affiliate' || bt === 'partner';
       return res.json({
         eligible,
-        broadcasterType: bt || null,
+        // Keep empty string as-is to make "not affiliate/partner" explicit to clients.
+        broadcasterType: bt,
         checkedBroadcasterId: channel.twitchChannelId,
+        reason: eligible ? undefined : 'TWITCH_REWARD_NOT_AVAILABLE',
       });
     } catch (e: any) {
       logger.error('twitch.eligibility.failed', {
@@ -1061,7 +1081,22 @@ export const adminController = {
           // Prevent enabling rewards for channels without affiliate/partner status.
           try {
             const info = await getChannelInformation(userId, channel.twitchChannelId);
-            const bt = String(info?.broadcaster_type || '').toLowerCase();
+            const btRaw = info?.broadcaster_type;
+            if (btRaw === null || btRaw === undefined) {
+              // We couldn't reliably check eligibility. Don't claim "not eligible" — ask user to retry.
+              logger.warn('twitch.eligibility.unknown', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+              });
+              return res.status(502).json({
+                error: 'Unable to verify Twitch eligibility at the moment. Please try again later.',
+                errorCode: 'TWITCH_ELIGIBILITY_UNKNOWN',
+              });
+            }
+
+            const bt = String(btRaw).toLowerCase();
             const eligible = bt === 'affiliate' || bt === 'partner';
             if (!eligible) {
               return res.status(403).json({
