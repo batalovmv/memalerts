@@ -19,6 +19,35 @@ export function getRequestIdFromError(error: unknown): string | null {
   return null;
 }
 
+function emitGlobalApiError(error: AxiosError) {
+  // Don't spam global UI for auth churn or intentional cancellations.
+  const status = error.response?.status ?? null;
+  if (status === 401) return;
+
+  const requestId = getRequestIdFromError(error);
+  const path = (error.config?.url as string | undefined) || null;
+  const method = (error.config?.method as string | undefined)?.toUpperCase?.() || null;
+  const message =
+    (error.response?.data as any)?.error ||
+    (error.response?.data as any)?.message ||
+    error.message ||
+    'Request failed';
+
+  window.dispatchEvent(
+    new CustomEvent('memalerts:globalError', {
+      detail: {
+        kind: 'api',
+        message,
+        requestId,
+        status,
+        path,
+        method,
+        ts: new Date().toISOString(),
+      },
+    })
+  );
+}
+
 // Custom API interface that returns data directly instead of AxiosResponse
 interface CustomAxiosInstance {
   request: <T = unknown>(config: AxiosRequestConfig) => Promise<T>;
@@ -262,6 +291,12 @@ axiosInstance.interceptors.response.use(
     try {
       const requestId = getRequestIdFromError(error);
       (error as any).requestId = requestId;
+    } catch {
+      // ignore
+    }
+
+    try {
+      emitGlobalApiError(error);
     } catch {
       // ignore
     }
