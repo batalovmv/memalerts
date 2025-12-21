@@ -323,6 +323,7 @@
     "myProfile": "My Profile",
     "dashboard": "Dashboard",
     "settings": "Settings",
+    "betaAccess": "Beta access",
     "logout": "Logout",
     "loggedOutSuccessfully": "Logged out successfully",
     "failedToLogout": "Failed to logout",
@@ -396,7 +397,16 @@
     "rejected": "Your request was rejected. You can submit a new request.",
     "revoked": "Your beta access was revoked by an administrator.",
     "useProduction": "Please use the production site while you do not have beta access.",
-    "requestButton": "Request beta access"
+    "requestButton": "Request beta access",
+    "pageTitle": "Beta access",
+    "pageDescription": "Beta is for testing new features. You can request access below.",
+    "loginRequired": "Please log in to request beta access.",
+    "currentStatus": "Current status:",
+    "statusApproved": "approved",
+    "statusPending": "pending",
+    "statusRejected": "rejected",
+    "statusRevoked": "revoked",
+    "statusNone": "not requested"
   }
   ,
   "memeModal": {

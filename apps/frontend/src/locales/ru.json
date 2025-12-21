@@ -325,6 +325,7 @@
     "myProfile": "Мой профиль",
     "dashboard": "Панель управления",
     "settings": "Настройки",
+    "betaAccess": "Доступ к Beta",
     "logout": "Выйти",
     "loggedOutSuccessfully": "Выход выполнен успешно",
     "failedToLogout": "Не удалось выйти",
@@ -390,7 +391,16 @@
     "rejected": "Заявка отклонена. Вы можете отправить новую заявку.",
     "revoked": "Доступ к beta был забран администратором.",
     "useProduction": "Пока нет доступа к beta, используйте продакшн-версию сайта.",
-    "requestButton": "Запросить доступ к Beta"
+    "requestButton": "Запросить доступ к Beta",
+    "pageTitle": "Доступ к Beta",
+    "pageDescription": "Beta нужна для тестирования нового функционала. Вы можете отправить заявку на доступ ниже.",
+    "loginRequired": "Пожалуйста, войдите, чтобы запросить доступ к Beta.",
+    "currentStatus": "Текущий статус:",
+    "statusApproved": "одобрено",
+    "statusPending": "ожидает",
+    "statusRejected": "отклонено",
+    "statusRevoked": "отозвано",
+    "statusNone": "заявка не отправлена"
   }
   ,
   "memeModal": {

@@ -45,13 +45,7 @@ export default function BetaAccessRequest() {
       setRequesting(true);
       await api.post('/beta/request');
       toast.success(t('toast.betaAccessRequested'));
-
-      // After submitting a request, redirect user to production to "wait" there.
-      // Beta should not be browsable without access.
-      const host = window.location.hostname;
-      const prodHost = host.startsWith('beta.') ? host.slice('beta.'.length) : host.replace('beta.', '');
-      const prodOrigin = `${window.location.protocol}//${prodHost}`;
-      window.location.href = `${prodOrigin}/`;
+      await loadStatus();
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('toast.failedToRequestBetaAccess'));
