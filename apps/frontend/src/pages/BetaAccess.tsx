@@ -47,6 +47,11 @@ export default function BetaAccess() {
   };
 
   const requestStatus = status?.request?.status;
+  const hasAccess = !!status?.hasAccess;
+  const canRequest =
+    !!status &&
+    !hasAccess &&
+    (requestStatus === null || requestStatus === undefined || requestStatus === 'rejected');
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -77,7 +82,7 @@ export default function BetaAccess() {
                   <div className="text-sm text-gray-700 dark:text-gray-200">
                     {t('betaAccess.currentStatus', { defaultValue: 'Current status:' })}{' '}
                     <span className="font-semibold">
-                      {status?.hasAccess
+                      {hasAccess
                         ? t('betaAccess.statusApproved', { defaultValue: 'approved' })
                         : requestStatus === 'pending'
                           ? t('betaAccess.statusPending', { defaultValue: 'pending' })
@@ -89,7 +94,18 @@ export default function BetaAccess() {
                     </span>
                   </div>
 
-                  {(requestStatus === null || requestStatus === undefined || requestStatus === 'rejected') && !status?.hasAccess && (
+                  {hasAccess && (
+                    <div className="mt-4 flex items-center gap-3 text-gray-900 dark:text-white">
+                      <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="font-semibold">{t('betaAccess.hasAccess', { defaultValue: 'You already have beta access.' })}</div>
+                    </div>
+                  )}
+
+                  {canRequest && (
                     <button
                       type="button"
                       onClick={handleRequest}
