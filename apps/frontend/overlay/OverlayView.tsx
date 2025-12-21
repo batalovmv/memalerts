@@ -342,8 +342,16 @@ export default function OverlayView() {
       userScale: getNextUserScale(),
     }));
 
-    setQueue(seed);
-    setActive([]);
+    // In demo:
+    // - queue mode should behave like real queue (1 at a time)
+    // - simultaneous mode should show N items immediately (avoid any timing/state race with maxActive)
+    if (mode === 'queue') {
+      setQueue(seed);
+      setActive([]);
+    } else {
+      setQueue([]);
+      setActive(seed);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, getNextUserScale, getPreviewMediaAt, pickRandomPosition, previewCount, previewModeParam]);
 
@@ -380,25 +388,46 @@ export default function OverlayView() {
       // Demo repeat: enqueue a fresh item after it fully disappears.
       if (demo && previewRepeat) {
         setTimeout(() => {
-          setQueue((prevQ) => [
-            ...prevQ,
-            {
-              id: `__demo__${Date.now()}_${Math.random().toString(16).slice(2)}`,
-              memeId: '__demo__',
-              ...getPreviewMediaAt(Date.now()),
-              durationMs: 8000,
-              title: 'DEMO',
-              senderDisplayName: 'Viewer123',
-              startTime: Date.now(),
-              ...(resolvedPosition === 'random' ? pickRandomPosition() : { xPct: 50, yPct: 50 }),
-              userScale: getNextUserScale(),
-            } as any,
-          ]);
+          const next: QueuedActivation = {
+            id: `__demo__${Date.now()}_${Math.random().toString(16).slice(2)}`,
+            memeId: '__demo__',
+            ...getPreviewMediaAt(Date.now()),
+            durationMs: 8000,
+            title: 'DEMO',
+            senderDisplayName: 'Viewer123',
+            startTime: Date.now(),
+            ...(resolvedPosition === 'random' ? pickRandomPosition() : { xPct: 50, yPct: 50 }),
+            userScale: getNextUserScale(),
+          } as any;
+
+          // If demo is in simultaneous mode, keep it immediate and capped (no queue).
+          // Otherwise, push into queue so queue mode remains sequential.
+          const demoMode: OverlayMode =
+            previewModeParam === 'queue' ? 'queue' : previewCount > 1 ? 'simultaneous' : 'queue';
+          if (demoMode === 'simultaneous') {
+            setActive((prevA) => {
+              const cap = clampInt(previewCount, 1, 5);
+              const nextA = [...prevA, next];
+              return nextA.slice(-cap);
+            });
+          } else {
+            setQueue((prevQ) => [...prevQ, next]);
+          }
         }, 150);
       }
     }, 220);
     fadeTimersRef.current.set(id, fadeTimer);
-  }, [demo, emitAckDoneOnce, getNextUserScale, getPreviewMediaAt, pickRandomPosition, previewRepeat, resolvedPosition]);
+  }, [
+    demo,
+    emitAckDoneOnce,
+    getNextUserScale,
+    getPreviewMediaAt,
+    pickRandomPosition,
+    previewCount,
+    previewModeParam,
+    previewRepeat,
+    resolvedPosition,
+  ]);
 
   const updateFallbackTimer = useCallback((activationId: string, durationMs: number) => {
     const id = String(activationId || '').trim();
@@ -440,11 +469,12 @@ export default function OverlayView() {
     if (active.length === 0) return;
     if (typeof window === 'undefined') return;
 
-    // Padding is not user-configurable; keep a safe default.
-    const padding = 80;
+    // Padding is not user-configurable; keep safe defaults.
+    // We use bigger padding for random (to reduce clipping) and tighter for anchored positions.
+    const basePad = resolvedPosition === 'random' ? 80 : 24;
     const vw = window.innerWidth || 0;
     const vh = window.innerHeight || 0;
-    if (vw <= padding * 2 || vh <= padding * 2) return;
+    if (vw <= basePad * 2 || vh <= basePad * 2) return;
 
     setActive((prev) => {
       let changed = false;
@@ -458,8 +488,14 @@ export default function OverlayView() {
         if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return a;
 
         // Auto-fit: if the element is larger than the viewport safe area, scale it down.
-        const availW = Math.max(1, vw - padding * 2);
-        const availH = Math.max(1, vh - padding * 2);
+        // Account for anchored positions (top/left offsets) so tall/vertical memes never go out of bounds.
+        const padL = resolvedPosition === 'top-left' || resolvedPosition === 'bottom-left' ? 24 : basePad;
+        const padR = resolvedPosition === 'top-right' || resolvedPosition === 'bottom-right' ? 24 : basePad;
+        const padT = resolvedPosition === 'top' || resolvedPosition === 'top-left' || resolvedPosition === 'top-right' ? 24 : basePad;
+        const padB = resolvedPosition === 'bottom' || resolvedPosition === 'bottom-left' || resolvedPosition === 'bottom-right' ? 24 : basePad;
+
+        const availW = Math.max(1, vw - padL - padR);
+        const availH = Math.max(1, vh - padT - padB);
         const fit = Math.min(1, availW / rect.width, availH / rect.height);
         const nextFit = clampFloat(fit, 0.25, 1);
         if (!Number.isFinite(a.fitScale) || Math.abs((a.fitScale ?? 1) - nextFit) > 0.01) {
@@ -473,10 +509,10 @@ export default function OverlayView() {
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
 
-        const minX = padding + rect.width / 2;
-        const maxX = vw - padding - rect.width / 2;
-        const minY = padding + rect.height / 2;
-        const maxY = vh - padding - rect.height / 2;
+        const minX = basePad + rect.width / 2;
+        const maxX = vw - basePad - rect.width / 2;
+        const minY = basePad + rect.height / 2;
+        const maxY = vh - basePad - rect.height / 2;
 
         const clampedX = Math.min(maxX, Math.max(minX, centerX));
         const clampedY = Math.min(maxY, Math.max(minY, centerY));

@@ -725,7 +725,7 @@ function BetaAccessSelf() {
 function ObsLinksSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
-  const { getChannelData, getCachedChannelData } = useChannelColors();
+  const { getChannelData } = useChannelColors();
 
   const channelSlug = user?.channel?.slug || '';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -734,9 +734,7 @@ function ObsLinksSettings() {
   const [loadingToken, setLoadingToken] = useState(false);
   const [previewMemes, setPreviewMemes] = useState<Array<{ fileUrl: string; type: string; title?: string }>>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [previewCount, setPreviewCount] = useState<number>(1);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(false);
-  const [previewSimultaneous, setPreviewSimultaneous] = useState<boolean>(true);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -785,96 +783,114 @@ function ObsLinksSettings() {
     </svg>
   );
 
-  const loadOverlaySettings = useCallback(async () => {
-    if (!channelSlug) return;
-    if (overlaySettingsLoadedRef.current === channelSlug) return;
-
-    try {
-      setLoadingOverlaySettings(true);
-
-      const cached = getCachedChannelData(channelSlug);
-      if (cached) {
-        const nextMode = cached.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
-        const nextShowSender = Boolean(cached.overlayShowSender);
-        const nextMax = typeof cached.overlayMaxConcurrent === 'number' ? cached.overlayMaxConcurrent : 3;
-        setOverlayMode(nextMode);
-        setOverlayShowSender(nextShowSender);
-        setOverlayMaxConcurrent(Math.min(5, Math.max(1, nextMax)));
-        // Mark current server state as "already saved" to prevent auto-save on first load.
-        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender, overlayMaxConcurrent: Math.min(5, Math.max(1, nextMax)) });
-        lastChangeRef.current = null;
-        overlaySettingsLoadedRef.current = channelSlug;
-        return;
-      }
-
-      const data = await getChannelData(channelSlug, false);
-      if (data) {
-        const nextMode = data.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
-        const nextShowSender = Boolean(data.overlayShowSender);
-        const nextMax = typeof (data as any).overlayMaxConcurrent === 'number' ? (data as any).overlayMaxConcurrent : 3;
-        setOverlayMode(nextMode);
-        setOverlayShowSender(nextShowSender);
-        setOverlayMaxConcurrent(Math.min(5, Math.max(1, nextMax)));
-        lastSavedOverlaySettingsRef.current = JSON.stringify({ overlayMode: nextMode, overlayShowSender: nextShowSender, overlayMaxConcurrent: Math.min(5, Math.max(1, nextMax)) });
-        lastChangeRef.current = null;
-        overlaySettingsLoadedRef.current = channelSlug;
-      } else {
-        overlaySettingsLoadedRef.current = null;
-      }
-    } finally {
-      setLoadingOverlaySettings(false);
-    }
-  }, [channelSlug, getCachedChannelData, getChannelData]);
-
   useEffect(() => {
     if (!channelSlug) return;
     let mounted = true;
     (async () => {
       try {
         setLoadingToken(true);
+        setLoadingOverlaySettings(true);
         const { api } = await import('../lib/api');
         const resp = await api.get<{ token: string; overlayMode?: string; overlayShowSender?: boolean; overlayMaxConcurrent?: number; overlayStyleJson?: string | null }>(
           '/admin/overlay/token'
         );
         if (!mounted) return;
         setOverlayToken(resp.token || '');
-        if (resp.overlayMode) setOverlayMode(resp.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue');
-        setOverlayShowSender(Boolean(resp.overlayShowSender));
-        if (typeof resp.overlayMaxConcurrent === 'number') setOverlayMaxConcurrent(Math.min(5, Math.max(1, resp.overlayMaxConcurrent)));
+
+        const nextMode = resp.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
+        const nextShowSender = Boolean(resp.overlayShowSender);
+        const nextMax = typeof resp.overlayMaxConcurrent === 'number' ? Math.min(5, Math.max(1, resp.overlayMaxConcurrent)) : 3;
+
+        setOverlayMode(nextMode);
+        setOverlayShowSender(nextShowSender);
+        setOverlayMaxConcurrent(nextMax);
+
         // Hydrate advanced style if present
+        let styleFromServer: any = null;
         if (resp.overlayStyleJson) {
           try {
             const j = JSON.parse(resp.overlayStyleJson) as any;
-            if (j && typeof j === 'object') {
-              if (j.position) setUrlPosition(j.position);
-              if (typeof j.volume === 'number') setUrlVolume(j.volume);
-              if (j.scaleMode === 'range') setScaleMode('range');
-              else setScaleMode('fixed');
-              if (typeof j.scaleFixed === 'number') setScaleFixed(j.scaleFixed);
-              if (typeof j.scaleMin === 'number') setScaleMin(j.scaleMin);
-              if (typeof j.scaleMax === 'number') setScaleMax(j.scaleMax);
-              if (typeof j.radius === 'number') setUrlRadius(j.radius);
-              if (typeof j.shadow === 'number') setUrlShadow(j.shadow);
-              if (typeof j.shadowAngle === 'number') setUrlShadowAngle(j.shadowAngle);
-              if (typeof j.blur === 'number') setUrlBlur(j.blur);
-              if (typeof j.border === 'number') setUrlBorder(j.border);
-              if (typeof j.borderColor === 'string') setUrlBorderColor(j.borderColor);
-              if (typeof j.bgOpacity === 'number') setUrlBgOpacity(j.bgOpacity);
-              if (j.anim) setUrlAnim(j.anim);
-              if (typeof j.enterMs === 'number') setUrlEnterMs(j.enterMs);
-              if (typeof j.exitMs === 'number') setUrlExitMs(j.exitMs);
-              if (typeof j.senderFontSize === 'number') setSenderFontSize(j.senderFontSize);
-              if (typeof j.senderFontWeight === 'number') setSenderFontWeight(j.senderFontWeight);
-              if (typeof j.senderFontFamily === 'string') setSenderFontFamily(j.senderFontFamily);
-            }
+            styleFromServer = j && typeof j === 'object' ? j : null;
           } catch {
-            // ignore
+            styleFromServer = null;
           }
         }
+
+        const nextPosition = styleFromServer?.position ?? urlPosition;
+        const nextVolume = typeof styleFromServer?.volume === 'number' ? styleFromServer.volume : urlVolume;
+        const nextScaleMode: 'fixed' | 'range' = styleFromServer?.scaleMode === 'range' ? 'range' : 'fixed';
+        const nextScaleFixed = typeof styleFromServer?.scaleFixed === 'number' ? styleFromServer.scaleFixed : scaleFixed;
+        const nextScaleMin = typeof styleFromServer?.scaleMin === 'number' ? styleFromServer.scaleMin : scaleMin;
+        const nextScaleMax = typeof styleFromServer?.scaleMax === 'number' ? styleFromServer.scaleMax : scaleMax;
+        const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : urlRadius;
+        const nextShadow = typeof styleFromServer?.shadow === 'number' ? styleFromServer.shadow : urlShadow;
+        const nextShadowAngle = typeof styleFromServer?.shadowAngle === 'number' ? styleFromServer.shadowAngle : urlShadowAngle;
+        const nextBlur = typeof styleFromServer?.blur === 'number' ? styleFromServer.blur : urlBlur;
+        const nextBorder = typeof styleFromServer?.border === 'number' ? styleFromServer.border : urlBorder;
+        const nextBorderColor = typeof styleFromServer?.borderColor === 'string' ? styleFromServer.borderColor : urlBorderColor;
+        const nextBgOpacity = typeof styleFromServer?.bgOpacity === 'number' ? styleFromServer.bgOpacity : urlBgOpacity;
+        const nextAnim = styleFromServer?.anim ?? urlAnim;
+        const nextEnterMs = typeof styleFromServer?.enterMs === 'number' ? styleFromServer.enterMs : urlEnterMs;
+        const nextExitMs = typeof styleFromServer?.exitMs === 'number' ? styleFromServer.exitMs : urlExitMs;
+        const nextSenderFontSize = typeof styleFromServer?.senderFontSize === 'number' ? styleFromServer.senderFontSize : senderFontSize;
+        const nextSenderFontWeight = typeof styleFromServer?.senderFontWeight === 'number' ? styleFromServer.senderFontWeight : senderFontWeight;
+        const nextSenderFontFamily = typeof styleFromServer?.senderFontFamily === 'string' ? styleFromServer.senderFontFamily : senderFontFamily;
+
+        setUrlPosition(nextPosition);
+        setUrlVolume(nextVolume);
+        setScaleMode(nextScaleMode);
+        setScaleFixed(nextScaleFixed);
+        setScaleMin(nextScaleMin);
+        setScaleMax(nextScaleMax);
+        setUrlRadius(nextRadius);
+        setUrlShadow(nextShadow);
+        setUrlShadowAngle(nextShadowAngle);
+        setUrlBlur(nextBlur);
+        setUrlBorder(nextBorder);
+        setUrlBorderColor(nextBorderColor);
+        setUrlBgOpacity(nextBgOpacity);
+        setUrlAnim(nextAnim);
+        setUrlEnterMs(nextEnterMs);
+        setUrlExitMs(nextExitMs);
+        setSenderFontSize(nextSenderFontSize);
+        setSenderFontWeight(nextSenderFontWeight);
+        setSenderFontFamily(nextSenderFontFamily);
+
+        // Establish baseline so opening the page never triggers auto-save.
+        const overlayStyleJsonBaseline = JSON.stringify({
+          position: nextPosition,
+          volume: nextVolume,
+          scaleMode: nextScaleMode,
+          scaleFixed: nextScaleFixed,
+          scaleMin: nextScaleMin,
+          scaleMax: nextScaleMax,
+          radius: nextRadius,
+          shadow: nextShadow,
+          shadowAngle: nextShadowAngle,
+          blur: nextBlur,
+          border: nextBorder,
+          borderColor: nextBorderColor,
+          bgOpacity: nextBgOpacity,
+          anim: nextAnim,
+          enterMs: nextEnterMs,
+          exitMs: nextExitMs,
+          senderFontSize: nextSenderFontSize,
+          senderFontWeight: nextSenderFontWeight,
+          senderFontFamily: nextSenderFontFamily,
+        });
+        lastSavedOverlaySettingsRef.current = JSON.stringify({
+          overlayMode: nextMode,
+          overlayShowSender: nextShowSender,
+          overlayMaxConcurrent: nextMax,
+          overlayStyleJson: overlayStyleJsonBaseline,
+        });
+        overlaySettingsLoadedRef.current = channelSlug;
+        lastChangeRef.current = null;
       } catch (e) {
         if (mounted) setOverlayToken('');
       } finally {
         if (mounted) setLoadingToken(false);
+        if (mounted) setLoadingOverlaySettings(false);
       }
     })();
     return () => {
@@ -882,10 +898,10 @@ function ObsLinksSettings() {
     };
   }, [channelSlug]);
 
-  // Keep preview mode sensible: if showing multiple memes, prefer simultaneous.
-  useEffect(() => {
-    if (previewCount > 1) setPreviewSimultaneous(true);
-  }, [previewCount]);
+  const previewCount = useMemo(
+    () => (overlayMode === 'queue' ? 1 : Math.min(5, Math.max(1, overlayMaxConcurrent))),
+    [overlayMaxConcurrent, overlayMode]
+  );
 
   const fetchPreviewMemes = useCallback(async (count?: number) => {
     const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
@@ -926,10 +942,6 @@ function ObsLinksSettings() {
     void fetchPreviewMemes(previewCount);
   }, [channelSlug, fetchPreviewMemes, previewCount]);
 
-  useEffect(() => {
-    loadOverlaySettings();
-  }, [loadOverlaySettings]);
-
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
 
@@ -943,7 +955,7 @@ function ObsLinksSettings() {
     u.searchParams.set('demo', '1');
     u.searchParams.set('position', urlPosition);
     u.searchParams.set('previewCount', String(previewCount));
-    u.searchParams.set('previewMode', previewSimultaneous ? 'simultaneous' : 'queue');
+    u.searchParams.set('previewMode', overlayMode);
     u.searchParams.set('repeat', previewLoopEnabled ? '1' : '0');
     // Live overrides so sliders affect preview immediately (demo doesn't use sockets).
     u.searchParams.set('volume', String(urlVolume));
@@ -988,7 +1000,7 @@ function ObsLinksSettings() {
     previewCount,
     previewLoopEnabled,
     previewMemes,
-    previewSimultaneous,
+    overlayMode,
     scaleFixed,
     scaleMax,
     scaleMin,
@@ -1188,6 +1200,28 @@ function ObsLinksSettings() {
           }
         />
 
+        <div className="glass p-4">
+          <div className="flex items-start gap-3">
+            <input
+              id="overlayShowSender"
+              type="checkbox"
+              checked={overlayShowSender}
+              onChange={(e) => {
+                lastChangeRef.current = 'sender';
+                setOverlayShowSender(e.target.checked);
+              }}
+              className="mt-1 h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+              disabled={loadingOverlaySettings || savingOverlaySettings}
+            />
+            <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
+              <div className="font-medium">{t('admin.obsOverlayShowSender', { defaultValue: 'Show sender name' })}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">
+                {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Name is provided by the server (not the client).' })}
+              </div>
+            </label>
+          </div>
+        </div>
+
         <details className="glass p-4">
           <summary className="cursor-pointer font-semibold text-gray-900 dark:text-white">
             {t('admin.obsAdvancedOverlayUrl', { defaultValue: 'Advanced overlay URL (customize)' })}
@@ -1197,6 +1231,83 @@ function ObsLinksSettings() {
               {t('admin.obsOverlayAdvancedHintShort', {
                 defaultValue: 'Change the look here — then copy the single overlay URL above into OBS.',
               })}
+            </div>
+
+            <div className="glass p-4 relative">
+              {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && (
+                <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />
+              )}
+
+              <div
+                className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-opacity ${
+                  loadingOverlaySettings || savingOverlaySettings ? 'pointer-events-none opacity-60' : ''
+                }`}
+              >
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.obsOverlayMode')}
+                  </label>
+                  <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastChangeRef.current = 'mode';
+                        setOverlayMode('queue');
+                      }}
+                      disabled={loadingOverlaySettings || savingOverlaySettings}
+                      className={`px-3 py-2 text-sm font-medium ${
+                        overlayMode === 'queue'
+                          ? 'bg-primary text-white'
+                          : 'bg-transparent text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        lastChangeRef.current = 'mode';
+                        setOverlayMode('simultaneous');
+                      }}
+                      disabled={loadingOverlaySettings || savingOverlaySettings}
+                      className={`px-3 py-2 text-sm font-medium border-l border-white/20 dark:border-white/10 ${
+                        overlayMode === 'simultaneous'
+                          ? 'bg-primary text-white'
+                          : 'bg-transparent text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
+                    </button>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {overlayMode === 'queue'
+                      ? t('admin.obsOverlayModeQueueHint', { defaultValue: 'Shows one meme at a time.' })
+                      : t('admin.obsOverlayModeUnlimitedHint', { defaultValue: 'Shows all incoming memes at once (no limit).' })}
+                  </div>
+                </div>
+
+                {overlayMode === 'simultaneous' && (
+                  <div className="pt-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlayMaxConcurrent', { defaultValue: 'Max simultaneous memes' })}:{' '}
+                      <span className="font-mono">{overlayMaxConcurrent}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={overlayMaxConcurrent}
+                      onChange={(e) => setOverlayMaxConcurrent(parseInt(e.target.value, 10))}
+                      className="w-full"
+                    />
+                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                      {t('admin.obsOverlayMaxConcurrentHint', { defaultValue: 'Safety limit for unlimited mode (prevents OBS from lagging).' })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1501,8 +1612,45 @@ function ObsLinksSettings() {
             </div>
 
             <div className="pt-2">
-              <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                {t('admin.obsOverlayLivePreview', { defaultValue: 'Live preview' })}
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  {t('admin.obsOverlayLivePreview', { defaultValue: 'Live preview' })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="glass-btn p-2 shrink-0"
+                    disabled={loadingPreview || !overlayToken}
+                    onClick={() => void fetchPreviewMemes(previewCount)}
+                    title={t('admin.obsPreviewNextMeme', { defaultValue: 'Next meme' })}
+                    aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'Next meme' })}
+                  >
+                    {/* Shuffle/next icon */}
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20l6-6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 14l7 7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 16v5h-5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l6 6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 10l4 4" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
+                    title={t('admin.obsPreviewLoop', { defaultValue: 'Loop preview' })}
+                    aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Loop preview' })}
+                    onClick={() => setPreviewLoopEnabled((p) => !p)}
+                  >
+                    {/* Loop icon */}
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 1l4 4-4 4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11V9a4 4 0 014-4h14" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 23l-4-4 4-4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13v2a4 4 0 01-4 4H3" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
                 <iframe
@@ -1529,70 +1677,6 @@ function ObsLinksSettings() {
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="glass-btn px-3 py-1.5 text-xs font-semibold text-gray-900 dark:text-white disabled:opacity-60 shrink-0"
-                  disabled={loadingPreview || !overlayToken}
-                  onClick={() => void fetchPreviewMemes(previewCount)}
-                >
-                  {loadingPreview ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Refresh' })}
-                </button>
-                <button
-                  type="button"
-                  className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
-                  title={t('admin.obsPreviewLoop', { defaultValue: 'Loop preview' })}
-                  onClick={() => setPreviewLoopEnabled((p) => !p)}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 1l4 4-4 4M7 23l-4-4 4-4M3 19a9 9 0 0015.5 2.5M21 5a9 9 0 00-15.5-2.5"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div className="mt-3">
-                <label className="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                  {t('admin.obsPreviewCount', { defaultValue: 'Preview memes on screen' })}: <span className="font-mono">{previewCount}</span>
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  step={1}
-                  value={previewCount}
-                  onChange={(e) => setPreviewCount(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-              <div className="mt-3">
-                <label className="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                  {t('admin.obsPreviewMode', { defaultValue: 'Preview mode' })}
-                </label>
-                <div className="inline-flex rounded-xl overflow-hidden bg-white/50 dark:bg-white/10 border border-white/20 dark:border-white/10">
-                  <button
-                    type="button"
-                    className={`px-3 py-1.5 text-xs font-semibold ${
-                      !previewSimultaneous ? 'bg-primary text-white' : 'text-gray-900 dark:text-white'
-                    }`}
-                    onClick={() => setPreviewSimultaneous(false)}
-                    disabled={previewCount > 1}
-                    title={previewCount > 1 ? t('admin.obsPreviewModeQueueDisabled', { defaultValue: 'Queue mode is disabled when previewCount > 1' }) : ''}
-                  >
-                    {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-3 py-1.5 text-xs font-semibold ${
-                      previewSimultaneous ? 'bg-primary text-white' : 'text-gray-900 dark:text-white'
-                    }`}
-                    onClick={() => setPreviewSimultaneous(true)}
-                  >
-                    {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
-                  </button>
-                </div>
               </div>
               <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
                 {t('admin.obsOverlayLivePreviewHint', {
@@ -1603,106 +1687,6 @@ function ObsLinksSettings() {
             </div>
           </div>
         </details>
-
-        <div className="glass p-4 relative">
-          {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
-          {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && (
-            <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />
-          )}
-          <div className="font-semibold text-gray-900 dark:text-white mb-3">
-            {t('admin.obsOverlaySettingsTitle')}
-          </div>
-
-          <div
-            className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-opacity ${
-              loadingOverlaySettings || savingOverlaySettings ? 'pointer-events-none opacity-60' : ''
-            }`}
-          >
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                {t('admin.obsOverlayMode')}
-              </label>
-              <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    lastChangeRef.current = 'mode';
-                    setOverlayMode('queue');
-                  }}
-                  disabled={loadingOverlaySettings || savingOverlaySettings}
-                  className={`px-3 py-2 text-sm font-medium ${
-                    overlayMode === 'queue'
-                      ? 'bg-primary text-white'
-                      : 'bg-transparent text-gray-900 dark:text-white'
-                  }`}
-                >
-                  {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    lastChangeRef.current = 'mode';
-                    setOverlayMode('simultaneous');
-                  }}
-                  disabled={loadingOverlaySettings || savingOverlaySettings}
-                  className={`px-3 py-2 text-sm font-medium border-l border-white/20 dark:border-white/10 ${
-                    overlayMode === 'simultaneous'
-                      ? 'bg-primary text-white'
-                      : 'bg-transparent text-gray-900 dark:text-white'
-                  }`}
-                >
-                  {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
-                </button>
-              </div>
-              <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                {overlayMode === 'queue'
-                  ? t('admin.obsOverlayModeQueueHint', { defaultValue: 'Shows one meme at a time.' })
-                  : t('admin.obsOverlayModeUnlimitedHint', { defaultValue: 'Shows all incoming memes at once (no limit).' })}
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 pt-6">
-              <input
-                id="overlayShowSender"
-                type="checkbox"
-                checked={overlayShowSender}
-                onChange={(e) => {
-                  lastChangeRef.current = 'sender';
-                  setOverlayShowSender(e.target.checked);
-                }}
-                className="mt-1 h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
-                disabled={loadingOverlaySettings || savingOverlaySettings}
-              />
-              <label htmlFor="overlayShowSender" className="text-sm text-gray-800 dark:text-gray-100">
-                <div className="font-medium">{t('admin.obsOverlayShowSender', { defaultValue: 'Show sender name' })}</div>
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                  {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Name is provided by the server (not the client).' })}
-                </div>
-              </label>
-            </div>
-
-            {overlayMode === 'simultaneous' && (
-              <div className="pt-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayMaxConcurrent', { defaultValue: 'Max simultaneous memes' })}:{' '}
-                  <span className="font-mono">{overlayMaxConcurrent}</span>
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  step={1}
-                  value={overlayMaxConcurrent}
-                  onChange={(e) => setOverlayMaxConcurrent(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                  {t('admin.obsOverlayMaxConcurrentHint', { defaultValue: 'Safety limit for unlimited mode (prevents OBS from lagging).' })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
         <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">
