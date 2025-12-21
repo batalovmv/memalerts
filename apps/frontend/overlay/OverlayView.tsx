@@ -573,19 +573,19 @@ export default function OverlayView() {
           a = { ...a, fitScale: nextFit };
         }
 
-        // Only random positioning needs coordinate clamping.
-        if (resolvedPosition !== 'random') return a;
+        // Coordinate clamping: for random we clamp center; for anchored modes we still want
+        // a safety net for extreme media (we'll render via xPx/yPx if needed).
 
         // Predict the size after nextFit is applied, then clamp center based on that size.
         const effectiveW = baseW * nextFit;
         const effectiveH = baseH * nextFit;
-        const centerX = (Number.isFinite(a?.xPx) ? Number(a.xPx) : (rect.left + rect.width / 2));
-        const centerY = (Number.isFinite(a?.yPx) ? Number(a.yPx) : (rect.top + rect.height / 2));
+        const centerX = Number.isFinite(a?.xPx) ? Number(a.xPx) : rect.left + rect.width / 2;
+        const centerY = Number.isFinite(a?.yPx) ? Number(a.yPx) : rect.top + rect.height / 2;
 
-        const minX = basePad + effectiveW / 2;
-        const maxX = vw - basePad - effectiveW / 2;
-        const minY = basePad + effectiveH / 2;
-        const maxY = vh - basePad - effectiveH / 2;
+        const minX = padL + effectiveW / 2;
+        const maxX = vw - padR - effectiveW / 2;
+        const minY = padT + effectiveH / 2;
+        const maxY = vh - padB - effectiveH / 2;
 
         // If the item is larger than available space even after fitting, fall back to center.
         const safeX = minX > maxX ? vw / 2 : Math.min(maxX, Math.max(minX, centerX));
@@ -669,6 +669,19 @@ export default function OverlayView() {
         maxWidth: `${preScaleMaxVw}vw`,
         maxHeight: `${preScaleMaxVh}vh`,
       };
+
+      // Safety override: if we have clamped pixel-center coordinates, render as centered-by-px
+      // regardless of the selected anchor position. This guarantees "never off-screen" even
+      // for extreme aspect ratios / late media resize.
+      if (Number.isFinite(item?.xPx) && Number.isFinite(item?.yPx)) {
+        return {
+          ...base,
+          ...sizeClamp,
+          top: `${item.yPx}px`,
+          left: `${item.xPx}px`,
+          transform: `translate(-50%, -50%) scale(${finalScale})`,
+        };
+      }
 
       switch (resolvedPosition) {
         case 'random':
