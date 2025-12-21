@@ -2,6 +2,7 @@
   "common": {
     "loading": "Загрузка...",
     "error": "Ошибка",
+    "errorId": "ID ошибки",
     "success": "Успешно",
     "save": "Сохранить",
     "cancel": "Отмена",

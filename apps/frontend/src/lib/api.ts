@@ -1,5 +1,24 @@
 import axios, { AxiosError, AxiosResponse, AxiosInstance, AxiosRequestConfig } from 'axios';
 
+export function getRequestIdFromError(error: unknown): string | null {
+  const maybeAxios = error as AxiosError | null;
+  const headerReqId =
+    (maybeAxios?.response?.headers as any)?.['x-request-id'] ||
+    (maybeAxios?.response?.headers as any)?.['x-requestid'] ||
+    (maybeAxios?.response?.headers as any)?.['x-correlation-id'];
+
+  if (typeof headerReqId === 'string' && headerReqId.trim()) return headerReqId.trim();
+
+  const dataReqId = (maybeAxios?.response?.data as any)?.requestId;
+  if (typeof dataReqId === 'string' && dataReqId.trim()) return dataReqId.trim();
+
+  const anyErr = error as any;
+  const attached = anyErr?.requestId;
+  if (typeof attached === 'string' && attached.trim()) return attached.trim();
+
+  return null;
+}
+
 // Custom API interface that returns data directly instead of AxiosResponse
 interface CustomAxiosInstance {
   request: <T = unknown>(config: AxiosRequestConfig) => Promise<T>;
@@ -237,6 +256,14 @@ axiosInstance.interceptors.response.use(
       if (!errorData.error && !errorData.message) {
         errorData.error = 'An error occurred';
       }
+    }
+
+    // Attach requestId for easier UI diagnostics (also available in headers).
+    try {
+      const requestId = getRequestIdFromError(error);
+      (error as any).requestId = requestId;
+    } catch {
+      // ignore
     }
     
     return Promise.reject(error);

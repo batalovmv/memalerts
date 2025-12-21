@@ -1094,6 +1094,7 @@ function RewardsSettings() {
   const { getChannelData, getCachedChannelData } = useChannelColors();
   const [twitchRewardEligible, setTwitchRewardEligible] = useState<boolean | null>(null);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
+  const [lastErrorRequestId, setLastErrorRequestId] = useState<string | null>(null);
   const [rewardSettings, setRewardSettings] = useState({
     rewardIdForCoins: '',
     rewardEnabled: false,
@@ -1192,6 +1193,7 @@ function RewardsSettings() {
         if (cancelled) return;
         // eligible can be null ("unknown") on beta when Twitch doesn't return channel info.
         setTwitchRewardEligible(res?.eligible === null ? null : !!res?.eligible);
+        setLastErrorRequestId(null);
       } catch {
         if (!cancelled) setTwitchRewardEligible(null);
       } finally {
@@ -1222,10 +1224,14 @@ function RewardsSettings() {
         rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
         rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
       });
+      setLastErrorRequestId(null);
     } catch (error: unknown) {
       const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
       const code = apiError.response?.data?.errorCode;
       const raw = apiError.response?.data?.error || '';
+      const { getRequestIdFromError } = await import('../lib/api');
+      const rid = getRequestIdFromError(error);
+      setLastErrorRequestId(rid);
 
       if (code === 'TWITCH_REWARD_NOT_AVAILABLE' || raw.includes("doesn't have partner") || raw.includes('affiliate')) {
         toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
@@ -1358,6 +1364,11 @@ function RewardsSettings() {
                     defaultValue:
                       "We couldn't verify Twitch eligibility right now. You can try enabling the reward; if it fails, log out and log in again.",
                   })}
+                </p>
+              )}
+              {lastErrorRequestId && (
+                <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 select-text">
+                  {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{lastErrorRequestId}</span>
                 </p>
               )}
               {twitchRewardEligible === false && (
