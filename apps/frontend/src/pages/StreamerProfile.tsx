@@ -572,7 +572,6 @@ export default function StreamerProfile() {
         onClose={() => setAuthModalOpen(false)}
         onCtaClick={() => {
           setAuthModalOpen(false);
-          toast.error(t('auth.loginRequired', { defaultValue: 'Please log in to use this feature.' }));
           login(`/channel/${normalizedSlug || slug || ''}`);
         }}
       />

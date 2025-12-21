@@ -654,7 +654,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         onClose={() => setAuthModalOpen(false)}
         onCtaClick={() => {
           setAuthModalOpen(false);
-          toast.error(t('auth.loginRequired', { defaultValue: 'Please log in to use this feature.' }));
           login(location.pathname + location.search);
         }}
       />

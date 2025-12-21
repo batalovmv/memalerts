@@ -88,6 +88,15 @@ export default function MemeModal({
 
   const videoUrl = getVideoUrl();
   const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
+
+  const statusLabel = (() => {
+    const s = (currentMeme.status || '').toLowerCase();
+    if (!s) return null;
+    if (s === 'approved') return t('meme.status.approved', { defaultValue: 'approved' });
+    if (s === 'pending') return t('meme.status.pending', { defaultValue: 'pending' });
+    if (s === 'rejected') return t('meme.status.rejected', { defaultValue: 'rejected' });
+    return s;
+  })();
   
   const getSource = () => {
     if (currentMeme.fileUrl.startsWith('http://') || currentMeme.fileUrl.startsWith('https://')) {
@@ -398,12 +407,12 @@ export default function MemeModal({
                               : source}
                         </div>
                       </div>
-                      {currentMeme.status && (
+                      {statusLabel && (
                         <div>
                           <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
                             {t('memeModal.status', { defaultValue: 'Status' })}
                           </div>
-                          <div className="text-base text-gray-900 dark:text-white capitalize">{currentMeme.status}</div>
+                          <div className="text-base text-gray-900 dark:text-white capitalize">{statusLabel}</div>
                         </div>
                       )}
                       {currentMeme.createdAt && (

@@ -34,7 +34,7 @@ export default function AuthRequiredModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 modal-backdrop-in"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -45,7 +45,7 @@ export default function AuthRequiredModal({
         role="dialog"
         aria-modal="true"
         aria-label={title || t('auth.modal.title', { defaultValue: 'Login required' })}
-        className="glass w-full max-w-sm rounded-2xl p-4 shadow-2xl"
+        className="glass w-full max-w-sm rounded-2xl p-4 shadow-2xl modal-pop-in"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -76,13 +76,6 @@ export default function AuthRequiredModal({
             onClick={onCtaClick}
           >
             {ctaLabel || t('auth.login', { defaultValue: 'Log in with Twitch' })}
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
-            onClick={onClose}
-          >
-            {t('common.cancel', { defaultValue: 'Cancel' })}
           </button>
         </div>
       </div>

@@ -226,16 +226,18 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/50 transition-opacity"
-        onClick={onClose}
+        className="fixed inset-0 bg-black/50 transition-opacity modal-backdrop-in"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
         aria-hidden="true"
       />
       
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="relative glass rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-pop-in">
           {/* Header */}
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+          <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-white/20 dark:border-white/10 px-6 py-4 flex justify-between items-center">
             <h2 className="text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
             <button
               onClick={onClose}
@@ -251,15 +253,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           {/* Content */}
           <div className="p-6">
             {/* Mode selector */}
-            <div className="mb-6 bg-gray-50 dark:bg-gray-700 rounded-lg shadow p-4 border border-secondary/20">
+            <div className="mb-6 glass p-4">
               <div className="flex gap-4">
                 <button
                   type="button"
                   onClick={() => setMode('upload')}
                   className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                     mode === 'upload'
-                      ? 'bg-primary text-white border border-secondary/30'
-                      : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
+                      ? 'bg-primary text-white'
+                      : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
                   }`}
                 >
                   {t('submit.uploadVideo')}
@@ -369,10 +371,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                 </div>
               )}
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                  <strong>{t('submitModal.whatHappensNext', 'What happens next?')}</strong>{' '}
-                  {t('submitModal.approvalProcess', 'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.')}
+              <div className="glass p-4">
+                <p className="text-sm text-gray-800 dark:text-gray-200">
+                  <strong>{t('submitModal.whatHappensNext')}</strong>{' '}
+                  {t('submitModal.approvalProcess')}
                 </p>
               </div>
               

@@ -108,6 +108,17 @@
     "submitted": "Submission created! Waiting for approval.",
     "importSubmitted": "Meme import submitted! Waiting for approval."
   },
+  "submitModal": {
+    "whatHappensNext": "What happens next?",
+    "approvalProcess": "Your submission will be reviewed by moderators. Once approved, it will appear in the meme list."
+  },
+  "meme": {
+    "status": {
+      "approved": "approved",
+      "pending": "pending",
+      "rejected": "rejected"
+    }
+  },
   "admin": {
     "activityLast14Days": "Activity (last 14 days)",
     "noActivityYet": "No activity yet.",
@@ -125,6 +136,8 @@
     "obsOverlayModeUnlimited": "Unlimited",
     "obsOverlayModeQueueHint": "Shows one meme at a time.",
     "obsOverlayModeUnlimitedHint": "Shows all incoming memes at once (no limit).",
+    "obsOverlayShowSender": "Show sender name",
+    "obsOverlayShowSenderHint": "Name is provided by the server (not the client).",
     "obsHowToTitle": "How to add in OBS",
     "obsHowToStep1": "Add a new Browser Source.",
     "obsHowToStep2": "Paste the Overlay URL.",
@@ -263,6 +276,12 @@
     "placeholder": "Search memes by title...",
     "searching": "Searching...",
     "resultsFound": "results found",
+    "sortNewest": "Newest",
+    "sortOldest": "Oldest",
+    "sortPopular": "Popular",
+    "scopeContent": "Search: title + tags",
+    "scopeContentUploader": "Search: title + tags + uploader nick",
+    "myFavorites": "My favorites",
     "minPrice": "Min Price",
     "maxPrice": "Max Price",
     "sortBy": "Sort By",

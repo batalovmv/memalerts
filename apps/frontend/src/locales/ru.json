@@ -108,6 +108,25 @@
     "submitted": "Заявка создана! Ожидает одобрения.",
     "importSubmitted": "Заявка на импорт мема отправлена! Ожидает одобрения."
   },
+  "submitModal": {
+    "whatHappensNext": "Что дальше?",
+    "approvalProcess": "Ваша заявка будет проверена модераторами. После одобрения она появится в списке мемов."
+  },
+  "search": {
+    "sortNewest": "Сначала новые",
+    "sortOldest": "Сначала старые",
+    "sortPopular": "Популярные",
+    "scopeContent": "Поиск: название + теги",
+    "scopeContentUploader": "Поиск: название + теги + ник загрузившего",
+    "myFavorites": "Мои любимые"
+  },
+  "meme": {
+    "status": {
+      "approved": "одобрено",
+      "pending": "на проверке",
+      "rejected": "отклонено"
+    }
+  },
   "admin": {
     "activityLast14Days": "Активность (последние 14 дней)",
     "noActivityYet": "Пока нет активности.",
@@ -125,6 +144,8 @@
     "obsOverlayModeUnlimited": "Без лимита",
     "obsOverlayModeQueueHint": "Показывает по 1 мему за раз.",
     "obsOverlayModeUnlimitedHint": "Показывает все входящие мемы одновременно (без лимита).",
+    "obsOverlayShowSender": "Показывать имя отправителя",
+    "obsOverlayShowSenderHint": "Имя приходит от сервера (не от клиента).",
     "obsHowToTitle": "Как добавить в OBS",
     "obsHowToStep1": "Добавьте Browser Source.",
     "obsHowToStep2": "Вставьте ссылку оверлея.",
