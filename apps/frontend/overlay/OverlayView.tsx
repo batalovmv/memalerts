@@ -792,6 +792,9 @@ export default function OverlayView() {
     const w = border || 0;
     if (w <= 0) {
       return {
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
         borderRadius: radius || 20,
         padding: 0,
         background: 'transparent',
@@ -802,6 +805,9 @@ export default function OverlayView() {
         ? `linear-gradient(${borderGradientAngle}deg, ${borderColor}, ${borderColor2})`
         : borderColor;
     return {
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
       borderRadius: radius || 20,
       padding: w,
       background: bg,
@@ -825,6 +831,9 @@ export default function OverlayView() {
     const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 420;
     const effectiveExitMs = Number.isFinite(exitMs) ? exitMs : 320;
     return {
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
       // Inner radius accounts for border padding wrapper.
       borderRadius: Math.max(0, effectiveRadius - (border || 0)),
       overflow: 'hidden',
@@ -929,7 +938,7 @@ export default function OverlayView() {
             itemRefs.current.set(item.id, el);
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', height: '100%' }}>
             <div style={borderWrapStyle}>
               <div
                 style={{
