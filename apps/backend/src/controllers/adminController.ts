@@ -12,7 +12,6 @@ import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import fs from 'fs';
 import path from 'path';
-import { isProdStrictDto } from '../utils/envMode.js';
 import {
   createChannelReward,
   updateChannelReward,
@@ -147,23 +146,24 @@ export const adminController = {
   getSubmissions: async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
     const channelId = req.channelId;
+    const limitRaw = req.query.limit as string | undefined;
+    const offsetRaw = req.query.offset as string | undefined;
+    const limit = limitRaw !== undefined ? parseInt(limitRaw, 10) : undefined;
+    const offset = offsetRaw !== undefined ? parseInt(offsetRaw, 10) : undefined;
 
     if (!channelId) {
       return res.status(400).json({ error: 'Channel ID required' });
     }
 
-    const limitRaw = Number.parseInt(String(req.query.limit || ''), 10);
-    const offsetRaw = Number.parseInt(String(req.query.offset || ''), 10);
-    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
-    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
-
     try {
+      const where = {
+        channelId,
+        ...(status ? { status } : {}),
+      };
+
       // Try to get submissions with tags first
       const submissionsPromise = prisma.memeSubmission.findMany({
-        where: {
-          channelId,
-          ...(status ? { status } : {}),
-        },
+        where,
         include: {
           tags: {
             include: {
@@ -180,8 +180,8 @@ export const adminController = {
         orderBy: {
           createdAt: 'desc',
         },
-        take: limit,
-        skip: offset,
+        ...(limit !== undefined && Number.isFinite(limit) ? { take: limit } : {}),
+        ...(offset !== undefined && Number.isFinite(offset) ? { skip: offset } : {}),
       });
 
       // Add timeout protection
@@ -189,18 +189,15 @@ export const adminController = {
         setTimeout(() => reject(new Error('Database query timeout')), 10000); // 10 seconds
       });
 
-      let submissions: any[];
+      let submissions;
       try {
-        submissions = await Promise.race<any>([submissionsPromise, timeoutPromise]);
+        submissions = await Promise.race([submissionsPromise, timeoutPromise]);
       } catch (error: any) {
         // If error is about MemeSubmissionTag table, retry without tags
         if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
           console.warn('MemeSubmissionTag table not found, fetching submissions without tags');
           submissions = await prisma.memeSubmission.findMany({
-            where: {
-              channelId,
-              ...(status ? { status } : {}),
-            },
+            where,
             include: {
               submitter: {
                 select: {
@@ -212,6 +209,8 @@ export const adminController = {
             orderBy: {
               createdAt: 'desc',
             },
+            ...(limit !== undefined && Number.isFinite(limit) ? { take: limit } : {}),
+            ...(offset !== undefined && Number.isFinite(offset) ? { skip: offset } : {}),
           });
           // Add empty tags array to match expected structure
           submissions = submissions.map((s: any) => ({ ...s, tags: [] }));
@@ -225,29 +224,13 @@ export const adminController = {
         }
       }
 
-      const total = await prisma.memeSubmission.count({
-        where: {
-          channelId,
-          ...(status ? { status } : {}),
-        },
-      });
-
-      if (isProdStrictDto()) {
-        const out = submissions.map((s: any) => ({
-          id: s.id,
-          title: s.title,
-          type: s.type,
-          fileUrlTemp: s.fileUrlTemp,
-          sourceUrl: s.sourceUrl,
-          status: s.status,
-          createdAt: s.createdAt,
-          tags: Array.isArray(s.tags) ? s.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
-          submitter: s.submitter ? { displayName: s.submitter.displayName } : null,
-        }));
-        return res.json({ items: out, total });
+      // Back-compat: if client didn't request pagination, keep legacy array response.
+      if (limit === undefined && offset === undefined) {
+        return res.json(submissions);
       }
 
-      res.json({ items: submissions, total });
+      const total = await prisma.memeSubmission.count({ where });
+      return res.json({ items: submissions, total });
     } catch (error: any) {
       console.error('Error in getSubmissions:', error);
       if (!res.headersSent) {

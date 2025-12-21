@@ -5,7 +5,7 @@ import { submissionRoutes } from './submissions.js';
 import { adminRoutes } from './admin.js';
 import { webhookRoutes } from './webhooks.js';
 import { betaRoutes } from './beta.js';
-import { authenticate, AuthRequest } from '../middleware/auth.js';
+import { authenticate, AuthRequest, optionalAuthenticate } from '../middleware/auth.js';
 import { activateMemeLimiter } from '../middleware/rateLimit.js';
 import { requireBetaAccess } from '../middleware/betaAccess.js';
 import { isBetaDomain } from '../middleware/betaAccess.js';
@@ -154,8 +154,10 @@ export function setupRoutes(app: Express) {
     }
     return viewerController.getChannelMemesPublic(req as AuthRequest, res);
   });
-  app.get('/channels/memes/search', viewerController.searchMemes); // Public search endpoint
-  app.get('/memes/stats', viewerController.getMemeStats); // Public stats endpoint
+  // Public search endpoint (optionally uses auth to enable "favorites"/uploader search)
+  app.get('/channels/memes/search', optionalAuthenticate, viewerController.searchMemes);
+  // Public stats endpoint (optionally uses auth to exclude "self" from viewer stats)
+  app.get('/memes/stats', optionalAuthenticate, viewerController.getMemeStats);
   // Activation is a user-paid action (wallet) and must be authenticated everywhere.
   // On beta, it is additionally gated by requireBetaAccess.
   app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);

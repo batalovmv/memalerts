@@ -45,11 +45,12 @@ export const submissionController = {
     }
 
     // Owner bypass must be based on JWT channelId to avoid mismatches.
-    // If the authenticated user is the streamer for this channel (req.channelId === target channelId),
+    // If the authenticated user is the streamer/admin for this channel (req.channelId === target channelId),
     // then submissions should be auto-approved (no pending request).
     const isOwner =
       !!req.userId &&
       !!req.channelId &&
+      (req.userRole === 'streamer' || req.userRole === 'admin') &&
       String(req.channelId) === String(channelId);
 
     try {
@@ -193,7 +194,7 @@ export const submissionController = {
 
       // If owner is submitting, create meme directly (bypass approval)
       if (isOwner) {
-        debugLog('Owner submitting meme, creating directly as approved');
+        console.log('Owner submitting meme, creating directly as approved');
         
         // Best-effort duration for storage (server preferred, client fallback)
         const durationMs = Math.max(0, Math.min(effectiveDurationMs ?? 0, 15000));

@@ -7,8 +7,6 @@ import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promoti
 import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
-import { isProdStrictDto } from '../utils/envMode.js';
-import { toPublicChannelDto, toPublicMemeDto } from '../utils/dto.js';
 
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
@@ -61,19 +59,6 @@ export const viewerController = {
       }
 
       const owner = channel.users?.[0] || null;
-      const stats = {
-        memesCount: channel._count.memes,
-        usersCount: channel._count.users,
-      };
-
-      // Production strict DTO: whitelist public fields to avoid leaking internal config/IDs.
-      if (isProdStrictDto()) {
-        const base = toPublicChannelDto(channel as any, stats);
-        const out: any = { ...base };
-        if (includeMemes) out.memes = channel.memes || [];
-        return res.json(out);
-      }
-
       const response: any = {
         id: channel.id,
         slug: channel.slug,
@@ -98,7 +83,10 @@ export const viewerController = {
           displayName: owner.displayName,
           profileImageUrl: owner.profileImageUrl,
         } : null,
-        stats,
+        stats: {
+          memesCount: channel._count.memes,
+          usersCount: channel._count.users,
+        },
       };
 
       // Only include memes if includeMemes is true
@@ -148,28 +136,6 @@ export const viewerController = {
           where: { channelId: channel[0].id },
         });
         
-        const stats = { memesCount, usersCount };
-
-        // Strict DTO on production even for fallback path (older schema).
-        if (isProdStrictDto()) {
-          const out: any = {
-            slug: channel[0].slug,
-            name: channel[0].name,
-            coinPerPointRatio: channel[0].coinPerPointRatio,
-            submissionRewardCoins: 0,
-            overlayMode: 'queue',
-            overlayShowSender: false,
-            overlayMaxConcurrent: 3,
-            coinIconUrl: null,
-            primaryColor: null,
-            secondaryColor: null,
-            accentColor: null,
-            stats,
-          };
-          if (includeMemes) out.memes = memes;
-          return res.json(out);
-        }
-
         const response: any = {
           id: channel[0].id,
           slug: channel[0].slug,
@@ -180,7 +146,10 @@ export const viewerController = {
           secondaryColor: null,
           accentColor: null,
           createdAt: channel[0].createdAt,
-          stats,
+          stats: {
+            memesCount,
+            usersCount,
+          },
         };
 
         // Only include memes if includeMemes is true
@@ -400,11 +369,6 @@ export const viewerController = {
       skip: Number.isFinite(offset) ? offset : 0,
     });
 
-    if (isProdStrictDto()) {
-      const out = memes.map((m: any) => toPublicMemeDto(m));
-      return res.json(out);
-    }
-
     res.json(memes);
   },
 
@@ -451,11 +415,6 @@ export const viewerController = {
       ...(offset !== undefined && { skip: offset }),
     });
 
-    if (isProdStrictDto()) {
-      const out = memes.map((m: any) => toPublicMemeDto(m));
-      return res.json(out);
-    }
-
     res.json(memes);
   },
 
@@ -469,6 +428,8 @@ export const viewerController = {
       maxPrice,
       sortBy = 'createdAt', // createdAt, priceCoins, popularity
       sortOrder = 'desc', // asc, desc
+      includeUploader, // "1" enables searching by uploader name (dashboard only)
+      favorites, // "1" returns user's most activated memes for this channel (requires auth)
       limit = 50,
       offset = 0,
     } = req.query;
@@ -496,15 +457,24 @@ export const viewerController = {
       where.channelId = targetChannelId;
     }
 
-    // Search query - search in title (case-insensitive, partial match)
+    const favoritesEnabled = String(favorites || '') === '1' && !!req.userId && !!targetChannelId;
+
+    // Search query - search in title + tags; optionally uploader (dashboard)
     if (q) {
-      where.title = {
-        contains: q as string,
-        mode: 'insensitive',
-      };
+      const qStr = String(q).trim();
+      if (qStr) {
+        const or: any[] = [
+          { title: { contains: qStr, mode: 'insensitive' } },
+          { tags: { some: { tag: { name: { contains: qStr.toLowerCase(), mode: 'insensitive' } } } } },
+        ];
+        if (String(includeUploader || '') === '1') {
+          or.push({ createdBy: { displayName: { contains: qStr, mode: 'insensitive' } } });
+        }
+        where.OR = or;
+      }
     }
 
-    // Price filters
+    // Price filters (optional)
     if (minPrice) {
       where.priceCoins = {
         ...where.priceCoins,
@@ -557,6 +527,48 @@ export const viewerController = {
     }
 
     // Execute query
+    const parsedLimit = parseInt(limit as string, 10);
+    const parsedOffset = parseInt(offset as string, 10);
+
+    // "My favorites": when no other filters are applied, use a cheap groupBy ordering by activation count.
+    if (
+      favoritesEnabled &&
+      !q &&
+      !tags &&
+      !minPrice &&
+      !maxPrice &&
+      sortBy !== 'priceCoins'
+    ) {
+      const rows = await prisma.memeActivation.groupBy({
+        by: ['memeId'],
+        where: {
+          channelId: targetChannelId!,
+          userId: req.userId!,
+          status: 'done',
+        },
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: Number.isFinite(parsedLimit) ? parsedLimit : 50,
+        skip: Number.isFinite(parsedOffset) ? parsedOffset : 0,
+      });
+
+      const ids = rows.map((r) => r.memeId);
+      if (ids.length === 0) return res.json([]);
+
+      const memesById = await prisma.meme.findMany({
+        where: { id: { in: ids }, status: 'approved' },
+        include: {
+          createdBy: { select: { id: true, displayName: true } },
+          tags: { include: { tag: true } },
+        },
+      });
+
+      const map = new Map(memesById.map((m) => [m.id, m]));
+      const ordered = ids.map((id) => map.get(id)).filter(Boolean);
+      return res.json(ordered);
+    }
+
+    const popularityStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const memes = await prisma.meme.findMany({
       where,
       include: {
@@ -573,13 +585,15 @@ export const viewerController = {
         },
         _count: {
           select: {
-            activations: true,
+            activations: sortBy === 'popularity'
+              ? { where: { status: 'done', createdAt: { gte: popularityStartDate } } }
+              : true,
           },
         },
       },
       orderBy,
-      take: parseInt(limit as string, 10),
-      skip: parseInt(offset as string, 10),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     // If sorting by popularity, sort in memory
@@ -594,20 +608,20 @@ export const viewerController = {
       });
     }
 
-    if (isProdStrictDto()) {
-      const out = memes.map((m: any) => ({
-        id: m.id,
-        title: m.title,
-        type: m.type,
-        fileUrl: m.fileUrl,
-        durationMs: m.durationMs,
-        priceCoins: m.priceCoins,
-        createdAt: m.createdAt,
-        createdBy: m.createdBy ? { displayName: m.createdBy.displayName } : null,
-        tags: Array.isArray(m.tags) ? m.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
-        activationsCount: m?._count?.activations ?? 0,
-      }));
-      return res.json(out);
+    // If favorites is enabled along with other filters, sort in-memory by user's activation count (done) as a best-effort.
+    if (favoritesEnabled) {
+      const counts = await prisma.memeActivation.groupBy({
+        by: ['memeId'],
+        where: {
+          channelId: targetChannelId!,
+          userId: req.userId!,
+          status: 'done',
+          memeId: { in: memes.map((m: any) => m.id) },
+        },
+        _count: { id: true },
+      });
+      const byId = new Map(counts.map((c) => [c.memeId, c._count.id]));
+      memes.sort((a: any, b: any) => (byId.get(b.id) || 0) - (byId.get(a.id) || 0));
     }
 
     res.json(memes);
@@ -667,6 +681,11 @@ export const viewerController = {
       where.channelId = targetChannelId;
     }
 
+    // Stats are meant to reflect viewer behavior; exclude "self" when authenticated (e.g. streamer viewing own stats).
+    if (req.userId) {
+      where.userId = { not: req.userId };
+    }
+
     // Get meme statistics
     const activations = await prisma.memeActivation.groupBy({
       by: ['memeId'],
@@ -724,22 +743,6 @@ export const viewerController = {
         totalCoinsSpent: activation._sum.coinsSpent || 0,
       };
     });
-
-    if (isProdStrictDto()) {
-      const outStats = stats.map((s: any) => ({
-        meme: s.meme
-          ? {
-              id: s.meme.id,
-              title: s.meme.title,
-              priceCoins: s.meme.priceCoins,
-              tags: Array.isArray(s.meme.tags) ? s.meme.tags.map((t: any) => t?.tag?.name).filter(Boolean) : [],
-            }
-          : null,
-        activationsCount: s.activationsCount,
-        totalCoinsSpent: s.totalCoinsSpent,
-      }));
-      return res.json({ period, startDate, endDate: now, stats: outStats });
-    }
 
     res.json({
       period,
