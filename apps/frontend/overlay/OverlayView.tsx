@@ -61,6 +61,17 @@ function clampFloat(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+function clampDeg(n: number): number {
+  if (!Number.isFinite(n)) return 90;
+  // Normalize into [0, 360)
+  const v = ((n % 360) + 360) % 360;
+  return v;
+}
+
+function isHexColor(v: string): boolean {
+  return /^#([0-9a-fA-F]{6})$/.test(v);
+}
+
 type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'none';
 
 export default function OverlayView() {
@@ -119,14 +130,21 @@ export default function OverlayView() {
     }
   }, [config.overlayStyleJson]);
 
-  const radius = clampInt(parseInt(String(searchParams.get('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 48);
-  const shadow = clampInt(parseInt(String(searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 120);
-  const blur = clampInt(parseInt(String(searchParams.get('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 30);
-  const border = clampInt(parseInt(String(searchParams.get('border') || (parsedStyle as any)?.border || ''), 10), 0, 4);
+  const radius = clampInt(parseInt(String(searchParams.get('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 80);
+  const shadow = clampInt(parseInt(String(searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 200);
+  const shadowAngle = clampDeg(parseFloat(String(searchParams.get('shadowAngle') || (parsedStyle as any)?.shadowAngle || '')));
+  const blur = clampInt(parseInt(String(searchParams.get('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 40);
+  const border = clampInt(parseInt(String(searchParams.get('border') || (parsedStyle as any)?.border || ''), 10), 0, 12);
+  const borderColorRaw = String(searchParams.get('borderColor') || (parsedStyle as any)?.borderColor || '').trim();
+  const borderColor = isHexColor(borderColorRaw) ? borderColorRaw : '#FFFFFF';
   const bgOpacity = clampFloat(parseFloat(String(searchParams.get('bgOpacity') || (parsedStyle as any)?.bgOpacity || '')), 0, 0.65);
   const anim = (String(searchParams.get('anim') || (parsedStyle as any)?.anim || 'fade').toLowerCase() as OverlayAnim) || 'fade';
   const enterMs = clampInt(parseInt(String(searchParams.get('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
   const exitMs = clampInt(parseInt(String(searchParams.get('exitMs') || (parsedStyle as any)?.exitMs || ''), 10), 0, 1200);
+
+  const senderFontSize = clampInt(parseInt(String(searchParams.get('senderFontSize') || (parsedStyle as any)?.senderFontSize || ''), 10), 10, 28);
+  const senderFontWeight = clampInt(parseInt(String(searchParams.get('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
+  const senderFontFamily = String(searchParams.get('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
 
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
@@ -528,12 +546,15 @@ export default function OverlayView() {
       };
 
       const baseScale = clampFloat(Number(item.userScale ?? safeScale), 0.25, 2.5);
-      const finalScale = baseScale * (item.fitScale ?? 1);
+      // Never allow fitScale to enlarge the item. It exists only to shrink oversized media.
+      const fit = clampFloat(Number(item.fitScale ?? 1), 0.25, 1);
+      const finalScale = baseScale * fit;
 
       // Clamp size to feel like an overlay (not a full web page).
       // Since scale applies via transform, reduce pre-scale bounds to keep the final size within viewport.
-      const preScaleMaxVw = Math.max(16, Math.min(50, 42 / baseScale));
-      const preScaleMaxVh = Math.max(16, Math.min(50, 42 / baseScale));
+      // Allow larger than before, but keep safe for tall/vertical memes.
+      const preScaleMaxVw = Math.max(18, Math.min(70, 62 / baseScale));
+      const preScaleMaxVh = Math.max(18, Math.min(70, 62 / baseScale));
       const sizeClamp: React.CSSProperties = {
         maxWidth: `${preScaleMaxVw}vw`,
         maxHeight: `${preScaleMaxVh}vh`,
@@ -627,17 +648,23 @@ export default function OverlayView() {
     const effectiveBlur = blur || 6;
     const effectiveBorder = border || 2;
     const effectiveBgOpacity = Number.isFinite(bgOpacity) ? bgOpacity : 0.18;
+    // Shadow direction (angle). Keep distance constant (designers usually tune blur more than distance here).
+    const distance = 22;
+    const rad = (shadowAngle * Math.PI) / 180;
+    const offX = Math.round(Math.cos(rad) * distance);
+    const offY = Math.round(Math.sin(rad) * distance);
     // Premium/Apple-ish defaults: a bit slower and smoother.
     const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 420;
     const effectiveExitMs = Number.isFinite(exitMs) ? exitMs : 320;
     return {
       borderRadius: effectiveRadius,
       overflow: 'hidden',
-      border: `${effectiveBorder}px solid rgba(255,255,255,0.38)`,
+      border: `${effectiveBorder}px solid ${borderColor}`,
       outline: '1px solid rgba(0,0,0,0.35)',
-      boxShadow: `0 22px ${effectiveShadow}px rgba(0,0,0,0.60)`,
-      background: `rgba(0,0,0,${effectiveBgOpacity})`,
-      backdropFilter: `blur(${effectiveBlur}px)`,
+      boxShadow: `${offX}px ${offY}px ${effectiveShadow}px rgba(0,0,0,0.60)`,
+      // Stronger "glass" feel: add subtle light highlights + saturate.
+      background: `linear-gradient(135deg, rgba(255,255,255,0.20), rgba(255,255,255,0.04)), rgba(0,0,0,${effectiveBgOpacity})`,
+      backdropFilter: `blur(${effectiveBlur}px) saturate(1.35)`,
       opacity: 1,
       willChange: 'transform, opacity',
       transition: `opacity ${Math.max(0, effectiveExitMs)}ms ease, transform ${Math.max(0, effectiveExitMs)}ms ease`,
@@ -650,7 +677,7 @@ export default function OverlayView() {
               ? `memalertsSlideUp ${Math.max(0, effectiveEnterMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`
               : `memalertsFadeIn ${Math.max(0, effectiveEnterMs)}ms ease`,
     };
-  }, [anim, bgOpacity, blur, border, enterMs, exitMs, radius, shadow]);
+  }, [anim, bgOpacity, blur, border, borderColor, enterMs, exitMs, radius, shadow, shadowAngle]);
 
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
@@ -665,11 +692,19 @@ export default function OverlayView() {
   }, []);
 
   const badgeStyle = useMemo<React.CSSProperties>(() => {
+    const family =
+      senderFontFamily === 'mono'
+        ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+        : senderFontFamily === 'serif'
+          ? 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
+          : 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
     return {
       marginTop: 10,
       alignSelf: 'center',
       padding: '7px 12px',
-      fontSize: 13,
+      fontSize: senderFontSize,
+      fontWeight: senderFontWeight,
+      fontFamily: family,
       lineHeight: 1.2,
       color: 'rgba(255,255,255,0.92)',
       background: 'rgba(0,0,0,0.62)',
@@ -680,7 +715,7 @@ export default function OverlayView() {
       textOverflow: 'ellipsis',
       maxWidth: '48vw',
     };
-  }, []);
+  }, [senderFontFamily, senderFontSize, senderFontWeight]);
 
   const renderItems = active;
   if (renderItems.length === 0) return null;

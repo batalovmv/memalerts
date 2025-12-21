@@ -761,13 +761,18 @@ function ObsLinksSettings() {
   const [scaleMax, setScaleMax] = useState<number>(1);
   const [urlRadius, setUrlRadius] = useState<number>(20);
   const [urlShadow, setUrlShadow] = useState<number>(70);
+  const [urlShadowAngle, setUrlShadowAngle] = useState<number>(90);
   const [urlBlur, setUrlBlur] = useState<number>(6);
   const [urlBorder, setUrlBorder] = useState<number>(2);
+  const [urlBorderColor, setUrlBorderColor] = useState<string>('#ffffff');
   const [urlBgOpacity, setUrlBgOpacity] = useState<number>(0.18);
   const [urlAnim, setUrlAnim] = useState<'fade' | 'zoom' | 'slide-up' | 'none'>('fade');
   // Slightly slower "Apple-ish" defaults (less snappy, more premium).
   const [urlEnterMs, setUrlEnterMs] = useState<number>(420);
   const [urlExitMs, setUrlExitMs] = useState<number>(320);
+  const [senderFontSize, setSenderFontSize] = useState<number>(13);
+  const [senderFontWeight, setSenderFontWeight] = useState<number>(600);
+  const [senderFontFamily, setSenderFontFamily] = useState<'system' | 'mono' | 'serif'>('system');
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -850,12 +855,17 @@ function ObsLinksSettings() {
               if (typeof j.scaleMax === 'number') setScaleMax(j.scaleMax);
               if (typeof j.radius === 'number') setUrlRadius(j.radius);
               if (typeof j.shadow === 'number') setUrlShadow(j.shadow);
+              if (typeof j.shadowAngle === 'number') setUrlShadowAngle(j.shadowAngle);
               if (typeof j.blur === 'number') setUrlBlur(j.blur);
               if (typeof j.border === 'number') setUrlBorder(j.border);
+              if (typeof j.borderColor === 'string') setUrlBorderColor(j.borderColor);
               if (typeof j.bgOpacity === 'number') setUrlBgOpacity(j.bgOpacity);
               if (j.anim) setUrlAnim(j.anim);
               if (typeof j.enterMs === 'number') setUrlEnterMs(j.enterMs);
               if (typeof j.exitMs === 'number') setUrlExitMs(j.exitMs);
+              if (typeof j.senderFontSize === 'number') setSenderFontSize(j.senderFontSize);
+              if (typeof j.senderFontWeight === 'number') setSenderFontWeight(j.senderFontWeight);
+              if (typeof j.senderFontFamily === 'string') setSenderFontFamily(j.senderFontFamily);
             }
           } catch {
             // ignore
@@ -942,9 +952,14 @@ function ObsLinksSettings() {
     u.searchParams.set('exitMs', String(urlExitMs));
     u.searchParams.set('radius', String(urlRadius));
     u.searchParams.set('shadow', String(urlShadow));
+    u.searchParams.set('shadowAngle', String(urlShadowAngle));
     u.searchParams.set('blur', String(urlBlur));
     u.searchParams.set('border', String(urlBorder));
+    u.searchParams.set('borderColor', String(urlBorderColor));
     u.searchParams.set('bgOpacity', String(urlBgOpacity));
+    u.searchParams.set('senderFontSize', String(senderFontSize));
+    u.searchParams.set('senderFontWeight', String(senderFontWeight));
+    u.searchParams.set('senderFontFamily', String(senderFontFamily));
     u.searchParams.set('scaleMode', scaleMode);
     if (scaleMode === 'fixed') {
       u.searchParams.set('scaleFixed', String(scaleFixed));
@@ -1031,12 +1046,17 @@ function ObsLinksSettings() {
       scaleMax,
       radius: urlRadius,
       shadow: urlShadow,
+      shadowAngle: urlShadowAngle,
       blur: urlBlur,
       border: urlBorder,
+      borderColor: urlBorderColor,
       bgOpacity: urlBgOpacity,
       anim: urlAnim,
       enterMs: urlEnterMs,
       exitMs: urlExitMs,
+      senderFontSize,
+      senderFontWeight,
+      senderFontFamily,
     });
 
     const payload = JSON.stringify({ overlayMode, overlayShowSender, overlayMaxConcurrent, overlayStyleJson });
@@ -1325,7 +1345,7 @@ function ObsLinksSettings() {
                 <input
                   type="range"
                   min={0}
-                  max={48}
+                  max={80}
                   step={1}
                   value={urlRadius}
                   onChange={(e) => setUrlRadius(parseInt(e.target.value, 10))}
@@ -1340,10 +1360,26 @@ function ObsLinksSettings() {
                 <input
                   type="range"
                   min={0}
-                  max={120}
+                  max={200}
                   step={2}
                   value={urlShadow}
                   onChange={(e) => setUrlShadow(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayShadowAngle', { defaultValue: 'Shadow direction' })}:{' '}
+                  <span className="font-mono">{Math.round(urlShadowAngle)}°</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={1}
+                  value={urlShadowAngle}
+                  onChange={(e) => setUrlShadowAngle(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
               </div>
@@ -1355,7 +1391,7 @@ function ObsLinksSettings() {
                 <input
                   type="range"
                   min={0}
-                  max={30}
+                  max={40}
                   step={1}
                   value={urlBlur}
                   onChange={(e) => setUrlBlur(parseInt(e.target.value, 10))}
@@ -1370,12 +1406,28 @@ function ObsLinksSettings() {
                 <input
                   type="range"
                   min={0}
-                  max={4}
+                  max={12}
                   step={1}
                   value={urlBorder}
                   onChange={(e) => setUrlBorder(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={urlBorderColor}
+                    onChange={(e) => setUrlBorderColor(e.target.value)}
+                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                    aria-label={t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
+                  />
+                  <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{urlBorderColor}</div>
+                </div>
               </div>
 
               <div>
@@ -1392,6 +1444,59 @@ function ObsLinksSettings() {
                   onChange={(e) => setUrlBgOpacity(parseFloat(e.target.value))}
                   className="w-full"
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                  {t('admin.obsOverlaySenderTypography', { defaultValue: 'Sender label' })}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontSize', { defaultValue: 'Font size' })}:{' '}
+                      <span className="font-mono">{senderFontSize}px</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={28}
+                      step={1}
+                      value={senderFontSize}
+                      onChange={(e) => setSenderFontSize(parseInt(e.target.value, 10))}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontWeight', { defaultValue: 'Weight' })}
+                    </label>
+                    <select
+                      value={senderFontWeight}
+                      onChange={(e) => setSenderFontWeight(parseInt(e.target.value, 10))}
+                      className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      <option value={400}>400</option>
+                      <option value={500}>500</option>
+                      <option value={600}>600</option>
+                      <option value={700}>700</option>
+                      <option value={800}>800</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontFamily', { defaultValue: 'Font' })}
+                    </label>
+                    <select
+                      value={senderFontFamily}
+                      onChange={(e) => setSenderFontFamily(e.target.value as any)}
+                      className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      <option value="system">{t('admin.obsOverlaySenderFontSystem', { defaultValue: 'System' })}</option>
+                      <option value="mono">{t('admin.obsOverlaySenderFontMono', { defaultValue: 'Monospace' })}</option>
+                      <option value="serif">{t('admin.obsOverlaySenderFontSerif', { defaultValue: 'Serif' })}</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
