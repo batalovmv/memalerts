@@ -155,6 +155,7 @@
     "obsOverlayModeSavedQueue": "Режим обновлён: Очередь",
     "obsOverlayModeSavedUnlimited": "Режим обновлён: Без лимита",
     "twitchRewardNotAvailable": "Награда Twitch доступна только для партнёров или компаньонов (affiliate).",
+    "twitchEligibilityUnknown": "Не удалось проверить статус Twitch (affiliate/partner). Попробуйте включить награду. Если не получится — выйдите и войдите снова.",
     "rewardCostCoinsRequired": "Чтобы включить награду, нужно указать стоимость и количество монет.",
     "obsHowToTitle": "Как добавить в OBS",
     "obsHowToStep1": "Добавьте Browser Source.",

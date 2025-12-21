@@ -143,6 +143,7 @@
     "obsOverlayModeSavedQueue": "Mode updated: Queue",
     "obsOverlayModeSavedUnlimited": "Mode updated: Unlimited",
     "twitchRewardNotAvailable": "This Twitch reward is available only for affiliate/partner channels.",
+    "twitchEligibilityUnknown": "We couldn't verify Twitch eligibility right now. You can try enabling the reward; if it fails, log out and log in again.",
     "rewardCostCoinsRequired": "Reward cost and coins are required.",
     "obsHowToTitle": "How to add in OBS",
     "obsHowToStep1": "Add a new Browser Source.",

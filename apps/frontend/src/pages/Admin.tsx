@@ -1185,9 +1185,13 @@ function RewardsSettings() {
       try {
         setEligibilityLoading(true);
         const { api } = await import('../lib/api');
-        const res = await api.get<{ eligible: boolean }>('/admin/twitch/reward/eligibility', { timeout: 15000 });
+        const res = await api.get<{ eligible: boolean | null; broadcasterType?: string | null; checkedBroadcasterId?: string; reason?: string }>(
+          '/admin/twitch/reward/eligibility',
+          { timeout: 15000 }
+        );
         if (cancelled) return;
-        setTwitchRewardEligible(!!res?.eligible);
+        // eligible can be null ("unknown") on beta when Twitch doesn't return channel info.
+        setTwitchRewardEligible(res?.eligible === null ? null : !!res?.eligible);
       } catch {
         if (!cancelled) setTwitchRewardEligible(null);
       } finally {
@@ -1348,6 +1352,14 @@ function RewardsSettings() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t('admin.twitchCoinsRewardDescription', 'Зритель тратит Channel Points на Twitch и получает монеты на сайте.')}
               </p>
+              {twitchRewardEligible === null && (
+                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  {t('admin.twitchEligibilityUnknown', {
+                    defaultValue:
+                      "We couldn't verify Twitch eligibility right now. You can try enabling the reward; if it fails, log out and log in again.",
+                  })}
+                </p>
+              )}
               {twitchRewardEligible === false && (
                 <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
                   {t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' })}
