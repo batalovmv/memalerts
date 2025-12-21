@@ -602,7 +602,7 @@ export default function OverlayView() {
 
       return changed ? next : prev;
     });
-  }, [active, resolvedPosition]);
+  }, [active, border, config.overlayShowSender, radius, resolvedPosition, safeScale, senderFontSize]);
 
   // Ensure per-activation fallback timers exist while active (prevents "stuck" videos in OBS).
   useEffect(() => {
