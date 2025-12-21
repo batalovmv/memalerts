@@ -566,14 +566,27 @@ export default function OverlayView() {
 
         // If we know media aspect ratio, compute a normalized box size that preserves the ratio
         // and keeps a consistent "long side" across media (independent of source resolution).
+        // IMPORTANT: border is implemented as padding on the outer wrapper; to avoid letterboxing
+        // inside the card, we must ensure the INNER content box (after padding) matches aspect ratio.
         const ar = Number(a.aspectRatio);
         if (Number.isFinite(ar) && ar > 0.01) {
+          const pad = clampInt(Number(border ?? 0), 0, 120);
           const targetLong = clampInt(Math.round(Math.min(vw * 0.32, vh * 0.48)), 220, 560);
-          let w = ar >= 1 ? targetLong : Math.round(targetLong * ar);
-          let h = ar >= 1 ? Math.round(targetLong / ar) : targetLong;
-          const s = Math.min(1, availW / Math.max(1, w), availH / Math.max(1, h));
-          w = Math.max(140, Math.round(w * s));
-          h = Math.max(140, Math.round(h * s));
+
+          // Desired INNER content size (excluding border padding), preserving ratio.
+          let innerW = ar >= 1 ? targetLong : Math.round(targetLong * ar);
+          let innerH = ar >= 1 ? Math.round(targetLong / ar) : targetLong;
+
+          // Fit inner size so that (inner + 2*pad) fits in available area.
+          const maxInnerW = Math.max(1, availW - 2 * pad);
+          const maxInnerH = Math.max(1, availH - 2 * pad);
+          const s = Math.min(1, maxInnerW / Math.max(1, innerW), maxInnerH / Math.max(1, innerH));
+          innerW = Math.max(120, Math.round(innerW * s));
+          innerH = Math.max(120, Math.round(innerH * s));
+
+          // Outer box includes border padding.
+          const w = Math.max(140, innerW + 2 * pad);
+          const h = Math.max(140, innerH + 2 * pad);
           if (!Number.isFinite(a.boxW) || !Number.isFinite(a.boxH) || Math.abs((a.boxW ?? 0) - w) > 2 || Math.abs((a.boxH ?? 0) - h) > 2) {
             changed = true;
             a = { ...a, boxW: w, boxH: h };
@@ -706,7 +719,7 @@ export default function OverlayView() {
       // Normalize perceived size across different source resolutions:
       // keep a consistent "long side" while preserving original aspect ratio.
       // `boxW/boxH` are computed after media metadata loads.
-      const fallback = 420;
+      const fallback = 420 + 2 * clampInt(Number(border ?? 0), 0, 120);
       const boxW = clampInt(Number(item.boxW ?? fallback), 180, 900);
       const boxH = clampInt(Number(item.boxH ?? fallback), 180, 900);
       const sizeClamp: React.CSSProperties = {
