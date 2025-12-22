@@ -892,12 +892,13 @@ export const viewerController = {
             )`
           );
         }
-        conditions.push(Prisma.sql`(${Prisma.join(or, Prisma.sql` OR `)})`);
+        // Prisma.join typing differs across client versions; keep separator as plain string for TS compatibility.
+        conditions.push(Prisma.sql`(${Prisma.join(or, ' OR ')})`);
       }
 
       // Rank memes by activation count in the last 30 days for this channel.
       // Include memes with 0 activations (they come after popular ones, tie-broken by createdAt).
-      const rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>(Prisma.sql`
+      const rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>`
         SELECT
           m.id,
           COALESCE(COUNT(a.id), 0)::int AS pop
@@ -907,18 +908,18 @@ export const viewerController = {
          AND a."channelId" = ${targetChannelId}
          AND a.status IN ('done', 'completed')
          AND a."createdAt" >= ${popularityStartDate}
-        WHERE ${Prisma.join(conditions, Prisma.sql` AND `)}
+        WHERE ${Prisma.join(conditions, ' AND ')}
         GROUP BY m.id, m."createdAt"
         ORDER BY pop ${Prisma.raw(dir)}, m."createdAt" ${Prisma.raw(dir)}
         LIMIT ${safeLimit} OFFSET ${safeOffset}
-      `);
+      `;
 
       const ids = rows.map((r) => r.id);
       if (ids.length === 0) return res.json([]);
 
       const activationWhere = {
         channelId: targetChannelId,
-        status: { in: ['done', 'completed'] as const },
+        status: { in: ['done', 'completed'] as string[] },
         createdAt: { gte: popularityStartDate },
       };
 
