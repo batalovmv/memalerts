@@ -118,7 +118,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile
   useEffect(() => {
     const userId = user?.id;
-    const userChannelId = user?.channelId;
 
     if (!user || !userId) {
       setWallet(null);

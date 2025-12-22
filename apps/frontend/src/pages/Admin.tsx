@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { store } from '../store/index';
 import { fetchSubmissions, approveSubmission, rejectSubmission } from '../store/slices/submissionsSlice';
-import { fetchMemes } from '../store/slices/memesSlice';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
 import Header from '../components/Header';
 import VideoPreview from '../components/VideoPreview';
@@ -3108,7 +3107,6 @@ function WalletManagement() {
   const [wallets, setWallets] = useState<Array<Record<string, unknown>>>([]);
   const [walletUsers, setWalletUsers] = useState<Array<{ id: string; displayName: string; twitchUserId?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingOptions, setLoadingOptions] = useState(true);
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
@@ -3119,7 +3117,6 @@ function WalletManagement() {
   const fetchWalletOptions = useCallback(async () => {
     if (optionsLoadedRef.current) return;
     try {
-      setLoadingOptions(true);
       optionsLoadedRef.current = true;
       const { api } = await import('../lib/api');
       const resp = await api.get<{ users: Array<{ id: string; displayName: string; twitchUserId?: string | null }>; channels: Array<{ id: string; name: string; slug: string }> }>(
@@ -3130,8 +3127,6 @@ function WalletManagement() {
       const apiError = error as { response?: { data?: { error?: string } } };
       optionsLoadedRef.current = false;
       toast.error(apiError.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
-    } finally {
-      setLoadingOptions(false);
     }
   }, [t]);
 
