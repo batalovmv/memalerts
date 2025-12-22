@@ -1246,9 +1246,21 @@ export const adminController = {
 
       // Handle reward enable/disable
       let coinIconUrl: string | null = null;
+      const currentRewardEnabled = !!(channel as any).rewardEnabled;
+      const rewardEnabledProvided = body.rewardEnabled !== undefined;
+      const wantsRewardEnabled = rewardEnabledProvided ? !!body.rewardEnabled : currentRewardEnabled;
+      const isRewardToggle = rewardEnabledProvided && wantsRewardEnabled !== currentRewardEnabled;
+      const hasRewardUpdateFields =
+        body.rewardIdForCoins !== undefined ||
+        body.rewardTitle !== undefined ||
+        body.rewardCost !== undefined ||
+        body.rewardCoins !== undefined;
       
-      if (body.rewardEnabled !== undefined) {
-        if (body.rewardEnabled) {
+      // Perf: the Twitch reward enable flow is expensive (eligibility checks + reward discovery + EventSub).
+      // Only run it when rewardEnabled actually changes (false -> true). For normal edits (title/cost/coins),
+      // do a lightweight update against the already known rewardId.
+      if ((isRewardToggle && wantsRewardEnabled) || (!isRewardToggle && wantsRewardEnabled && hasRewardUpdateFields)) {
+        if (isRewardToggle && wantsRewardEnabled) {
           // Enable reward - create or update in Twitch
           if (!body.rewardCost || !body.rewardCoins) {
             return res.status(400).json({
@@ -1597,22 +1609,46 @@ export const adminController = {
             // Log but don't fail - subscription might already exist
             console.error('Error creating EventSub subscription:', error);
           }
-        } else {
-          // Disable reward - disable in Twitch but don't delete
-          if (channel.rewardIdForCoins) {
+        }
+
+        if (!isRewardToggle && wantsRewardEnabled && hasRewardUpdateFields) {
+          // Lightweight update of an already-enabled reward (avoid eligibility + reward discovery + EventSub).
+          const rewardId = (body.rewardIdForCoins ?? (channel as any).rewardIdForCoins) as string | null;
+          const cost = (body.rewardCost ?? (channel as any).rewardCost) as number | null;
+          const coins = (body.rewardCoins ?? (channel as any).rewardCoins) as number | null;
+          const title = (body.rewardTitle ?? (channel as any).rewardTitle) as string | null;
+
+          if (rewardId && cost && coins) {
             try {
-              await updateChannelReward(
-                userId,
-                channel.twitchChannelId,
-                channel.rewardIdForCoins,
-                {
-                  is_enabled: false,
-                }
-              );
+              await updateChannelReward(userId, channel.twitchChannelId, rewardId, {
+                title: title || `Get ${coins} Coins`,
+                cost,
+                is_enabled: true,
+                prompt: `Redeem ${cost} channel points to get ${coins} coins!`,
+              });
+              // Do not fetch icon here: it's expensive and rarely changes.
             } catch (error: any) {
-              console.error('Error disabling reward:', error);
-              // If reward doesn't exist, just continue
+              logger.warn('twitch.rewards.light_update_failed', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+                rewardId,
+                errorMessage: error?.message,
+              });
             }
+          }
+        }
+      } else if (isRewardToggle && !wantsRewardEnabled) {
+        // Disable reward - disable in Twitch but don't delete (only if this is a real toggle).
+        if (channel.rewardIdForCoins) {
+          try {
+            await updateChannelReward(userId, channel.twitchChannelId, channel.rewardIdForCoins, {
+              is_enabled: false,
+            });
+          } catch (error: any) {
+            console.error('Error disabling reward:', error);
+            // If reward doesn't exist, just continue
           }
         }
       }
