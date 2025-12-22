@@ -454,17 +454,20 @@ export default function OverlayView() {
     [previewTypesParam, previewUrlsParam, searchParams]
   );
 
-  const pickRandomPosition = useCallback((): { xPct: number; yPct: number } => {
+  const pickRandomPosition = useCallback((salt: number = 0): { xPct: number; yPct: number } => {
     // Safe margin in % to reduce clipping risk. Increase margin when scale grows.
     // This isn't perfect (we don't know exact media aspect), but reduces "going off-screen" in OBS.
     const baseMargin = 12;
     const margin = Math.min(24, Math.max(10, Math.round(baseMargin * safeScale)));
-    // Deterministic RNG for demo so sliders don't reshuffle positions (when iframe does not reload).
-    const rng = mulberry32((demoSeed + demoSeqRef.current * 9973) >>> 0);
-    const xPct = margin + rng() * (100 - margin * 2);
-    const yPct = margin + rng() * (100 - margin * 2);
+    // Demo: deterministic RNG so sliders don't reshuffle positions (when iframe does not reload).
+    // Real overlay: true randomness (each activation should be independent).
+    const rng = demo ? mulberry32((demoSeed + demoSeqRef.current * 9973 + salt * 1013) >>> 0) : null;
+    const r1 = rng ? rng() : Math.random();
+    const r2 = rng ? rng() : Math.random();
+    const xPct = margin + r1 * (100 - margin * 2);
+    const yPct = margin + r2 * (100 - margin * 2);
     return { xPct, yPct };
-  }, [demoSeed, safeScale]);
+  }, [demo, demoSeed, safeScale]);
 
   // Demo seeding: spawn N preview items and optionally repeat.
   useEffect(() => {
@@ -489,7 +492,7 @@ export default function OverlayView() {
       title: 'DEMO',
       senderDisplayName: 'Viewer123',
       startTime: Date.now(),
-      ...(mode === 'simultaneous' ? pickRandomPosition() : { xPct: 50, yPct: 50 }),
+      ...(mode === 'simultaneous' ? pickRandomPosition(idx + 1) : { xPct: 50, yPct: 50 }),
       userScale: getNextUserScale(),
     }));
 

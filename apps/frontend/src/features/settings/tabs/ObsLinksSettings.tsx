@@ -32,6 +32,7 @@ export function ObsLinksSettings() {
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const previewSeedRef = useRef<number>(1);
   const overlayReadyRef = useRef(false);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
@@ -601,17 +602,21 @@ export function ObsLinksSettings() {
     [overlayMaxConcurrent, overlayMode]
   );
 
-  const fetchPreviewMemes = useCallback(async (count?: number, opts?: { bumpSeed?: boolean }) => {
+  useEffect(() => {
+    previewSeedRef.current = previewSeed;
+  }, [previewSeed]);
+
+  const fetchPreviewMemes = useCallback(async (count?: number, seed?: number) => {
     const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
     try {
       setLoadingPreview(true);
       const { api } = await import('@/lib/api');
-      const nextSeed = opts?.bumpSeed ? (previewSeed >= 1000000000 ? 1 : previewSeed + 1) : previewSeed;
+      const effectiveSeed = Number.isFinite(seed) ? String(seed) : String(previewSeedRef.current || 1);
 
       const resp = await api.get<{ memes: Array<null | { fileUrl: string; type: string; title?: string }> }>(
         '/streamer/overlay/preview-memes',
         {
-          params: { count: n, seed: String(nextSeed), _ts: Date.now() },
+          params: { count: n, seed: effectiveSeed, _ts: Date.now() },
           headers: { 'Cache-Control': 'no-store' },
         }
       );
@@ -626,17 +631,16 @@ export function ObsLinksSettings() {
         cleaned.push({ fileUrl: m.fileUrl, type: m.type, title: m.title });
       }
       setPreviewMemes(cleaned);
-      if (opts?.bumpSeed) setPreviewSeed(nextSeed);
     } catch {
       setPreviewMemes([]);
     } finally {
       setLoadingPreview(false);
     }
-  }, [previewCount, previewSeed]);
+  }, [previewCount]);
 
   useEffect(() => {
     if (!channelSlug) return;
-    void fetchPreviewMemes(previewCount).finally(() => setPreviewInitialized(true));
+    void fetchPreviewMemes(previewCount, previewSeedRef.current).finally(() => setPreviewInitialized(true));
   }, [channelSlug, fetchPreviewMemes, previewCount]);
 
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
@@ -1238,7 +1242,10 @@ export function ObsLinksSettings() {
                       className="glass-btn p-2 shrink-0"
                       disabled={loadingPreview || !overlayToken}
                       onClick={() => {
-                        void fetchPreviewMemes(previewCount, { bumpSeed: true });
+                        const next = previewSeedRef.current >= 1000000000 ? 1 : previewSeedRef.current + 1;
+                        previewSeedRef.current = next;
+                        setPreviewSeed(next);
+                        void fetchPreviewMemes(previewCount, next);
                       }}
                       title={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
                       aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
