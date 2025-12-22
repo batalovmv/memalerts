@@ -6,12 +6,9 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { RotateIcon } from './obs/ui/RotateIcon';
-import { ShareCodeModals } from './obs/ui/ShareCodeModals';
 import {
   clampFloat,
   clampInt,
-  decodeShareCode as decodeShareCodeFn,
-  encodeShareCode as encodeShareCodeFn,
   isHexColor,
   type OverlaySharePayload,
 } from './obs/lib/shareCode';
@@ -47,11 +44,9 @@ export function ObsLinksSettings() {
   const [lastSavedOverlaySettingsPayload, setLastSavedOverlaySettingsPayload] = useState<string | null>(null);
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
 
-  const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importText, setImportText] = useState('');
-  const [exportCode, setExportCode] = useState('');
-  // Export is code-only (no links) to keep sharing simple and portable.
+  // Custom presets are stored locally (per browser) to avoid extra backend complexity.
+  const [presetName, setPresetName] = useState('');
+  const [customPresets, setCustomPresets] = useState<Array<{ id: string; name: string; createdAt: number; payload: OverlaySharePayload }>>([]);
 
   useEffect(() => {
     // If sender settings tab is not applicable, fall back to a safe tab.
@@ -70,7 +65,6 @@ export function ObsLinksSettings() {
   const [urlRadius, setUrlRadius] = useState<number>(20);
   const [urlBlur, setUrlBlur] = useState<number>(6);
   const [urlBorder, setUrlBorder] = useState<number>(2);
-  const [mediaFit, setMediaFit] = useState<'cover' | 'contain'>('cover');
   const [safePad, setSafePad] = useState<number>(80);
   // Glass (foreground overlay in the overlay itself)
   const [glassEnabled, setGlassEnabled] = useState<boolean>(false);
@@ -129,7 +123,6 @@ export function ObsLinksSettings() {
       scaleFixed,
       scaleMin,
       scaleMax,
-      mediaFit,
       safePad,
       radius: urlRadius,
       shadowBlur,
@@ -201,7 +194,6 @@ export function ObsLinksSettings() {
     scaleMax,
     scaleMin,
     scaleMode,
-    mediaFit,
     senderBgColor,
     senderBgOpacity,
     senderBgRadius,
@@ -233,9 +225,6 @@ export function ObsLinksSettings() {
     urlRadius,
     urlVolume,
   ]);
-
-  const encodeShareCode = useCallback((payload: OverlaySharePayload): string => encodeShareCodeFn(payload), []);
-  const decodeShareCode = useCallback((raw: string): OverlaySharePayload => decodeShareCodeFn(raw), []);
 
   const applySharePayload = useCallback(
     (p: OverlaySharePayload) => {
@@ -280,6 +269,7 @@ export function ObsLinksSettings() {
       setScaleFixed(clampFloatLocal(s.scaleFixed, 0.25, 2.5, scaleFixed));
       setScaleMin(clampFloatLocal(s.scaleMin, 0.25, 2.5, scaleMin));
       setScaleMax(clampFloatLocal(s.scaleMax, 0.25, 2.5, scaleMax));
+      setSafePad(clampIntLocal(s.safePad, 0, 240, safePad));
 
       const anim = typeof s.anim === 'string' ? s.anim : urlAnim;
       if (anim === 'fade' || anim === 'zoom' || anim === 'slide-up' || anim === 'pop' || anim === 'lift' || anim === 'none') setUrlAnim(anim);
@@ -339,6 +329,7 @@ export function ObsLinksSettings() {
       scaleFixed,
       scaleMax,
       scaleMin,
+      safePad,
       senderBgOpacity,
       senderBgRadius,
       senderFontFamily,
@@ -404,8 +395,6 @@ export function ObsLinksSettings() {
         const nextScaleFixed = typeof styleFromServer?.scaleFixed === 'number' ? styleFromServer.scaleFixed : scaleFixed;
         const nextScaleMin = typeof styleFromServer?.scaleMin === 'number' ? styleFromServer.scaleMin : scaleMin;
         const nextScaleMax = typeof styleFromServer?.scaleMax === 'number' ? styleFromServer.scaleMax : scaleMax;
-        const nextMediaFit: 'cover' | 'contain' =
-          styleFromServer?.mediaFit === 'contain' ? 'contain' : styleFromServer?.mediaFit === 'cover' ? 'cover' : mediaFit;
         const nextSafePad =
           typeof styleFromServer?.safePad === 'number' ? styleFromServer.safePad : typeof (styleFromServer as any)?.safePadPx === 'number' ? (styleFromServer as any).safePadPx : safePad;
         const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : urlRadius;
@@ -494,7 +483,6 @@ export function ObsLinksSettings() {
         setScaleFixed(nextScaleFixed);
         setScaleMin(nextScaleMin);
         setScaleMax(nextScaleMax);
-        setMediaFit(nextMediaFit);
         setSafePad(Math.max(0, Math.min(240, nextSafePad)));
         setUrlRadius(nextRadius);
         setShadowBlur(nextShadowBlur);
@@ -546,7 +534,6 @@ export function ObsLinksSettings() {
           scaleFixed: nextScaleFixed,
           scaleMin: nextScaleMin,
           scaleMax: nextScaleMax,
-          mediaFit: nextMediaFit,
           safePad: nextSafePad,
           radius: nextRadius,
           shadowBlur: nextShadowBlur,
@@ -696,7 +683,6 @@ export function ObsLinksSettings() {
       seed: String(previewSeed),
       previewBg,
       position: urlPosition,
-      mediaFit,
       safePad: String(safePad),
       previewCount: String(previewCount),
       previewMode: overlayMode,
@@ -761,7 +747,6 @@ export function ObsLinksSettings() {
     borderTintColor,
     borderTintStrength,
     borderMode,
-    mediaFit,
     safePad,
     glassEnabled,
     glassPreset,
@@ -809,19 +794,59 @@ export function ObsLinksSettings() {
     previewBg,
   ]);
 
-  const postPreviewParams = useCallback(() => {
+  const latestPreviewParamsRef = useRef<Record<string, string>>(overlayPreviewParams);
+  useEffect(() => {
+    latestPreviewParamsRef.current = overlayPreviewParams;
+  }, [overlayPreviewParams]);
+
+  const postPreviewParamsNow = useCallback((params?: Record<string, string>) => {
     const win = previewIframeRef.current?.contentWindow;
     if (!win) return;
     try {
-      win.postMessage({ type: 'memalerts:overlayParams', params: overlayPreviewParams }, window.location.origin);
+      win.postMessage(
+        { type: 'memalerts:overlayParams', params: params ?? latestPreviewParamsRef.current },
+        window.location.origin
+      );
     } catch {
       // ignore
     }
-  }, [overlayPreviewParams]);
+  }, []);
+
+  const previewPostTimerRef = useRef<number | null>(null);
+  const previewPostLastAtRef = useRef<number>(0);
+  const schedulePostPreviewParams = useCallback((opts?: { immediate?: boolean }) => {
+    const immediate = Boolean(opts?.immediate);
+    if (previewPostTimerRef.current) {
+      window.clearTimeout(previewPostTimerRef.current);
+      previewPostTimerRef.current = null;
+    }
+
+    if (immediate) {
+      previewPostLastAtRef.current = Date.now();
+      postPreviewParamsNow();
+      return;
+    }
+
+    // Throttle to reduce expensive reflows/repaints inside the iframe while dragging sliders.
+    const now = Date.now();
+    const minIntervalMs = 60;
+    const wait = Math.max(0, minIntervalMs - (now - previewPostLastAtRef.current));
+    previewPostTimerRef.current = window.setTimeout(() => {
+      previewPostTimerRef.current = null;
+      previewPostLastAtRef.current = Date.now();
+      postPreviewParamsNow();
+    }, wait);
+  }, [postPreviewParamsNow]);
 
   useEffect(() => {
-    postPreviewParams();
-  }, [postPreviewParams]);
+    schedulePostPreviewParams();
+    return () => {
+      if (previewPostTimerRef.current) {
+        window.clearTimeout(previewPostTimerRef.current);
+        previewPostTimerRef.current = null;
+      }
+    };
+  }, [overlayPreviewParams, schedulePostPreviewParams]);
 
   // Receive "ready" handshake from iframe so the first params post is never lost.
   useEffect(() => {
@@ -833,11 +858,11 @@ export function ObsLinksSettings() {
       if (data.type !== 'memalerts:overlayReady') return;
       overlayReadyRef.current = true;
       // Send current params immediately when overlay confirms readiness.
-      postPreviewParams();
+      schedulePostPreviewParams({ immediate: true });
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [postPreviewParams]);
+  }, [schedulePostPreviewParams]);
 
   const animSpeedPct = useMemo(() => {
     const slow = 800;
@@ -865,7 +890,6 @@ export function ObsLinksSettings() {
       scaleFixed,
       scaleMin,
       scaleMax,
-      mediaFit,
       safePad,
       radius: urlRadius,
       shadowBlur,
@@ -916,7 +940,6 @@ export function ObsLinksSettings() {
     scaleFixed,
     scaleMin,
     scaleMax,
-    mediaFit,
     safePad,
     urlRadius,
     shadowBlur,
@@ -971,28 +994,78 @@ export function ObsLinksSettings() {
     return overlaySettingsPayload !== lastSavedOverlaySettingsPayload;
   }, [lastSavedOverlaySettingsPayload, overlaySettingsPayload]);
 
-  const openExportModal = useCallback(() => {
-    try {
-      const payload = makeSharePayload();
-      const code = encodeShareCode(payload);
-      setExportCode(code);
-      setExportModalOpen(true);
-    } catch (e) {
-      toast.error(t('admin.overlayShareExportFailed', { defaultValue: 'РќРµ СѓРґР°Р»РѕСЃСЊ СЌРєСЃРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ РЅР°СЃС‚СЂРѕР№РєРё' }));
-    }
-  }, [encodeShareCode, makeSharePayload, t]);
+  const presetsStorageKey = useMemo(() => {
+    const slug = String(channelSlug || '').trim() || '__no_channel__';
+    return `memalerts:obsCustomPresets:v1:${slug}`;
+  }, [channelSlug]);
 
-  const applyImportText = useCallback(() => {
+  useEffect(() => {
     try {
-      const payload = decodeShareCode(importText);
-      applySharePayload(payload);
-      setImportModalOpen(false);
-      setImportText('');
-      toast.success(t('admin.overlayShareApplied', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё РїСЂРёРјРµРЅРµРЅС‹ (РЅРµ Р·Р°Р±СѓРґСЊС‚Рµ РЅР°Р¶Р°С‚СЊ В«РЎРѕС…СЂР°РЅРёС‚СЊВ»)' }));
-    } catch (e) {
-      toast.error(t('admin.overlayShareImportFailed', { defaultValue: 'РљРѕРґ РЅРµ СЂР°СЃРїРѕР·РЅР°РЅ РёР»Рё РїРѕРІСЂРµР¶РґС‘РЅ' }));
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(presetsStorageKey) : null;
+      if (!raw) {
+        setCustomPresets([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) {
+        setCustomPresets([]);
+        return;
+      }
+      const cleaned = parsed
+        .map((p: any) => ({
+          id: String(p?.id || ''),
+          name: String(p?.name || '').trim(),
+          createdAt: Number(p?.createdAt || 0),
+          payload: p?.payload as OverlaySharePayload,
+        }))
+        .filter((p: any) => p.id && p.name && p.payload && typeof p.payload === 'object')
+        .slice(0, 30);
+      setCustomPresets(cleaned);
+    } catch {
+      setCustomPresets([]);
     }
-  }, [applySharePayload, decodeShareCode, importText, t]);
+  }, [presetsStorageKey]);
+
+  const persistCustomPresets = useCallback(
+    (next: Array<{ id: string; name: string; createdAt: number; payload: OverlaySharePayload }>) => {
+      setCustomPresets(next);
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(presetsStorageKey, JSON.stringify(next));
+        }
+      } catch {
+        // ignore storage errors
+      }
+    },
+    [presetsStorageKey]
+  );
+
+  const saveCurrentAsCustomPreset = useCallback(() => {
+    const name = String(presetName || '').trim();
+    if (!name) {
+      toast.error(t('admin.obsPresetNameRequired', { defaultValue: 'Enter a preset name.' }));
+      return;
+    }
+    const payload = makeSharePayload();
+    const existingIdx = customPresets.findIndex((p) => p.name.toLowerCase() === name.toLowerCase());
+    const now = Date.now();
+    const id = existingIdx >= 0 ? customPresets[existingIdx].id : `p_${now}_${Math.random().toString(16).slice(2, 8)}`;
+    const next = [
+      { id, name, createdAt: now, payload },
+      ...customPresets.filter((p) => p.id !== id),
+    ].slice(0, 30);
+    persistCustomPresets(next);
+    setPresetName('');
+    toast.success(t('admin.obsPresetSaved', { defaultValue: 'Preset saved.' }));
+  }, [customPresets, makeSharePayload, persistCustomPresets, presetName, t]);
+
+  const deleteCustomPreset = useCallback(
+    (id: string) => {
+      const next = customPresets.filter((p) => p.id !== id);
+      persistCustomPresets(next);
+    },
+    [customPresets, persistCustomPresets]
+  );
 
   const resetOverlayToDefaults = useCallback(() => {
     // Default, streamer-friendly settings (reset).
@@ -1007,7 +1080,6 @@ export function ObsLinksSettings() {
     setScaleMin(0.72);
     setScaleMax(1.0);
     setScaleFixed(0.92);
-    setMediaFit('cover');
     setSafePad(80);
 
     setUrlAnim('slide-up');
@@ -1078,7 +1150,6 @@ export function ObsLinksSettings() {
         setScaleFixed(1);
         setScaleMin(0.9);
         setScaleMax(1);
-        setMediaFit('contain');
         setSafePad(24);
         setUrlAnim('fade');
         setUrlEnterMs(180);
@@ -1112,7 +1183,6 @@ export function ObsLinksSettings() {
       setScaleMin(0.7);
       setScaleMax(1.05);
       setScaleFixed(0.9);
-      setMediaFit('cover');
       setSafePad(80);
       setUrlAnim('pop');
       setUrlEnterMs(260);
@@ -1446,10 +1516,10 @@ export function ObsLinksSettings() {
                         style={{ aspectRatio: '16 / 9', border: '0' }}
                         allow="autoplay"
                         onLoad={() => {
-                          // Post on load (best-effort) and also shortly after to avoid race with overlay boot.
-                          postPreviewParams();
-                          window.setTimeout(() => postPreviewParams(), 50);
-                          window.setTimeout(() => postPreviewParams(), 250);
+                          // Best-effort post on load (also shortly after) to avoid races with overlay boot.
+                          schedulePostPreviewParams({ immediate: true });
+                          window.setTimeout(() => schedulePostPreviewParams({ immediate: true }), 50);
+                          window.setTimeout(() => schedulePostPreviewParams({ immediate: true }), 250);
                         }}
                       />
                     )}
@@ -1531,28 +1601,7 @@ export function ObsLinksSettings() {
                         </svg>
                         <span className="hidden sm:inline">{t('admin.overlayResetDefaults', { defaultValue: 'РЎР±СЂРѕСЃРёС‚СЊ' })}</span>
                       </button>
-                      {obsUiMode === 'pro' && (
-                        <>
-                          <button
-                            type="button"
-                            className="glass-btn px-3 py-2 text-sm font-semibold"
-                            onClick={() => setImportModalOpen(true)}
-                            disabled={savingOverlaySettings || loadingOverlaySettings}
-                            title={t('admin.overlayShareImport', { defaultValue: 'Import' })}
-                          >
-                            {t('admin.overlayShareImport', { defaultValue: 'Import' })}
-                          </button>
-                          <button
-                            type="button"
-                            className="glass-btn px-3 py-2 text-sm font-semibold"
-                            onClick={openExportModal}
-                            disabled={savingOverlaySettings || loadingOverlaySettings}
-                            title={t('admin.overlayShareExport', { defaultValue: 'Export' })}
-                          >
-                            {t('admin.overlayShareExport', { defaultValue: 'Export' })}
-                          </button>
-                        </>
-                      )}
+                      {/* Import/Export removed: users can save custom presets locally instead */}
                       <button
                         type="button"
                         className={`glass-btn px-4 py-2 text-sm font-semibold ${overlaySettingsDirty ? '' : 'opacity-60'}`}
@@ -1587,6 +1636,56 @@ export function ObsLinksSettings() {
                       <div className="text-xs text-gray-600 dark:text-gray-300">
                         {t('admin.obsPresetsHint', { defaultValue: 'Start from a preset, then tweak below.' })}
                       </div>
+
+                      <div className="pt-2 border-t border-white/15 dark:border-white/10">
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                          {t('admin.obsCustomPresets', { defaultValue: 'Your presets' })}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={presetName}
+                            onChange={(e) => setPresetName(e.target.value)}
+                            placeholder={t('admin.obsPresetNamePlaceholder', { defaultValue: 'Preset name…' })}
+                            className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          />
+                          <button
+                            type="button"
+                            className="glass-btn px-3 py-2 text-sm font-semibold"
+                            onClick={saveCurrentAsCustomPreset}
+                          >
+                            {t('admin.obsPresetSave', { defaultValue: 'Save' })}
+                          </button>
+                        </div>
+
+                        {customPresets.length > 0 ? (
+                          <div className="mt-2 space-y-2">
+                            {customPresets.map((p) => (
+                              <div key={p.id} className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="glass-btn px-3 py-2 text-sm font-semibold flex-1 text-left"
+                                  onClick={() => applySharePayload(p.payload)}
+                                  title={t('admin.obsPresetApply', { defaultValue: 'Apply preset' })}
+                                >
+                                  {p.name}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="glass-btn px-3 py-2 text-sm font-semibold"
+                                  onClick={() => deleteCustomPreset(p.id)}
+                                  title={t('admin.obsPresetDelete', { defaultValue: 'Delete' })}
+                                >
+                                  {t('common.delete', { defaultValue: 'Delete' })}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                            {t('admin.obsCustomPresetsEmpty', { defaultValue: 'Save your first preset to reuse it later.' })}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="glass p-4 space-y-4">
@@ -1611,19 +1710,7 @@ export function ObsLinksSettings() {
                           </select>
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                            {t('admin.obsMediaFit', { defaultValue: 'Media fit' })}
-                          </label>
-                          <select
-                            value={mediaFit}
-                            onChange={(e) => setMediaFit(e.target.value === 'contain' ? 'contain' : 'cover')}
-                            className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                          >
-                            <option value="cover">{t('admin.obsMediaFitCover', { defaultValue: 'Cover (no bars)' })}</option>
-                            <option value="contain">{t('admin.obsMediaFitContain', { defaultValue: 'Contain (no crop)' })}</option>
-                          </select>
-                        </div>
+                        {/* mediaFit removed: always cover to avoid black bars */}
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2646,23 +2733,6 @@ export function ObsLinksSettings() {
           </div>
           </div>
         </details>
-
-        {/* Export / Import modals */}
-        <ShareCodeModals
-          t={t}
-          exportOpen={exportModalOpen}
-          importOpen={importModalOpen}
-          exportCode={exportCode}
-          importText={importText}
-          setImportText={setImportText}
-          onApplyImport={applyImportText}
-          onCloseExport={() => setExportModalOpen(false)}
-          onCloseImport={() => setImportModalOpen(false)}
-          onClearImportAndClose={() => {
-            setImportText('');
-            setImportModalOpen(false);
-          }}
-        />
 
         <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">

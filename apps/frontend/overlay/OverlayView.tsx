@@ -185,10 +185,13 @@ export default function OverlayView() {
 
   // Preview media can be provided either via URL (previewUrl/previewType)
   // or via postMessage live params (previewUrls/previewTypes as JSON arrays).
-  const livePreviewUrls = useMemo(() => parseJsonStringArray(liveParams.previewUrls), [liveParams]);
+  // IMPORTANT: depend on the specific param strings, not the whole liveParams object,
+  // otherwise every postMessage (even unrelated sliders like volume) would allocate new arrays,
+  // change callback identities, and re-seed demo previews (causing "teleporting" memes).
+  const livePreviewUrls = useMemo(() => parseJsonStringArray(liveParams.previewUrls), [liveParams.previewUrls]);
   const livePreviewTypes = useMemo(
     () => parseJsonStringArray(liveParams.previewTypes).map((v) => v.trim().toLowerCase()).filter(Boolean),
-    [liveParams]
+    [liveParams.previewTypes]
   );
 
   const previewUrlsParam = useMemo(() => {
@@ -306,12 +309,6 @@ export default function OverlayView() {
   const glassTintColorRaw = String(getParam('glassTintColor') || (parsedStyle as any)?.glassTintColor || '#7dd3fc').trim();
   const glassTintColor = isHexColor(glassTintColorRaw) ? glassTintColorRaw : '#7dd3fc';
   const glassTintStrength = clampAlpha(parseFloat(String(getParam('glassTintStrength') || (parsedStyle as any)?.glassTintStrength || '0.22')), 0, 1);
-
-  // Media fit mode:
-  // - cover: no bars, may crop a tiny bit (recommended for "premium"/designer look)
-  // - contain: never crop, may show bars if aspect ratios differ or bars are baked into the file
-  const mediaFitRaw = String(getParam('mediaFit') || (parsedStyle as any)?.mediaFit || 'cover').trim().toLowerCase();
-  const mediaFit: 'cover' | 'contain' = mediaFitRaw === 'contain' ? 'contain' : 'cover';
 
   // Safe area padding (in px): keeps memes away from screen edges to avoid clipping in OBS.
   // If not provided, keep prior behavior: larger padding for random, smaller for anchored modes.
@@ -1147,12 +1144,13 @@ export default function OverlayView() {
       inset: 0,
       width: '100%',
       height: '100%',
-      objectFit: mediaFit,
+      // We always use cover to avoid black bars.
+      objectFit: 'cover',
       objectPosition: 'center',
       background: '#000',
       transform: 'translateZ(0)',
     };
-  }, [mediaFit]);
+  }, []);
 
   const badgeStyle = useMemo<React.CSSProperties>(() => {
     const family =
