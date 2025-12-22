@@ -749,6 +749,12 @@ function ObsLinksSettings() {
   const [lastSavedOverlaySettingsPayload, setLastSavedOverlaySettingsPayload] = useState<string | null>(null);
   const lastChangeRef = useRef<'mode' | 'sender' | null>(null);
 
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [exportCode, setExportCode] = useState('');
+  const [exportLink, setExportLink] = useState('');
+
   useEffect(() => {
     // If sender settings tab is not applicable, fall back to a safe tab.
     if (advancedTab === 'sender' && !overlayShowSender) setAdvancedTab('layout');
@@ -820,6 +826,325 @@ function ObsLinksSettings() {
         d="M4.5 12a7.5 7.5 0 0112.8-5.303M19.5 12a7.5 7.5 0 01-12.8 5.303M16 6.5h1.8a.7.7 0 01.7.7V9M8 17.5H6.2a.7.7 0 01-.7-.7V15"
       />
     </svg>
+  );
+
+  // Import / Export overlay settings (share codes)
+  const isHexColor = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim());
+  const clampIntLocal = (n: unknown, min: number, max: number, fallback: number): number => {
+    const x = typeof n === 'number' ? n : typeof n === 'string' ? parseInt(n, 10) : NaN;
+    if (!Number.isFinite(x)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(x)));
+  };
+  const clampFloatLocal = (n: unknown, min: number, max: number, fallback: number): number => {
+    const x = typeof n === 'number' ? n : typeof n === 'string' ? parseFloat(n) : NaN;
+    if (!Number.isFinite(x)) return fallback;
+    return Math.max(min, Math.min(max, x));
+  };
+
+  const base64UrlEncode = (bytes: Uint8Array): string => {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const b64 = window.btoa(bin);
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  };
+  const base64UrlDecode = (b64url: string): Uint8Array => {
+    const b64 = String(b64url || '').replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+    const bin = window.atob(b64 + pad);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  };
+  const fnv1a32 = (str: string): number => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 0x01000193) >>> 0;
+    }
+    return h >>> 0;
+  };
+
+  type OverlaySharePayload = {
+    v: 1;
+    overlayMode?: 'queue' | 'simultaneous';
+    overlayShowSender?: boolean;
+    overlayMaxConcurrent?: number;
+    style?: Record<string, unknown>;
+  };
+
+  const makeSharePayload = useCallback((): OverlaySharePayload => {
+    const style: Record<string, unknown> = {
+      position: urlPosition,
+      volume: urlVolume,
+      scaleMode,
+      scaleFixed,
+      scaleMin,
+      scaleMax,
+      radius: urlRadius,
+      shadowBlur,
+      shadowSpread,
+      shadowDistance,
+      shadowAngle,
+      shadowOpacity,
+      shadowColor,
+      glass: glassEnabled,
+      glassPreset,
+      glassTintColor,
+      glassTintStrength,
+      blur: urlBlur,
+      border: urlBorder,
+      borderPreset,
+      borderTintColor,
+      borderTintStrength,
+      borderMode,
+      borderColor: urlBorderColor,
+      borderColor2: urlBorderColor2,
+      borderGradientAngle: urlBorderGradientAngle,
+      bgOpacity: urlBgOpacity,
+      anim: urlAnim,
+      enterMs: urlEnterMs,
+      exitMs: urlExitMs,
+      easing: animEasingPreset,
+      easingX1: animEasingX1,
+      easingY1: animEasingY1,
+      easingX2: animEasingX2,
+      easingY2: animEasingY2,
+      senderFontSize,
+      senderFontWeight,
+      senderFontFamily,
+      senderFontColor,
+      senderHoldMs,
+      senderBgColor,
+      senderBgOpacity,
+      senderBgRadius,
+      senderStroke,
+      senderStrokeWidth,
+      senderStrokeOpacity,
+      senderStrokeColor,
+    };
+    return {
+      v: 1,
+      overlayMode,
+      overlayShowSender,
+      overlayMaxConcurrent,
+      style,
+    };
+  }, [
+    animEasingPreset,
+    animEasingX1,
+    animEasingX2,
+    animEasingY1,
+    animEasingY2,
+    borderMode,
+    borderPreset,
+    borderTintColor,
+    borderTintStrength,
+    glassEnabled,
+    glassPreset,
+    glassTintColor,
+    glassTintStrength,
+    overlayMaxConcurrent,
+    overlayMode,
+    overlayShowSender,
+    scaleFixed,
+    scaleMax,
+    scaleMin,
+    scaleMode,
+    senderBgColor,
+    senderBgOpacity,
+    senderBgRadius,
+    senderFontColor,
+    senderFontFamily,
+    senderFontSize,
+    senderFontWeight,
+    senderHoldMs,
+    senderStroke,
+    senderStrokeColor,
+    senderStrokeOpacity,
+    senderStrokeWidth,
+    shadowAngle,
+    shadowBlur,
+    shadowColor,
+    shadowDistance,
+    shadowOpacity,
+    shadowSpread,
+    urlAnim,
+    urlBgOpacity,
+    urlBlur,
+    urlBorder,
+    urlBorderColor,
+    urlBorderColor2,
+    urlBorderGradientAngle,
+    urlEnterMs,
+    urlExitMs,
+    urlPosition,
+    urlRadius,
+    urlVolume,
+  ]);
+
+  const encodeShareCode = useCallback((payload: OverlaySharePayload): string => {
+    const json = JSON.stringify(payload);
+    const bytes = new TextEncoder().encode(json);
+    const b64 = base64UrlEncode(bytes);
+    const sig = fnv1a32(b64).toString(36);
+    return `MA1.${b64}.${sig}`;
+  }, []);
+
+  const decodeShareCode = useCallback((raw: string): OverlaySharePayload => {
+    const input = String(raw || '').trim();
+    if (!input) throw new Error('empty');
+
+    // Accept full URL with overlayPreset param (modern sharing).
+    if (input.includes('overlayPreset=')) {
+      try {
+        const u = new URL(input);
+        const p = u.searchParams.get('overlayPreset');
+        if (p) return decodeShareCode(p);
+      } catch {
+        // fallthrough
+      }
+    }
+
+    const parts = input.split('.');
+    const b64 = parts.length >= 2 && parts[0] === 'MA1' ? parts[1] : input;
+    const sig = parts.length >= 3 && parts[0] === 'MA1' ? parts[2] : '';
+    if (sig) {
+      const expected = fnv1a32(b64).toString(36);
+      if (expected !== sig) throw new Error('checksum');
+    }
+    const bytes = base64UrlDecode(b64);
+    const json = new TextDecoder().decode(bytes);
+    const obj = JSON.parse(json) as OverlaySharePayload;
+    if (!obj || typeof obj !== 'object' || (obj as any).v !== 1) throw new Error('version');
+    return obj;
+  }, []);
+
+  const applySharePayload = useCallback(
+    (p: OverlaySharePayload) => {
+      if (p.overlayMode === 'queue' || p.overlayMode === 'simultaneous') setOverlayMode(p.overlayMode);
+      if (typeof p.overlayShowSender === 'boolean') setOverlayShowSender(p.overlayShowSender);
+      if (typeof p.overlayMaxConcurrent === 'number') setOverlayMaxConcurrent(Math.max(1, Math.min(5, Math.round(p.overlayMaxConcurrent))));
+
+      const s = (p.style && typeof p.style === 'object' ? p.style : {}) as Record<string, unknown>;
+
+      const nextBorderPreset =
+        s.borderPreset === 'glass' ? 'glass' : s.borderPreset === 'glow' ? 'glow' : s.borderPreset === 'frosted' ? 'frosted' : 'custom';
+      setBorderPreset(nextBorderPreset as any);
+      if (isHexColor(s.borderTintColor)) setBorderTintColor(String(s.borderTintColor).toLowerCase());
+      setBorderTintStrength(clampFloatLocal(s.borderTintStrength, 0, 1, borderTintStrength));
+
+      const nextBorderMode = s.borderMode === 'gradient' ? 'gradient' : 'solid';
+      setBorderMode(nextBorderMode as any);
+      if (isHexColor(s.borderColor)) setUrlBorderColor(String(s.borderColor).toLowerCase());
+      if (isHexColor(s.borderColor2)) setUrlBorderColor2(String(s.borderColor2).toLowerCase());
+      setUrlBorderGradientAngle(clampIntLocal(s.borderGradientAngle, 0, 360, urlBorderGradientAngle));
+
+      setUrlBorder(clampIntLocal(s.border, 0, 12, urlBorder));
+      setUrlRadius(clampIntLocal(s.radius, 0, 80, urlRadius));
+
+      const pos = typeof s.position === 'string' ? s.position : urlPosition;
+      if (
+        pos === 'random' ||
+        pos === 'center' ||
+        pos === 'top' ||
+        pos === 'bottom' ||
+        pos === 'top-left' ||
+        pos === 'top-right' ||
+        pos === 'bottom-left' ||
+        pos === 'bottom-right'
+      ) {
+        setUrlPosition(pos);
+      }
+
+      setUrlVolume(clampFloatLocal(s.volume, 0, 1, urlVolume));
+      const sm = s.scaleMode === 'range' ? 'range' : 'fixed';
+      setScaleMode(sm);
+      setScaleFixed(clampFloatLocal(s.scaleFixed, 0.25, 2.5, scaleFixed));
+      setScaleMin(clampFloatLocal(s.scaleMin, 0.25, 2.5, scaleMin));
+      setScaleMax(clampFloatLocal(s.scaleMax, 0.25, 2.5, scaleMax));
+
+      const anim = typeof s.anim === 'string' ? s.anim : urlAnim;
+      if (anim === 'fade' || anim === 'zoom' || anim === 'slide-up' || anim === 'pop' || anim === 'lift' || anim === 'none') setUrlAnim(anim);
+      setUrlEnterMs(clampIntLocal(s.enterMs, 0, 1200, urlEnterMs));
+      setUrlExitMs(clampIntLocal(s.exitMs, 0, 1200, urlExitMs));
+      const easing = typeof s.easing === 'string' ? s.easing : animEasingPreset;
+      if (easing === 'ios' || easing === 'smooth' || easing === 'snappy' || easing === 'linear' || easing === 'custom') setAnimEasingPreset(easing);
+      setAnimEasingX1(clampFloatLocal(s.easingX1, -1, 2, animEasingX1));
+      setAnimEasingY1(clampFloatLocal(s.easingY1, -1, 2, animEasingY1));
+      setAnimEasingX2(clampFloatLocal(s.easingX2, -1, 2, animEasingX2));
+      setAnimEasingY2(clampFloatLocal(s.easingY2, -1, 2, animEasingY2));
+
+      setShadowBlur(clampIntLocal(s.shadowBlur, 0, 200, shadowBlur));
+      setShadowSpread(clampIntLocal(s.shadowSpread, 0, 120, shadowSpread));
+      setShadowDistance(clampIntLocal(s.shadowDistance, 0, 120, shadowDistance));
+      setShadowAngle(clampFloatLocal(s.shadowAngle, 0, 360, shadowAngle));
+      setShadowOpacity(clampFloatLocal(s.shadowOpacity, 0, 1, shadowOpacity));
+      if (isHexColor(s.shadowColor)) setShadowColor(String(s.shadowColor).toLowerCase());
+
+      if (typeof s.glass === 'boolean') setGlassEnabled(s.glass);
+      const gp = typeof s.glassPreset === 'string' ? s.glassPreset : glassPreset;
+      if (gp === 'ios' || gp === 'clear' || gp === 'prism') setGlassPreset(gp as any);
+      if (isHexColor(s.glassTintColor)) setGlassTintColor(String(s.glassTintColor).toLowerCase());
+      setGlassTintStrength(clampFloatLocal(s.glassTintStrength, 0, 1, glassTintStrength));
+      setUrlBlur(clampIntLocal(s.blur, 0, 40, urlBlur));
+      setUrlBgOpacity(clampFloatLocal(s.bgOpacity, 0, 0.65, urlBgOpacity));
+
+      setSenderHoldMs(clampIntLocal(s.senderHoldMs, 0, 8000, senderHoldMs));
+      if (isHexColor(s.senderBgColor)) setSenderBgColor(String(s.senderBgColor).toLowerCase());
+      setSenderBgOpacity(clampFloatLocal(s.senderBgOpacity, 0, 1, senderBgOpacity));
+      setSenderBgRadius(clampIntLocal(s.senderBgRadius, 0, 999, senderBgRadius));
+
+      const st = typeof s.senderStroke === 'string' ? s.senderStroke : senderStroke;
+      if (st === 'none' || st === 'glass' || st === 'solid') setSenderStroke(st);
+      setSenderStrokeWidth(clampIntLocal(s.senderStrokeWidth, 0, 6, senderStrokeWidth));
+      setSenderStrokeOpacity(clampFloatLocal(s.senderStrokeOpacity, 0, 1, senderStrokeOpacity));
+      if (isHexColor(s.senderStrokeColor)) setSenderStrokeColor(String(s.senderStrokeColor).toLowerCase());
+
+      setSenderFontSize(clampIntLocal(s.senderFontSize, 10, 28, senderFontSize));
+      setSenderFontWeight(clampIntLocal(s.senderFontWeight, 400, 800, senderFontWeight));
+      const ff = typeof s.senderFontFamily === 'string' ? s.senderFontFamily : senderFontFamily;
+      setSenderFontFamily(ff as any);
+      if (isHexColor(s.senderFontColor)) setSenderFontColor(String(s.senderFontColor).toLowerCase());
+    },
+    [
+      animEasingPreset,
+      animEasingX1,
+      animEasingX2,
+      animEasingY1,
+      animEasingY2,
+      borderTintStrength,
+      glassPreset,
+      glassTintStrength,
+      overlayMaxConcurrent,
+      overlayMode,
+      overlayShowSender,
+      scaleFixed,
+      scaleMax,
+      scaleMin,
+      senderBgOpacity,
+      senderBgRadius,
+      senderFontFamily,
+      senderFontSize,
+      senderFontWeight,
+      senderHoldMs,
+      senderStroke,
+      senderStrokeColor,
+      senderStrokeOpacity,
+      senderStrokeWidth,
+      shadowAngle,
+      shadowBlur,
+      shadowDistance,
+      shadowOpacity,
+      shadowSpread,
+      urlAnim,
+      urlBgOpacity,
+      urlBlur,
+      urlBorder,
+      urlBorderGradientAngle,
+      urlPosition,
+      urlRadius,
+      urlVolume,
+    ]
   );
 
   useEffect(() => {
@@ -1383,6 +1708,51 @@ function ObsLinksSettings() {
     return overlaySettingsPayload !== lastSavedOverlaySettingsPayload;
   }, [lastSavedOverlaySettingsPayload, overlaySettingsPayload]);
 
+  const openExportModal = useCallback(() => {
+    try {
+      const payload = makeSharePayload();
+      const code = encodeShareCode(payload);
+      setExportCode(code);
+      // Modern share: copyable URL. Applying it will NOT auto-save; user still clicks "Save".
+      const u = new URL(window.location.href);
+      u.searchParams.set('overlayPreset', code);
+      setExportLink(u.toString());
+      setExportModalOpen(true);
+    } catch (e) {
+      toast.error(t('admin.overlayShareExportFailed', { defaultValue: 'Не удалось экспортировать настройки' }));
+    }
+  }, [encodeShareCode, makeSharePayload, t]);
+
+  const applyImportText = useCallback(() => {
+    try {
+      const payload = decodeShareCode(importText);
+      applySharePayload(payload);
+      setImportModalOpen(false);
+      setImportText('');
+      toast.success(t('admin.overlayShareApplied', { defaultValue: 'Настройки применены (не забудьте нажать «Сохранить»)' }));
+    } catch (e) {
+      toast.error(t('admin.overlayShareImportFailed', { defaultValue: 'Код не распознан или повреждён' }));
+    }
+  }, [applySharePayload, decodeShareCode, importText, t]);
+
+  useEffect(() => {
+    // Auto-apply share link (modern flow).
+    try {
+      const u = new URL(window.location.href);
+      const code = u.searchParams.get('overlayPreset');
+      if (!code) return;
+      const payload = decodeShareCode(code);
+      applySharePayload(payload);
+      // Remove param after applying (avoid re-applying on refresh).
+      u.searchParams.delete('overlayPreset');
+      window.history.replaceState({}, '', u.toString());
+      toast.success(t('admin.overlayShareApplied', { defaultValue: 'Настройки применены (не забудьте нажать «Сохранить»)' }));
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSaveOverlaySettings = useCallback(async (): Promise<void> => {
     if (!channelSlug) return;
     if (loadingOverlaySettings) return;
@@ -1689,6 +2059,24 @@ function ObsLinksSettings() {
                           {t('admin.unsavedChanges', { defaultValue: 'Есть несохранённые изменения' })}
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="glass-btn px-3 py-2 text-sm font-semibold"
+                        onClick={() => setImportModalOpen(true)}
+                        disabled={savingOverlaySettings || loadingOverlaySettings}
+                        title={t('admin.overlayShareImport', { defaultValue: 'Импорт' })}
+                      >
+                        {t('admin.overlayShareImport', { defaultValue: 'Импорт' })}
+                      </button>
+                      <button
+                        type="button"
+                        className="glass-btn px-3 py-2 text-sm font-semibold"
+                        onClick={openExportModal}
+                        disabled={savingOverlaySettings || loadingOverlaySettings}
+                        title={t('admin.overlayShareExport', { defaultValue: 'Экспорт' })}
+                      >
+                        {t('admin.overlayShareExport', { defaultValue: 'Экспорт' })}
+                      </button>
                       <button
                         type="button"
                         className={`glass-btn px-4 py-2 text-sm font-semibold ${overlaySettingsDirty ? '' : 'opacity-60'}`}
@@ -2493,6 +2881,127 @@ function ObsLinksSettings() {
           </div>
           </div>
         </details>
+
+        {/* Export / Import modals */}
+        {exportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setExportModalOpen(false)} />
+            <div className="relative w-full max-w-2xl glass p-5 rounded-2xl border border-white/20 dark:border-white/10">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t('admin.overlayShareExportTitle', { defaultValue: 'Экспорт настроек' })}
+                </div>
+                <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => setExportModalOpen(false)}>
+                  {t('common.close', { defaultValue: 'Закрыть' })}
+                </button>
+              </div>
+              <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">
+                {t('admin.overlayShareExportHint', {
+                  defaultValue: 'Скопируйте код или ссылку и отправьте другому человеку. Это не секрет — только внешний вид.',
+                })}
+              </div>
+              <div className="mt-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                  {t('admin.overlayShareCode', { defaultValue: 'Код' })}
+                </div>
+                <textarea
+                  value={exportCode}
+                  readOnly
+                  className="w-full h-28 rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className="glass-btn px-3 py-2 text-sm font-semibold"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(exportCode);
+                        toast.success(t('admin.copied', { defaultValue: 'Скопировано' }));
+                      } catch {
+                        toast.error(t('admin.copyFailed', { defaultValue: 'Не удалось скопировать' }));
+                      }
+                    }}
+                  >
+                    {t('admin.copyCode', { defaultValue: 'Копировать код' })}
+                  </button>
+                </div>
+              </div>
+              <div className="mt-5">
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                  {t('admin.overlayShareLink', { defaultValue: 'Ссылка' })}
+                </div>
+                <input
+                  value={exportLink}
+                  readOnly
+                  className="w-full rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className="glass-btn px-3 py-2 text-sm font-semibold"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(exportLink);
+                        toast.success(t('admin.copied', { defaultValue: 'Скопировано' }));
+                      } catch {
+                        toast.error(t('admin.copyFailed', { defaultValue: 'Не удалось скопировать' }));
+                      }
+                    }}
+                  >
+                    {t('admin.copyLink', { defaultValue: 'Копировать ссылку' })}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {importModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setImportModalOpen(false)} />
+            <div className="relative w-full max-w-2xl glass p-5 rounded-2xl border border-white/20 dark:border-white/10">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t('admin.overlayShareImportTitle', { defaultValue: 'Импорт настроек' })}
+                </div>
+                <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => setImportModalOpen(false)}>
+                  {t('common.close', { defaultValue: 'Закрыть' })}
+                </button>
+              </div>
+              <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">
+                {t('admin.overlayShareImportHint', { defaultValue: 'Вставьте код или ссылку и нажмите «Применить».' })}
+              </div>
+              <div className="mt-4">
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder={t('admin.overlayShareImportPlaceholder', { defaultValue: 'MA1.... или ссылка' })}
+                  className="w-full h-28 rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
+                />
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  className="glass-btn px-4 py-2 text-sm font-semibold"
+                  onClick={applyImportText}
+                  disabled={!importText.trim()}
+                >
+                  {t('admin.overlayShareApply', { defaultValue: 'Применить' })}
+                </button>
+                <button
+                  type="button"
+                  className="glass-btn px-4 py-2 text-sm font-semibold opacity-80"
+                  onClick={() => {
+                    setImportText('');
+                    setImportModalOpen(false);
+                  }}
+                >
+                  {t('common.cancel', { defaultValue: 'Отмена' })}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="glass p-4">
           <div className="font-semibold text-gray-900 dark:text-white mb-2">
