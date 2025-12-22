@@ -40,21 +40,32 @@ Workflow: `.github/workflows/ci-cd.yml`
 
 - **`DOMAIN`** (например `twitchmemes.ru`)
 - **`JWT_SECRET_BETA`** (изоляция cookie/token между beta и production)
-- **`DATABASE_URL_BETA`** (отдельная база для beta — см. ниже)
+- **`BETA_DB_MODE`**: `shared` (по умолчанию) или `separate`
+- **`DATABASE_URL_BETA`** (нужен только если `BETA_DB_MODE=separate`)
 
-## Важное про beta DB (почему это влияет на “проблемы при деплое в main”)
+## Важное про beta DB (режимы shared/separate)
 
-### Рекомендовано: отдельная БД для beta
+### Режим `shared` (по умолчанию): одна БД на beta и prod
 
-Если beta и production используют одну и ту же БД, то миграции, попавшие в `develop`, могут:
+Это режим “один профиль/одни данные, разный функционал”.  
+Beta и production смотрят на один `DATABASE_URL`.
+
+Важно: если beta и production используют одну и ту же БД, то миграции, попавшие в `develop`, могут:
 
 - ломать production код **до** релиза (если миграция не обратно‑совместима)
 - создавать “сложные” релизы на `main` (когда нужно чинить прод прямо во время деплоя)
 
-Поэтому в CI/CD предусмотрено:
+Рекомендация для `shared`:
 
-- **`DATABASE_URL_BETA`** → beta использует отдельную БД (safe staging)
-- если `DATABASE_URL_BETA` не задан — будет fallback на `DATABASE_URL` (осознанно, но не рекомендовано)
+- Делать миграции **только additive / обратно‑совместимые** (expand/contract).
+- Избегать drop/rename в одном релизе.
+
+### Режим `separate`: отдельная БД для beta
+
+Если нужно безопасно тестировать схему и данные отдельно, ставьте:
+
+- `BETA_DB_MODE=separate`
+- `DATABASE_URL_BETA=...`
 
 Также:
 

@@ -460,10 +460,20 @@ jobs:
             fi
             
             # Create .env file with beta port
-            # Database strategy:
-            # - Recommended: separate DB for beta via DATABASE_URL_BETA (safe staging: migrations/data won't affect prod)
-            # - Fallback: DATABASE_URL (not recommended; only if you intentionally want shared data)
-            BETA_DB_URL="${{ secrets.DATABASE_URL_BETA || secrets.DATABASE_URL }}"
+            #
+            # Database mode:
+            # - shared (default): beta uses the same DB as production (same data, different functionality)
+            # - separate: beta uses DATABASE_URL_BETA (safe staging)
+            BETA_DB_MODE="${{ secrets.BETA_DB_MODE || 'shared' }}"
+            if [ "$BETA_DB_MODE" = "separate" ]; then
+              BETA_DB_URL="${{ secrets.DATABASE_URL_BETA }}"
+            else
+              BETA_DB_URL="${{ secrets.DATABASE_URL }}"
+            fi
+            if [ -z "$BETA_DB_URL" ]; then
+              echo "❌ ERROR: BETA_DB_URL is empty. Check secrets: DATABASE_URL and/or DATABASE_URL_BETA."
+              exit 1
+            fi
             
             # Validate DATABASE_URL format before creating .env
             echo "Validating DATABASE_URL format..."
