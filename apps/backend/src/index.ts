@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -130,7 +130,7 @@ if (compressionEnabled) {
   app.use(
     compression({
       threshold,
-      filter: (req, res) => {
+      filter: (req: Request, res: ExpressResponse) => {
         // Do not compress if something already set encoding.
         if (res.getHeader('Content-Encoding')) return false;
         // Avoid compressing static uploads; nginx can handle these better.

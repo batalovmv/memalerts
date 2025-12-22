@@ -82,7 +82,7 @@ Backend API для системы активации мемов через Twitc
 - **CORS**: Ограничен конкретными доменами (beta и production)
 - **Webhook security**: HMAC проверка EventSub webhooks
 
-**Подробная документация**: См. [SECURITY_FEATURES.md](./SECURITY_FEATURES.md)
+Архитектура и структура модулей: см. [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ### Автоматический деплой
 - CI/CD через GitHub Actions
@@ -139,12 +139,13 @@ Backend API для системы активации мемов через Twitc
 │   ├── schema.prisma    # Prisma схема базы данных
 │   └── migrations/       # Миграции БД
 ├── src/
-│   ├── controllers/     # Контроллеры для обработки запросов
-│   │   ├── authController.ts
-│   │   ├── viewerController.ts
-│   │   ├── submissionController.ts
-│   │   ├── adminController.ts
-│   │   └── webhookController.ts
+│   ├── controllers/       # Контроллеры (фасады + модульные папки)
+│   │   ├── adminController.ts        # фасад -> controllers/admin/*
+│   │   ├── viewerController.ts       # фасад -> controllers/viewer/*
+│   │   ├── submissionController.ts   # фасад -> controllers/submission/*
+│   │   ├── admin/                    # стример/owner эндпоинты (по фичам)
+│   │   ├── viewer/                   # viewer эндпоинты (по фичам)
+│   │   └── submission/               # submissions/upload/import (по фичам)
 │   ├── middleware/      # Express middleware
 │   │   ├── auth.ts
 │   │   ├── errorHandler.ts
@@ -160,6 +161,8 @@ Backend API для системы активации мемов через Twitc
 ├── .github/
 │   └── workflows/
 │       └── ci-cd.yml    # GitHub Actions CI/CD
+├── pnpm-workspace.yaml  # изоляция repo (pnpm работает внутри memalerts-backend)
+├── pnpm-lock.yaml       # lockfile для воспроизводимых сборок
 └── uploads/             # Загруженные файлы (мемы)
 ```
 
@@ -195,6 +198,10 @@ pnpm dev
 4. Код деплоится на VPS
 5. Применяются миграции БД
 6. Приложение перезапускается через PM2
+
+**Как запустить деплой прямо сейчас**:
+- Production: сделай commit → push в `main` (или нажми `Run workflow` в Actions для `Backend CI/CD`).
+- Beta: commit → push в `develop`.
 
 ## 📝 Переменные окружения
 
