@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { Prisma } from '@prisma/client';
+import crypto from 'crypto';
 import { debugLog, debugError } from '../utils/debug.js';
 import { activateMemeSchema } from '../shared/index.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promotions.js';
@@ -9,7 +10,7 @@ import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 
-type CacheEntry<T> = { ts: number; data: T };
+type CacheEntry<T> = { ts: number; data: T; etag?: string };
 const channelMetaCache = new Map<string, CacheEntry<any>>();
 const CHANNEL_META_CACHE_MS_DEFAULT = 60_000;
 
@@ -96,6 +97,21 @@ function setChannelMetaCacheHeaders(req: any, res: Response) {
   }
 }
 
+function makeEtagFromString(body: string): string {
+  // Strong ETag for deterministic JSON payloads (we already cap sizes).
+  const hash = crypto.createHash('sha1').update(body).digest('base64');
+  return `"${hash}"`;
+}
+
+function ifNoneMatchHit(req: any, etag: string | undefined): boolean {
+  if (!etag) return false;
+  const inm = req?.headers?.['if-none-match'];
+  if (!inm) return false;
+  const raw = Array.isArray(inm) ? inm.join(',') : String(inm);
+  // Exact match (common case); we don't parse weak etags or lists deeply.
+  return raw.split(',').map((s) => s.trim()).includes(etag);
+}
+
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
     const slug = String(req.params.slug || '').trim();
@@ -127,6 +143,8 @@ export const viewerController = {
       const cached = channelMetaCache.get(cacheKey);
       const ttl = getChannelMetaCacheMs();
       if (cached && Date.now() - cached.ts < ttl) {
+        if (cached.etag) res.setHeader('ETag', cached.etag);
+        if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
         return res.json(cached.data);
       }
     }
@@ -220,8 +238,17 @@ export const viewerController = {
       }
 
       if (!includeMemes) {
-        channelMetaCache.set(cacheKey, { ts: Date.now(), data: response });
+        const body = JSON.stringify(response);
+        const etag = makeEtagFromString(body);
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) {
+          channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
+          return res.status(304).end();
+        }
+        channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
+        return res.type('application/json').send(body);
       }
+
       res.json(response);
     } catch (error: any) {
       // If error is about missing columns, try query without color fields
@@ -295,7 +322,12 @@ export const viewerController = {
 
         if (!includeMemes) {
           setChannelMetaCacheHeaders(req, res);
-          channelMetaCache.set(cacheKey, { ts: Date.now(), data: response });
+          const body = JSON.stringify(response);
+          const etag = makeEtagFromString(body);
+          res.setHeader('ETag', etag);
+          channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
+          if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+          return res.type('application/json').send(body);
         }
         return res.json(response);
       }
@@ -518,7 +550,15 @@ export const viewerController = {
       skip: offset,
     });
 
-    res.json(memes);
+    try {
+      const body = JSON.stringify(memes);
+      const etag = makeEtagFromString(body);
+      res.setHeader('ETag', etag);
+      if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+      return res.type('application/json').send(body);
+    } catch {
+      return res.json(memes);
+    }
   },
 
   getMemes: async (req: AuthRequest, res: Response) => {
