@@ -313,8 +313,19 @@ export const adminController = {
     const channelId = req.channelId;
     const limitRaw = req.query.limit as string | undefined;
     const offsetRaw = req.query.offset as string | undefined;
-    const limit = limitRaw !== undefined ? parseInt(limitRaw, 10) : undefined;
-    const offset = offsetRaw !== undefined ? parseInt(offsetRaw, 10) : undefined;
+    const includeTotalRaw = req.query.includeTotal as string | undefined;
+    const includeTotal =
+      includeTotalRaw !== undefined &&
+      (includeTotalRaw === '1' || includeTotalRaw.toLowerCase() === 'true' || includeTotalRaw.toLowerCase() === 'yes');
+
+    // Defensive paging (admin endpoints can still be abused).
+    const maxFromEnv = parseInt(String(process.env.ADMIN_SUBMISSIONS_PAGE_MAX || ''), 10);
+    const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 100;
+    const limitParsed = limitRaw !== undefined ? parseInt(limitRaw, 10) : undefined;
+    const offsetParsed = offsetRaw !== undefined ? parseInt(offsetRaw, 10) : undefined;
+    const limit =
+      limitParsed !== undefined && Number.isFinite(limitParsed) && limitParsed > 0 ? Math.min(limitParsed, MAX_PAGE) : undefined;
+    const offset = offsetParsed !== undefined && Number.isFinite(offsetParsed) && offsetParsed >= 0 ? offsetParsed : undefined;
 
     if (!channelId) {
       return res.status(400).json({ error: 'Channel ID required' });
@@ -394,7 +405,8 @@ export const adminController = {
         return res.json(submissions);
       }
 
-      const total = await prisma.memeSubmission.count({ where });
+      // Perf: counting can be expensive on large datasets; only compute if requested.
+      const total = includeTotal ? await prisma.memeSubmission.count({ where }) : null;
       return res.json({ items: submissions, total });
     } catch (error: any) {
       console.error('Error in getSubmissions:', error);
