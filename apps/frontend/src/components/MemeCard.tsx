@@ -180,7 +180,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       ref={(node) => {
         cardRef.current = node;
       }}
-      className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] will-change-transform transform-gpu transition-[transform,filter] duration-200 ease-out hover:scale-[1.07] hover:-translate-y-1 hover:z-20 hover:drop-shadow-2xl"
+      className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] will-change-transform transition-transform duration-200 ease-out hover:scale-[1.02]"
       onMouseEnter={() => {
         setIsHovered(true);
         if (!shouldLoadMedia) return;
