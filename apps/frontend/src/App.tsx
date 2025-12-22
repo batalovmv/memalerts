@@ -18,6 +18,7 @@ import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
 import { useAppSelector } from './store/hooks';
 import { api } from './lib/api';
+import GlobalErrorBanner from './components/GlobalErrorBanner';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -67,6 +68,7 @@ function App() {
     return (
       <>
         <Toaster position="top-right" />
+        <GlobalErrorBanner />
         <BetaAccessRequest />
       </>
     );
@@ -75,6 +77,7 @@ function App() {
   return (
     <SocketProvider>
       <Toaster position="top-right" />
+      <GlobalErrorBanner />
       <div className="flex flex-col min-h-screen overflow-x-hidden">
         <div className="flex-1">
           <Routes>

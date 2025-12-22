@@ -8,6 +8,7 @@ import { ThemeProvider } from './contexts/ThemeContext.tsx';
 import { ChannelColorsProvider } from './contexts/ChannelColorsContext.tsx';
 import { loadRuntimeConfig } from './lib/runtimeConfig';
 import { setApiBaseUrl } from './lib/api';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './i18n/config';
 import './index.css';
 
@@ -43,7 +44,9 @@ async function bootstrap() {
         <BrowserRouter>
           <ThemeProvider>
             <ChannelColorsProvider>
-              <App />
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
             </ChannelColorsProvider>
           </ThemeProvider>
         </BrowserRouter>

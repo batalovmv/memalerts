@@ -85,6 +85,8 @@ export default function StreamerProfile() {
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
 
+  // (Removed) public-profile hover-sound toggle: keep current behavior without a user-visible switch.
+
   // Helpers: use CSS variables (set by ChannelThemeProvider) to build subtle tints safely.
   // We avoid Tailwind color opacity modifiers here because theme colors are CSS vars (hex), and
   // utilities like `border-secondary/30` may not render as expected with `var(--color)`.
@@ -315,7 +317,20 @@ export default function StreamerProfile() {
       secondaryColor={channelInfo?.secondaryColor}
       accentColor={channelInfo?.accentColor}
     >
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 relative overflow-hidden">
+        {/* Apple-ish theme background using all 3 channel colors */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: [
+              `radial-gradient(70% 60% at 18% 14%, ${mix('--primary-color', 18)} 0%, transparent 60%)`,
+              `radial-gradient(60% 55% at 82% 18%, ${mix('--secondary-color', 16)} 0%, transparent 62%)`,
+              `radial-gradient(70% 60% at 55% 88%, ${mix('--accent-color', 14)} 0%, transparent 62%)`,
+              `linear-gradient(135deg, ${mix('--primary-color', 10)} 0%, transparent 45%, ${mix('--secondary-color', 10)} 100%)`,
+            ].join(', '),
+          }}
+        />
         <Header
           coinIconUrl={channelInfo?.coinIconUrl} 
           channelSlug={slug}
@@ -372,13 +387,21 @@ export default function StreamerProfile() {
                   </div>
                 )}
                 <div>
-                  <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
+                  </div>
                   <div className="mt-4 flex gap-4 text-sm">
                     <span
                       className="inline-flex items-center rounded-full px-3 py-1 text-accent font-semibold"
                       style={{ backgroundColor: mix('--accent-color', 14) }}
                     >
                       {channelInfo.stats.memesCount} {t('profile.memes')}
+                    </span>
+                    <span
+                      className="inline-flex items-center rounded-full px-3 py-1 text-secondary font-semibold"
+                      style={{ backgroundColor: mix('--secondary-color', 14) }}
+                    >
+                      {channelInfo.stats.usersCount} {t('profile.users', { defaultValue: 'users' })}
                     </span>
                   </div>
                 </div>
@@ -419,7 +442,8 @@ export default function StreamerProfile() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder') || 'Search memes...'}
-              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
+              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border"
+              style={{ borderColor: mix('--secondary-color', 28) }}
             />
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -442,28 +466,42 @@ export default function StreamerProfile() {
             )}
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
-            <label
-              className={`inline-flex items-center gap-2 text-sm glass px-3 py-2 ${
-                isAuthed ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              className={`inline-flex items-center gap-2 text-sm rounded-full px-4 py-2 border shadow-sm transition-colors select-none ${
+                !isAuthed
+                  ? 'opacity-60 cursor-not-allowed bg-white/60 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-500 dark:text-gray-400'
+                  : myFavorites
+                    ? 'bg-white/80 dark:bg-gray-900/60 border-accent/30 text-accent'
+                    : 'bg-white/70 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10'
               }`}
+              onClick={() => {
+                if (!isAuthed) {
+                  setAuthModalOpen(true);
+                  return;
+                }
+                setMyFavorites((v) => !v);
+              }}
               title={isAuthed ? '' : t('auth.loginToUseFavorites', 'Log in to use favorites')}
+              aria-pressed={myFavorites}
             >
-              <input
-                type="checkbox"
-                checked={myFavorites}
-                disabled={!isAuthed}
-                onChange={(e) => {
-                  if (!isAuthed) {
-                    setAuthModalOpen(true);
-                    return;
-                  }
-                  setMyFavorites(e.target.checked);
-                }}
-                className="h-4 w-4 rounded"
-              />
+              <svg
+                className={`w-4 h-4 ${myFavorites ? 'text-accent' : 'text-gray-500 dark:text-gray-300'}`}
+                viewBox="0 0 24 24"
+                fill={myFavorites ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 21s-7-4.535-9.5-8.5C.5 9.5 2.5 6 6.5 6c2.04 0 3.57 1.1 4.5 2.2C11.93 7.1 13.46 6 15.5 6c4 0 6 3.5 4 6.5C19 16.465 12 21 12 21z"
+                />
+              </svg>
               {t('search.myFavorites', 'My favorites')}
-            </label>
+            </button>
           </div>
 
           {searchQuery && (
@@ -479,7 +517,9 @@ export default function StreamerProfile() {
         {/* Memes List */}
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('profile.availableMemes')}</h2>
         {(() => {
-          const memesToDisplay = searchQuery.trim() ? searchResults : memes;
+          // If favorites is enabled, we always render searchResults (even with empty query).
+          // Otherwise, only render searchResults when user is actually searching.
+          const memesToDisplay = (myFavorites || searchQuery.trim()) ? searchResults : memes;
           
           if (memesLoading && !searchQuery.trim()) {
             return (
@@ -513,7 +553,7 @@ export default function StreamerProfile() {
                       setIsModalOpen(true);
                     }}
                     isOwner={isOwner}
-                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
+                    previewMode={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverMuted'}
                   />
                 ))}
               </div>

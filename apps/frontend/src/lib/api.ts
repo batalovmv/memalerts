@@ -1,5 +1,53 @@
 import axios, { AxiosError, AxiosResponse, AxiosInstance, AxiosRequestConfig } from 'axios';
 
+export function getRequestIdFromError(error: unknown): string | null {
+  const maybeAxios = error as AxiosError | null;
+  const headerReqId =
+    (maybeAxios?.response?.headers as any)?.['x-request-id'] ||
+    (maybeAxios?.response?.headers as any)?.['x-requestid'] ||
+    (maybeAxios?.response?.headers as any)?.['x-correlation-id'];
+
+  if (typeof headerReqId === 'string' && headerReqId.trim()) return headerReqId.trim();
+
+  const dataReqId = (maybeAxios?.response?.data as any)?.requestId;
+  if (typeof dataReqId === 'string' && dataReqId.trim()) return dataReqId.trim();
+
+  const anyErr = error as any;
+  const attached = anyErr?.requestId;
+  if (typeof attached === 'string' && attached.trim()) return attached.trim();
+
+  return null;
+}
+
+function emitGlobalApiError(error: AxiosError) {
+  // Don't spam global UI for auth churn or intentional cancellations.
+  const status = error.response?.status ?? null;
+  if (status === 401) return;
+
+  const requestId = getRequestIdFromError(error);
+  const path = (error.config?.url as string | undefined) || null;
+  const method = (error.config?.method as string | undefined)?.toUpperCase?.() || null;
+  const message =
+    (error.response?.data as any)?.error ||
+    (error.response?.data as any)?.message ||
+    error.message ||
+    'Request failed';
+
+  window.dispatchEvent(
+    new CustomEvent('memalerts:globalError', {
+      detail: {
+        kind: 'api',
+        message,
+        requestId,
+        status,
+        path,
+        method,
+        ts: new Date().toISOString(),
+      },
+    })
+  );
+}
+
 // Custom API interface that returns data directly instead of AxiosResponse
 interface CustomAxiosInstance {
   request: <T = unknown>(config: AxiosRequestConfig) => Promise<T>;
@@ -237,6 +285,20 @@ axiosInstance.interceptors.response.use(
       if (!errorData.error && !errorData.message) {
         errorData.error = 'An error occurred';
       }
+    }
+
+    // Attach requestId for easier UI diagnostics (also available in headers).
+    try {
+      const requestId = getRequestIdFromError(error);
+      (error as any).requestId = requestId;
+    } catch {
+      // ignore
+    }
+
+    try {
+      emitGlobalApiError(error);
+    } catch {
+      // ignore
     }
     
     return Promise.reject(error);

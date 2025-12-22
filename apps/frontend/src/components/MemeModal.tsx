@@ -35,7 +35,13 @@ export default function MemeModal({
   });
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => {
+    try {
+      return window.localStorage.getItem('memalerts:memeModalMuted') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -51,6 +57,12 @@ export default function MemeModal({
       setIsEditing(false);
     }
   }, [meme]);
+
+  // Sync mute onto the element as soon as the meme changes / modal opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (videoRef.current) videoRef.current.muted = isMuted;
+  }, [isOpen, currentMeme?.id, isMuted]);
 
   // Auto-play video when modal opens
   useEffect(() => {
@@ -131,8 +143,14 @@ export default function MemeModal({
 
   const handleMute = () => {
     if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
+      const next = !isMuted;
+      videoRef.current.muted = next;
+      setIsMuted(next);
+      try {
+        window.localStorage.setItem('memalerts:memeModalMuted', next ? '1' : '0');
+      } catch {
+        // ignore
+      }
     }
   };
 
@@ -224,21 +242,33 @@ export default function MemeModal({
         role="document"
       >
         {/* Video Section - Left */}
-        <section className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto" aria-label="Video player">
+        <section className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto overflow-hidden" aria-label="Video player">
+          {/* Blurred background to avoid black bars on vertical videos */}
+          <video
+            src={videoUrl}
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
+            preload="auto"
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+
           <video
             ref={videoRef}
             src={videoUrl}
+            muted={isMuted}
             loop
             playsInline
-            className="w-full h-full object-contain"
+            className="relative z-10 w-full h-full object-contain"
             preload="auto"
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             onError={() => {
-              // Don't spam toasts; just give a useful hint.
-              toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Failed to load video source' }));
+              toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
             }}
-            aria-label={`Video: ${currentMeme.title}`}
+            aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
           />
           
           {/* Custom Video Controls */}
@@ -246,7 +276,7 @@ export default function MemeModal({
             <button
               onClick={handlePlayPause}
               className="text-white hover:text-gray-300 transition-colors"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
+              aria-label={isPlaying ? t('common.pause', { defaultValue: 'Пауза' }) : t('common.play', { defaultValue: 'Воспроизвести' })}
             >
               {isPlaying ? (
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -261,7 +291,7 @@ export default function MemeModal({
             <button
               onClick={handleMute}
               className="text-white hover:text-gray-300 transition-colors"
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
+              aria-label={isMuted ? t('common.soundOn', { defaultValue: 'Со звуком' }) : t('common.mute', { defaultValue: 'Без звука' })}
             >
               {isMuted ? (
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -277,7 +307,7 @@ export default function MemeModal({
         </section>
 
         {/* Info Section - Right */}
-        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-secondary/30 dark:border-secondary/30 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative" aria-label="Meme information">
+        <aside className="w-full md:w-80 border-t md:border-t-0 border-secondary/30 dark:border-secondary/30 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative" aria-label="Meme information">
           {/* Action buttons in top right corner */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
             {mode === 'admin' && isOwner && (

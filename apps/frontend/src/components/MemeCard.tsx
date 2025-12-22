@@ -5,15 +5,15 @@ interface MemeCardProps {
   meme: Meme;
   onClick: () => void;
   isOwner?: boolean;
-  previewMode?: 'hoverWithSound' | 'autoplayMuted';
+  previewMode?: 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 }
 
 export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const hasUserInteractedRef = useRef(false);
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
-  const [hasEverHovered, setHasEverHovered] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -21,6 +21,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   useEffect(() => {
     const handlePageInteraction = () => {
       setHasUserInteracted(true);
+      hasUserInteractedRef.current = true;
     };
     
     // Listen for any user interaction on the page
@@ -134,43 +135,43 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
 
   // Handle video playback on hover (unified logic)
   useEffect(() => {
-    if (videoRef.current && meme.type === 'video') {
-      const video = videoRef.current;
-      if (!shouldLoadMedia) {
-        video.pause();
-        return;
-      }
-      if (previewMode === 'autoplayMuted') {
-        // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
-        video.muted = true;
-        void video.play().catch(() => {});
-        return;
-      }
-
-      // Hover preview: start from 0 on hover, but do NOT restart when leaving.
-      // When leaving, keep playing muted (so previous meme continues), and the newly hovered meme restarts.
-      if (isHovered) {
-        void video.play().catch(() => {});
-        video.muted = !hasUserInteracted;
-      } else if (hasEverHovered) {
-        video.muted = true;
-        void video.play().catch(() => {});
-      } else {
-        video.pause();
-        video.muted = true;
-      }
+    if (!videoRef.current || meme.type !== 'video') return;
+    const video = videoRef.current;
+    if (!shouldLoadMedia) {
+      video.pause();
+      return;
     }
-  }, [meme.type, isHovered, hasUserInteracted, previewMode, shouldLoadMedia, hasEverHovered]);
+
+    if (previewMode === 'autoplayMuted') {
+      // Feed-style preview: always muted autoplay (browser allows autoplay only when muted).
+      void video.play().catch(() => {});
+      return;
+    }
+
+    // Hover previews: only play while hovered (keeps UX predictable and avoids background audio).
+    if (isHovered) {
+      // Make sure volume is sane; muting is controlled by JSX for reliability.
+      video.volume = 1;
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [meme.type, isHovered, previewMode, shouldLoadMedia]);
 
   const handleCardClick = () => {
     setHasUserInteracted(true);
+    hasUserInteractedRef.current = true;
     onClick();
   };
 
   const handleCardInteraction = () => {
     setHasUserInteracted(true);
+    hasUserInteractedRef.current = true;
     if (videoRef.current) {
-      videoRef.current.muted = false;
+      // Only unmute on direct user interaction if sound-on mode is enabled.
+      if (previewMode === 'hoverWithSound') {
+        videoRef.current.muted = false;
+      }
     }
   };
 
@@ -182,7 +183,6 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
       className="block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px] will-change-transform transform-gpu transition-[transform,filter] duration-200 ease-out hover:scale-[1.07] hover:-translate-y-1 hover:z-20 hover:drop-shadow-2xl"
       onMouseEnter={() => {
         setIsHovered(true);
-        setHasEverHovered(true);
         if (!shouldLoadMedia) return;
         if (videoRef.current && meme.type === 'video') {
           // Restart on hover (matches expected UX)
@@ -191,7 +191,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           } catch {
             // ignore
           }
-          void videoRef.current.play().catch(() => {});
+          // Do not call play() here; playback/unmute is coordinated in the effect to avoid races.
         }
       }}
       onMouseLeave={() => {
@@ -218,7 +218,13 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
           <video
             ref={videoRef}
             src={mediaUrl}
-            muted={previewMode === 'autoplayMuted' ? true : (!hasUserInteracted || !isHovered)}
+            // Reliability > cleverness:
+            // Keep `muted` controlled by React to avoid "stuck muted" states.
+            // Sound is allowed only when:
+            // - user enabled hover sound (previewMode === hoverWithSound)
+            // - browser saw a user interaction (hasUserInteracted)
+            // - the card is currently hovered (no background audio)
+            muted={previewMode === 'hoverWithSound' ? !(hasUserInteracted && isHovered) : true}
             autoPlay={previewMode === 'autoplayMuted'}
             loop
             playsInline

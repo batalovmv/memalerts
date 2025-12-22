@@ -356,10 +356,20 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       return;
     }
 
+    let refreshTimer: number | null = null;
+    const scheduleRefreshPending = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        // Pull the first page so cards have fileUrlTemp + submitter info immediately
+        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+      }, 250);
+    };
+
     const onCreated = (data: { submissionId: string; channelId: string; submitterId?: string }) => {
       // Only update if it's for current channel (when available)
       if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
       dispatch(submissionCreated(data));
+      scheduleRefreshPending();
     };
 
     const onApproved = (data: { submissionId: string; channelId: string }) => {
@@ -382,6 +392,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     }
 
     return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
       socket.off('submission:created', onCreated);
       socket.off('submission:approved', onApproved);
       socket.off('submission:rejected', onRejected);
