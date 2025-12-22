@@ -22,16 +22,17 @@ const initialState: SubmissionsState = {
   total: null,
 };
 
-type SubmissionsPage = { items: Submission[]; total: number };
+type SubmissionsPage = { items: Submission[]; total: number | null };
 
 export const fetchSubmissions = createAsyncThunk<
   SubmissionsPage,
-  { status?: string; limit?: number; offset?: number; append?: boolean },
+  { status?: string; limit?: number; offset?: number; append?: boolean; includeTotal?: boolean },
   { rejectValue: ApiError }
->('submissions/fetchSubmissions', async ({ status = 'pending', limit = 20, offset = 0 }, { rejectWithValue }) => {
+>('submissions/fetchSubmissions', async ({ status = 'pending', limit = 20, offset = 0, includeTotal }, { rejectWithValue }) => {
   try {
     const resp = await api.get<Submission[] | SubmissionsPage>('/admin/submissions', {
-      params: { status, limit, offset },
+      // includeTotal is only needed for first page (badge/count); skip otherwise to avoid expensive count() on backend.
+      params: { status, limit, offset, includeTotal: includeTotal ?? (offset === 0 ? 1 : 0) },
       timeout: 15000, // 15 seconds timeout
     });
 
@@ -39,7 +40,7 @@ export const fetchSubmissions = createAsyncThunk<
     if (Array.isArray(resp)) {
       return { items: resp, total: resp.length };
     }
-    return { items: resp.items || [], total: typeof resp.total === 'number' ? resp.total : 0 };
+    return { items: resp.items || [], total: typeof (resp as any).total === 'number' ? (resp as any).total : null };
   } catch (error: unknown) {
     const apiError = error as { response?: { data?: ApiError; status?: number } };
     return rejectWithValue({
