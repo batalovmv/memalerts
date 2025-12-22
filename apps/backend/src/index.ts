@@ -10,6 +10,7 @@ import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
+import { requestContext } from './middleware/requestContext.js';
 import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
 
 dotenv.config();
@@ -99,6 +100,8 @@ httpServer.on('timeout', (socket) => {
 app.set('trust proxy', 1);
 
 // Middleware
+// Attach requestId early and keep access logs controlled (sampling + slow/error logs).
+app.use(requestContext);
 // Configure helmet with proper CSP
 app.use(
   helmet({

@@ -2,6 +2,18 @@ import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 
+function parseNumberEnv(name: string, fallback: number): number {
+  const n = Number.parseFloat(String(process.env[name] ?? ''));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function shouldSample(rate: number): boolean {
+  if (!Number.isFinite(rate)) return true;
+  if (rate >= 1) return true;
+  if (rate <= 0) return false;
+  return Math.random() < rate;
+}
+
 function getOrCreateRequestId(req: Request): string {
   const incoming = (req.headers['x-request-id'] || req.headers['x-correlation-id']) as string | string[] | undefined;
   const fromHeader = Array.isArray(incoming) ? incoming[0] : incoming;
@@ -22,15 +34,43 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
     const durationMs = Number(end - start) / 1_000_000;
 
     const anyReq = req as any;
-    logger.info('http.request', {
+
+    const status = res.statusCode;
+    const roundedMs = Math.round(durationMs);
+
+    const sampleRate = parseNumberEnv(
+      'HTTP_LOG_SAMPLE_RATE',
+      process.env.NODE_ENV === 'production' ? 0.05 : 1
+    );
+    const slowMs = parseNumberEnv(
+      'HTTP_LOG_SLOW_MS',
+      process.env.NODE_ENV === 'production' ? 1000 : 2000
+    );
+
+    const base = {
       requestId,
       method: req.method,
       path: req.path,
-      status: res.statusCode,
-      durationMs: Math.round(durationMs),
+      status,
+      durationMs: roundedMs,
       userId: typeof anyReq.userId === 'string' ? anyReq.userId : null,
       channelId: typeof anyReq.channelId === 'string' ? anyReq.channelId : null,
-    });
+    };
+
+    // Always log 5xx, and always log slow requests.
+    if (status >= 500) {
+      logger.error('http.request', base);
+      return;
+    }
+    if (roundedMs >= slowMs) {
+      logger.warn('http.slow', { ...base, slowMs });
+      return;
+    }
+
+    // Sample the rest to reduce log volume/cost.
+    if (shouldSample(sampleRate)) {
+      logger.info('http.request', { ...base, sampleRate });
+    }
   });
 
   next();
