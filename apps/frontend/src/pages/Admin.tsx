@@ -3106,34 +3106,74 @@ function ObsLinksSettings() {
 function WalletManagement() {
   const { t } = useTranslation();
   const [wallets, setWallets] = useState<Array<Record<string, unknown>>>([]);
+  const [walletUsers, setWalletUsers] = useState<Array<{ id: string; displayName: string; twitchUserId?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [adjustAmount, setAdjustAmount] = useState<string>('');
-  const walletsLoadedRef = useRef(false);
+  const walletsLoadedForUserRef = useRef<string | null>(null);
+  const optionsLoadedRef = useRef(false);
 
-  const fetchWallets = useCallback(async () => {
-    if (walletsLoadedRef.current) return; // Prevent duplicate requests
+  const fetchWalletOptions = useCallback(async () => {
+    if (optionsLoadedRef.current) return;
+    try {
+      setLoadingOptions(true);
+      optionsLoadedRef.current = true;
+      const { api } = await import('../lib/api');
+      const resp = await api.get<{ users: Array<{ id: string; displayName: string; twitchUserId?: string | null }>; channels: Array<{ id: string; name: string; slug: string }> }>(
+        '/admin/wallets/options'
+      );
+      setWalletUsers(resp?.users || []);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      optionsLoadedRef.current = false;
+      toast.error(apiError.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
+    } finally {
+      setLoadingOptions(false);
+    }
+  }, [t]);
+
+  const fetchWallets = useCallback(async (userId?: string, force?: boolean) => {
+    const uid = String(userId || selectedUserId || '').trim();
+    if (!uid) return;
+    if (!force && walletsLoadedForUserRef.current === uid) return;
     
     try {
       setLoading(true);
-      walletsLoadedRef.current = true;
       const { api } = await import('../lib/api');
-      const wallets = await api.get<Array<Record<string, unknown>>>('/admin/wallets');
-      setWallets(wallets);
+      walletsLoadedForUserRef.current = uid;
+      const resp = await api.get<any>('/admin/wallets', {
+        params: { userId: uid, limit: 200, offset: 0, includeTotal: 0 },
+        timeout: 15000,
+      });
+      const items = Array.isArray(resp) ? resp : (resp?.items || []);
+      setWallets(items);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
-      walletsLoadedRef.current = false; // Reset on error to allow retry
+      walletsLoadedForUserRef.current = null; // Reset on error to allow retry
       toast.error(apiError.response?.data?.error || t('admin.failedToLoadWallets') || 'Failed to load wallets');
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, selectedUserId]);
 
   useEffect(() => {
-    fetchWallets();
-  }, [fetchWallets]);
+    void fetchWalletOptions();
+  }, [fetchWalletOptions]);
+
+  useEffect(() => {
+    if (!selectedUserId && walletUsers.length > 0) {
+      setSelectedUserId(walletUsers[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletUsers.length]);
+
+  useEffect(() => {
+    if (!selectedUserId) return;
+    void fetchWallets(selectedUserId, true);
+  }, [fetchWallets, selectedUserId]);
 
   const normalize = (v: string) => String(v || '').trim().toLowerCase();
 
@@ -3146,14 +3186,9 @@ function WalletManagement() {
     channel: { id: string; name: string; slug: string };
   }>;
 
-  const users = Array.from(
-    new Map(
-      rows.map((w) => [
-        w.userId,
-        { id: w.userId, displayName: w.user?.displayName || w.userId },
-      ])
-    ).values()
-  ).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const users = (walletUsers || [])
+    .map((u) => ({ id: u.id, displayName: u.displayName || u.id }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   const channels = Array.from(
     new Map(
@@ -3182,12 +3217,6 @@ function WalletManagement() {
     : [];
 
   // Keep selection sane when data changes.
-  useEffect(() => {
-    if (!selectedUserId && users.length > 0) {
-      setSelectedUserId(users[0].id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users.length]);
 
   useEffect(() => {
     if (!selectedUserId) return;
@@ -3217,7 +3246,7 @@ function WalletManagement() {
       await api.post(`/admin/wallets/${userId}/${channelId}/adjust`, { amount });
       toast.success(amount > 0 ? t('admin.balanceIncreased', { amount: Math.abs(amount) }) : t('admin.balanceDecreased', { amount: Math.abs(amount) }));
       setAdjustAmount('');
-      fetchWallets();
+      fetchWallets(userId, true);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToAdjustBalance') || 'Failed to adjust balance');
