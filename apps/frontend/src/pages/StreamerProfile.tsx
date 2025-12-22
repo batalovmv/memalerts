@@ -305,7 +305,20 @@ export default function StreamerProfile() {
       secondaryColor={channelInfo?.secondaryColor}
       accentColor={channelInfo?.accentColor}
     >
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 relative overflow-hidden">
+        {/* Apple-ish theme background using all 3 channel colors */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: [
+              `radial-gradient(70% 60% at 18% 14%, ${mix('--primary-color', 18)} 0%, transparent 60%)`,
+              `radial-gradient(60% 55% at 82% 18%, ${mix('--secondary-color', 16)} 0%, transparent 62%)`,
+              `radial-gradient(70% 60% at 55% 88%, ${mix('--accent-color', 14)} 0%, transparent 62%)`,
+              `linear-gradient(135deg, ${mix('--primary-color', 10)} 0%, transparent 45%, ${mix('--secondary-color', 10)} 100%)`,
+            ].join(', '),
+          }}
+        />
         <Header
           coinIconUrl={channelInfo?.coinIconUrl} 
           channelSlug={slug}

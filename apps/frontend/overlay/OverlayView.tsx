@@ -259,6 +259,9 @@ export default function OverlayView() {
       ? glassEnabledRaw === '1' || glassEnabledRaw === 'true' || glassEnabledRaw === 'yes' || glassEnabledRaw === 'on'
       : blur > 0 || bgOpacity > 0;
   const glassPreset = String(getParam('glassPreset') || (parsedStyle as any)?.glassPreset || 'ios').trim().toLowerCase();
+  const glassTintColorRaw = String(getParam('glassTintColor') || (parsedStyle as any)?.glassTintColor || '#7dd3fc').trim();
+  const glassTintColor = isHexColor(glassTintColorRaw) ? glassTintColorRaw : '#7dd3fc';
+  const glassTintStrength = clampAlpha(parseFloat(String(getParam('glassTintStrength') || (parsedStyle as any)?.glassTintStrength || '0.22')), 0, 1);
 
   // Media fit mode:
   // - cover: no bars, may crop a tiny bit (recommended for "premium"/designer look)
@@ -1047,6 +1050,14 @@ export default function OverlayView() {
     const glassOpacity = clampFloat(Number.isFinite(bgOpacity) ? bgOpacity : 0.18, 0, 0.65);
     const blurPx = clampInt(Number.isFinite(blur) ? blur : 0, 0, 40);
     const intensity = Math.max(0, Math.min(1, glassOpacity / 0.65));
+    const tint = (() => {
+      const h = glassTintColor.replace('#', '');
+      const r = parseInt(h.slice(0, 2), 16);
+      const g = parseInt(h.slice(2, 4), 16);
+      const b = parseInt(h.slice(4, 6), 16);
+      return { r, g, b };
+    })();
+    const tintA = clampFloat(glassTintStrength, 0, 1);
 
     // "iPhone-like" glass: reflections/highlights rather than heavy blur.
     // Blur is optional (default to 0 in UI); avoid making memes unreadable.
@@ -1054,20 +1065,23 @@ export default function OverlayView() {
     const sheen =
       preset === 'prism'
         ? [
-            `linear-gradient(135deg, rgba(0,229,255,${0.18 * intensity}) 0%, rgba(167,139,250,${0.18 * intensity}) 45%, rgba(255,105,180,${0.12 * intensity}) 100%)`,
+            `linear-gradient(135deg, rgba(${tint.r},${tint.g},${tint.b},${0.18 * intensity * tintA}) 0%, rgba(167,139,250,${0.18 * intensity}) 45%, rgba(255,105,180,${0.12 * intensity}) 100%)`,
             `radial-gradient(120% 90% at 18% 10%, rgba(255,255,255,${0.35 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
             `radial-gradient(90% 70% at 85% 92%, rgba(255,255,255,${0.12 * intensity}) 0%, rgba(255,255,255,0) 60%)`,
+            `repeating-linear-gradient(115deg, rgba(255,255,255,${0.018 * intensity}) 0px, rgba(255,255,255,${0.018 * intensity}) 1px, rgba(255,255,255,0) 3px)`,
           ]
         : preset === 'clear'
           ? [
               `linear-gradient(135deg, rgba(255,255,255,${0.22 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
               `radial-gradient(120% 90% at 18% 10%, rgba(255,255,255,${0.26 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
+              `repeating-linear-gradient(115deg, rgba(255,255,255,${0.012 * intensity}) 0px, rgba(255,255,255,${0.012 * intensity}) 1px, rgba(255,255,255,0) 4px)`,
             ]
           : [
               // default "ios"
-              `linear-gradient(135deg, rgba(255,255,255,${0.18 * intensity}) 0%, rgba(255,255,255,0.02) 45%, rgba(0,0,0,${0.12 * intensity}) 100%)`,
+              `linear-gradient(135deg, rgba(${tint.r},${tint.g},${tint.b},${0.14 * intensity * tintA}) 0%, rgba(255,255,255,0.02) 45%, rgba(0,0,0,${0.12 * intensity}) 100%)`,
               `radial-gradient(140% 120% at 18% 12%, rgba(255,255,255,${0.34 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
               `linear-gradient(45deg, rgba(255,255,255,0) 35%, rgba(255,255,255,${0.10 * intensity}) 50%, rgba(255,255,255,0) 65%)`,
+              `repeating-linear-gradient(115deg, rgba(255,255,255,${0.016 * intensity}) 0px, rgba(255,255,255,${0.016 * intensity}) 1px, rgba(255,255,255,0) 3px)`,
             ];
 
     if (blurPx <= 0 && glassOpacity <= 0) {
@@ -1082,7 +1096,7 @@ export default function OverlayView() {
       opacity: Math.max(0.05, intensity),
       boxShadow: `inset 0 1px 0 rgba(255,255,255,${0.35 * intensity}), inset 0 -1px 0 rgba(0,0,0,${0.18 * intensity})`,
     };
-  }, [bgOpacity, blur, glassEnabled, glassPreset]);
+  }, [bgOpacity, blur, glassEnabled, glassPreset, glassTintColor, glassTintStrength]);
 
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
@@ -1226,14 +1240,12 @@ export default function OverlayView() {
             to { opacity: 1; transform: translateY(0px) scale(1); }
           }
           @keyframes memalertsPopIn {
-            0% { opacity: 0; transform: scale(0.92); }
-            70% { opacity: 1; transform: scale(1.045); }
-            100% { opacity: 1; transform: scale(1); }
+            from { opacity: 0; transform: scale(0.975); }
+            to { opacity: 1; transform: scale(1); }
           }
           @keyframes memalertsLiftIn {
-            0% { opacity: 0; transform: translateY(22px) scale(0.985); }
-            60% { opacity: 1; transform: translateY(-4px) scale(1.01); }
-            100% { opacity: 1; transform: translateY(0px) scale(1); }
+            from { opacity: 0; transform: translateY(18px) scale(0.995); }
+            to { opacity: 1; transform: translateY(0px) scale(1); }
           }
           @keyframes memalertsLabelIn {
             from { opacity: 0; transform: translate(-50%, 130%); }

@@ -733,7 +733,7 @@ function ObsLinksSettings() {
   const [loadingToken, setLoadingToken] = useState(false);
   const [previewMemes, setPreviewMemes] = useState<Array<{ fileUrl: string; type: string; title?: string }>>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(false);
+  const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(true);
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -769,6 +769,8 @@ function ObsLinksSettings() {
   // Glass (foreground overlay in the overlay itself)
   const [glassEnabled, setGlassEnabled] = useState<boolean>(false);
   const [glassPreset, setGlassPreset] = useState<'ios' | 'clear' | 'prism'>('ios');
+  const [glassTintColor, setGlassTintColor] = useState<string>('#7dd3fc');
+  const [glassTintStrength, setGlassTintStrength] = useState<number>(0.22);
   // Border
   const [borderPreset, setBorderPreset] = useState<'custom' | 'glass' | 'glow' | 'frosted'>('custom');
   const [borderTintColor, setBorderTintColor] = useState<string>('#7dd3fc');
@@ -935,6 +937,9 @@ function ObsLinksSettings() {
                   : nextBlur > 0 || nextBgOpacity > 0;
         const nextGlassPreset: 'ios' | 'clear' | 'prism' =
           styleFromServer?.glassPreset === 'clear' ? 'clear' : styleFromServer?.glassPreset === 'prism' ? 'prism' : 'ios';
+        const nextGlassTintColor = typeof styleFromServer?.glassTintColor === 'string' ? styleFromServer.glassTintColor : glassTintColor;
+        const nextGlassTintStrength =
+          typeof styleFromServer?.glassTintStrength === 'number' ? styleFromServer.glassTintStrength : glassTintStrength;
 
         setUrlPosition(nextPosition);
         setUrlVolume(nextVolume);
@@ -981,6 +986,8 @@ function ObsLinksSettings() {
         setSenderStrokeColor(String(nextSenderStrokeColor || '#ffffff').toLowerCase());
         setGlassEnabled(Boolean(nextGlassEnabled));
         setGlassPreset(nextGlassPreset);
+        setGlassTintColor(String(nextGlassTintColor || '#7dd3fc').toLowerCase());
+        setGlassTintStrength(nextGlassTintStrength);
 
         // Establish baseline so opening the page never triggers auto-save.
         const overlayStyleJsonBaseline = JSON.stringify({
@@ -999,6 +1006,8 @@ function ObsLinksSettings() {
           shadowColor: nextShadowColor,
           glass: Boolean(nextGlassEnabled),
           glassPreset: nextGlassPreset,
+          glassTintColor: nextGlassTintColor,
+          glassTintStrength: nextGlassTintStrength,
           blur: nextBlur,
           border: nextBorder,
           borderPreset: nextBorderPreset,
@@ -1143,6 +1152,8 @@ function ObsLinksSettings() {
       shadowColor: String(shadowColor),
       glass: glassEnabled ? '1' : '0',
       glassPreset,
+      glassTintColor: String(glassTintColor),
+      glassTintStrength: String(glassTintStrength),
       blur: String(urlBlur),
       border: String(urlBorder),
       borderPreset,
@@ -1188,6 +1199,8 @@ function ObsLinksSettings() {
     borderMode,
     glassEnabled,
     glassPreset,
+    glassTintColor,
+    glassTintStrength,
     overlayMode,
     previewCount,
     previewLoopEnabled,
@@ -1277,6 +1290,8 @@ function ObsLinksSettings() {
       shadowColor,
       glass: glassEnabled,
       glassPreset,
+      glassTintColor,
+      glassTintStrength,
       blur: urlBlur,
       border: urlBorder,
       borderPreset,
@@ -1324,6 +1339,8 @@ function ObsLinksSettings() {
     shadowColor,
     glassEnabled,
     glassPreset,
+    glassTintColor,
+    glassTintStrength,
     urlBlur,
     urlBorder,
     borderPreset,
@@ -2039,6 +2056,47 @@ function ObsLinksSettings() {
                   <option value="clear">{t('admin.obsOverlayGlassPresetClear', { defaultValue: 'Clear' })}</option>
                   <option value="prism">{t('admin.obsOverlayGlassPresetPrism', { defaultValue: 'Prism' })}</option>
                 </select>
+              </div>
+
+              <div className={advancedTab === 'glass' ? '' : 'hidden'}>
+                <div className="glass p-3">
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                    {t('admin.obsOverlayGlassPresetControls', { defaultValue: 'Preset controls' })}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayGlassTintColor', { defaultValue: 'Tint color' })}
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={glassTintColor}
+                          onChange={(e) => setGlassTintColor(String(e.target.value || '').toLowerCase())}
+                          disabled={!glassEnabled}
+                          className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent disabled:opacity-50"
+                        />
+                        <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{glassTintColor}</div>
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayGlassTintStrength', { defaultValue: 'Tint strength' })}:{' '}
+                        <span className="font-mono">{Math.round(glassTintStrength * 100)}%</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.02}
+                        value={glassTintStrength}
+                        onChange={(e) => setGlassTintStrength(parseFloat(e.target.value))}
+                        disabled={!glassEnabled}
+                        className="w-full disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className={advancedTab === 'glass' ? '' : 'hidden'}>
