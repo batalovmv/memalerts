@@ -19,6 +19,11 @@ const tagIdCache = new Map<string, TagIdCacheEntry>();
 const TAG_ID_CACHE_MS_DEFAULT = 5 * 60_000;
 const TAG_ID_CACHE_MAX = 10_000;
 
+type SearchCacheEntry = { ts: number; body: string; etag: string };
+const searchCache = new Map<string, SearchCacheEntry>();
+const SEARCH_CACHE_MS_DEFAULT = 30_000;
+const SEARCH_CACHE_MAX = 1000;
+
 function getChannelMetaCacheMs(): number {
   const raw = parseInt(String(process.env.CHANNEL_META_CACHE_MS || ''), 10);
   return Number.isFinite(raw) && raw > 0 ? raw : CHANNEL_META_CACHE_MS_DEFAULT;
@@ -27,6 +32,25 @@ function getChannelMetaCacheMs(): number {
 function getTagIdCacheMs(): number {
   const raw = parseInt(String(process.env.TAG_ID_CACHE_MS || ''), 10);
   return Number.isFinite(raw) && raw > 0 ? raw : TAG_ID_CACHE_MS_DEFAULT;
+}
+
+function getSearchCacheMs(): number {
+  const raw = parseInt(String(process.env.SEARCH_CACHE_MS || ''), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : SEARCH_CACHE_MS_DEFAULT;
+}
+
+function setSearchCacheHeaders(req: any, res: Response) {
+  // Search is public on production; optionally authenticated. Response is not personalized unless favorites=1.
+  const isAuthed = !!req?.userId;
+  if (isAuthed) res.setHeader('Cache-Control', 'private, max-age=20, stale-while-revalidate=40');
+  else res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+}
+
+function clampInt(n: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
 }
 
 function parseTagNames(raw: unknown): string[] {
@@ -608,11 +632,6 @@ export const viewerController = {
   },
 
   searchMemes: async (req: any, res: Response) => {
-    // Prevent browser/proxy caching for dynamic search/favorites results.
-    // This endpoint is used for personalized results (favorites) and must always be fresh.
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
     const {
       q, // search query
       tags, // comma-separated tag names
@@ -653,9 +672,53 @@ export const viewerController = {
 
     const favoritesEnabled = String(favorites || '') === '1' && !!req.userId && !!targetChannelId;
 
+    // Pagination clamp (defensive): prevent expensive wide scans and large payloads.
+    const parsedLimitRaw = parseInt(limit as string, 10);
+    const parsedOffsetRaw = parseInt(offset as string, 10);
+    const maxSearchFromEnv = parseInt(String(process.env.SEARCH_PAGE_MAX || ''), 10);
+    const MAX_SEARCH_PAGE = Number.isFinite(maxSearchFromEnv) && maxSearchFromEnv > 0 ? maxSearchFromEnv : 50;
+    const parsedLimit = clampInt(parsedLimitRaw, 1, MAX_SEARCH_PAGE, 50);
+    const parsedOffset = clampInt(parsedOffsetRaw, 0, 1_000_000, 0);
+
+    // Caching:
+    // - favorites=1 is personalized -> no-store
+    // - otherwise: short cache + ETag/304 (safe: response not personalized)
+    if (favoritesEnabled) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      setSearchCacheHeaders(req, res);
+      const qStr = q ? String(q).trim().slice(0, 100) : '';
+      const tagsKey = parseTagNames(tags).join(',');
+      const cacheKey = [
+        'v1',
+        targetChannelId ?? '',
+        qStr.toLowerCase(),
+        tagsKey,
+        String(minPrice ?? ''),
+        String(maxPrice ?? ''),
+        String(sortBy ?? ''),
+        String(sortOrder ?? ''),
+        String(includeUploader ?? ''),
+        String(parsedLimit),
+        String(parsedOffset),
+      ].join('|');
+
+      const ttl = getSearchCacheMs();
+      const cached = searchCache.get(cacheKey);
+      if (cached && Date.now() - cached.ts < ttl) {
+        res.setHeader('ETag', cached.etag);
+        if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
+        return res.type('application/json').send(cached.body);
+      }
+      // Save for later in the request lifecycle (after we compute the response).
+      (req as any).__searchCacheKey = cacheKey;
+    }
+
     // Search query - search in title + tags; optionally uploader (dashboard)
     if (q) {
-      const qStr = String(q).trim();
+      const qStr = String(q).trim().slice(0, 100);
       if (qStr) {
         const or: any[] = [
           { title: { contains: qStr, mode: 'insensitive' } },
@@ -713,9 +776,7 @@ export const viewerController = {
       orderBy.createdAt = sortOrder;
     }
 
-    // Execute query
-    const parsedLimit = parseInt(limit as string, 10);
-    const parsedOffset = parseInt(offset as string, 10);
+    // Execute query (clamped above)
 
     // "My favorites": order by the user's activation count for this channel.
     // We intentionally include in-progress activations (queued/playing) so the list is useful immediately
@@ -738,8 +799,8 @@ export const viewerController = {
         },
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
-        take: Number.isFinite(parsedLimit) ? parsedLimit : 50,
-        skip: Number.isFinite(parsedOffset) ? parsedOffset : 0,
+        take: parsedLimit,
+        skip: parsedOffset,
       });
 
       const ids = rows.map((r) => r.memeId);
@@ -755,6 +816,7 @@ export const viewerController = {
 
       const map = new Map(memesById.map((m) => [m.id, m]));
       const ordered = ids.map((id) => map.get(id)).filter(Boolean);
+      // favorites is personalized; keep default JSON response.
       return res.json(ordered);
     }
 
@@ -861,7 +923,21 @@ export const viewerController = {
 
       const map = new Map(byId.map((m) => [m.id, m]));
       const ordered = ids.map((id) => map.get(id)).filter(Boolean);
-      return res.json(ordered);
+      // Cache non-personalized responses (best-effort)
+      try {
+        const body = JSON.stringify(ordered);
+        const etag = makeEtagFromString(body);
+        const cacheKey = (req as any).__searchCacheKey as string | undefined;
+        if (cacheKey) {
+          searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+          if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        }
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        return res.type('application/json').send(body);
+      } catch {
+        return res.json(ordered);
+      }
     }
 
     const memes = await prisma.meme.findMany({
@@ -907,7 +983,24 @@ export const viewerController = {
       memes.sort((a: any, b: any) => (byId.get(b.id) || 0) - (byId.get(a.id) || 0));
     }
 
-    res.json(memes);
+    // Cache non-personalized responses (best-effort)
+    if (!favoritesEnabled) {
+      try {
+        const body = JSON.stringify(memes);
+        const etag = makeEtagFromString(body);
+        const cacheKey = (req as any).__searchCacheKey as string | undefined;
+        if (cacheKey) {
+          searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+          if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        }
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        return res.type('application/json').send(body);
+      } catch {
+        // fall through
+      }
+    }
+    return res.json(memes);
   },
 
   getMemeStats: async (req: any, res: Response) => {
