@@ -599,7 +599,7 @@ export function ObsLinksSettings() {
     [overlayMaxConcurrent, overlayMode]
   );
 
-  const fetchPreviewMemes = useCallback(async (count?: number) => {
+  const fetchPreviewMemes = useCallback(async (count?: number, opts?: { bumpSeed?: boolean }) => {
     const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
     try {
       setLoadingPreview(true);
@@ -626,6 +626,9 @@ export function ObsLinksSettings() {
         uniq.push(m);
       }
       setPreviewMemes(uniq);
+      if (opts?.bumpSeed) {
+        setPreviewSeed((s) => (s >= 1000000000 ? 1 : s + 1));
+      }
     } catch {
       setPreviewMemes([]);
     } finally {
@@ -645,28 +648,26 @@ export function ObsLinksSettings() {
   const overlayUrlWithDefaults = overlayUrl;
 
   // Preview iframe URL should be stable while tweaking sliders (avoid network reloads).
-  // We only change iframe src when the actual preview media changes (Next meme).
+  // Preview media + seed are pushed via postMessage; iframe src should stay stable.
   const overlayPreviewBaseUrl = useMemo(() => {
     if (!overlayUrl) return '';
     const u = new URL(overlayUrl);
     u.searchParams.set('demo', '1');
-    u.searchParams.set('seed', String(previewSeed));
-    u.searchParams.set('previewBg', previewBg);
-    // Multi-meme preview: pass up to 5 urls/types (overlay uses getAll()).
-    u.searchParams.delete('previewUrl');
-    u.searchParams.delete('previewType');
-    const target = Math.min(5, Math.max(1, previewCount));
-    const pool = previewMemes.length > 0 ? previewMemes : [];
-    for (let i = 0; i < target; i++) {
-      const m = pool[i % Math.max(1, pool.length)];
-      if (m?.fileUrl) u.searchParams.append('previewUrl', m.fileUrl);
-      if (m?.type) u.searchParams.append('previewType', m.type);
-    }
     return u.toString();
-  }, [overlayUrl, previewBg, previewCount, previewMemes, previewSeed]);
+  }, [overlayUrl]);
 
   const overlayPreviewParams = useMemo(() => {
     // These values are pushed into the iframe via postMessage to avoid reloading.
+    const target = Math.min(5, Math.max(1, previewCount));
+    const pool = previewMemes.length > 0 ? previewMemes : [];
+    const urls: string[] = [];
+    const types: string[] = [];
+    for (let i = 0; i < target; i++) {
+      const m = pool[i % Math.max(1, pool.length)];
+      if (m?.fileUrl) urls.push(m.fileUrl);
+      if (m?.type) types.push(m.type);
+    }
+
     const p: Record<string, string> = {
       demo: '1',
       seed: String(previewSeed),
@@ -675,6 +676,8 @@ export function ObsLinksSettings() {
       previewCount: String(previewCount),
       previewMode: overlayMode,
       repeat: previewLoopEnabled ? '1' : '0',
+      previewUrls: JSON.stringify(urls),
+      previewTypes: JSON.stringify(types),
       volume: String(urlVolume),
       anim: urlAnim,
       enterMs: String(urlEnterMs),
@@ -740,6 +743,7 @@ export function ObsLinksSettings() {
     overlayMode,
     previewCount,
     previewLoopEnabled,
+    previewMemes,
     previewSeed,
     scaleFixed,
     scaleMax,
@@ -1220,8 +1224,7 @@ export function ObsLinksSettings() {
                       className="glass-btn p-2 shrink-0"
                       disabled={loadingPreview || !overlayToken}
                       onClick={() => {
-                        setPreviewSeed((s) => (s >= 1000000000 ? 1 : s + 1));
-                        void fetchPreviewMemes(previewCount);
+                        void fetchPreviewMemes(previewCount, { bumpSeed: true });
                       }}
                       title={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
                       aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}

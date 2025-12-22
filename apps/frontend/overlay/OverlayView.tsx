@@ -157,14 +157,36 @@ export default function OverlayView() {
   const position = (getParam('position') || 'random').toLowerCase() as OverlayPosition;
   const volume = parseFloat(getParam('volume') || '1');
   const demo = (getParam('demo') || '') === '1';
-  const previewUrlsParam = useMemo(
-    () => searchParams.getAll('previewUrl').map((v) => String(v || '').trim()).filter(Boolean),
-    [searchParams]
+  const parseJsonStringArray = (raw: unknown): string[] => {
+    if (typeof raw !== 'string') return [];
+    const s = raw.trim();
+    if (!s) return [];
+    try {
+      const j = JSON.parse(s) as unknown;
+      if (!Array.isArray(j)) return [];
+      return j.map((v) => String(v ?? '').trim()).filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  // Preview media can be provided either via URL (previewUrl/previewType)
+  // or via postMessage live params (previewUrls/previewTypes as JSON arrays).
+  const livePreviewUrls = useMemo(() => parseJsonStringArray(liveParams.previewUrls), [liveParams]);
+  const livePreviewTypes = useMemo(
+    () => parseJsonStringArray(liveParams.previewTypes).map((v) => v.trim().toLowerCase()).filter(Boolean),
+    [liveParams]
   );
-  const previewTypesParam = useMemo(
-    () => searchParams.getAll('previewType').map((v) => String(v || '').trim().toLowerCase()).filter(Boolean),
-    [searchParams]
-  );
+
+  const previewUrlsParam = useMemo(() => {
+    if (livePreviewUrls.length > 0) return livePreviewUrls;
+    return searchParams.getAll('previewUrl').map((v) => String(v || '').trim()).filter(Boolean);
+  }, [livePreviewUrls, searchParams]);
+
+  const previewTypesParam = useMemo(() => {
+    if (livePreviewTypes.length > 0) return livePreviewTypes;
+    return searchParams.getAll('previewType').map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  }, [livePreviewTypes, searchParams]);
   const previewCount = clampInt(parseInt(String(getParam('previewCount') || ''), 10), 1, 5);
   const previewRepeat = (getParam('repeat') || '') === '1';
   const previewModeParam = String(getParam('previewMode') || '').trim().toLowerCase();
