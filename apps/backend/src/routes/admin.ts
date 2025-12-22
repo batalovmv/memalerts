@@ -19,6 +19,7 @@ adminRoutes.patch('/channel/settings', adminController.updateChannelSettings);
 adminRoutes.get('/twitch/reward/eligibility', adminController.getTwitchRewardEligibility);
 
 // Admin-only routes for wallet management
+adminRoutes.get('/wallets/options', adminController.getWalletOptions);
 adminRoutes.get('/wallets', adminController.getAllWallets);
 adminRoutes.post('/wallets/:userId/:channelId/adjust', adminController.adjustWallet);
 
