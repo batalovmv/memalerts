@@ -13,6 +13,14 @@ import fs from 'fs';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
 import { debugLog } from '../../utils/debug.js';
 
+async function safeUnlink(filePath: string): Promise<void> {
+  try {
+    await fs.promises.unlink(filePath);
+  } catch {
+    // ignore
+  }
+}
+
 export const createSubmission = async (req: AuthRequest, res: Response) => {
   debugLog('[DEBUG] createSubmission started', { hasFile: !!req.file, userId: req.userId, channelId: req.channelId });
 
@@ -60,11 +68,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
     const contentValidation = await validateFileContent(filePath, req.file.mimetype);
     if (!contentValidation.valid) {
       // Delete the uploaded file if validation fails
-      try {
-        fs.unlinkSync(filePath);
-      } catch (unlinkError) {
-        console.error('Failed to delete invalid file:', unlinkError);
-      }
+      await safeUnlink(filePath);
 
       // Log security event
       await logSecurityEvent(
@@ -110,11 +114,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
     // We enforce duration using server metadata when available, and fall back to client-provided durationMs (from frontend metadata) when not.
     const MAX_SIZE = 50 * 1024 * 1024; // 50MB
     if (req.file.size > MAX_SIZE) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (unlinkError) {
-        console.error('Failed to delete oversized file:', unlinkError);
-      }
+      await safeUnlink(filePath);
       return res.status(400).json({
         error: `Video file size (${(req.file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)`,
       });
@@ -139,11 +139,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
         mime: req.file?.mimetype,
       });
     } else if (effectiveDurationMs > 15000) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (unlinkError) {
-        console.error('Failed to delete over-duration file:', unlinkError);
-      }
+      await safeUnlink(filePath);
       return res.status(400).json({
         error: `Video duration (${(effectiveDurationMs / 1000).toFixed(2)}s) exceeds maximum allowed duration (15s)`,
       });
@@ -387,10 +383,8 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
     if (req.file) {
       try {
         const filePath = path.join(process.cwd(), req.file.path);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log('Cleaned up uploaded file after error:', req.file.filename);
-        }
+        await safeUnlink(filePath);
+        console.log('Cleaned up uploaded file after error:', req.file.filename);
       } catch (cleanupError) {
         console.error('Failed to clean up file after error:', cleanupError);
       }

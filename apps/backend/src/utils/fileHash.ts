@@ -6,6 +6,14 @@ import { prisma } from '../lib/prisma.js';
 import https from 'https';
 import http from 'http';
 
+async function safeUnlink(filePath: string): Promise<void> {
+  try {
+    await fs.promises.unlink(filePath);
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Calculate SHA-256 hash of a file
  */
@@ -78,9 +86,7 @@ export async function findOrCreateFileHash(
 
     // Delete temp file since we're using existing one
     try {
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+      await safeUnlink(tempFilePath);
     } catch (error) {
       console.warn('Failed to delete temp file:', error);
     }
@@ -94,16 +100,13 @@ export async function findOrCreateFileHash(
   const permanentPath = path.join(permanentDir, `${hash}${ext}`);
 
   // Ensure directory exists
-  if (!fs.existsSync(permanentDir)) {
-    fs.mkdirSync(permanentDir, { recursive: true });
-  }
+  await fs.promises.mkdir(permanentDir, { recursive: true });
 
   // Move file
-  if (fs.existsSync(tempFilePath)) {
-    fs.renameSync(tempFilePath, permanentPath);
-  } else {
-    throw new Error('Temp file not found');
-  }
+  await fs.promises.rename(tempFilePath, permanentPath).catch((err) => {
+    if ((err as any)?.code === 'ENOENT') throw new Error('Temp file not found');
+    throw err;
+  });
 
   // Create FileHash record
   await prisma.fileHash.create({
@@ -154,9 +157,7 @@ export async function decrementFileHashReference(hash: string): Promise<void> {
       const filePath = validatePathWithinDirectory(fileHash.filePath, uploadsDir);
       
       try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        await safeUnlink(filePath);
       } catch (error) {
         console.error(`Failed to delete file ${filePath}:`, error);
       }
@@ -230,7 +231,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
         const redirectUrl = response.headers.location;
         if (!redirectUrl) {
           file.close();
-          fs.unlinkSync(tempFilePath);
+          void safeUnlink(tempFilePath);
           reject(new Error('Redirect location not found'));
           return;
         }
@@ -240,7 +241,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
 
       if (response.statusCode !== 200) {
         file.close();
-        fs.unlinkSync(tempFilePath);
+        void safeUnlink(tempFilePath);
         reject(new Error(`Failed to download file: ${response.statusCode} ${response.statusMessage}`));
         return;
       }
@@ -257,7 +258,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
 
       file.on('error', (err) => {
         file.close();
-        fs.unlinkSync(tempFilePath);
+        void safeUnlink(tempFilePath);
         reject(err);
       });
     });
@@ -265,9 +266,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
     request.on('error', (err) => {
       clearTimeout(timeoutId);
       file.close();
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+      void safeUnlink(tempFilePath);
       reject(err);
     });
 
@@ -275,9 +274,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
     timeoutId = setTimeout(() => {
       request.destroy();
       file.close();
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+      void safeUnlink(tempFilePath);
       reject(new Error('Download timeout'));
     }, timeout);
     
@@ -327,9 +324,7 @@ export async function downloadAndDeduplicateFile(
 
         // Delete temp file since we're using existing one
         try {
-          if (fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
-          }
+          await safeUnlink(tempFilePath);
         } catch (error) {
           console.warn('Failed to delete temp downloaded file:', error);
         }
@@ -343,16 +338,13 @@ export async function downloadAndDeduplicateFile(
       const permanentPath = path.join(permanentDir, `${hash}${ext}`);
 
       // Ensure directory exists
-      if (!fs.existsSync(permanentDir)) {
-        fs.mkdirSync(permanentDir, { recursive: true });
-      }
+      await fs.promises.mkdir(permanentDir, { recursive: true });
 
       // Move file
-      if (fs.existsSync(tempFilePath)) {
-        fs.renameSync(tempFilePath, permanentPath);
-      } else {
-        throw new Error('Temp downloaded file not found');
-      }
+      await fs.promises.rename(tempFilePath, permanentPath).catch((err) => {
+        if ((err as any)?.code === 'ENOENT') throw new Error('Temp downloaded file not found');
+        throw err;
+      });
 
       // Get file stats
       const stats = await getFileStats(permanentPath);
@@ -372,9 +364,7 @@ export async function downloadAndDeduplicateFile(
     } catch (error: any) {
       // Clean up temp file on error
       try {
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
+        await safeUnlink(tempFilePath);
       } catch (cleanupError) {
         console.warn('Failed to cleanup temp file:', cleanupError);
       }

@@ -8,6 +8,14 @@ import { calculateFileHash, downloadFileFromUrl, findOrCreateFileHash, getFileSt
 import { validateFileContent } from '../../utils/fileTypeValidator.js';
 import fs from 'fs';
 
+async function safeUnlink(filePath: string): Promise<void> {
+  try {
+    await fs.promises.unlink(filePath);
+  } catch {
+    // ignore
+  }
+}
+
 export const importMeme = async (req: AuthRequest, res: Response) => {
   // Determine channelId: use from body/query if provided, otherwise use from token
   let channelId = (req.body as any).channelId || (req.query as any).channelId;
@@ -49,9 +57,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       // (downloaded files can be spoofed or corrupted)
       const contentValidation = await validateFileContent(tempFilePath, 'video/webm');
       if (!contentValidation.valid) {
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch {}
+        await safeUnlink(tempFilePath);
         return res.status(400).json({
           error: 'Invalid file content',
           message: contentValidation.error || 'File content does not look like a valid video',
@@ -62,9 +68,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       const stat = await fs.promises.stat(tempFilePath);
       const MAX_SIZE = 50 * 1024 * 1024; // 50MB
       if (stat.size > MAX_SIZE) {
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch {}
+        await safeUnlink(tempFilePath);
         return res.status(400).json({
           error: `Video file size (${(stat.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)`,
         });
@@ -74,9 +78,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       const durationSec = metadata?.duration && metadata.duration > 0 ? metadata.duration : null;
       const durationMs = durationSec !== null ? Math.round(durationSec * 1000) : null;
       if (durationMs !== null && durationMs > 15000) {
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch {}
+        await safeUnlink(tempFilePath);
         return res.status(400).json({
           error: `Video duration (${(durationMs / 1000).toFixed(2)}s) exceeds maximum allowed duration (15s)`,
         });
@@ -89,9 +91,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       fileHash = hash;
     } catch (dlErr: any) {
       if (tempFilePath) {
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch {}
+        await safeUnlink(tempFilePath);
       }
       return res.status(502).json({
         error: 'Failed to import meme from source URL',

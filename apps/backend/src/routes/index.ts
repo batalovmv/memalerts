@@ -2,7 +2,6 @@ import { Express } from 'express';
 import { authRoutes } from './auth.js';
 import { viewerRoutes } from './viewer.js';
 import { submissionRoutes } from './submissions.js';
-import { adminRoutes } from './admin.js';
 import { streamerRoutes } from './streamer.js';
 import { ownerRoutes } from './owner.js';
 import { webhookRoutes } from './webhooks.js';
@@ -110,7 +109,6 @@ export function setupRoutes(app: Express) {
         req.path === '/me' ||
         req.path === '/wallet' ||
         req.path === '/memes' ||
-        req.path.startsWith('/admin') ||
         req.path.startsWith('/streamer') ||
         req.path.startsWith('/owner') ||
         req.path.startsWith('/submissions') ||
@@ -191,12 +189,9 @@ export function setupRoutes(app: Express) {
   // Panel routes:
   // - /streamer/*: streamer/admin panel endpoints
   // - /owner/*: owner-only endpoints
-  // - /admin/*: back-compat alias (historical)
   // All are authenticated and beta-gated on beta.
   app.use('/streamer', authenticate, requireBetaAccess, streamerRoutes);
   app.use('/owner', authenticate, requireBetaAccess, ownerRoutes);
-  // Back-compat: keep /admin working (alias to streamer+owner routes)
-  app.use('/admin', authenticate, requireBetaAccess, adminRoutes);
   app.use('/', betaRoutes); // Beta access routes (mounted at root to avoid /beta/beta/request)
 }
 

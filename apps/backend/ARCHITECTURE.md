@@ -1,143 +1,97 @@
-# MemAlerts Backend — Architecture
+# MemAlerts Backend — архитектура
 
-This document describes the **current backend architecture** and how the major parts interact.  
-Repo: `memalerts-backend` (Express + Socket.IO + Prisma/Postgres).
+Этот документ описывает текущую архитектуру backend’а и основные взаимодействия модулей.  
+Repo: `memalerts-backend` (**Express + Socket.IO + Prisma/PostgreSQL**).
 
-## Goals & principles
+## Цели и принципы
 
-- **Backward compatibility**: existing routes/clients must keep working.
-- **Security-first**: treat all inputs as untrusted; validate strictly; least-privilege.
-- **Scalable structure**: small files, clear boundaries, fast search/navigation.
-- **Real-time correctness**: keep public vs private events separated; minimize payloads.
+- **Обратная совместимость**: существующие клиенты/роуты не должны ломаться.
+- **Безопасность**: все входы считаем недоверенными; строгая валидация; least-privilege.
+- **Производительность**: короткие транзакции, предсказуемые запросы, лимиты на пагинацию, кэш где возможно.
+- **Realtime корректность**: разделение публичных/персональных событий, минимальные payload’ы.
 
-## High-level components
+## Высокоуровневые компоненты
 
-- **HTTP API (Express)**: REST endpoints for auth, viewer, streamer/owner panel.
-- **Realtime (Socket.IO)**: overlay + client updates (activations, wallet updates, etc).
-- **Database (Postgres via Prisma)**: source of truth for users, channels, memes, wallets, submissions, activations, audit logs.
-- **Uploads**: local `uploads/` storage; files are deduplicated by hash where applicable.
-- **Twitch integration**:
+- **HTTP API (Express)**: auth, viewer, streamer/owner панель, webhooks.
+- **Realtime (Socket.IO)**: overlay + обновления состояния (активации, кошелёк, submissions).
+- **DB (PostgreSQL через Prisma)**: source of truth (users/channels/memes/wallets/submissions/activations).
+- **Uploads**: локальное `uploads/`, дедупликация по SHA‑256 (`FileHash`).
+- **Twitch**:
   - OAuth login
-  - Channel Points rewards management (create/update/disable)
-  - EventSub webhooks (verified; replay-protected)
+  - управление Channel Points reward
+  - EventSub webhooks (HMAC, replay‑защита)
 
-## Routing & access model
+## Роутинг и модель доступа
 
-### Route groups
+### Группы роутов
 
-- **Public / semi-public**
+- **Публичные/полупубличные**
   - `GET /health`
   - `GET /channels/:slug`
   - `GET /channels/:slug/memes`
   - `GET /channels/memes/search`
   - `GET /memes/stats`
 
-- **Authenticated viewer**
+- **Viewer (auth)**
   - `GET /me`
   - `GET /channels/:slug/wallet`
   - `POST /memes/:id/activate`
 
-- **Streamer panel**
-  - Mounted under `/streamer/*`
-  - Role: `streamer` or `admin`
+- **Streamer panel**: `/streamer/*` (роль `streamer` или `admin`)
+- **Owner-only**: `/owner/*` (роль `admin`)
 
-- **Owner-only**
-  - Mounted under `/owner/*`
-  - Role: `admin`
+### Ключевые middleware
 
-> **Important:** `/admin/*` is a **legacy alias** router for backward compatibility.  
-> Do not infer permissions from path names—permissions are enforced by middleware.
+- `auth.ts`: JWT в httpOnly cookies → `req.userId`, `req.channelId`, `req.userRole`
+- `betaAccess.ts`: gating beta домена (только пользователи с доступом)
+- `csrf.ts`: защита state-changing операций
+- `rateLimit.ts`: глобальные и точечные лимитеры
+- `upload.ts`: multer + защита от spoofing и лимиты
 
-### Key middleware
+## Организация контроллеров
 
-- `auth.ts`: JWT auth (httpOnly cookies) → sets `req.userId`, `req.channelId`, `req.userRole`
-- `betaAccess.ts`: gates beta domain access (requires user-specific beta permission)
-- `csrf.ts`: protects state-changing endpoints (Origin/Referer rules)
-- `rateLimit.ts`: global + endpoint-specific limiters
-- `upload.ts`: upload handling + security logging
+Контроллеры сгруппированы по фичам, при этом сохраняются фасады для совместимости.
 
-## Controller layout (search-friendly)
+- **Streamer/Owner**
+  - фасады: `src/controllers/adminController.ts`, `src/controllers/viewerController.ts`, `src/controllers/submissionController.ts`
+  - модули: `src/controllers/admin/*`
 
-Controllers are now organized by feature, while keeping **facade exports** for compatibility.
+- **Viewer**
+  - модули: `src/controllers/viewer/*`
+  - `cache.ts`: ETag + in‑memory TTL caches
+  - `search.ts`: поиск с лимитами и кэшем, популярность через SQL (корректная пагинация)
+  - `stats.ts`: топ‑мемы через `groupBy`, кэш по минутным “бакетам”
+  - `activation.ts`: активация + списание + emit в overlay
 
-### Admin/Streamer controllers
+- **Submissions**
+  - `createSubmission.ts`: загрузка/валидация/дедуп, защита от подвисаний через timeouts
+  - `importMeme.ts`: server-side download + валидация
 
-- Facade: `src/controllers/adminController.ts`
-- Modules: `src/controllers/admin/*`
-  - `twitch.ts` — eligibility checks
-  - `overlay.ts` — OBS overlay token/rotation/preview
-  - `submissions.ts` — moderation (list/approve/reject)
-  - `memes.ts` — streamer meme management
-  - `channelSettings.ts` — reward + overlay + theme settings
-  - `wallet.ts` — owner-only wallet admin
-  - `promotions.ts` — promotions CRUD
-  - `stats.ts` — channel stats + caching/ETag
+## Ключевые потоки выполнения
 
-### Viewer controllers
+### 1) Активация мема (viewer → overlay)
 
-- Facade: `src/controllers/viewerController.ts`
-- Modules: `src/controllers/viewer/*`
-  - `cache.ts` — shared cache/ETag helpers
-  - `channel.ts` — public channel/meta + public memes list
-  - `me.ts` — user profile endpoint
-  - `wallet.ts` — wallet endpoints
-  - `memes.ts` — authed memes list
-  - `search.ts` — meme search + caching
-  - `stats.ts` — public stats + caching
-  - `activation.ts` — activation flow + wallet updates + overlay emit
+1. `POST /memes/:id/activate`
+2. Снаружи транзакции: проверка статуса мема + расчёт цены (с учётом промо).
+3. В транзакции: wallet upsert → проверка баланса → списание → `MemeActivation(status=queued)`.
+4. Socket.IO emit в комнату `channel:{slugLower}`: `activation:new`.
+5. Socket.IO emit в комнату `user:{userId}`: `wallet:updated` + best‑effort relay на соседний инстанс (prod↔beta).
 
-### Submissions (upload/import)
+### 2) Создание submission (upload → очередь модерации)
 
-- Facade: `src/controllers/submissionController.ts`
-- Modules: `src/controllers/submission/*`
-  - `createSubmission.ts` — file upload validation + dedup + (owner direct-approve) + submit event
-  - `getMySubmissions.ts` — list own submissions (timeout-protected)
-  - `importMeme.ts` — server-side download + validation + submission creation
+1. `POST /submissions` (multer + лимиты)
+2. Проверка magic bytes (anti-spoofing), размера и длительности (ffprobe, fallback на фронтовый duration).
+3. Дедупликация файла по SHA‑256, перенос в `/uploads/memes/{hash}.{ext}`.
+4. Если uploader = владелец канала → создаём approved мем напрямую; иначе `MemeSubmission(status=pending)`.
+5. Socket.IO событие `submission:created` (best‑effort, не ломает запрос при ошибке emit).
 
-## Key runtime flows
+## Performance / UX заметки (актуальные)
 
-### 1) Meme activation (viewer → overlay)
+- **Короткие транзакции**: транзакция в активации держит только wallet+activation; промо‑поиск вынесен наружу.
+- **Кэш**: search/stats используют короткие TTL и ETag/304; промо имеет короткий TTL по `channelId`.
+- **Event-loop**: синхронные `fs.*Sync` в горячих путях заменены на async-операции (меньше “фризов” под нагрузкой).
+- **Индексы**: `MemeActivation` имеет композитные индексы под popularity/favorites (см. `prisma/schema.prisma`).
 
-1. Viewer calls `POST /memes/:id/activate` (auth + beta access where applicable).
-2. Transaction:
-   - Validate meme is approved
-   - Resolve promotion (optional)
-   - Ensure wallet exists
-   - Deduct coins (unless channel owner free activation)
-   - Create `MemeActivation` with `status=queued`
-3. Emit via Socket.IO room `channel:{slugLower}` → `activation:new`
-4. Emit wallet update locally + relay to peer backend (prod↔beta mirroring)
+## Окружения и деплой
 
-### 2) Submission upload (viewer → pending queue / direct approve)
-
-1. `POST /submissions` with uploaded file
-2. Server validates:
-   - MIME + magic bytes
-   - size limit
-   - duration (prefer server metadata, fallback to client-provided)
-3. Deduplicate file by hash (best-effort)
-4. If streamer/admin uploads into own channel → direct create approved meme  
-   Otherwise → create `MemeSubmission` pending
-5. Emit `submission:created` to streamer via Socket.IO (best-effort)
-
-### 3) Twitch rewards settings
-
-`PATCH /streamer/channel/settings` handles:
-- enable/disable reward (with eligibility checks)
-- update title/cost/coins (light update if already enabled)
-- EventSub subscription management (best-effort; avoid duplicates)
-
-## Deployment & environments
-
-CI/CD is in `.github/workflows/ci-cd.yml`:
-- `develop` → deploy beta (`/opt/memalerts-backend-beta`, port 3002)
-- `main` → deploy production (`/opt/memalerts-backend`, port 3001)
-
-Deployment uses:
-- SCP copy to VPS
-- `pnpm install`, `pnpm build`
-- `prisma generate`, `prisma migrate deploy`
-- PM2 restart
-- optional nginx provisioning scripts under `.github/scripts/`
-
-
+Детали CI/CD и стратегии веток/релизов вынесены в `DEPLOYMENT.md`.

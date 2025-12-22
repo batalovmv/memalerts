@@ -79,6 +79,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: true
     
     steps:
       - name: Checkout code
@@ -202,9 +205,6 @@ jobs:
             # Rate Limiting
             # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
-
-            # Debug logging (beta only)
-            DEBUG_LOGS=1
             EOF
             
             # Ensure uploads directory exists
@@ -306,7 +306,7 @@ jobs:
             
             # Install all dependencies (including devDependencies for build)
             echo "Installing dependencies..."
-            pnpm install
+            pnpm install --frozen-lockfile
             
             # Build the project
             echo "Building project..."
@@ -388,6 +388,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    concurrency:
+      group: deploy-beta
+      cancel-in-progress: true
     
     steps:
       - name: Checkout code
@@ -454,10 +457,10 @@ jobs:
             fi
             
             # Create .env file with beta port
-            # IMPORTANT: Beta now uses the same database as production to avoid data duplication
-            # This ensures users see the same data on both domains
-            # Use DATABASE_URL (production database) for beta as well
-            BETA_DB_URL="${{ secrets.DATABASE_URL }}"
+            # Database strategy:
+            # - Recommended: separate DB for beta via DATABASE_URL_BETA (safe staging: migrations/data won't affect prod)
+            # - Fallback: DATABASE_URL (not recommended; only if you intentionally want shared data)
+            BETA_DB_URL="${{ secrets.DATABASE_URL_BETA || secrets.DATABASE_URL }}"
             
             # Validate DATABASE_URL format before creating .env
             echo "Validating DATABASE_URL format..."
@@ -526,7 +529,7 @@ jobs:
             echo "✅ DATABASE_URL format validation passed"
             
             cat > .env << EOF
-            # Database (beta instance - uses same database as production to avoid data duplication)
+            # Database (beta instance)
             DATABASE_URL=$BETA_DB_URL
             
             # Server
@@ -560,6 +563,9 @@ jobs:
             # Rate Limiting
             # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
+
+            # Debug logging (beta only)
+            DEBUG_LOGS=1
             EOF
             
             # Ensure uploads directory exists
@@ -679,7 +685,7 @@ jobs:
             
             # Install all dependencies
             echo "Installing dependencies..."
-            pnpm install
+            pnpm install --frozen-lockfile
             
             # Build the project
             echo "Building project..."
