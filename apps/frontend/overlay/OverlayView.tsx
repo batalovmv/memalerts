@@ -140,6 +140,19 @@ export default function OverlayView() {
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  // Handshake: notify parent (settings page) that the overlay is ready to receive params.
+  // Without this, the parent may postMessage on iframe load before our listener is attached,
+  // which results in "DEMO" fallback until the next user action.
+  useEffect(() => {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'memalerts:overlayReady' }, window.location.origin);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const getParam = useCallback(
     (key: string): string | null => {
       const v = liveParams[key];

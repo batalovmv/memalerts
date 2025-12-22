@@ -32,6 +32,7 @@ export function ObsLinksSettings() {
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const overlayReadyRef = useRef(false);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -802,6 +803,22 @@ export function ObsLinksSettings() {
     postPreviewParams();
   }, [postPreviewParams]);
 
+  // Receive "ready" handshake from iframe so the first params post is never lost.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== previewIframeRef.current?.contentWindow) return;
+      const data = event.data as any;
+      if (!data || typeof data !== 'object') return;
+      if (data.type !== 'memalerts:overlayReady') return;
+      overlayReadyRef.current = true;
+      // Send current params immediately when overlay confirms readiness.
+      postPreviewParams();
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [postPreviewParams]);
+
   const animSpeedPct = useMemo(() => {
     const slow = 800;
     const fast = 180;
@@ -1287,7 +1304,12 @@ export function ObsLinksSettings() {
                         className="w-full"
                         style={{ aspectRatio: '16 / 9', border: '0' }}
                         allow="autoplay"
-                        onLoad={() => postPreviewParams()}
+                        onLoad={() => {
+                          // Post on load (best-effort) and also shortly after to avoid race with overlay boot.
+                          postPreviewParams();
+                          window.setTimeout(() => postPreviewParams(), 50);
+                          window.setTimeout(() => postPreviewParams(), 250);
+                        }}
                       />
                     )}
                   </div>
