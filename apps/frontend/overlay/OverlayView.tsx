@@ -169,6 +169,14 @@ export default function OverlayView() {
   const previewModeParam = String(getParam('previewMode') || '').trim().toLowerCase();
   const demoSeed = clampInt(parseInt(String(getParam('seed') || '1'), 10), 0, 1000000000);
 
+  // Preview-only background (does not affect real OBS usage; default is transparent unless demo=1).
+  const previewBgRaw = String(getParam('previewBg') || '').trim().toLowerCase();
+  const previewBg: 'twitch' | 'white' = previewBgRaw === 'white' ? 'white' : 'twitch';
+  const demoBgCss =
+    previewBg === 'white'
+      ? `body { background: #ffffff; }`
+      : `body { background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.85) 60%), linear-gradient(135deg, rgba(56,189,248,0.12), rgba(167,139,250,0.12)); }`;
+
   // Appearance / animation: prefer server config; allow URL overrides (useful for preview).
   const parsedStyle = useMemo(() => {
     try {
@@ -1214,7 +1222,16 @@ export default function OverlayView() {
     };
   }, [senderHoldMs]);
 
-  if (renderItems.length === 0) return null;
+  if (renderItems.length === 0) {
+    // In demo mode, still render a background so preview isn't a blank white canvas.
+    if (!demo) return null;
+    return (
+      <>
+        <style>{demoBgCss}</style>
+        <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none' }} />
+      </>
+    );
+  }
 
   // In demo mode we want the sender label visible by default for styling feedback.
   // In real overlay mode, it must be controlled by the server setting.
@@ -1226,7 +1243,7 @@ export default function OverlayView() {
     <>
       <style>
         {`
-          ${demo ? `body { background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.85) 60%), linear-gradient(135deg, rgba(56,189,248,0.12), rgba(167,139,250,0.12)); }` : ''}
+          ${demo ? demoBgCss : ''}
           @keyframes memalertsFadeIn {
             from { opacity: 0; }
             to { opacity: 1; }

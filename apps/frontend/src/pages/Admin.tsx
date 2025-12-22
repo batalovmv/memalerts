@@ -734,6 +734,7 @@ function ObsLinksSettings() {
   const [previewMemes, setPreviewMemes] = useState<Array<{ fileUrl: string; type: string; title?: string }>>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(true);
+  const [previewBg, setPreviewBg] = useState<'twitch' | 'white'>('twitch');
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -753,7 +754,7 @@ function ObsLinksSettings() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [exportCode, setExportCode] = useState('');
-  const [exportLink, setExportLink] = useState('');
+  // Export is code-only (no links) to keep sharing simple and portable.
 
   useEffect(() => {
     // If sender settings tab is not applicable, fall back to a safe tab.
@@ -993,17 +994,6 @@ function ObsLinksSettings() {
   const decodeShareCode = useCallback((raw: string): OverlaySharePayload => {
     const input = String(raw || '').trim();
     if (!input) throw new Error('empty');
-
-    // Accept full URL with overlayPreset param (modern sharing).
-    if (input.includes('overlayPreset=')) {
-      try {
-        const u = new URL(input);
-        const p = u.searchParams.get('overlayPreset');
-        if (p) return decodeShareCode(p);
-      } catch {
-        // fallthrough
-      }
-    }
 
     const parts = input.split('.');
     const b64 = parts.length >= 2 && parts[0] === 'MA1' ? parts[1] : input;
@@ -1442,6 +1432,7 @@ function ObsLinksSettings() {
     const u = new URL(overlayUrl);
     u.searchParams.set('demo', '1');
     u.searchParams.set('seed', String(previewSeed));
+    u.searchParams.set('previewBg', previewBg);
     // Multi-meme preview: pass up to 5 urls/types (overlay uses getAll()).
     u.searchParams.delete('previewUrl');
     u.searchParams.delete('previewType');
@@ -1453,13 +1444,14 @@ function ObsLinksSettings() {
       if (m?.type) u.searchParams.append('previewType', m.type);
     }
     return u.toString();
-  }, [overlayUrl, previewCount, previewMemes, previewSeed]);
+  }, [overlayUrl, previewBg, previewCount, previewMemes, previewSeed]);
 
   const overlayPreviewParams = useMemo(() => {
     // These values are pushed into the iframe via postMessage to avoid reloading.
     const p: Record<string, string> = {
       demo: '1',
       seed: String(previewSeed),
+      previewBg,
       position: urlPosition,
       previewCount: String(previewCount),
       previewMode: overlayMode,
@@ -1564,6 +1556,7 @@ function ObsLinksSettings() {
     urlPosition,
     urlRadius,
     urlVolume,
+    previewBg,
   ]);
 
   const postPreviewParams = useCallback(() => {
@@ -1713,10 +1706,6 @@ function ObsLinksSettings() {
       const payload = makeSharePayload();
       const code = encodeShareCode(payload);
       setExportCode(code);
-      // Modern share: copyable URL. Applying it will NOT auto-save; user still clicks "Save".
-      const u = new URL(window.location.href);
-      u.searchParams.set('overlayPreset', code);
-      setExportLink(u.toString());
       setExportModalOpen(true);
     } catch (e) {
       toast.error(t('admin.overlayShareExportFailed', { defaultValue: 'Не удалось экспортировать настройки' }));
@@ -1734,24 +1723,6 @@ function ObsLinksSettings() {
       toast.error(t('admin.overlayShareImportFailed', { defaultValue: 'Код не распознан или повреждён' }));
     }
   }, [applySharePayload, decodeShareCode, importText, t]);
-
-  useEffect(() => {
-    // Auto-apply share link (modern flow).
-    try {
-      const u = new URL(window.location.href);
-      const code = u.searchParams.get('overlayPreset');
-      if (!code) return;
-      const payload = decodeShareCode(code);
-      applySharePayload(payload);
-      // Remove param after applying (avoid re-applying on refresh).
-      u.searchParams.delete('overlayPreset');
-      window.history.replaceState({}, '', u.toString());
-      toast.success(t('admin.overlayShareApplied', { defaultValue: 'Настройки применены (не забудьте нажать «Сохранить»)' }));
-    } catch {
-      // ignore
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleSaveOverlaySettings = useCallback(async (): Promise<void> => {
     if (!channelSlug) return;
@@ -1989,6 +1960,20 @@ function ObsLinksSettings() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11V9a4 4 0 014-4h14" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 23l-4-4 4-4" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13v2a4 4 0 01-4 4H3" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className={`glass-btn p-2 shrink-0 ${previewBg === 'white' ? 'ring-2 ring-primary/40' : ''}`}
+                      title={t('admin.obsPreviewBackground', { defaultValue: 'Фон превью (белый/тематический)' })}
+                      aria-label={t('admin.obsPreviewBackground', { defaultValue: 'Фон превью (белый/тематический)' })}
+                      onClick={() => setPreviewBg((b) => (b === 'twitch' ? 'white' : 'twitch'))}
+                    >
+                      {/* Photo / background icon */}
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11l2 2 4-4 6 6" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 9.5h.01" />
                       </svg>
                     </button>
                   </div>
@@ -2307,21 +2292,6 @@ function ObsLinksSettings() {
                 {t('admin.obsOverlayAnimSpeedHint', { defaultValue: 'Slower looks more premium; faster feels snappier.' })}
               </div>
 
-              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayRadius', { defaultValue: 'Corner radius' })}: <span className="font-mono">{urlRadius}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={80}
-                  step={1}
-                  value={urlRadius}
-                  onChange={(e) => setUrlRadius(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
               <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayShadow', { defaultValue: 'Shadow' })}: <span className="font-mono">{shadowBlur}</span>
@@ -2571,6 +2541,21 @@ function ObsLinksSettings() {
                   step={1}
                   value={urlBorder}
                   onChange={(e) => setUrlBorder(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className={advancedTab === 'border' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayRadius', { defaultValue: 'Corner radius' })}: <span className="font-mono">{urlRadius}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={1}
+                  value={urlRadius}
+                  onChange={(e) => setUrlRadius(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
               </div>
@@ -2884,21 +2869,41 @@ function ObsLinksSettings() {
 
         {/* Export / Import modals */}
         {exportModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setExportModalOpen(false)} />
-            <div className="relative w-full max-w-2xl glass p-5 rounded-2xl border border-white/20 dark:border-white/10">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t('admin.overlayShareExportTitle', { defaultValue: 'Экспорт настроек' })}
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 modal-backdrop-in"
+            role="presentation"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setExportModalOpen(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('admin.overlayShareExportTitle', { defaultValue: 'Экспорт настроек' })}
+              className="relative w-full max-w-2xl glass p-5 rounded-2xl border border-white/20 dark:border-white/10 shadow-2xl modal-pop-in"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t('admin.overlayShareExportTitle', { defaultValue: 'Экспорт настроек' })}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                    {t('admin.overlayShareExportHint', {
+                      defaultValue: 'Скопируйте код и отправьте другому человеку. Это не секрет — только внешний вид.',
+                    })}
+                  </div>
                 </div>
-                <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => setExportModalOpen(false)}>
-                  {t('common.close', { defaultValue: 'Закрыть' })}
+                <button
+                  type="button"
+                  className="rounded-lg p-2 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10"
+                  onClick={() => setExportModalOpen(false)}
+                  aria-label={t('common.close', { defaultValue: 'Закрыть' })}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              </div>
-              <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">
-                {t('admin.overlayShareExportHint', {
-                  defaultValue: 'Скопируйте код или ссылку и отправьте другому человеку. Это не секрет — только внешний вид.',
-                })}
               </div>
               <div className="mt-4">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
@@ -2909,10 +2914,10 @@ function ObsLinksSettings() {
                   readOnly
                   className="w-full h-28 rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
                 />
-                <div className="mt-2 flex gap-2">
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
                   <button
                     type="button"
-                    className="glass-btn px-3 py-2 text-sm font-semibold"
+                    className="glass-btn px-4 py-2 text-sm font-semibold bg-primary text-white border border-primary/30"
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(exportCode);
@@ -2924,31 +2929,12 @@ function ObsLinksSettings() {
                   >
                     {t('admin.copyCode', { defaultValue: 'Копировать код' })}
                   </button>
-                </div>
-              </div>
-              <div className="mt-5">
-                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                  {t('admin.overlayShareLink', { defaultValue: 'Ссылка' })}
-                </div>
-                <input
-                  value={exportLink}
-                  readOnly
-                  className="w-full rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
-                />
-                <div className="mt-2 flex gap-2">
                   <button
                     type="button"
-                    className="glass-btn px-3 py-2 text-sm font-semibold"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(exportLink);
-                        toast.success(t('admin.copied', { defaultValue: 'Скопировано' }));
-                      } catch {
-                        toast.error(t('admin.copyFailed', { defaultValue: 'Не удалось скопировать' }));
-                      }
-                    }}
+                    className="glass-btn px-4 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10"
+                    onClick={() => setExportModalOpen(false)}
                   >
-                    {t('admin.copyLink', { defaultValue: 'Копировать ссылку' })}
+                    {t('common.close', { defaultValue: 'Закрыть' })}
                   </button>
                 </div>
               </div>
@@ -2957,32 +2943,52 @@ function ObsLinksSettings() {
         )}
 
         {importModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setImportModalOpen(false)} />
-            <div className="relative w-full max-w-2xl glass p-5 rounded-2xl border border-white/20 dark:border-white/10">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t('admin.overlayShareImportTitle', { defaultValue: 'Импорт настроек' })}
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 modal-backdrop-in"
+            role="presentation"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setImportModalOpen(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('admin.overlayShareImportTitle', { defaultValue: 'Импорт настроек' })}
+              className="relative w-full max-w-2xl glass p-5 rounded-2xl border border-white/20 dark:border-white/10 shadow-2xl modal-pop-in"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t('admin.overlayShareImportTitle', { defaultValue: 'Импорт настроек' })}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                    {t('admin.overlayShareImportHint', { defaultValue: 'Вставьте код и нажмите «Применить».' })}
+                  </div>
                 </div>
-                <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => setImportModalOpen(false)}>
-                  {t('common.close', { defaultValue: 'Закрыть' })}
+                <button
+                  type="button"
+                  className="rounded-lg p-2 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10"
+                  onClick={() => setImportModalOpen(false)}
+                  aria-label={t('common.close', { defaultValue: 'Закрыть' })}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              </div>
-              <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">
-                {t('admin.overlayShareImportHint', { defaultValue: 'Вставьте код или ссылку и нажмите «Применить».' })}
               </div>
               <div className="mt-4">
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
-                  placeholder={t('admin.overlayShareImportPlaceholder', { defaultValue: 'MA1.... или ссылка' })}
+                  placeholder={t('admin.overlayShareImportPlaceholder', { defaultValue: 'MA1....' })}
                   className="w-full h-28 rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
                 />
               </div>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
-                  className="glass-btn px-4 py-2 text-sm font-semibold"
+                  className="glass-btn px-4 py-2 text-sm font-semibold bg-primary text-white border border-primary/30 disabled:opacity-50"
                   onClick={applyImportText}
                   disabled={!importText.trim()}
                 >
@@ -2990,7 +2996,7 @@ function ObsLinksSettings() {
                 </button>
                 <button
                   type="button"
-                  className="glass-btn px-4 py-2 text-sm font-semibold opacity-80"
+                  className="glass-btn px-4 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10"
                   onClick={() => {
                     setImportText('');
                     setImportModalOpen(false);
