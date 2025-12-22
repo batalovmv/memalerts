@@ -337,9 +337,15 @@ export const adminController = {
     const limitRaw = req.query.limit as string | undefined;
     const offsetRaw = req.query.offset as string | undefined;
     const includeTotalRaw = req.query.includeTotal as string | undefined;
+    const includeTagsRaw = req.query.includeTags as string | undefined;
     const includeTotal =
       includeTotalRaw !== undefined &&
       (includeTotalRaw === '1' || includeTotalRaw.toLowerCase() === 'true' || includeTotalRaw.toLowerCase() === 'yes');
+    const includeTags =
+      includeTagsRaw === undefined ||
+      includeTagsRaw === '1' ||
+      includeTagsRaw.toLowerCase() === 'true' ||
+      includeTagsRaw.toLowerCase() === 'yes';
 
     // Defensive paging (admin endpoints can still be abused).
     const maxFromEnv = parseInt(String(process.env.ADMIN_SUBMISSIONS_PAGE_MAX || ''), 10);
@@ -360,66 +366,84 @@ export const adminController = {
         ...(status ? { status } : {}),
       };
 
-      // Try to get submissions with tags first
-      const submissionsPromise = prisma.memeSubmission.findMany({
+      // Perf: tags are not needed for the pending list UI; allow skipping JOINs.
+      // Back-compat: default includeTags=true.
+      const baseQuery: any = {
         where,
-        include: {
-          tags: {
-            include: {
-              tag: true,
-            },
-          },
-          submitter: {
-            select: {
-              id: true,
-              displayName: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
         ...(limit !== undefined && Number.isFinite(limit) ? { take: limit } : {}),
         ...(offset !== undefined && Number.isFinite(offset) ? { skip: offset } : {}),
-      });
+      };
 
-      // Add timeout protection
+      const selectWithTags = {
+        id: true,
+        channelId: true,
+        submitterUserId: true,
+        title: true,
+        type: true,
+        fileUrlTemp: true,
+        sourceUrl: true,
+        notes: true,
+        status: true,
+        moderatorNotes: true,
+        createdAt: true,
+        submitter: {
+          select: { id: true, displayName: true },
+        },
+        tags: {
+          select: {
+            tag: { select: { id: true, name: true } },
+          },
+        },
+      } as const;
+
+      const selectWithoutTags = {
+        id: true,
+        channelId: true,
+        submitterUserId: true,
+        title: true,
+        type: true,
+        fileUrlTemp: true,
+        sourceUrl: true,
+        notes: true,
+        status: true,
+        moderatorNotes: true,
+        createdAt: true,
+        submitter: {
+          select: { id: true, displayName: true },
+        },
+      } as const;
+
+      // Add timeout protection (keep conservative: DB can hang under load)
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Database query timeout')), 10000); // 10 seconds
       });
 
-      let submissions;
-      try {
-        submissions = await Promise.race([submissionsPromise, timeoutPromise]);
-      } catch (error: any) {
-        // If error is about MemeSubmissionTag table, retry without tags
-        if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
-          console.warn('MemeSubmissionTag table not found, fetching submissions without tags');
-          submissions = await prisma.memeSubmission.findMany({
-            where,
-            include: {
-              submitter: {
-                select: {
-                  id: true,
-                  displayName: true,
-                },
-              },
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-            ...(limit !== undefined && Number.isFinite(limit) ? { take: limit } : {}),
-            ...(offset !== undefined && Number.isFinite(offset) ? { skip: offset } : {}),
-          });
-          // Add empty tags array to match expected structure
-          submissions = submissions.map((s: any) => ({ ...s, tags: [] }));
-        } else if (error?.message === 'Database query timeout') {
-          return res.status(408).json({ 
-            error: 'Request timeout', 
-            message: 'Database query timed out. Please try again.' 
-          });
-        } else {
-          throw error;
+      let submissions: any;
+      if (!includeTags) {
+        submissions = await Promise.race([
+          prisma.memeSubmission.findMany({ ...baseQuery, select: selectWithoutTags }),
+          timeoutPromise,
+        ]);
+      } else {
+        const submissionsPromise = prisma.memeSubmission.findMany({ ...baseQuery, select: selectWithTags });
+        try {
+          submissions = await Promise.race([submissionsPromise, timeoutPromise]);
+        } catch (error: any) {
+          // If error is about MemeSubmissionTag table, retry without tags
+          if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
+            console.warn('MemeSubmissionTag table not found, fetching submissions without tags');
+            submissions = await prisma.memeSubmission.findMany({ ...baseQuery, select: selectWithoutTags });
+            // Add empty tags array to match expected structure
+            submissions = submissions.map((s: any) => ({ ...s, tags: [] }));
+          } else if (error?.message === 'Database query timeout') {
+            return res.status(408).json({
+              error: 'Request timeout',
+              message: 'Database query timed out. Please try again.',
+            });
+          } else {
+            throw error;
+          }
         }
       }
 
