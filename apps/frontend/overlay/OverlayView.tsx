@@ -209,6 +209,21 @@ export default function OverlayView() {
   const senderFontWeight = clampInt(parseInt(String(getParam('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
   const senderFontFamily = String(getParam('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
 
+  // Sender label presentation
+  const senderHoldMs = clampInt(parseInt(String(getParam('senderHoldMs') || (parsedStyle as any)?.senderHoldMs || ''), 10), 0, 12000);
+  const senderBgOpacity = clampAlpha(parseFloat(String(getParam('senderBgOpacity') || (parsedStyle as any)?.senderBgOpacity || '0.62')), 0, 1);
+  const senderBgColorRaw = String(getParam('senderBgColor') || (parsedStyle as any)?.senderBgColor || '#000000').trim();
+  const senderBgColor = isHexColor(senderBgColorRaw) ? senderBgColorRaw : '#000000';
+  const senderBgRadius = clampInt(parseInt(String(getParam('senderBgRadius') || (parsedStyle as any)?.senderBgRadius || '999'), 10), 0, 999);
+
+  // Glass (foreground overlay)
+  const glassEnabledRaw = String(getParam('glass') || (parsedStyle as any)?.glass || (parsedStyle as any)?.glassEnabled || '').trim().toLowerCase();
+  const glassEnabled =
+    glassEnabledRaw.length > 0
+      ? glassEnabledRaw === '1' || glassEnabledRaw === 'true' || glassEnabledRaw === 'yes' || glassEnabledRaw === 'on'
+      : blur > 0 || bgOpacity > 0;
+  const glassPreset = String(getParam('glassPreset') || (parsedStyle as any)?.glassPreset || 'ios').trim().toLowerCase();
+
   // Media fit mode:
   // - cover: no bars, may crop a tiny bit (recommended for "premium"/designer look)
   // - contain: never crop, may show bars if aspect ratios differ or bars are baked into the file
@@ -875,9 +890,38 @@ export default function OverlayView() {
     };
   }, [border, borderColor, borderColor2, borderGradientAngle, borderMode, radius]);
 
+  const frameAnimStyleFor = useCallback(
+    (item: QueuedActivation): React.CSSProperties => {
+      const enter = clampInt(Number(enterMs ?? 0), 0, 1400);
+      const exit = clampInt(Number(exitMs ?? 0), 120, 1400);
+      const base: React.CSSProperties = {
+        opacity: item.isExiting ? 0 : 1,
+        willChange: 'transform, opacity',
+        transition: `opacity ${exit}ms ease, transform ${exit}ms ease`,
+      };
+
+      if (!item.isExiting) {
+        if (anim === 'zoom') {
+          base.animation = `memalertsZoomIn ${enter}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        } else if (anim === 'slide-up') {
+          base.animation = `memalertsSlideUp ${enter}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        } else if (anim === 'fade') {
+          base.animation = `memalertsFadeIn ${enter}ms ease`;
+        }
+      } else {
+        if (anim === 'zoom') {
+          base.transform = 'scale(0.96)';
+        } else if (anim === 'slide-up') {
+          base.transform = 'translateY(14px) scale(0.99)';
+        }
+      }
+      return base;
+    },
+    [anim, enterMs, exitMs]
+  );
+
   const cardStyle = useMemo<React.CSSProperties>(() => {
     const effectiveRadius = radius || 20;
-    const effectiveBgOpacity = Number.isFinite(bgOpacity) ? bgOpacity : 0.18;
     // Shadow direction (angle).
     const distance = Number.isFinite(shadowDistance) && shadowDistance > 0 ? shadowDistance : 22;
     const rad = (shadowAngle * Math.PI) / 180;
@@ -887,9 +931,6 @@ export default function OverlayView() {
     const shadowG = parseInt(shadowColor.slice(3, 5), 16);
     const shadowB = parseInt(shadowColor.slice(5, 7), 16);
     const shadowRgba = `rgba(${shadowR},${shadowG},${shadowB},${shadowOpacity})`;
-    // Premium/Apple-ish defaults: a bit slower and smoother.
-    const effectiveEnterMs = Number.isFinite(enterMs) ? enterMs : 420;
-    const effectiveExitMs = Number.isFinite(exitMs) ? exitMs : 320;
     return {
       width: '100%',
       height: '100%',
@@ -899,27 +940,13 @@ export default function OverlayView() {
       overflow: 'hidden',
       outline: '1px solid rgba(0,0,0,0.35)',
       boxShadow: `${offX}px ${offY}px ${shadowBlur}px ${shadowSpread}px ${shadowRgba}`,
-      // Backplate under media. Keep subtle (main "glass" is rendered as a foreground overlay).
-      background: `rgba(0,0,0,${effectiveBgOpacity})`,
-      opacity: 1,
-      willChange: 'transform, opacity',
-      transition: `opacity ${Math.max(0, effectiveExitMs)}ms ease, transform ${Math.max(0, effectiveExitMs)}ms ease`,
-      animation:
-        anim === 'none'
-          ? undefined
-          : anim === 'zoom'
-            ? `memalertsZoomIn ${Math.max(0, effectiveEnterMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`
-            : anim === 'slide-up'
-              ? `memalertsSlideUp ${Math.max(0, effectiveEnterMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`
-              : `memalertsFadeIn ${Math.max(0, effectiveEnterMs)}ms ease`,
+      // Keep the plate neutral; "glass" is a separate foreground overlay.
+      background: 'rgba(0,0,0,0.10)',
     };
   }, [
     anim,
-    bgOpacity,
     blur,
     border,
-    enterMs,
-    exitMs,
     radius,
     shadowAngle,
     shadowBlur,
@@ -930,24 +957,48 @@ export default function OverlayView() {
   ]);
 
   const glassOverlayStyle = useMemo<React.CSSProperties>(() => {
-    const effectiveBlur = blur || 0;
-    // Interpret bgOpacity as "glass opacity" (surface tint strength), not as backplate opacity.
+    if (!glassEnabled) return { display: 'none' };
+
+    // Interpret bgOpacity as "glass opacity" (surface tint strength).
     const glassOpacity = clampFloat(Number.isFinite(bgOpacity) ? bgOpacity : 0.18, 0, 0.65);
-    if (effectiveBlur <= 0 && glassOpacity <= 0) {
+    const blurPx = clampInt(Number.isFinite(blur) ? blur : 0, 0, 40);
+    const intensity = Math.max(0, Math.min(1, glassOpacity / 0.65));
+
+    // "iPhone-like" glass: reflections/highlights rather than heavy blur.
+    // Blur is optional (default to 0 in UI); avoid making memes unreadable.
+    const preset = glassPreset;
+    const sheen =
+      preset === 'prism'
+        ? [
+            `linear-gradient(135deg, rgba(0,229,255,${0.18 * intensity}) 0%, rgba(167,139,250,${0.18 * intensity}) 45%, rgba(255,105,180,${0.12 * intensity}) 100%)`,
+            `radial-gradient(120% 90% at 18% 10%, rgba(255,255,255,${0.35 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
+            `radial-gradient(90% 70% at 85% 92%, rgba(255,255,255,${0.12 * intensity}) 0%, rgba(255,255,255,0) 60%)`,
+          ]
+        : preset === 'clear'
+          ? [
+              `linear-gradient(135deg, rgba(255,255,255,${0.22 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
+              `radial-gradient(120% 90% at 18% 10%, rgba(255,255,255,${0.26 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
+            ]
+          : [
+              // default "ios"
+              `linear-gradient(135deg, rgba(255,255,255,${0.18 * intensity}) 0%, rgba(255,255,255,0.02) 45%, rgba(0,0,0,${0.12 * intensity}) 100%)`,
+              `radial-gradient(140% 120% at 18% 12%, rgba(255,255,255,${0.34 * intensity}) 0%, rgba(255,255,255,0) 55%)`,
+              `linear-gradient(45deg, rgba(255,255,255,0) 35%, rgba(255,255,255,${0.10 * intensity}) 50%, rgba(255,255,255,0) 65%)`,
+            ];
+
+    if (blurPx <= 0 && glassOpacity <= 0) {
       return { display: 'none' };
     }
     return {
       position: 'absolute',
       inset: 0,
       pointerEvents: 'none',
-      // Blur the content behind (the video/image), so it looks like glass ON TOP of the meme.
-      backdropFilter: `blur(${effectiveBlur}px) saturate(1.25)`,
-      background:
-        // A subtle highlight + tint to make glass visible even on dark media.
-        `linear-gradient(135deg, rgba(255,255,255,${Math.min(0.26, glassOpacity + 0.08)}), rgba(255,255,255,0.02)), rgba(0,0,0,${Math.max(0, glassOpacity - 0.12)})`,
-      opacity: 1,
+      backdropFilter: blurPx > 0 ? `blur(${blurPx}px) saturate(1.15)` : 'saturate(1.12)',
+      backgroundImage: sheen.join(', '),
+      opacity: Math.max(0.05, intensity),
+      boxShadow: `inset 0 1px 0 rgba(255,255,255,${0.35 * intensity}), inset 0 -1px 0 rgba(0,0,0,${0.18 * intensity})`,
     };
-  }, [bgOpacity, blur]);
+  }, [bgOpacity, blur, glassEnabled, glassPreset]);
 
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
@@ -969,6 +1020,14 @@ export default function OverlayView() {
         : senderFontFamily === 'serif'
           ? 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
           : 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+    const bg = (() => {
+      const h = senderBgColor.replace('#', '');
+      const r = parseInt(h.slice(0, 2), 16);
+      const g = parseInt(h.slice(2, 4), 16);
+      const b = parseInt(h.slice(4, 6), 16);
+      const a = clampFloat(senderBgOpacity, 0, 1);
+      return `rgba(${r},${g},${b},${a})`;
+    })();
     return {
       position: 'absolute',
       left: '50%',
@@ -980,15 +1039,15 @@ export default function OverlayView() {
       fontFamily: family,
       lineHeight: 1.2,
       color: 'rgba(255,255,255,0.92)',
-      background: 'rgba(0,0,0,0.62)',
-      border: '1px solid rgba(255,255,255,0.18)',
-      borderRadius: 999,
+      background: bg,
+      border: '1px solid rgba(255,255,255,0.16)',
+      borderRadius: senderBgRadius,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       maxWidth: 'calc(100% - 20px)',
     };
-  }, [senderFontFamily, senderFontSize, senderFontWeight]);
+  }, [senderBgColor, senderBgOpacity, senderBgRadius, senderFontFamily, senderFontSize, senderFontWeight]);
 
   const renderItems = active;
   if (renderItems.length === 0) return null;
@@ -998,6 +1057,22 @@ export default function OverlayView() {
   const showSender = demo
     ? String(getParam('showSender') || getParam('overlayShowSender') || '1') !== '0'
     : Boolean(config.overlayShowSender);
+
+  const badgeAnimStyle = useMemo<React.CSSProperties>(() => {
+    const inMs = 220;
+    const outMs = 220;
+    const hold = clampInt(Number(senderHoldMs || 0), 0, 12000);
+    if (hold <= 0) {
+      return { animation: `memalertsLabelIn ${inMs}ms cubic-bezier(0.22, 1, 0.36, 1) both` };
+    }
+    const outDelay = inMs + hold;
+    return {
+      animation: [
+        `memalertsLabelIn ${inMs}ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both`,
+        `memalertsLabelOut ${outMs}ms cubic-bezier(0.22, 1, 0.36, 1) ${outDelay}ms forwards`,
+      ].join(', '),
+    };
+  }, [senderHoldMs]);
 
   return (
     <>
@@ -1016,6 +1091,14 @@ export default function OverlayView() {
             from { opacity: 0; transform: translateY(24px) scale(0.98); }
             to { opacity: 1; transform: translateY(0px) scale(1); }
           }
+          @keyframes memalertsLabelIn {
+            from { opacity: 0; transform: translate(-50%, 130%); }
+            to { opacity: 1; transform: translate(-50%, 0%); }
+          }
+          @keyframes memalertsLabelOut {
+            from { opacity: 1; transform: translate(-50%, 0%); }
+            to { opacity: 0; transform: translate(-50%, 130%); }
+          }
         `}
       </style>
       {renderItems.map((item) => (
@@ -1027,21 +1110,10 @@ export default function OverlayView() {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', height: '100%' }}>
-            <div style={borderWrapStyle}>
+            <div style={{ ...borderWrapStyle, ...frameAnimStyleFor(item) }}>
               <div
                 style={{
                   ...cardStyle,
-                  opacity: item.isExiting ? 0 : 1,
-                  transform:
-                    anim === 'zoom'
-                      ? item.isExiting
-                        ? 'scale(0.96)'
-                        : undefined
-                      : anim === 'slide-up'
-                        ? item.isExiting
-                          ? 'translateY(14px) scale(0.99)'
-                          : undefined
-                        : undefined,
                 }}
               >
                 {/* Stage: keep everything inside the card so it fades as one and never clips */}
@@ -1166,7 +1238,7 @@ export default function OverlayView() {
 
                   <div style={glassOverlayStyle} />
                   {showSender && item.senderDisplayName ? (
-                    <div style={badgeStyle} title={String(item.senderDisplayName)}>
+                    <div style={{ ...badgeStyle, ...badgeAnimStyle }} title={String(item.senderDisplayName)}>
                       {item.senderDisplayName}
                     </div>
                   ) : null}

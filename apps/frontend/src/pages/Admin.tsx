@@ -766,6 +766,9 @@ function ObsLinksSettings() {
   const [urlRadius, setUrlRadius] = useState<number>(20);
   const [urlBlur, setUrlBlur] = useState<number>(6);
   const [urlBorder, setUrlBorder] = useState<number>(2);
+  // Glass (foreground overlay in the overlay itself)
+  const [glassEnabled, setGlassEnabled] = useState<boolean>(false);
+  const [glassPreset, setGlassPreset] = useState<'ios' | 'clear' | 'prism'>('ios');
   // Border
   const [borderMode, setBorderMode] = useState<'solid' | 'gradient'>('solid');
   const [urlBorderColor, setUrlBorderColor] = useState<string>('#ffffff');
@@ -786,6 +789,10 @@ function ObsLinksSettings() {
   const [senderFontSize, setSenderFontSize] = useState<number>(13);
   const [senderFontWeight, setSenderFontWeight] = useState<number>(600);
   const [senderFontFamily, setSenderFontFamily] = useState<'system' | 'mono' | 'serif'>('system');
+  const [senderHoldMs, setSenderHoldMs] = useState<number>(1200);
+  const [senderBgColor, setSenderBgColor] = useState<string>('#000000');
+  const [senderBgOpacity, setSenderBgOpacity] = useState<number>(0.62);
+  const [senderBgRadius, setSenderBgRadius] = useState<number>(999);
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -863,6 +870,23 @@ function ObsLinksSettings() {
         const nextSenderFontSize = typeof styleFromServer?.senderFontSize === 'number' ? styleFromServer.senderFontSize : senderFontSize;
         const nextSenderFontWeight = typeof styleFromServer?.senderFontWeight === 'number' ? styleFromServer.senderFontWeight : senderFontWeight;
         const nextSenderFontFamily = typeof styleFromServer?.senderFontFamily === 'string' ? styleFromServer.senderFontFamily : senderFontFamily;
+        const nextSenderHoldMs = typeof styleFromServer?.senderHoldMs === 'number' ? styleFromServer.senderHoldMs : senderHoldMs;
+        const nextSenderBgColor = typeof styleFromServer?.senderBgColor === 'string' ? styleFromServer.senderBgColor : senderBgColor;
+        const nextSenderBgOpacity = typeof styleFromServer?.senderBgOpacity === 'number' ? styleFromServer.senderBgOpacity : senderBgOpacity;
+        const nextSenderBgRadius = typeof styleFromServer?.senderBgRadius === 'number' ? styleFromServer.senderBgRadius : senderBgRadius;
+
+        const nextGlassEnabled =
+          typeof styleFromServer?.glass === 'boolean'
+            ? styleFromServer.glass
+            : typeof styleFromServer?.glass === 'number'
+              ? styleFromServer.glass === 1
+              : typeof styleFromServer?.glassEnabled === 'boolean'
+                ? styleFromServer.glassEnabled
+                : typeof styleFromServer?.glassEnabled === 'number'
+                  ? styleFromServer.glassEnabled === 1
+                  : nextBlur > 0 || nextBgOpacity > 0;
+        const nextGlassPreset: 'ios' | 'clear' | 'prism' =
+          styleFromServer?.glassPreset === 'clear' ? 'clear' : styleFromServer?.glassPreset === 'prism' ? 'prism' : 'ios';
 
         setUrlPosition(nextPosition);
         setUrlVolume(nextVolume);
@@ -890,6 +914,12 @@ function ObsLinksSettings() {
         setSenderFontSize(nextSenderFontSize);
         setSenderFontWeight(nextSenderFontWeight);
         setSenderFontFamily(nextSenderFontFamily);
+        setSenderHoldMs(nextSenderHoldMs);
+        setSenderBgColor(String(nextSenderBgColor || '#000000').toLowerCase());
+        setSenderBgOpacity(nextSenderBgOpacity);
+        setSenderBgRadius(nextSenderBgRadius);
+        setGlassEnabled(Boolean(nextGlassEnabled));
+        setGlassPreset(nextGlassPreset);
 
         // Establish baseline so opening the page never triggers auto-save.
         const overlayStyleJsonBaseline = JSON.stringify({
@@ -906,6 +936,8 @@ function ObsLinksSettings() {
           shadowAngle: nextShadowAngle,
           shadowOpacity: nextShadowOpacity,
           shadowColor: nextShadowColor,
+          glass: Boolean(nextGlassEnabled),
+          glassPreset: nextGlassPreset,
           blur: nextBlur,
           border: nextBorder,
           borderMode: nextBorderMode,
@@ -919,6 +951,10 @@ function ObsLinksSettings() {
           senderFontSize: nextSenderFontSize,
           senderFontWeight: nextSenderFontWeight,
           senderFontFamily: nextSenderFontFamily,
+          senderHoldMs: nextSenderHoldMs,
+          senderBgColor: nextSenderBgColor,
+          senderBgOpacity: nextSenderBgOpacity,
+          senderBgRadius: nextSenderBgRadius,
         });
         const baselinePayload = JSON.stringify({
           overlayMode: nextMode,
@@ -1031,6 +1067,8 @@ function ObsLinksSettings() {
       shadowAngle: String(shadowAngle),
       shadowOpacity: String(shadowOpacity),
       shadowColor: String(shadowColor),
+      glass: glassEnabled ? '1' : '0',
+      glassPreset,
       blur: String(urlBlur),
       border: String(urlBorder),
       borderMode,
@@ -1038,6 +1076,10 @@ function ObsLinksSettings() {
       borderColor2: String(urlBorderColor2),
       borderGradientAngle: String(urlBorderGradientAngle),
       bgOpacity: String(urlBgOpacity),
+      senderHoldMs: String(senderHoldMs),
+      senderBgColor: String(senderBgColor),
+      senderBgOpacity: String(senderBgOpacity),
+      senderBgRadius: String(senderBgRadius),
       senderFontSize: String(senderFontSize),
       senderFontWeight: String(senderFontWeight),
       senderFontFamily: String(senderFontFamily),
@@ -1053,6 +1095,8 @@ function ObsLinksSettings() {
     return p;
   }, [
     borderMode,
+    glassEnabled,
+    glassPreset,
     overlayMode,
     previewCount,
     previewLoopEnabled,
@@ -1061,9 +1105,13 @@ function ObsLinksSettings() {
     scaleMax,
     scaleMin,
     scaleMode,
+    senderBgColor,
+    senderBgOpacity,
+    senderBgRadius,
     senderFontFamily,
     senderFontSize,
     senderFontWeight,
+    senderHoldMs,
     shadowAngle,
     shadowBlur,
     shadowColor,
@@ -1131,6 +1179,8 @@ function ObsLinksSettings() {
       shadowAngle,
       shadowOpacity,
       shadowColor,
+      glass: glassEnabled,
+      glassPreset,
       blur: urlBlur,
       border: urlBorder,
       borderMode,
@@ -1144,6 +1194,10 @@ function ObsLinksSettings() {
       senderFontSize,
       senderFontWeight,
       senderFontFamily,
+      senderHoldMs,
+      senderBgColor,
+      senderBgOpacity,
+      senderBgRadius,
     });
   }, [
     urlPosition,
@@ -1159,6 +1213,8 @@ function ObsLinksSettings() {
     shadowAngle,
     shadowOpacity,
     shadowColor,
+    glassEnabled,
+    glassPreset,
     urlBlur,
     urlBorder,
     borderMode,
@@ -1172,6 +1228,10 @@ function ObsLinksSettings() {
     senderFontSize,
     senderFontWeight,
     senderFontFamily,
+    senderHoldMs,
+    senderBgColor,
+    senderBgOpacity,
+    senderBgRadius,
   ]);
 
   const overlaySettingsPayload = useMemo(() => {
@@ -1754,6 +1814,35 @@ function ObsLinksSettings() {
               </div>
 
               <div className={advancedTab === 'glass' ? '' : 'hidden'}>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    {t('admin.obsOverlayGlassEnabled', { defaultValue: 'Glass' })}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setGlassEnabled((v) => !v)}
+                    className={`glass-btn px-3 py-1.5 text-sm font-semibold ${glassEnabled ? 'ring-2 ring-primary/40' : 'opacity-70'}`}
+                  >
+                    {glassEnabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
+                  </button>
+                </div>
+
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayGlassStyle', { defaultValue: 'Glass style' })}
+                </label>
+                <select
+                  value={glassPreset}
+                  onChange={(e) => setGlassPreset(e.target.value as any)}
+                  disabled={!glassEnabled}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+                >
+                  <option value="ios">{t('admin.obsOverlayGlassPresetIos', { defaultValue: 'iOS (shine)' })}</option>
+                  <option value="clear">{t('admin.obsOverlayGlassPresetClear', { defaultValue: 'Clear' })}</option>
+                  <option value="prism">{t('admin.obsOverlayGlassPresetPrism', { defaultValue: 'Prism' })}</option>
+                </select>
+              </div>
+
+              <div className={advancedTab === 'glass' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayBlur', { defaultValue: 'Glass blur' })}: <span className="font-mono">{urlBlur}px</span>
                 </label>
@@ -1764,7 +1853,8 @@ function ObsLinksSettings() {
                   step={1}
                   value={urlBlur}
                   onChange={(e) => setUrlBlur(parseInt(e.target.value, 10))}
-                  className="w-full"
+                  disabled={!glassEnabled}
+                  className="w-full disabled:opacity-50"
                 />
               </div>
 
@@ -1855,7 +1945,8 @@ function ObsLinksSettings() {
                   step={0.01}
                   value={urlBgOpacity}
                   onChange={(e) => setUrlBgOpacity(parseFloat(e.target.value))}
-                  className="w-full"
+                  disabled={!glassEnabled}
+                  className="w-full disabled:opacity-50"
                 />
               </div>
 
@@ -1865,6 +1956,24 @@ function ObsLinksSettings() {
                   {t('admin.obsOverlaySenderTypography', { defaultValue: 'Sender label' })}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderHold', { defaultValue: 'Show duration' })}:{' '}
+                      <span className="font-mono">{Math.round(senderHoldMs / 100) / 10}s</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={8000}
+                      step={100}
+                      value={senderHoldMs}
+                      onChange={(e) => setSenderHoldMs(parseInt(e.target.value, 10))}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                      {t('admin.obsOverlaySenderHoldHint', { defaultValue: '0s = stay visible the whole meme.' })}
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                       {t('admin.obsOverlaySenderFontSize', { defaultValue: 'Font size' })}:{' '}
@@ -1909,6 +2018,59 @@ function ObsLinksSettings() {
                       <option value="mono">{t('admin.obsOverlaySenderFontMono', { defaultValue: 'Monospace' })}</option>
                       <option value="serif">{t('admin.obsOverlaySenderFontSerif', { defaultValue: 'Serif' })}</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderBgColor', { defaultValue: 'Background color' })}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={senderBgColor}
+                        onChange={(e) => setSenderBgColor(String(e.target.value || '').toLowerCase())}
+                        className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                      />
+                      <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{senderBgColor}</div>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderBgOpacity', { defaultValue: 'Background opacity' })}:{' '}
+                      <span className="font-mono">{Math.round(senderBgOpacity * 100)}%</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.02}
+                      value={senderBgOpacity}
+                      onChange={(e) => setSenderBgOpacity(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderBgRadius', { defaultValue: 'Background radius' })}:{' '}
+                      <span className="font-mono">{senderBgRadius}</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={999}
+                        step={1}
+                        value={senderBgRadius}
+                        onChange={(e) => setSenderBgRadius(parseInt(e.target.value, 10))}
+                        className="w-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSenderBgRadius(999)}
+                        className="glass-btn px-3 py-2 text-sm font-semibold shrink-0"
+                      >
+                        {t('admin.obsOverlaySenderBgPill', { defaultValue: 'Pill' })}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
