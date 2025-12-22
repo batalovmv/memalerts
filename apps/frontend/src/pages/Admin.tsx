@@ -770,6 +770,7 @@ function ObsLinksSettings() {
   const [glassEnabled, setGlassEnabled] = useState<boolean>(false);
   const [glassPreset, setGlassPreset] = useState<'ios' | 'clear' | 'prism'>('ios');
   // Border
+  const [borderPreset, setBorderPreset] = useState<'custom' | 'glass' | 'glow' | 'frosted'>('custom');
   const [borderMode, setBorderMode] = useState<'solid' | 'gradient'>('solid');
   const [urlBorderColor, setUrlBorderColor] = useState<string>('#ffffff');
   const [urlBorderColor2, setUrlBorderColor2] = useState<string>('#00e5ff');
@@ -857,6 +858,14 @@ function ObsLinksSettings() {
         const nextShadowColor = typeof styleFromServer?.shadowColor === 'string' ? styleFromServer.shadowColor : shadowColor;
         const nextBlur = typeof styleFromServer?.blur === 'number' ? styleFromServer.blur : urlBlur;
         const nextBorder = typeof styleFromServer?.border === 'number' ? styleFromServer.border : urlBorder;
+        const nextBorderPreset: 'custom' | 'glass' | 'glow' | 'frosted' =
+          styleFromServer?.borderPreset === 'glass'
+            ? 'glass'
+            : styleFromServer?.borderPreset === 'glow'
+              ? 'glow'
+              : styleFromServer?.borderPreset === 'frosted'
+                ? 'frosted'
+                : 'custom';
         const nextBorderMode: 'solid' | 'gradient' = styleFromServer?.borderMode === 'gradient' ? 'gradient' : 'solid';
         const nextBorderColor = typeof styleFromServer?.borderColor === 'string' ? styleFromServer.borderColor : urlBorderColor;
         const nextBorderColor2 = typeof styleFromServer?.borderColor2 === 'string' ? styleFromServer.borderColor2 : urlBorderColor2;
@@ -903,6 +912,7 @@ function ObsLinksSettings() {
         setShadowColor(nextShadowColor);
         setUrlBlur(nextBlur);
         setUrlBorder(nextBorder);
+        setBorderPreset(nextBorderPreset);
         setBorderMode(nextBorderMode);
         setUrlBorderColor(nextBorderColor);
         setUrlBorderColor2(nextBorderColor2);
@@ -940,6 +950,7 @@ function ObsLinksSettings() {
           glassPreset: nextGlassPreset,
           blur: nextBlur,
           border: nextBorder,
+          borderPreset: nextBorderPreset,
           borderMode: nextBorderMode,
           borderColor: nextBorderColor,
           borderColor2: nextBorderColor2,
@@ -1071,6 +1082,7 @@ function ObsLinksSettings() {
       glassPreset,
       blur: String(urlBlur),
       border: String(urlBorder),
+      borderPreset,
       borderMode,
       borderColor: String(urlBorderColor),
       borderColor2: String(urlBorderColor2),
@@ -1094,6 +1106,7 @@ function ObsLinksSettings() {
     }
     return p;
   }, [
+    borderPreset,
     borderMode,
     glassEnabled,
     glassPreset,
@@ -1183,6 +1196,7 @@ function ObsLinksSettings() {
       glassPreset,
       blur: urlBlur,
       border: urlBorder,
+      borderPreset,
       borderMode,
       borderColor: urlBorderColor,
       borderColor2: urlBorderColor2,
@@ -1217,6 +1231,7 @@ function ObsLinksSettings() {
     glassPreset,
     urlBlur,
     urlBorder,
+    borderPreset,
     borderMode,
     urlBorderColor,
     urlBorderColor2,
@@ -1860,6 +1875,25 @@ function ObsLinksSettings() {
 
               <div className={advancedTab === 'border' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayBorderPreset', { defaultValue: 'Frame style' })}
+                </label>
+                <select
+                  value={borderPreset}
+                  onChange={(e) => setBorderPreset(e.target.value as any)}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="custom">{t('admin.obsOverlayBorderPresetCustom', { defaultValue: 'Custom' })}</option>
+                  <option value="glass">{t('admin.obsOverlayBorderPresetGlass', { defaultValue: 'Glass frame' })}</option>
+                  <option value="glow">{t('admin.obsOverlayBorderPresetGlow', { defaultValue: 'Glow' })}</option>
+                  <option value="frosted">{t('admin.obsOverlayBorderPresetFrosted', { defaultValue: 'Frosted edge' })}</option>
+                </select>
+                <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.obsOverlayBorderPresetHint', { defaultValue: 'Presets override the visual style of the frame (still uses your thickness/radius).' })}
+                </div>
+              </div>
+
+              <div className={advancedTab === 'border' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayBorder', { defaultValue: 'Border' })}: <span className="font-mono">{urlBorder}px</span>
                 </label>
                 <input
@@ -2057,7 +2091,7 @@ function ObsLinksSettings() {
                       <input
                         type="range"
                         min={0}
-                        max={999}
+                        max={60}
                         step={1}
                         value={senderBgRadius}
                         onChange={(e) => setSenderBgRadius(parseInt(e.target.value, 10))}
@@ -2070,6 +2104,9 @@ function ObsLinksSettings() {
                       >
                         {t('admin.obsOverlaySenderBgPill', { defaultValue: 'Pill' })}
                       </button>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                      {t('admin.obsOverlaySenderBgRadiusHint', { defaultValue: 'Tip: try 8–16 for a modern rounded rectangle.' })}
                     </div>
                   </div>
                 </div>

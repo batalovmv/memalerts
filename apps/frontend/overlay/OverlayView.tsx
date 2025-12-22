@@ -193,6 +193,16 @@ export default function OverlayView() {
   const blur = clampInt(parseInt(String(getParam('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 40);
   const border = clampInt(parseInt(String(getParam('border') || (parsedStyle as any)?.border || ''), 10), 0, 12);
 
+  const borderPresetRaw = String(getParam('borderPreset') || (parsedStyle as any)?.borderPreset || 'custom').trim().toLowerCase();
+  const borderPreset: 'custom' | 'glass' | 'glow' | 'frosted' =
+    borderPresetRaw === 'glass'
+      ? 'glass'
+      : borderPresetRaw === 'glow'
+        ? 'glow'
+        : borderPresetRaw === 'frosted'
+          ? 'frosted'
+          : 'custom';
+
   const borderModeRaw = String(getParam('borderMode') || (parsedStyle as any)?.borderMode || 'solid').trim().toLowerCase();
   const borderMode: 'solid' | 'gradient' = borderModeRaw === 'gradient' ? 'gradient' : 'solid';
   const borderColorRaw = String(getParam('borderColor') || (parsedStyle as any)?.borderColor || '').trim();
@@ -215,6 +225,12 @@ export default function OverlayView() {
   const senderBgColorRaw = String(getParam('senderBgColor') || (parsedStyle as any)?.senderBgColor || '#000000').trim();
   const senderBgColor = isHexColor(senderBgColorRaw) ? senderBgColorRaw : '#000000';
   const senderBgRadius = clampInt(parseInt(String(getParam('senderBgRadius') || (parsedStyle as any)?.senderBgRadius || '999'), 10), 0, 999);
+  const senderStrokeRaw = String(getParam('senderStroke') || (parsedStyle as any)?.senderStroke || 'glass').trim().toLowerCase();
+  const senderStroke: 'none' | 'glass' | 'solid' = senderStrokeRaw === 'none' ? 'none' : senderStrokeRaw === 'solid' ? 'solid' : 'glass';
+  const senderStrokeWidth = clampInt(parseInt(String(getParam('senderStrokeWidth') || (parsedStyle as any)?.senderStrokeWidth || '1'), 10), 0, 6);
+  const senderStrokeOpacity = clampAlpha(parseFloat(String(getParam('senderStrokeOpacity') || (parsedStyle as any)?.senderStrokeOpacity || '0.22')), 0, 1);
+  const senderStrokeColorRaw = String(getParam('senderStrokeColor') || (parsedStyle as any)?.senderStrokeColor || '#ffffff').trim();
+  const senderStrokeColor = isHexColor(senderStrokeColorRaw) ? senderStrokeColorRaw : '#ffffff';
 
   // Glass (foreground overlay)
   const glassEnabledRaw = String(getParam('glass') || (parsedStyle as any)?.glass || (parsedStyle as any)?.glassEnabled || '').trim().toLowerCase();
@@ -867,7 +883,7 @@ export default function OverlayView() {
       return { r, g, b };
     };
 
-    const bg =
+    const bgCustom =
       borderMode === 'gradient'
         ? (() => {
             const c1 = hexToRgb(borderColor);
@@ -879,16 +895,40 @@ export default function OverlayView() {
             ].join(', ');
           })()
         : borderColor;
+
+    const bgGlass = [
+      `radial-gradient(140% 120% at 18% 12%, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0) 55%)`,
+      `linear-gradient(${borderGradientAngle}deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.18) 42%, rgba(0,0,0,0.18) 100%)`,
+    ].join(', ');
+
+    const bgFrosted = [
+      `radial-gradient(150% 140% at 18% 12%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0) 55%)`,
+      `linear-gradient(${borderGradientAngle}deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.20) 100%)`,
+    ].join(', ');
+
+    const bgGlow = bgCustom;
+
+    const bg =
+      borderPreset === 'glass' ? bgGlass : borderPreset === 'frosted' ? bgFrosted : borderPreset === 'glow' ? bgGlow : bgCustom;
+
     return {
       width: '100%',
       height: '100%',
       boxSizing: 'border-box',
       borderRadius: radius || 20,
       padding: w,
-      background: borderMode === 'gradient' ? undefined : bg,
-      backgroundImage: borderMode === 'gradient' ? bg : undefined,
+      background: borderPreset === 'custom' && borderMode !== 'gradient' ? bg : undefined,
+      backgroundImage: borderPreset === 'custom' && borderMode !== 'gradient' ? undefined : bg,
+      boxShadow:
+        borderPreset === 'glass'
+          ? 'inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,0,0,0.25)'
+          : borderPreset === 'glow'
+            ? `0 10px 34px rgba(0,0,0,0.25), 0 0 24px rgba(255,255,255,0.10)`
+            : borderPreset === 'frosted'
+              ? 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.25), 0 10px 34px rgba(0,0,0,0.25)'
+              : undefined,
     };
-  }, [border, borderColor, borderColor2, borderGradientAngle, borderMode, radius]);
+  }, [border, borderColor, borderColor2, borderGradientAngle, borderMode, borderPreset, radius]);
 
   const frameAnimStyleFor = useCallback(
     (item: QueuedActivation): React.CSSProperties => {
@@ -1028,6 +1068,25 @@ export default function OverlayView() {
       const a = clampFloat(senderBgOpacity, 0, 1);
       return `rgba(${r},${g},${b},${a})`;
     })();
+
+    const strokeRgba = (() => {
+      const h = senderStrokeColor.replace('#', '');
+      const r = parseInt(h.slice(0, 2), 16);
+      const g = parseInt(h.slice(2, 4), 16);
+      const b = parseInt(h.slice(4, 6), 16);
+      return `rgba(${r},${g},${b},${clampFloat(senderStrokeOpacity, 0, 1)})`;
+    })();
+
+    const strokeShadow =
+      senderStrokeWidth <= 0 || senderStroke === 'none'
+        ? undefined
+        : senderStroke === 'solid'
+          ? `inset 0 0 0 ${senderStrokeWidth}px ${strokeRgba}`
+          : [
+              `inset 0 0 0 ${senderStrokeWidth}px rgba(255,255,255,${Math.min(0.40, senderStrokeOpacity + 0.12)})`,
+              `inset 0 1px 0 rgba(255,255,255,${Math.min(0.45, senderStrokeOpacity + 0.18)})`,
+              `inset 0 -1px 0 rgba(0,0,0,${Math.min(0.30, senderStrokeOpacity + 0.08)})`,
+            ].join(', ');
     return {
       position: 'absolute',
       left: '50%',
@@ -1040,14 +1099,25 @@ export default function OverlayView() {
       lineHeight: 1.2,
       color: 'rgba(255,255,255,0.92)',
       background: bg,
-      border: '1px solid rgba(255,255,255,0.16)',
+      boxShadow: strokeShadow,
       borderRadius: senderBgRadius,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       maxWidth: 'calc(100% - 20px)',
     };
-  }, [senderBgColor, senderBgOpacity, senderBgRadius, senderFontFamily, senderFontSize, senderFontWeight]);
+  }, [
+    senderBgColor,
+    senderBgOpacity,
+    senderBgRadius,
+    senderFontFamily,
+    senderFontSize,
+    senderFontWeight,
+    senderStroke,
+    senderStrokeColor,
+    senderStrokeOpacity,
+    senderStrokeWidth,
+  ]);
 
   const renderItems = active;
 
