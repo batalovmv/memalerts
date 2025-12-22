@@ -606,42 +606,33 @@ export function ObsLinksSettings() {
     try {
       setLoadingPreview(true);
       const { api } = await import('@/lib/api');
-      const results = await Promise.all(
-        Array.from({ length: n }).map(async () => {
-          try {
-            const resp = await api.get<{ meme: null | { fileUrl: string; type: string; title?: string } }>(
-              '/streamer/overlay/preview-meme',
-              {
-                // Avoid 304 / cached response edge-cases in some browsers/CDN combos.
-                params: { _ts: Date.now() },
-                headers: { 'Cache-Control': 'no-store' },
-              }
-            );
-            return resp?.meme || null;
-          } catch {
-            return null;
-          }
-        })
+      const nextSeed = opts?.bumpSeed ? (previewSeed >= 1000000000 ? 1 : previewSeed + 1) : previewSeed;
+
+      const resp = await api.get<{ memes: Array<null | { fileUrl: string; type: string; title?: string }> }>(
+        '/streamer/overlay/preview-memes',
+        {
+          params: { count: n, seed: String(nextSeed), _ts: Date.now() },
+          headers: { 'Cache-Control': 'no-store' },
+        }
       );
-      // Keep unique-by-fileUrl, preserve order.
-      const uniq: Array<{ fileUrl: string; type: string; title?: string }> = [];
+
+      const list = Array.isArray(resp?.memes) ? resp.memes : [];
+      const cleaned: Array<{ fileUrl: string; type: string; title?: string }> = [];
       const seen = new Set<string>();
-      for (const m of results) {
+      for (const m of list) {
         if (!m?.fileUrl) continue;
         if (seen.has(m.fileUrl)) continue;
         seen.add(m.fileUrl);
-        uniq.push(m);
+        cleaned.push({ fileUrl: m.fileUrl, type: m.type, title: m.title });
       }
-      setPreviewMemes(uniq);
-      if (opts?.bumpSeed) {
-        setPreviewSeed((s) => (s >= 1000000000 ? 1 : s + 1));
-      }
+      setPreviewMemes(cleaned);
+      if (opts?.bumpSeed) setPreviewSeed(nextSeed);
     } catch {
       setPreviewMemes([]);
     } finally {
       setLoadingPreview(false);
     }
-  }, [previewCount]);
+  }, [previewCount, previewSeed]);
 
   useEffect(() => {
     if (!channelSlug) return;
