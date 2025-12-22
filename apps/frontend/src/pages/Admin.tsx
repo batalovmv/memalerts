@@ -771,6 +771,8 @@ function ObsLinksSettings() {
   const [glassPreset, setGlassPreset] = useState<'ios' | 'clear' | 'prism'>('ios');
   // Border
   const [borderPreset, setBorderPreset] = useState<'custom' | 'glass' | 'glow' | 'frosted'>('custom');
+  const [borderTintColor, setBorderTintColor] = useState<string>('#7dd3fc');
+  const [borderTintStrength, setBorderTintStrength] = useState<number>(0.35);
   const [borderMode, setBorderMode] = useState<'solid' | 'gradient'>('solid');
   const [urlBorderColor, setUrlBorderColor] = useState<string>('#ffffff');
   const [urlBorderColor2, setUrlBorderColor2] = useState<string>('#00e5ff');
@@ -783,17 +785,29 @@ function ObsLinksSettings() {
   const [shadowOpacity, setShadowOpacity] = useState<number>(0.6);
   const [shadowColor, setShadowColor] = useState<string>('#000000');
   const [urlBgOpacity, setUrlBgOpacity] = useState<number>(0.18);
-  const [urlAnim, setUrlAnim] = useState<'fade' | 'zoom' | 'slide-up' | 'none'>('fade');
+  const [urlAnim, setUrlAnim] = useState<'fade' | 'zoom' | 'slide-up' | 'pop' | 'lift' | 'none'>('fade');
+  const [animEasingPreset, setAnimEasingPreset] = useState<'ios' | 'smooth' | 'snappy' | 'linear' | 'custom'>('ios');
+  const [animEasingX1, setAnimEasingX1] = useState<number>(0.22);
+  const [animEasingY1, setAnimEasingY1] = useState<number>(1);
+  const [animEasingX2, setAnimEasingX2] = useState<number>(0.36);
+  const [animEasingY2, setAnimEasingY2] = useState<number>(1);
   // Slightly slower "Apple-ish" defaults (less snappy, more premium).
   const [urlEnterMs, setUrlEnterMs] = useState<number>(420);
   const [urlExitMs, setUrlExitMs] = useState<number>(320);
   const [senderFontSize, setSenderFontSize] = useState<number>(13);
   const [senderFontWeight, setSenderFontWeight] = useState<number>(600);
-  const [senderFontFamily, setSenderFontFamily] = useState<'system' | 'mono' | 'serif'>('system');
+  const [senderFontFamily, setSenderFontFamily] = useState<
+    'system' | 'inter' | 'roboto' | 'montserrat' | 'poppins' | 'oswald' | 'raleway' | 'nunito' | 'playfair' | 'jetbrains-mono' | 'mono' | 'serif'
+  >('system');
+  const [senderFontColor, setSenderFontColor] = useState<string>('#ffffff');
   const [senderHoldMs, setSenderHoldMs] = useState<number>(1200);
   const [senderBgColor, setSenderBgColor] = useState<string>('#000000');
   const [senderBgOpacity, setSenderBgOpacity] = useState<number>(0.62);
   const [senderBgRadius, setSenderBgRadius] = useState<number>(999);
+  const [senderStroke, setSenderStroke] = useState<'none' | 'glass' | 'solid'>('glass');
+  const [senderStrokeWidth, setSenderStrokeWidth] = useState<number>(1);
+  const [senderStrokeOpacity, setSenderStrokeOpacity] = useState<number>(0.22);
+  const [senderStrokeColor, setSenderStrokeColor] = useState<string>('#ffffff');
 
   const RotateIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -866,6 +880,9 @@ function ObsLinksSettings() {
               : styleFromServer?.borderPreset === 'frosted'
                 ? 'frosted'
                 : 'custom';
+        const nextBorderTintColor = typeof styleFromServer?.borderTintColor === 'string' ? styleFromServer.borderTintColor : borderTintColor;
+        const nextBorderTintStrength =
+          typeof styleFromServer?.borderTintStrength === 'number' ? styleFromServer.borderTintStrength : borderTintStrength;
         const nextBorderMode: 'solid' | 'gradient' = styleFromServer?.borderMode === 'gradient' ? 'gradient' : 'solid';
         const nextBorderColor = typeof styleFromServer?.borderColor === 'string' ? styleFromServer.borderColor : urlBorderColor;
         const nextBorderColor2 = typeof styleFromServer?.borderColor2 === 'string' ? styleFromServer.borderColor2 : urlBorderColor2;
@@ -876,13 +893,35 @@ function ObsLinksSettings() {
         const nextAnim = styleFromServer?.anim ?? urlAnim;
         const nextEnterMs = typeof styleFromServer?.enterMs === 'number' ? styleFromServer.enterMs : urlEnterMs;
         const nextExitMs = typeof styleFromServer?.exitMs === 'number' ? styleFromServer.exitMs : urlExitMs;
+        const nextEasingPreset: 'ios' | 'smooth' | 'snappy' | 'linear' | 'custom' =
+          styleFromServer?.easing === 'custom'
+            ? 'custom'
+            : styleFromServer?.easing === 'smooth'
+              ? 'smooth'
+              : styleFromServer?.easing === 'snappy'
+                ? 'snappy'
+                : styleFromServer?.easing === 'linear'
+                  ? 'linear'
+                  : 'ios';
+        const nextEasingX1 = typeof styleFromServer?.easingX1 === 'number' ? styleFromServer.easingX1 : animEasingX1;
+        const nextEasingY1 = typeof styleFromServer?.easingY1 === 'number' ? styleFromServer.easingY1 : animEasingY1;
+        const nextEasingX2 = typeof styleFromServer?.easingX2 === 'number' ? styleFromServer.easingX2 : animEasingX2;
+        const nextEasingY2 = typeof styleFromServer?.easingY2 === 'number' ? styleFromServer.easingY2 : animEasingY2;
         const nextSenderFontSize = typeof styleFromServer?.senderFontSize === 'number' ? styleFromServer.senderFontSize : senderFontSize;
         const nextSenderFontWeight = typeof styleFromServer?.senderFontWeight === 'number' ? styleFromServer.senderFontWeight : senderFontWeight;
         const nextSenderFontFamily = typeof styleFromServer?.senderFontFamily === 'string' ? styleFromServer.senderFontFamily : senderFontFamily;
+        const nextSenderFontColor = typeof styleFromServer?.senderFontColor === 'string' ? styleFromServer.senderFontColor : senderFontColor;
         const nextSenderHoldMs = typeof styleFromServer?.senderHoldMs === 'number' ? styleFromServer.senderHoldMs : senderHoldMs;
         const nextSenderBgColor = typeof styleFromServer?.senderBgColor === 'string' ? styleFromServer.senderBgColor : senderBgColor;
         const nextSenderBgOpacity = typeof styleFromServer?.senderBgOpacity === 'number' ? styleFromServer.senderBgOpacity : senderBgOpacity;
         const nextSenderBgRadius = typeof styleFromServer?.senderBgRadius === 'number' ? styleFromServer.senderBgRadius : senderBgRadius;
+        const nextSenderStroke: 'none' | 'glass' | 'solid' =
+          styleFromServer?.senderStroke === 'none' ? 'none' : styleFromServer?.senderStroke === 'solid' ? 'solid' : 'glass';
+        const nextSenderStrokeWidth = typeof styleFromServer?.senderStrokeWidth === 'number' ? styleFromServer.senderStrokeWidth : senderStrokeWidth;
+        const nextSenderStrokeOpacity =
+          typeof styleFromServer?.senderStrokeOpacity === 'number' ? styleFromServer.senderStrokeOpacity : senderStrokeOpacity;
+        const nextSenderStrokeColor =
+          typeof styleFromServer?.senderStrokeColor === 'string' ? styleFromServer.senderStrokeColor : senderStrokeColor;
 
         const nextGlassEnabled =
           typeof styleFromServer?.glass === 'boolean'
@@ -913,6 +952,8 @@ function ObsLinksSettings() {
         setUrlBlur(nextBlur);
         setUrlBorder(nextBorder);
         setBorderPreset(nextBorderPreset);
+        setBorderTintColor(String(nextBorderTintColor || '#7dd3fc').toLowerCase());
+        setBorderTintStrength(nextBorderTintStrength);
         setBorderMode(nextBorderMode);
         setUrlBorderColor(nextBorderColor);
         setUrlBorderColor2(nextBorderColor2);
@@ -921,13 +962,23 @@ function ObsLinksSettings() {
         setUrlAnim(nextAnim);
         setUrlEnterMs(nextEnterMs);
         setUrlExitMs(nextExitMs);
+        setAnimEasingPreset(nextEasingPreset);
+        setAnimEasingX1(nextEasingX1);
+        setAnimEasingY1(nextEasingY1);
+        setAnimEasingX2(nextEasingX2);
+        setAnimEasingY2(nextEasingY2);
         setSenderFontSize(nextSenderFontSize);
         setSenderFontWeight(nextSenderFontWeight);
         setSenderFontFamily(nextSenderFontFamily);
+        setSenderFontColor(String(nextSenderFontColor || '#ffffff').toLowerCase());
         setSenderHoldMs(nextSenderHoldMs);
         setSenderBgColor(String(nextSenderBgColor || '#000000').toLowerCase());
         setSenderBgOpacity(nextSenderBgOpacity);
         setSenderBgRadius(nextSenderBgRadius);
+        setSenderStroke(nextSenderStroke);
+        setSenderStrokeWidth(nextSenderStrokeWidth);
+        setSenderStrokeOpacity(nextSenderStrokeOpacity);
+        setSenderStrokeColor(String(nextSenderStrokeColor || '#ffffff').toLowerCase());
         setGlassEnabled(Boolean(nextGlassEnabled));
         setGlassPreset(nextGlassPreset);
 
@@ -951,6 +1002,8 @@ function ObsLinksSettings() {
           blur: nextBlur,
           border: nextBorder,
           borderPreset: nextBorderPreset,
+          borderTintColor: nextBorderTintColor,
+          borderTintStrength: nextBorderTintStrength,
           borderMode: nextBorderMode,
           borderColor: nextBorderColor,
           borderColor2: nextBorderColor2,
@@ -959,13 +1012,23 @@ function ObsLinksSettings() {
           anim: nextAnim,
           enterMs: nextEnterMs,
           exitMs: nextExitMs,
+          easing: nextEasingPreset,
+          easingX1: nextEasingX1,
+          easingY1: nextEasingY1,
+          easingX2: nextEasingX2,
+          easingY2: nextEasingY2,
           senderFontSize: nextSenderFontSize,
           senderFontWeight: nextSenderFontWeight,
           senderFontFamily: nextSenderFontFamily,
+          senderFontColor: nextSenderFontColor,
           senderHoldMs: nextSenderHoldMs,
           senderBgColor: nextSenderBgColor,
           senderBgOpacity: nextSenderBgOpacity,
           senderBgRadius: nextSenderBgRadius,
+          senderStroke: nextSenderStroke,
+          senderStrokeWidth: nextSenderStrokeWidth,
+          senderStrokeOpacity: nextSenderStrokeOpacity,
+          senderStrokeColor: nextSenderStrokeColor,
         });
         const baselinePayload = JSON.stringify({
           overlayMode: nextMode,
@@ -1083,6 +1146,8 @@ function ObsLinksSettings() {
       blur: String(urlBlur),
       border: String(urlBorder),
       borderPreset,
+      borderTintColor: String(borderTintColor),
+      borderTintStrength: String(borderTintStrength),
       borderMode,
       borderColor: String(urlBorderColor),
       borderColor2: String(urlBorderColor2),
@@ -1092,9 +1157,20 @@ function ObsLinksSettings() {
       senderBgColor: String(senderBgColor),
       senderBgOpacity: String(senderBgOpacity),
       senderBgRadius: String(senderBgRadius),
+      senderStroke,
+      senderStrokeWidth: String(senderStrokeWidth),
+      senderStrokeOpacity: String(senderStrokeOpacity),
+      senderStrokeColor: String(senderStrokeColor),
+      easing: animEasingPreset,
+      easingX1: String(animEasingX1),
+      easingY1: String(animEasingY1),
+      easingX2: String(animEasingX2),
+      easingY2: String(animEasingY2),
+      showSender: overlayShowSender ? '1' : '0',
       senderFontSize: String(senderFontSize),
       senderFontWeight: String(senderFontWeight),
       senderFontFamily: String(senderFontFamily),
+      senderFontColor: String(senderFontColor),
       scaleMode,
     };
     if (scaleMode === 'fixed') {
@@ -1107,6 +1183,8 @@ function ObsLinksSettings() {
     return p;
   }, [
     borderPreset,
+    borderTintColor,
+    borderTintStrength,
     borderMode,
     glassEnabled,
     glassPreset,
@@ -1121,6 +1199,11 @@ function ObsLinksSettings() {
     senderBgColor,
     senderBgOpacity,
     senderBgRadius,
+    senderStroke,
+    senderStrokeWidth,
+    senderStrokeOpacity,
+    senderStrokeColor,
+    overlayShowSender,
     senderFontFamily,
     senderFontSize,
     senderFontWeight,
@@ -1197,6 +1280,8 @@ function ObsLinksSettings() {
       blur: urlBlur,
       border: urlBorder,
       borderPreset,
+      borderTintColor,
+      borderTintStrength,
       borderMode,
       borderColor: urlBorderColor,
       borderColor2: urlBorderColor2,
@@ -1205,13 +1290,23 @@ function ObsLinksSettings() {
       anim: urlAnim,
       enterMs: urlEnterMs,
       exitMs: urlExitMs,
+      easing: animEasingPreset,
+      easingX1: animEasingX1,
+      easingY1: animEasingY1,
+      easingX2: animEasingX2,
+      easingY2: animEasingY2,
       senderFontSize,
       senderFontWeight,
       senderFontFamily,
+      senderFontColor,
       senderHoldMs,
       senderBgColor,
       senderBgOpacity,
       senderBgRadius,
+      senderStroke,
+      senderStrokeWidth,
+      senderStrokeOpacity,
+      senderStrokeColor,
     });
   }, [
     urlPosition,
@@ -1232,6 +1327,8 @@ function ObsLinksSettings() {
     urlBlur,
     urlBorder,
     borderPreset,
+    borderTintColor,
+    borderTintStrength,
     borderMode,
     urlBorderColor,
     urlBorderColor2,
@@ -1240,13 +1337,23 @@ function ObsLinksSettings() {
     urlAnim,
     urlEnterMs,
     urlExitMs,
+    animEasingPreset,
+    animEasingX1,
+    animEasingY1,
+    animEasingX2,
+    animEasingY2,
     senderFontSize,
     senderFontWeight,
     senderFontFamily,
+    senderFontColor,
     senderHoldMs,
     senderBgColor,
     senderBgOpacity,
     senderBgRadius,
+    senderStroke,
+    senderStrokeWidth,
+    senderStrokeOpacity,
+    senderStrokeColor,
   ]);
 
   const overlaySettingsPayload = useMemo(() => {
@@ -1694,9 +1801,86 @@ function ObsLinksSettings() {
                   <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
                   <option value="zoom">{t('admin.obsOverlayAnimZoom', { defaultValue: 'Zoom' })}</option>
                   <option value="slide-up">{t('admin.obsOverlayAnimSlideUp', { defaultValue: 'Slide up' })}</option>
+                  <option value="pop">{t('admin.obsOverlayAnimPop', { defaultValue: 'Pop (premium)' })}</option>
+                  <option value="lift">{t('admin.obsOverlayAnimLift', { defaultValue: 'Lift (premium)' })}</option>
                   <option value="none">{t('admin.obsOverlayAnimNone', { defaultValue: 'None' })}</option>
                 </select>
               </div>
+
+              <div className={advancedTab === 'animation' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlayAnimEasing', { defaultValue: 'Easing' })}
+                </label>
+                <select
+                  value={animEasingPreset}
+                  onChange={(e) => setAnimEasingPreset(e.target.value as any)}
+                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="ios">{t('admin.obsOverlayAnimEasingIos', { defaultValue: 'iOS' })}</option>
+                  <option value="smooth">{t('admin.obsOverlayAnimEasingSmooth', { defaultValue: 'Smooth' })}</option>
+                  <option value="snappy">{t('admin.obsOverlayAnimEasingSnappy', { defaultValue: 'Snappy' })}</option>
+                  <option value="linear">{t('admin.obsOverlayAnimEasingLinear', { defaultValue: 'Linear' })}</option>
+                  <option value="custom">{t('admin.obsOverlayAnimEasingCustom', { defaultValue: 'Custom cubic-bezier' })}</option>
+                </select>
+                <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.obsOverlayAnimEasingHint', { defaultValue: 'Controls the feel of enter/exit. iOS is the recommended default.' })}
+                </div>
+              </div>
+
+              {animEasingPreset === 'custom' && (
+                <div className={`md:col-span-2 ${advancedTab === 'animation' ? '' : 'hidden'}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">x1</label>
+                      <input
+                        type="number"
+                        value={animEasingX1}
+                        step={0.01}
+                        min={-1}
+                        max={2}
+                        onChange={(e) => setAnimEasingX1(parseFloat(e.target.value))}
+                        className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">y1</label>
+                      <input
+                        type="number"
+                        value={animEasingY1}
+                        step={0.01}
+                        min={-1}
+                        max={2}
+                        onChange={(e) => setAnimEasingY1(parseFloat(e.target.value))}
+                        className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">x2</label>
+                      <input
+                        type="number"
+                        value={animEasingX2}
+                        step={0.01}
+                        min={-1}
+                        max={2}
+                        onChange={(e) => setAnimEasingX2(parseFloat(e.target.value))}
+                        className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">y2</label>
+                      <input
+                        type="number"
+                        value={animEasingY2}
+                        step={0.01}
+                        min={-1}
+                        max={2}
+                        onChange={(e) => setAnimEasingY2(parseFloat(e.target.value))}
+                        className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className={advancedTab === 'animation' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -1893,6 +2077,44 @@ function ObsLinksSettings() {
               </div>
 
               <div className={advancedTab === 'border' ? '' : 'hidden'}>
+                {borderPreset !== 'custom' && (
+                  <div className="glass p-3 mb-3">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                      {t('admin.obsOverlayBorderPresetControls', { defaultValue: 'Preset controls' })}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.obsOverlayBorderTintColor', { defaultValue: 'Tint color' })}
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={borderTintColor}
+                            onChange={(e) => setBorderTintColor(String(e.target.value || '').toLowerCase())}
+                            className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                          />
+                          <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{borderTintColor}</div>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.obsOverlayBorderTintStrength', { defaultValue: 'Tint strength' })}:{' '}
+                          <span className="font-mono">{Math.round(borderTintStrength * 100)}%</span>
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.02}
+                          value={borderTintStrength}
+                          onChange={(e) => setBorderTintStrength(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayBorder', { defaultValue: 'Border' })}: <span className="font-mono">{urlBorder}px</span>
                 </label>
@@ -1915,7 +2137,8 @@ function ObsLinksSettings() {
                   <select
                     value={borderMode}
                     onChange={(e) => setBorderMode(e.target.value as any)}
-                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    disabled={borderPreset !== 'custom'}
+                    className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
                     aria-label={t('admin.obsOverlayBorderMode', { defaultValue: 'Border mode' })}
                   >
                     <option value="solid">{t('admin.obsOverlayBorderModeSolid', { defaultValue: 'Solid' })}</option>
@@ -1925,14 +2148,15 @@ function ObsLinksSettings() {
                     type="color"
                     value={urlBorderColor}
                     onChange={(e) => setUrlBorderColor(String(e.target.value || '').toLowerCase())}
-                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                    disabled={borderPreset !== 'custom'}
+                    className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent disabled:opacity-50"
                     aria-label={t('admin.obsOverlayBorderColor', { defaultValue: 'Border color' })}
                   />
                   <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{urlBorderColor}</div>
                 </div>
               </div>
 
-              {borderMode === 'gradient' && (
+              {borderPreset === 'custom' && borderMode === 'gradient' && (
                 <div className={`md:col-span-2 ${advancedTab === 'border' ? '' : 'hidden'}`}>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
@@ -2049,9 +2273,32 @@ function ObsLinksSettings() {
                       className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       <option value="system">{t('admin.obsOverlaySenderFontSystem', { defaultValue: 'System' })}</option>
+                      <option value="inter">Inter</option>
+                      <option value="roboto">Roboto</option>
+                      <option value="montserrat">Montserrat</option>
+                      <option value="poppins">Poppins</option>
+                      <option value="raleway">Raleway</option>
+                      <option value="nunito">Nunito</option>
+                      <option value="oswald">Oswald</option>
+                      <option value="playfair">Playfair Display</option>
+                      <option value="jetbrains-mono">JetBrains Mono</option>
                       <option value="mono">{t('admin.obsOverlaySenderFontMono', { defaultValue: 'Monospace' })}</option>
                       <option value="serif">{t('admin.obsOverlaySenderFontSerif', { defaultValue: 'Serif' })}</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.obsOverlaySenderFontColor', { defaultValue: 'Text color' })}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={senderFontColor}
+                        onChange={(e) => setSenderFontColor(String(e.target.value || '').toLowerCase())}
+                        className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                      />
+                      <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{senderFontColor}</div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -2107,6 +2354,78 @@ function ObsLinksSettings() {
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                       {t('admin.obsOverlaySenderBgRadiusHint', { defaultValue: 'Tip: try 8–16 for a modern rounded rectangle.' })}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                      {t('admin.obsOverlaySenderStrokeTitle', { defaultValue: 'Label border' })}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.obsOverlaySenderStrokeStyle', { defaultValue: 'Style' })}
+                        </label>
+                        <select
+                          value={senderStroke}
+                          onChange={(e) => setSenderStroke(e.target.value as any)}
+                          className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        >
+                          <option value="glass">{t('admin.obsOverlaySenderStrokeGlass', { defaultValue: 'Glass' })}</option>
+                          <option value="solid">{t('admin.obsOverlaySenderStrokeSolid', { defaultValue: 'Solid' })}</option>
+                          <option value="none">{t('admin.obsOverlaySenderStrokeNone', { defaultValue: 'None' })}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.obsOverlaySenderStrokeWidth', { defaultValue: 'Width' })}:{' '}
+                          <span className="font-mono">{senderStrokeWidth}px</span>
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={6}
+                          step={1}
+                          value={senderStrokeWidth}
+                          onChange={(e) => setSenderStrokeWidth(parseInt(e.target.value, 10))}
+                          className="w-full"
+                          disabled={senderStroke === 'none'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.obsOverlaySenderStrokeOpacity', { defaultValue: 'Opacity' })}:{' '}
+                          <span className="font-mono">{Math.round(senderStrokeOpacity * 100)}%</span>
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.02}
+                          value={senderStrokeOpacity}
+                          onChange={(e) => setSenderStrokeOpacity(parseFloat(e.target.value))}
+                          className="w-full"
+                          disabled={senderStroke === 'none'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.obsOverlaySenderStrokeColor', { defaultValue: 'Color' })}
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={senderStrokeColor}
+                            onChange={(e) => setSenderStrokeColor(String(e.target.value || '').toLowerCase())}
+                            className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
+                            disabled={senderStroke !== 'solid'}
+                          />
+                          <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{senderStrokeColor}</div>
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                          {t('admin.obsOverlaySenderStrokeHint', { defaultValue: 'Glass uses automatic highlights; Solid uses your color.' })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

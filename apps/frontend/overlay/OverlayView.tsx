@@ -92,7 +92,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'none';
+type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'pop' | 'lift' | 'none';
 
 export default function OverlayView() {
   const { channelSlug, token } = useParams<{ channelSlug?: string; token?: string }>();
@@ -202,6 +202,9 @@ export default function OverlayView() {
         : borderPresetRaw === 'frosted'
           ? 'frosted'
           : 'custom';
+  const borderTintColorRaw = String(getParam('borderTintColor') || (parsedStyle as any)?.borderTintColor || '#7dd3fc').trim();
+  const borderTintColor = isHexColor(borderTintColorRaw) ? borderTintColorRaw : '#7dd3fc';
+  const borderTintStrength = clampAlpha(parseFloat(String(getParam('borderTintStrength') || (parsedStyle as any)?.borderTintStrength || '0.35')), 0, 1);
 
   const borderModeRaw = String(getParam('borderMode') || (parsedStyle as any)?.borderMode || 'solid').trim().toLowerCase();
   const borderMode: 'solid' | 'gradient' = borderModeRaw === 'gradient' ? 'gradient' : 'solid';
@@ -215,9 +218,26 @@ export default function OverlayView() {
   const enterMs = clampInt(parseInt(String(getParam('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
   const exitMs = clampInt(parseInt(String(getParam('exitMs') || (parsedStyle as any)?.exitMs || ''), 10), 0, 1200);
 
+  const easingPresetRaw = String(getParam('easing') || (parsedStyle as any)?.easing || 'ios').trim().toLowerCase();
+  const easingX1 = clampFloat(parseFloat(String(getParam('easingX1') || (parsedStyle as any)?.easingX1 || '0.22')), -1, 2);
+  const easingY1 = clampFloat(parseFloat(String(getParam('easingY1') || (parsedStyle as any)?.easingY1 || '1')), -1, 2);
+  const easingX2 = clampFloat(parseFloat(String(getParam('easingX2') || (parsedStyle as any)?.easingX2 || '0.36')), -1, 2);
+  const easingY2 = clampFloat(parseFloat(String(getParam('easingY2') || (parsedStyle as any)?.easingY2 || '1')), -1, 2);
+  const easing = (() => {
+    if (easingPresetRaw === 'custom') return `cubic-bezier(${easingX1}, ${easingY1}, ${easingX2}, ${easingY2})`;
+    if (easingPresetRaw === 'smooth') return 'cubic-bezier(0.16, 1, 0.3, 1)';
+    if (easingPresetRaw === 'snappy') return 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+    if (easingPresetRaw === 'expo') return 'cubic-bezier(0.16, 1, 0.3, 1)'; // close to easeOutExpo-ish feel
+    if (easingPresetRaw === 'linear') return 'linear';
+    // default "ios"
+    return 'cubic-bezier(0.22, 1, 0.36, 1)';
+  })();
+
   const senderFontSize = clampInt(parseInt(String(getParam('senderFontSize') || (parsedStyle as any)?.senderFontSize || ''), 10), 10, 28);
   const senderFontWeight = clampInt(parseInt(String(getParam('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
   const senderFontFamily = String(getParam('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
+  const senderFontColorRaw = String(getParam('senderFontColor') || (parsedStyle as any)?.senderFontColor || '#ffffff').trim();
+  const senderFontColor = isHexColor(senderFontColorRaw) ? senderFontColorRaw : '#ffffff';
 
   // Sender label presentation
   const senderHoldMs = clampInt(parseInt(String(getParam('senderHoldMs') || (parsedStyle as any)?.senderHoldMs || ''), 10), 0, 12000);
@@ -896,17 +916,23 @@ export default function OverlayView() {
           })()
         : borderColor;
 
+    const tint = hexToRgb(borderTintColor);
+    const tintA = Math.max(0, Math.min(1, borderTintStrength));
+
     const bgGlass = [
       `radial-gradient(140% 120% at 18% 12%, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0) 55%)`,
-      `linear-gradient(${borderGradientAngle}deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.18) 42%, rgba(0,0,0,0.18) 100%)`,
+      `linear-gradient(${borderGradientAngle}deg, rgba(${tint.r},${tint.g},${tint.b},${0.55 * tintA}) 0%, rgba(255,255,255,${0.22 + 0.25 * tintA}) 38%, rgba(0,0,0,${0.14 + 0.12 * tintA}) 100%)`,
     ].join(', ');
 
     const bgFrosted = [
       `radial-gradient(150% 140% at 18% 12%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0) 55%)`,
-      `linear-gradient(${borderGradientAngle}deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.20) 100%)`,
+      `linear-gradient(${borderGradientAngle}deg, rgba(${tint.r},${tint.g},${tint.b},${0.22 * tintA}) 0%, rgba(255,255,255,${0.10 + 0.10 * tintA}) 55%, rgba(0,0,0,${0.22}) 100%)`,
     ].join(', ');
 
-    const bgGlow = bgCustom;
+    const bgGlow = [
+      `radial-gradient(120% 120% at 18% 12%, rgba(${tint.r},${tint.g},${tint.b},${0.40 * tintA}) 0%, rgba(${tint.r},${tint.g},${tint.b},0) 60%)`,
+      `linear-gradient(${borderGradientAngle}deg, rgba(${tint.r},${tint.g},${tint.b},${0.55 * tintA}) 0%, rgba(${tint.r},${tint.g},${tint.b},${0.20 * tintA}) 55%, rgba(0,0,0,0.25) 100%)`,
+    ].join(', ');
 
     const bg =
       borderPreset === 'glass' ? bgGlass : borderPreset === 'frosted' ? bgFrosted : borderPreset === 'glow' ? bgGlow : bgCustom;
@@ -923,12 +949,22 @@ export default function OverlayView() {
         borderPreset === 'glass'
           ? 'inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,0,0,0.25)'
           : borderPreset === 'glow'
-            ? `0 10px 34px rgba(0,0,0,0.25), 0 0 24px rgba(255,255,255,0.10)`
+            ? `0 10px 34px rgba(0,0,0,0.25), 0 0 32px rgba(${tint.r},${tint.g},${tint.b},${0.35 * tintA})`
             : borderPreset === 'frosted'
               ? 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.25), 0 10px 34px rgba(0,0,0,0.25)'
               : undefined,
     };
-  }, [border, borderColor, borderColor2, borderGradientAngle, borderMode, borderPreset, radius]);
+  }, [
+    border,
+    borderColor,
+    borderColor2,
+    borderGradientAngle,
+    borderMode,
+    borderPreset,
+    borderTintColor,
+    borderTintStrength,
+    radius,
+  ]);
 
   const frameAnimStyleFor = useCallback(
     (item: QueuedActivation): React.CSSProperties => {
@@ -937,27 +973,35 @@ export default function OverlayView() {
       const base: React.CSSProperties = {
         opacity: item.isExiting ? 0 : 1,
         willChange: 'transform, opacity',
-        transition: `opacity ${exit}ms ease, transform ${exit}ms ease`,
+        transition: `opacity ${exit}ms ${easing}, transform ${exit}ms ${easing}`,
       };
 
       if (!item.isExiting) {
         if (anim === 'zoom') {
-          base.animation = `memalertsZoomIn ${enter}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+          base.animation = `memalertsZoomIn ${enter}ms ${easing}`;
         } else if (anim === 'slide-up') {
-          base.animation = `memalertsSlideUp ${enter}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+          base.animation = `memalertsSlideUp ${enter}ms ${easing}`;
+        } else if (anim === 'pop') {
+          base.animation = `memalertsPopIn ${enter}ms ${easing}`;
+        } else if (anim === 'lift') {
+          base.animation = `memalertsLiftIn ${enter}ms ${easing}`;
         } else if (anim === 'fade') {
-          base.animation = `memalertsFadeIn ${enter}ms ease`;
+          base.animation = `memalertsFadeIn ${enter}ms ${easing}`;
         }
       } else {
         if (anim === 'zoom') {
           base.transform = 'scale(0.96)';
         } else if (anim === 'slide-up') {
           base.transform = 'translateY(14px) scale(0.99)';
+        } else if (anim === 'pop') {
+          base.transform = 'scale(0.98)';
+        } else if (anim === 'lift') {
+          base.transform = 'translateY(10px) scale(0.99)';
         }
       }
       return base;
     },
-    [anim, enterMs, exitMs]
+    [anim, easing, enterMs, exitMs]
   );
 
   const cardStyle = useMemo<React.CSSProperties>(() => {
@@ -1055,11 +1099,29 @@ export default function OverlayView() {
 
   const badgeStyle = useMemo<React.CSSProperties>(() => {
     const family =
-      senderFontFamily === 'mono'
-        ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
-        : senderFontFamily === 'serif'
-          ? 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
-          : 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+      senderFontFamily === 'jetbrains-mono'
+        ? '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+        : senderFontFamily === 'playfair'
+          ? '"Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
+          : senderFontFamily === 'inter'
+            ? '"Inter", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+            : senderFontFamily === 'roboto'
+              ? 'Roboto, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif'
+              : senderFontFamily === 'montserrat'
+                ? 'Montserrat, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                : senderFontFamily === 'poppins'
+                  ? 'Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                  : senderFontFamily === 'oswald'
+                    ? 'Oswald, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                    : senderFontFamily === 'raleway'
+                      ? 'Raleway, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                      : senderFontFamily === 'nunito'
+                        ? 'Nunito, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+                        : senderFontFamily === 'mono'
+                          ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                          : senderFontFamily === 'serif'
+                            ? 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'
+                            : 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
     const bg = (() => {
       const h = senderBgColor.replace('#', '');
       const r = parseInt(h.slice(0, 2), 16);
@@ -1097,7 +1159,7 @@ export default function OverlayView() {
       fontWeight: senderFontWeight,
       fontFamily: family,
       lineHeight: 1.2,
-      color: 'rgba(255,255,255,0.92)',
+      color: senderFontColor,
       background: bg,
       boxShadow: strokeShadow,
       borderRadius: senderBgRadius,
@@ -1110,6 +1172,7 @@ export default function OverlayView() {
     senderBgColor,
     senderBgOpacity,
     senderBgRadius,
+    senderFontColor,
     senderFontFamily,
     senderFontSize,
     senderFontWeight,
@@ -1161,6 +1224,16 @@ export default function OverlayView() {
           @keyframes memalertsSlideUp {
             from { opacity: 0; transform: translateY(24px) scale(0.98); }
             to { opacity: 1; transform: translateY(0px) scale(1); }
+          }
+          @keyframes memalertsPopIn {
+            0% { opacity: 0; transform: scale(0.92); }
+            70% { opacity: 1; transform: scale(1.045); }
+            100% { opacity: 1; transform: scale(1); }
+          }
+          @keyframes memalertsLiftIn {
+            0% { opacity: 0; transform: translateY(22px) scale(0.985); }
+            60% { opacity: 1; transform: translateY(-4px) scale(1.01); }
+            100% { opacity: 1; transform: translateY(0px) scale(1); }
           }
           @keyframes memalertsLabelIn {
             from { opacity: 0; transform: translate(-50%, 130%); }
