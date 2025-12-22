@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { debugLog, debugError } from '../utils/debug.js';
 import { activateMemeSchema } from '../shared/index.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../utils/promotions.js';
@@ -616,6 +617,115 @@ export const viewerController = {
     }
 
     const popularityStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Popularity sorting: do it in DB so pagination is correct and we don't sort huge lists in memory.
+    // This is only enabled when a targetChannelId is known (most common case); otherwise fall back to createdAt.
+    if (sortBy === 'popularity' && targetChannelId) {
+      const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 50;
+      const safeOffset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
+      const dir = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+      const qStr = q ? String(q).trim() : '';
+      const includeUploaderEnabled = String(includeUploader || '') === '1';
+
+      const conditions: Prisma.Sql[] = [
+        Prisma.sql`m.status = 'approved'`,
+        Prisma.sql`m."channelId" = ${targetChannelId}`,
+      ];
+
+      // Price filters (optional)
+      if (minPrice) {
+        const v = parseInt(minPrice as string, 10);
+        if (Number.isFinite(v)) conditions.push(Prisma.sql`m."priceCoins" >= ${v}`);
+      }
+      if (maxPrice) {
+        const v = parseInt(maxPrice as string, 10);
+        if (Number.isFinite(v)) conditions.push(Prisma.sql`m."priceCoins" <= ${v}`);
+      }
+
+      // Tag filters (optional): any tag match (same semantics as Prisma "some")
+      if (tags) {
+        const tagNames = (tags as string).split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+        const tagRecords = await prisma.tag.findMany({
+          where: { name: { in: tagNames } },
+          select: { id: true },
+        });
+        const tagIds = tagRecords.map((t) => t.id);
+        if (tagIds.length === 0) return res.json([]);
+
+        conditions.push(
+          Prisma.sql`EXISTS (
+            SELECT 1 FROM "MemeTag" mt
+            WHERE mt."memeId" = m.id AND mt."tagId" IN (${Prisma.join(tagIds)})
+          )`
+        );
+      }
+
+      // Search query (optional): title OR tag name OR uploader displayName
+      if (qStr) {
+        const like = `%${qStr}%`;
+        const tagLike = `%${qStr.toLowerCase()}%`;
+        const or: Prisma.Sql[] = [
+          Prisma.sql`m.title ILIKE ${like}`,
+          Prisma.sql`EXISTS (
+            SELECT 1
+            FROM "MemeTag" mt
+            JOIN "Tag" t ON t.id = mt."tagId"
+            WHERE mt."memeId" = m.id AND t.name ILIKE ${tagLike}
+          )`,
+        ];
+        if (includeUploaderEnabled) {
+          or.push(
+            Prisma.sql`EXISTS (
+              SELECT 1
+              FROM "User" u
+              WHERE u.id = m."createdByUserId" AND u."displayName" ILIKE ${like}
+            )`
+          );
+        }
+        conditions.push(Prisma.sql`(${Prisma.join(or, Prisma.sql` OR `)})`);
+      }
+
+      // Rank memes by activation count in the last 30 days for this channel.
+      // Include memes with 0 activations (they come after popular ones, tie-broken by createdAt).
+      const rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>(Prisma.sql`
+        SELECT
+          m.id,
+          COALESCE(COUNT(a.id), 0)::int AS pop
+        FROM "Meme" m
+        LEFT JOIN "MemeActivation" a
+          ON a."memeId" = m.id
+         AND a."channelId" = ${targetChannelId}
+         AND a.status IN ('done', 'completed')
+         AND a."createdAt" >= ${popularityStartDate}
+        WHERE ${Prisma.join(conditions, Prisma.sql` AND `)}
+        GROUP BY m.id, m."createdAt"
+        ORDER BY pop ${Prisma.raw(dir)}, m."createdAt" ${Prisma.raw(dir)}
+        LIMIT ${safeLimit} OFFSET ${safeOffset}
+      `);
+
+      const ids = rows.map((r) => r.id);
+      if (ids.length === 0) return res.json([]);
+
+      const activationWhere = {
+        channelId: targetChannelId,
+        status: { in: ['done', 'completed'] as const },
+        createdAt: { gte: popularityStartDate },
+      };
+
+      const byId = await prisma.meme.findMany({
+        where: { id: { in: ids }, status: 'approved', channelId: targetChannelId },
+        include: {
+          createdBy: { select: { id: true, displayName: true } },
+          tags: { include: { tag: true } },
+          _count: { select: { activations: { where: activationWhere } } },
+        },
+      });
+
+      const map = new Map(byId.map((m) => [m.id, m]));
+      const ordered = ids.map((id) => map.get(id)).filter(Boolean);
+      return res.json(ordered);
+    }
+
     const memes = await prisma.meme.findMany({
       where,
       include: {
@@ -642,18 +752,6 @@ export const viewerController = {
       take: parsedLimit,
       skip: parsedOffset,
     });
-
-    // If sorting by popularity, sort in memory
-    if (sortBy === 'popularity') {
-      memes.sort((a, b) => {
-        const countA = a._count.activations;
-        const countB = b._count.activations;
-        if (sortOrder === 'asc') {
-          return countA - countB;
-        }
-        return countB - countA;
-      });
-    }
 
     // If favorites is enabled along with other filters, sort in-memory by user's activation count (done) as a best-effort.
     if (favoritesEnabled) {
