@@ -1724,6 +1724,74 @@ function ObsLinksSettings() {
     }
   }, [applySharePayload, decodeShareCode, importText, t]);
 
+  const applyPremiumPreset = useCallback(() => {
+    // Premium, streamer-friendly defaults:
+    // - clean glass frame, subtle shadow, smooth motion
+    // - readable sender label (optional but enabled by default)
+    // NOTE: This only updates local state. User still clicks "Save".
+    setOverlayMode('queue');
+    setOverlayMaxConcurrent(3);
+    setOverlayShowSender(true);
+
+    setUrlPosition('random');
+
+    setScaleMode('range');
+    setScaleMin(0.72);
+    setScaleMax(1.0);
+    setScaleFixed(0.92);
+
+    setUrlAnim('slide-up');
+    setUrlEnterMs(280);
+    setUrlExitMs(220);
+    setAnimEasingPreset('ios');
+    setAnimEasingX1(0.22);
+    setAnimEasingY1(1);
+    setAnimEasingX2(0.36);
+    setAnimEasingY2(1);
+
+    setUrlRadius(26);
+
+    setShadowBlur(86);
+    setShadowSpread(10);
+    setShadowDistance(16);
+    setShadowAngle(120);
+    setShadowOpacity(0.55);
+    setShadowColor('#000000');
+
+    setGlassEnabled(true);
+    setGlassPreset('ios');
+    setGlassTintColor('#7dd3fc');
+    setGlassTintStrength(0.18);
+    setUrlBlur(10);
+    setUrlBgOpacity(0.22);
+
+    setBorderPreset('glass');
+    setBorderTintColor('#7dd3fc');
+    setBorderTintStrength(0.38);
+    setUrlBorder(2);
+    setBorderMode('solid');
+    setUrlBorderColor('#ffffff');
+    setUrlBorderColor2('#7dd3fc');
+    setUrlBorderGradientAngle(135);
+
+    setSenderHoldMs(2600);
+    setSenderBgColor('#000000');
+    setSenderBgOpacity(0.55);
+    setSenderBgRadius(14);
+    setSenderStroke('glass');
+    setSenderStrokeWidth(1);
+    setSenderStrokeOpacity(0.24);
+    setSenderStrokeColor('#ffffff');
+
+    setSenderFontSize(14);
+    setSenderFontWeight(600);
+    setSenderFontFamily('system');
+    setSenderFontColor('#ffffff');
+
+    setAdvancedTab('border');
+    toast.success(t('admin.overlayPresetApplied', { defaultValue: 'Пресет применён (не забудьте нажать «Сохранить»)' }));
+  }, [t]);
+
   const handleSaveOverlaySettings = useCallback(async (): Promise<void> => {
     if (!channelSlug) return;
     if (loadingOverlaySettings) return;
@@ -2044,6 +2112,15 @@ function ObsLinksSettings() {
                           {t('admin.unsavedChanges', { defaultValue: 'Есть несохранённые изменения' })}
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="glass-btn px-3 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10"
+                        onClick={applyPremiumPreset}
+                        disabled={savingOverlaySettings || loadingOverlaySettings}
+                        title={t('admin.overlayPresetPremium', { defaultValue: 'Премиум пресет' })}
+                      >
+                        {t('admin.overlayPresetPremium', { defaultValue: 'Премиум пресет' })}
+                      </button>
                       <button
                         type="button"
                         className="glass-btn px-3 py-2 text-sm font-semibold"

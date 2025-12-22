@@ -259,6 +259,8 @@
     "unsavedChanges": "Есть несохранённые изменения",
     "overlayShareExport": "Экспорт",
     "overlayShareImport": "Импорт",
+    "overlayPresetPremium": "Премиум пресет",
+    "overlayPresetApplied": "Пресет применён (не забудьте нажать «Сохранить»)",
     "overlayShareExportTitle": "Экспорт настроек",
     "overlayShareExportHint": "Скопируйте код и отправьте другому человеку. Это не секрет — только внешний вид.",
     "overlayShareImportTitle": "Импорт настроек",

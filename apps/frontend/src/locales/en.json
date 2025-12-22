@@ -246,6 +246,8 @@
     "unsavedChanges": "Unsaved changes",
     "overlayShareExport": "Export",
     "overlayShareImport": "Import",
+    "overlayPresetPremium": "Premium preset",
+    "overlayPresetApplied": "Preset applied (don’t forget to click “Save”)",
     "overlayShareExportTitle": "Export settings",
     "overlayShareExportHint": "Copy the code and send it to someone else. This is not a secret—just visual settings.",
     "overlayShareImportTitle": "Import settings",
