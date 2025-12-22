@@ -26,6 +26,16 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const attemptedPollingFallbackRef = useRef(false);
+
+  const parseBool = (v: unknown): boolean | null => {
+    if (v === true) return true;
+    if (v === false) return false;
+    const s = String(v ?? '').trim().toLowerCase();
+    if (s === '1' || s === 'true' || s === 'yes' || s === 'on') return true;
+    if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
+    return null;
+  };
 
   // Get API URL for Socket.IO
   const getSocketUrl = () => {
@@ -57,6 +67,41 @@ export function SocketProvider({ children }: SocketProviderProps) {
     return 'http://localhost:3001';
   };
 
+  const getSocketTransports = (): Array<'websocket' | 'polling'> => {
+    const runtime = getRuntimeConfig();
+    if (runtime?.socketTransports && Array.isArray(runtime.socketTransports) && runtime.socketTransports.length > 0) {
+      // Only allow known transports.
+      const cleaned = runtime.socketTransports.filter((t) => t === 'websocket' || t === 'polling');
+      if (cleaned.length > 0) return cleaned as Array<'websocket' | 'polling'>;
+    }
+
+    // Env override: VITE_SOCKET_TRANSPORTS="websocket" or "websocket,polling"
+    const envTransportsRaw = (import.meta as any)?.env?.VITE_SOCKET_TRANSPORTS as string | undefined;
+    if (typeof envTransportsRaw === 'string' && envTransportsRaw.trim()) {
+      const parts = envTransportsRaw
+        .split(',')
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean);
+      const cleaned = parts.filter((t) => t === 'websocket' || t === 'polling') as Array<'websocket' | 'polling'>;
+      if (cleaned.length > 0) return cleaned;
+    }
+
+    // Default: prefer websocket-only in production (avoid polling load).
+    return import.meta.env.PROD ? (['websocket'] as const) : (['websocket', 'polling'] as const);
+  };
+
+  const getAllowPollingFallback = (): boolean => {
+    const runtime = getRuntimeConfig();
+    if (runtime?.socketAllowPollingFallback !== undefined) return !!runtime.socketAllowPollingFallback;
+
+    const env = (import.meta as any)?.env?.VITE_SOCKET_ALLOW_POLLING_FALLBACK;
+    const parsed = parseBool(env);
+    if (parsed !== null) return parsed;
+
+    // Default: dev=true, prod=false (surface misconfigured proxies instead of silently increasing load).
+    return !import.meta.env.PROD;
+  };
+
   useEffect(() => {
     // Don't create socket if user is not loaded yet (user === null means still loading)
     // Only create socket when user is explicitly undefined (logged out) or when user exists
@@ -78,45 +123,69 @@ export function SocketProvider({ children }: SocketProviderProps) {
     // Only create socket if it doesn't exist
     if (!socketRef.current) {
       const socketUrl = getSocketUrl();
+      const transports = getSocketTransports();
+      const allowPollingFallback = getAllowPollingFallback();
+      attemptedPollingFallbackRef.current = false;
+
+      const initSocket = (nextTransports: Array<'websocket' | 'polling'>, forceNew: boolean) => {
+        const s = io(socketUrl, {
+          transports: nextTransports,
+          withCredentials: true,
+          reconnection: true,
+          reconnectionDelay: 2000, // Start with 2 seconds
+          reconnectionDelayMax: 10000, // Max 10 seconds between attempts
+          reconnectionAttempts: 3, // Only 3 attempts to prevent infinite loops
+          timeout: 10000, // 10 seconds timeout (reduced from 20)
+          forceNew,
+        });
+
+        socketRef.current = s;
+
+        s.on('connect', () => {
+          setIsConnected(true);
+          // Join user room for wallet updates
+          if (user) {
+            s.emit('join:user', user.id);
+          }
+        });
+
+        s.on('disconnect', () => {
+          setIsConnected(false);
+        });
+
+        s.on('connect_error', () => {
+          setIsConnected(false);
+
+          // If we forced websocket-only and it fails, optionally re-init once with polling enabled.
+          if (
+            allowPollingFallback &&
+            !attemptedPollingFallbackRef.current &&
+            nextTransports.length === 1 &&
+            nextTransports[0] === 'websocket'
+          ) {
+            attemptedPollingFallbackRef.current = true;
+            try {
+              s.disconnect();
+            } catch {
+              // ignore
+            }
+            initSocket(['websocket', 'polling'], true);
+          }
+        });
+
+        s.on('reconnect_attempt', () => {
+        });
+
+        s.on('reconnect_failed', () => {
+          // After failed reconnection, don't try again automatically
+          // User will need to refresh page or reconnect manually
+        });
+
+        return s;
+      };
       
       // Prevent multiple initialization attempts
-      const socket = io(socketUrl, {
-        transports: ['websocket', 'polling'],
-        withCredentials: true,
-        reconnection: true,
-        reconnectionDelay: 2000, // Start with 2 seconds
-        reconnectionDelayMax: 10000, // Max 10 seconds between attempts
-        reconnectionAttempts: 3, // Only 3 attempts to prevent infinite loops
-        timeout: 10000, // 10 seconds timeout (reduced from 20)
-        forceNew: false, // Reuse existing connection if available
-      });
-
-      socketRef.current = socket;
-
-      socket.on('connect', () => {
-        setIsConnected(true);
-        // Join user room for wallet updates
-        if (user) {
-          socket.emit('join:user', user.id);
-        }
-      });
-
-      socket.on('disconnect', () => {
-        setIsConnected(false);
-      });
-
-      socket.on('connect_error', () => {
-        setIsConnected(false);
-        // Don't manually retry - let Socket.IO handle reconnection with exponential backoff
-      });
-
-      socket.on('reconnect_attempt', () => {
-      });
-
-      socket.on('reconnect_failed', () => {
-        // After failed reconnection, don't try again automatically
-        // User will need to refresh page or reconnect manually
-      });
+      initSocket(transports, false);
     } else {
       // Socket already exists, just update rooms if needed
       const socket = socketRef.current;

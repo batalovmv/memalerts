@@ -11,6 +11,16 @@ export type RuntimeConfig = {
    * - "https://..." for absolute URL.
    */
   socketUrl?: string;
+  /**
+   * Optional Socket.IO transports override.
+   * Example: ["websocket"] to force WebSocket-only (recommended for production to avoid polling load).
+   */
+  socketTransports?: Array<'websocket' | 'polling'>;
+  /**
+   * If true, the client may fall back to polling when websocket-only connect fails.
+   * Default: dev=true, prod=false (to surface misconfigured proxies instead of silently increasing load).
+   */
+  socketAllowPollingFallback?: boolean;
 };
 
 declare global {
