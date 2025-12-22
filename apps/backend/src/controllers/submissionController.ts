@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 import { createSubmissionSchema, importMemeSchema } from '../shared/index.js';
 import { validateVideo, getVideoMetadata } from '../utils/videoValidator.js';
 import { getOrCreateTags } from '../utils/tags.js';
-import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../utils/fileHash.js';
+import { calculateFileHash, downloadFileFromUrl, findOrCreateFileHash, getFileStats } from '../utils/fileHash.js';
 import { validateFileContent } from '../utils/fileTypeValidator.js';
 import { logFileUpload, logSecurityEvent } from '../utils/auditLogger.js';
 import path from 'path';
@@ -498,6 +498,68 @@ export const submissionController = {
         return res.status(400).json({ error: 'Source URL must be from memalerts.com or cdns.memealerts.com' });
       }
 
+      // Download the file to our server immediately (so we don't depend on external CDN),
+      // then deduplicate by SHA-256 hash.
+      let tempFilePath: string | null = null;
+      let finalFilePath: string | null = null;
+      let fileHash: string | null = null;
+      try {
+        tempFilePath = await downloadFileFromUrl(body.sourceUrl);
+
+        // Validate file content using magic bytes (best-effort)
+        // (downloaded files can be spoofed or corrupted)
+        const contentValidation = await validateFileContent(tempFilePath, 'video/webm');
+        if (!contentValidation.valid) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+          return res.status(400).json({
+            error: 'Invalid file content',
+            message: contentValidation.error || 'File content does not look like a valid video',
+          });
+        }
+
+        // Enforce size/duration limits
+        const stat = await fs.promises.stat(tempFilePath);
+        const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+        if (stat.size > MAX_SIZE) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+          return res.status(400).json({
+            error: `Video file size (${(stat.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)`,
+          });
+        }
+
+        const metadata = await getVideoMetadata(tempFilePath);
+        const durationSec = metadata?.duration && metadata.duration > 0 ? metadata.duration : null;
+        const durationMs = durationSec !== null ? Math.round(durationSec * 1000) : null;
+        if (durationMs !== null && durationMs > 15000) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+          return res.status(400).json({
+            error: `Video duration (${(durationMs / 1000).toFixed(2)}s) exceeds maximum allowed duration (15s)`,
+          });
+        }
+
+        const hash = await calculateFileHash(tempFilePath);
+        const stats = await getFileStats(tempFilePath);
+        const dedup = await findOrCreateFileHash(tempFilePath, hash, stats.mimeType, stats.size);
+        finalFilePath = dedup.filePath;
+        fileHash = hash;
+      } catch (dlErr: any) {
+        if (tempFilePath) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+        }
+        return res.status(502).json({
+          error: 'Failed to import meme from source URL',
+          message: dlErr?.message || 'Download failed',
+        });
+      }
+
       // Get or create tags with timeout protection (same as createSubmission)
       let tagIds: string[] = [];
       try {
@@ -514,13 +576,13 @@ export const submissionController = {
         tagIds = []; // Proceed without tags on error
       }
 
-      // Create submission with imported URL (with timeout protection)
+      // Create submission with local fileUrlTemp (not external URL)
       const submissionData: any = {
         channelId,
         submitterUserId: req.userId!,
         title: body.title,
         type: 'video', // Imported memes are treated as video
-        fileUrlTemp: body.sourceUrl, // Store source URL temporarily
+        fileUrlTemp: finalFilePath, // Local path (deduped)
         sourceUrl: body.sourceUrl,
         notes: body.notes || null,
         status: 'pending',

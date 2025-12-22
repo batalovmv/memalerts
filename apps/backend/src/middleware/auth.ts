@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { logger } from '../utils/logger.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
   channelId?: string;
+  requestId?: string;
 }
 
 function isBetaDomain(req: Request): boolean {
@@ -35,11 +37,11 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     req.userId = decoded.userId;
     req.userRole = decoded.role;
     req.channelId = decoded.channelId;
-    console.log('Authentication successful:', { userId: decoded.userId, role: decoded.role });
+    logger.debug('auth.success', { requestId: req.requestId, userId: decoded.userId, role: decoded.role });
     
     next();
   } catch (error) {
-    console.error('JWT verification failed:', error);
+    logger.warn('auth.jwt_invalid', { requestId: req.requestId });
     return res.status(401).json({ error: 'Unauthorized', message: 'Invalid token' });
   }
 }

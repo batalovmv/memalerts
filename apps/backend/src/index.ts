@@ -10,6 +10,7 @@ import { setupSocketIO } from './socket/index.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
+import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
 
 dotenv.config();
 
@@ -355,6 +356,8 @@ async function startServer() {
   httpServer.listen(PORT, () => {
     console.log(`🚀 API server running on http://localhost:${PORT}`);
     console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
+    // Economical storage: cleanup rejected submissions after TTL (default 30 days).
+    startRejectedSubmissionsCleanupScheduler();
   });
 }
 

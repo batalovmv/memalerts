@@ -419,6 +419,11 @@ export const viewerController = {
   },
 
   searchMemes: async (req: any, res: Response) => {
+    // Prevent browser/proxy caching for dynamic search/favorites results.
+    // This endpoint is used for personalized results (favorites) and must always be fresh.
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const {
       q, // search query
       tags, // comma-separated tag names
@@ -530,7 +535,10 @@ export const viewerController = {
     const parsedLimit = parseInt(limit as string, 10);
     const parsedOffset = parseInt(offset as string, 10);
 
-    // "My favorites": when no other filters are applied, use a cheap groupBy ordering by activation count.
+    // "My favorites": order by the user's activation count for this channel.
+    // We intentionally include in-progress activations (queued/playing) so the list is useful immediately
+    // after a user activates a meme (otherwise it would stay empty until the activation completes).
+    const favoritesStatuses = ['queued', 'playing', 'done', 'completed'];
     if (
       favoritesEnabled &&
       !q &&
@@ -544,7 +552,7 @@ export const viewerController = {
         where: {
           channelId: targetChannelId!,
           userId: req.userId!,
-          status: 'done',
+          status: { in: favoritesStatuses },
         },
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
@@ -586,7 +594,7 @@ export const viewerController = {
         _count: {
           select: {
             activations: sortBy === 'popularity'
-              ? { where: { status: 'done', createdAt: { gte: popularityStartDate } } }
+              ? { where: { status: { in: ['done', 'completed'] }, createdAt: { gte: popularityStartDate } } }
               : true,
           },
         },
@@ -615,7 +623,7 @@ export const viewerController = {
         where: {
           channelId: targetChannelId!,
           userId: req.userId!,
-          status: 'done',
+          status: { in: favoritesStatuses },
           memeId: { in: memes.map((m: any) => m.id) },
         },
         _count: { id: true },
@@ -671,7 +679,7 @@ export const viewerController = {
 
     // Build where clause
     const where: any = {
-      status: 'done', // Only count completed activations
+      status: { in: ['done', 'completed'] }, // Only count completed activations
       createdAt: {
         gte: startDate,
       },

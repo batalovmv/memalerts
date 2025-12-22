@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { logger } from './logger.js';
 
 /**
  * Get valid access token for a user, refreshing if necessary
@@ -62,7 +63,7 @@ export async function refreshAccessToken(userId: string): Promise<string | null>
 
     return tokenData.access_token;
   } catch (error) {
-    console.error('Error refreshing token:', error);
+    logger.warn('twitch.token.refresh_failed', { userId });
     return null;
   }
 }
@@ -123,6 +124,19 @@ async function twitchApiRequest(
   }
 
   return response.json();
+}
+
+/**
+ * Get Twitch user info for the current user token (who is logged in).
+ * Useful to detect "account mismatch" (trying to manage rewards for a different broadcaster).
+ */
+export async function getAuthenticatedTwitchUser(
+  userId: string
+): Promise<{ id: string; display_name?: string | null } | null> {
+  const resp = await twitchApiRequest('users', 'GET', userId);
+  const item = resp?.data?.[0];
+  if (!item) return null;
+  return { id: String(item.id), display_name: item.display_name ?? null };
 }
 
 /**
@@ -212,11 +226,62 @@ export async function getChannelRewards(
 export async function getChannelInformation(
   userId: string,
   broadcasterId: string
-): Promise<{ broadcaster_type?: string | null } | null> {
-  const resp = await twitchApiRequest(`channels?broadcaster_id=${broadcasterId}`, 'GET', userId);
-  const item = resp?.data?.[0];
-  if (!item) return null;
-  return { broadcaster_type: item.broadcaster_type ?? null };
+): Promise<
+  | {
+      broadcaster_type?: string | null;
+      _meta?: {
+        tokenMode: 'user' | 'app';
+        itemKeys?: string[];
+        rawBroadcasterType?: unknown;
+      };
+    }
+  | null
+> {
+  // NOTE:
+  // Twitch affiliate/partner status is represented as `broadcaster_type` on Helix `users` endpoint.
+  // The `channels` endpoint may not include this field (as observed on beta diagnostics).
+  //
+  // We keep the function name for backward-compat, but it now queries `users?id=...`.
+  // Prefer user token (keeps behavior consistent), but fall back to app token when user token
+  // is missing scopes/invalid. Eligibility should not depend on user scopes.
+  try {
+    const resp = await twitchApiRequest(`users?id=${broadcasterId}`, 'GET', userId);
+    const item = resp?.data?.[0];
+    if (!item) return null;
+    return {
+      broadcaster_type: item.broadcaster_type ?? null,
+      _meta: {
+        tokenMode: 'user',
+        itemKeys: typeof item === 'object' && item ? Object.keys(item) : undefined,
+        rawBroadcasterType: (item as any)?.broadcaster_type,
+      },
+    };
+  } catch (e: any) {
+    // Fall back to app access token
+    const accessToken = await getAppAccessToken();
+    const response = await fetch(`https://api.twitch.tv/helix/users?id=${broadcasterId}`, {
+      method: 'GET',
+      headers: {
+        'Client-ID': process.env.TWITCH_CLIENT_ID!,
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    const resp = await response.json();
+    const item = resp?.data?.[0];
+    if (!item) return null;
+    return {
+      broadcaster_type: item.broadcaster_type ?? null,
+      _meta: {
+        tokenMode: 'app',
+        itemKeys: typeof item === 'object' && item ? Object.keys(item) : undefined,
+        rawBroadcasterType: (item as any)?.broadcaster_type,
+      },
+    };
+  }
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   deleteChannelReward,
   getChannelInformation,
   getChannelRewards,
+  getAuthenticatedTwitchUser,
   createEventSubSubscription,
   getEventSubSubscriptions,
   deleteEventSubSubscription,
@@ -26,6 +27,8 @@ import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletB
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../realtime/submissionBridge.js';
 import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
+import { logger } from '../utils/logger.js';
+import { isBetaBackend } from '../utils/envMode.js';
 
 export const adminController = {
   getTwitchRewardEligibility: async (req: AuthRequest, res: Response) => {
@@ -47,10 +50,83 @@ export const adminController = {
 
     try {
       const info = await getChannelInformation(userId, channel.twitchChannelId);
-      const bt = String(info?.broadcaster_type || '').toLowerCase();
+      // If Twitch returns no data (null), treat as "unknown" instead of "not eligible".
+      if (!info) {
+        logger.warn('twitch.eligibility.no_channel_info', {
+          requestId: req.requestId,
+          userId,
+          channelId,
+          broadcasterId: channel.twitchChannelId,
+        });
+        return res.json({
+          eligible: null,
+          broadcasterType: null,
+          checkedBroadcasterId: channel.twitchChannelId,
+          reason: 'TWITCH_CHANNEL_INFO_NOT_FOUND',
+          ...(isBetaBackend()
+            ? {
+                debug: {
+                  tokenMode: null,
+                  itemKeys: null,
+                  rawBroadcasterType: null,
+                },
+              }
+            : {}),
+        });
+      }
+      const btRaw = info?.broadcaster_type;
+      // Twitch uses empty string ("") when broadcaster is neither affiliate nor partner.
+      // Null/undefined means we couldn't determine it (treat as unknown).
+      if (btRaw === null || btRaw === undefined) {
+        logger.warn('twitch.eligibility.missing_broadcaster_type', {
+          requestId: req.requestId,
+          userId,
+          channelId,
+          broadcasterId: channel.twitchChannelId,
+        });
+        return res.json({
+          eligible: null,
+          broadcasterType: null,
+          checkedBroadcasterId: channel.twitchChannelId,
+          reason: 'TWITCH_BROADCASTER_TYPE_MISSING',
+          ...(isBetaBackend()
+            ? {
+                debug: {
+                  tokenMode: info?._meta?.tokenMode ?? null,
+                  itemKeys: info?._meta?.itemKeys ?? null,
+                  rawBroadcasterType: info?._meta?.rawBroadcasterType ?? null,
+                },
+              }
+            : {}),
+        });
+      }
+
+      const bt = String(btRaw).toLowerCase();
       const eligible = bt === 'affiliate' || bt === 'partner';
-      return res.json({ eligible, broadcasterType: bt || null });
+      return res.json({
+        eligible,
+        // Keep empty string as-is to make "not affiliate/partner" explicit to clients.
+        broadcasterType: bt,
+        checkedBroadcasterId: channel.twitchChannelId,
+        reason: eligible ? undefined : 'TWITCH_REWARD_NOT_AVAILABLE',
+        ...(isBetaBackend()
+          ? {
+              debug: {
+                tokenMode: info?._meta?.tokenMode ?? null,
+                itemKeys: info?._meta?.itemKeys ?? null,
+                rawBroadcasterType: info?._meta?.rawBroadcasterType ?? null,
+              },
+            }
+          : {}),
+      });
     } catch (e: any) {
+      logger.error('twitch.eligibility.failed', {
+        requestId: req.requestId,
+        userId,
+        channelId,
+        broadcasterId: channel.twitchChannelId,
+        errorMessage: e?.message,
+      });
       return res.status(502).json({
         error: e?.message || 'Failed to check Twitch channel eligibility',
         errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
@@ -71,6 +147,7 @@ export const adminController = {
           overlayMode: true,
           overlayShowSender: true,
           overlayMaxConcurrent: true,
+          overlayStyleJson: true,
           overlayTokenVersion: true,
         },
       });
@@ -100,6 +177,7 @@ export const adminController = {
         overlayMode: channel.overlayMode ?? 'queue',
         overlayShowSender: channel.overlayShowSender ?? false,
         overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
+        overlayStyleJson: (channel as any).overlayStyleJson ?? null,
       });
     } catch (e: any) {
       console.error('Error generating overlay token:', e);
@@ -171,6 +249,63 @@ export const adminController = {
     } catch (e: any) {
       console.error('Error rotating overlay token:', e);
       return res.status(500).json({ error: 'Failed to rotate overlay token' });
+    }
+  },
+
+  // OBS overlay preview: return a "familiar" random meme for live preview in Admin UI.
+  // Priority:
+  // 1) Random approved meme from the streamer's channel pool
+  // 2) Random approved meme created by current user (any channel)
+  // 3) Random approved meme globally
+  getOverlayPreviewMeme: async (req: AuthRequest, res: Response) => {
+    const channelId = req.channelId;
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const pick = async (whereSql: string, params: any[]) => {
+      const rows = await prisma.$queryRawUnsafe<
+        Array<{ id: string; type: string; fileUrl: string; title: string; channelId: string }>
+      >(
+        `
+        SELECT "id", "type", "fileUrl", "title", "channelId"
+        FROM "Meme"
+        WHERE "status" = 'approved' ${whereSql}
+        ORDER BY RANDOM()
+        LIMIT 1
+      `,
+        ...params
+      );
+      return rows?.[0] || null;
+    };
+
+    try {
+      let meme =
+        channelId ? await pick(`AND "channelId" = $1`, [channelId]) : null;
+
+      if (!meme) {
+        meme = await pick(`AND "createdByUserId" = $1`, [userId]);
+      }
+
+      if (!meme) {
+        meme = await pick(``, []);
+      }
+
+      if (!meme) {
+        return res.json({ meme: null });
+      }
+
+      return res.json({
+        meme: {
+          id: meme.id,
+          type: meme.type,
+          fileUrl: meme.fileUrl,
+          title: meme.title,
+          channelId: meme.channelId,
+        },
+      });
+    } catch (e: any) {
+      console.error('Error getting overlay preview meme:', e);
+      return res.status(500).json({ error: 'Failed to get preview meme' });
     }
   },
   getSubmissions: async (req: AuthRequest, res: Response) => {
@@ -1006,10 +1141,55 @@ export const adminController = {
             });
           }
 
+          // Ensure the logged-in Twitch account matches the broadcaster we are trying to manage.
+          // Otherwise Twitch will deny reward management, even if the channel is affiliate/partner.
+          try {
+            const who = await getAuthenticatedTwitchUser(userId);
+            const tokenTwitchUserId = who?.id || null;
+            const broadcasterId = channel.twitchChannelId || null;
+            if (tokenTwitchUserId && broadcasterId && tokenTwitchUserId !== String(broadcasterId)) {
+              return res.status(403).json({
+                error: 'Twitch account mismatch. Please log in as the channel owner to manage rewards.',
+                errorCode: 'TWITCH_ACCOUNT_MISMATCH',
+                requiresReauth: true,
+              });
+            }
+          } catch (e: any) {
+            // If we can't validate identity, proceed; Twitch API calls below will still fail if mismatched.
+            // On beta we still want to return a helpful error when possible.
+            logger.warn('twitch.identity_check.failed', {
+              requestId: req.requestId,
+              userId,
+              channelId,
+              errorMessage: e?.message,
+            });
+          }
+
           // Prevent enabling rewards for channels without affiliate/partner status.
           try {
             const info = await getChannelInformation(userId, channel.twitchChannelId);
-            const bt = String(info?.broadcaster_type || '').toLowerCase();
+            const btRaw = info?.broadcaster_type;
+            if (btRaw === null || btRaw === undefined) {
+              // We couldn't reliably check eligibility. On beta, don't hard-block: allow attempt and let Twitch
+              // enforce the real rule. On prod, keep it strict to avoid confusing UX.
+              logger.warn('twitch.eligibility.unknown', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+                tokenMode: info?._meta?.tokenMode,
+                itemKeys: info?._meta?.itemKeys,
+                rawBroadcasterType: info?._meta?.rawBroadcasterType,
+              });
+              if (!isBetaBackend()) {
+                return res.status(502).json({
+                  error: 'Unable to verify Twitch eligibility at the moment. Please try again later.',
+                  errorCode: 'TWITCH_ELIGIBILITY_UNKNOWN',
+                });
+              }
+            }
+
+            const bt = String(btRaw).toLowerCase();
             const eligible = bt === 'affiliate' || bt === 'partner';
             if (!eligible) {
               return res.status(403).json({
@@ -1018,6 +1198,13 @@ export const adminController = {
               });
             }
           } catch (e: any) {
+            logger.error('twitch.eligibility.check_failed', {
+              requestId: req.requestId,
+              userId,
+              channelId,
+              broadcasterId: channel.twitchChannelId,
+              errorMessage: e?.message,
+            });
             return res.status(502).json({
               error: e?.message || 'Failed to check Twitch channel eligibility',
               errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
@@ -1058,7 +1245,13 @@ export const adminController = {
                 .map((r: any) => r.id);
             }
           } catch (error: any) {
-            console.error('Error fetching rewards:', error);
+            logger.warn('twitch.rewards.fetch_failed', {
+              requestId: req.requestId,
+              userId,
+              channelId,
+              broadcasterId: channel.twitchChannelId,
+              errorMessage: error?.message,
+            });
             // Continue with create/update logic
           }
           
@@ -1067,7 +1260,14 @@ export const adminController = {
             try {
               await deleteChannelReward(userId, channel.twitchChannelId, oldRewardId);
             } catch (error: any) {
-              console.error('Error deleting old reward:', error);
+              logger.warn('twitch.rewards.delete_old_failed', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+                rewardId: oldRewardId,
+                errorMessage: error?.message,
+              });
               // Continue even if deletion fails
             }
           }
@@ -1096,10 +1296,23 @@ export const adminController = {
                   coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                 }
               } catch (error) {
-                console.error('Error fetching reward details for icon:', error);
+                logger.warn('twitch.rewards.fetch_icon_failed', {
+                  requestId: req.requestId,
+                  userId,
+                  channelId,
+                  broadcasterId: channel.twitchChannelId,
+                  rewardId: existingRewardId,
+                });
               }
             } catch (error: any) {
-              console.error('Error updating reward:', error);
+              logger.warn('twitch.rewards.update_failed', {
+                requestId: req.requestId,
+                userId,
+                channelId,
+                broadcasterId: channel.twitchChannelId,
+                rewardId: existingRewardId,
+                errorMessage: error?.message,
+              });
               // If update fails, create new one
               const rewardResponse = await createChannelReward(
                 userId,
@@ -1122,7 +1335,13 @@ export const adminController = {
                     coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                   }
                 } catch (error) {
-                  console.error('Error fetching reward details for icon:', error);
+                  logger.warn('twitch.rewards.fetch_icon_failed', {
+                    requestId: req.requestId,
+                    userId,
+                    channelId,
+                    broadcasterId: channel.twitchChannelId,
+                    rewardId: body.rewardIdForCoins ?? null,
+                  });
                 }
               }
             }
@@ -1149,7 +1368,13 @@ export const adminController = {
                   coinIconUrl = rewardDetails.data[0].image.url_1x || rewardDetails.data[0].image.url_2x || rewardDetails.data[0].image.url_4x;
                 }
               } catch (error) {
-                console.error('Error fetching reward details for icon:', error);
+                logger.warn('twitch.rewards.fetch_icon_failed', {
+                  requestId: req.requestId,
+                  userId,
+                  channelId,
+                  broadcasterId: channel.twitchChannelId,
+                  rewardId: body.rewardIdForCoins ?? null,
+                });
               }
             }
           }
@@ -1278,6 +1503,7 @@ export const adminController = {
         overlayMode: body.overlayMode !== undefined ? body.overlayMode : (channel as any).overlayMode,
         overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : (channel as any).overlayShowSender,
         overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
+        overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : (channel as any).overlayStyleJson,
       };
       
       // Only update coinIconUrl if we have a value or if reward is being disabled
@@ -1300,6 +1526,7 @@ export const adminController = {
             overlayMode: (updatedChannel as any).overlayMode ?? 'queue',
             overlayShowSender: (updatedChannel as any).overlayShowSender ?? false,
             overlayMaxConcurrent: (updatedChannel as any).overlayMaxConcurrent ?? 3,
+            overlayStyleJson: (updatedChannel as any).overlayStyleJson ?? null,
           });
         }
       } catch (emitErr) {

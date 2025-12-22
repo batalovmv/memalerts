@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request } from 'express';
+import { logger } from '../utils/logger.js';
 
 // Get whitelist IPs from environment variable (comma-separated)
 const getWhitelistIPs = (): string[] => {
@@ -53,15 +54,10 @@ const logRateLimitEvent = (type: 'hit' | 'blocked' | 'whitelist', req: Request, 
     ...details,
   };
   
-  // Log to console (will be captured by PM2 logs)
-  if (type === 'blocked') {
-    console.warn(`[RATE_LIMIT] BLOCKED: ${JSON.stringify(logData)}`);
-  } else if (type === 'hit') {
-    console.log(`[RATE_LIMIT] HIT: ${JSON.stringify(logData)}`);
-  } else if (type === 'whitelist') {
-    // Log whitelist requests for monitoring (even though they're not blocked)
-    console.log(`[RATE_LIMIT] WHITELIST: ${JSON.stringify(logData)}`);
-  }
+  const requestId = (req as any).requestId;
+  if (type === 'blocked') logger.warn('security.rate_limit.blocked', { requestId, ...logData });
+  else if (type === 'hit') logger.info('security.rate_limit.hit', { requestId, ...logData });
+  else logger.info('security.rate_limit.whitelist', { requestId, ...logData });
 };
 
 // Global rate limiter for all routes (prevents abuse)
@@ -168,10 +164,20 @@ export const activateMemeLimiter = rateLimit({
 
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10,
+  // Allow normal "upload a few memes in a row" behavior without tripping on shared IPs (mobile/NAT).
+  // Still strict enough to prevent abuse.
+  max: 30,
   message: 'Too many upload requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Prefer per-user limiting for authenticated routes; fallback to IP.
+    // This avoids punishing users behind NAT/mobile carriers.
+    const anyReq = req as any;
+    const userId = typeof anyReq.userId === 'string' ? anyReq.userId : null;
+    if (userId) return `user:${userId}`;
+    return `ip:${getClientIP(req)}`;
+  },
   skip: (req) => {
     // Check if IP is whitelisted
     const whitelistIPs = getWhitelistIPs();
