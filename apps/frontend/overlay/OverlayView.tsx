@@ -314,6 +314,8 @@ export default function OverlayView() {
   // If not provided, keep prior behavior: larger padding for random, smaller for anchored modes.
   const safePadRaw = String(getParam('safePad') || (parsedStyle as any)?.safePad || '').trim();
   const safePadPx = clampInt(parseInt(safePadRaw, 10), 0, 240);
+  const lockPos = (getParam('lockPos') || '') === '1';
+  const showSafeGuide = (getParam('showSafeGuide') || '') === '1';
 
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
@@ -382,6 +384,9 @@ export default function OverlayView() {
     // so we default to muted for reliability.
     return !isProbablyOBS;
   }, [isProbablyOBS]);
+
+  // In demo preview we ALWAYS keep media muted to avoid autoplay restrictions.
+  const effectiveMuted = demo ? true : mutedByDefault || volume <= 0;
 
   const getMediaUrl = (fileUrl: string): string => {
     return resolveMediaUrl(fileUrl);
@@ -709,6 +714,10 @@ export default function OverlayView() {
         // - for random: keep random center but clamp it into the safe area
         // - for anchored modes: compute an anchored center and clamp it into the safe area.
         // We render via xPx/yPx when set, which guarantees "never off-screen".
+        //
+        // In demo preview, while the user is dragging layout sliders (size/safe area),
+        // we lock positions to avoid "teleporting" during live tweaking.
+        if (demo && lockPos) return a;
 
         // Predict the size after nextFit is applied, then clamp center based on that size.
         const effectiveW = baseW * nextFit;
@@ -1307,6 +1316,30 @@ export default function OverlayView() {
           }
         `}
       </style>
+      {demo && showSafeGuide && safePadPx > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: safePadPx,
+              left: safePadPx,
+              right: safePadPx,
+              bottom: safePadPx,
+              border: '2px dashed rgba(255,255,255,0.45)',
+              borderRadius: 16,
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.35) inset',
+              background: 'rgba(0,0,0,0.05)',
+            }}
+          />
+        </div>
+      )}
       {renderItems.map((item) => (
         <div
           key={item.id}
@@ -1361,10 +1394,13 @@ export default function OverlayView() {
                       src={getMediaUrl(item.fileUrl)}
                       autoPlay
                       playsInline
-                      muted={mutedByDefault || volume <= 0}
+                      muted={effectiveMuted}
                       style={mediaStyle}
                       onLoadedData={(e) => {
                         e.currentTarget.volume = Math.min(1, Math.max(0, volume));
+                        // Some embedded browsers/iframes need an explicit play() after setting volume.
+                        // In demo preview we keep muted anyway, so this is safe.
+                        void e.currentTarget.play?.().catch?.(() => {});
                       }}
                       onLoadedMetadata={(e) => {
                         const dur = e.currentTarget.duration;
@@ -1399,9 +1435,10 @@ export default function OverlayView() {
                     <audio
                       src={getMediaUrl(item.fileUrl)}
                       autoPlay
-                      muted={mutedByDefault || volume <= 0}
+                      muted={effectiveMuted}
                       onLoadedData={(e) => {
                         e.currentTarget.volume = Math.min(1, Math.max(0, volume));
+                        void e.currentTarget.play?.().catch?.(() => {});
                       }}
                       onLoadedMetadata={(e) => {
                         const dur = (e.currentTarget as HTMLAudioElement).duration;

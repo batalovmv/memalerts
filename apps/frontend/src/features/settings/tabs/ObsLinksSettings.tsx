@@ -32,6 +32,9 @@ export function ObsLinksSettings() {
   const previewSeedRef = useRef<number>(1);
   const overlayReadyRef = useRef(false);
   const [obsUiMode, setObsUiMode] = useState<'basic' | 'pro'>('basic');
+  const [previewLockPositions, setPreviewLockPositions] = useState(false);
+  const [previewShowSafeGuide, setPreviewShowSafeGuide] = useState(false);
+  const safeGuideTimerRef = useRef<number | null>(null);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -684,6 +687,8 @@ export function ObsLinksSettings() {
       previewBg,
       position: urlPosition,
       safePad: String(safePad),
+      lockPos: previewLockPositions ? '1' : '0',
+      showSafeGuide: previewShowSafeGuide ? '1' : '0',
       previewCount: String(previewCount),
       previewMode: overlayMode,
       repeat: previewLoopEnabled ? '1' : '0',
@@ -792,6 +797,8 @@ export function ObsLinksSettings() {
     urlRadius,
     urlVolume,
     previewBg,
+    previewLockPositions,
+    previewShowSafeGuide,
   ]);
 
   const latestPreviewParamsRef = useRef<Record<string, string>>(overlayPreviewParams);
@@ -847,6 +854,15 @@ export function ObsLinksSettings() {
       }
     };
   }, [overlayPreviewParams, schedulePostPreviewParams]);
+
+  const flashSafeGuide = useCallback(() => {
+    setPreviewShowSafeGuide(true);
+    if (safeGuideTimerRef.current) window.clearTimeout(safeGuideTimerRef.current);
+    safeGuideTimerRef.current = window.setTimeout(() => {
+      safeGuideTimerRef.current = null;
+      setPreviewShowSafeGuide(false);
+    }, 900);
+  }, []);
 
   // Receive "ready" handshake from iframe so the first params post is never lost.
   useEffect(() => {
@@ -1730,6 +1746,8 @@ export function ObsLinksSettings() {
                               setScaleMode('fixed');
                               setScaleFixed(v);
                             }}
+                            onPointerDown={() => setPreviewLockPositions(true)}
+                            onPointerUp={() => setPreviewLockPositions(false)}
                             className="w-full"
                           />
                           <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
@@ -1748,7 +1766,15 @@ export function ObsLinksSettings() {
                             max={160}
                             step={4}
                             value={safePad}
-                            onChange={(e) => setSafePad(parseInt(e.target.value, 10))}
+                            onChange={(e) => {
+                              setSafePad(parseInt(e.target.value, 10));
+                              flashSafeGuide();
+                            }}
+                            onPointerDown={() => {
+                              setPreviewLockPositions(true);
+                              flashSafeGuide();
+                            }}
+                            onPointerUp={() => setPreviewLockPositions(false)}
                             className="w-full"
                           />
                           <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
@@ -1956,7 +1982,15 @@ export function ObsLinksSettings() {
                   max={240}
                   step={4}
                   value={safePad}
-                  onChange={(e) => setSafePad(parseInt(e.target.value, 10))}
+                  onChange={(e) => {
+                    setSafePad(parseInt(e.target.value, 10));
+                    flashSafeGuide();
+                  }}
+                  onPointerDown={() => {
+                    setPreviewLockPositions(true);
+                    flashSafeGuide();
+                  }}
+                  onPointerUp={() => setPreviewLockPositions(false)}
                   className="w-full"
                 />
                 <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
@@ -1991,6 +2025,8 @@ export function ObsLinksSettings() {
                         step={0.05}
                         value={scaleFixed}
                         onChange={(e) => setScaleFixed(parseFloat(e.target.value))}
+                        onPointerDown={() => setPreviewLockPositions(true)}
+                        onPointerUp={() => setPreviewLockPositions(false)}
                         className="w-full"
                       />
                     </div>
