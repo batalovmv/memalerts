@@ -474,6 +474,7 @@ export default function OverlayView() {
     if (!demo) return;
 
     demoSeqRef.current += 1;
+    const demoSeq = demoSeqRef.current;
     const mode: OverlayMode =
       previewModeParam === 'queue' ? 'queue' : previewCount > 1 ? 'simultaneous' : 'queue';
 
@@ -484,8 +485,11 @@ export default function OverlayView() {
       overlayMaxConcurrent: clampInt(previewCount, 1, 5),
     }));
 
+    // IMPORTANT:
+    // Use demoSeq in IDs to guarantee uniqueness and avoid React reusing a DOM node
+    // (which can look like "the old meme jumped position, then changed").
     const seed: QueuedActivation[] = Array.from({ length: previewCount }).map((_, idx) => ({
-      id: `__demo_seed__${Date.now()}_${idx}`,
+      id: `__demo_seed__${demoSeq}_${idx}`,
       memeId: '__demo__',
       ...getPreviewMediaAt(idx),
       durationMs: 8000,
@@ -543,8 +547,9 @@ export default function OverlayView() {
       if (demo && previewRepeat) {
         setTimeout(() => {
           demoSeqRef.current += 1;
+          const demoSeq = demoSeqRef.current;
           const next: QueuedActivation = {
-            id: `__demo__${Date.now()}_${Math.random().toString(16).slice(2)}`,
+            id: `__demo__${demoSeq}`,
             memeId: '__demo__',
             ...getPreviewMediaAt(Date.now()),
             durationMs: 8000,
