@@ -1143,7 +1143,7 @@ function ObsLinksSettings() {
         setLoadingOverlaySettings(true);
         const { api } = await import('../lib/api');
         const resp = await api.get<{ token: string; overlayMode?: string; overlayShowSender?: boolean; overlayMaxConcurrent?: number; overlayStyleJson?: string | null }>(
-          '/admin/overlay/token'
+          '/streamer/overlay/token'
         );
         if (!mounted) return;
         setOverlayToken(resp.token || '');
@@ -1386,7 +1386,7 @@ function ObsLinksSettings() {
         Array.from({ length: n }).map(async () => {
           try {
             const resp = await api.get<{ meme: null | { fileUrl: string; type: string; title?: string } }>(
-              '/admin/overlay/preview-meme'
+              '/streamer/overlay/preview-meme'
             );
             return resp?.meme || null;
           } catch {
@@ -1796,7 +1796,7 @@ function ObsLinksSettings() {
     try {
       setSavingOverlaySettings(true);
       const { api } = await import('../lib/api');
-      await api.patch('/admin/channel/settings', {
+      await api.patch('/streamer/channel/settings', {
         overlayMode,
         overlayShowSender,
         overlayMaxConcurrent,
@@ -1832,7 +1832,7 @@ function ObsLinksSettings() {
     try {
       setRotatingOverlayToken(true);
       const { api } = await import('../lib/api');
-      const resp = await api.post<{ token: string }>('/admin/overlay/token/rotate', {});
+      const resp = await api.post<{ token: string }>('/streamer/overlay/token/rotate', {});
       setOverlayToken(resp?.token || '');
       toast.success(t('admin.obsOverlayTokenRotated', { defaultValue: 'Overlay link updated. Paste the new URL into OBS.' }));
     } catch (error: unknown) {
@@ -3123,7 +3123,7 @@ function WalletManagement() {
       optionsLoadedRef.current = true;
       const { api } = await import('../lib/api');
       const resp = await api.get<{ users: Array<{ id: string; displayName: string; twitchUserId?: string | null }>; channels: Array<{ id: string; name: string; slug: string }> }>(
-        '/admin/wallets/options'
+        '/owner/wallets/options'
       );
       setWalletUsers(resp?.users || []);
     } catch (error: unknown) {
@@ -3144,7 +3144,7 @@ function WalletManagement() {
       setLoading(true);
       const { api } = await import('../lib/api');
       walletsLoadedForUserRef.current = uid;
-      const resp = await api.get<any>('/admin/wallets', {
+      const resp = await api.get<any>('/owner/wallets', {
         params: { userId: uid, limit: 200, offset: 0, includeTotal: 0 },
         timeout: 15000,
       });
@@ -3243,7 +3243,7 @@ function WalletManagement() {
     try {
       setAdjusting(`${userId}-${channelId}`);
       const { api } = await import('../lib/api');
-      await api.post(`/admin/wallets/${userId}/${channelId}/adjust`, { amount });
+      await api.post(`/owner/wallets/${userId}/${channelId}/adjust`, { amount });
       toast.success(amount > 0 ? t('admin.balanceIncreased', { amount: Math.abs(amount) }) : t('admin.balanceDecreased', { amount: Math.abs(amount) }));
       setAdjustAmount('');
       fetchWallets(userId, true);
@@ -3532,7 +3532,7 @@ function RewardsSettings() {
         setEligibilityLoading(true);
         const { api } = await import('../lib/api');
         const res = await api.get<{ eligible: boolean | null; broadcasterType?: string | null; checkedBroadcasterId?: string; reason?: string }>(
-          '/admin/twitch/reward/eligibility',
+          '/streamer/twitch/reward/eligibility',
           { timeout: 15000 }
         );
         if (cancelled) return;
@@ -3579,7 +3579,7 @@ function RewardsSettings() {
           rewardCoins: effectiveCoinsStr,
         }));
       }
-      await api.patch('/admin/channel/settings', {
+      await api.patch('/streamer/channel/settings', {
         // Twitch reward only (do NOT include submissionRewardCoins here)
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
         rewardEnabled: rewardSettings.rewardEnabled,
@@ -3639,7 +3639,7 @@ function RewardsSettings() {
         return;
       }
       const { api } = await import('../lib/api');
-      await api.patch('/admin/channel/settings', {
+      await api.patch('/streamer/channel/settings', {
         // Approved meme reward only (do NOT include Twitch reward fields here)
         submissionRewardCoins: coins,
       });
@@ -4061,7 +4061,7 @@ function ChannelSettings() {
         try {
           setLoading(true);
           const { api } = await import('../lib/api');
-          await api.patch('/admin/channel/settings', {
+          await api.patch('/streamer/channel/settings', {
             primaryColor: settings.primaryColor || null,
             secondaryColor: settings.secondaryColor || null,
             accentColor: settings.accentColor || null,
@@ -4258,7 +4258,7 @@ function ChannelStatistics() {
       setLoading(true);
       statsLoadedRef.current = true;
       const { api } = await import('../lib/api');
-      const stats = await api.get<Record<string, unknown>>('/admin/stats/channel');
+      const stats = await api.get<Record<string, unknown>>('/streamer/stats/channel');
       setStats(stats);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -4444,7 +4444,7 @@ function PromotionManagement() {
       setError(null);
       promotionsLoadedRef.current = true;
       const { api } = await import('../lib/api');
-      const promotions = await api.get<Array<Record<string, unknown>>>('/admin/promotions');
+      const promotions = await api.get<Array<Record<string, unknown>>>('/streamer/promotions');
       setPromotions(promotions);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -4465,7 +4465,7 @@ function PromotionManagement() {
     e.preventDefault();
     try {
       const { api } = await import('../lib/api');
-      await api.post('/admin/promotions', {
+      await api.post('/streamer/promotions', {
         name: formData.name,
         discountPercent: parseFloat(formData.discountPercent),
         startDate: new Date(formData.startDate).toISOString(),
@@ -4485,7 +4485,7 @@ function PromotionManagement() {
   const handleToggleActive = async (id: string, currentActive: boolean) => {
     try {
       const { api } = await import('../lib/api');
-      await api.patch(`/admin/promotions/${id}`, { isActive: !currentActive });
+      await api.patch(`/streamer/promotions/${id}`, { isActive: !currentActive });
       toast.success(!currentActive ? t('admin.promotionActivated') : t('admin.promotionDeactivated'));
       promotionsLoadedRef.current = false; // Reset to allow reload
       fetchPromotions();
@@ -4499,7 +4499,7 @@ function PromotionManagement() {
     if (!confirm(t('admin.deletePromotion'))) return;
     try {
       const { api } = await import('../lib/api');
-      await api.delete(`/admin/promotions/${id}`);
+      await api.delete(`/streamer/promotions/${id}`);
       toast.success(t('admin.promotionDeleted'));
       promotionsLoadedRef.current = false; // Reset to allow reload
       fetchPromotions();
@@ -4691,7 +4691,7 @@ function BetaAccessManagement() {
     try {
       setLoading(true);
       requestsLoadedRef.current = true;
-      const requests = await api.get<Array<Record<string, unknown>>>('/admin/beta/requests');
+      const requests = await api.get<Array<Record<string, unknown>>>('/owner/beta/requests');
       setRequests(requests);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -4708,7 +4708,7 @@ function BetaAccessManagement() {
     try {
       setGrantedLoading(true);
       grantedLoadedRef.current = true;
-      const users = await api.get<Array<Record<string, unknown>>>('/admin/beta/users');
+      const users = await api.get<Array<Record<string, unknown>>>('/owner/beta/users');
       setGrantedUsers(users);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -4725,7 +4725,7 @@ function BetaAccessManagement() {
     try {
       setRevokedLoading(true);
       revokedLoadedRef.current = true;
-      const revoked = await api.get<Array<Record<string, unknown>>>('/admin/beta/users/revoked');
+      const revoked = await api.get<Array<Record<string, unknown>>>('/owner/beta/users/revoked');
       setRevokedUsers(revoked);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -4744,7 +4744,7 @@ function BetaAccessManagement() {
 
   const handleApprove = async (requestId: string) => {
     try {
-      await api.post(`/admin/beta/requests/${requestId}/approve`);
+      await api.post(`/owner/beta/requests/${requestId}/approve`);
       toast.success(t('toast.betaAccessApproved'));
       await Promise.all([
         loadRequests({ force: true }),
@@ -4759,7 +4759,7 @@ function BetaAccessManagement() {
 
   const handleReject = async (requestId: string) => {
     try {
-      await api.post(`/admin/beta/requests/${requestId}/reject`);
+      await api.post(`/owner/beta/requests/${requestId}/reject`);
       toast.success(t('toast.betaAccessRejected'));
       await Promise.all([
         loadRequests({ force: true }),
@@ -4778,7 +4778,7 @@ function BetaAccessManagement() {
     if (!confirmed) return;
 
     try {
-      await api.post(`/admin/beta/users/${targetUserId}/revoke`);
+      await api.post(`/owner/beta/users/${targetUserId}/revoke`);
       toast.success(t('toast.betaAccessRevoked'));
       await Promise.all([
         loadRequests({ force: true }),
@@ -4797,7 +4797,7 @@ function BetaAccessManagement() {
     if (!confirmed) return;
 
     try {
-      await api.post(`/admin/beta/users/${targetUserId}/restore`);
+      await api.post(`/owner/beta/users/${targetUserId}/restore`);
       toast.success(t('toast.betaAccessRestored'));
       await Promise.all([
         loadRequests({ force: true }),

@@ -162,7 +162,7 @@ export default function MemeModal({
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await api.patch<Meme>(`/admin/memes/${currentMeme.id}`, formData);
+      const response = await api.patch<Meme>(`/streamer/memes/${currentMeme.id}`, formData);
       setCurrentMeme(response);
       toast.success('Meme updated successfully!');
       setIsEditing(false);
@@ -195,7 +195,7 @@ export default function MemeModal({
 
     setLoading(true);
     try {
-      await api.delete(`/admin/memes/${currentMeme.id}`);
+      await api.delete(`/streamer/memes/${currentMeme.id}`);
       toast.success(t('memeModal.deleted', { defaultValue: 'Meme deleted successfully!' }));
       // Optimistically remove from any open lists (dashboard/public) without a full refresh.
       try {

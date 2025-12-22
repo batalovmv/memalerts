@@ -30,7 +30,7 @@ export const fetchSubmissions = createAsyncThunk<
   { rejectValue: ApiError }
 >('submissions/fetchSubmissions', async ({ status = 'pending', limit = 20, offset = 0, includeTotal }, { rejectWithValue }) => {
   try {
-    const resp = await api.get<Submission[] | SubmissionsPage>('/admin/submissions', {
+    const resp = await api.get<Submission[] | SubmissionsPage>('/streamer/submissions', {
       // includeTotal is only needed for first page (badge/count); skip otherwise to avoid expensive count() on backend.
       params: { status, limit, offset, includeTotal: includeTotal ?? (offset === 0 ? 1 : 0) },
       timeout: 15000, // 15 seconds timeout
@@ -85,7 +85,7 @@ export const approveSubmission = createAsyncThunk<
       if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs > 0) {
         payload.durationMs = durationMs;
       }
-      await api.post(`/admin/submissions/${submissionId}/approve`, payload);
+      await api.post(`/streamer/submissions/${submissionId}/approve`, payload);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: ApiError; status?: number } };
       return rejectWithValue({
@@ -103,7 +103,7 @@ export const rejectSubmission = createAsyncThunk<
   { rejectValue: ApiError }
 >('submissions/rejectSubmission', async ({ submissionId, moderatorNotes }, { rejectWithValue }) => {
   try {
-    await api.post(`/admin/submissions/${submissionId}/reject`, {
+    await api.post(`/streamer/submissions/${submissionId}/reject`, {
       moderatorNotes: moderatorNotes || null,
     });
   } catch (error: unknown) {
