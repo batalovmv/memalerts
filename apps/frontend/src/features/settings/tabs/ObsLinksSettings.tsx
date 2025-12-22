@@ -606,7 +606,7 @@ export function ObsLinksSettings() {
     previewSeedRef.current = previewSeed;
   }, [previewSeed]);
 
-  const fetchPreviewMemes = useCallback(async (count?: number, seed?: number) => {
+  const fetchPreviewMemes = useCallback(async (count?: number, seed?: number, opts?: { commitSeed?: boolean }) => {
     const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
     try {
       setLoadingPreview(true);
@@ -631,6 +631,13 @@ export function ObsLinksSettings() {
         cleaned.push({ fileUrl: m.fileUrl, type: m.type, title: m.title });
       }
       setPreviewMemes(cleaned);
+
+      // Optional: commit the seed atomically together with the new preview set.
+      // This prevents a two-step UI update (seed first, urls later) that can cause overlay reseed twice.
+      if (opts?.commitSeed && Number.isFinite(seed)) {
+        previewSeedRef.current = seed!;
+        setPreviewSeed(seed!);
+      }
     } catch {
       setPreviewMemes([]);
     } finally {
@@ -1243,9 +1250,9 @@ export function ObsLinksSettings() {
                       disabled={loadingPreview || !overlayToken}
                       onClick={() => {
                         const next = previewSeedRef.current >= 1000000000 ? 1 : previewSeedRef.current + 1;
-                        previewSeedRef.current = next;
-                        setPreviewSeed(next);
-                        void fetchPreviewMemes(previewCount, next);
+                        // IMPORTANT: do not update previewSeed before the new preview set arrives.
+                        // We fetch using next seed and then commit seed+urls in the same render.
+                        void fetchPreviewMemes(previewCount, next, { commitSeed: true });
                       }}
                       title={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
                       aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
