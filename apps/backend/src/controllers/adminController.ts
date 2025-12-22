@@ -29,6 +29,29 @@ import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
 import { logger } from '../utils/logger.js';
 import { isBetaBackend } from '../utils/envMode.js';
+import crypto from 'crypto';
+
+type ChannelStatsCacheEntry = { ts: number; etag: string; body: string };
+const channelStatsCache = new Map<string, ChannelStatsCacheEntry>();
+const CHANNEL_STATS_CACHE_MS_DEFAULT = 30_000;
+const CHANNEL_STATS_CACHE_MAX = 200;
+
+function getChannelStatsCacheMs(): number {
+  const raw = parseInt(String(process.env.ADMIN_STATS_CACHE_MS || ''), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : CHANNEL_STATS_CACHE_MS_DEFAULT;
+}
+
+function makeEtagFromString(body: string): string {
+  const hash = crypto.createHash('sha1').update(body).digest('base64');
+  return `"${hash}"`;
+}
+
+function ifNoneMatchHit(req: any, etag: string): boolean {
+  const inm = req?.headers?.['if-none-match'];
+  if (!inm) return false;
+  const raw = Array.isArray(inm) ? inm.join(',') : String(inm);
+  return raw.split(',').map((s) => s.trim()).includes(etag);
+}
 
 export const adminController = {
   getTwitchRewardEligibility: async (req: AuthRequest, res: Response) => {
@@ -1832,99 +1855,83 @@ export const adminController = {
     }
 
     try {
+      // This is role-protected in routes, but we still treat it as potentially hot:
+      // - cache briefly to reduce repeat compute when the UI is reopened/refreshed
+      // - ETag/304 to avoid sending identical payloads repeatedly
+      res.setHeader('Cache-Control', 'private, max-age=20, stale-while-revalidate=40');
+      const cacheTtl = getChannelStatsCacheMs();
+      const cacheKey = `v1:${channelId}:${Math.floor(Date.now() / 60_000)}`; // minute bucket
+      const cached = channelStatsCache.get(cacheKey);
+      if (cached && Date.now() - cached.ts < cacheTtl) {
+        res.setHeader('ETag', cached.etag);
+        if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
+        return res.type('application/json').send(cached.body);
+      }
+
       // Get user spending stats
-      const userSpending = await prisma.memeActivation.groupBy({
-        by: ['userId'],
-        where: {
-          channelId,
-        },
-        _sum: {
-          coinsSpent: true,
-        },
-        _count: {
-          id: true,
-        },
-        orderBy: {
-          _sum: {
-            coinsSpent: 'desc',
-          },
-        },
-        take: 20,
-      });
+      const [
+        userSpending,
+        memeStats,
+        totalActivations,
+        totalCoinsSpent,
+        totalMemes,
+        daily,
+      ] = await Promise.all([
+        prisma.memeActivation.groupBy({
+          by: ['userId'],
+          where: { channelId },
+          _sum: { coinsSpent: true },
+          _count: { id: true },
+          orderBy: { _sum: { coinsSpent: 'desc' } },
+          take: 20,
+        }),
+        prisma.memeActivation.groupBy({
+          by: ['memeId'],
+          where: { channelId },
+          _count: { id: true },
+          _sum: { coinsSpent: true },
+          orderBy: { _count: { id: 'desc' } },
+          take: 20,
+        }),
+        prisma.memeActivation.count({ where: { channelId } }),
+        prisma.memeActivation.aggregate({ where: { channelId }, _sum: { coinsSpent: true } }),
+        prisma.meme.count({ where: { channelId, status: 'approved' } }),
+        prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
+          SELECT date_trunc('day', "createdAt") as day,
+                 COUNT(*)::bigint as activations,
+                 COALESCE(SUM("coinsSpent"), 0)::bigint as coins
+          FROM "MemeActivation"
+          WHERE "channelId" = ${channelId}
+            AND "createdAt" >= (NOW() - INTERVAL '14 days')
+          GROUP BY 1
+          ORDER BY 1 ASC
+        `,
+      ]);
 
-      // Get user details
+      // Fetch user/meme details (only if needed)
       const userIds = userSpending.map((s) => s.userId);
-      const users = await prisma.user.findMany({
-        where: {
-          id: {
-            in: userIds,
-          },
-        },
-        select: {
-          id: true,
-          displayName: true,
-        },
-      });
-
-      // Get meme popularity stats
-      const memeStats = await prisma.memeActivation.groupBy({
-        by: ['memeId'],
-        where: {
-          channelId,
-        },
-        _count: {
-          id: true,
-        },
-        _sum: {
-          coinsSpent: true,
-        },
-        orderBy: {
-          _count: {
-            id: 'desc',
-          },
-        },
-        take: 20,
-      });
-
       const memeIds = memeStats.map((s) => s.memeId);
-      const memes = await prisma.meme.findMany({
-        where: {
-          id: {
-            in: memeIds,
-          },
-        },
-        select: {
-          id: true,
-          title: true,
-          priceCoins: true,
-        },
-      });
 
-      // Overall stats
-      const totalActivations = await prisma.memeActivation.count({
-        where: {
-          channelId,
-        },
-      });
+      const [users, memes] = await Promise.all([
+        userIds.length
+          ? prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, displayName: true },
+            })
+          : Promise.resolve([] as Array<{ id: string; displayName: string }>),
+        memeIds.length
+          ? prisma.meme.findMany({
+              where: { id: { in: memeIds } },
+              select: { id: true, title: true, priceCoins: true },
+            })
+          : Promise.resolve([] as Array<{ id: string; title: string; priceCoins: number }>),
+      ]);
 
-      const totalCoinsSpent = await prisma.memeActivation.aggregate({
-        where: {
-          channelId,
-        },
-        _sum: {
-          coinsSpent: true,
-        },
-      });
-
-      const totalMemes = await prisma.meme.count({
-        where: {
-          channelId,
-          status: 'approved',
-        },
-      });
+      const usersById = new Map(users.map((u) => [u.id, u]));
+      const memesById = new Map(memes.map((m) => [m.id, m]));
 
       const userSpendingOut = userSpending.map((s) => ({
-        user: users.find((u) => u.id === s.userId) || { id: s.userId, displayName: 'Unknown' },
+        user: usersById.get(s.userId) || { id: s.userId, displayName: 'Unknown' },
         totalCoinsSpent: s._sum.coinsSpent || 0,
         activationsCount: s._count.id,
       }));
@@ -1935,7 +1942,7 @@ export const adminController = {
       });
 
       const memePopularityOut = memeStats.map((s) => ({
-        meme: memes.find((m) => m.id === s.memeId) || null,
+        meme: memesById.get(s.memeId) || null,
         activationsCount: s._count.id,
         totalCoinsSpent: s._sum.coinsSpent || 0,
       }));
@@ -1944,19 +1951,7 @@ export const adminController = {
         return b.totalCoinsSpent - a.totalCoinsSpent;
       });
 
-      // Daily activity (last 14 days) for charts
-      const daily = await prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
-        SELECT date_trunc('day', "createdAt") as day,
-               COUNT(*)::bigint as activations,
-               COALESCE(SUM("coinsSpent"), 0)::bigint as coins
-        FROM "MemeActivation"
-        WHERE "channelId" = ${channelId}
-          AND "createdAt" >= (NOW() - INTERVAL '14 days')
-        GROUP BY 1
-        ORDER BY 1 ASC
-      `;
-
-      res.json({
+      const payload = {
         userSpending: userSpendingOut.slice(0, 20),
         memePopularity: memePopularityOut.slice(0, 20),
         overall: {
@@ -1969,7 +1964,15 @@ export const adminController = {
           activations: Number(d.activations),
           coins: Number(d.coins),
         })),
-      });
+      };
+
+      const body = JSON.stringify(payload);
+      const etag = makeEtagFromString(body);
+      res.setHeader('ETag', etag);
+      if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+      channelStatsCache.set(cacheKey, { ts: Date.now(), etag, body });
+      if (channelStatsCache.size > CHANNEL_STATS_CACHE_MAX) channelStatsCache.clear();
+      return res.type('application/json').send(body);
     } catch (error) {
       throw error;
     }
