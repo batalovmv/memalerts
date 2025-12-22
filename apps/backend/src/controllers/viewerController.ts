@@ -9,6 +9,26 @@ import { logMemeActivation } from '../utils/auditLogger.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 
+type CacheEntry<T> = { ts: number; data: T };
+const channelMetaCache = new Map<string, CacheEntry<any>>();
+const CHANNEL_META_CACHE_MS_DEFAULT = 60_000;
+
+function getChannelMetaCacheMs(): number {
+  const raw = parseInt(String(process.env.CHANNEL_META_CACHE_MS || ''), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : CHANNEL_META_CACHE_MS_DEFAULT;
+}
+
+function setChannelMetaCacheHeaders(req: any, res: Response) {
+  // On production this route is public. On beta it is gated via auth/beta-access middleware.
+  // Either way the response is not user-personalized; we use conservative caching when authenticated.
+  const isAuthed = !!req?.userId;
+  if (isAuthed) {
+    res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+  } else {
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+  }
+}
+
 export const viewerController = {
   getChannelBySlug: async (req: any, res: Response) => {
     const slug = String(req.params.slug || '').trim();
@@ -32,10 +52,16 @@ export const viewerController = {
     const memesOffset =
       includeMemes && Number.isFinite(requestedOffset as number) && (requestedOffset as number) > 0 ? (requestedOffset as number) : 0;
 
-    // Cache channel metadata (colors/icons/reward settings) for a short period when we are NOT returning memes.
-    // This endpoint is public and not user-personalized.
+    // Cache channel metadata (colors/icons/reward settings) when we are NOT returning memes.
+    // Safe because response is not user-personalized.
+    const cacheKey = String(slug || '').trim().toLowerCase();
     if (!includeMemes) {
-      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      setChannelMetaCacheHeaders(req, res);
+      const cached = channelMetaCache.get(cacheKey);
+      const ttl = getChannelMetaCacheMs();
+      if (cached && Date.now() - cached.ts < ttl) {
+        return res.json(cached.data);
+      }
     }
 
     try {
@@ -126,6 +152,9 @@ export const viewerController = {
         };
       }
 
+      if (!includeMemes) {
+        channelMetaCache.set(cacheKey, { ts: Date.now(), data: response });
+      }
       res.json(response);
     } catch (error: any) {
       // If error is about missing columns, try query without color fields
@@ -197,6 +226,10 @@ export const viewerController = {
           };
         }
 
+        if (!includeMemes) {
+          setChannelMetaCacheHeaders(req, res);
+          channelMetaCache.set(cacheKey, { ts: Date.now(), data: response });
+        }
         return res.json(response);
       }
       throw error;
@@ -375,8 +408,17 @@ export const viewerController = {
   // Public: list approved memes for a channel by slug (supports pagination)
   getChannelMemesPublic: async (req: any, res: Response) => {
     const slug = String(req.params.slug || '').trim();
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
-    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+    const maxFromEnv = parseInt(String(process.env.CHANNEL_MEMES_PAGE_MAX || ''), 10);
+    const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 50;
+    const limitRaw = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
+    const offsetRaw = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_PAGE) : 30;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
+
+    // Cacheable on production (public). On beta it's gated via auth; still safe but keep it private.
+    if (req?.userId) res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    else res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
 
     if (!slug) {
       return res.status(400).json({ error: 'Channel slug is required' });
@@ -405,8 +447,8 @@ export const viewerController = {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: Number.isFinite(limit) ? limit : 30,
-      skip: Number.isFinite(offset) ? offset : 0,
+      take: limit,
+      skip: offset,
     });
 
     res.json(memes);
