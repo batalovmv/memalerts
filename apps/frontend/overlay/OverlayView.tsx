@@ -316,6 +316,7 @@ export default function OverlayView() {
   const safePadPx = clampInt(parseInt(safePadRaw, 10), 0, 240);
   const lockPos = (getParam('lockPos') || '') === '1';
   const showSafeGuide = (getParam('showSafeGuide') || '') === '1';
+  const posSeed = clampInt(parseInt(String(getParam('posSeed') || '1'), 10), 0, 1000000000);
 
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
@@ -471,13 +472,13 @@ export default function OverlayView() {
     const margin = Math.min(28, Math.max(8, Math.round(baseMargin * safeScale) + padPct));
     // Demo: deterministic RNG so sliders don't reshuffle positions (when iframe does not reload).
     // Real overlay: true randomness (each activation should be independent).
-    const rng = demo ? mulberry32((demoSeed + demoSeqRef.current * 9973 + salt * 1013) >>> 0) : null;
+    const rng = demo ? mulberry32((demoSeed + posSeed * 7919 + demoSeqRef.current * 9973 + salt * 1013) >>> 0) : null;
     const r1 = rng ? rng() : Math.random();
     const r2 = rng ? rng() : Math.random();
     const xPct = margin + r1 * (100 - margin * 2);
     const yPct = margin + r2 * (100 - margin * 2);
     return { xPct, yPct };
-  }, [demo, demoSeed, safePadPx, safeScale]);
+  }, [demo, demoSeed, posSeed, safePadPx, safeScale]);
 
   // Demo seeding: spawn N preview items and optionally repeat.
   useEffect(() => {

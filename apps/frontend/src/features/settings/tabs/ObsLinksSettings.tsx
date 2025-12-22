@@ -28,6 +28,7 @@ export function ObsLinksSettings() {
   const [previewBg, setPreviewBg] = useState<'twitch' | 'white'>('twitch');
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
+  const [previewPosSeed, setPreviewPosSeed] = useState<number>(1);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewSeedRef = useRef<number>(1);
   const overlayReadyRef = useRef(false);
@@ -35,6 +36,16 @@ export function ObsLinksSettings() {
   const [previewLockPositions, setPreviewLockPositions] = useState(false);
   const [previewShowSafeGuide, setPreviewShowSafeGuide] = useState(false);
   const safeGuideTimerRef = useRef<number | null>(null);
+
+  const perfRestoreRef = useRef<null | {
+    glassEnabled: boolean;
+    urlBlur: number;
+    urlBgOpacity: number;
+    shadowBlur: number;
+    shadowSpread: number;
+    shadowDistance: number;
+  }>(null);
+  const [performanceMode, setPerformanceMode] = useState(false);
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -610,6 +621,11 @@ export function ObsLinksSettings() {
     previewSeedRef.current = previewSeed;
   }, [previewSeed]);
 
+  useEffect(() => {
+    // Keep position seed bounded.
+    if (previewPosSeed < 0 || previewPosSeed > 1000000000) setPreviewPosSeed(1);
+  }, [previewPosSeed]);
+
   const fetchPreviewMemes = useCallback(async (count?: number, seed?: number, opts?: { commitSeed?: boolean }) => {
     const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
     try {
@@ -684,6 +700,7 @@ export function ObsLinksSettings() {
     const p: Record<string, string> = {
       demo: '1',
       seed: String(previewSeed),
+      posSeed: String(previewPosSeed),
       previewBg,
       position: urlPosition,
       safePad: String(safePad),
@@ -762,6 +779,7 @@ export function ObsLinksSettings() {
     previewLoopEnabled,
     previewMemes,
     previewSeed,
+    previewPosSeed,
     scaleFixed,
     scaleMax,
     scaleMin,
@@ -863,6 +881,45 @@ export function ObsLinksSettings() {
       setPreviewShowSafeGuide(false);
     }, 900);
   }, []);
+
+  const togglePerformanceMode = useCallback(() => {
+    setPerformanceMode((prev) => {
+      const next = !prev;
+      if (next) {
+        perfRestoreRef.current = {
+          glassEnabled,
+          urlBlur,
+          urlBgOpacity,
+          shadowBlur,
+          shadowSpread,
+          shadowDistance,
+        };
+        // Safe low-load defaults for OBS:
+        // - no blur/backdrop-filter
+        // - keep subtle shadow
+        setGlassEnabled(false);
+        setUrlBlur(0);
+        setUrlBgOpacity(0);
+        setShadowBlur(Math.min(shadowBlur, 36));
+        setShadowSpread(Math.min(shadowSpread, 0));
+        setShadowDistance(Math.min(shadowDistance, 12));
+        toast.success(t('admin.obsPerformanceModeOn', { defaultValue: 'Performance mode enabled (lighter for OBS).' }));
+      } else {
+        const r = perfRestoreRef.current;
+        if (r) {
+          setGlassEnabled(r.glassEnabled);
+          setUrlBlur(r.urlBlur);
+          setUrlBgOpacity(r.urlBgOpacity);
+          setShadowBlur(r.shadowBlur);
+          setShadowSpread(r.shadowSpread);
+          setShadowDistance(r.shadowDistance);
+        }
+        perfRestoreRef.current = null;
+        toast.success(t('admin.obsPerformanceModeOff', { defaultValue: 'Performance mode disabled.' }));
+      }
+      return next;
+    });
+  }, [glassEnabled, shadowBlur, shadowDistance, shadowSpread, t, urlBgOpacity, urlBlur]);
 
   // Receive "ready" handshake from iframe so the first params post is never lost.
   useEffect(() => {
@@ -1502,6 +1559,23 @@ export function ObsLinksSettings() {
                     </button>
                     <button
                       type="button"
+                      className="glass-btn p-2 shrink-0"
+                      title={t('admin.obsPreviewShufflePositions', { defaultValue: 'Shuffle positions' })}
+                      aria-label={t('admin.obsPreviewShufflePositions', { defaultValue: 'Shuffle positions' })}
+                      onClick={() => setPreviewPosSeed((s) => (s >= 1000000000 ? 1 : s + 1))}
+                    >
+                      {/* Shuffle icon */}
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20l6-6" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l6-7" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 21h5v-5" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l6 6" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 14l6 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
                       className={`glass-btn p-2 shrink-0 ${previewBg === 'white' ? 'ring-2 ring-primary/40' : ''}`}
                       title={t('admin.obsPreviewBackground', { defaultValue: 'Р¤РѕРЅ РїСЂРµРІСЊСЋ (Р±РµР»С‹Р№/С‚РµРјР°С‚РёС‡РµСЃРєРёР№)' })}
                       aria-label={t('admin.obsPreviewBackground', { defaultValue: 'Р¤РѕРЅ РїСЂРµРІСЊСЋ (Р±РµР»С‹Р№/С‚РµРјР°С‚РёС‡РµСЃРєРёР№)' })}
@@ -1943,6 +2017,22 @@ export function ObsLinksSettings() {
                           <div className="font-medium">{t('admin.obsGlassEnabled', { defaultValue: 'Glass effect' })}</div>
                           <div className="text-xs text-gray-600 dark:text-gray-300">
                             {t('admin.obsGlassEnabledHint', { defaultValue: 'Can look great, but may cost performance in OBS.' })}
+                          </div>
+                        </label>
+                      </div>
+
+                      <div className="flex items-start gap-3 pt-2 border-t border-white/15 dark:border-white/10">
+                        <input
+                          id="performanceMode"
+                          type="checkbox"
+                          checked={performanceMode}
+                          onChange={() => togglePerformanceMode()}
+                          className="mt-1 h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        />
+                        <label htmlFor="performanceMode" className="text-sm text-gray-800 dark:text-gray-100">
+                          <div className="font-medium">{t('admin.obsPerformanceMode', { defaultValue: 'Performance mode' })}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            {t('admin.obsPerformanceModeHint', { defaultValue: 'Disables blur/glass and reduces heavy effects to keep OBS smooth.' })}
                           </div>
                         </label>
                       </div>
