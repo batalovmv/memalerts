@@ -71,6 +71,7 @@ export function ObsLinksSettings() {
   const [urlBlur, setUrlBlur] = useState<number>(6);
   const [urlBorder, setUrlBorder] = useState<number>(2);
   const [mediaFit, setMediaFit] = useState<'cover' | 'contain'>('cover');
+  const [safePad, setSafePad] = useState<number>(80);
   // Glass (foreground overlay in the overlay itself)
   const [glassEnabled, setGlassEnabled] = useState<boolean>(false);
   const [glassPreset, setGlassPreset] = useState<'ios' | 'clear' | 'prism'>('ios');
@@ -129,6 +130,7 @@ export function ObsLinksSettings() {
       scaleMin,
       scaleMax,
       mediaFit,
+      safePad,
       radius: urlRadius,
       shadowBlur,
       shadowSpread,
@@ -404,6 +406,8 @@ export function ObsLinksSettings() {
         const nextScaleMax = typeof styleFromServer?.scaleMax === 'number' ? styleFromServer.scaleMax : scaleMax;
         const nextMediaFit: 'cover' | 'contain' =
           styleFromServer?.mediaFit === 'contain' ? 'contain' : styleFromServer?.mediaFit === 'cover' ? 'cover' : mediaFit;
+        const nextSafePad =
+          typeof styleFromServer?.safePad === 'number' ? styleFromServer.safePad : typeof (styleFromServer as any)?.safePadPx === 'number' ? (styleFromServer as any).safePadPx : safePad;
         const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : urlRadius;
         const nextShadowBlur = typeof styleFromServer?.shadowBlur === 'number'
           ? styleFromServer.shadowBlur
@@ -491,6 +495,7 @@ export function ObsLinksSettings() {
         setScaleMin(nextScaleMin);
         setScaleMax(nextScaleMax);
         setMediaFit(nextMediaFit);
+        setSafePad(Math.max(0, Math.min(240, nextSafePad)));
         setUrlRadius(nextRadius);
         setShadowBlur(nextShadowBlur);
         setShadowSpread(nextShadowSpread);
@@ -542,6 +547,7 @@ export function ObsLinksSettings() {
           scaleMin: nextScaleMin,
           scaleMax: nextScaleMax,
           mediaFit: nextMediaFit,
+          safePad: nextSafePad,
           radius: nextRadius,
           shadowBlur: nextShadowBlur,
           shadowSpread: nextShadowSpread,
@@ -691,6 +697,7 @@ export function ObsLinksSettings() {
       previewBg,
       position: urlPosition,
       mediaFit,
+      safePad: String(safePad),
       previewCount: String(previewCount),
       previewMode: overlayMode,
       repeat: previewLoopEnabled ? '1' : '0',
@@ -755,6 +762,7 @@ export function ObsLinksSettings() {
     borderTintStrength,
     borderMode,
     mediaFit,
+    safePad,
     glassEnabled,
     glassPreset,
     glassTintColor,
@@ -858,6 +866,7 @@ export function ObsLinksSettings() {
       scaleMin,
       scaleMax,
       mediaFit,
+      safePad,
       radius: urlRadius,
       shadowBlur,
       shadowSpread,
@@ -908,6 +917,7 @@ export function ObsLinksSettings() {
     scaleMin,
     scaleMax,
     mediaFit,
+    safePad,
     urlRadius,
     shadowBlur,
     shadowSpread,
@@ -998,6 +1008,7 @@ export function ObsLinksSettings() {
     setScaleMax(1.0);
     setScaleFixed(0.92);
     setMediaFit('cover');
+    setSafePad(80);
 
     setUrlAnim('slide-up');
     setUrlEnterMs(280);
@@ -1068,6 +1079,7 @@ export function ObsLinksSettings() {
         setScaleMin(0.9);
         setScaleMax(1);
         setMediaFit('contain');
+        setSafePad(24);
         setUrlAnim('fade');
         setUrlEnterMs(180);
         setUrlExitMs(180);
@@ -1101,6 +1113,7 @@ export function ObsLinksSettings() {
       setScaleMax(1.05);
       setScaleFixed(0.9);
       setMediaFit('cover');
+      setSafePad(80);
       setUrlAnim('pop');
       setUrlEnterMs(260);
       setUrlExitMs(220);
@@ -1616,6 +1629,50 @@ export function ObsLinksSettings() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlaySize', { defaultValue: 'Size' })}:{' '}
+                            <span className="font-mono">{Math.round(scaleFixed * 100)}%</span>
+                          </label>
+                          <input
+                            type="range"
+                            min={0.4}
+                            max={1.6}
+                            step={0.05}
+                            value={scaleMode === 'fixed' ? scaleFixed : Math.min(1.6, Math.max(0.4, (scaleMin + scaleMax) / 2))}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value);
+                              setScaleMode('fixed');
+                              setScaleFixed(v);
+                            }}
+                            className="w-full"
+                          />
+                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            {t('admin.obsOverlaySizeHint', { defaultValue: 'Controls the overall meme size.' })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlaySafeArea', { defaultValue: 'Safe area (px)' })}:{' '}
+                            <span className="font-mono">{safePad}</span>
+                          </label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={160}
+                            step={4}
+                            value={safePad}
+                            onChange={(e) => setSafePad(parseInt(e.target.value, 10))}
+                            className="w-full"
+                          />
+                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            {t('admin.obsOverlaySafeAreaHint', { defaultValue: 'Keeps memes away from the edges to avoid clipping.' })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                             {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
                           </label>
                           <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
@@ -1728,6 +1785,39 @@ export function ObsLinksSettings() {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlayEasing', { defaultValue: 'Easing' })}
+                          </label>
+                          <select
+                            value={animEasingPreset === 'custom' ? 'ios' : animEasingPreset}
+                            onChange={(e) => setAnimEasingPreset(e.target.value as any)}
+                            className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          >
+                            <option value="ios">{t('admin.obsOverlayEasingIos', { defaultValue: 'iOS (default)' })}</option>
+                            <option value="smooth">{t('admin.obsOverlayEasingSmooth', { defaultValue: 'Smooth' })}</option>
+                            <option value="snappy">{t('admin.obsOverlayEasingSnappy', { defaultValue: 'Snappy' })}</option>
+                            <option value="linear">{t('admin.obsOverlayEasingLinear', { defaultValue: 'Linear' })}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlayAnimSpeed', { defaultValue: 'Animation speed' })}:{' '}
+                            <span className="font-mono">{animSpeedPct}%</span>
+                          </label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={animSpeedPct}
+                            onChange={(e) => setAnimSpeedPct(parseInt(e.target.value, 10))}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+
                       <div className="flex items-center gap-3">
                         <input
                           id="glassEnabledBasic"
@@ -1766,6 +1856,25 @@ export function ObsLinksSettings() {
                   <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'РЎР»РµРІР° СЃРЅРёР·Сѓ' })}</option>
                   <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'РЎРїСЂР°РІР° СЃРЅРёР·Сѓ' })}</option>
                 </select>
+              </div>
+
+              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.obsOverlaySafeArea', { defaultValue: 'Safe area (px)' })}:{' '}
+                  <span className="font-mono">{safePad}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={240}
+                  step={4}
+                  value={safePad}
+                  onChange={(e) => setSafePad(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.obsOverlaySafeAreaHint', { defaultValue: 'Keeps memes away from the edges to avoid clipping.' })}
+                </div>
               </div>
 
               <div className={`md:col-span-2 ${advancedTab === 'layout' ? '' : 'hidden'}`}>

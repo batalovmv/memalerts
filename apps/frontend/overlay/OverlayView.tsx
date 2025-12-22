@@ -313,6 +313,11 @@ export default function OverlayView() {
   const mediaFitRaw = String(getParam('mediaFit') || (parsedStyle as any)?.mediaFit || 'cover').trim().toLowerCase();
   const mediaFit: 'cover' | 'contain' = mediaFitRaw === 'contain' ? 'contain' : 'cover';
 
+  // Safe area padding (in px): keeps memes away from screen edges to avoid clipping in OBS.
+  // If not provided, keep prior behavior: larger padding for random, smaller for anchored modes.
+  const safePadRaw = String(getParam('safePad') || (parsedStyle as any)?.safePad || '').trim();
+  const safePadPx = clampInt(parseInt(safePadRaw, 10), 0, 240);
+
   const safeScale = useMemo(() => {
     // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
     const urlFixed = Number.isFinite(urlScaleFixed) && urlScaleFixed > 0 ? urlScaleFixed : NaN;
@@ -458,7 +463,10 @@ export default function OverlayView() {
     // Safe margin in % to reduce clipping risk. Increase margin when scale grows.
     // This isn't perfect (we don't know exact media aspect), but reduces "going off-screen" in OBS.
     const baseMargin = 12;
-    const margin = Math.min(24, Math.max(10, Math.round(baseMargin * safeScale)));
+    const pad = safePadPx > 0 ? safePadPx : 0;
+    const minSide = Math.max(1, Math.min(window.innerWidth || 0, window.innerHeight || 0));
+    const padPct = pad > 0 ? Math.round((pad / minSide) * 100) : 0;
+    const margin = Math.min(28, Math.max(8, Math.round(baseMargin * safeScale) + padPct));
     // Demo: deterministic RNG so sliders don't reshuffle positions (when iframe does not reload).
     // Real overlay: true randomness (each activation should be independent).
     const rng = demo ? mulberry32((demoSeed + demoSeqRef.current * 9973 + salt * 1013) >>> 0) : null;
@@ -467,7 +475,7 @@ export default function OverlayView() {
     const xPct = margin + r1 * (100 - margin * 2);
     const yPct = margin + r2 * (100 - margin * 2);
     return { xPct, yPct };
-  }, [demo, demoSeed, safeScale]);
+  }, [demo, demoSeed, safePadPx, safeScale]);
 
   // Demo seeding: spawn N preview items and optionally repeat.
   useEffect(() => {
@@ -632,7 +640,7 @@ export default function OverlayView() {
 
     // Padding is not user-configurable; keep safe defaults.
     // We use bigger padding for random (to reduce clipping) and tighter for anchored positions.
-    const basePad = resolvedPosition === 'random' ? 80 : 24;
+    const basePad = safePadPx > 0 ? safePadPx : resolvedPosition === 'random' ? 80 : 24;
     const vw = window.innerWidth || 0;
     const vh = window.innerHeight || 0;
     if (vw <= basePad * 2 || vh <= basePad * 2) return;
