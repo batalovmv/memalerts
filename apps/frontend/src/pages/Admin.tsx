@@ -1724,10 +1724,8 @@ function ObsLinksSettings() {
     }
   }, [applySharePayload, decodeShareCode, importText, t]);
 
-  const applyPremiumPreset = useCallback(() => {
-    // Premium, streamer-friendly defaults:
-    // - clean glass frame, subtle shadow, smooth motion
-    // - readable sender label (optional but enabled by default)
+  const resetOverlayToDefaults = useCallback(() => {
+    // Default, streamer-friendly settings (reset).
     // NOTE: This only updates local state. User still clicks "Save".
     setOverlayMode('queue');
     setOverlayMaxConcurrent(3);
@@ -1789,7 +1787,7 @@ function ObsLinksSettings() {
     setSenderFontColor('#ffffff');
 
     setAdvancedTab('border');
-    toast.success(t('admin.overlayPresetApplied', { defaultValue: 'Пресет применён (не забудьте нажать «Сохранить»)' }));
+    toast.success(t('admin.overlayDefaultsApplied', { defaultValue: 'Настройки сброшены до стандартных (не забудьте нажать «Сохранить»)' }));
   }, [t]);
 
   const handleSaveOverlaySettings = useCallback(async (): Promise<void> => {
@@ -2077,7 +2075,8 @@ function ObsLinksSettings() {
 
                 <div className="glass p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 flex-1">
+                    <div className="flex-1 overflow-x-auto no-scrollbar">
+                      <div className="flex items-center gap-2 min-w-max pr-1">
                       {(
                         [
                           ['layout', t('admin.obsAdvancedTabLayout', { defaultValue: 'Layout' })],
@@ -2094,7 +2093,7 @@ function ObsLinksSettings() {
                             key={k}
                             type="button"
                             onClick={() => setAdvancedTab(k)}
-                            className={`h-11 w-full rounded-xl border text-xs sm:text-sm font-semibold transition-colors ${
+                            className={`h-11 px-4 shrink-0 rounded-xl border text-xs sm:text-sm font-semibold transition-colors ${
                               advancedTab === k
                                 ? 'bg-primary text-white border-primary/30 shadow-sm'
                                 : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border-white/30 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/15'
@@ -2103,6 +2102,7 @@ function ObsLinksSettings() {
                             {label}
                           </button>
                         ))}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
@@ -2114,12 +2114,16 @@ function ObsLinksSettings() {
                       )}
                       <button
                         type="button"
-                        className="glass-btn px-3 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10"
-                        onClick={applyPremiumPreset}
+                        className="glass-btn px-3 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10 flex items-center gap-2"
+                        onClick={resetOverlayToDefaults}
                         disabled={savingOverlaySettings || loadingOverlaySettings}
-                        title={t('admin.overlayPresetPremium', { defaultValue: 'Премиум пресет' })}
+                        title={t('admin.overlayResetDefaults', { defaultValue: 'Сбросить' })}
                       >
-                        {t('admin.overlayPresetPremium', { defaultValue: 'Премиум пресет' })}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
+                        </svg>
+                        <span className="hidden sm:inline">{t('admin.overlayResetDefaults', { defaultValue: 'Сбросить' })}</span>
                       </button>
                       <button
                         type="button"
