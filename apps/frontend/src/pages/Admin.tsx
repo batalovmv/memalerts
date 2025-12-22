@@ -203,10 +203,7 @@ export default function Admin() {
       })).unwrap();
       toast.success(t('admin.approve') + '!');
       closeApproveModal();
-      dispatch(fetchSubmissions({ status: 'pending' }));
-      if (user) {
-        dispatch(fetchMemes({ channelId: user.channelId }));
-      }
+      // Perf: avoid immediate refetch; slice updates remove the submission locally and adjust total.
     } catch (error) {
       toast.error(t('admin.failedToApprove') || 'Failed to approve submission');
     }
@@ -237,7 +234,7 @@ export default function Admin() {
       })).unwrap();
       toast.success(t('admin.reject') + '!');
       closeRejectModal();
-      dispatch(fetchSubmissions({ status: 'pending' }));
+      // Perf: avoid immediate refetch; slice updates remove the submission locally and adjust total.
     } catch (error) {
       toast.error(t('admin.failedToReject') || 'Failed to reject submission');
     }

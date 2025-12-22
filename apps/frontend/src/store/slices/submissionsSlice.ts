@@ -131,6 +131,7 @@ const submissionsSlice = createSlice({
       // Add a lightweight placeholder if full payload is not available
       const exists = state.submissions.some((s) => s.id === action.payload.submissionId);
       if (exists) return;
+      if (typeof state.total === 'number') state.total += 1;
       state.submissions.unshift({
         id: action.payload.submissionId,
         channelId: action.payload.channelId,
@@ -144,10 +145,16 @@ const submissionsSlice = createSlice({
       } as unknown as Submission);
     },
     submissionApproved: (state, action: PayloadAction<{ submissionId: string }>) => {
+      const before = state.submissions.length;
       state.submissions = state.submissions.filter((s) => s.id !== action.payload.submissionId);
+      const removed = before !== state.submissions.length;
+      if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
     },
     submissionRejected: (state, action: PayloadAction<{ submissionId: string }>) => {
+      const before = state.submissions.length;
       state.submissions = state.submissions.filter((s) => s.id !== action.payload.submissionId);
+      const removed = before !== state.submissions.length;
+      if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
     },
   },
   extraReducers: (builder) => {
@@ -190,15 +197,19 @@ const submissionsSlice = createSlice({
       })
       // approveSubmission
       .addCase(approveSubmission.fulfilled, (state, action) => {
-        state.submissions = state.submissions.filter(
-          (s) => s.id !== action.meta.arg.submissionId
-        );
+        const id = action.meta.arg.submissionId;
+        const before = state.submissions.length;
+        state.submissions = state.submissions.filter((s) => s.id !== id);
+        const removed = before !== state.submissions.length;
+        if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
       })
       // rejectSubmission
       .addCase(rejectSubmission.fulfilled, (state, action) => {
-        state.submissions = state.submissions.filter(
-          (s) => s.id !== action.meta.arg.submissionId
-        );
+        const id = action.meta.arg.submissionId;
+        const before = state.submissions.length;
+        state.submissions = state.submissions.filter((s) => s.id !== id);
+        const removed = before !== state.submissions.length;
+        if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
       });
   },
 });

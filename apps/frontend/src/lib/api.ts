@@ -91,8 +91,8 @@ function cleanupPendingRequests(): void {
   }
 }
 
-// Clean up old requests periodically
-setInterval(cleanupPendingRequests, 10000); // Every 10 seconds
+// NOTE: We intentionally avoid a global setInterval here.
+// Cleanup is done opportunistically per request to avoid unnecessary timers when the app is idle.
 
 // Use relative URL in production (same domain), absolute in development
 const getApiUrl = () => {
@@ -144,6 +144,7 @@ export const api: CustomAxiosInstance = {
   request: <T = unknown>(config: AxiosRequestConfig): Promise<T> => {
     // Only deduplicate GET requests to avoid issues with POST/PUT/DELETE
     if (config.method?.toLowerCase() === 'get' || !config.method) {
+      if (pendingRequests.size > 0) cleanupPendingRequests();
       const requestKey = getRequestKey(config);
       const pending = pendingRequests.get(requestKey);
       
@@ -196,6 +197,7 @@ export const api: CustomAxiosInstance = {
   get: <T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     // Use request deduplication directly for GET requests
     const requestConfig = { ...config, method: 'GET' as const, url };
+    if (pendingRequests.size > 0) cleanupPendingRequests();
     const requestKey = getRequestKey(requestConfig);
     const pending = pendingRequests.get(requestKey);
     

@@ -45,6 +45,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const submissionsLoadedRef = useRef(false);
   const walletLoadedRef = useRef<string | null>(null); // Track which channel's wallet was loaded
   const channelDataLoadedRef = useRef<string | null>(null); // Track which channel's data was loaded
+  const lastWalletFetchAtRef = useRef<number>(0);
+  const walletFetchInFlightRef = useRef(false);
 
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
@@ -115,7 +117,10 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Load wallet balance and auto-refresh
   // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile
   useEffect(() => {
-    if (!user) {
+    const userId = user?.id;
+    const userChannelId = user?.channelId;
+
+    if (!user || !userId) {
       setWallet(null);
       walletLoadedRef.current = null;
       return;
@@ -156,7 +161,15 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
     // Only fetch if wallet not in Redux and not already loaded
     const loadWallet = async () => {
+      // If we're connected, wallet updates come via realtime; avoid aggressive refreshes on focus/tab switches.
+      const WALLET_REFRESH_TTL_MS = 30_000;
+      const now = Date.now();
+      if (walletFetchInFlightRef.current) return;
+      if (now - lastWalletFetchAtRef.current < WALLET_REFRESH_TTL_MS) return;
+
       setIsLoadingWallet(true);
+      walletFetchInFlightRef.current = true;
+      lastWalletFetchAtRef.current = now;
       try {
         if (targetChannelSlug) {
           // Load wallet for the current channel via API (only if not in Redux)
@@ -191,6 +204,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
         console.error('Error loading wallet:', error);
       } finally {
         setIsLoadingWallet(false);
+        walletFetchInFlightRef.current = false;
       }
     };
 
@@ -218,7 +232,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch, location.pathname]);
+  }, [user?.id, user?.channelId, user?.channel?.slug, currentChannelSlug, channelId, dispatch, location.pathname, isConnected]);
 
   // Load channel coin icon and reward title if not provided via props
   useEffect(() => {
