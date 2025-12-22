@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
 import { createServer } from 'http';
@@ -102,6 +103,33 @@ app.set('trust proxy', 1);
 // Middleware
 // Attach requestId early and keep access logs controlled (sampling + slow/error logs).
 app.use(requestContext);
+
+// Optional response compression (JSON/text). Can be disabled if CPU is a bottleneck or if nginx/CDN handles it.
+// Env:
+// - HTTP_COMPRESSION=0|false disables
+// - HTTP_COMPRESSION_THRESHOLD_BYTES=2048 (default in prod), 0 to compress everything
+const compressionEnabledRaw = String(process.env.HTTP_COMPRESSION ?? '').toLowerCase();
+const compressionEnabled = !(compressionEnabledRaw === '0' || compressionEnabledRaw === 'false' || compressionEnabledRaw === 'off');
+if (compressionEnabled) {
+  const thresholdRaw = parseInt(String(process.env.HTTP_COMPRESSION_THRESHOLD_BYTES ?? ''), 10);
+  const threshold =
+    Number.isFinite(thresholdRaw) && thresholdRaw >= 0
+      ? thresholdRaw
+      : (process.env.NODE_ENV === 'production' ? 2048 : 0);
+
+  app.use(
+    compression({
+      threshold,
+      filter: (req, res) => {
+        // Do not compress if something already set encoding.
+        if (res.getHeader('Content-Encoding')) return false;
+        // Avoid compressing static uploads; nginx can handle these better.
+        if (req.path && String(req.path).startsWith('/uploads')) return false;
+        return compression.filter(req, res);
+      },
+    })
+  );
+}
 // Configure helmet with proper CSP
 app.use(
   helmet({
