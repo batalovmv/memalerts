@@ -13,6 +13,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
 import { requestContext } from './middleware/requestContext.js';
 import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
+import { logger } from './utils/logger.js';
 
 dotenv.config();
 
@@ -66,19 +67,28 @@ const getAllowedOrigins = () => {
     origins.push('http://localhost:5173', 'http://localhost:5174');
   }
   
-  // Log origins for debugging (always log in production for troubleshooting)
-  console.log('[Socket.IO] Allowed origins:', origins);
-  console.log('[Socket.IO] Instance type:', isBetaInstance ? 'beta' : 'production');
-  console.log('[Socket.IO] DOMAIN:', process.env.DOMAIN);
-  console.log('[Socket.IO] WEB_URL:', process.env.WEB_URL);
-  console.log('[Socket.IO] PORT:', process.env.PORT);
-  
   return origins;
 };
 
+const allowedOrigins = getAllowedOrigins();
+const shouldLogSocketOrigins =
+  String(process.env.SOCKET_ORIGINS_LOG || '').toLowerCase() === '1' ||
+  String(process.env.SOCKET_ORIGINS_LOG || '').toLowerCase() === 'true';
+if (shouldLogSocketOrigins) {
+  const isBetaInstance = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
+  logger.info('socket.allowed_origins', {
+    origins: allowedOrigins,
+    instance: isBetaInstance ? 'beta' : 'production',
+    domain: process.env.DOMAIN || null,
+    webUrl: process.env.WEB_URL || null,
+    overlayUrl: process.env.OVERLAY_URL || null,
+    port: process.env.PORT || null,
+  });
+}
+
 const io = new Server(httpServer, {
   cors: {
-    origin: getAllowedOrigins(),
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -172,7 +182,7 @@ app.use(
 );
 app.use(
   cors({
-    origin: getAllowedOrigins(),
+    origin: allowedOrigins,
     credentials: true,
     exposedHeaders: ['Set-Cookie'],
   })
