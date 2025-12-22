@@ -54,6 +54,10 @@ export function setupSocketIO(io: Server) {
       // ignore (unauthenticated socket)
     }
 
+    // Cache the allowed slug per socket to avoid repeated DB lookups if the client emits join events multiple times.
+    let allowedChannelSlugCache: { slug: string; ts: number } | null = null;
+    const ALLOWED_SLUG_CACHE_MS = 60_000;
+
     socket.on('join:channel', async (channelSlug: string) => {
       const raw = String(channelSlug || '').trim();
       if (!raw) return;
@@ -63,15 +67,28 @@ export function setupSocketIO(io: Server) {
         return;
       }
 
+      const requested = raw.toLowerCase();
+      // Fast path: already joined this room on this socket.
+      if (socket.data.channelSlug && String(socket.data.channelSlug).toLowerCase() === requested) {
+        return;
+      }
+
       // Verify slug matches the authenticated user's channel to prevent joining arbitrary channels.
-      const { prisma } = await import('../lib/prisma.js');
-      const channel = await prisma.channel.findUnique({
-        where: { id: auth.channelId },
-        select: { slug: true },
-      });
-      const allowedSlug = String(channel?.slug || '').toLowerCase();
+      let allowedSlug = '';
+      const now = Date.now();
+      if (allowedChannelSlugCache && now - allowedChannelSlugCache.ts < ALLOWED_SLUG_CACHE_MS) {
+        allowedSlug = allowedChannelSlugCache.slug;
+      } else {
+        const { prisma } = await import('../lib/prisma.js');
+        const channel = await prisma.channel.findUnique({
+          where: { id: auth.channelId },
+          select: { slug: true },
+        });
+        allowedSlug = String(channel?.slug || '').toLowerCase();
+        allowedChannelSlugCache = allowedSlug ? { slug: allowedSlug, ts: now } : null;
+      }
       if (!allowedSlug) return;
-      if (raw.toLowerCase() !== allowedSlug) {
+      if (requested !== allowedSlug) {
         debugLog('[socket] join:channel denied (slug mismatch)', { socketId: socket.id, requested: raw, allowed: allowedSlug });
         return;
       }

@@ -55,7 +55,12 @@ export const webhookController = {
         // Find channel by broadcaster_user_id
         const channel = await prisma.channel.findUnique({
           where: { twitchChannelId: event.broadcaster_user_id },
-          include: { users: true },
+          // Perf: avoid loading channel.users (unused here); keep payload minimal.
+          select: {
+            id: true,
+            rewardIdForCoins: true,
+            coinPerPointRatio: true,
+          },
         });
 
         if (!channel) {
@@ -67,7 +72,8 @@ export const webhookController = {
           // Find or create user
           let user = await prisma.user.findUnique({
             where: { twitchUserId: event.user_id },
-            include: { wallets: { where: { channelId: channel.id } } },
+            // Perf: we only need the id for wallet upsert + redemption row.
+            select: { id: true },
           });
 
           if (!user) {
@@ -84,9 +90,7 @@ export const webhookController = {
                   },
                 },
               },
-              include: {
-                wallets: { where: { channelId: channel.id } },
-              },
+              select: { id: true },
             });
           }
 

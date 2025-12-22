@@ -14,6 +14,29 @@ export const viewerController = {
     // Optional parameter to exclude memes from response for performance
     const includeMemes = req.query.includeMemes !== 'false'; // Default to true for backward compatibility
 
+    // Optional pagination for memes when includeMemes=true (defensive cap to protect server/DB).
+    const limitRaw = req.query.limit as string | undefined;
+    const offsetRaw = req.query.offset as string | undefined;
+    const maxFromEnv = parseInt(String(process.env.CHANNEL_MEMES_MAX || ''), 10);
+    const MAX_MEMES = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 200;
+    const requestedLimit = limitRaw !== undefined ? parseInt(limitRaw, 10) : undefined;
+    const requestedOffset = offsetRaw !== undefined ? parseInt(offsetRaw, 10) : undefined;
+    const memesLimit =
+      includeMemes
+        ? Math.min(
+            MAX_MEMES,
+            Number.isFinite(requestedLimit as number) && (requestedLimit as number) > 0 ? (requestedLimit as number) : MAX_MEMES
+          )
+        : 0;
+    const memesOffset =
+      includeMemes && Number.isFinite(requestedOffset as number) && (requestedOffset as number) > 0 ? (requestedOffset as number) : 0;
+
+    // Cache channel metadata (colors/icons/reward settings) for a short period when we are NOT returning memes.
+    // This endpoint is public and not user-personalized.
+    if (!includeMemes) {
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    }
+
     try {
       const channel = await prisma.channel.findFirst({
         where: {
@@ -26,6 +49,8 @@ export const viewerController = {
           memes: includeMemes ? {
             where: { status: 'approved' },
             orderBy: { createdAt: 'desc' },
+            take: memesLimit,
+            skip: memesOffset,
             select: {
               id: true,
               title: true,
@@ -92,6 +117,12 @@ export const viewerController = {
       // Only include memes if includeMemes is true
       if (includeMemes) {
         response.memes = channel.memes || [];
+        response.memesPage = {
+          limit: memesLimit,
+          offset: memesOffset,
+          returned: Array.isArray(response.memes) ? response.memes.length : 0,
+          total: channel._count.memes,
+        };
       }
 
       res.json(response);
@@ -114,6 +145,8 @@ export const viewerController = {
             status: 'approved',
           },
           orderBy: { createdAt: 'desc' },
+          take: includeMemes ? memesLimit : undefined,
+          skip: includeMemes ? memesOffset : undefined,
           select: {
             id: true,
             title: true,
@@ -155,6 +188,12 @@ export const viewerController = {
         // Only include memes if includeMemes is true
         if (includeMemes) {
           response.memes = memes;
+          response.memesPage = {
+            limit: memesLimit,
+            offset: memesOffset,
+            returned: Array.isArray(memes) ? memes.length : 0,
+            total: memesCount,
+          };
         }
 
         return res.json(response);
