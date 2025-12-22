@@ -3,6 +3,8 @@ import { authRoutes } from './auth.js';
 import { viewerRoutes } from './viewer.js';
 import { submissionRoutes } from './submissions.js';
 import { adminRoutes } from './admin.js';
+import { streamerRoutes } from './streamer.js';
+import { ownerRoutes } from './owner.js';
 import { webhookRoutes } from './webhooks.js';
 import { betaRoutes } from './beta.js';
 import { authenticate, AuthRequest, optionalAuthenticate } from '../middleware/auth.js';
@@ -184,8 +186,14 @@ export function setupRoutes(app: Express) {
   app.use('/webhooks', webhookRoutes);
   app.use('/channels', viewerRoutes);
   app.use('/submissions', submissionRoutes);
-  // Apply authenticate and requireBetaAccess to admin routes
-  // authenticate is applied in adminRoutes, but requireBetaAccess needs to be applied here
+  // Panel routes:
+  // - /streamer/*: streamer/admin panel endpoints
+  // - /owner/*: owner-only endpoints
+  // - /admin/*: back-compat alias (historical)
+  // All are authenticated and beta-gated on beta.
+  app.use('/streamer', authenticate, requireBetaAccess, streamerRoutes);
+  app.use('/owner', authenticate, requireBetaAccess, ownerRoutes);
+  // Back-compat: keep /admin working (alias to streamer+owner routes)
   app.use('/admin', authenticate, requireBetaAccess, adminRoutes);
   app.use('/', betaRoutes); // Beta access routes (mounted at root to avoid /beta/beta/request)
 }
