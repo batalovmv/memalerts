@@ -50,6 +50,19 @@ Workflow: `.github/workflows/ci-cd.yml`
 Это режим “один профиль/одни данные, разный функционал”.  
 Beta и production смотрят на один `DATABASE_URL`.
 
+#### Как включить `shared` (для команды)
+
+В GitHub репозитории → **Settings → Secrets and variables → Actions → Secrets**:
+
+- **`BETA_DB_MODE`**: не задавать или поставить `shared`
+- **`DATABASE_URL`**: production DB (общая для prod и beta)
+- **`DATABASE_URL_BETA`**: не нужен (можно удалить/не заполнять)
+
+Дальше:
+
+- запусти деплой beta (push в `develop` или `Run workflow`)
+- проверь, что на beta и main данные совпадают (одинаковые `channel.slug`, мемы, кошельки)
+
 Важно: если beta и production используют одну и ту же БД, то миграции, попавшие в `develop`, могут:
 
 - ломать production код **до** релиза (если миграция не обратно‑совместима)
