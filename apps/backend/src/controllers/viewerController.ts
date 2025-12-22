@@ -13,9 +13,76 @@ type CacheEntry<T> = { ts: number; data: T };
 const channelMetaCache = new Map<string, CacheEntry<any>>();
 const CHANNEL_META_CACHE_MS_DEFAULT = 60_000;
 
+type TagIdCacheEntry = { ts: number; id: string | null };
+const tagIdCache = new Map<string, TagIdCacheEntry>();
+const TAG_ID_CACHE_MS_DEFAULT = 5 * 60_000;
+const TAG_ID_CACHE_MAX = 10_000;
+
 function getChannelMetaCacheMs(): number {
   const raw = parseInt(String(process.env.CHANNEL_META_CACHE_MS || ''), 10);
   return Number.isFinite(raw) && raw > 0 ? raw : CHANNEL_META_CACHE_MS_DEFAULT;
+}
+
+function getTagIdCacheMs(): number {
+  const raw = parseInt(String(process.env.TAG_ID_CACHE_MS || ''), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : TAG_ID_CACHE_MS_DEFAULT;
+}
+
+function parseTagNames(raw: unknown): string[] {
+  const s = String(raw ?? '').trim();
+  if (!s) return [];
+
+  // Defensive limits to avoid query-induced memory growth / expensive IN lists.
+  if (s.length > 2000) return [];
+
+  const names = s
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 25)
+    .map((t) => (t.length > 50 ? t.slice(0, 50) : t));
+
+  // De-dup
+  return Array.from(new Set(names));
+}
+
+async function resolveTagIds(tagNames: string[]): Promise<string[]> {
+  if (tagNames.length === 0) return [];
+  const ttl = getTagIdCacheMs();
+  const now = Date.now();
+
+  const out: string[] = [];
+  const missing: string[] = [];
+
+  for (const name of tagNames) {
+    const cached = tagIdCache.get(name);
+    if (cached && now - cached.ts < ttl) {
+      if (cached.id) out.push(cached.id);
+      continue;
+    }
+    missing.push(name);
+  }
+
+  if (missing.length > 0) {
+    const rows = await prisma.tag.findMany({
+      where: { name: { in: missing } },
+      select: { id: true, name: true },
+    });
+    const byName = new Map(rows.map((r) => [String(r.name).toLowerCase(), r.id]));
+
+    for (const name of missing) {
+      const id = byName.get(name) ?? null;
+      tagIdCache.set(name, { ts: now, id });
+      if (id) out.push(id);
+    }
+
+    // Hard cap cache size to avoid unbounded growth in case of abusive traffic.
+    if (tagIdCache.size > TAG_ID_CACHE_MAX) {
+      tagIdCache.clear();
+    }
+  }
+
+  return out;
 }
 
 function setChannelMetaCacheHeaders(req: any, res: Response) {
@@ -577,15 +644,8 @@ export const viewerController = {
 
     // Tag filters
     if (tags) {
-      const tagNames = (tags as string).split(',').map((t) => t.trim().toLowerCase());
-      const tagRecords = await prisma.tag.findMany({
-        where: {
-          name: {
-            in: tagNames,
-          },
-        },
-      });
-      const tagIds = tagRecords.map((t) => t.id);
+      const tagNames = parseTagNames(tags);
+      const tagIds = await resolveTagIds(tagNames);
       if (tagIds.length > 0) {
         where.tags = {
           some: {
@@ -686,12 +746,8 @@ export const viewerController = {
 
       // Tag filters (optional): any tag match (same semantics as Prisma "some")
       if (tags) {
-        const tagNames = (tags as string).split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
-        const tagRecords = await prisma.tag.findMany({
-          where: { name: { in: tagNames } },
-          select: { id: true },
-        });
-        const tagIds = tagRecords.map((t) => t.id);
+        const tagNames = parseTagNames(tags);
+        const tagIds = await resolveTagIds(tagNames);
         if (tagIds.length === 0) return res.json([]);
 
         conditions.push(
