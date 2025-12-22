@@ -34,6 +34,7 @@ export function ObsLinksSettings() {
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewSeedRef = useRef<number>(1);
   const overlayReadyRef = useRef(false);
+  const [obsUiMode, setObsUiMode] = useState<'basic' | 'pro'>('basic');
 
   const [overlayMode, setOverlayMode] = useState<'queue' | 'simultaneous'>('queue');
   const [overlayShowSender, setOverlayShowSender] = useState(false);
@@ -69,6 +70,7 @@ export function ObsLinksSettings() {
   const [urlRadius, setUrlRadius] = useState<number>(20);
   const [urlBlur, setUrlBlur] = useState<number>(6);
   const [urlBorder, setUrlBorder] = useState<number>(2);
+  const [mediaFit, setMediaFit] = useState<'cover' | 'contain'>('cover');
   // Glass (foreground overlay in the overlay itself)
   const [glassEnabled, setGlassEnabled] = useState<boolean>(false);
   const [glassPreset, setGlassPreset] = useState<'ios' | 'clear' | 'prism'>('ios');
@@ -126,6 +128,7 @@ export function ObsLinksSettings() {
       scaleFixed,
       scaleMin,
       scaleMax,
+      mediaFit,
       radius: urlRadius,
       shadowBlur,
       shadowSpread,
@@ -196,6 +199,7 @@ export function ObsLinksSettings() {
     scaleMax,
     scaleMin,
     scaleMode,
+    mediaFit,
     senderBgColor,
     senderBgOpacity,
     senderBgRadius,
@@ -398,6 +402,8 @@ export function ObsLinksSettings() {
         const nextScaleFixed = typeof styleFromServer?.scaleFixed === 'number' ? styleFromServer.scaleFixed : scaleFixed;
         const nextScaleMin = typeof styleFromServer?.scaleMin === 'number' ? styleFromServer.scaleMin : scaleMin;
         const nextScaleMax = typeof styleFromServer?.scaleMax === 'number' ? styleFromServer.scaleMax : scaleMax;
+        const nextMediaFit: 'cover' | 'contain' =
+          styleFromServer?.mediaFit === 'contain' ? 'contain' : styleFromServer?.mediaFit === 'cover' ? 'cover' : mediaFit;
         const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : urlRadius;
         const nextShadowBlur = typeof styleFromServer?.shadowBlur === 'number'
           ? styleFromServer.shadowBlur
@@ -484,6 +490,7 @@ export function ObsLinksSettings() {
         setScaleFixed(nextScaleFixed);
         setScaleMin(nextScaleMin);
         setScaleMax(nextScaleMax);
+        setMediaFit(nextMediaFit);
         setUrlRadius(nextRadius);
         setShadowBlur(nextShadowBlur);
         setShadowSpread(nextShadowSpread);
@@ -534,6 +541,7 @@ export function ObsLinksSettings() {
           scaleFixed: nextScaleFixed,
           scaleMin: nextScaleMin,
           scaleMax: nextScaleMax,
+          mediaFit: nextMediaFit,
           radius: nextRadius,
           shadowBlur: nextShadowBlur,
           shadowSpread: nextShadowSpread,
@@ -682,6 +690,7 @@ export function ObsLinksSettings() {
       seed: String(previewSeed),
       previewBg,
       position: urlPosition,
+      mediaFit,
       previewCount: String(previewCount),
       previewMode: overlayMode,
       repeat: previewLoopEnabled ? '1' : '0',
@@ -745,6 +754,7 @@ export function ObsLinksSettings() {
     borderTintColor,
     borderTintStrength,
     borderMode,
+    mediaFit,
     glassEnabled,
     glassPreset,
     glassTintColor,
@@ -847,6 +857,7 @@ export function ObsLinksSettings() {
       scaleFixed,
       scaleMin,
       scaleMax,
+      mediaFit,
       radius: urlRadius,
       shadowBlur,
       shadowSpread,
@@ -896,6 +907,7 @@ export function ObsLinksSettings() {
     scaleFixed,
     scaleMin,
     scaleMax,
+    mediaFit,
     urlRadius,
     shadowBlur,
     shadowSpread,
@@ -985,6 +997,7 @@ export function ObsLinksSettings() {
     setScaleMin(0.72);
     setScaleMax(1.0);
     setScaleFixed(0.92);
+    setMediaFit('cover');
 
     setUrlAnim('slide-up');
     setUrlEnterMs(280);
@@ -1037,6 +1050,84 @@ export function ObsLinksSettings() {
     setAdvancedTab('border');
     toast.success(t('admin.overlayDefaultsApplied', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё СЃР±СЂРѕС€РµРЅС‹ РґРѕ СЃС‚Р°РЅРґР°СЂС‚РЅС‹С… (РЅРµ Р·Р°Р±СѓРґСЊС‚Рµ РЅР°Р¶Р°С‚СЊ В«РЎРѕС…СЂР°РЅРёС‚СЊВ»)' }));
   }, [t]);
+
+  const applyPreset = useCallback(
+    (preset: 'default' | 'minimal' | 'neon') => {
+      if (preset === 'default') {
+        resetOverlayToDefaults();
+        return;
+      }
+
+      if (preset === 'minimal') {
+        setOverlayMode('queue');
+        setOverlayMaxConcurrent(1);
+        setOverlayShowSender(false);
+        setUrlPosition('center');
+        setScaleMode('fixed');
+        setScaleFixed(1);
+        setScaleMin(0.9);
+        setScaleMax(1);
+        setMediaFit('contain');
+        setUrlAnim('fade');
+        setUrlEnterMs(180);
+        setUrlExitMs(180);
+        setUrlRadius(18);
+        setShadowBlur(22);
+        setShadowSpread(0);
+        setShadowDistance(10);
+        setShadowAngle(90);
+        setShadowOpacity(0.35);
+        setShadowColor('#000000');
+        setGlassEnabled(false);
+        setUrlBlur(0);
+        setUrlBgOpacity(0);
+        setBorderPreset('custom');
+        setUrlBorder(0);
+        setBorderMode('solid');
+        setUrlBorderColor('#ffffff');
+        setUrlBorderColor2('#00e5ff');
+        setUrlBorderGradientAngle(135);
+        setAdvancedTab('layout');
+        return;
+      }
+
+      // neon
+      setOverlayMode('simultaneous');
+      setOverlayMaxConcurrent(3);
+      setOverlayShowSender(true);
+      setUrlPosition('random');
+      setScaleMode('range');
+      setScaleMin(0.7);
+      setScaleMax(1.05);
+      setScaleFixed(0.9);
+      setMediaFit('cover');
+      setUrlAnim('pop');
+      setUrlEnterMs(260);
+      setUrlExitMs(220);
+      setUrlRadius(26);
+      setShadowBlur(110);
+      setShadowSpread(18);
+      setShadowDistance(18);
+      setShadowAngle(120);
+      setShadowOpacity(0.55);
+      setShadowColor('#000000');
+      setGlassEnabled(true);
+      setGlassPreset('prism');
+      setGlassTintStrength(0.22);
+      setUrlBlur(12);
+      setUrlBgOpacity(0.24);
+      setBorderPreset('glow');
+      setBorderTintColor('#00E5FF');
+      setBorderTintStrength(0.55);
+      setUrlBorder(3);
+      setBorderMode('gradient');
+      setUrlBorderColor('#00E5FF');
+      setUrlBorderColor2('#A78BFA');
+      setUrlBorderGradientAngle(135);
+      setAdvancedTab('border');
+    },
+    [resetOverlayToDefaults]
+  );
 
   const handleSaveOverlaySettings = useCallback(async (): Promise<void> => {
     if (!channelSlug) return;
@@ -1153,6 +1244,38 @@ export function ObsLinksSettings() {
               {t('admin.obsOverlayAdvancedHintShort', {
                 defaultValue: 'Change the look here вЂ” then copy the single overlay URL above into OBS.',
               })}
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="inline-flex rounded-xl overflow-hidden border border-white/20 dark:border-white/10">
+                <button
+                  type="button"
+                  className={`px-3 py-2 text-sm font-semibold ${
+                    obsUiMode === 'basic'
+                      ? 'bg-primary text-white'
+                      : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white'
+                  }`}
+                  onClick={() => setObsUiMode('basic')}
+                >
+                  {t('admin.obsUiBasic', { defaultValue: 'Basic' })}
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-2 text-sm font-semibold border-l border-white/20 dark:border-white/10 ${
+                    obsUiMode === 'pro'
+                      ? 'bg-primary text-white'
+                      : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white'
+                  }`}
+                  onClick={() => setObsUiMode('pro')}
+                >
+                  {t('admin.obsUiPro', { defaultValue: 'Pro' })}
+                </button>
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">
+                {obsUiMode === 'basic'
+                  ? t('admin.obsUiBasicHint', { defaultValue: 'Simple controls for quick setup.' })
+                  : t('admin.obsUiProHint', { defaultValue: 'Full control for designers.' })}
+              </div>
             </div>
 
             <div className="relative">
@@ -1339,6 +1462,7 @@ export function ObsLinksSettings() {
 
                 <div className="glass p-3">
                   <div className="flex items-center justify-between gap-3">
+                    {obsUiMode === 'pro' ? (
                     <div className="flex-1 overflow-x-auto no-scrollbar">
                       <div className="flex items-center gap-2 min-w-max pr-1">
                       {(
@@ -1368,6 +1492,11 @@ export function ObsLinksSettings() {
                         ))}
                       </div>
                     </div>
+                    ) : (
+                      <div className="flex-1 text-sm text-gray-700 dark:text-gray-200 font-semibold">
+                        {t('admin.obsUiBasicTitle', { defaultValue: 'Quick controls' })}
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2 shrink-0">
                       {overlaySettingsDirty && (
@@ -1389,24 +1518,28 @@ export function ObsLinksSettings() {
                         </svg>
                         <span className="hidden sm:inline">{t('admin.overlayResetDefaults', { defaultValue: 'РЎР±СЂРѕСЃРёС‚СЊ' })}</span>
                       </button>
-                      <button
-                        type="button"
-                        className="glass-btn px-3 py-2 text-sm font-semibold"
-                        onClick={() => setImportModalOpen(true)}
-                        disabled={savingOverlaySettings || loadingOverlaySettings}
-                        title={t('admin.overlayShareImport', { defaultValue: 'РРјРїРѕСЂС‚' })}
-                      >
-                        {t('admin.overlayShareImport', { defaultValue: 'РРјРїРѕСЂС‚' })}
-                      </button>
-                      <button
-                        type="button"
-                        className="glass-btn px-3 py-2 text-sm font-semibold"
-                        onClick={openExportModal}
-                        disabled={savingOverlaySettings || loadingOverlaySettings}
-                        title={t('admin.overlayShareExport', { defaultValue: 'Р­РєСЃРїРѕСЂС‚' })}
-                      >
-                        {t('admin.overlayShareExport', { defaultValue: 'Р­РєСЃРїРѕСЂС‚' })}
-                      </button>
+                      {obsUiMode === 'pro' && (
+                        <>
+                          <button
+                            type="button"
+                            className="glass-btn px-3 py-2 text-sm font-semibold"
+                            onClick={() => setImportModalOpen(true)}
+                            disabled={savingOverlaySettings || loadingOverlaySettings}
+                            title={t('admin.overlayShareImport', { defaultValue: 'Import' })}
+                          >
+                            {t('admin.overlayShareImport', { defaultValue: 'Import' })}
+                          </button>
+                          <button
+                            type="button"
+                            className="glass-btn px-3 py-2 text-sm font-semibold"
+                            onClick={openExportModal}
+                            disabled={savingOverlaySettings || loadingOverlaySettings}
+                            title={t('admin.overlayShareExport', { defaultValue: 'Export' })}
+                          >
+                            {t('admin.overlayShareExport', { defaultValue: 'Export' })}
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         className={`glass-btn px-4 py-2 text-sm font-semibold ${overlaySettingsDirty ? '' : 'opacity-60'}`}
@@ -1421,7 +1554,200 @@ export function ObsLinksSettings() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {obsUiMode === 'basic' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="glass p-4 space-y-3">
+                      <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {t('admin.obsPresets', { defaultValue: 'Presets' })}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => applyPreset('default')}>
+                          {t('admin.obsPresetDefault', { defaultValue: 'Default' })}
+                        </button>
+                        <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => applyPreset('minimal')}>
+                          {t('admin.obsPresetMinimal', { defaultValue: 'Minimal' })}
+                        </button>
+                        <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => applyPreset('neon')}>
+                          {t('admin.obsPresetNeon', { defaultValue: 'Neon' })}
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-300">
+                        {t('admin.obsPresetsHint', { defaultValue: 'Start from a preset, then tweak below.' })}
+                      </div>
+                    </div>
+
+                    <div className="glass p-4 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlayPosition', { defaultValue: 'Position' })}
+                          </label>
+                          <select
+                            value={urlPosition}
+                            onChange={(e) => setUrlPosition(e.target.value as any)}
+                            className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          >
+                            <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'Random' })}</option>
+                            <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Center' })}</option>
+                            <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'Top' })}</option>
+                            <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'Bottom' })}</option>
+                            <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'Top-left' })}</option>
+                            <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'Top-right' })}</option>
+                            <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'Bottom-left' })}</option>
+                            <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'Bottom-right' })}</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsMediaFit', { defaultValue: 'Media fit' })}
+                          </label>
+                          <select
+                            value={mediaFit}
+                            onChange={(e) => setMediaFit(e.target.value === 'contain' ? 'contain' : 'cover')}
+                            className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          >
+                            <option value="cover">{t('admin.obsMediaFitCover', { defaultValue: 'Cover (no bars)' })}</option>
+                            <option value="contain">{t('admin.obsMediaFitContain', { defaultValue: 'Contain (no crop)' })}</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlayMode', { defaultValue: 'Mode' })}
+                          </label>
+                          <div className="inline-flex rounded-lg overflow-hidden glass-btn bg-white/40 dark:bg-white/5">
+                            <button
+                              type="button"
+                              onClick={() => setOverlayMode('queue')}
+                              disabled={loadingOverlaySettings || savingOverlaySettings}
+                              className={`px-3 py-2 text-sm font-medium ${
+                                overlayMode === 'queue'
+                                  ? 'bg-primary text-white'
+                                  : 'bg-transparent text-gray-900 dark:text-white'
+                              }`}
+                            >
+                              {t('admin.obsOverlayModeQueueShort', { defaultValue: 'Queue' })}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setOverlayMode('simultaneous')}
+                              disabled={loadingOverlaySettings || savingOverlaySettings}
+                              className={`px-3 py-2 text-sm font-medium border-l border-white/20 dark:border-white/10 ${
+                                overlayMode === 'simultaneous'
+                                  ? 'bg-primary text-white'
+                                  : 'bg-transparent text-gray-900 dark:text-white'
+                              }`}
+                            >
+                              {t('admin.obsOverlayModeUnlimited', { defaultValue: 'Unlimited' })}
+                            </button>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            {overlayMode === 'queue'
+                              ? t('admin.obsOverlayModeQueueHint', { defaultValue: 'Shows one meme at a time.' })
+                              : t('admin.obsOverlayModeUnlimitedHint', { defaultValue: 'Shows all incoming memes at once (no limit).' })}
+                          </div>
+                        </div>
+
+                        <div className="pt-1">
+                          {overlayMode === 'simultaneous' ? (
+                            <>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                                {t('admin.obsOverlayMaxConcurrent', { defaultValue: 'Max simultaneous memes' })}:{' '}
+                                <span className="font-mono">{overlayMaxConcurrent}</span>
+                              </label>
+                              <input
+                                type="range"
+                                min={1}
+                                max={5}
+                                step={1}
+                                value={overlayMaxConcurrent}
+                                onChange={(e) => setOverlayMaxConcurrent(parseInt(e.target.value, 10))}
+                                className="w-full"
+                                disabled={loadingOverlaySettings || savingOverlaySettings}
+                              />
+                              <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                {t('admin.obsOverlayMaxConcurrentHint', {
+                                  defaultValue: 'Safety limit for unlimited mode (prevents OBS from lagging).',
+                                })}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-start gap-3 pt-7">
+                              <input
+                                id="overlayShowSenderBasic"
+                                type="checkbox"
+                                checked={overlayShowSender}
+                                onChange={(e) => setOverlayShowSender(e.target.checked)}
+                                className="mt-1 h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                                disabled={loadingOverlaySettings || savingOverlaySettings}
+                              />
+                              <label htmlFor="overlayShowSenderBasic" className="text-sm text-gray-800 dark:text-gray-100">
+                                <div className="font-medium">{t('admin.obsOverlayShowSender', { defaultValue: 'Show sender name' })}</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-300">
+                                  {t('admin.obsOverlayShowSenderHint', { defaultValue: 'Displayed on top of the meme.' })}
+                                </div>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlayAnim', { defaultValue: 'Animation' })}
+                          </label>
+                          <select
+                            value={urlAnim}
+                            onChange={(e) => setUrlAnim(e.target.value as any)}
+                            className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          >
+                            <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
+                            <option value="slide-up">{t('admin.obsOverlayAnimSlideUp', { defaultValue: 'Slide up' })}</option>
+                            <option value="pop">{t('admin.obsOverlayAnimPop', { defaultValue: 'Pop' })}</option>
+                            <option value="none">{t('admin.obsOverlayAnimNone', { defaultValue: 'None' })}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {t('admin.obsOverlayVolume', { defaultValue: 'Volume' })}:{' '}
+                            <span className="font-mono">{Math.round(urlVolume * 100)}%</span>
+                          </label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={urlVolume}
+                            onChange={(e) => setUrlVolume(parseFloat(e.target.value))}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <input
+                          id="glassEnabledBasic"
+                          type="checkbox"
+                          checked={glassEnabled}
+                          onChange={(e) => setGlassEnabled(e.target.checked)}
+                          className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        />
+                        <label htmlFor="glassEnabledBasic" className="text-sm text-gray-800 dark:text-gray-100">
+                          <div className="font-medium">{t('admin.obsGlassEnabled', { defaultValue: 'Glass effect' })}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300">
+                            {t('admin.obsGlassEnabledHint', { defaultValue: 'Can look great, but may cost performance in OBS.' })}
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className={obsUiMode === 'pro' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'hidden'}>
               <div className={advancedTab === 'layout' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayPosition', { defaultValue: 'РџРѕР·РёС†РёСЏ' })}
