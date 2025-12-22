@@ -24,6 +24,11 @@ const searchCache = new Map<string, SearchCacheEntry>();
 const SEARCH_CACHE_MS_DEFAULT = 30_000;
 const SEARCH_CACHE_MAX = 1000;
 
+type MemeStatsCacheEntry = { ts: number; body: string; etag: string };
+const memeStatsCache = new Map<string, MemeStatsCacheEntry>();
+const MEME_STATS_CACHE_MS_DEFAULT = 30_000;
+const MEME_STATS_CACHE_MAX = 500;
+
 function getChannelMetaCacheMs(): number {
   const raw = parseInt(String(process.env.CHANNEL_META_CACHE_MS || ''), 10);
   return Number.isFinite(raw) && raw > 0 ? raw : CHANNEL_META_CACHE_MS_DEFAULT;
@@ -37,6 +42,11 @@ function getTagIdCacheMs(): number {
 function getSearchCacheMs(): number {
   const raw = parseInt(String(process.env.SEARCH_CACHE_MS || ''), 10);
   return Number.isFinite(raw) && raw > 0 ? raw : SEARCH_CACHE_MS_DEFAULT;
+}
+
+function getMemeStatsCacheMs(): number {
+  const raw = parseInt(String(process.env.MEME_STATS_CACHE_MS || ''), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : MEME_STATS_CACHE_MS_DEFAULT;
 }
 
 function setSearchCacheHeaders(req: any, res: Response) {
@@ -1011,6 +1021,16 @@ export const viewerController = {
       channelSlug,
     } = req.query;
 
+    // Clamp limit (defensive).
+    const maxFromEnv = parseInt(String(process.env.MEME_STATS_MAX || ''), 10);
+    const MAX_STATS = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 50;
+    const parsedLimit = clampInt(parseInt(limit as string, 10), 1, MAX_STATS, 10);
+
+    // Normalize/validate period (back-compat: unknown -> 'month').
+    const periodRaw = String(period || 'month').toLowerCase();
+    const allowedPeriods = new Set(['day', 'week', 'month', 'year', 'all']);
+    const effectivePeriod = allowedPeriods.has(periodRaw) ? periodRaw : 'month';
+
     // Determine channel
     let targetChannelId: string | null = null;
     if (channelSlug) {
@@ -1026,9 +1046,10 @@ export const viewerController = {
     }
 
     // Calculate date range
-    const now = new Date();
+    // Round "now" to the minute for better cache hit-rate (stats don't need sub-minute precision).
+    const now = new Date(Math.floor(Date.now() / 60_000) * 60_000);
     let startDate: Date;
-    switch (period) {
+    switch (effectivePeriod) {
       case 'day':
         startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         break;
@@ -1043,6 +1064,30 @@ export const viewerController = {
         break;
       default:
         startDate = new Date(0); // All time
+    }
+
+    // Cache only for unauthenticated requests (auth excludes "self" and is user-dependent).
+    const canCache = !req.userId;
+    if (canCache) {
+      res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+      const key = [
+        'v1',
+        targetChannelId ?? '',
+        effectivePeriod,
+        String(parsedLimit),
+        now.toISOString(),
+      ].join('|');
+      const cached = memeStatsCache.get(key);
+      const ttl = getMemeStatsCacheMs();
+      if (cached && Date.now() - cached.ts < ttl) {
+        res.setHeader('ETag', cached.etag);
+        if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
+        return res.type('application/json').send(cached.body);
+      }
+      (req as any).__memeStatsCacheKey = key;
+    } else {
+      // Authenticated stats are user-dependent; allow only short private caching (or proxies may cache incorrectly).
+      res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
     }
 
     // Build where clause
@@ -1077,7 +1122,7 @@ export const viewerController = {
           id: 'desc',
         },
       },
-      take: parseInt(limit as string, 10),
+      take: parsedLimit,
     });
 
     // Get meme details
@@ -1120,12 +1165,29 @@ export const viewerController = {
       };
     });
 
-    res.json({
-      period,
+    const payload = {
+      period: effectivePeriod,
       startDate,
       endDate: now,
       stats,
-    });
+    };
+
+    const cacheKey = (req as any).__memeStatsCacheKey as string | undefined;
+    if (cacheKey) {
+      try {
+        const body = JSON.stringify(payload);
+        const etag = makeEtagFromString(body);
+        memeStatsCache.set(cacheKey, { ts: Date.now(), body, etag });
+        if (memeStatsCache.size > MEME_STATS_CACHE_MAX) memeStatsCache.clear();
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        return res.type('application/json').send(body);
+      } catch {
+        // fall through
+      }
+    }
+
+    return res.json(payload);
   },
 
   activateMeme: async (req: AuthRequest, res: Response) => {
