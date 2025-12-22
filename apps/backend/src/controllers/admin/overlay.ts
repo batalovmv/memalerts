@@ -177,4 +177,91 @@ export const getOverlayPreviewMeme = async (req: AuthRequest, res: Response) => 
   }
 };
 
+// OBS overlay preview (batch): return up to N preview memes in one request (stable ordering by seed).
+// This is used by the Admin UI to avoid N separate requests and to avoid race conditions on initial render.
+export const getOverlayPreviewMemes = async (req: AuthRequest, res: Response) => {
+  const channelId = req.channelId;
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  const rawCount = Number(req.query.count);
+  const count = Number.isFinite(rawCount) ? Math.max(1, Math.min(5, Math.floor(rawCount))) : 1;
+  const seed = String(req.query.seed ?? '1').trim() || '1';
+
+  // Ensure this endpoint is never cached by browser/proxy/CDN.
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  type Row = { id: string; type: string; fileUrl: string; title: string; channelId: string };
+
+  const pickMany = async (whereSql: string, params: any[]): Promise<Row[]> => {
+    // Deterministic pseudo-random ordering based on seed.
+    // md5(uuid::text || seed) is stable and cheap enough for small LIMITs.
+    return await prisma.$queryRawUnsafe<Row[]>(
+      `
+        SELECT "id", "type", "fileUrl", "title", "channelId"
+        FROM "Meme"
+        WHERE "status" = 'approved' ${whereSql}
+        ORDER BY md5(("id"::text) || $${params.length + 1})
+        LIMIT $${params.length + 2}
+      `,
+      ...params,
+      seed,
+      count
+    );
+  };
+
+  try {
+    const uniq: Row[] = [];
+    const seen = new Set<string>();
+
+    // 1) Channel pool first (if streamer has a channel)
+    if (channelId) {
+      const rows = await pickMany(`AND "channelId" = $1`, [channelId]);
+      for (const r of rows) {
+        if (!r?.fileUrl || seen.has(r.fileUrl)) continue;
+        seen.add(r.fileUrl);
+        uniq.push(r);
+        if (uniq.length >= count) break;
+      }
+    }
+
+    // 2) User-created (any channel)
+    if (uniq.length < count) {
+      const rows = await pickMany(`AND "createdByUserId" = $1`, [userId]);
+      for (const r of rows) {
+        if (!r?.fileUrl || seen.has(r.fileUrl)) continue;
+        seen.add(r.fileUrl);
+        uniq.push(r);
+        if (uniq.length >= count) break;
+      }
+    }
+
+    // 3) Global fallback
+    if (uniq.length < count) {
+      const rows = await pickMany(``, []);
+      for (const r of rows) {
+        if (!r?.fileUrl || seen.has(r.fileUrl)) continue;
+        seen.add(r.fileUrl);
+        uniq.push(r);
+        if (uniq.length >= count) break;
+      }
+    }
+
+    return res.json({
+      memes: uniq.map((m) => ({
+        id: m.id,
+        type: m.type,
+        fileUrl: m.fileUrl,
+        title: m.title,
+        channelId: m.channelId,
+      })),
+    });
+  } catch (e: any) {
+    console.error('Error getting overlay preview memes:', e);
+    return res.status(500).json({ error: 'Failed to get preview memes' });
+  }
+};
+
 

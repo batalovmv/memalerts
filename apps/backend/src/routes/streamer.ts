@@ -35,5 +35,6 @@ streamerRoutes.get('/stats/channel', adminController.getChannelStats);
 streamerRoutes.get('/overlay/token', adminController.getOverlayToken);
 streamerRoutes.post('/overlay/token/rotate', adminController.rotateOverlayToken);
 streamerRoutes.get('/overlay/preview-meme', adminController.getOverlayPreviewMeme);
+streamerRoutes.get('/overlay/preview-memes', adminController.getOverlayPreviewMemes);
 
 
