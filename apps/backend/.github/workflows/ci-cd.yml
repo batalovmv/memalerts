@@ -292,6 +292,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            set -euo pipefail
             cd /opt/memalerts-backend
             
             # Code is already copied via SCP, no need for git pull
@@ -319,6 +320,8 @@ jobs:
             # Run migrations
             echo "Running database migrations..."
             pnpm prisma migrate deploy
+            echo "Verifying database migration status..."
+            pnpm prisma migrate status
             
             # Verify dist directory exists
             if [ ! -f dist/index.js ]; then
@@ -681,6 +684,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            set -euo pipefail
             cd /opt/memalerts-backend-beta
             
             # Install all dependencies
@@ -698,6 +702,8 @@ jobs:
             # Run migrations
             echo "Running database migrations..."
             pnpm prisma migrate deploy
+            echo "Verifying database migration status..."
+            pnpm prisma migrate status
             
             # Verify dist directory exists
             if [ ! -f dist/index.js ]; then
