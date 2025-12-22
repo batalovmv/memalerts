@@ -114,13 +114,19 @@ Backend API для системы активации мемов через Twitc
 - `GET /submissions/mine` - Получить мои заявки
 
 ### Админ панель (требует роль streamer/admin)
-- `GET /admin/submissions` - Получить заявки (с фильтром по статусу)
-- `POST /admin/submissions/:id/approve` - Одобрить заявку
-- `POST /admin/submissions/:id/reject` - Отклонить заявку
-- `GET /admin/memes` - Получить все мемы канала
-- `PATCH /admin/memes/:id` - Обновить мем (цена, длительность)
-- `PATCH /admin/channel/settings` - Обновить настройки канала
-- `GET /admin/statistics` - Статистика канала
+
+> Исторически эти эндпоинты жили под `/admin/*`. Сейчас правильные префиксы:
+> - `/streamer/*` (стример/админ)
+> - `/owner/*` (только admin)
+> `/admin/*` остаётся алиасом для обратной совместимости.
+
+- `GET /streamer/submissions` - Получить заявки (с фильтром по статусу)
+- `POST /streamer/submissions/:id/approve` - Одобрить заявку
+- `POST /streamer/submissions/:id/reject` - Отклонить заявку
+- `GET /streamer/memes` - Получить все мемы канала
+- `PATCH /streamer/memes/:id` - Обновить мем (цена, длительность)
+- `PATCH /streamer/channel/settings` - Обновить настройки канала
+- `GET /streamer/stats/channel` - Статистика канала
 
 ### Webhooks
 - `POST /webhooks/twitch/eventsub` - Webhook от Twitch EventSub для обработки Channel Points redemptions
