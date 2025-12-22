@@ -6,6 +6,7 @@ import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
+import { resolvePublicUrl } from '@/lib/urls';
 
 // Channel Settings Component (Colors only)
 export function ChannelSettings() {
@@ -148,7 +149,7 @@ export function ChannelSettings() {
 
   // Note: lastSavedRef is seeded during initial loadSettings to avoid immediate autosave.
 
-  const profileUrl = user?.channel?.slug ? `https://twitchmemes.ru/channel/${user.channel.slug}` : '';
+  const profileUrl = user?.channel?.slug ? resolvePublicUrl(`/channel/${user.channel.slug}`) : '';
 
   return (
     <div className="surface p-6 relative">

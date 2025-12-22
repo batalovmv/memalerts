@@ -15,6 +15,7 @@ export default function Stats() {
       const stats = await api.get<Record<string, unknown>>(`/memes/stats?period=${period}&channelId=${user?.channelId}&limit=10`);
       setStats(stats);
     } catch (error: unknown) {
+      setStats(null);
     } finally {
       setLoading(false);
     }

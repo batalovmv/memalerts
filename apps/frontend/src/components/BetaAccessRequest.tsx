@@ -29,6 +29,8 @@ export default function BetaAccessRequest() {
       });
       setStatus(response);
     } catch (error) {
+      // Keep UI usable even if the status endpoint is temporarily unavailable.
+      setStatus(null);
     } finally {
       setLoading(false);
     }

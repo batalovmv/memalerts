@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Meme } from '../types';
+import { useHasUserInteracted } from '../lib/userInteraction';
+import { resolveMediaUrl } from '../lib/urls';
 
 interface MemeCardProps {
   meme: Meme;
@@ -11,28 +13,10 @@ interface MemeCardProps {
 export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
-  const [hasUserInteracted, setHasUserInteracted] = useState(false);
-  const hasUserInteractedRef = useRef(false);
+  const hasUserInteracted = useHasUserInteracted();
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Track user interaction at page level (any click/touch on page)
-  useEffect(() => {
-    const handlePageInteraction = () => {
-      setHasUserInteracted(true);
-      hasUserInteractedRef.current = true;
-    };
-    
-    // Listen for any user interaction on the page
-    document.addEventListener('click', handlePageInteraction, { once: true });
-    document.addEventListener('touchstart', handlePageInteraction, { once: true });
-    
-    return () => {
-      document.removeEventListener('click', handlePageInteraction);
-      document.removeEventListener('touchstart', handlePageInteraction);
-    };
-  }, []);
 
   // Lazy-load heavy media only when card is near/inside viewport.
   // This matches the "seen N cards -> load N previews" behavior from the reference grid.
@@ -62,23 +46,7 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
 
   // Resolve preview URL for images/videos
   const getVideoUrl = () => {
-    // If already absolute URL, return as is
-    if (meme.fileUrl.startsWith('http://') || meme.fileUrl.startsWith('https://')) {
-      return meme.fileUrl;
-    }
-    
-    // For beta domain, always use production domain for static files (uploads)
-    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
-    if (isBetaDomain && meme.fileUrl.startsWith('/uploads/')) {
-      return `https://twitchmemes.ru${meme.fileUrl}`;
-    }
-    
-    // For production or non-upload paths, use normal logic
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-    if (apiUrl && !meme.fileUrl.startsWith('/')) {
-      return `${apiUrl}/${meme.fileUrl}`;
-    }
-    return meme.fileUrl.startsWith('/') ? meme.fileUrl : `/${meme.fileUrl}`;
+    return resolveMediaUrl(meme.fileUrl);
   };
 
   const mediaUrl = getVideoUrl();
@@ -159,14 +127,10 @@ export default function MemeCard({ meme, onClick, previewMode = 'hoverWithSound'
   }, [meme.type, isHovered, previewMode, shouldLoadMedia]);
 
   const handleCardClick = () => {
-    setHasUserInteracted(true);
-    hasUserInteractedRef.current = true;
     onClick();
   };
 
   const handleCardInteraction = () => {
-    setHasUserInteracted(true);
-    hasUserInteractedRef.current = true;
     if (videoRef.current) {
       // Only unmute on direct user interaction if sound-on mode is enabled.
       if (previewMode === 'hoverWithSound') {

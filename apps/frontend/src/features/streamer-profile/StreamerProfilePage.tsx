@@ -17,6 +17,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import type { Meme, Wallet } from '@/types';
 import AuthRequiredModal from '@/components/AuthRequiredModal';
+import { resolveMediaUrl } from '@/lib/urls';
 
 interface ChannelInfo {
   id: string;
@@ -363,13 +364,7 @@ export default function StreamerProfile() {
                   const rawUrl = (isOwner ? (user?.profileImageUrl || channelInfo.owner?.profileImageUrl) : channelInfo.owner?.profileImageUrl) || '';
                   const normalized = rawUrl.trim();
                   if (!normalized) return null;
-                  const isAbsolute = normalized.startsWith('http://') || normalized.startsWith('https://');
-                  const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
-                  const resolved = isAbsolute
-                    ? normalized
-                    : (isBetaDomain && normalized.startsWith('/uploads/'))
-                      ? `https://twitchmemes.ru${normalized}`
-                      : normalized;
+                  const resolved = resolveMediaUrl(normalized);
 
                   return (
                     <img

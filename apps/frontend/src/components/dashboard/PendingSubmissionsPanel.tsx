@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Submission } from '../../types';
+import { resolveMediaUrl } from '../../lib/urls';
 
 type Props = {
   isOpen: boolean;
@@ -55,16 +56,7 @@ export function PendingSubmissionsPanel({
     return () => obs.disconnect();
   }, [isOpen, hasMore, submissionsLoading, submissionsLoadingMore, onLoadMore]);
 
-  const resolveMediaUrl = (src: string): string => {
-    const normalizedSrc = (src || '').trim();
-    if (!normalizedSrc) return '';
-    if (normalizedSrc.startsWith('http://') || normalizedSrc.startsWith('https://')) return normalizedSrc;
-    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
-    if (isBetaDomain && normalizedSrc.startsWith('/uploads/')) return `https://twitchmemes.ru${normalizedSrc}`;
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-    if (apiUrl && !normalizedSrc.startsWith('/')) return `${apiUrl}/${normalizedSrc}`;
-    return normalizedSrc.startsWith('/') ? normalizedSrc : `/${normalizedSrc}`;
-  };
+  const resolveMedia = (src: string): string => resolveMediaUrl(src);
 
   return (
     <section
@@ -110,7 +102,7 @@ export function PendingSubmissionsPanel({
               <PendingSubmissionCard
                 key={submission.id}
                 submission={submission}
-                resolveMediaUrl={resolveMediaUrl}
+                resolveMediaUrl={resolveMedia}
                 onApprove={onApprove}
                 onReject={onReject}
               />

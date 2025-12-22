@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+import { getSocketBaseUrl, resolveMediaUrl } from './urls';
 
 type OverlayMode = 'queue' | 'simultaneous';
 
@@ -346,23 +347,7 @@ export default function OverlayView() {
   }, [isProbablyOBS]);
 
   const getMediaUrl = (fileUrl: string): string => {
-    const v = (fileUrl || '').trim();
-    if (!v) return '';
-    if (v.startsWith('http://') || v.startsWith('https://')) return v;
-
-    // Beta deployment serves API/socket on beta domain, but uploads may live on production domain.
-    // Keep this consistent with the web app preview logic.
-    const isBeta = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
-    if (isBeta && v.startsWith('/uploads/')) {
-      return `https://twitchmemes.ru${v}`;
-    }
-
-    // In prod deployments, overlay is same-origin with the site (relative paths).
-    if (import.meta.env.PROD) return v.startsWith('/') ? v : `/${v}`;
-
-    // Dev fallback: use VITE_API_URL or localhost backend.
-    const devBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    return v.startsWith('/') ? `${devBase}${v}` : `${devBase}/${v}`;
+    return resolveMediaUrl(fileUrl);
   };
 
   useEffect(() => {
@@ -372,11 +357,8 @@ export default function OverlayView() {
     // Demo preview should not connect to sockets (avoid side effects/acks).
     if (demo) return;
 
-    const envUrl = import.meta.env.VITE_API_URL;
-    // In production/beta deployments, always use same-origin to avoid cross-environment calls.
-    // In local dev, allow VITE_API_URL override or fallback to localhost.
-    const apiUrl = import.meta.env.PROD ? window.location.origin : (envUrl || 'http://localhost:3001');
-    const newSocket = io(apiUrl, {
+    const socketBase = getSocketBaseUrl();
+    const newSocket = io(socketBase, {
       transports: ['websocket'],
     });
 
@@ -486,7 +468,6 @@ export default function OverlayView() {
       setQueue([]);
       setActive(seed);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, getNextUserScale, getPreviewMediaAt, pickRandomPosition, previewCount, previewModeParam]);
 
   const emitAckDoneOnce = useCallback((activationId: string) => {

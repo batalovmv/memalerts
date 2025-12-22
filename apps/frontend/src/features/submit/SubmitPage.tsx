@@ -49,6 +49,7 @@ export default function Submit() {
       const data = await api.get<MySubmission[]>('/submissions', { timeout: 10000 });
       setMySubmissions(Array.isArray(data) ? data : []);
     } catch (err) {
+      setMySubmissions([]);
     } finally {
       setLoadingMySubmissions(false);
     }
@@ -100,6 +101,7 @@ export default function Submit() {
           return;
         }
       } catch (error) {
+        durationMsToSend = null;
       }
 
       setLoading(true);

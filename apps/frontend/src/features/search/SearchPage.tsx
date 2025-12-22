@@ -60,9 +60,12 @@ export default function Search() {
       });
       setAvailableTags(Array.from(allTags.values()));
 
-      // Update URL
-      setSearchParams(params);
+      // Update URL without spamming history while typing/filtering.
+      setSearchParams(params, { replace: true });
     } catch (error: unknown) {
+      // On failures, show empty state instead of stale results.
+      setMemes([]);
+      setAvailableTags([]);
     } finally {
       setLoading(false);
     }

@@ -111,6 +111,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           return;
         }
       } catch (error) {
+        // If we can't read metadata (codec/browser quirk), continue without duration hint.
+        durationMsToSend = null;
       }
 
       setLoading(true);

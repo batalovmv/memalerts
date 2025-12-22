@@ -101,7 +101,6 @@ export default function Admin() {
     if (!user || !user.channelId) {
       submissionsLoadedRef.current = false;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, user?.role, user?.channelId, dispatch]);
 
   // Auto-detect video duration when approve modal opens

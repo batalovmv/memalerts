@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { resolveMediaUrl } from '../lib/urls';
 
 interface VideoPreviewProps {
   src: string;
@@ -15,23 +16,7 @@ export default function VideoPreview({ src, title, className = '' }: VideoPrevie
   // Construct full URL - handle both relative and absolute URLs
   const getVideoUrl = () => {
     if (!hasSrc) return '';
-    // If already absolute URL, return as is
-    if (normalizedSrc.startsWith('http://') || normalizedSrc.startsWith('https://')) {
-      return normalizedSrc;
-    }
-    
-    // For beta domain, always use production domain for static files (uploads)
-    const isBetaDomain = typeof window !== 'undefined' && window.location.hostname.includes('beta.');
-    if (isBetaDomain && normalizedSrc.startsWith('/uploads/')) {
-      return `https://twitchmemes.ru${normalizedSrc}`;
-    }
-    
-    // For production or non-upload paths, use normal logic
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-    if (apiUrl && !normalizedSrc.startsWith('/')) {
-      return `${apiUrl}/${normalizedSrc}`;
-    }
-    return normalizedSrc.startsWith('/') ? normalizedSrc : `/${normalizedSrc}`;
+    return resolveMediaUrl(normalizedSrc);
   };
 
   const videoUrl = getVideoUrl();

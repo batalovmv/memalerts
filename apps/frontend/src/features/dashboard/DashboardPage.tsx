@@ -67,7 +67,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (panel === 'submissions') scrollToPanelIfMobile('submissions');
     if (panel === 'memes') scrollToPanelIfMobile('memes');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panel]);
 
   useEffect(() => {

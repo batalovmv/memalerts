@@ -165,9 +165,6 @@ export const api: CustomAxiosInstance = {
         .catch((error: unknown) => {
           // Remove from pending on error
           pendingRequests.delete(requestKey);
-          const err = error as { isTimeout?: boolean; code?: string };
-          if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-          }
           throw error;
         });
       
@@ -188,9 +185,6 @@ export const api: CustomAxiosInstance = {
     return axiosInstance.request<unknown>(requestConfig)
       .then((response: AxiosResponse<unknown>) => response.data as T)
       .catch((error: unknown) => {
-        const err = error as { isTimeout?: boolean; code?: string };
-        if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-        }
         throw error;
       });
   },
@@ -214,9 +208,6 @@ export const api: CustomAxiosInstance = {
       })
       .catch((error: unknown) => {
         pendingRequests.delete(requestKey);
-        const err = error as { isTimeout?: boolean; code?: string };
-        if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-        }
         throw error;
       });
     
@@ -245,9 +236,6 @@ export const api: CustomAxiosInstance = {
     return axiosInstance.post<T>(url, data, requestConfig)
       .then(response => response.data as T)
       .catch((error: unknown) => {
-        const err = error as { isTimeout?: boolean; code?: string };
-        if (err?.isTimeout || err?.code === 'ECONNABORTED') {
-        }
         throw error;
       });
   },
