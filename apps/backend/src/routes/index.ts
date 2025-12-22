@@ -111,6 +111,8 @@ export function setupRoutes(app: Express) {
         req.path === '/wallet' ||
         req.path === '/memes' ||
         req.path.startsWith('/admin') ||
+        req.path.startsWith('/streamer') ||
+        req.path.startsWith('/owner') ||
         req.path.startsWith('/submissions') ||
         // Channel routes handled explicitly below (beta: auth+beta; prod: public where applicable)
         /^\/channels\/[^\/]+$/.test(req.path) ||
