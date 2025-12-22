@@ -26,6 +26,7 @@ export function ObsLinksSettings() {
   const [loadingToken, setLoadingToken] = useState(false);
   const [previewMemes, setPreviewMemes] = useState<Array<{ fileUrl: string; type: string; title?: string }>>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewInitialized, setPreviewInitialized] = useState(false);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(true);
   const [previewBg, setPreviewBg] = useState<'twitch' | 'white'>('twitch');
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
@@ -608,7 +609,12 @@ export function ObsLinksSettings() {
         Array.from({ length: n }).map(async () => {
           try {
             const resp = await api.get<{ meme: null | { fileUrl: string; type: string; title?: string } }>(
-              '/streamer/overlay/preview-meme'
+              '/streamer/overlay/preview-meme',
+              {
+                // Avoid 304 / cached response edge-cases in some browsers/CDN combos.
+                params: { _ts: Date.now() },
+                headers: { 'Cache-Control': 'no-store' },
+              }
             );
             return resp?.meme || null;
           } catch {
@@ -638,7 +644,7 @@ export function ObsLinksSettings() {
 
   useEffect(() => {
     if (!channelSlug) return;
-    void fetchPreviewMemes(previewCount);
+    void fetchPreviewMemes(previewCount).finally(() => setPreviewInitialized(true));
   }, [channelSlug, fetchPreviewMemes, previewCount]);
 
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
@@ -1266,15 +1272,24 @@ export function ObsLinksSettings() {
                     </button>
                   </div>
                   <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
-                    <iframe
-                      ref={previewIframeRef}
-                      title="Overlay preview"
-                      src={overlayPreviewBaseUrl}
-                      className="w-full"
-                      style={{ aspectRatio: '16 / 9', border: '0' }}
-                      allow="autoplay"
-                      onLoad={() => postPreviewParams()}
-                    />
+                    {!previewInitialized ? (
+                      <div
+                        className="w-full flex items-center justify-center text-sm text-white/70"
+                        style={{ aspectRatio: '16 / 9' }}
+                      >
+                        {t('common.loading', { defaultValue: 'Loading…' })}
+                      </div>
+                    ) : (
+                      <iframe
+                        ref={previewIframeRef}
+                        title="Overlay preview"
+                        src={overlayPreviewBaseUrl}
+                        className="w-full"
+                        style={{ aspectRatio: '16 / 9', border: '0' }}
+                        allow="autoplay"
+                        onLoad={() => postPreviewParams()}
+                      />
+                    )}
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <div className="text-xs text-gray-600 dark:text-gray-300 min-w-0">

@@ -795,9 +795,11 @@ export default function OverlayView() {
       const fallback = 420 + 2 * clampInt(Number(border ?? 0), 0, 120);
       const boxW = clampFloat(Number(item.boxW ?? fallback), 180, 900);
       const boxH = clampFloat(Number(item.boxH ?? fallback), 180, 900);
+      const roundedW = Math.round(boxW);
+      const roundedH = Math.round(boxH);
       const sizeClamp: React.CSSProperties = {
-        width: `${boxW.toFixed(2)}px`,
-        height: `${boxH.toFixed(2)}px`,
+        width: `${roundedW}px`,
+        height: `${roundedH}px`,
       };
 
       // Safety override: if we have clamped pixel-center coordinates, render as centered-by-px
@@ -1111,14 +1113,15 @@ export default function OverlayView() {
 
   const mediaStyle = useMemo<React.CSSProperties>(() => {
     return {
-      display: 'block',
+      // Avoid 1px “seams” caused by sub-pixel rounding when the card is scaled.
+      position: 'absolute',
+      inset: 0,
       width: '100%',
       height: '100%',
-      maxWidth: '100%',
-      maxHeight: '100%',
       objectFit: mediaFit,
       objectPosition: 'center',
-      background: 'transparent',
+      background: '#000',
+      transform: 'translateZ(0)',
     };
   }, [mediaFit]);
 
