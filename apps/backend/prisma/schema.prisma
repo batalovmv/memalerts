@@ -170,6 +170,11 @@ model MemeActivation {
   @@index([userId])
   @@index([status])
   @@index([memeId])
+  // Query helpers:
+  // - popularity ranking: filter by channelId + status + createdAt, group by memeId
+  @@index([channelId, status, createdAt, memeId])
+  // - favorites ranking: filter by channelId + userId + status, group by memeId
+  @@index([channelId, userId, status, memeId])
 }
 
 model AuditLog {
