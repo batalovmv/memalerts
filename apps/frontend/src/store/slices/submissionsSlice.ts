@@ -32,7 +32,8 @@ export const fetchSubmissions = createAsyncThunk<
   try {
     const resp = await api.get<Submission[] | SubmissionsPage>('/streamer/submissions', {
       // includeTotal is only needed for first page (badge/count); skip otherwise to avoid expensive count() on backend.
-      params: { status, limit, offset, includeTotal: includeTotal ?? (offset === 0 ? 1 : 0) },
+      // Perf: pending list UI doesn't need tags; skip JOINs by default.
+      params: { status, limit, offset, includeTotal: includeTotal ?? (offset === 0 ? 1 : 0), includeTags: 0 },
       timeout: 15000, // 15 seconds timeout
     });
 
