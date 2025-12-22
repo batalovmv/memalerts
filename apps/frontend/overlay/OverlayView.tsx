@@ -1050,13 +1050,6 @@ export default function OverlayView() {
   }, [senderBgColor, senderBgOpacity, senderBgRadius, senderFontFamily, senderFontSize, senderFontWeight]);
 
   const renderItems = active;
-  if (renderItems.length === 0) return null;
-
-  // In demo mode we want the sender label visible by default for styling feedback.
-  // In real overlay mode, it must be controlled by the server setting.
-  const showSender = demo
-    ? String(getParam('showSender') || getParam('overlayShowSender') || '1') !== '0'
-    : Boolean(config.overlayShowSender);
 
   const badgeAnimStyle = useMemo<React.CSSProperties>(() => {
     const inMs = 220;
@@ -1073,6 +1066,14 @@ export default function OverlayView() {
       ].join(', '),
     };
   }, [senderHoldMs]);
+
+  if (renderItems.length === 0) return null;
+
+  // In demo mode we want the sender label visible by default for styling feedback.
+  // In real overlay mode, it must be controlled by the server setting.
+  const showSender = demo
+    ? String(getParam('showSender') || getParam('overlayShowSender') || '1') !== '0'
+    : Boolean(config.overlayShowSender);
 
   return (
     <>
