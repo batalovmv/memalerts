@@ -18,6 +18,7 @@ import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsR
 import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
 import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
 import { logger } from './utils/logger.js';
+import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
 dotenv.config();
 
@@ -417,6 +418,14 @@ async function startServer() {
     startTopStats30dRollupScheduler();
     // Performance: meme daily rollups for viewer stats (day/week/month via 1/7/30).
     startMemeDailyStatsRollupScheduler();
+
+    // Optional: Twitch chat bot (collects chatters for credits overlay).
+    // Enabled via env (see CHAT_BOT_* vars).
+    try {
+      startTwitchChatBot(io);
+    } catch (e: any) {
+      console.error('Chat bot failed to start:', e?.message || e);
+    }
   });
 }
 
