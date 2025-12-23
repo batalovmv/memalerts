@@ -548,6 +548,7 @@
     "dashboard": "Dashboard",
     "settings": "Settings",
     "betaAccess": "Beta access",
+    "mySubmissions": "My submissions",
     "logout": "Logout",
     "loggedOutSuccessfully": "Logged out successfully",
     "failedToLogout": "Failed to logout",

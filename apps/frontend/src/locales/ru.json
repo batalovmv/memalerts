@@ -554,6 +554,7 @@
     "dashboard": "Панель управления",
     "settings": "Настройки",
     "betaAccess": "Доступ к Beta",
+    "mySubmissions": "Мои заявки",
     "logout": "Выйти",
     "loggedOutSuccessfully": "Выход выполнен успешно",
     "failedToLogout": "Не удалось выйти",

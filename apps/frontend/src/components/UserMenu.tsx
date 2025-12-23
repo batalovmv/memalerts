@@ -66,6 +66,11 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
+  const handleMySubmissions = () => {
+    navigate('/submit');
+    setIsOpen(false);
+  };
+
 
   // Determine displayed role based on context
   // Show "streamer" only when viewing own profile, "viewer" when viewing someone else's profile
@@ -151,6 +156,13 @@ export default function UserMenu() {
               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               {t('userMenu.settings')}
+            </button>
+
+            <button
+              onClick={handleMySubmissions}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
             </button>
 
             {(user.role === 'streamer' || user.role === 'admin') && (

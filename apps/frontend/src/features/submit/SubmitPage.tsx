@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/store/hooks';
 import UserMenu from '@/components/UserMenu';
@@ -41,6 +41,7 @@ export default function Submit() {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
   const [loadingMySubmissions, setLoadingMySubmissions] = useState(false);
+  const mySubmissionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -156,14 +157,22 @@ export default function Submit() {
         });
         
         toast.success('Submission created! Waiting for approval.');
-        navigate('/dashboard');
+        // Stay on this page so user can see status updates (including "needs changes").
+        setFile(null);
+        setFormData({ title: '', notes: '', sourceUrl: '', tags: [] });
+        await loadMySubmissions();
+        // Scroll to "My submissions" section for visibility.
+        window.setTimeout(() => mySubmissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       } catch (error: unknown) {
         const apiError = error as { response?: { status?: number; data?: { error?: string } }; code?: string; message?: string };
         // Handle 524 Cloudflare timeout specifically
         if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
           toast.error('Upload timeout. The file may have been uploaded successfully. Please check your submissions.');
-          // Still navigate to dashboard - submission might have been created
-          setTimeout(() => navigate('/dashboard'), 2000);
+          // Stay on page and show current submissions (submission might have been created).
+          setTimeout(() => {
+            void loadMySubmissions();
+            mySubmissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 300);
         } else {
           toast.error(apiError.response?.data?.error || apiError.message || 'Failed to submit meme');
         }
@@ -195,7 +204,11 @@ export default function Submit() {
           tags: formData.tags || [],
         });
         toast.success('Meme import submitted! Waiting for approval.');
-        navigate('/dashboard');
+        // Stay on this page so user can see status updates (including "needs changes").
+        setFile(null);
+        setFormData({ title: '', notes: '', sourceUrl: '', tags: [] });
+        await loadMySubmissions();
+        window.setTimeout(() => mySubmissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { error?: string } } };
         toast.error(apiError.response?.data?.error || 'Failed to import meme');
@@ -348,7 +361,7 @@ export default function Submit() {
         </form>
 
         {/* My submissions (so submitter can see status + fix if needed) */}
-        <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+        <div ref={mySubmissionsRef} className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold dark:text-white">{t('submit.mySubmissions', { defaultValue: 'My submissions' })}</h3>
             <button

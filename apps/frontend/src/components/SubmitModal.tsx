@@ -208,7 +208,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
         if (channelSlug) {
           navigate(`/channel/${channelSlug}`);
         } else {
-          navigate('/dashboard');
+          // For viewers, the submissions list is on /submit; avoid sending them to /dashboard.
+          navigate('/submit');
         }
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { error?: string } } };
