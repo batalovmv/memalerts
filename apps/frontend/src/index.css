@@ -16,8 +16,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: var(--ma-bg, #f9fafb);
+  color: var(--ma-fg, #111827);
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -27,8 +27,8 @@ body {
 }
 
 .dark body {
-  background-color: #111827;
-  color: #f9fafb;
+  background-color: var(--ma-bg, #111827);
+  color: var(--ma-fg, #f9fafb);
 }
 
 /* Native <select> dropdowns on dark theme:

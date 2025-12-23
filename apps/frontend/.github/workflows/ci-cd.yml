@@ -54,6 +54,12 @@ jobs:
       - name: Lint Overlay
         run: cd overlay && pnpm lint
 
+      - name: Typecheck Web
+        run: pnpm typecheck
+
+      - name: Typecheck Overlay
+        run: cd overlay && pnpm typecheck
+
       - name: Build Web
         run: pnpm build:web
 

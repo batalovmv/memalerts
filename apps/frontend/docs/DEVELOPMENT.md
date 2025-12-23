@@ -35,14 +35,15 @@ VITE_API_URL=http://localhost:3001
 ## Линт и сборка
 ```bash
 pnpm lint
-pnpm build
+pnpm typecheck
+pnpm build:web
 pnpm build:overlay
 ```
 
 ## Полезные заметки
-- **API**: единый клиент `src/lib/api.ts` возвращает `data` напрямую и имеет дедупликацию GET‑запросов.
+- **API**: клиент `src/lib/api.ts` возвращает `data` напрямую и имеет дедупликацию GET‑запросов. Для приведения ошибок к единому виду используйте `toApiError()` (`src/shared/api/toApiError.ts`).
 - **Socket**: общий провайдер `src/contexts/SocketContext.tsx`.
-- **Медиа‑URL**: используйте `resolveMediaUrl()` (`src/lib/urls.ts`) вместо ручной склейки строк.
-- **Share links**: используйте `resolvePublicUrl()` (`src/lib/urls.ts`), чтобы не хардкодить домен.
+- **Медиа‑URL**: используйте `resolveMediaUrl()` (`src/shared/config/urls.ts`, реэкспорт: `src/lib/urls.ts`) вместо ручной склейки строк.
+- **Share links**: используйте `resolvePublicUrl()` (там же), чтобы не хардкодить домен.
 
 

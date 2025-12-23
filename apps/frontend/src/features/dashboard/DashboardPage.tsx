@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
@@ -6,13 +6,14 @@ import { store } from '@/store/index';
 import { fetchSubmissions, approveSubmission, rejectSubmission, needsChangesSubmission } from '@/store/slices/submissionsSlice';
 import { api } from '@/lib/api';
 import Header from '@/components/Header';
-import SubmitModal from '@/components/SubmitModal';
-import MemeModal from '@/components/MemeModal';
 import toast from 'react-hot-toast';
 import type { Meme } from '@/types';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { PendingSubmissionsPanel } from '@/components/dashboard/PendingSubmissionsPanel';
 import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
+
+const SubmitModal = lazy(() => import('@/components/SubmitModal'));
+const MemeModal = lazy(() => import('@/components/MemeModal'));
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -341,31 +342,33 @@ export default function DashboardPage() {
       </main>
 
       {/* Submit Modal */}
-      {user.channelId && (
-        <SubmitModal
-          isOpen={isSubmitModalOpen}
-          onClose={() => setIsSubmitModalOpen(false)}
-          channelSlug={user.channel?.slug}
-          channelId={user.channelId}
-        />
-      )}
+      <Suspense fallback={null}>
+        {user.channelId && (
+          <SubmitModal
+            isOpen={isSubmitModalOpen}
+            onClose={() => setIsSubmitModalOpen(false)}
+            channelSlug={user.channel?.slug}
+            channelId={user.channelId}
+          />
+        )}
 
-      {/* Meme Modal */}
-      {isMemeModalOpen && (
-        <MemeModal
-          meme={selectedMeme}
-          isOpen={isMemeModalOpen}
-          onClose={() => {
-            setIsMemeModalOpen(false);
-            setSelectedMeme(null);
-          }}
-          onUpdate={() => {
-            // All memes panel is loaded via paginated search; no global refresh needed here.
-          }}
-          isOwner={true}
-          mode="admin"
-        />
-      )}
+        {/* Meme Modal */}
+        {isMemeModalOpen && (
+          <MemeModal
+            meme={selectedMeme}
+            isOpen={isMemeModalOpen}
+            onClose={() => {
+              setIsMemeModalOpen(false);
+              setSelectedMeme(null);
+            }}
+            onUpdate={() => {
+              // All memes panel is loaded via paginated search; no global refresh needed here.
+            }}
+            isOwner={true}
+            mode="admin"
+          />
+        )}
+      </Suspense>
 
       {/* Approve Modal (Dashboard) */}
       {approveModal.open && (

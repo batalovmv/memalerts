@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/shared/lib/cn';
 
 export function AttemptsPill(props: { left: number; max?: number; className?: string }) {
   const { t } = useTranslation();
@@ -42,10 +43,10 @@ export function AttemptsPill(props: { left: number; max?: number; className?: st
           return (
             <span
               key={i}
-              className={[
+              className={cn(
                 'h-1.5 w-1.5 rounded-full transition-colors',
                 active ? dotOn : 'bg-gray-300/80 dark:bg-white/15',
-              ].join(' ')}
+              )}
             />
           );
         })}

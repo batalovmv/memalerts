@@ -2,15 +2,17 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App.tsx';
-import { store } from './store/index.ts';
-import { ThemeProvider } from './contexts/ThemeContext.tsx';
-import { ChannelColorsProvider } from './contexts/ChannelColorsContext.tsx';
-import { loadRuntimeConfig } from './lib/runtimeConfig';
-import { setApiBaseUrl } from './lib/api';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import App from '@/App.tsx';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ChannelColorsProvider } from '@/contexts/ChannelColorsContext.tsx';
+import { ThemeProvider } from '@/contexts/ThemeContext.tsx';
+import '@/shared/styles/tokens.css';
+import '@/shared/styles/theme.css';
 import './i18n/config';
 import './index.css';
+import { setApiBaseUrl } from '@/lib/api';
+import { loadRuntimeConfig } from '@/lib/runtimeConfig';
+import { store } from '@/store/index.ts';
 
 // In production we don't want any console noise in the browser.
 // Keep console.error intact for real issues.

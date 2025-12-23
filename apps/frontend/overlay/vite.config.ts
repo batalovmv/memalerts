@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig(({ command }) => {
   // Overlay is deployed under /overlay/ (nginx serves overlay/dist there),
@@ -9,6 +10,11 @@ export default defineConfig(({ command }) => {
   return {
     base,
     plugins: [react()],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
+      },
+    },
     server: {
       port: 5174,
     },

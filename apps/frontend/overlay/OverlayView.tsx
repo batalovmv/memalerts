@@ -2,98 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { getSocketBaseUrl, resolveMediaUrl } from './urls';
-
-type OverlayMode = 'queue' | 'simultaneous';
-
-interface Activation {
-  id: string;
-  memeId: string;
-  type: string;
-  fileUrl: string;
-  durationMs: number;
-  title: string;
-  senderDisplayName?: string | null;
-}
-
-interface QueuedActivation extends Activation {
-  startTime: number;
-  // Used when position=random
-  xPct?: number;
-  yPct?: number;
-  // After first render, we may clamp the activation inside the viewport.
-  // These are the desired center coordinates in px (used when position=random).
-  xPx?: number;
-  yPx?: number;
-  layoutTick?: number;
-  // Media aspect ratio (w/h). Used to keep original aspect ratio and normalize visual size.
-  aspectRatio?: number;
-  boxW?: number;
-  boxH?: number;
-  // Optional, derived from real media metadata (video/audio), preferred over durationMs when available.
-  effectiveDurationMs?: number;
-  // When we start fading out, keep the item briefly so OBS doesn't "stick" the last frame.
-  isExiting?: boolean;
-  // Auto-fit scale to keep the item inside viewport (used mainly for preview / extreme aspect ratios).
-  fitScale?: number;
-  // Per-item scale (supports fixed vs range).
-  userScale?: number;
-}
-
-interface OverlayConfig {
-  overlayMode: OverlayMode;
-  overlayShowSender: boolean;
-  overlayMaxConcurrent: number;
-  overlayStyleJson?: string | null;
-}
-
-type OverlayPosition =
-  | 'random'
-  | 'center'
-  | 'top'
-  | 'bottom'
-  | 'top-left'
-  | 'top-right'
-  | 'bottom-left'
-  | 'bottom-right';
-
-function clampInt(n: number, min: number, max: number): number {
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, Math.floor(n)));
-}
-
-function clampFloat(n: number, min: number, max: number): number {
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, n));
-}
-
-function clampDeg(n: number): number {
-  if (!Number.isFinite(n)) return 90;
-  // Normalize into [0, 360)
-  const v = ((n % 360) + 360) % 360;
-  return v;
-}
-
-function isHexColor(v: string): boolean {
-  return /^#([0-9a-fA-F]{6})$/.test(v);
-}
-
-function clampAlpha(n: number, min: number, max: number): number {
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, n));
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'pop' | 'lift' | 'none';
+import { isHexColor } from './lib/color';
+import { clampAlpha, clampDeg, clampFloat, clampInt } from './lib/math';
+import { mulberry32 } from './lib/random';
+import type {
+  Activation,
+  OverlayAnim,
+  OverlayConfig,
+  OverlayMode,
+  OverlayPosition,
+  QueuedActivation,
+} from './overlay-view/types';
 
 export default function OverlayView() {
   const { channelSlug, token } = useParams<{ channelSlug?: string; token?: string }>();

@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { api } from '../../lib/api';
-import type { Submission, ApiError } from '../../types';
+import { api } from '@/lib/api';
+import { toApiError } from '@/shared/api/toApiError';
+import type { ApiError, Submission } from '@/types';
 
-interface SubmissionsState {
+export interface SubmissionsState {
   submissions: Submission[];
   loading: boolean;
   loadingMore: boolean;
@@ -24,6 +25,11 @@ const initialState: SubmissionsState = {
 
 type SubmissionsPage = { items: Submission[]; total: number | null };
 
+function isSubmissionsPage(v: unknown): v is SubmissionsPage {
+  const anyV = v as any;
+  return Boolean(anyV && typeof anyV === 'object' && Array.isArray(anyV.items));
+}
+
 export const fetchSubmissions = createAsyncThunk<
   SubmissionsPage,
   { status?: string; limit?: number; offset?: number; append?: boolean; includeTotal?: boolean },
@@ -41,14 +47,13 @@ export const fetchSubmissions = createAsyncThunk<
     if (Array.isArray(resp)) {
       return { items: resp, total: resp.length };
     }
-    return { items: resp.items || [], total: typeof (resp as any).total === 'number' ? (resp as any).total : null };
+    if (isSubmissionsPage(resp)) {
+      const total = typeof (resp as any).total === 'number' ? ((resp as any).total as number) : null;
+      return { items: resp.items || [], total };
+    }
+    return { items: [], total: null };
   } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to fetch submissions',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
+    return rejectWithValue(toApiError(error, 'Failed to fetch submissions'));
   }
 });
 
@@ -65,12 +70,7 @@ export const createSubmission = createAsyncThunk<
     });
     return response;
   } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to create submission',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
+    return rejectWithValue(toApiError(error, 'Failed to create submission'));
   }
 });
 
@@ -88,12 +88,7 @@ export const approveSubmission = createAsyncThunk<
       }
       await api.post(`/streamer/submissions/${submissionId}/approve`, payload);
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: ApiError; status?: number } };
-      return rejectWithValue({
-        message: apiError.response?.data?.message || 'Failed to approve submission',
-        error: apiError.response?.data?.error,
-        statusCode: apiError.response?.status,
-      });
+      return rejectWithValue(toApiError(error, 'Failed to approve submission'));
     }
   }
 );
@@ -108,12 +103,7 @@ export const rejectSubmission = createAsyncThunk<
       moderatorNotes: moderatorNotes || null,
     });
   } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to reject submission',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
+    return rejectWithValue(toApiError(error, 'Failed to reject submission'));
   }
 });
 
@@ -127,12 +117,7 @@ export const needsChangesSubmission = createAsyncThunk<
       moderatorNotes,
     });
   } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to send submission for changes',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
+    return rejectWithValue(toApiError(error, 'Failed to send submission for changes'));
   }
 });
 
@@ -155,15 +140,18 @@ const submissionsSlice = createSlice({
       if (typeof state.total === 'number') state.total += 1;
       state.submissions.unshift({
         id: action.payload.submissionId,
-        channelId: action.payload.channelId,
-        submitterUserId: action.payload.submitterId || '',
         title: 'New submission',
         type: 'video',
         fileUrlTemp: '',
         status: 'pending',
         notes: null,
         createdAt: new Date().toISOString(),
-      } as unknown as Submission);
+        submitter: {
+          id: action.payload.submitterId || 'unknown',
+          displayName: 'Unknown',
+        },
+        revision: 0,
+      });
     },
     submissionApproved: (state, action: PayloadAction<{ submissionId: string }>) => {
       const before = state.submissions.length;
@@ -190,15 +178,18 @@ const submissionsSlice = createSlice({
       if (typeof state.total === 'number') state.total += 1;
       state.submissions.unshift({
         id: action.payload.submissionId,
-        channelId: action.payload.channelId,
-        submitterUserId: action.payload.submitterId || '',
         title: 'Updated submission',
         type: 'video',
         fileUrlTemp: '',
         status: 'pending',
         notes: null,
         createdAt: new Date().toISOString(),
-      } as unknown as Submission);
+        submitter: {
+          id: action.payload.submitterId || 'unknown',
+          displayName: 'Unknown',
+        },
+        revision: 1,
+      });
     },
   },
   extraReducers: (builder) => {
@@ -216,7 +207,7 @@ const submissionsSlice = createSlice({
         state.total = action.payload.total;
 
         // append if offset > 0 (pagination); otherwise replace
-        const offset = (action.meta.arg as any)?.offset ?? 0;
+        const offset = action.meta.arg.offset ?? 0;
         if (offset > 0) {
           const existing = new Set(state.submissions.map((s) => s.id));
           for (const item of action.payload.items) {

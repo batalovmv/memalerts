@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { api } from '../../lib/api';
-import type { User, ApiError, Wallet } from '../../types';
+import { api } from '@/lib/api';
+import { toApiError } from '@/shared/api/toApiError';
+import type { ApiError, User, Wallet } from '@/types';
 
-interface AuthState {
+export interface AuthState {
   user: User | null;
   loading: boolean;
   error: string | null;
@@ -32,12 +33,7 @@ export const fetchUser = createAsyncThunk<User, void, { rejectValue: ApiError }>
       
       return user;
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: ApiError; status?: number }; message?: string };
-      return rejectWithValue({
-        message: apiError.response?.data?.message || 'Failed to fetch user',
-        error: apiError.response?.data?.error,
-        statusCode: apiError.response?.status,
-      });
+      return rejectWithValue(toApiError(error, 'Failed to fetch user'));
     }
   }
 );
@@ -48,12 +44,7 @@ export const logout = createAsyncThunk<void, void, { rejectValue: ApiError }>(
     try {
       await api.post('/auth/logout');
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: ApiError; status?: number } };
-      return rejectWithValue({
-        message: apiError.response?.data?.message || 'Failed to logout',
-        error: apiError.response?.data?.error,
-        statusCode: apiError.response?.status,
-      });
+      return rejectWithValue(toApiError(error, 'Failed to logout'));
     }
   }
 );

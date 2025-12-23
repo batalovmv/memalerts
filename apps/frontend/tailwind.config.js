@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Web app should not scan overlay sources (and especially overlay/node_modules) for class usage.
+  // Overlay has its own Tailwind config under overlay/tailwind.config.js.
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   darkMode: 'class',
   theme: {

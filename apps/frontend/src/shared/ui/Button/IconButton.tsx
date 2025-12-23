@@ -1,0 +1,32 @@
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+import { cn } from '@/shared/lib/cn';
+
+export type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
+  icon: ReactNode;
+  variant?: 'secondary' | 'ghost' | 'primary';
+};
+
+export function IconButton({ icon, variant = 'ghost', className, disabled, ...props }: IconButtonProps) {
+  const base =
+    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold leading-none transition-[transform,background-color,box-shadow,opacity] select-none [-webkit-tap-highlight-color:transparent] active:translate-y-[0.5px] disabled:opacity-60 disabled:pointer-events-none';
+  const iconOnly = 'p-2 w-9 h-9';
+  const variantClass: Record<NonNullable<IconButtonProps['variant']>, string> = {
+    primary: 'bg-primary text-white shadow-[0_10px_18px_rgba(10,132,255,0.2)] hover:brightness-[0.98]',
+    secondary:
+      'text-gray-900 dark:text-white bg-white/65 dark:bg-white/10 shadow-sm ring-1 ring-black/5 dark:ring-white/10',
+    ghost: 'text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/10',
+  };
+
+  return (
+    <button
+      {...props}
+      disabled={disabled}
+      className={cn(base, iconOnly, variantClass[variant], className)}
+    >
+      <span aria-hidden="true">{icon}</span>
+    </button>
+  );
+}
+
+

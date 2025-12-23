@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '../../lib/api';
-import type { Meme, ApiError } from '../../types';
+import { api } from '@/lib/api';
+import { toApiError } from '@/shared/api/toApiError';
+import type { ApiError, Meme } from '@/types';
 
-interface MemesState {
+export interface MemesState {
   memes: Meme[];
   loading: boolean;
   error: string | null;
@@ -24,12 +25,7 @@ export const fetchMemes = createAsyncThunk<
     const memes = await api.get<Meme[]>('/memes', { params });
     return memes;
   } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to fetch memes',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
+    return rejectWithValue(toApiError(error, 'Failed to fetch memes'));
   }
 });
 
@@ -41,12 +37,7 @@ export const activateMeme = createAsyncThunk<
   try {
     await api.post(`/memes/${memeId}/activate`);
   } catch (error: unknown) {
-    const apiError = error as { response?: { data?: ApiError; status?: number } };
-    return rejectWithValue({
-      message: apiError.response?.data?.message || 'Failed to activate meme',
-      error: apiError.response?.data?.error,
-      statusCode: apiError.response?.status,
-    });
+    return rejectWithValue(toApiError(error, 'Failed to activate meme'));
   }
 });
 
