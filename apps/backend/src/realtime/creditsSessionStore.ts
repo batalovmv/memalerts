@@ -113,7 +113,7 @@ async function writeMeta(slug: string, meta: SessionMeta, ttlSeconds: number): P
 async function clearSession(slug: string): Promise<void> {
   const client = await getRedisClient();
   if (!client) return;
-  await client.del(kChatters(slug), kChattersOrder(slug), kDonors(slug), kDonorsOrder(slug));
+  await client.del([kChatters(slug), kChattersOrder(slug), kDonors(slug), kDonorsOrder(slug)]);
 }
 
 export async function startOrResumeCreditsSession(
