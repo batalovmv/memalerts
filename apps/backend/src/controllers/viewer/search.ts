@@ -12,6 +12,7 @@ import {
   searchCache,
   setSearchCacheHeaders,
 } from './cache.js';
+import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 
 export const searchMemes = async (req: any, res: Response) => {
   const {
@@ -93,6 +94,24 @@ export const searchMemes = async (req: any, res: Response) => {
       res.setHeader('ETag', cached.etag);
       if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
       return res.type('application/json').send(cached.body);
+    }
+
+    // Redis shared cache (optional): improves cache hit-rate across instances/processes.
+    // Only for non-personalized search responses.
+    try {
+      const rkey = nsKey('search', cacheKey);
+      const body = await redisGetString(rkey);
+      if (body) {
+        const etag = makeEtagFromString(body);
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        // Warm local cache (best-effort) to reduce Redis round-trips.
+        searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+        if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        return res.type('application/json').send(body);
+      }
+    } catch {
+      // ignore
     }
     // Save for later in the request lifecycle (after we compute the response).
     (req as any).__searchCacheKey = cacheKey;
@@ -304,6 +323,8 @@ export const searchMemes = async (req: any, res: Response) => {
       if (cacheKey) {
         searchCache.set(cacheKey, { ts: Date.now(), body, etag });
         if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        // Best-effort: also store in Redis for cross-instance caching.
+        void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
       }
       res.setHeader('ETag', etag);
       if (ifNoneMatchHit(req, etag)) return res.status(304).end();
@@ -366,6 +387,7 @@ export const searchMemes = async (req: any, res: Response) => {
       if (cacheKey) {
         searchCache.set(cacheKey, { ts: Date.now(), body, etag });
         if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
       }
       res.setHeader('ETag', etag);
       if (ifNoneMatchHit(req, etag)) return res.status(304).end();

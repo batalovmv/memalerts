@@ -46,42 +46,126 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       return res.type('application/json').send(cached.body);
     }
 
-    // Get user spending stats
-    const [userSpending, memeStats, totalActivations, totalCoinsSpent, totalMemes, daily] = await Promise.all([
-      prisma.memeActivation.groupBy({
-        by: ['userId'],
-        where: { channelId },
-        _sum: { coinsSpent: true },
-        _count: { id: true },
-        orderBy: { _sum: { coinsSpent: 'desc' } },
-        take: 20,
-      }),
-      prisma.memeActivation.groupBy({
-        by: ['memeId'],
-        where: { channelId },
-        _count: { id: true },
-        _sum: { coinsSpent: true },
-        orderBy: { _count: { id: 'desc' } },
-        take: 20,
-      }),
+    const toNumberSafe = (v: unknown): number => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'bigint') return Number(v);
+      return 0;
+    };
+
+    // Daily series: prefer rollup table (fast), fallback to raw SQL for older deployments.
+    const dailyStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const dailyPromise = (async () => {
+      try {
+        const rows = await (prisma as any).channelDailyStats.findMany({
+          where: { channelId, day: { gte: dailyStart } },
+          orderBy: { day: 'asc' },
+          select: {
+            day: true,
+            totalActivationsCount: true,
+            totalCoinsSpentSum: true,
+          },
+        });
+        return rows.map((r: any) => ({
+          day: (r.day as Date).toISOString(),
+          activations: toNumberSafe(r.totalActivationsCount),
+          coins: toNumberSafe(r.totalCoinsSpentSum),
+          source: 'rollup',
+        }));
+      } catch (e: any) {
+        // Back-compat: table might not exist in older DBs.
+        if (e?.code === 'P2021' && String(e?.meta?.table || '').includes('ChannelDailyStats')) {
+          const rows = await prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
+            SELECT date_trunc('day', "createdAt") as day,
+                   COUNT(*)::bigint as activations,
+                   COALESCE(SUM("coinsSpent"), 0)::bigint as coins
+            FROM "MemeActivation"
+            WHERE "channelId" = ${channelId}
+              AND "createdAt" >= (NOW() - INTERVAL '14 days')
+            GROUP BY 1
+            ORDER BY 1 ASC
+          `;
+          return rows.map((d) => ({
+            day: d.day.toISOString(),
+            activations: Number(d.activations),
+            coins: Number(d.coins),
+            source: 'raw',
+          }));
+        }
+        throw e;
+      }
+    })();
+
+    // Top lists: prefer 30d rollups (cheap), fallback to live groupBy on older deployments.
+    const userSpendingPromise = (async () => {
+      try {
+        const rows = await (prisma as any).channelUserStats30d.findMany({
+          where: { channelId },
+          orderBy: [{ totalCoinsSpentSum: 'desc' }, { totalActivationsCount: 'desc' }],
+          take: 20,
+          select: {
+            userId: true,
+            totalCoinsSpentSum: true,
+            totalActivationsCount: true,
+          },
+        });
+        return { rows, source: 'rollup' as const };
+      } catch (e: any) {
+        if (e?.code === 'P2021' && String(e?.meta?.table || '').includes('ChannelUserStats30d')) {
+          const rows = await prisma.memeActivation.groupBy({
+            by: ['userId'],
+            where: { channelId },
+            _sum: { coinsSpent: true },
+            _count: { id: true },
+            orderBy: { _sum: { coinsSpent: 'desc' } },
+            take: 20,
+          });
+          return { rows, source: 'raw' as const };
+        }
+        throw e;
+      }
+    })();
+
+    const memeStatsPromise = (async () => {
+      try {
+        const rows = await (prisma as any).channelMemeStats30d.findMany({
+          where: { channelId },
+          orderBy: [{ totalActivationsCount: 'desc' }, { totalCoinsSpentSum: 'desc' }],
+          take: 20,
+          select: {
+            memeId: true,
+            totalActivationsCount: true,
+            totalCoinsSpentSum: true,
+          },
+        });
+        return { rows, source: 'rollup' as const };
+      } catch (e: any) {
+        if (e?.code === 'P2021' && String(e?.meta?.table || '').includes('ChannelMemeStats30d')) {
+          const rows = await prisma.memeActivation.groupBy({
+            by: ['memeId'],
+            where: { channelId },
+            _count: { id: true },
+            _sum: { coinsSpent: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: 20,
+          });
+          return { rows, source: 'raw' as const };
+        }
+        throw e;
+      }
+    })();
+
+    const [userSpendingRes, memeStatsRes, totalActivations, totalCoinsSpent, totalMemes, daily] = await Promise.all([
+      userSpendingPromise,
+      memeStatsPromise,
       prisma.memeActivation.count({ where: { channelId } }),
       prisma.memeActivation.aggregate({ where: { channelId }, _sum: { coinsSpent: true } }),
       prisma.meme.count({ where: { channelId, status: 'approved' } }),
-      prisma.$queryRaw<Array<{ day: Date; activations: bigint; coins: bigint }>>`
-          SELECT date_trunc('day', "createdAt") as day,
-                 COUNT(*)::bigint as activations,
-                 COALESCE(SUM("coinsSpent"), 0)::bigint as coins
-          FROM "MemeActivation"
-          WHERE "channelId" = ${channelId}
-            AND "createdAt" >= (NOW() - INTERVAL '14 days')
-          GROUP BY 1
-          ORDER BY 1 ASC
-        `,
+      dailyPromise,
     ]);
 
     // Fetch user/meme details (only if needed)
-    const userIds = userSpending.map((s) => s.userId);
-    const memeIds = memeStats.map((s) => s.memeId);
+    const userIds = userSpendingRes.rows.map((s: any) => s.userId);
+    const memeIds = memeStatsRes.rows.map((s: any) => s.memeId);
 
     const [users, memes] = await Promise.all([
       userIds.length
@@ -101,23 +185,23 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
     const usersById = new Map(users.map((u) => [u.id, u]));
     const memesById = new Map(memes.map((m) => [m.id, m]));
 
-    const userSpendingOut = userSpending.map((s) => ({
+    const userSpendingOut = userSpendingRes.rows.map((s: any) => ({
       user: usersById.get(s.userId) || { id: s.userId, displayName: 'Unknown' },
-      totalCoinsSpent: s._sum.coinsSpent || 0,
-      activationsCount: s._count.id,
+      totalCoinsSpent: 'totalCoinsSpentSum' in s ? Number(s.totalCoinsSpentSum || 0) : (s._sum.coinsSpent || 0),
+      activationsCount: 'totalActivationsCount' in s ? Number(s.totalActivationsCount || 0) : s._count.id,
     }));
     // Stable ordering even when coinsSpent is 0 (e.g., channel-owner free activations).
-    userSpendingOut.sort((a, b) => {
+    userSpendingOut.sort((a: any, b: any) => {
       if (b.totalCoinsSpent !== a.totalCoinsSpent) return b.totalCoinsSpent - a.totalCoinsSpent;
       return b.activationsCount - a.activationsCount;
     });
 
-    const memePopularityOut = memeStats.map((s) => ({
+    const memePopularityOut = memeStatsRes.rows.map((s: any) => ({
       meme: memesById.get(s.memeId) || null,
-      activationsCount: s._count.id,
-      totalCoinsSpent: s._sum.coinsSpent || 0,
+      activationsCount: 'totalActivationsCount' in s ? Number(s.totalActivationsCount || 0) : s._count.id,
+      totalCoinsSpent: 'totalCoinsSpentSum' in s ? Number(s.totalCoinsSpentSum || 0) : (s._sum.coinsSpent || 0),
     }));
-    memePopularityOut.sort((a, b) => {
+    memePopularityOut.sort((a: any, b: any) => {
       if (b.activationsCount !== a.activationsCount) return b.activationsCount - a.activationsCount;
       return b.totalCoinsSpent - a.totalCoinsSpent;
     });
@@ -130,11 +214,13 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
         totalCoinsSpent: totalCoinsSpent._sum.coinsSpent || 0,
         totalMemes,
       },
-      daily: daily.map((d) => ({
-        day: d.day.toISOString(),
-        activations: Number(d.activations),
-        coins: Number(d.coins),
-      })),
+      daily,
+      rollup: {
+        // Informational: helps debugging/perf tuning without breaking clients.
+        windowDays: 30,
+        userSpendingSource: userSpendingRes.source,
+        memePopularitySource: memeStatsRes.source,
+      },
     };
 
     const body = JSON.stringify(payload);

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { runWithRequestContext, getRequestContext } from '../utils/asyncContext.js';
 
 function parseNumberEnv(name: string, fallback: number): number {
   const n = Number.parseFloat(String(process.env[name] ?? ''));
@@ -55,6 +56,9 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
       durationMs: roundedMs,
       userId: typeof anyReq.userId === 'string' ? anyReq.userId : null,
       channelId: typeof anyReq.channelId === 'string' ? anyReq.channelId : null,
+      dbQueryCount: getRequestContext()?.db.queryCount ?? 0,
+      dbMs: Math.round(getRequestContext()?.db.totalMs ?? 0),
+      dbSlowQueryCount: getRequestContext()?.db.slowQueryCount ?? 0,
     };
 
     // Always log 5xx, and always log slow requests.
@@ -73,7 +77,14 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
     }
   });
 
-  next();
+  const store = {
+    requestId,
+    userId: null,
+    channelId: null,
+    db: { queryCount: 0, totalMs: 0, slowQueryCount: 0 },
+  };
+
+  runWithRequestContext(store, () => next());
 }
 
 

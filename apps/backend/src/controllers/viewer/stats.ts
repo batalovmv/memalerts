@@ -68,6 +68,174 @@ export const getMemeStats = async (req: any, res: Response) => {
     res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
   }
 
+  // Fast path (min-load strategy): unauth + period in (day/week/month) -> use rollups.
+  // - day/week: sum daily rollups over 1/7 days
+  // - month: use 30d rollup tables (cheapest)
+  // For other periods (year/all) or when authenticated (excludes "self"), keep the live query.
+  if (canCache && (effectivePeriod === 'day' || effectivePeriod === 'week')) {
+    const windowDays = effectivePeriod === 'day' ? 1 : 7;
+    const start = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+    try {
+      // Use raw SQL to aggregate over the daily table efficiently (top-N by summed count).
+      const rows = targetChannelId
+        ? await prisma.$queryRaw<Array<{ memeId: string; cnt: bigint; coins: bigint }>>`
+            SELECT "memeId",
+                   SUM("completedActivationsCount")::bigint AS cnt,
+                   SUM("completedCoinsSpentSum")::bigint AS coins
+            FROM "ChannelMemeDailyStats"
+            WHERE "channelId" = ${targetChannelId}
+              AND "day" >= ${start}
+            GROUP BY "memeId"
+            ORDER BY cnt DESC, coins DESC
+            LIMIT ${parsedLimit}
+          `
+        : await prisma.$queryRaw<Array<{ memeId: string; cnt: bigint; coins: bigint }>>`
+            SELECT "memeId",
+                   SUM("completedActivationsCount")::bigint AS cnt,
+                   SUM("completedCoinsSpentSum")::bigint AS coins
+            FROM "GlobalMemeDailyStats"
+            WHERE "day" >= ${start}
+            GROUP BY "memeId"
+            ORDER BY cnt DESC, coins DESC
+            LIMIT ${parsedLimit}
+          `;
+
+      const memeIds = rows.map((r) => r.memeId);
+      const memes = memeIds.length
+        ? await prisma.meme.findMany({
+            where: { id: { in: memeIds } },
+            include: {
+              createdBy: { select: { id: true, displayName: true } },
+              tags: { include: { tag: true } },
+            },
+          })
+        : [];
+      const map = new Map(memes.map((m) => [m.id, m]));
+      const stats = rows.map((r) => {
+        const meme = map.get(r.memeId);
+        return {
+          meme: meme
+            ? {
+                id: meme.id,
+                title: meme.title,
+                priceCoins: meme.priceCoins,
+                tags: meme.tags,
+              }
+            : null,
+          activationsCount: Number(r.cnt || 0n),
+          totalCoinsSpent: Number(r.coins || 0n),
+        };
+      });
+
+      const payload = {
+        period: effectivePeriod,
+        startDate: startDate,
+        endDate: now,
+        stats,
+        rollup: {
+          windowDays,
+          source: targetChannelId ? 'ChannelMemeDailyStats' : 'GlobalMemeDailyStats',
+        },
+      };
+
+      const cacheKey = (req as any).__memeStatsCacheKey as string | undefined;
+      if (cacheKey) {
+        try {
+          const body = JSON.stringify(payload);
+          const etag = makeEtagFromString(body);
+          memeStatsCache.set(cacheKey, { ts: Date.now(), body, etag });
+          if (memeStatsCache.size > MEME_STATS_CACHE_MAX) memeStatsCache.clear();
+          res.setHeader('ETag', etag);
+          if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+          return res.type('application/json').send(body);
+        } catch {
+          // fall through
+        }
+      }
+      return res.json(payload);
+    } catch (e: any) {
+      // Back-compat: daily tables might not exist yet.
+      if (e?.code !== 'P2021') throw e;
+      // fall through to live query
+    }
+  }
+
+  if (canCache && effectivePeriod === 'month') {
+    try {
+      const rows = targetChannelId
+        ? await (prisma as any).channelMemeStats30d.findMany({
+            where: { channelId: targetChannelId },
+            orderBy: [{ completedActivationsCount: 'desc' }, { completedCoinsSpentSum: 'desc' }],
+            take: parsedLimit,
+            select: { memeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
+          })
+        : await (prisma as any).globalMemeStats30d.findMany({
+            orderBy: [{ completedActivationsCount: 'desc' }, { completedCoinsSpentSum: 'desc' }],
+            take: parsedLimit,
+            select: { memeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
+          });
+
+      const memeIds = rows.map((r: any) => r.memeId);
+      const memes = memeIds.length
+        ? await prisma.meme.findMany({
+            where: { id: { in: memeIds } },
+            include: {
+              createdBy: { select: { id: true, displayName: true } },
+              tags: { include: { tag: true } },
+            },
+          })
+        : [];
+
+      const map = new Map(memes.map((m) => [m.id, m]));
+      const stats = rows.map((r: any) => {
+        const meme = map.get(r.memeId);
+        return {
+          meme: meme
+            ? {
+                id: meme.id,
+                title: meme.title,
+                priceCoins: meme.priceCoins,
+                tags: meme.tags,
+              }
+            : null,
+          activationsCount: Number(r.completedActivationsCount || 0),
+          totalCoinsSpent: Number(r.completedCoinsSpentSum || 0),
+        };
+      });
+
+      const payload = {
+        period: effectivePeriod,
+        startDate,
+        endDate: now,
+        stats,
+        rollup: {
+          windowDays: 30,
+          source: targetChannelId ? 'channelMemeStats30d' : 'globalMemeStats30d',
+        },
+      };
+
+      const cacheKey = (req as any).__memeStatsCacheKey as string | undefined;
+      if (cacheKey) {
+        try {
+          const body = JSON.stringify(payload);
+          const etag = makeEtagFromString(body);
+          memeStatsCache.set(cacheKey, { ts: Date.now(), body, etag });
+          if (memeStatsCache.size > MEME_STATS_CACHE_MAX) memeStatsCache.clear();
+          res.setHeader('ETag', etag);
+          if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+          return res.type('application/json').send(body);
+        } catch {
+          // fall through
+        }
+      }
+      return res.json(payload);
+    } catch (e: any) {
+      // Back-compat: rollup tables might not exist yet.
+      if (e?.code !== 'P2021') throw e;
+      // fall through to live query
+    }
+  }
+
   // Build where clause
   const where: any = {
     status: { in: ['done', 'completed'] }, // Only count completed activations

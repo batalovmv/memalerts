@@ -6,7 +6,10 @@ import {
   setChannelMetaCacheHeaders,
   makeEtagFromString,
   ifNoneMatchHit,
+  CHANNEL_META_CACHE_MAX,
+  pruneOldestEntries,
 } from './cache.js';
+import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 
 export const getChannelBySlug = async (req: any, res: Response) => {
   const slug = String(req.params.slug || '').trim();
@@ -37,6 +40,20 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       if (cached.etag) res.setHeader('ETag', cached.etag);
       if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
       return res.json(cached.data);
+    }
+
+    // Redis shared cache (optional): reduce DB hits across instances.
+    try {
+      const rkey = nsKey('channel_meta', cacheKey);
+      const body = await redisGetString(rkey);
+      if (body) {
+        const etag = makeEtagFromString(body);
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        return res.type('application/json').send(body);
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -138,9 +155,13 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       res.setHeader('ETag', etag);
       if (ifNoneMatchHit(req, etag)) {
         channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
+        pruneOldestEntries(channelMetaCache, CHANNEL_META_CACHE_MAX);
+        void redisSetStringEx(nsKey('channel_meta', cacheKey), Math.ceil(getChannelMetaCacheMs() / 1000), body);
         return res.status(304).end();
       }
       channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
+      pruneOldestEntries(channelMetaCache, CHANNEL_META_CACHE_MAX);
+      void redisSetStringEx(nsKey('channel_meta', cacheKey), Math.ceil(getChannelMetaCacheMs() / 1000), body);
       return res.type('application/json').send(body);
     }
 
@@ -222,6 +243,8 @@ export const getChannelBySlug = async (req: any, res: Response) => {
         const etag = makeEtagFromString(body);
         res.setHeader('ETag', etag);
         channelMetaCache.set(cacheKey, { ts: Date.now(), data: response, etag });
+        pruneOldestEntries(channelMetaCache, CHANNEL_META_CACHE_MAX);
+        void redisSetStringEx(nsKey('channel_meta', cacheKey), Math.ceil(getChannelMetaCacheMs() / 1000), body);
         if (ifNoneMatchHit(req, etag)) return res.status(304).end();
         return res.type('application/json').send(body);
       }

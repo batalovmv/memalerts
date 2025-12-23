@@ -5,6 +5,7 @@ import crypto from 'crypto';
 export type CacheEntry<T> = { ts: number; data: T; etag?: string };
 export const channelMetaCache = new Map<string, CacheEntry<any>>();
 const CHANNEL_META_CACHE_MS_DEFAULT = 60_000;
+export const CHANNEL_META_CACHE_MAX = 2000;
 
 export type TagIdCacheEntry = { ts: number; id: string | null };
 export const tagIdCache = new Map<string, TagIdCacheEntry>();
@@ -136,6 +137,19 @@ export function ifNoneMatchHit(req: any, etag: string | undefined): boolean {
   const raw = Array.isArray(inm) ? inm.join(',') : String(inm);
   // Exact match (common case); we don't parse weak etags or lists deeply.
   return raw.split(',').map((s) => s.trim()).includes(etag);
+}
+
+export function pruneOldestEntries<K, V>(map: Map<K, V>, maxSize: number): void {
+  if (maxSize <= 0) return;
+  if (map.size <= maxSize) return;
+  // Map preserves insertion order. Delete oldest keys first.
+  const over = map.size - maxSize;
+  let i = 0;
+  for (const key of map.keys()) {
+    map.delete(key);
+    i += 1;
+    if (i >= over) break;
+  }
 }
 
 

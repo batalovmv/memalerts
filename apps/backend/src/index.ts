@@ -8,11 +8,15 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
+import { maybeSetupSocketIoRedisAdapter } from './socket/redisAdapter.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
 import { requestContext } from './middleware/requestContext.js';
 import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
+import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsRollup.js';
+import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
+import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
 import { logger } from './utils/logger.js';
 
 dotenv.config();
@@ -382,6 +386,10 @@ async function startServer() {
     process.exit(1);
   }
 
+  // Optional: enable Socket.IO redis adapter for horizontal scaling / shared rooms.
+  // This is safe to call even if Redis is not configured.
+  await maybeSetupSocketIoRedisAdapter(io);
+
   // Check if port is already in use
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
@@ -399,6 +407,12 @@ async function startServer() {
     console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
     // Economical storage: cleanup rejected submissions after TTL (default 30 days).
     startRejectedSubmissionsCleanupScheduler();
+    // Performance: keep daily stats rollups warm (for admin dashboards / future scale).
+    startChannelDailyStatsRollupScheduler();
+    // Performance: top-20 rollups (30d) to avoid expensive groupBy at scale.
+    startTopStats30dRollupScheduler();
+    // Performance: meme daily rollups for viewer stats (day/week/month via 1/7/30).
+    startMemeDailyStatsRollupScheduler();
   });
 }
 
