@@ -110,6 +110,8 @@
     "maxDuration": "Максимум 15 секунд",
     "maxSize": "Максимум 50МБ",
     "memalertsUrl": "URL с memalerts.com",
+    "memalertsUrlPlaceholder": "https://cdns.memealerts.com/.../alert_orig.webm",
+    "memalertsUrlExample": "Пример: https://cdns.memealerts.com/p/.../alert_orig.webm",
     "howToCopy": "Как скопировать URL видео:",
     "copyInstructions": [
       "Перейдите на memalerts.com и найдите видео",
@@ -608,7 +610,8 @@
     "allMemesLoaded": "Все мемы загружены"
   },
   "tagInput": {
-    "pressEnterToAdd": "Нажмите Enter, пробел или запятую, чтобы добавить тег. Тег — одно слово. Максимум 50 символов на тег."
+    "pressEnterToAdd": "Нажмите Enter, пробел или запятую, чтобы добавить тег. Тег — одно слово. Максимум 50 символов на тег.",
+    "removeTag": "Удалить тег"
   },
   "toast": {
     "channelNotFound": "Канал не найден",
@@ -651,8 +654,7 @@
     "hasAccess": "У вас уже есть доступ к Beta.",
     "blacklistedTitle": "Доступ запрещён",
     "blacklistedDescription": "Извините, вы не можете получить доступ к Beta, потому что вы находитесь в чёрном списке."
-  }
-  ,
+  },
   "memeModal": {
     "price": "Цена",
     "priceValue": "{{price}} монет",

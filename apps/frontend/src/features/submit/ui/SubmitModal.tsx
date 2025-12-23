@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import toast from 'react-hot-toast';
 
-import { Modal } from '@/shared/ui';
+import { Button, Input, Modal } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMemes } from '@/store/slices/memesSlice';
 import { fetchSubmissions } from '@/store/slices/submissionsSlice';
@@ -238,7 +238,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
       ariaLabel={t('submitModal.title')}
     >
       {/* Header */}
-      <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-white/20 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
+      <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-black/5 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
         <h2 className="text-xl sm:text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
         <button
           onClick={onClose}
@@ -272,8 +272,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
               onClick={() => setMode('import')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                 mode === 'import'
-                  ? 'bg-primary text-white border border-secondary/30'
-                  : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10'
               }`}
             >
               {t('submit.import')}
@@ -286,12 +286,11 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('submit.titleLabel')}
             </label>
-            <input
+            <Input
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
-              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
@@ -305,7 +304,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                 onChange={handleFileChange}
                 required
                 accept="video/*"
-                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
               {filePreview && (
@@ -313,7 +312,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     {t('submitModal.preview', 'Preview')}
                   </label>
-                  <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700">
+                  <div className="rounded-xl p-4 bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10">
                     <video src={filePreview} controls className="max-w-full max-h-64 mx-auto rounded" />
                   </div>
                 </div>
@@ -324,15 +323,14 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('submit.memalertsUrl')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.sourceUrl || ''}
                 onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
                 required
-                placeholder="https://cdns.memealerts.com/.../alert_orig.webm"
-                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                placeholder={t('submit.memalertsUrlPlaceholder', { defaultValue: 'https://cdns.memealerts.com/.../alert_orig.webm' })}
               />
-              <div className="mt-2 p-3 bg-accent/10 rounded-lg border border-accent/20">
+              <div className="mt-2 p-3 bg-accent/10 rounded-xl ring-1 ring-accent/20">
                 <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">{t('submit.howToCopy')}</p>
                 <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
                   {(t('submit.copyInstructions', { returnObjects: true }) as string[]).map(
@@ -342,7 +340,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                   )}
                 </ol>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Example: https://cdns.memealerts.com/p/.../alert_orig.webm
+                  {t('submit.memalertsUrlExample', { defaultValue: 'Example: https://cdns.memealerts.com/p/.../alert_orig.webm' })}
                 </p>
               </div>
             </div>
@@ -377,25 +375,16 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           </div>
 
           <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={loading}>
               {t('common.cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
-            >
+            </Button>
+            <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
               {loading
                 ? uploadProgress > 0
                   ? `${t('submit.submitting')} ${uploadProgress}%`
                   : t('submit.submitting')
                 : t('common.submit')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

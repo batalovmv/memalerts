@@ -1,6 +1,32 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 
+function SunIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364-1.414 1.414M7.05 16.95l-1.414 1.414m0-11.314L7.05 7.05m9.9 9.9 1.414 1.414M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+      />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"
+      />
+    </svg>
+  );
+}
+
 export default function Footer() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -27,8 +53,9 @@ export default function Footer() {
             {/* Language Toggle */}
             <button
               onClick={toggleLanguage}
-              className="text-sm hover:text-accent transition-colors px-3 py-1 rounded border border-gray-600 hover:border-accent"
+              className="text-sm font-semibold transition-colors px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 ring-1 ring-white/10 hover:ring-white/15 text-white/90 hover:text-white"
               title={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
+              aria-label={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
             >
               {currentLang}
             </button>
@@ -36,10 +63,11 @@ export default function Footer() {
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="text-sm hover:text-accent transition-colors px-3 py-1 rounded border border-gray-600 hover:border-accent"
+              className="transition-colors p-2 rounded-xl bg-white/10 hover:bg-white/15 ring-1 ring-white/10 hover:ring-white/15 text-white/90 hover:text-white"
               title={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
+              aria-label={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
             </button>
             
             <a

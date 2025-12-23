@@ -106,6 +106,8 @@
     "maxDuration": "Maximum 15 seconds",
     "maxSize": "Maximum 50MB",
     "memalertsUrl": "memalerts.com URL",
+    "memalertsUrlPlaceholder": "https://cdns.memealerts.com/.../alert_orig.webm",
+    "memalertsUrlExample": "Example: https://cdns.memealerts.com/p/.../alert_orig.webm",
     "howToCopy": "How to copy video URL:",
     "copyInstructions": [
       "Go to memalerts.com and find the video",
@@ -614,7 +616,8 @@
     "close": "Close"
   },
   "tagInput": {
-    "pressEnterToAdd": "Press Enter, space, or comma to add a tag. Tag is one word. Maximum 50 characters per tag."
+    "pressEnterToAdd": "Press Enter, space, or comma to add a tag. Tag is one word. Maximum 50 characters per tag.",
+    "removeTag": "Remove tag"
   },
   "toast": {
     "channelNotFound": "Channel not found",

@@ -5,6 +5,15 @@ import { api } from '@/lib/api';
 import Header from '@/components/Header';
 import type { Meme, Tag } from '@/types';
 import { useDebounce } from '@/hooks/useDebounce';
+import { Card, Input } from '@/shared/ui';
+
+function XSmallIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
 
 export default function Search() {
   const { t } = useTranslation();
@@ -89,51 +98,49 @@ export default function Search() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Bar */}
-        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="mb-6 surface p-6">
           <div className="mb-4">
-            <input
+            <Input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('search.placeholder')}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-lg"
+              className="text-lg px-4 py-3"
             />
           </div>
 
           {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.minPrice')}
               </label>
-              <input
+              <Input
                 type="number"
                 value={filters.minPrice}
                 onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 min="0"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.maxPrice')}
               </label>
-              <input
+              <Input
                 type="number"
                 value={filters.maxPrice}
                 onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 min="0"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.sortBy')}
               </label>
               <select
                 value={filters.sortBy}
                 onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
               >
                 <option value="createdAt">{t('search.sortDate')}</option>
                 <option value="priceCoins">{t('search.sortPrice')}</option>
@@ -141,13 +148,13 @@ export default function Search() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.order')}
               </label>
               <select
                 value={filters.sortOrder}
                 onChange={(e) => setFilters({ ...filters, sortOrder: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
               >
                 <option value="desc">{t('search.descending')}</option>
                 <option value="asc">{t('search.ascending')}</option>
@@ -158,7 +165,7 @@ export default function Search() {
           {/* Tag Filters */}
           {availableTags.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {t('search.filterByTags')}
               </label>
               <div className="flex flex-wrap gap-2">
@@ -166,14 +173,15 @@ export default function Search() {
                   <button
                     key={tag.id}
                     onClick={() => toggleTag(tag.name)}
-                    className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ring-1 ${
                       selectedTags.includes(tag.name)
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        ? 'bg-primary/10 dark:bg-primary/20 text-primary ring-primary/20'
+                        : 'bg-white/40 dark:bg-white/5 text-gray-800 dark:text-gray-200 ring-black/5 dark:ring-white/10 hover:bg-white/60 dark:hover:bg-white/10'
                     }`}
+                    aria-pressed={selectedTags.includes(tag.name)}
                   >
                     {tag.name}
-                    {selectedTags.includes(tag.name) && ' Г—'}
+                    {selectedTags.includes(tag.name) ? <XSmallIcon /> : null}
                   </button>
                 ))}
               </div>
@@ -183,7 +191,7 @@ export default function Search() {
 
         {/* Results */}
         {loading ? (
-          <div className="text-center py-8">{t('common.loading')}</div>
+          <div className="text-center py-8 text-gray-600 dark:text-gray-300">{t('common.loading')}</div>
         ) : memes.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             {query || selectedTags.length > 0
@@ -193,9 +201,10 @@ export default function Search() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {memes.map((meme) => (
-              <div
+              <Card
                 key={meme.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                hoverable
+                className="cursor-pointer overflow-hidden"
                 onClick={() => navigate(`/channel/${meme.channelId}`)}
               >
                 <div className="p-4">
@@ -211,7 +220,7 @@ export default function Search() {
                       {meme.tags.map((tagItem, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-1 bg-accent/20 text-accent rounded text-xs"
+                          className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20"
                         >
                           {tagItem.tag.name}
                         </span>
@@ -219,7 +228,7 @@ export default function Search() {
                     </div>
                   )}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}

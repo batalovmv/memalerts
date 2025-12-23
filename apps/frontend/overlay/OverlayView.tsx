@@ -1084,10 +1084,10 @@ export default function OverlayView() {
               left: safePadPx,
               right: safePadPx,
               bottom: safePadPx,
-              border: '2px dashed rgba(255,255,255,0.45)',
+              border: '1px dashed rgba(255,255,255,0.32)',
               borderRadius: 16,
-              boxShadow: '0 0 0 1px rgba(0,0,0,0.35) inset',
-              background: 'rgba(0,0,0,0.05)',
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.28) inset, 0 0 0 1px rgba(255,255,255,0.06)',
+              background: 'rgba(0,0,0,0.035)',
             }}
           />
         </div>

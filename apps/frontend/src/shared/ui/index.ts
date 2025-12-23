@@ -12,6 +12,9 @@ export type { CardProps } from './Card/Card';
 export { Input } from './Input/Input';
 export type { InputProps } from './Input/Input';
 
+export { Textarea } from './Textarea/Textarea';
+export type { TextareaProps } from './Textarea/Textarea';
+
 export { Spinner } from './Spinner/Spinner';
 export type { SpinnerProps } from './Spinner/Spinner';
 

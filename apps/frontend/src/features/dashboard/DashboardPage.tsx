@@ -11,6 +11,9 @@ import type { Meme } from '@/types';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { PendingSubmissionsPanel } from '@/components/dashboard/PendingSubmissionsPanel';
 import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
+import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
+import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesModal';
+import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const MemeModal = lazy(() => import('@/components/MemeModal'));
@@ -162,10 +165,74 @@ export default function DashboardPage() {
 
   const myChannelMemesCount = memesCount ?? 0;
 
+  const handleApprove = async () => {
+    if (!approveModal.submissionId) return;
+    const parsed = parseInt(priceCoins, 10);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      toast.error(t('admin.invalidPrice', { defaultValue: 'Price must be at least 1 coin' }));
+      return;
+    }
+    try {
+      await dispatch(approveSubmission({ submissionId: approveModal.submissionId, priceCoins: parsed })).unwrap();
+      toast.success(t('admin.approve', { defaultValue: 'Approve' }));
+      setApproveModal({ open: false, submissionId: null });
+      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+    } catch {
+      toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectModal.submissionId) return;
+    const notes = rejectReason.trim() ? rejectReason.trim() : null;
+    try {
+      await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: notes })).unwrap();
+      toast.success(t('admin.reject', { defaultValue: 'Reject' }));
+      setRejectModal({ open: false, submissionId: null });
+      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+    } catch {
+      toast.error(t('admin.failedToReject', { defaultValue: 'Failed to reject submission' }));
+    }
+  };
+
+  const handleNeedsChanges = async () => {
+    if (!needsChangesModal.submissionId) return;
+    const codes: string[] = [];
+    if (needsChangesPreset.badTitle) codes.push('bad_title');
+    if (needsChangesPreset.noTags) codes.push('no_tags');
+    if (needsChangesPreset.other) codes.push('other');
+    const msg = needsChangesText.trim();
+    const hasReason = codes.length > 0 || msg.length > 0;
+    const otherNeedsText = needsChangesPreset.other && msg.length === 0;
+    if (!hasReason || otherNeedsText) {
+      toast.error(
+        t('submissions.needsChangesReasonRequired', {
+          defaultValue: 'Select a reason or write a message.',
+        }),
+      );
+      return;
+    }
+    const packed = JSON.stringify({ v: 1, codes, message: msg });
+    try {
+      await dispatch(needsChangesSubmission({ submissionId: needsChangesModal.submissionId, moderatorNotes: packed })).unwrap();
+      toast.success(t('submissions.sentForChanges', { defaultValue: 'Sent for changes.' }));
+      setNeedsChangesModal({ open: false, submissionId: null });
+      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+    } catch {
+      toast.error(t('submissions.failedToSendForChanges', { defaultValue: 'Failed to send for changes.' }));
+    }
+  };
+
+  const needsChangesRemainingResubmits = (() => {
+    const s = submissions.find((x) => x.id === needsChangesModal.submissionId);
+    const revision = Math.max(0, Math.min(2, Number(s?.revision ?? 0) || 0));
+    return Math.max(0, 2 - revision);
+  })();
+
   if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+        <div className="text-xl">{t('common.loading', { defaultValue: 'Loading…' })}</div>
       </div>
     );
   }
@@ -370,277 +437,32 @@ export default function DashboardPage() {
         )}
       </Suspense>
 
-      {/* Approve Modal (Dashboard) */}
-      {approveModal.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setApproveModal({ open: false, submissionId: null })} />
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                <h2 className="text-2xl font-bold dark:text-white">{t('admin.approveSubmission', { defaultValue: 'Approve submission' })}</h2>
-                <button
-                  onClick={() => setApproveModal({ open: false, submissionId: null })}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  aria-label={t('common.close', { defaultValue: 'Close' })}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={priceCoins}
-                    onChange={(e) => setPriceCoins(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
-                  </p>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setApproveModal({ open: false, submissionId: null })}
-                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('common.cancel', { defaultValue: 'Cancel' })}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!approveModal.submissionId) return;
-                      const parsed = parseInt(priceCoins, 10);
-                      if (Number.isNaN(parsed) || parsed < 1) {
-                        toast.error(t('admin.invalidPrice', { defaultValue: 'Price must be at least 1 coin' }));
-                        return;
-                      }
-                      try {
-                        await dispatch(approveSubmission({ submissionId: approveModal.submissionId, priceCoins: parsed })).unwrap();
-                        toast.success(t('admin.approve', { defaultValue: 'Approve' }));
-                        setApproveModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
-                      } catch {
-                        toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
-                      }
-                    }}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('admin.approve', { defaultValue: 'Approve' })}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ApproveSubmissionModal
+        isOpen={approveModal.open}
+        priceCoins={priceCoins}
+        onPriceCoinsChange={setPriceCoins}
+        onClose={() => setApproveModal({ open: false, submissionId: null })}
+        onApprove={handleApprove}
+      />
 
-      {/* Needs Changes Modal (Dashboard) */}
-      {needsChangesModal.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setNeedsChangesModal({ open: false, submissionId: null })} />
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                <h2 className="text-2xl font-bold dark:text-white">
-                  {t('submissions.needsChangesTitle', { defaultValue: 'Send for changes' })}
-                </h2>
-                <button
-                  onClick={() => setNeedsChangesModal({ open: false, submissionId: null })}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  aria-label={t('common.close', { defaultValue: 'Close' })}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+      <NeedsChangesModal
+        isOpen={needsChangesModal.open}
+        remainingResubmits={needsChangesRemainingResubmits}
+        preset={needsChangesPreset}
+        onPresetChange={setNeedsChangesPreset}
+        message={needsChangesText}
+        onMessageChange={setNeedsChangesText}
+        onClose={() => setNeedsChangesModal({ open: false, submissionId: null })}
+        onSend={handleNeedsChanges}
+      />
 
-              <div className="p-6 space-y-4">
-                {(() => {
-                  const s = submissions.find((x) => x.id === needsChangesModal.submissionId);
-                  const revision = Math.max(0, Math.min(2, Number(s?.revision ?? 0) || 0));
-                  const left = Math.max(0, 2 - revision);
-                  return (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                      <p className="text-sm text-amber-900 dark:text-amber-100 font-medium">
-                        {t('submissions.resubmitsInfo', {
-                          defaultValue: 'User can resubmit up to {{max}} times. Remaining: {{left}}.',
-                          max: 2,
-                          left,
-                        })}
-                      </p>
-                    </div>
-                  );
-                })()}
-
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t('submissions.quickReasons', { defaultValue: 'Quick reasons' })}
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <input
-                      type="checkbox"
-                      checked={needsChangesPreset.badTitle}
-                      onChange={(e) => setNeedsChangesPreset((p) => ({ ...p, badTitle: e.target.checked }))}
-                    />
-                    {t('submissions.reasonBadTitle', { defaultValue: 'Title is not OK' })}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <input
-                      type="checkbox"
-                      checked={needsChangesPreset.noTags}
-                      onChange={(e) => setNeedsChangesPreset((p) => ({ ...p, noTags: e.target.checked }))}
-                    />
-                    {t('submissions.reasonNoTags', { defaultValue: 'No tags' })}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <input
-                      type="checkbox"
-                      checked={needsChangesPreset.other}
-                      onChange={(e) => setNeedsChangesPreset((p) => ({ ...p, other: e.target.checked }))}
-                    />
-                    {t('submissions.reasonOther', { defaultValue: 'Other (write below)' })}
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('submissions.messageToUser', { defaultValue: 'Message to user (optional)' })}
-                  </label>
-                  <textarea
-                    value={needsChangesText}
-                    onChange={(e) => setNeedsChangesText(e.target.value)}
-                    rows={4}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    placeholder={t('submissions.messagePlaceholder', { defaultValue: 'Explain what to fix…' })}
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('submissions.messageHint', { defaultValue: 'This will be shown to the submitter.' })}
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setNeedsChangesModal({ open: false, submissionId: null })}
-                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('common.cancel', { defaultValue: 'Cancel' })}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!needsChangesModal.submissionId) return;
-                      const codes: string[] = [];
-                      if (needsChangesPreset.badTitle) codes.push('bad_title');
-                      if (needsChangesPreset.noTags) codes.push('no_tags');
-                      if (needsChangesPreset.other) codes.push('other');
-                      const msg = needsChangesText.trim();
-                      const hasReason = codes.length > 0 || msg.length > 0;
-                      const otherNeedsText = needsChangesPreset.other && msg.length === 0;
-                      if (!hasReason || otherNeedsText) {
-                        toast.error(
-                          t('submissions.needsChangesReasonRequired', {
-                            defaultValue: 'Select a reason or write a message.',
-                          })
-                        );
-                        return;
-                      }
-                      const packed = JSON.stringify({ v: 1, codes, message: msg });
-                      try {
-                        await dispatch(needsChangesSubmission({ submissionId: needsChangesModal.submissionId, moderatorNotes: packed })).unwrap();
-                        toast.success(t('submissions.sentForChanges', { defaultValue: 'Sent for changes.' }));
-                        setNeedsChangesModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
-                      } catch (e: any) {
-                        toast.error(t('submissions.failedToSendForChanges', { defaultValue: 'Failed to send for changes.' }));
-                      }
-                    }}
-                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('submissions.sendForChanges', { defaultValue: 'Send' })}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reject Modal (Dashboard) */}
-      {rejectModal.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setRejectModal({ open: false, submissionId: null })} />
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                <h2 className="text-2xl font-bold dark:text-white">{t('admin.rejectSubmission', { defaultValue: 'Reject submission' })}</h2>
-                <button
-                  onClick={() => setRejectModal({ open: false, submissionId: null })}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  aria-label={t('common.close', { defaultValue: 'Close' })}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rejectionReason', { defaultValue: 'Reason (optional)' })}
-                  </label>
-                  <textarea
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    rows={4}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter a reason (optional)…' })}
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t('admin.rejectionReasonDescription', { defaultValue: 'This reason will be visible to the submitter' })}
-                  </p>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setRejectModal({ open: false, submissionId: null })}
-                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('common.cancel', { defaultValue: 'Cancel' })}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!rejectModal.submissionId) return;
-                      const notes = rejectReason.trim() ? rejectReason.trim() : null;
-                      try {
-                        await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: notes })).unwrap();
-                        toast.success(t('admin.reject', { defaultValue: 'Reject' }));
-                        setRejectModal({ open: false, submissionId: null });
-                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
-                      } catch {
-                        toast.error(t('admin.failedToReject', { defaultValue: 'Failed to reject submission' }));
-                      }
-                    }}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {t('admin.reject', { defaultValue: 'Reject' })}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <RejectSubmissionModal
+        isOpen={rejectModal.open}
+        rejectReason={rejectReason}
+        onRejectReasonChange={setRejectReason}
+        onClose={() => setRejectModal({ open: false, submissionId: null })}
+        onReject={handleReject}
+      />
     </div>
   );
 }
