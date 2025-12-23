@@ -25,6 +25,24 @@ function normalizeSlug(v: string): string {
 }
 
 function parseChannelMap(): ChannelMapEntry[] {
+  // Simple format to avoid JSON quoting issues in env:
+  // CHAT_BOT_CHANNELS=login:slug,login2:slug2
+  const simple = String(process.env.CHAT_BOT_CHANNELS || '').trim();
+  if (simple) {
+    const out: ChannelMapEntry[] = [];
+    for (const part of simple.split(',')) {
+      const p = String(part || '').trim();
+      if (!p) continue;
+      const idx = p.indexOf(':');
+      if (idx === -1) continue;
+      const login = normalizeLogin(p.slice(0, idx));
+      const slug = normalizeSlug(p.slice(idx + 1));
+      if (!login || !slug) continue;
+      out.push({ login, slug });
+    }
+    if (out.length > 0) return out;
+  }
+
   const raw = String(process.env.CHAT_BOT_CHANNEL_MAP_JSON || '').trim();
   if (!raw) return [];
   try {
