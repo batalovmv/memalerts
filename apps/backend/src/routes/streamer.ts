@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { adminController } from '../controllers/adminController.js';
+import { streamerBotController } from '../controllers/streamer/botController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -44,5 +45,9 @@ streamerRoutes.post('/credits/settings', adminController.saveCreditsSettings);
 streamerRoutes.post('/credits/token/rotate', adminController.rotateCreditsToken);
 streamerRoutes.post('/credits/reset', adminController.resetCredits);
 streamerRoutes.post('/credits/reconnect-window', adminController.setCreditsReconnectWindow);
+
+// Global chat bot subscription (joins streamer's chat as lotas_bot)
+streamerRoutes.post('/bot/enable', streamerBotController.enable);
+streamerRoutes.post('/bot/disable', streamerBotController.disable);
 
 

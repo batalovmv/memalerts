@@ -310,6 +310,31 @@ async function getAppAccessToken(): Promise<string> {
 }
 
 /**
+ * Resolve Twitch channel login (lowercase) by broadcaster/user id.
+ * Uses app access token (client_credentials), so it doesn't depend on user scopes.
+ */
+export async function getTwitchLoginByUserId(twitchUserId: string): Promise<string | null> {
+  const id = String(twitchUserId || '').trim();
+  if (!id) return null;
+  const accessToken = await getAppAccessToken();
+  const response = await fetch(`https://api.twitch.tv/helix/users?id=${encodeURIComponent(id)}`, {
+    method: 'GET',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+  const resp = await response.json();
+  const item = resp?.data?.[0];
+  const login = String(item?.login || '').trim().toLowerCase();
+  return login || null;
+}
+
+/**
  * Create EventSub subscription for channel point reward redemptions
  * Note: EventSub subscriptions require app access token, not user access token
  */
