@@ -1,16 +1,24 @@
-import express from 'express';
+import express, { type Request, type Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { setupSocketIO } from './socket/index.js';
+import { maybeSetupSocketIoRedisAdapter } from './socket/redisAdapter.js';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
+import { requestContext } from './middleware/requestContext.js';
 import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
+import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsRollup.js';
+import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
+import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
+import { logger } from './utils/logger.js';
+import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
 dotenv.config();
 
@@ -64,19 +72,28 @@ const getAllowedOrigins = () => {
     origins.push('http://localhost:5173', 'http://localhost:5174');
   }
   
-  // Log origins for debugging (always log in production for troubleshooting)
-  console.log('[Socket.IO] Allowed origins:', origins);
-  console.log('[Socket.IO] Instance type:', isBetaInstance ? 'beta' : 'production');
-  console.log('[Socket.IO] DOMAIN:', process.env.DOMAIN);
-  console.log('[Socket.IO] WEB_URL:', process.env.WEB_URL);
-  console.log('[Socket.IO] PORT:', process.env.PORT);
-  
   return origins;
 };
 
+const allowedOrigins = getAllowedOrigins();
+const shouldLogSocketOrigins =
+  String(process.env.SOCKET_ORIGINS_LOG || '').toLowerCase() === '1' ||
+  String(process.env.SOCKET_ORIGINS_LOG || '').toLowerCase() === 'true';
+if (shouldLogSocketOrigins) {
+  const isBetaInstance = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
+  logger.info('socket.allowed_origins', {
+    origins: allowedOrigins,
+    instance: isBetaInstance ? 'beta' : 'production',
+    domain: process.env.DOMAIN || null,
+    webUrl: process.env.WEB_URL || null,
+    overlayUrl: process.env.OVERLAY_URL || null,
+    port: process.env.PORT || null,
+  });
+}
+
 const io = new Server(httpServer, {
   cors: {
-    origin: getAllowedOrigins(),
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -99,6 +116,35 @@ httpServer.on('timeout', (socket) => {
 app.set('trust proxy', 1);
 
 // Middleware
+// Attach requestId early and keep access logs controlled (sampling + slow/error logs).
+app.use(requestContext);
+
+// Optional response compression (JSON/text). Can be disabled if CPU is a bottleneck or if nginx/CDN handles it.
+// Env:
+// - HTTP_COMPRESSION=0|false disables
+// - HTTP_COMPRESSION_THRESHOLD_BYTES=2048 (default in prod), 0 to compress everything
+const compressionEnabledRaw = String(process.env.HTTP_COMPRESSION ?? '').toLowerCase();
+const compressionEnabled = !(compressionEnabledRaw === '0' || compressionEnabledRaw === 'false' || compressionEnabledRaw === 'off');
+if (compressionEnabled) {
+  const thresholdRaw = parseInt(String(process.env.HTTP_COMPRESSION_THRESHOLD_BYTES ?? ''), 10);
+  const threshold =
+    Number.isFinite(thresholdRaw) && thresholdRaw >= 0
+      ? thresholdRaw
+      : (process.env.NODE_ENV === 'production' ? 2048 : 0);
+
+  app.use(
+    compression({
+      threshold,
+      filter: (req: Request, res: ExpressResponse) => {
+        // Do not compress if something already set encoding.
+        if (res.getHeader('Content-Encoding')) return false;
+        // Avoid compressing static uploads; nginx can handle these better.
+        if (req.path && String(req.path).startsWith('/uploads')) return false;
+        return compression.filter(req, res);
+      },
+    })
+  );
+}
 // Configure helmet with proper CSP
 app.use(
   helmet({
@@ -141,7 +187,7 @@ app.use(
 );
 app.use(
   cors({
-    origin: getAllowedOrigins(),
+    origin: allowedOrigins,
     credentials: true,
     exposedHeaders: ['Set-Cookie'],
   })
@@ -150,10 +196,14 @@ app.use(
 // CSRF protection for state-changing operations (must be after CORS)
 import { csrfProtection } from './middleware/csrf.js';
 app.use(csrfProtection);
-// Increase body size limit for file uploads (100MB)
-app.use(express.json({ limit: '100mb' }));
+// Body size limits:
+// - file uploads use multipart (multer) and are not affected by JSON limits
+// - keep JSON/urlencoded limits tight to avoid memory pressure under abusive/bursty traffic
+const jsonLimit = String(process.env.JSON_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '1mb' : '5mb'));
+const urlencodedLimit = String(process.env.URLENCODED_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '1mb' : '5mb'));
+app.use(express.json({ limit: jsonLimit }));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: urlencodedLimit }));
 
 // Request timeout middleware for long-running requests (like file uploads)
 app.use((req, res, next) => {
@@ -341,6 +391,10 @@ async function startServer() {
     process.exit(1);
   }
 
+  // Optional: enable Socket.IO redis adapter for horizontal scaling / shared rooms.
+  // This is safe to call even if Redis is not configured.
+  await maybeSetupSocketIoRedisAdapter(io);
+
   // Check if port is already in use
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
@@ -358,6 +412,20 @@ async function startServer() {
     console.log(`📊 Database connection: ${process.env.DATABASE_URL ? 'configured' : 'not configured'}`);
     // Economical storage: cleanup rejected submissions after TTL (default 30 days).
     startRejectedSubmissionsCleanupScheduler();
+    // Performance: keep daily stats rollups warm (for admin dashboards / future scale).
+    startChannelDailyStatsRollupScheduler();
+    // Performance: top-20 rollups (30d) to avoid expensive groupBy at scale.
+    startTopStats30dRollupScheduler();
+    // Performance: meme daily rollups for viewer stats (day/week/month via 1/7/30).
+    startMemeDailyStatsRollupScheduler();
+
+    // Optional: Twitch chat bot (collects chatters for credits overlay).
+    // Enabled via env (see CHAT_BOT_* vars).
+    try {
+      startTwitchChatBot(io);
+    } catch (e: any) {
+      console.error('Chat bot failed to start:', e?.message || e);
+    }
   });
 }
 

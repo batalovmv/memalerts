@@ -12,6 +12,7 @@ interface CacheEntry {
 
 const betaAccessCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_MAX_SIZE = 50_000;
 
 function getCachedBetaAccess(userId: string): boolean | null {
   const entry = betaAccessCache.get(userId);
@@ -31,6 +32,10 @@ function setCachedBetaAccess(userId: string, hasAccess: boolean): void {
     hasAccess,
     timestamp: Date.now(),
   });
+  if (betaAccessCache.size > CACHE_MAX_SIZE) {
+    // Simple protection against unbounded memory growth on abusive traffic.
+    betaAccessCache.clear();
+  }
 }
 
 // Export function to invalidate cache (used after granting beta access)

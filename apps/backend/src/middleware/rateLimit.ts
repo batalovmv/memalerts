@@ -1,6 +1,7 @@
 import rateLimit from 'express-rate-limit';
 import { Request } from 'express';
 import { logger } from '../utils/logger.js';
+import { maybeCreateRateLimitStore } from '../utils/rateLimitRedisStore.js';
 
 // Get whitelist IPs from environment variable (comma-separated)
 const getWhitelistIPs = (): string[] => {
@@ -67,6 +68,9 @@ export const globalLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Redis-backed store (optional): makes limits consistent across processes/instances.
+  // If Redis is not configured, express-rate-limit will use its default memory store.
+  store: maybeCreateRateLimitStore('global'),
   skip: (req) => {
     // Skip rate limiting for health check endpoint
     if (req.path === '/health') {
@@ -140,6 +144,7 @@ export const activateMemeLimiter = rateLimit({
   message: 'Too many activation requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  store: maybeCreateRateLimitStore('activateMeme'),
   skip: (req) => {
     // Check if IP is whitelisted
     const whitelistIPs = getWhitelistIPs();
@@ -170,6 +175,7 @@ export const uploadLimiter = rateLimit({
   message: 'Too many upload requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  store: maybeCreateRateLimitStore('upload'),
   keyGenerator: (req) => {
     // Prefer per-user limiting for authenticated routes; fallback to IP.
     // This avoids punishing users behind NAT/mobile carriers.

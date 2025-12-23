@@ -49,7 +49,7 @@ export const authController = {
     // In production, use proper session storage or signed cookies
     const clientId = process.env.TWITCH_CLIENT_ID;
     const redirectUri = encodeURIComponent(process.env.TWITCH_CALLBACK_URL || '');
-    const scopes = encodeURIComponent('user:read:email channel:read:redemptions channel:manage:redemptions');
+    const scopes = encodeURIComponent('user:read:email channel:read:redemptions channel:manage:redemptions chat:read chat:edit');
 
     if (!clientId) {
       console.error('TWITCH_CLIENT_ID is not set');
@@ -102,6 +102,18 @@ export const authController = {
   },
 
   handleTwitchCallback: async (req: AuthRequest, res: Response) => {
+    // IMPORTANT: avoid `channel: true` in includes here.
+    // If DB is temporarily behind migrations, selecting all Channel columns will throw (P2022).
+    const safeChannelSelect = {
+      id: true,
+      slug: true,
+      name: true,
+      twitchChannelId: true,
+      rewardIdForCoins: true,
+      coinPerPointRatio: true,
+      createdAt: true,
+    } as const;
+
     const { code, error, state } = req.query;
 
     // Extract origin from state if present
@@ -205,7 +217,7 @@ export const authController = {
       try {
         user = await prisma.user.findUnique({
           where: { twitchUserId: twitchUser.id },
-          include: { wallets: true, channel: true },
+          include: { wallets: true, channel: { select: safeChannelSelect } },
         });
       } catch (error: any) {
         // If error is about missing columns, try query without color fields
@@ -215,15 +227,7 @@ export const authController = {
             include: { 
               wallets: true,
               channel: {
-                select: {
-                  id: true,
-                  slug: true,
-                  name: true,
-                  twitchChannelId: true,
-                  rewardIdForCoins: true,
-                  coinPerPointRatio: true,
-                  createdAt: true,
-                },
+                select: safeChannelSelect,
               },
             },
           });
@@ -300,7 +304,7 @@ export const authController = {
               },
               include: {
                 wallets: true,
-                channel: true,
+                channel: { select: safeChannelSelect },
               },
             });
 
@@ -318,7 +322,7 @@ export const authController = {
             // Fetch user with wallets after creation
             const userWithWallets = await tx.user.findUnique({
               where: { id: newUser.id },
-              include: { wallets: true, channel: true },
+              include: { wallets: true, channel: { select: safeChannelSelect } },
             });
             debugLog('Created new user:', { userId: newUser.id });
             return userWithWallets!;
@@ -337,7 +341,7 @@ export const authController = {
                 profileImageUrl: twitchUser.profile_image_url || null,
                 displayName: twitchUser.display_name,
               },
-              include: { wallets: true, channel: true },
+              include: { wallets: true, channel: { select: safeChannelSelect } },
             });
             if (!user) {
               throw new Error('Failed to create or find user');
@@ -357,7 +361,7 @@ export const authController = {
             profileImageUrl: twitchUser.profile_image_url || null,
             displayName: twitchUser.display_name,
           },
-          include: { wallets: true, channel: true },
+          include: { wallets: true, channel: { select: safeChannelSelect } },
         });
       }
 
@@ -377,7 +381,7 @@ export const authController = {
             });
             user = await prisma.user.findUnique({
               where: { id: user.id },
-              include: { wallets: true, channel: true },
+              include: { wallets: true, channel: { select: safeChannelSelect } },
             });
             debugLog('Wallet created for channel');
           } catch (error: any) {
@@ -386,7 +390,7 @@ export const authController = {
               // Wallet might have been created by another request, try to fetch user again
               user = await prisma.user.findUnique({
                 where: { id: user.id },
-                include: { wallets: true, channel: true },
+                include: { wallets: true, channel: { select: safeChannelSelect } },
               });
             }
           }

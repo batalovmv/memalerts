@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const memeTypeSchema = z.enum(['image', 'gif', 'video', 'audio']);
 export const memeStatusSchema = z.enum(['pending', 'approved', 'rejected']);
-export const submissionStatusSchema = z.enum(['pending', 'approved', 'rejected']);
+export const submissionStatusSchema = z.enum(['pending', 'needs_changes', 'approved', 'rejected']);
 export const activationStatusSchema = z.enum(['queued', 'playing', 'done', 'failed']);
 export const userRoleSchema = z.enum(['viewer', 'streamer', 'admin']);
 
@@ -28,6 +28,16 @@ export const approveSubmissionSchema = z.object({
 
 export const rejectSubmissionSchema = z.object({
   moderatorNotes: z.string().max(1000).optional().nullable(),
+});
+
+export const needsChangesSubmissionSchema = z.object({
+  moderatorNotes: z.string().min(1).max(1000),
+});
+
+export const resubmitSubmissionSchema = z.object({
+  title: z.string().min(1).max(200),
+  notes: z.string().max(500).optional().nullable(),
+  tags: z.array(z.string().min(1).max(50)).optional().default([]),
 });
 
 export const updateMemeSchema = z.object({

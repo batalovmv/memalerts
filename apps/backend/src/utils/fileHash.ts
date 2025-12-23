@@ -1,23 +1,41 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { validatePathWithinDirectory } from './pathSecurity.js';
 import { prisma } from '../lib/prisma.js';
 import https from 'https';
 import http from 'http';
+import { Semaphore, parsePositiveIntEnv } from './semaphore.js';
+import { getStorageProvider } from '../storage/index.js';
+
+const hashConcurrency = parsePositiveIntEnv(
+  'FILE_HASH_CONCURRENCY',
+  process.env.NODE_ENV === 'production' ? 2 : 4
+);
+const hashSemaphore = new Semaphore(hashConcurrency);
+
+async function safeUnlink(filePath: string): Promise<void> {
+  try {
+    await fs.promises.unlink(filePath);
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Calculate SHA-256 hash of a file
  */
 export async function calculateFileHash(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
+  return hashSemaphore.use(
+    () =>
+      new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(filePath);
 
-    stream.on('data', (data) => hash.update(data));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
-  });
+        stream.on('data', (data) => hash.update(data));
+        stream.on('end', () => resolve(hash.digest('hex')));
+        stream.on('error', reject);
+      })
+  );
 }
 
 /**
@@ -78,9 +96,7 @@ export async function findOrCreateFileHash(
 
     // Delete temp file since we're using existing one
     try {
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+      await safeUnlink(tempFilePath);
     } catch (error) {
       console.warn('Failed to delete temp file:', error);
     }
@@ -89,34 +105,27 @@ export async function findOrCreateFileHash(
   }
 
   // File doesn't exist - move temp file to permanent location
-  const ext = path.extname(tempFilePath);
-  const permanentDir = path.join(process.cwd(), 'uploads', 'memes');
-  const permanentPath = path.join(permanentDir, `${hash}${ext}`);
-
-  // Ensure directory exists
-  if (!fs.existsSync(permanentDir)) {
-    fs.mkdirSync(permanentDir, { recursive: true });
-  }
-
-  // Move file
-  if (fs.existsSync(tempFilePath)) {
-    fs.renameSync(tempFilePath, permanentPath);
-  } else {
-    throw new Error('Temp file not found');
-  }
+  const extWithDot = path.extname(tempFilePath) || '';
+  const storage = getStorageProvider();
+  const stored = await storage.storeMemeFromTemp({
+    tempFilePath,
+    hash,
+    extWithDot,
+    mimeType,
+  });
 
   // Create FileHash record
   await prisma.fileHash.create({
     data: {
       hash,
-      filePath: `/uploads/memes/${hash}${ext}`,
+      filePath: stored.publicPath,
       referenceCount: 1,
       fileSize,
       mimeType,
     },
   });
 
-  return { filePath: `/uploads/memes/${hash}${ext}`, isNew: true };
+  return { filePath: stored.publicPath, isNew: true };
 }
 
 /**
@@ -148,21 +157,11 @@ export async function decrementFileHashReference(hash: string): Promise<void> {
 
   if (fileHash.referenceCount <= 1) {
     // Last reference - delete file and record
-    // Validate path to prevent path traversal attacks
     try {
-      const uploadsDir = path.join(process.cwd(), 'uploads');
-      const filePath = validatePathWithinDirectory(fileHash.filePath, uploadsDir);
-      
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      } catch (error) {
-        console.error(`Failed to delete file ${filePath}:`, error);
-      }
-    } catch (pathError: any) {
-      console.error(`Path validation failed for fileHash.filePath: ${fileHash.filePath}`, pathError.message);
-      // Don't delete if path is invalid - security risk
+      const storage = getStorageProvider();
+      await storage.deleteByPublicPath(String(fileHash.filePath || ''));
+    } catch (e: any) {
+      console.error(`Failed to delete storage object for hash=${hash}:`, e?.message || e);
     }
 
     await prisma.fileHash.delete({
@@ -230,7 +229,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
         const redirectUrl = response.headers.location;
         if (!redirectUrl) {
           file.close();
-          fs.unlinkSync(tempFilePath);
+          void safeUnlink(tempFilePath);
           reject(new Error('Redirect location not found'));
           return;
         }
@@ -240,7 +239,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
 
       if (response.statusCode !== 200) {
         file.close();
-        fs.unlinkSync(tempFilePath);
+        void safeUnlink(tempFilePath);
         reject(new Error(`Failed to download file: ${response.statusCode} ${response.statusMessage}`));
         return;
       }
@@ -257,7 +256,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
 
       file.on('error', (err) => {
         file.close();
-        fs.unlinkSync(tempFilePath);
+        void safeUnlink(tempFilePath);
         reject(err);
       });
     });
@@ -265,9 +264,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
     request.on('error', (err) => {
       clearTimeout(timeoutId);
       file.close();
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+      void safeUnlink(tempFilePath);
       reject(err);
     });
 
@@ -275,9 +272,7 @@ export async function downloadFileFromUrl(url: string, tempDir?: string): Promis
     timeoutId = setTimeout(() => {
       request.destroy();
       file.close();
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+      void safeUnlink(tempFilePath);
       reject(new Error('Download timeout'));
     }, timeout);
     
@@ -327,9 +322,7 @@ export async function downloadAndDeduplicateFile(
 
         // Delete temp file since we're using existing one
         try {
-          if (fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
-          }
+          await safeUnlink(tempFilePath);
         } catch (error) {
           console.warn('Failed to delete temp downloaded file:', error);
         }
@@ -337,44 +330,33 @@ export async function downloadAndDeduplicateFile(
         return { filePath: existing.filePath, fileHash: hash, isNew: false };
       }
 
-      // File doesn't exist - move temp file to permanent location
-      const ext = path.extname(tempFilePath);
-      const permanentDir = path.join(process.cwd(), 'uploads', 'memes');
-      const permanentPath = path.join(permanentDir, `${hash}${ext}`);
-
-      // Ensure directory exists
-      if (!fs.existsSync(permanentDir)) {
-        fs.mkdirSync(permanentDir, { recursive: true });
-      }
-
-      // Move file
-      if (fs.existsSync(tempFilePath)) {
-        fs.renameSync(tempFilePath, permanentPath);
-      } else {
-        throw new Error('Temp downloaded file not found');
-      }
-
-      // Get file stats
-      const stats = await getFileStats(permanentPath);
+      // File doesn't exist - store it via the configured storage provider (local or S3-compatible).
+      const extWithDot = path.extname(tempFilePath) || '';
+      const stats = await getFileStats(tempFilePath);
+      const storage = getStorageProvider();
+      const stored = await storage.storeMemeFromTemp({
+        tempFilePath,
+        hash,
+        extWithDot,
+        mimeType: stats.mimeType,
+      });
 
       // Create FileHash record
       await prisma.fileHash.create({
         data: {
           hash,
-          filePath: `/uploads/memes/${hash}${ext}`,
+          filePath: stored.publicPath,
           referenceCount: 1,
           fileSize: stats.size,
           mimeType: stats.mimeType,
         },
       });
 
-      return { filePath: `/uploads/memes/${hash}${ext}`, fileHash: hash, isNew: true };
+      return { filePath: stored.publicPath, fileHash: hash, isNew: true };
     } catch (error: any) {
       // Clean up temp file on error
       try {
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
+        await safeUnlink(tempFilePath);
       } catch (cleanupError) {
         console.warn('Failed to cleanup temp file:', cleanupError);
       }

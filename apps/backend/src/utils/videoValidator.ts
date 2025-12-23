@@ -2,11 +2,17 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import path from 'path';
 import fs from 'fs';
+import { Semaphore, parsePositiveIntEnv } from './semaphore.js';
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const MAX_DURATION_SECONDS = 15; // 15 seconds max
+const ffprobeConcurrency = parsePositiveIntEnv(
+  'VIDEO_FFPROBE_CONCURRENCY',
+  process.env.NODE_ENV === 'production' ? 2 : 4
+);
+const ffprobeSemaphore = new Semaphore(ffprobeConcurrency);
 
 export interface VideoMetadata {
   duration: number; // in seconds
@@ -20,59 +26,68 @@ export interface VideoMetadata {
  * Returns null if ffprobe is not available or video cannot be analyzed
  */
 export async function getVideoMetadata(filePath: string): Promise<VideoMetadata | null> {
-  return new Promise((resolve, reject) => {
-    if (!fs.existsSync(filePath)) {
-      reject(new Error('Video file not found'));
-      return;
-    }
+  let stats: fs.Stats;
+  try {
+    stats = await fs.promises.stat(filePath);
+  } catch {
+    throw new Error('Video file not found');
+  }
 
-    const stats = fs.statSync(filePath);
-    
-    // Set timeout for ffprobe operation (10 seconds)
-    const timeout = setTimeout(() => {
-      console.warn('ffprobe timeout, using file size only');
-      resolve({
-        duration: 0, // Unknown duration
-        size: stats.size,
-      });
-    }, 10000); // 10 second timeout
-    
-    try {
-      ffmpeg.ffprobe(filePath, (err: Error | null, metadata: any) => {
-        clearTimeout(timeout);
-        
-        if (err) {
-          // If ffprobe fails, we can't validate duration, but we can still return file size
-          console.warn('Failed to get video metadata with ffprobe:', err.message);
+  return ffprobeSemaphore.use(
+    () =>
+      new Promise((resolve) => {
+        let done = false;
+
+        // Set timeout for ffprobe operation (10 seconds)
+        const timeout = setTimeout(() => {
+          if (done) return;
+          done = true;
+          console.warn('ffprobe timeout, using file size only');
           resolve({
             duration: 0, // Unknown duration
             size: stats.size,
           });
-          return;
+        }, 10000);
+
+        try {
+          ffmpeg.ffprobe(filePath, (err: Error | null, metadata: any) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timeout);
+
+            if (err) {
+              console.warn('Failed to get video metadata with ffprobe:', err.message);
+              resolve({
+                duration: 0,
+                size: stats.size,
+              });
+              return;
+            }
+
+            const duration = metadata?.format?.duration || 0;
+            const videoStream = metadata?.streams?.find((s: any) => s.codec_type === 'video');
+            const width = videoStream?.width;
+            const height = videoStream?.height;
+
+            resolve({
+              duration,
+              width,
+              height,
+              size: stats.size,
+            });
+          });
+        } catch (error: any) {
+          if (done) return;
+          done = true;
+          clearTimeout(timeout);
+          console.warn('Error calling ffprobe:', error.message);
+          resolve({
+            duration: 0,
+            size: stats.size,
+          });
         }
-
-        const duration = metadata.format.duration || 0;
-        
-        const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video');
-        const width = videoStream?.width;
-        const height = videoStream?.height;
-
-        resolve({
-          duration,
-          width,
-          height,
-          size: stats.size,
-        });
-      });
-    } catch (error: any) {
-      clearTimeout(timeout);
-      console.warn('Error calling ffprobe:', error.message);
-      resolve({
-        duration: 0,
-        size: stats.size,
-      });
-    }
-  });
+      })
+  );
 }
 
 /**

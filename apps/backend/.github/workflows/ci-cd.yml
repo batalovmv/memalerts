@@ -49,7 +49,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,7 +57,17 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Prisma schema (drift guard)
+        run: pnpm -s schema:check
+
+      - name: Check migrations (shared DB guard)
+        env:
+          # On PR: compare base -> HEAD. On push: compare github.event.before -> github.sha.
+          MIGRATIONS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          MIGRATIONS_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm -s migrations:check
 
       - name: Generate Prisma Client
         env:
@@ -79,6 +89,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: true
     
     steps:
       - name: Checkout code
@@ -87,7 +100,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -95,7 +108,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build API
         run: pnpm build
@@ -119,7 +132,7 @@ jobs:
           username: ${{ secrets.VPS_USER || 'deploy' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "src,prisma,package.json,tsconfig.json,.github"
+          source: "src,prisma,scripts,package.json,tsconfig.json,pnpm-lock.yaml,pnpm-workspace.yaml,.github"
           target: "/opt/memalerts-backend"
           strip_components: 0
           rm: false
@@ -203,8 +216,15 @@ jobs:
             # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
 
-            # Debug logging (beta only)
-            DEBUG_LOGS=1
+            # Global chat bot runner (DB subscriptions)
+            # Runs as separate PM2 process: memalerts-chatbot (single process posting to both prod+beta backends)
+            CHAT_BOT_LOGIN=${{ secrets.CHAT_BOT_LOGIN || 'lotas_bot' }}
+            # Optional: explicit bot user mapping (recommended)
+            CHAT_BOT_USER_ID=${{ secrets.CHAT_BOT_USER_ID || '' }}
+            CHAT_BOT_TWITCH_USER_ID=${{ secrets.CHAT_BOT_TWITCH_USER_ID || '' }}
+            # Runner settings
+            CHATBOT_BACKEND_BASE_URLS=http://127.0.0.1:3001,http://127.0.0.1:3002
+            CHATBOT_SYNC_SECONDS=${{ secrets.CHATBOT_SYNC_SECONDS || '30' }}
             EOF
             
             # Ensure uploads directory exists
@@ -292,6 +312,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            set -euo pipefail
             cd /opt/memalerts-backend
             
             # Code is already copied via SCP, no need for git pull
@@ -306,7 +327,7 @@ jobs:
             
             # Install all dependencies (including devDependencies for build)
             echo "Installing dependencies..."
-            pnpm install
+            pnpm install --frozen-lockfile
             
             # Build the project
             echo "Building project..."
@@ -319,6 +340,8 @@ jobs:
             # Run migrations
             echo "Running database migrations..."
             pnpm prisma migrate deploy
+            echo "Verifying database migration status..."
+            pnpm prisma migrate status
             
             # Verify dist directory exists
             if [ ! -f dist/index.js ]; then
@@ -373,6 +396,22 @@ jobs:
                 exit 1
               }
               echo "✅ Backend health check passed"
+
+              # Start/update global chat bot runner (best-effort; don't block deploy if tokens are missing)
+              echo ""
+              echo "Starting/updating chat bot runner with PM2..."
+              if [ ! -f dist/bots/chatbotRunner.js ]; then
+                echo "⚠️  dist/bots/chatbotRunner.js not found - skipping chat bot start"
+              else
+                pm2 stop memalerts-chatbot 2>/dev/null || true
+                pm2 delete memalerts-chatbot 2>/dev/null || true
+                pm2 start dist/bots/chatbotRunner.js --name memalerts-chatbot --update-env
+                pm2 save
+                sleep 2
+                pm2 list | grep memalerts-chatbot || true
+                echo "Recent chat bot logs:"
+                pm2 logs memalerts-chatbot --lines 30 --nostream || true
+              fi
             else
               echo "❌ Backend failed to start"
               echo "PM2 status:"
@@ -388,6 +427,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    concurrency:
+      group: deploy-beta
+      cancel-in-progress: true
     
     steps:
       - name: Checkout code
@@ -396,7 +438,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -404,7 +446,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build API
         run: pnpm build
@@ -428,7 +470,7 @@ jobs:
           username: ${{ secrets.VPS_USER || 'deploy' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "src,prisma,package.json,tsconfig.json,.github"
+          source: "src,prisma,scripts,package.json,tsconfig.json,pnpm-lock.yaml,pnpm-workspace.yaml,.github"
           target: "/opt/memalerts-backend-beta"
           strip_components: 0
           rm: false
@@ -454,10 +496,20 @@ jobs:
             fi
             
             # Create .env file with beta port
-            # IMPORTANT: Beta now uses the same database as production to avoid data duplication
-            # This ensures users see the same data on both domains
-            # Use DATABASE_URL (production database) for beta as well
-            BETA_DB_URL="${{ secrets.DATABASE_URL }}"
+            #
+            # Database mode:
+            # - shared (default): beta uses the same DB as production (same data, different functionality)
+            # - separate: beta uses DATABASE_URL_BETA (safe staging)
+            BETA_DB_MODE="${{ secrets.BETA_DB_MODE || 'shared' }}"
+            if [ "$BETA_DB_MODE" = "separate" ]; then
+              BETA_DB_URL="${{ secrets.DATABASE_URL_BETA }}"
+            else
+              BETA_DB_URL="${{ secrets.DATABASE_URL }}"
+            fi
+            if [ -z "$BETA_DB_URL" ]; then
+              echo "❌ ERROR: BETA_DB_URL is empty. Check secrets: DATABASE_URL and/or DATABASE_URL_BETA."
+              exit 1
+            fi
             
             # Validate DATABASE_URL format before creating .env
             echo "Validating DATABASE_URL format..."
@@ -526,7 +578,7 @@ jobs:
             echo "✅ DATABASE_URL format validation passed"
             
             cat > .env << EOF
-            # Database (beta instance - uses same database as production to avoid data duplication)
+            # Database (beta instance)
             DATABASE_URL=$BETA_DB_URL
             
             # Server
@@ -560,6 +612,18 @@ jobs:
             # Rate Limiting
             # Whitelist IPs (comma-separated) - these IPs bypass rate limiting but are still logged
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
+
+            # Global chat bot runner (DB subscriptions)
+            # NOTE: single bot process runs on production deploy and posts to both 3001+3002.
+            # Keeping these vars for back-compat / local runs; beta deploy does not start the bot.
+            CHAT_BOT_LOGIN=${{ secrets.CHAT_BOT_LOGIN || 'lotas_bot' }}
+            CHAT_BOT_USER_ID=${{ secrets.CHAT_BOT_USER_ID || '' }}
+            CHAT_BOT_TWITCH_USER_ID=${{ secrets.CHAT_BOT_TWITCH_USER_ID || '' }}
+            CHATBOT_BACKEND_BASE_URLS=http://127.0.0.1:3001,http://127.0.0.1:3002
+            CHATBOT_SYNC_SECONDS=${{ secrets.CHATBOT_SYNC_SECONDS || '30' }}
+
+            # Debug logging (beta only)
+            DEBUG_LOGS=1
             EOF
             
             # Ensure uploads directory exists
@@ -675,11 +739,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            set -euo pipefail
             cd /opt/memalerts-backend-beta
             
             # Install all dependencies
             echo "Installing dependencies..."
-            pnpm install
+            pnpm install --frozen-lockfile
             
             # Build the project
             echo "Building project..."
@@ -692,6 +757,8 @@ jobs:
             # Run migrations
             echo "Running database migrations..."
             pnpm prisma migrate deploy
+            echo "Verifying database migration status..."
+            pnpm prisma migrate status
             
             # Verify dist directory exists
             if [ ! -f dist/index.js ]; then
@@ -740,6 +807,8 @@ jobs:
                 exit 1
               }
               echo "✅ Beta backend health check passed"
+
+              # Bot runner is started on production deploy (single process posting to both instances).
             else
               echo "❌ Beta backend failed to start"
               pm2 logs memalerts-api-beta --lines 100 --nostream

@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { decrementFileHashReference, getFileHashByPath } from '../utils/fileHash.js';
+import { releaseAdvisoryLock, tryAcquireAdvisoryLock } from '../utils/pgAdvisoryLock.js';
 
 type CleanupOptions = {
   /** Delete rejected submissions older than this many days. */
@@ -78,12 +79,17 @@ export function startRejectedSubmissionsCleanupScheduler() {
   const initialDelayMs = parseInt(process.env.REJECTED_SUBMISSIONS_CLEANUP_INITIAL_DELAY_MS || String(5 * 60 * 1000), 10); // 5 min
 
   let running = false;
+  // Ensure only one instance (prod or beta) runs cleanup on shared DB.
+  const lockId = 421340n;
 
   const runOnce = async () => {
     if (running) return;
     running = true;
     const startedAt = Date.now();
+    let locked = false;
     try {
+      locked = await tryAcquireAdvisoryLock(lockId);
+      if (!locked) return;
       const res = await cleanupRejectedSubmissions({
         ttlDays: Number.isFinite(ttlDays) ? ttlDays : 30,
         batchSize: Number.isFinite(batchSize) ? batchSize : 200,
@@ -102,6 +108,7 @@ export function startRejectedSubmissionsCleanupScheduler() {
         errorMessage: e?.message,
       });
     } finally {
+      if (locked) await releaseAdvisoryLock(lockId);
       running = false;
     }
   };

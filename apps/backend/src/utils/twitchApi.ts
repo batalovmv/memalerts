@@ -310,6 +310,31 @@ async function getAppAccessToken(): Promise<string> {
 }
 
 /**
+ * Resolve Twitch channel login (lowercase) by broadcaster/user id.
+ * Uses app access token (client_credentials), so it doesn't depend on user scopes.
+ */
+export async function getTwitchLoginByUserId(twitchUserId: string): Promise<string | null> {
+  const id = String(twitchUserId || '').trim();
+  if (!id) return null;
+  const accessToken = await getAppAccessToken();
+  const response = await fetch(`https://api.twitch.tv/helix/users?id=${encodeURIComponent(id)}`, {
+    method: 'GET',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+  const resp = await response.json();
+  const item = resp?.data?.[0];
+  const login = String(item?.login || '').trim().toLowerCase();
+  return login || null;
+}
+
+/**
  * Create EventSub subscription for channel point reward redemptions
  * Note: EventSub subscriptions require app access token, not user access token
  */
@@ -352,6 +377,80 @@ export async function createEventSubSubscription(
   }
 
   return response.json();
+}
+
+/**
+ * Create EventSub subscription (generic).
+ * Note: EventSub subscriptions require app access token, not user access token.
+ */
+export async function createEventSubSubscriptionOfType(opts: {
+  type: string;
+  version?: string;
+  broadcasterId: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<any> {
+  const accessToken = await getAppAccessToken();
+  const version = String(opts.version || '1');
+
+  const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+    method: 'POST',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      type: opts.type,
+      version,
+      condition: {
+        broadcaster_user_id: opts.broadcasterId,
+      },
+      transport: {
+        method: 'webhook',
+        callback: opts.webhookUrl,
+        secret: opts.secret,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    const err = new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+    (err as any).status = response.status;
+    (err as any).body = errorText;
+    throw err;
+  }
+
+  return response.json();
+}
+
+export async function createStreamOnlineEventSubSubscription(opts: {
+  broadcasterId: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<any> {
+  return createEventSubSubscriptionOfType({
+    type: 'stream.online',
+    version: '1',
+    broadcasterId: opts.broadcasterId,
+    webhookUrl: opts.webhookUrl,
+    secret: opts.secret,
+  });
+}
+
+export async function createStreamOfflineEventSubSubscription(opts: {
+  broadcasterId: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<any> {
+  return createEventSubSubscriptionOfType({
+    type: 'stream.offline',
+    version: '1',
+    broadcasterId: opts.broadcasterId,
+    webhookUrl: opts.webhookUrl,
+    secret: opts.secret,
+  });
 }
 
 /**

@@ -289,8 +289,12 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Admin routes - increased timeouts for approval operations
-    location ~ ^/admin {
+    # Control panel routes (historical /admin + new /streamer and /owner)
+    # IMPORTANT: These must be proxied to backend. Otherwise they fall through to SPA static handler:
+    # - GET may return index.html with 200 (breaking JSON clients)
+    # - PATCH/PUT/DELETE may return 405 Method Not Allowed
+    # Increased timeouts for panel operations (approvals, settings saves, etc.)
+    location ~ ^/(admin|streamer|owner) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -507,8 +511,8 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Admin routes
-    location ~ ^/admin {
+    # Control panel routes (beta) (historical /admin + new /streamer and /owner)
+    location ~ ^/(admin|streamer|owner) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -753,8 +757,8 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Admin routes - increased timeouts for approval operations
-    location ~ ^/admin {
+    # Control panel routes (historical /admin + new /streamer and /owner)
+    location ~ ^/(admin|streamer|owner) {
         proxy_pass http://localhost:$BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -954,8 +958,8 @@ server {
         proxy_read_timeout 300s;
     }
     
-    # Admin routes
-    location ~ ^/admin {
+    # Control panel routes (beta) (historical /admin + new /streamer and /owner)
+    location ~ ^/(admin|streamer|owner) {
         proxy_pass http://localhost:$BETA_BACKEND_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
