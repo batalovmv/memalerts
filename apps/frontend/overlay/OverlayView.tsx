@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+
+import { clampFloat, clampInt } from './lib/math';
+import { useOverlayParams } from './model/useOverlayParams';
 import { getSocketBaseUrl, resolveMediaUrl } from './urls';
-import { isHexColor } from './lib/color';
-import { clampAlpha, clampDeg, clampFloat, clampInt } from './lib/math';
-import { mulberry32 } from './lib/random';
+
 import type {
   Activation,
-  OverlayAnim,
   OverlayConfig,
   OverlayMode,
-  OverlayPosition,
   QueuedActivation,
 } from './overlay-view/types';
 
@@ -41,13 +40,14 @@ export default function OverlayView() {
   const fadeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
+    const onMessage = (event: MessageEvent<unknown>) => {
       // Only accept messages from same-origin parent (Admin page).
       if (event.origin !== window.location.origin) return;
-      const data = event.data as any;
+      const data: unknown = event.data;
       if (!data || typeof data !== 'object') return;
-      if (data.type !== 'memalerts:overlayParams') return;
-      const params = data.params as Record<string, unknown>;
+      const msg = data as { type?: unknown; params?: unknown };
+      if (msg.type !== 'memalerts:overlayParams') return;
+      const params = msg.params as Record<string, unknown>;
       if (!params || typeof params !== 'object') return;
       const next: Record<string, string> = {};
       for (const [k, v] of Object.entries(params)) {
@@ -81,238 +81,66 @@ export default function OverlayView() {
     [liveParams, searchParams]
   );
 
-  const scale = parseFloat(getParam('scale') || '1');
-  const urlScaleMode = String(getParam('scaleMode') || '').trim().toLowerCase();
-  const urlScaleFixed = parseFloat(String(getParam('scaleFixed') || ''));
-  const urlScaleMin = parseFloat(String(getParam('scaleMin') || ''));
-  const urlScaleMax = parseFloat(String(getParam('scaleMax') || ''));
-  const position = (getParam('position') || 'random').toLowerCase() as OverlayPosition;
-  const volume = parseFloat(getParam('volume') || '1');
-  const demo = (getParam('demo') || '') === '1';
-  const parseJsonStringArray = (raw: unknown): string[] => {
-    if (typeof raw !== 'string') return [];
-    const s = raw.trim();
-    if (!s) return [];
-    try {
-      const j = JSON.parse(s) as unknown;
-      if (!Array.isArray(j)) return [];
-      return j.map((v) => String(v ?? '').trim()).filter(Boolean);
-    } catch {
-      return [];
-    }
-  };
-
-  // Preview media can be provided either via URL (previewUrl/previewType)
-  // or via postMessage live params (previewUrls/previewTypes as JSON arrays).
-  // IMPORTANT: depend on the specific param strings, not the whole liveParams object,
-  // otherwise every postMessage (even unrelated sliders like volume) would allocate new arrays,
-  // change callback identities, and re-seed demo previews (causing "teleporting" memes).
-  const livePreviewUrls = useMemo(() => parseJsonStringArray(liveParams.previewUrls), [liveParams.previewUrls]);
-  const livePreviewTypes = useMemo(
-    () => parseJsonStringArray(liveParams.previewTypes).map((v) => v.trim().toLowerCase()).filter(Boolean),
-    [liveParams.previewTypes]
-  );
-
-  const previewUrlsParam = useMemo(() => {
-    if (livePreviewUrls.length > 0) return livePreviewUrls;
-    return searchParams.getAll('previewUrl').map((v) => String(v || '').trim()).filter(Boolean);
-  }, [livePreviewUrls, searchParams]);
-
-  const previewTypesParam = useMemo(() => {
-    if (livePreviewTypes.length > 0) return livePreviewTypes;
-    return searchParams.getAll('previewType').map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
-  }, [livePreviewTypes, searchParams]);
-  const previewCount = clampInt(parseInt(String(getParam('previewCount') || ''), 10), 1, 5);
-  const previewRepeat = (getParam('repeat') || '') === '1';
-  const previewModeParam = String(getParam('previewMode') || '').trim().toLowerCase();
-  const demoSeed = clampInt(parseInt(String(getParam('seed') || '1'), 10), 0, 1000000000);
-
-  // Preview-only background (does not affect real OBS usage; default is transparent unless demo=1).
-  const previewBgRaw = String(getParam('previewBg') || '').trim().toLowerCase();
-  const previewBg: 'twitch' | 'white' | 'image' =
-    previewBgRaw === 'white' ? 'white' : previewBgRaw === 'image' ? 'image' : 'twitch';
-  const previewBgUrlRaw = String(getParam('previewBgUrl') || '').trim();
-  const previewBgUrl =
-    /^https?:\/\//i.test(previewBgUrlRaw) && previewBgUrlRaw.length <= 800 ? previewBgUrlRaw : '';
-  const demoBgCss =
-    previewBg === 'white'
-      ? `body { background: #ffffff; }`
-      : previewBg === 'image' && previewBgUrl
-        ? `
-          body {
-            background-image: url(${JSON.stringify(previewBgUrl)});
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-          }
-          /* Keep overlay readable on busy images */
-          body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.72) 65%);
-          }
-        `
-        : `body { background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.85) 60%), linear-gradient(135deg, rgba(56,189,248,0.12), rgba(167,139,250,0.12)); }`;
-
-  // Appearance / animation: prefer server config; allow URL overrides (useful for preview).
-  const parsedStyle = useMemo(() => {
-    try {
-      const raw = String(config.overlayStyleJson || '').trim();
-      if (!raw) return null;
-      const j = JSON.parse(raw) as any;
-      return j && typeof j === 'object' ? j : null;
-    } catch {
-      return null;
-    }
-  }, [config.overlayStyleJson]);
-
-  const radius = clampInt(parseInt(String(getParam('radius') || (parsedStyle as any)?.radius || ''), 10), 0, 80);
-  // Shadow params (back-compat: `shadow` = blur)
-  const shadowBlur = clampInt(parseInt(String(getParam('shadowBlur') || (parsedStyle as any)?.shadowBlur || searchParams.get('shadow') || (parsedStyle as any)?.shadow || ''), 10), 0, 240);
-  const shadowSpread = clampInt(parseInt(String(getParam('shadowSpread') || (parsedStyle as any)?.shadowSpread || ''), 10), 0, 120);
-  const shadowDistance = clampInt(parseInt(String(getParam('shadowDistance') || (parsedStyle as any)?.shadowDistance || ''), 10), 0, 120);
-  const shadowAngle = clampDeg(parseFloat(String(getParam('shadowAngle') || (parsedStyle as any)?.shadowAngle || '')));
-  const shadowOpacity = clampAlpha(parseFloat(String(getParam('shadowOpacity') || (parsedStyle as any)?.shadowOpacity || '0.60')), 0, 1);
-  const shadowColorRaw = String(getParam('shadowColor') || (parsedStyle as any)?.shadowColor || '').trim();
-  const shadowColor = isHexColor(shadowColorRaw) ? shadowColorRaw : '#000000';
-  const blur = clampInt(parseInt(String(getParam('blur') || (parsedStyle as any)?.blur || ''), 10), 0, 40);
-  const border = clampInt(parseInt(String(getParam('border') || (parsedStyle as any)?.border || ''), 10), 0, 12);
-
-  const borderPresetRaw = String(getParam('borderPreset') || (parsedStyle as any)?.borderPreset || 'custom').trim().toLowerCase();
-  const borderPreset: 'custom' | 'glass' | 'glow' | 'frosted' =
-    borderPresetRaw === 'glass'
-      ? 'glass'
-      : borderPresetRaw === 'glow'
-        ? 'glow'
-        : borderPresetRaw === 'frosted'
-          ? 'frosted'
-          : 'custom';
-  const borderTintColorRaw = String(getParam('borderTintColor') || (parsedStyle as any)?.borderTintColor || '#7dd3fc').trim();
-  const borderTintColor = isHexColor(borderTintColorRaw) ? borderTintColorRaw : '#7dd3fc';
-  const borderTintStrength = clampAlpha(parseFloat(String(getParam('borderTintStrength') || (parsedStyle as any)?.borderTintStrength || '0.35')), 0, 1);
-
-  const borderModeRaw = String(getParam('borderMode') || (parsedStyle as any)?.borderMode || 'solid').trim().toLowerCase();
-  const borderMode: 'solid' | 'gradient' = borderModeRaw === 'gradient' ? 'gradient' : 'solid';
-  const borderColorRaw = String(getParam('borderColor') || (parsedStyle as any)?.borderColor || '').trim();
-  const borderColor = isHexColor(borderColorRaw) ? borderColorRaw : '#FFFFFF';
-  const borderColor2Raw = String(getParam('borderColor2') || (parsedStyle as any)?.borderColor2 || '').trim();
-  const borderColor2 = isHexColor(borderColor2Raw) ? borderColor2Raw : '#00E5FF';
-  const borderGradientAngle = clampDeg(parseFloat(String(getParam('borderGradientAngle') || (parsedStyle as any)?.borderGradientAngle || '135')));
-  const bgOpacity = clampFloat(parseFloat(String(getParam('bgOpacity') || (parsedStyle as any)?.bgOpacity || '')), 0, 0.65);
-  const anim = (String(getParam('anim') || (parsedStyle as any)?.anim || 'fade').toLowerCase() as OverlayAnim) || 'fade';
-  const enterMs = clampInt(parseInt(String(getParam('enterMs') || (parsedStyle as any)?.enterMs || ''), 10), 0, 1200);
-  const exitMs = clampInt(parseInt(String(getParam('exitMs') || (parsedStyle as any)?.exitMs || ''), 10), 0, 1200);
-
-  const easingPresetRaw = String(getParam('easing') || (parsedStyle as any)?.easing || 'ios').trim().toLowerCase();
-  const easingX1 = clampFloat(parseFloat(String(getParam('easingX1') || (parsedStyle as any)?.easingX1 || '0.22')), -1, 2);
-  const easingY1 = clampFloat(parseFloat(String(getParam('easingY1') || (parsedStyle as any)?.easingY1 || '1')), -1, 2);
-  const easingX2 = clampFloat(parseFloat(String(getParam('easingX2') || (parsedStyle as any)?.easingX2 || '0.36')), -1, 2);
-  const easingY2 = clampFloat(parseFloat(String(getParam('easingY2') || (parsedStyle as any)?.easingY2 || '1')), -1, 2);
-  const easing = (() => {
-    if (easingPresetRaw === 'custom') return `cubic-bezier(${easingX1}, ${easingY1}, ${easingX2}, ${easingY2})`;
-    if (easingPresetRaw === 'smooth') return 'cubic-bezier(0.16, 1, 0.3, 1)';
-    if (easingPresetRaw === 'snappy') return 'cubic-bezier(0.34, 1.56, 0.64, 1)';
-    if (easingPresetRaw === 'expo') return 'cubic-bezier(0.16, 1, 0.3, 1)'; // close to easeOutExpo-ish feel
-    if (easingPresetRaw === 'linear') return 'linear';
-    // default "ios"
-    return 'cubic-bezier(0.22, 1, 0.36, 1)';
-  })();
-
-  const senderFontSize = clampInt(parseInt(String(getParam('senderFontSize') || (parsedStyle as any)?.senderFontSize || ''), 10), 10, 28);
-  const senderFontWeight = clampInt(parseInt(String(getParam('senderFontWeight') || (parsedStyle as any)?.senderFontWeight || ''), 10), 400, 800);
-  const senderFontFamily = String(getParam('senderFontFamily') || (parsedStyle as any)?.senderFontFamily || 'system').trim().toLowerCase();
-  const senderFontColorRaw = String(getParam('senderFontColor') || (parsedStyle as any)?.senderFontColor || '#ffffff').trim();
-  const senderFontColor = isHexColor(senderFontColorRaw) ? senderFontColorRaw : '#ffffff';
-
-  // Sender label presentation
-  const senderHoldMs = clampInt(parseInt(String(getParam('senderHoldMs') || (parsedStyle as any)?.senderHoldMs || ''), 10), 0, 12000);
-  const senderBgOpacity = clampAlpha(parseFloat(String(getParam('senderBgOpacity') || (parsedStyle as any)?.senderBgOpacity || '0.62')), 0, 1);
-  const senderBgColorRaw = String(getParam('senderBgColor') || (parsedStyle as any)?.senderBgColor || '#000000').trim();
-  const senderBgColor = isHexColor(senderBgColorRaw) ? senderBgColorRaw : '#000000';
-  const senderBgRadius = clampInt(parseInt(String(getParam('senderBgRadius') || (parsedStyle as any)?.senderBgRadius || '999'), 10), 0, 999);
-  const senderStrokeRaw = String(getParam('senderStroke') || (parsedStyle as any)?.senderStroke || 'glass').trim().toLowerCase();
-  const senderStroke: 'none' | 'glass' | 'solid' = senderStrokeRaw === 'none' ? 'none' : senderStrokeRaw === 'solid' ? 'solid' : 'glass';
-  const senderStrokeWidth = clampInt(parseInt(String(getParam('senderStrokeWidth') || (parsedStyle as any)?.senderStrokeWidth || '1'), 10), 0, 6);
-  const senderStrokeOpacity = clampAlpha(parseFloat(String(getParam('senderStrokeOpacity') || (parsedStyle as any)?.senderStrokeOpacity || '0.22')), 0, 1);
-  const senderStrokeColorRaw = String(getParam('senderStrokeColor') || (parsedStyle as any)?.senderStrokeColor || '#ffffff').trim();
-  const senderStrokeColor = isHexColor(senderStrokeColorRaw) ? senderStrokeColorRaw : '#ffffff';
-
-  // Glass (foreground overlay)
-  const glassEnabledRaw = String(getParam('glass') || (parsedStyle as any)?.glass || (parsedStyle as any)?.glassEnabled || '').trim().toLowerCase();
-  const glassEnabled =
-    glassEnabledRaw.length > 0
-      ? glassEnabledRaw === '1' || glassEnabledRaw === 'true' || glassEnabledRaw === 'yes' || glassEnabledRaw === 'on'
-      : blur > 0 || bgOpacity > 0;
-  const glassPreset = String(getParam('glassPreset') || (parsedStyle as any)?.glassPreset || 'ios').trim().toLowerCase();
-  const glassTintColorRaw = String(getParam('glassTintColor') || (parsedStyle as any)?.glassTintColor || '#7dd3fc').trim();
-  const glassTintColor = isHexColor(glassTintColorRaw) ? glassTintColorRaw : '#7dd3fc';
-  const glassTintStrength = clampAlpha(parseFloat(String(getParam('glassTintStrength') || (parsedStyle as any)?.glassTintStrength || '0.22')), 0, 1);
-
-  // Safe area padding (in px): keeps memes away from screen edges to avoid clipping in OBS.
-  // If not provided, keep prior behavior: larger padding for random, smaller for anchored modes.
-  const safePadRaw = String(getParam('safePad') || (parsedStyle as any)?.safePad || '').trim();
-  const safePadPx = clampInt(parseInt(safePadRaw, 10), 0, 240);
-  const lockPos = (getParam('lockPos') || '') === '1';
-  const showSafeGuide = (getParam('showSafeGuide') || '') === '1';
-  const posSeed = clampInt(parseInt(String(getParam('posSeed') || '1'), 10), 0, 1000000000);
-
-  const safeScale = useMemo(() => {
-    // Prefer server-configured fixed scale; fallback to URL scale for preview/back-compat.
-    const urlFixed = Number.isFinite(urlScaleFixed) && urlScaleFixed > 0 ? urlScaleFixed : NaN;
-    const fixed = Number((parsedStyle as any)?.scaleFixed);
-    const s = Number.isFinite(urlFixed)
-      ? urlFixed
-      : Number.isFinite(fixed) && fixed > 0
-        ? fixed
-        : (Number.isFinite(scale) ? scale : 1);
-    return Math.min(2.5, Math.max(0.25, s));
-  }, [parsedStyle, scale, urlScaleFixed]);
-
-  const resolvedPosition = useMemo<OverlayPosition>(() => {
-    const p = String((parsedStyle as any)?.position || '').toLowerCase();
-    if (
-      p === 'random' ||
-      p === 'center' ||
-      p === 'top' ||
-      p === 'bottom' ||
-      p === 'top-left' ||
-      p === 'top-right' ||
-      p === 'bottom-left' ||
-      p === 'bottom-right'
-    ) {
-      return p as OverlayPosition;
-    }
-    return position;
-  }, [parsedStyle, position]);
-
-  const getNextUserScale = useCallback((): number => {
-    const mode = urlScaleMode || String((parsedStyle as any)?.scaleMode || '').toLowerCase();
-    if (mode === 'range') {
-      const min = clampFloat(
-        Number.isFinite(urlScaleMin) ? urlScaleMin : Number((parsedStyle as any)?.scaleMin),
-        0.25,
-        2.5
-      );
-      const max = clampFloat(
-        Number.isFinite(urlScaleMax) ? urlScaleMax : Number((parsedStyle as any)?.scaleMax),
-        0.25,
-        2.5
-      );
-      const lo = Math.min(min, max);
-      const hi = Math.max(min, max);
-      return clampFloat(lo + Math.random() * (hi - lo), 0.25, 2.5);
-    }
-    const fixed = clampFloat(
-      Number.isFinite(urlScaleFixed) ? urlScaleFixed : Number((parsedStyle as any)?.scaleFixed),
-      0.25,
-      2.5
-    );
-    if (Number.isFinite(fixed) && fixed > 0) return fixed;
-    return safeScale;
-  }, [parsedStyle, safeScale, urlScaleFixed, urlScaleMax, urlScaleMin, urlScaleMode]);
+  const {
+    demo,
+    demoBgCss,
+    previewUrlsParam,
+    previewTypesParam,
+    previewCount,
+    previewRepeat,
+    previewModeParam,
+    safePadPx,
+    lockPos,
+    showSafeGuide,
+    safeScale,
+    resolvedPosition,
+    getNextUserScale,
+    pickRandomPosition,
+    // Style/appearance
+    radius,
+    shadowBlur,
+    shadowSpread,
+    shadowDistance,
+    shadowAngle,
+    shadowOpacity,
+    shadowColor,
+    blur,
+    border,
+    borderPreset,
+    borderTintColor,
+    borderTintStrength,
+    borderMode,
+    borderColor,
+    borderColor2,
+    borderGradientAngle,
+    bgOpacity,
+    anim,
+    enterMs,
+    exitMs,
+    easing,
+    senderFontSize,
+    senderFontWeight,
+    senderFontFamily,
+    senderFontColor,
+    senderHoldMs,
+    senderBgOpacity,
+    senderBgColor,
+    senderBgRadius,
+    senderStroke,
+    senderStrokeWidth,
+    senderStrokeOpacity,
+    senderStrokeColor,
+    glassEnabled,
+    glassPreset,
+    glassTintColor,
+    glassTintStrength,
+    volume,
+  } = useOverlayParams({
+    searchParams,
+    liveParams,
+    overlayStyleJson: config.overlayStyleJson ?? null,
+    demoSeqRef,
+  });
 
   const isProbablyOBS = useMemo(() => {
     const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
@@ -359,7 +187,7 @@ export default function OverlayView() {
       const overlayMode = incoming?.overlayMode === 'simultaneous' ? 'simultaneous' : 'queue';
       const overlayShowSender = Boolean(incoming?.overlayShowSender);
       const overlayMaxConcurrent = clampInt(Number(incoming?.overlayMaxConcurrent ?? 3), 1, SIMULTANEOUS_HARD_CAP);
-      const overlayStyleJson = (incoming as any)?.overlayStyleJson ?? null;
+      const overlayStyleJson = incoming?.overlayStyleJson ?? null;
       setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent, overlayStyleJson });
     });
 
@@ -402,24 +230,6 @@ export default function OverlayView() {
     },
     [previewTypesParam, previewUrlsParam, searchParams]
   );
-
-  const pickRandomPosition = useCallback((salt: number = 0): { xPct: number; yPct: number } => {
-    // Safe margin in % to reduce clipping risk. Increase margin when scale grows.
-    // This isn't perfect (we don't know exact media aspect), but reduces "going off-screen" in OBS.
-    const baseMargin = 12;
-    const pad = safePadPx > 0 ? safePadPx : 0;
-    const minSide = Math.max(1, Math.min(window.innerWidth || 0, window.innerHeight || 0));
-    const padPct = pad > 0 ? Math.round((pad / minSide) * 100) : 0;
-    const margin = Math.min(28, Math.max(8, Math.round(baseMargin * safeScale) + padPct));
-    // Demo: deterministic RNG so sliders don't reshuffle positions (when iframe does not reload).
-    // Real overlay: true randomness (each activation should be independent).
-    const rng = demo ? mulberry32((demoSeed + posSeed * 7919 + demoSeqRef.current * 9973 + salt * 1013) >>> 0) : null;
-    const r1 = rng ? rng() : Math.random();
-    const r2 = rng ? rng() : Math.random();
-    const xPct = margin + r1 * (100 - margin * 2);
-    const yPct = margin + r2 * (100 - margin * 2);
-    return { xPct, yPct };
-  }, [demo, demoSeed, posSeed, safePadPx, safeScale]);
 
   // Demo seeding: spawn N preview items and optionally repeat.
   useEffect(() => {
@@ -510,7 +320,7 @@ export default function OverlayView() {
             startTime: Date.now(),
             ...(resolvedPosition === 'random' ? pickRandomPosition() : { xPct: 50, yPct: 50 }),
             userScale: getNextUserScale(),
-          } as any;
+          };
 
           // If demo is in simultaneous mode, keep it immediate and capped (no queue).
           // Otherwise, push into queue so queue mode remains sequential.

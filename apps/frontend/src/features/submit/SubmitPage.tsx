@@ -1,37 +1,42 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector } from '@/store/hooks';
-import UserMenu from '@/components/UserMenu';
-import TagInput from '@/components/TagInput';
 import { useTranslation } from 'react-i18next';
+
 import toast from 'react-hot-toast';
+
+import Header from '@/components/Header';
 import { api } from '@/lib/api';
-import type { AxiosProgressEvent } from 'axios';
+import { useAppSelector } from '@/store/hooks';
+import type { Submission, SubmissionStatus } from '@/types';
+
 import type { MySubmission } from './types';
 import { MySubmissionsSection } from './components/MySubmissionsSection';
+import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
+
+const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 
 export default function Submit() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState<boolean>(false);
-  const [mode, setMode] = useState<'upload' | 'import'>('upload');
-  const [formData, setFormData] = useState<{
-    title: string;
-    notes: string;
-    sourceUrl?: string;
-    tags?: string[];
-  }>({
-    title: '',
-    notes: '',
-    sourceUrl: '',
-    tags: [],
-  });
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+
   const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
   const [loadingMySubmissions, setLoadingMySubmissions] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'needs_changes' | 'history' | 'channel'>('history');
   const mySubmissionsRef = useRef<HTMLElement | null>(null);
+  const defaultTabSetRef = useRef(false);
+
+  // Streamer/admin "channel submissions history" (separate from Redux pending list)
+  const canSeeChannelHistory = Boolean(user && (user.role === 'streamer' || user.role === 'admin') && user.channelId);
+  const [channelSubmissions, setChannelSubmissions] = useState<Submission[]>([]);
+  const [loadingChannelSubmissions, setLoadingChannelSubmissions] = useState(false);
+  const [channelStatusFilter, setChannelStatusFilter] = useState<'all' | SubmissionStatus>('all');
+  const [channelQuery, setChannelQuery] = useState('');
+  const [selectedSubmitterId, setSelectedSubmitterId] = useState<string | null>(null);
+  const [selectedSubmitterName, setSelectedSubmitterName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -54,9 +59,21 @@ export default function Submit() {
             moderatorNotes: (s.moderatorNotes ?? null) as string | null,
             revision: typeof s.revision === 'number' ? s.revision : 0,
             tags: Array.isArray(s.tags) ? s.tags.map((x: any) => String(x?.tag?.name || '')).filter(Boolean) : [],
+            submitterId: typeof s?.submitter?.id === 'string' ? s.submitter.id : typeof s?.submitterId === 'string' ? s.submitterId : null,
+            submitterDisplayName:
+              typeof s?.submitter?.displayName === 'string'
+                ? s.submitter.displayName
+                : typeof s?.submitterDisplayName === 'string'
+                  ? s.submitterDisplayName
+                  : null,
           }))
         : [];
-      setMySubmissions(normalized);
+      // Extra safety: if backend returns submitter id, guarantee we show only the current user's submissions.
+      const filtered =
+        user?.id && normalized.some((x) => x.submitterId)
+          ? normalized.filter((x) => x.submitterId === user.id)
+          : normalized;
+      setMySubmissions(filtered);
     } catch (err) {
       setMySubmissions([]);
     } finally {
@@ -68,145 +85,82 @@ export default function Submit() {
     void loadMySubmissions();
   }, [loadMySubmissions]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    
-    if (mode === 'upload') {
-      if (!file) {
-        toast.error('Please select a file');
-        return;
-      }
+  const loadChannelHistory = useCallback(async (statusOverride?: 'all' | SubmissionStatus) => {
+    if (!user || !canSeeChannelHistory) return;
+    const effectiveStatus = statusOverride ?? channelStatusFilter;
 
-      // Validate file size (50MB max)
-      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`File size exceeds 50MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
-        return;
+    const parsePage = (resp: any): { items: Submission[]; total: number | null } => {
+      if (Array.isArray(resp)) return { items: resp as Submission[], total: (resp as Submission[]).length };
+      if (resp && typeof resp === 'object' && Array.isArray(resp.items)) {
+        const total = typeof resp.total === 'number' ? (resp.total as number) : null;
+        return { items: (resp.items || []) as Submission[], total };
       }
+      return { items: [], total: null };
+    };
 
-      // Validate video duration (15 seconds max)
-      // We'll validate this on backend, but show a warning here
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      
-      const durationCheck = new Promise<number>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          window.URL.revokeObjectURL(video.src);
-          resolve(video.duration);
-        };
-        video.onerror = () => {
-          window.URL.revokeObjectURL(video.src);
-          reject(new Error('Failed to load video metadata'));
-        };
-        video.src = URL.createObjectURL(file);
+    try {
+      setLoadingChannelSubmissions(true);
+
+      // We don't know if backend supports `status=all`, so for "all" we fetch per-status and merge.
+      const limit = 50;
+      const fetchOne = async (status: SubmissionStatus) => {
+        const resp = await api.get<any>('/streamer/submissions', {
+          params: { status, limit, offset: 0, includeTotal: 0, includeTags: 0 },
+          timeout: 15000,
+        });
+        return parsePage(resp).items;
+      };
+
+      const items =
+        effectiveStatus === 'all'
+          ? (await Promise.all([
+              fetchOne('pending'),
+              fetchOne('needs_changes'),
+              fetchOne('approved'),
+              fetchOne('rejected'),
+            ])).flat()
+          : await fetchOne(effectiveStatus);
+
+      const dedup = new Map<string, Submission>();
+      for (const s of items) dedup.set(s.id, s);
+
+      const merged = Array.from(dedup.values()).sort((a, b) => {
+        const ta = new Date(a.createdAt).getTime();
+        const tb = new Date(b.createdAt).getTime();
+        return tb - ta;
       });
 
-      let durationMsToSend: number | null = null;
-      try {
-        const duration = await durationCheck;
-        durationMsToSend = Number.isFinite(duration) ? Math.round(duration * 1000) : null;
-        if (duration > 15) {
-          toast.error(`Video duration exceeds 15 seconds. Current duration: ${duration.toFixed(2)}s`);
-          return;
-        }
-      } catch (error) {
-        durationMsToSend = null;
-      }
-
-      setLoading(true);
-      setUploadProgress(0);
-      try {
-        const formDataToSend = new FormData();
-        formDataToSend.append('file', file);
-        formDataToSend.append('title', formData.title);
-        formDataToSend.append('type', 'video'); // Only video allowed
-        if (formData.notes) {
-          formDataToSend.append('notes', formData.notes);
-        }
-        // Add tags as JSON string (backend will parse it)
-        if (formData.tags && formData.tags.length > 0) {
-          formDataToSend.append('tags', JSON.stringify(formData.tags));
-        }
-        // Provide durationMs as a fallback for servers where ffprobe is unavailable
-        if (durationMsToSend !== null) {
-          formDataToSend.append('durationMs', String(durationMsToSend));
-        }
-
-        // Use axios directly for upload progress tracking
-        const { api } = await import('@/lib/api');
-        await api.post('/submissions', formDataToSend, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: (progressEvent: AxiosProgressEvent) => {
-            if (progressEvent.total) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percentCompleted);
-            }
-          },
-        });
-        
-        toast.success('Submission created! Waiting for approval.');
-        // Stay on this page so user can see status updates (including "needs changes").
-        setFile(null);
-        setFormData({ title: '', notes: '', sourceUrl: '', tags: [] });
-        await loadMySubmissions();
-        // Scroll to "My submissions" section for visibility.
-        window.setTimeout(() => mySubmissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-      } catch (error: unknown) {
-        const apiError = error as { response?: { status?: number; data?: { error?: string } }; code?: string; message?: string };
-        // Handle 524 Cloudflare timeout specifically
-        if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
-          toast.error('Upload timeout. The file may have been uploaded successfully. Please check your submissions.');
-          // Stay on page and show current submissions (submission might have been created).
-          setTimeout(() => {
-            void loadMySubmissions();
-            mySubmissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }, 300);
-        } else {
-          toast.error(apiError.response?.data?.error || apiError.message || 'Failed to submit meme');
-        }
-      } finally {
-        setLoading(false);
-        setUploadProgress(0);
-      }
-    } else {
-      // Import mode
-      if (!formData.sourceUrl) {
-        toast.error('Please enter a memalerts.com URL');
-        return;
-      }
-
-      const isValidUrl = formData.sourceUrl.includes('memalerts.com') || 
-                        formData.sourceUrl.includes('cdns.memealerts.com');
-      if (!isValidUrl) {
-        toast.error('URL must be from memalerts.com or cdns.memealerts.com');
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const { api } = await import('@/lib/api');
-        await api.post('/submissions/import', {
-          title: formData.title,
-          sourceUrl: formData.sourceUrl,
-          notes: formData.notes || null,
-          tags: formData.tags || [],
-        });
-        toast.success('Meme import submitted! Waiting for approval.');
-        // Stay on this page so user can see status updates (including "needs changes").
-        setFile(null);
-        setFormData({ title: '', notes: '', sourceUrl: '', tags: [] });
-        await loadMySubmissions();
-        window.setTimeout(() => mySubmissionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-      } catch (error: unknown) {
-        const apiError = error as { response?: { data?: { error?: string } } };
-        toast.error(apiError.response?.data?.error || 'Failed to import meme');
-      } finally {
-        setLoading(false);
-      }
+      setChannelSubmissions(merged);
+    } catch {
+      setChannelSubmissions([]);
+      toast.error(t('submit.failedToLoadChannelSubmissions', { defaultValue: 'Failed to load channel submissions.' }));
+    } finally {
+      setLoadingChannelSubmissions(false);
     }
-  };
+  }, [canSeeChannelHistory, channelStatusFilter, t, user]);
+
+  useEffect(() => {
+    // Default tab: only once per page entry.
+    if (defaultTabSetRef.current) return;
+    if (loadingMySubmissions) return;
+    defaultTabSetRef.current = true;
+    const hasNeedsChanges = mySubmissions.some((s) => s.status === 'needs_changes');
+    setActiveTab(hasNeedsChanges ? 'needs_changes' : 'history');
+  }, [loadingMySubmissions, mySubmissions]);
+
+  useEffect(() => {
+    if (activeTab !== 'channel' || !canSeeChannelHistory) return;
+    void loadChannelHistory();
+  }, [activeTab, canSeeChannelHistory, loadChannelHistory]);
+
+  const needsChanges = useMemo(
+    () => mySubmissions.filter((s) => s.status === 'needs_changes'),
+    [mySubmissions],
+  );
+  const history = useMemo(
+    () => [...mySubmissions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [mySubmissions],
+  );
 
   if (!user) {
     return null;
@@ -214,153 +168,129 @@ export default function Submit() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <header>
-        <nav className="bg-white dark:bg-gray-800 shadow-sm" aria-label={t('nav.home', { defaultValue: 'Home' })}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              <h1 className="text-xl font-bold dark:text-white">Mem Alerts</h1>
-              <UserMenu />
-            </div>
-          </div>
-        </nav>
-      </header>
+      <Header />
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-2xl font-bold mb-6 dark:text-white">Submit a Meme</h2>
-        
-        {/* Mode selector */}
-        <section className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-secondary/20" aria-label={t('submit.title', { defaultValue: 'Submit a Meme' })}>
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={() => setMode('upload')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'upload'
-                  ? 'bg-primary text-white border border-secondary/30'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
-              }`}
-            >
-              Upload Video
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('import')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'import'
-                  ? 'bg-primary text-white border border-secondary/30'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10 border border-secondary/20'
-              }`}
-            >
-              Import from memalerts.com
-            </button>
-          </div>
-        </section>
-
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4 border border-secondary/20">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Title
-            </label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              required
-              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-            />
+            <h1 className="text-3xl font-bold mb-2 dark:text-white">
+              {t('submit.mySubmissionsTitle', { defaultValue: 'Submissions' })}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              {t('submit.mySubmissionsSubtitle', {
+                defaultValue: 'Track your submissions and quickly fix the ones that were sent back for changes.',
+              })}
+            </p>
           </div>
 
-          {mode === 'upload' ? (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Video File
-              </label>
-              <input
-                type="file"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                required
-                accept="video/*"
-                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-              <p className="text-sm text-gray-500 mt-1">Only video files are allowed</p>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                memalerts.com URL
-              </label>
-              <input
-                type="url"
-                value={formData.sourceUrl || ''}
-                onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
-                required
-                placeholder="https://cdns.memealerts.com/.../alert_orig.webm"
-                className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-              <div className="mt-2 p-3 bg-accent/10 rounded-lg border border-accent/20">
-                <p className="text-sm text-gray-700 font-medium mb-1">How to copy video URL:</p>
-                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
-                  <li>Go to memalerts.com and find the video</li>
-                  <li>Right-click on the video</li>
-                  <li>Select &quot;Copy video address&quot; or &quot;Copy video URL&quot;</li>
-                  <li>Paste the URL here</li>
-                </ol>
-                <p className="text-xs text-gray-500 mt-2">
-                  Example: https://cdns.memealerts.com/p/.../alert_orig.webm
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tags (optional)
-            </label>
-            <TagInput
-              tags={formData.tags || []}
-              onChange={(tags: string[]) => setFormData({ ...formData, tags })}
-              placeholder="Add tags to help categorize your meme..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes (optional)
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-            />
-          </div>
-
-          {loading && uploadProgress > 0 && (
-            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-              <div
-                className="bg-primary h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
-            </div>
-          )}
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+            type="button"
+            onClick={() => setIsSubmitModalOpen(true)}
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors"
           >
-            {loading ? (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Submitting...') : 'Submit'}
+            {t('submit.submitNewMeme', { defaultValue: 'Submit a new meme' })}
           </button>
-        </form>
+        </div>
 
-        <MySubmissionsSection
-          containerRef={(el) => {
-            mySubmissionsRef.current = el;
-          }}
-          mySubmissions={mySubmissions}
-          loading={loadingMySubmissions}
-          onRefresh={loadMySubmissions}
-        />
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow border border-secondary/20 p-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('needs_changes')}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                activeTab === 'needs_changes'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {t('submit.needsChangesTab', { defaultValue: 'Needs changes' })}{' '}
+              <span className="ml-1 opacity-80">({needsChanges.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('history')}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                activeTab === 'history'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {t('submit.historyTab', { defaultValue: 'History' })}{' '}
+              <span className="ml-1 opacity-80">({history.length})</span>
+            </button>
+
+            {canSeeChannelHistory && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('channel')}
+                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  activeTab === 'channel'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {t('submit.channelHistoryTab', { defaultValue: 'Channel submissions' })}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {activeTab === 'needs_changes' && (
+          <MySubmissionsSection
+            containerRef={(el) => {
+              mySubmissionsRef.current = el;
+            }}
+            title={t('submit.needsChangesTab', { defaultValue: 'Needs changes' })}
+            mode="needs_changes"
+            submissions={needsChanges}
+            loading={loadingMySubmissions}
+            onRefresh={loadMySubmissions}
+          />
+        )}
+
+        {activeTab === 'history' && (
+          <MySubmissionsSection
+            containerRef={(el) => {
+              mySubmissionsRef.current = el;
+            }}
+            title={t('submit.historyTab', { defaultValue: 'History' })}
+            mode="history"
+            submissions={history}
+            loading={loadingMySubmissions}
+            onRefresh={loadMySubmissions}
+          />
+        )}
+
+        {activeTab === 'channel' && canSeeChannelHistory && (
+          <ChannelSubmissionsSection
+            submissions={channelSubmissions}
+            loading={loadingChannelSubmissions}
+            statusFilter={channelStatusFilter}
+            query={channelQuery}
+            selectedSubmitterId={selectedSubmitterId}
+            selectedSubmitterName={selectedSubmitterName}
+            onQueryChange={setChannelQuery}
+            onStatusFilterChange={(s) => {
+              setChannelStatusFilter(s);
+              setChannelSubmissions([]);
+              void loadChannelHistory(s);
+            }}
+            onSelectSubmitter={(id, name) => {
+              setSelectedSubmitterId(id);
+              setSelectedSubmitterName(name);
+            }}
+            onClearSubmitter={() => {
+              setSelectedSubmitterId(null);
+              setSelectedSubmitterName(null);
+            }}
+            onRefresh={() => void loadChannelHistory()}
+          />
+        )}
       </main>
+
+      <Suspense fallback={null}>
+        <SubmitModal isOpen={isSubmitModalOpen} onClose={() => setIsSubmitModalOpen(false)} />
+      </Suspense>
     </div>
   );
 }

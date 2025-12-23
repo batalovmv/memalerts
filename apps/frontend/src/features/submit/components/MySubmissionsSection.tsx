@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next';
 import type { MySubmission } from '../types';
 import { NeedsChangesSubmissionCard } from './NeedsChangesSubmissionCard';
 
+export type MySubmissionsSectionMode = 'needs_changes' | 'history';
+
 export function MySubmissionsSection(props: {
-  mySubmissions: MySubmission[];
+  title?: string;
+  mode: MySubmissionsSectionMode;
+  submissions: MySubmission[];
   loading: boolean;
   onRefresh: () => void;
   containerRef?: RefCallback<HTMLElement>;
 }) {
-  const { mySubmissions, loading, onRefresh, containerRef } = props;
+  const { title, mode, submissions, loading, onRefresh, containerRef } = props;
   const { t } = useTranslation();
 
   return (
@@ -20,7 +24,7 @@ export function MySubmissionsSection(props: {
     >
       <header className="flex items-center justify-between mb-4">
         <h3 id="my-submissions-title" className="text-xl font-bold dark:text-white">
-          {t('submit.mySubmissions', { defaultValue: 'My submissions' })}
+          {title || t('submit.mySubmissions', { defaultValue: 'My submissions' })}
         </h3>
         <button
           type="button"
@@ -32,14 +36,16 @@ export function MySubmissionsSection(props: {
         </button>
       </header>
 
-      {mySubmissions.length === 0 ? (
+      {submissions.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t('submit.noSubmissionsYet', { defaultValue: 'No submissions yet.' })}
+          {mode === 'needs_changes'
+            ? t('submit.noNeedsChanges', { defaultValue: 'Nothing to fix right now.' })
+            : t('submit.noSubmissionsYet', { defaultValue: 'No submissions yet.' })}
         </p>
       ) : (
         <ul className="space-y-3" role="list">
-          {mySubmissions.slice(0, 20).map((s) => {
-            if (s.status === 'needs_changes') {
+          {submissions.slice(0, 50).map((s) => {
+            if (mode === 'needs_changes' || s.status === 'needs_changes') {
               return (
                 <li key={s.id}>
                   <NeedsChangesSubmissionCard submission={s} onUpdated={onRefresh} />

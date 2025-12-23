@@ -7,6 +7,9 @@ export type MySubmission = {
   moderatorNotes?: string | null;
   revision?: number;
   tags?: string[];
+  // Optional: backend may include submitter in `/submissions` response; used to guarantee "only mine" in UI.
+  submitterId?: string | null;
+  submitterDisplayName?: string | null;
 };
 
 
