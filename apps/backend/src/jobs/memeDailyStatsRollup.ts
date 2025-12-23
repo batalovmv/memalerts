@@ -16,8 +16,7 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
 
   // Completed-only stats (viewer semantics).
   // Upsert per (day,memeId) globally and per (channelId,day,memeId) for channel-scoped stats.
-  await prisma.$executeRawUnsafe(
-    `
+  const sql1 = `
       WITH base AS (
         SELECT "channelId","memeId","coinsSpent","createdAt"
         FROM "MemeActivation"
@@ -33,15 +32,6 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
           COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
         FROM base b
         GROUP BY b."channelId", day, b."memeId"
-      ),
-      global_daily AS (
-        SELECT
-          date_trunc('day', b."createdAt") as day,
-          b."memeId",
-          COUNT(*)::int as cnt,
-          COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
-        FROM base b
-        GROUP BY day, b."memeId"
       )
       INSERT INTO "ChannelMemeDailyStats" (
         "channelId","day","memeId",
@@ -59,8 +49,25 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
       DO UPDATE SET
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",
-        "updatedAt" = EXCLUDED."updatedAt";
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
 
+  const sql2 = `
+      WITH base AS (
+        SELECT "memeId","coinsSpent","createdAt"
+        FROM "MemeActivation"
+        WHERE "createdAt" >= $1
+          AND status IN ('done','completed')
+      ),
+      global_daily AS (
+        SELECT
+          date_trunc('day', b."createdAt") as day,
+          b."memeId",
+          COUNT(*)::int as cnt,
+          COALESCE(SUM(b."coinsSpent"), 0)::bigint as coins
+        FROM base b
+        GROUP BY day, b."memeId"
+      )
       INSERT INTO "GlobalMemeDailyStats" (
         "day","memeId",
         "completedActivationsCount","completedCoinsSpentSum","updatedAt"
@@ -76,15 +83,16 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
       DO UPDATE SET
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",
-        "updatedAt" = EXCLUDED."updatedAt";
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
 
-      -- Cleanup old rows outside the window (best-effort, bounded by window start).
-      DELETE FROM "ChannelMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp);
-      DELETE FROM "GlobalMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp);
-    `,
-    start,
-    runTs
-  );
+  // Prisma does not allow multiple SQL statements in one prepared statement call.
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(sql1, start, runTs),
+    prisma.$executeRawUnsafe(sql2, start, runTs),
+    prisma.$executeRawUnsafe(`DELETE FROM "ChannelMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp)`, start),
+    prisma.$executeRawUnsafe(`DELETE FROM "GlobalMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp)`, start),
+  ]);
 
   return { days: effectiveDays };
 }

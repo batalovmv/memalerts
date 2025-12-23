@@ -17,8 +17,7 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
 
   // Upsert aggregates for the window, then delete rows not updated in this run.
   // This keeps results correct while preserving MVCC consistency for readers.
-  await prisma.$executeRawUnsafe(
-    `
+  const sql = `
       WITH base AS (
         SELECT "channelId", "userId", "memeId", "coinsSpent", "status"
         FROM "MemeActivation"
@@ -79,8 +78,26 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
         "totalCoinsSpentSum" = EXCLUDED."totalCoinsSpentSum",
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",
-        "updatedAt" = EXCLUDED."updatedAt";
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
 
+  const sql2 = `
+      WITH base AS (
+        SELECT "channelId", "memeId", "coinsSpent", "status", "createdAt"
+        FROM "MemeActivation"
+        WHERE "createdAt" >= $1
+      ),
+      meme_agg AS (
+        SELECT
+          b."channelId",
+          b."memeId",
+          COUNT(*)::int AS total_count,
+          COALESCE(SUM(b."coinsSpent"), 0)::bigint AS total_coins,
+          COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
+          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+        FROM base b
+        GROUP BY b."channelId", b."memeId"
+      )
       INSERT INTO "ChannelMemeStats30d" (
         "channelId","memeId","windowStart","windowEnd",
         "totalActivationsCount","totalCoinsSpentSum",
@@ -106,8 +123,23 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
         "totalCoinsSpentSum" = EXCLUDED."totalCoinsSpentSum",
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",
-        "updatedAt" = EXCLUDED."updatedAt";
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
 
+  const sql3 = `
+      WITH base AS (
+        SELECT "memeId", "coinsSpent", "status", "createdAt"
+        FROM "MemeActivation"
+        WHERE "createdAt" >= $1
+      ),
+      global_meme_agg AS (
+        SELECT
+          b."memeId",
+          COUNT(*) FILTER (WHERE b.status IN ('done','completed'))::int AS completed_count,
+          COALESCE(SUM(b."coinsSpent") FILTER (WHERE b.status IN ('done','completed')), 0)::bigint AS completed_coins
+        FROM base b
+        GROUP BY b."memeId"
+      )
       INSERT INTO "GlobalMemeStats30d" (
         "memeId","windowStart","windowEnd",
         "completedActivationsCount","completedCoinsSpentSum",
@@ -127,16 +159,19 @@ export async function recomputeTopStats30d(days: number): Promise<{ days: number
         "windowEnd" = EXCLUDED."windowEnd",
         "completedActivationsCount" = EXCLUDED."completedActivationsCount",
         "completedCoinsSpentSum" = EXCLUDED."completedCoinsSpentSum",
-        "updatedAt" = EXCLUDED."updatedAt";
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
 
-      DELETE FROM "ChannelUserStats30d" WHERE "updatedAt" < $3::timestamp;
-      DELETE FROM "ChannelMemeStats30d" WHERE "updatedAt" < $3::timestamp;
-      DELETE FROM "GlobalMemeStats30d" WHERE "updatedAt" < $3::timestamp;
-    `,
-    windowStart,
-    windowEnd,
-    runTs
-  );
+  // Prisma does not allow multiple SQL statements in one prepared statement call.
+  // Keep them separate to avoid `ERROR: cannot insert multiple commands into a prepared statement`.
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(sql, windowStart, windowEnd, runTs),
+    prisma.$executeRawUnsafe(sql2, windowStart, windowEnd, runTs),
+    prisma.$executeRawUnsafe(sql3, windowStart, windowEnd, runTs),
+    prisma.$executeRawUnsafe(`DELETE FROM "ChannelUserStats30d" WHERE "updatedAt" < $1::timestamp`, runTs),
+    prisma.$executeRawUnsafe(`DELETE FROM "ChannelMemeStats30d" WHERE "updatedAt" < $1::timestamp`, runTs),
+    prisma.$executeRawUnsafe(`DELETE FROM "GlobalMemeStats30d" WHERE "updatedAt" < $1::timestamp`, runTs),
+  ]);
 
   return { days: effectiveDays };
 }
