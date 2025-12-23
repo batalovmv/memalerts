@@ -141,4 +141,29 @@ Nginx конфиг на сервере ожидает:
 
 Скрипт настройки nginx: `.github/scripts/setup-nginx-full.sh` (если он есть на сервере).
 
+## Redis (рекомендовано для масштаба)
+
+Если включить `REDIS_URL`, backend использует Redis **best-effort** для кэшей и (опционально) Socket.IO redis adapter.
+
+Также добавлен Redis-backed rate limit store:
+
+- `RATE_LIMIT_REDIS=1` (по умолчанию включено, если `REDIS_URL` задан)
+- `RATE_LIMIT_REDIS=0` — принудительно выключить (останется in-memory store на процесс)
+
+Важно: namespace в Redis автоматически разделяет **prod** и **beta** (по `DOMAIN`/`PORT`), чтобы данные не смешивались.
+
+## Upload storage (local → S3/R2/MinIO)
+
+По умолчанию хранение дедуп-файлов локальное (подходит на старте):
+
+- `UPLOAD_STORAGE=local` → `FileHash.filePath` = `/uploads/memes/{hash}.{ext}`
+
+Для object storage:
+
+- `UPLOAD_STORAGE=s3`
+- обязательные env: `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL`
+- опционально: `S3_ENDPOINT` (R2/MinIO), `S3_REGION`, `S3_KEY_PREFIX`, `S3_FORCE_PATH_STYLE`
+
+Рекомендация для прод-выкатов: `S3_PUBLIC_BASE_URL` указывать на CDN/домен раздачи, чтобы URL’ы в БД были стабильны.
+
 

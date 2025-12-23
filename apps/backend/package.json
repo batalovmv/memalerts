@@ -15,6 +15,7 @@
     "migrate:beta-to-production": "tsx scripts/migrate-beta-to-production.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@prisma/client": "^5.7.1",
     "@socket.io/redis-adapter": "^8.3.0",

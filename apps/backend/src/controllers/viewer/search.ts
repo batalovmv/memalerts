@@ -217,15 +217,18 @@ export const searchMemes = async (req: any, res: Response) => {
   const popularityStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Popularity sorting: do it in DB so pagination is correct and we don't sort huge lists in memory.
-  // This is only enabled when a targetChannelId is known (most common case); otherwise fall back to createdAt.
-  if (sortBy === 'popularity' && targetChannelId) {
+  // Prefer rollup tables (ChannelMemeStats30d / GlobalMemeStats30d) to avoid scanning MemeActivation on every request.
+  if (sortBy === 'popularity') {
     const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 50;
     const safeOffset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
     const dir = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     const qStr = q ? String(q).trim() : '';
     const includeUploaderEnabled = String(includeUploader || '') === '1';
 
-    const conditions: Prisma.Sql[] = [Prisma.sql`m.status = 'approved'`, Prisma.sql`m."channelId" = ${targetChannelId}`];
+    const conditions: Prisma.Sql[] = [Prisma.sql`m.status = 'approved'`];
+    if (targetChannelId) {
+      conditions.push(Prisma.sql`m."channelId" = ${targetChannelId}`);
+    }
 
     // Price filters (optional)
     if (minPrice) {
@@ -277,44 +280,92 @@ export const searchMemes = async (req: any, res: Response) => {
       conditions.push(Prisma.sql`(${Prisma.join(or, ' OR ')})`);
     }
 
-    // Rank memes by activation count in the last 30 days for this channel.
+    // Rank memes by activation count in the last 30 days.
     // Include memes with 0 activations (they come after popular ones, tie-broken by createdAt).
-    const rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>`
-        SELECT
-          m.id,
-          COALESCE(COUNT(a.id), 0)::int AS pop
-        FROM "Meme" m
-        LEFT JOIN "MemeActivation" a
-          ON a."memeId" = m.id
-         AND a."channelId" = ${targetChannelId}
-         AND a.status IN ('done', 'completed')
-         AND a."createdAt" >= ${popularityStartDate}
-        WHERE ${Prisma.join(conditions, ' AND ')}
-        GROUP BY m.id, m."createdAt"
-        ORDER BY pop ${Prisma.raw(dir)}, m."createdAt" ${Prisma.raw(dir)}
-        LIMIT ${safeLimit} OFFSET ${safeOffset}
-      `;
+    let rows: Array<{ id: string; pop: number }> = [];
+    let fallbackToDefaultSort = false;
+    try {
+      if (targetChannelId) {
+        rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>`
+          SELECT
+            m.id,
+            COALESCE(s."completedActivationsCount", 0)::int AS pop
+          FROM "Meme" m
+          LEFT JOIN "ChannelMemeStats30d" s
+            ON s."channelId" = m."channelId"
+           AND s."memeId" = m.id
+          WHERE ${Prisma.join(conditions, ' AND ')}
+          ORDER BY pop ${Prisma.raw(dir)}, m."createdAt" ${Prisma.raw(dir)}
+          LIMIT ${safeLimit} OFFSET ${safeOffset}
+        `;
+      } else {
+        rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>`
+          SELECT
+            m.id,
+            COALESCE(s."completedActivationsCount", 0)::int AS pop
+          FROM "Meme" m
+          LEFT JOIN "GlobalMemeStats30d" s
+            ON s."memeId" = m.id
+          WHERE ${Prisma.join(conditions, ' AND ')}
+          ORDER BY pop ${Prisma.raw(dir)}, m."createdAt" ${Prisma.raw(dir)}
+          LIMIT ${safeLimit} OFFSET ${safeOffset}
+        `;
+      }
+    } catch (e: any) {
+      // Back-compat: rollup tables might not exist yet in older DBs.
+      // If missing, fall back to the old (more expensive) activation scan for channel-scoped popularity only.
+      if (e?.code === 'P2021') {
+        if (targetChannelId) {
+          rows = await prisma.$queryRaw<Array<{ id: string; pop: number }>>`
+            SELECT
+              m.id,
+              COALESCE(COUNT(a.id), 0)::int AS pop
+            FROM "Meme" m
+            LEFT JOIN "MemeActivation" a
+              ON a."memeId" = m.id
+             AND a."channelId" = ${targetChannelId}
+             AND a.status IN ('done', 'completed')
+             AND a."createdAt" >= ${popularityStartDate}
+            WHERE ${Prisma.join(conditions, ' AND ')}
+            GROUP BY m.id, m."createdAt"
+            ORDER BY pop ${Prisma.raw(dir)}, m."createdAt" ${Prisma.raw(dir)}
+            LIMIT ${safeLimit} OFFSET ${safeOffset}
+          `;
+        } else {
+          // No global rollup table -> gracefully fall back to default query below.
+          fallbackToDefaultSort = true;
+        }
+      } else {
+        throw e;
+      }
+    }
 
+    if (fallbackToDefaultSort) {
+      // Fall through to the normal Prisma query below (which will sort by createdAt).
+      // This keeps behavior reasonable on older deployments without rollup tables.
+    } else {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return res.json([]);
 
-    const activationWhere = {
-      channelId: targetChannelId,
-      status: { in: ['done', 'completed'] as string[] },
-      createdAt: { gte: popularityStartDate },
-    };
-
     const byId = await prisma.meme.findMany({
-      where: { id: { in: ids }, status: 'approved', channelId: targetChannelId },
+      where: { id: { in: ids }, status: 'approved', ...(targetChannelId ? { channelId: targetChannelId } : {}) },
       include: {
         createdBy: { select: { id: true, displayName: true } },
         tags: { include: { tag: true } },
-        _count: { select: { activations: { where: activationWhere } } },
       },
     });
 
     const map = new Map(byId.map((m) => [m.id, m]));
-    const ordered = ids.map((id) => map.get(id)).filter(Boolean);
+    const popById = new Map(rows.map((r) => [r.id, r.pop]));
+    const ordered = ids
+      .map((id) => {
+        const item: any = map.get(id);
+        if (!item) return null;
+        // Preserve existing response shape where `_count.activations` matches popularity sorting.
+        item._count = { activations: popById.get(id) ?? 0 };
+        return item;
+      })
+      .filter(Boolean);
     // Cache non-personalized responses (best-effort)
     try {
       const body = JSON.stringify(ordered);
@@ -331,6 +382,7 @@ export const searchMemes = async (req: any, res: Response) => {
       return res.type('application/json').send(body);
     } catch {
       return res.json(ordered);
+    }
     }
   }
 

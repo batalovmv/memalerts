@@ -34,6 +34,30 @@ pnpm dev
 - **`DOMAIN`**: домен (в проде), на локалке можно не задавать
 - **`TWITCH_CALLBACK_URL`**: redirect URL для Twitch OAuth callback
 
+## Performance / scaling knobs (полезно знать заранее)
+
+### Uploads: ограничение нагрузки (CPU/IO)
+
+- **`VIDEO_FFPROBE_CONCURRENCY`**: сколько параллельных ffprobe допускаем (по умолчанию ограничено).
+- **`FILE_HASH_CONCURRENCY`**: сколько параллельных SHA‑256 hashing допускаем.
+
+### Лимиты body для защиты памяти
+
+Uploads идут через multipart (multer) и не зависят от JSON-limit’ов, поэтому JSON лучше держать небольшим:
+
+- **`JSON_BODY_LIMIT`** (default: `1mb` в prod)
+- **`URLENCODED_BODY_LIMIT`** (default: `1mb` в prod)
+
+### Redis (опционально, но рекомендовано для масштаба)
+
+- **`REDIS_URL`**: включает Redis-кэш (best-effort) и Socket.IO adapter (опционально).
+- **`RATE_LIMIT_REDIS`**: если `REDIS_URL` задан, делает rate limit консистентным между процессами/инстансами.
+
+### Storage (hybrid local → S3)
+
+- **`UPLOAD_STORAGE=local|s3`**: куда кладём дедуп-файлы (`FileHash.filePath` хранит публичный путь/URL).
+- Для `s3` см. `ENV.example` (переменные `S3_*`).
+
 ## Основные команды
 
 ```bash

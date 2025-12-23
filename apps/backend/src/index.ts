@@ -195,10 +195,14 @@ app.use(
 // CSRF protection for state-changing operations (must be after CORS)
 import { csrfProtection } from './middleware/csrf.js';
 app.use(csrfProtection);
-// Increase body size limit for file uploads (100MB)
-app.use(express.json({ limit: '100mb' }));
+// Body size limits:
+// - file uploads use multipart (multer) and are not affected by JSON limits
+// - keep JSON/urlencoded limits tight to avoid memory pressure under abusive/bursty traffic
+const jsonLimit = String(process.env.JSON_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '1mb' : '5mb'));
+const urlencodedLimit = String(process.env.URLENCODED_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '1mb' : '5mb'));
+app.use(express.json({ limit: jsonLimit }));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: urlencodedLimit }));
 
 // Request timeout middleware for long-running requests (like file uploads)
 app.use((req, res, next) => {

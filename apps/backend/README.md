@@ -9,6 +9,8 @@ Backend API для MemAlerts: активация мемов через Twitch Ch
 - **Мемы и модерация**: submissions → approve/reject → approved мемы.
 - **Экономика**: кошельки по пользователю+каналу, списания/начисления, промо‑скидки.
 - **Realtime**: события в overlay и живые обновления кошелька через Socket.IO.
+- **Performance**: rollup-таблицы для статов/популярности, кэши (ETag/304 + Redis опционально), ограничения на пагинацию.
+- **Uploads**: дедуп по SHA‑256, хранение через storage provider (**local** сейчас, **S3/R2/MinIO** при необходимости).
 - **Безопасность**: CSRF, CORS (изоляция beta/prod), rate limit, проверка контента файлов, HMAC для EventSub.
 
 ## Документация (4 файла)

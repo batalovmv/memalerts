@@ -15,7 +15,9 @@ Repo: `memalerts-backend` (**Express + Socket.IO + Prisma/PostgreSQL**).
 - **HTTP API (Express)**: auth, viewer, streamer/owner панель, webhooks.
 - **Realtime (Socket.IO)**: overlay + обновления состояния (активации, кошелёк, submissions).
 - **DB (PostgreSQL через Prisma)**: source of truth (users/channels/memes/wallets/submissions/activations).
-- **Uploads**: локальное `uploads/`, дедупликация по SHA‑256 (`FileHash`).
+- **Uploads / Storage**: дедупликация по SHA‑256 (`FileHash`) + storage provider:
+  - **local**: `FileHash.filePath` = `/uploads/memes/{hash}.{ext}` (раздача через nginx/Express static)
+  - **s3**: `FileHash.filePath` = публичный URL (например CDN), объект кладётся в S3‑совместимое хранилище
 - **Twitch**:
   - OAuth login
   - управление Channel Points reward
@@ -59,7 +61,7 @@ Repo: `memalerts-backend` (**Express + Socket.IO + Prisma/PostgreSQL**).
 - **Viewer**
   - модули: `src/controllers/viewer/*`
   - `cache.ts`: ETag + in‑memory TTL caches
-  - `search.ts`: поиск с лимитами и кэшем, популярность через SQL (корректная пагинация)
+- `search.ts`: поиск с лимитами и кэшем, популярность через 30d rollups (без скана `MemeActivation` на каждый запрос)
   - `stats.ts`: топ‑мемы через `groupBy`, кэш по минутным “бакетам”
   - `activation.ts`: активация + списание + emit в overlay
 
@@ -81,7 +83,7 @@ Repo: `memalerts-backend` (**Express + Socket.IO + Prisma/PostgreSQL**).
 
 1. `POST /submissions` (multer + лимиты)
 2. Проверка magic bytes (anti-spoofing), размера и длительности (ffprobe, fallback на фронтовый duration).
-3. Дедупликация файла по SHA‑256, перенос в `/uploads/memes/{hash}.{ext}`.
+3. Дедупликация файла по SHA‑256, сохранение через storage provider (local или S3‑совместимое).
 4. Если uploader = владелец канала → создаём approved мем напрямую; иначе `MemeSubmission(status=pending)`.
 5. Socket.IO событие `submission:created` (best‑effort, не ломает запрос при ошибке emit).
 
@@ -89,6 +91,7 @@ Repo: `memalerts-backend` (**Express + Socket.IO + Prisma/PostgreSQL**).
 
 - **Короткие транзакции**: транзакция в активации держит только wallet+activation; промо‑поиск вынесен наружу.
 - **Кэш**: search/stats используют короткие TTL и ETag/304; промо имеет короткий TTL по `channelId`.
+- **Uploads под нагрузкой**: ffprobe и hashing ограничены по параллельности (env: `VIDEO_FFPROBE_CONCURRENCY`, `FILE_HASH_CONCURRENCY`).
 - **Event-loop**: синхронные `fs.*Sync` в горячих путях заменены на async-операции (меньше “фризов” под нагрузкой).
 - **Индексы**: `MemeActivation` имеет композитные индексы под popularity/favorites (см. `prisma/schema.prisma`).
 
