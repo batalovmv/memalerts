@@ -13,7 +13,7 @@ import {
   type OverlaySharePayload,
 } from './obs/lib/shareCode';
 export function ObsLinksSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
 
   const channelSlug = user?.channel?.slug || '';
@@ -1307,8 +1307,10 @@ export function ObsLinksSettings() {
   ]);
 
   const creditsPreviewParams = useMemo(() => {
+    const lang = String(i18n.language || '').toLowerCase().startsWith('ru') ? 'ru' : 'en';
     return {
       demo: '1',
+      lang,
       previewBg,
       anchorX: creditsAnchorX,
       anchorY: creditsAnchorY,
@@ -1431,6 +1433,7 @@ export function ObsLinksSettings() {
     creditsTitleStrokeWidth,
     creditsTitleStrokeOpacity,
     creditsTitleStrokeColor,
+    i18n.language,
     previewBg,
   ]);
 
@@ -1822,7 +1825,7 @@ export function ObsLinksSettings() {
     setSenderFontColor('#ffffff');
 
     setAdvancedTab('border');
-    toast.success(t('admin.overlayDefaultsApplied', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё СЃР±СЂРѕС€РµРЅС‹ РґРѕ СЃС‚Р°РЅРґР°СЂС‚РЅС‹С… (РЅРµ Р·Р°Р±СѓРґСЊС‚Рµ РЅР°Р¶Р°С‚СЊ В«РЎРѕС…СЂР°РЅРёС‚СЊВ»)' }));
+    toast.success(t('admin.overlayDefaultsApplied'));
   }, [t]);
 
   const applyPreset = useCallback(
@@ -1921,10 +1924,10 @@ export function ObsLinksSettings() {
       setLastSavedOverlaySettingsPayload(overlaySettingsPayload);
       lastChangeRef.current = null;
       // No extra GET here: saving should be a single request for better UX / lower load.
-      toast.success(t('admin.settingsSaved', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё СЃРѕС…СЂР°РЅРµРЅС‹!' }));
+      toast.success(t('admin.settingsSaved'));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ' }));
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave'));
     } finally {
       await ensureMinDuration(startedAt, 650);
       setSavingOverlaySettings(false);
@@ -1959,10 +1962,10 @@ export function ObsLinksSettings() {
       const { api } = await import('@/lib/api');
       await api.post('/streamer/credits/settings', { creditsStyleJson });
       setLastSavedCreditsSettingsPayload(creditsStyleJson);
-      toast.success(t('admin.settingsSaved', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё СЃРѕС…СЂР°РЅРµРЅС‹!' }));
+      toast.success(t('admin.settingsSaved'));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ' }));
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave'));
     } finally {
       await ensureMinDuration(startedAt, 650);
       setSavingCreditsSettings(false);
@@ -2011,10 +2014,10 @@ export function ObsLinksSettings() {
         setCreditsShowChatters(true);
         setCreditsSectionsOrder(['donors', 'chatters']);
         setCreditsFontFamily('Inter');
-        setCreditsFontSize(26);
-        setCreditsFontWeight(700);
+        setCreditsFontSize(28);
+        setCreditsFontWeight(800);
         setCreditsFontColor('#ffffff');
-        setCreditsLineHeight(1.15);
+        setCreditsLineHeight(1.14);
         setCreditsLetterSpacing(0);
         setCreditsTitleEnabled(true);
         setCreditsTitleSize(20);
@@ -2023,14 +2026,15 @@ export function ObsLinksSettings() {
         setCreditsTitleTransform('uppercase');
         setCreditsAnchorX('center');
         setCreditsAnchorY('center');
-        setCreditsBgInsetLeft(24);
-        setCreditsBgInsetRight(24);
-        setCreditsBgInsetTop(24);
-        setCreditsBgInsetBottom(24);
-        setCreditsContentPadLeft(28);
-        setCreditsContentPadRight(28);
-        setCreditsContentPadTop(28);
-        setCreditsContentPadBottom(28);
+        // Keep a safe readable area, but stay visually minimal.
+        setCreditsBgInsetLeft(48);
+        setCreditsBgInsetRight(48);
+        setCreditsBgInsetTop(48);
+        setCreditsBgInsetBottom(48);
+        setCreditsContentPadLeft(0);
+        setCreditsContentPadRight(0);
+        setCreditsContentPadTop(0);
+        setCreditsContentPadBottom(0);
         setCreditsMaxWidthPx(920);
         setCreditsMaxHeightVh(88);
         setCreditsTextAlign('center');
@@ -2045,7 +2049,7 @@ export function ObsLinksSettings() {
         setCreditsBorderColor('#ffffff');
         setCreditsShadowBlur(0);
         setCreditsShadowOpacity(0);
-        setCreditsScrollSpeed(52);
+        setCreditsScrollSpeed(48);
         setCreditsScrollDirection('up');
         setCreditsLoop(true);
         setCreditsStartDelayMs(0);
@@ -2053,17 +2057,18 @@ export function ObsLinksSettings() {
         setCreditsSectionGapPx(22);
         setCreditsLineGapPx(8);
         setCreditsFadeInMs(450);
-        setCreditsTextShadowBlur(16);
-        setCreditsTextShadowOpacity(0.65);
+        // Strong readability without any card/background.
+        setCreditsTextShadowBlur(22);
+        setCreditsTextShadowOpacity(0.75);
         setCreditsTextShadowColor('#000000');
-        setCreditsTextStrokeWidth(0);
-        setCreditsTextStrokeOpacity(0.85);
+        setCreditsTextStrokeWidth(0.5);
+        setCreditsTextStrokeOpacity(0.9);
         setCreditsTextStrokeColor('#000000');
-        setCreditsTitleShadowBlur(18);
-        setCreditsTitleShadowOpacity(0.7);
+        setCreditsTitleShadowBlur(24);
+        setCreditsTitleShadowOpacity(0.8);
         setCreditsTitleShadowColor('#000000');
-        setCreditsTitleStrokeWidth(0);
-        setCreditsTitleStrokeOpacity(0.9);
+        setCreditsTitleStrokeWidth(0.5);
+        setCreditsTitleStrokeOpacity(0.92);
         setCreditsTitleStrokeColor('#000000');
         return;
       }
@@ -2135,10 +2140,10 @@ export function ObsLinksSettings() {
         setCreditsShowChatters(true);
         setCreditsSectionsOrder(['donors', 'chatters']);
         setCreditsFontFamily('Montserrat');
-        setCreditsFontSize(30);
+        setCreditsFontSize(32);
         setCreditsFontWeight(800);
         setCreditsFontColor('#ffffff');
-        setCreditsLineHeight(1.1);
+        setCreditsLineHeight(1.08);
         setCreditsLetterSpacing(0);
         setCreditsTitleEnabled(true);
         setCreditsTitleSize(22);
@@ -2161,7 +2166,7 @@ export function ObsLinksSettings() {
         setCreditsIndentPx(0);
         setCreditsBackgroundMode('full');
         setCreditsBgColor('#000000');
-        setCreditsBgOpacity(0.18);
+        setCreditsBgOpacity(0.2);
         setCreditsBlur(0);
         setCreditsRadius(0);
         setCreditsBorderEnabled(false);
@@ -2169,7 +2174,7 @@ export function ObsLinksSettings() {
         setCreditsBorderColor('#ffffff');
         setCreditsShadowBlur(90);
         setCreditsShadowOpacity(0.55);
-        setCreditsScrollSpeed(64);
+        setCreditsScrollSpeed(58);
         setCreditsScrollDirection('up');
         setCreditsLoop(false);
         setCreditsStartDelayMs(1200);
@@ -2177,14 +2182,14 @@ export function ObsLinksSettings() {
         setCreditsSectionGapPx(32);
         setCreditsLineGapPx(10);
         setCreditsFadeInMs(600);
-        setCreditsTextShadowBlur(22);
-        setCreditsTextShadowOpacity(0.65);
+        setCreditsTextShadowBlur(26);
+        setCreditsTextShadowOpacity(0.72);
         setCreditsTextShadowColor('#000000');
         setCreditsTextStrokeWidth(0.5);
         setCreditsTextStrokeOpacity(0.9);
         setCreditsTextStrokeColor('#000000');
-        setCreditsTitleShadowBlur(26);
-        setCreditsTitleShadowOpacity(0.75);
+        setCreditsTitleShadowBlur(30);
+        setCreditsTitleShadowOpacity(0.8);
         setCreditsTitleShadowColor('#000000');
         setCreditsTitleStrokeWidth(0.5);
         setCreditsTitleStrokeOpacity(0.95);
@@ -2223,9 +2228,9 @@ export function ObsLinksSettings() {
       setCreditsIndentPx(0);
       setCreditsBackgroundMode('card');
       setCreditsBgColor('#000000');
-      setCreditsBgOpacity(0.18);
-      setCreditsBlur(6);
-      setCreditsRadius(20);
+      setCreditsBgOpacity(0.22);
+      setCreditsBlur(8);
+      setCreditsRadius(22);
       setCreditsBorderEnabled(false);
       setCreditsBorderWidth(1);
       setCreditsBorderColor('#ffffff');
@@ -2240,16 +2245,16 @@ export function ObsLinksSettings() {
       setCreditsLineGapPx(8);
       setCreditsFadeInMs(600);
       setCreditsTextShadowBlur(18);
-      setCreditsTextShadowOpacity(0.65);
+      setCreditsTextShadowOpacity(0.62);
       setCreditsTextShadowColor('#000000');
-      setCreditsTextStrokeWidth(0.5);
-      setCreditsTextStrokeOpacity(0.9);
+      setCreditsTextStrokeWidth(0.4);
+      setCreditsTextStrokeOpacity(0.88);
       setCreditsTextStrokeColor('#000000');
       setCreditsTitleShadowBlur(20);
       setCreditsTitleShadowOpacity(0.7);
       setCreditsTitleShadowColor('#000000');
-      setCreditsTitleStrokeWidth(0.5);
-      setCreditsTitleStrokeOpacity(0.95);
+      setCreditsTitleStrokeWidth(0.4);
+      setCreditsTitleStrokeOpacity(0.92);
       setCreditsTitleStrokeColor('#000000');
     },
     [],
@@ -2405,12 +2410,8 @@ export function ObsLinksSettings() {
             </div>
 
             <div className="relative">
-              {(loadingOverlaySettings || savingOverlaySettings) && (
-                <SavingOverlay label={t('admin.saving', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' })} />
-              )}
-              {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && (
-                <SavedOverlay label={t('admin.saved', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРѕ' })} />
-              )}
+              {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving')} />}
+              {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && <SavedOverlay label={t('admin.saved')} />}
 
               <div
                 className={`space-y-4 transition-opacity ${
@@ -2491,7 +2492,7 @@ export function ObsLinksSettings() {
                 <div className="pt-2">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {t('admin.obsOverlayLivePreview', { defaultValue: 'Р”РµРјРѕРЅСЃС‚СЂР°С†РёСЏ' })}
+                      {t('admin.obsOverlayLivePreview')}
                     </div>
                     <button
                       type="button"
@@ -2503,8 +2504,8 @@ export function ObsLinksSettings() {
                         // We fetch using next seed and then commit seed+urls in the same render.
                         void fetchPreviewMemes(previewCount, next, { commitSeed: true });
                       }}
-                      title={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
-                      aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
+                      title={t('admin.obsPreviewNextMeme')}
+                      aria-label={t('admin.obsPreviewNextMeme')}
                     >
                       {/* Next arrow icon */}
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -2653,13 +2654,13 @@ export function ObsLinksSettings() {
                         className="glass-btn px-3 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10 flex items-center gap-2"
                         onClick={resetOverlayToDefaults}
                         disabled={savingOverlaySettings || loadingOverlaySettings}
-                        title={t('admin.overlayResetDefaults', { defaultValue: 'РЎР±СЂРѕСЃРёС‚СЊ' })}
+                        title={t('admin.overlayResetDefaults')}
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
                         </svg>
-                        <span className="hidden sm:inline">{t('admin.overlayResetDefaults', { defaultValue: 'РЎР±СЂРѕСЃРёС‚СЊ' })}</span>
+                        <span className="hidden sm:inline">{t('admin.overlayResetDefaults')}</span>
                       </button>
                       {/* Import/Export removed: users can save custom presets locally instead */}
                       <button
@@ -2668,9 +2669,7 @@ export function ObsLinksSettings() {
                         disabled={!overlaySettingsDirty || savingOverlaySettings || loadingOverlaySettings}
                         onClick={() => void handleSaveOverlaySettings()}
                       >
-                        {savingOverlaySettings
-                          ? t('admin.saving', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' })
-                          : t('common.save', { defaultValue: 'РЎРѕС…СЂР°РЅРёС‚СЊ' })}
+                        {savingOverlaySettings ? t('admin.saving') : t('common.save')}
                       </button>
                     </div>
                   </div>
@@ -3020,14 +3019,14 @@ export function ObsLinksSettings() {
                   onChange={(e) => setUrlPosition(e.target.value as any)}
                   className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
-                  <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'РЎР»СѓС‡Р°Р№РЅРѕ' })}</option>
-                  <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Р¦РµРЅС‚СЂ' })}</option>
-                  <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'РЎРІРµСЂС…Сѓ' })}</option>
-                  <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'РЎРЅРёР·Сѓ' })}</option>
-                  <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'РЎР»РµРІР° СЃРІРµСЂС…Сѓ' })}</option>
-                  <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'РЎРїСЂР°РІР° СЃРІРµСЂС…Сѓ' })}</option>
-                  <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'РЎР»РµРІР° СЃРЅРёР·Сѓ' })}</option>
-                  <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'РЎРїСЂР°РІР° СЃРЅРёР·Сѓ' })}</option>
+                  <option value="random">{t('admin.obsOverlayPositionRandom')}</option>
+                  <option value="center">{t('admin.obsOverlayPositionCenter')}</option>
+                  <option value="top">{t('admin.obsOverlayPositionTop')}</option>
+                  <option value="bottom">{t('admin.obsOverlayPositionBottom')}</option>
+                  <option value="top-left">{t('admin.obsOverlayPositionTopLeft')}</option>
+                  <option value="top-right">{t('admin.obsOverlayPositionTopRight')}</option>
+                  <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft')}</option>
+                  <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight')}</option>
                 </select>
               </div>
 
@@ -3832,12 +3831,8 @@ export function ObsLinksSettings() {
           </>
         ) : (
           <div className="glass p-4 space-y-4">
-            {(loadingCreditsSettings || savingCreditsSettings) && (
-              <SavingOverlay label={t('admin.saving', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' })} />
-            )}
-            {creditsSettingsSavedPulse && !savingCreditsSettings && !loadingCreditsSettings && (
-              <SavedOverlay label={t('admin.saved', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРѕ' })} />
-            )}
+            {(loadingCreditsSettings || savingCreditsSettings) && <SavingOverlay label={t('admin.saving')} />}
+            {creditsSettingsSavedPulse && !savingCreditsSettings && !loadingCreditsSettings && <SavedOverlay label={t('admin.saved')} />}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex rounded-xl overflow-hidden border border-white/20 dark:border-white/10">
@@ -3875,6 +3870,51 @@ export function ObsLinksSettings() {
             {/* Quick controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
+                <div className="glass p-3">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                    {t('admin.creditsQuickSections', { defaultValue: 'Секции' })}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={creditsShowDonors}
+                        onChange={(e) => setCreditsShowDonors(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      />
+                      {t('admin.creditsShowDonors', { defaultValue: 'Донаты (DonationAlerts)' })}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={creditsShowChatters}
+                        onChange={(e) => setCreditsShowChatters(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      />
+                      {t('admin.creditsShowChatters', { defaultValue: 'Чат (Twitch)' })}
+                    </label>
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                        {t('admin.creditsSectionsOrder', { defaultValue: 'Порядок' })}
+                      </label>
+                      <select
+                        value={creditsSectionsOrder[0] === 'donors' ? 'donors-first' : 'chatters-first'}
+                        onChange={(e) => {
+                          const v = String(e.target.value || '');
+                          setCreditsSectionsOrder(v === 'chatters-first' ? ['chatters', 'donors'] : ['donors', 'chatters']);
+                        }}
+                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      >
+                        <option value="donors-first">{t('admin.creditsOrderDonorsFirst', { defaultValue: 'Донаты → Чат' })}</option>
+                        <option value="chatters-first">{t('admin.creditsOrderChattersFirst', { defaultValue: 'Чат → Донаты' })}</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.fontFamily', { defaultValue: 'Шрифт' })}</label>
                   <select
@@ -3929,6 +3969,66 @@ export function ObsLinksSettings() {
               </div>
 
               <div className="space-y-3">
+                <div className="glass p-3">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                    {t('admin.creditsQuickBackground', { defaultValue: 'Фон' })}
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                        {t('admin.creditsBackgroundMode', { defaultValue: 'Режим фона' })}
+                      </label>
+                      <select
+                        value={creditsBackgroundMode}
+                        onChange={(e) => setCreditsBackgroundMode(e.target.value as any)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      >
+                        <option value="transparent">{t('admin.creditsBackgroundModeTransparent', { defaultValue: 'Прозрачный' })}</option>
+                        <option value="card">{t('admin.creditsBackgroundModeCard', { defaultValue: 'Карточка' })}</option>
+                        <option value="full">{t('admin.creditsBackgroundModeFull', { defaultValue: 'На весь экран' })}</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {t('admin.creditsBgOpacity', { defaultValue: 'Прозрачность' })}
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={0.85}
+                          step={0.01}
+                          value={creditsBgOpacity}
+                          onChange={(e) => setCreditsBgOpacity(parseFloat(e.target.value))}
+                          className="w-full"
+                          disabled={creditsBackgroundMode === 'transparent' || loadingCreditsSettings || savingCreditsSettings}
+                        />
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                          {Math.round(creditsBgOpacity * 100)}%
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                          {t('admin.creditsBlur', { defaultValue: 'Blur' })}
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={40}
+                          step={1}
+                          value={creditsBlur}
+                          onChange={(e) => setCreditsBlur(Number(e.target.value) || 0)}
+                          className="w-full"
+                          disabled={creditsBackgroundMode === 'transparent' || loadingCreditsSettings || savingCreditsSettings}
+                        />
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">{creditsBlur}px</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsScrollSpeed', { defaultValue: 'Скорость прокрутки (px/s)' })}</label>
                   <input
@@ -3941,89 +4041,32 @@ export function ObsLinksSettings() {
                     disabled={loadingCreditsSettings || savingCreditsSettings}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetX', { defaultValue: 'Фон: отступ слева' })}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={600}
-                      step={1}
-                      value={creditsBgInsetLeft}
-                      onChange={(e) => setCreditsBgInsetLeft(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
+                <div className="glass p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={creditsLoop}
+                        onChange={(e) => setCreditsLoop(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      />
+                      {t('admin.creditsLoop', { defaultValue: 'Loop' })}
+                    </label>
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      {t('admin.creditsScrollDirection', { defaultValue: 'Направление' })}: {creditsScrollDirection === 'up' ? '↑' : '↓'}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetRight', { defaultValue: 'Фон: отступ справа' })}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={600}
-                      step={1}
-                      value={creditsBgInsetRight}
-                      onChange={(e) => setCreditsBgInsetRight(Number(e.target.value) || 0)}
+                  <div className="mt-2">
+                    <select
+                      value={creditsScrollDirection}
+                      onChange={(e) => setCreditsScrollDirection(e.target.value as any)}
                       className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                       disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetTop', { defaultValue: 'Фон: отступ сверху' })}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={600}
-                      step={1}
-                      value={creditsBgInsetTop}
-                      onChange={(e) => setCreditsBgInsetTop(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetBottom', { defaultValue: 'Фон: отступ снизу' })}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={600}
-                      step={1}
-                      value={creditsBgInsetBottom}
-                      onChange={(e) => setCreditsBgInsetBottom(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsContentPadLeft', { defaultValue: 'Текст: padding слева' })}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={240}
-                      step={1}
-                      value={creditsContentPadLeft}
-                      onChange={(e) => setCreditsContentPadLeft(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsContentPadRight', { defaultValue: 'Текст: padding справа' })}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={240}
-                      step={1}
-                      value={creditsContentPadRight}
-                      onChange={(e) => setCreditsContentPadRight(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
+                    >
+                      <option value="up">{t('admin.creditsScrollDirectionUp', { defaultValue: 'Вверх' })}</option>
+                      <option value="down">{t('admin.creditsScrollDirectionDown', { defaultValue: 'Вниз' })}</option>
+                    </select>
                   </div>
                 </div>
               </div>

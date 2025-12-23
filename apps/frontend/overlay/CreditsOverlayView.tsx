@@ -51,6 +51,10 @@ export default function CreditsOverlayView() {
   const [liveParams, setLiveParams] = useState<Record<string, string>>({});
   const [config, setConfig] = useState<CreditsConfig>({ creditsStyleJson: null });
   const [state, setState] = useState<CreditsState>({ chatters: [], donors: [] });
+  const lang = useMemo(() => {
+    const raw = String(liveParams.lang || searchParams.get('lang') || '').trim().toLowerCase();
+    return raw.startsWith('ru') ? 'ru' : 'en';
+  }, [liveParams.lang, searchParams]);
 
   // Receive params from Admin settings preview iframe.
   useEffect(() => {
@@ -161,17 +165,17 @@ export default function CreditsOverlayView() {
           if (amount !== null) return cur ? `${name} — ${amount} ${cur}` : `${name} — ${amount}`;
           return name;
         });
-        if (lines.length) result.push({ key: 'donors', title: 'Donations', lines });
+        if (lines.length) result.push({ key: 'donors', title: lang === 'ru' ? 'Донаты' : 'Donations', lines });
       }
 
       if (k === 'chatters' && resolved.showChatters) {
         const lines = (state.chatters || []).map((c) => String(c.name || '').trim()).filter(Boolean);
-        if (lines.length) result.push({ key: 'chatters', title: 'Chat', lines });
+        if (lines.length) result.push({ key: 'chatters', title: lang === 'ru' ? 'Чат' : 'Chat', lines });
       }
     }
 
     return result;
-  }, [resolved.sectionsOrder, resolved.showChatters, resolved.showDonors, state.chatters, state.donors]);
+  }, [lang, resolved.sectionsOrder, resolved.showChatters, resolved.showDonors, state.chatters, state.donors]);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollDurationSec, setScrollDurationSec] = useState<number>(30);
