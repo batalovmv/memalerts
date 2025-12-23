@@ -92,8 +92,16 @@ export function ObsLinksSettings() {
 
   const [creditsAnchorX, setCreditsAnchorX] = useState<'left' | 'center' | 'right'>('center');
   const [creditsAnchorY, setCreditsAnchorY] = useState<'top' | 'center' | 'bottom'>('center');
-  const [creditsPadX, setCreditsPadX] = useState<number>(24);
-  const [creditsPadY, setCreditsPadY] = useState<number>(24);
+  // Background insets (distance between background and screen edges)
+  const [creditsBgInsetLeft, setCreditsBgInsetLeft] = useState<number>(24);
+  const [creditsBgInsetRight, setCreditsBgInsetRight] = useState<number>(24);
+  const [creditsBgInsetTop, setCreditsBgInsetTop] = useState<number>(24);
+  const [creditsBgInsetBottom, setCreditsBgInsetBottom] = useState<number>(24);
+  // Content padding (inside background)
+  const [creditsContentPadLeft, setCreditsContentPadLeft] = useState<number>(28);
+  const [creditsContentPadRight, setCreditsContentPadRight] = useState<number>(28);
+  const [creditsContentPadTop, setCreditsContentPadTop] = useState<number>(28);
+  const [creditsContentPadBottom, setCreditsContentPadBottom] = useState<number>(28);
   const [creditsMaxWidthPx, setCreditsMaxWidthPx] = useState<number>(920);
   const [creditsMaxHeightVh, setCreditsMaxHeightVh] = useState<number>(88);
   const [creditsTextAlign, setCreditsTextAlign] = useState<'left' | 'center' | 'right'>('center');
@@ -106,6 +114,22 @@ export function ObsLinksSettings() {
   const [creditsTitleWeight, setCreditsTitleWeight] = useState<number>(800);
   const [creditsTitleColor, setCreditsTitleColor] = useState<string>('#ffffff');
   const [creditsTitleTransform, setCreditsTitleTransform] = useState<'none' | 'uppercase' | 'lowercase'>('none');
+
+  // Text effects (main)
+  const [creditsTextShadowBlur, setCreditsTextShadowBlur] = useState<number>(16);
+  const [creditsTextShadowOpacity, setCreditsTextShadowOpacity] = useState<number>(0.6);
+  const [creditsTextShadowColor, setCreditsTextShadowColor] = useState<string>('#000000');
+  const [creditsTextStrokeWidth, setCreditsTextStrokeWidth] = useState<number>(0);
+  const [creditsTextStrokeOpacity, setCreditsTextStrokeOpacity] = useState<number>(0.85);
+  const [creditsTextStrokeColor, setCreditsTextStrokeColor] = useState<string>('#000000');
+
+  // Text effects (title)
+  const [creditsTitleShadowBlur, setCreditsTitleShadowBlur] = useState<number>(18);
+  const [creditsTitleShadowOpacity, setCreditsTitleShadowOpacity] = useState<number>(0.7);
+  const [creditsTitleShadowColor, setCreditsTitleShadowColor] = useState<string>('#000000');
+  const [creditsTitleStrokeWidth, setCreditsTitleStrokeWidth] = useState<number>(0);
+  const [creditsTitleStrokeOpacity, setCreditsTitleStrokeOpacity] = useState<number>(0.9);
+  const [creditsTitleStrokeColor, setCreditsTitleStrokeColor] = useState<string>('#000000');
 
   const [creditsScrollSpeed, setCreditsScrollSpeed] = useState<number>(48);
   const [creditsSectionGapPx, setCreditsSectionGapPx] = useState<number>(24);
@@ -728,8 +752,23 @@ export function ObsLinksSettings() {
           styleFromServer?.anchorX === 'left' ? 'left' : styleFromServer?.anchorX === 'right' ? 'right' : 'center';
         const nextAnchorY: 'top' | 'center' | 'bottom' =
           styleFromServer?.anchorY === 'top' ? 'top' : styleFromServer?.anchorY === 'bottom' ? 'bottom' : 'center';
-        const nextPadX = typeof styleFromServer?.padX === 'number' ? styleFromServer.padX : creditsPadX;
-        const nextPadY = typeof styleFromServer?.padY === 'number' ? styleFromServer.padY : creditsPadY;
+        // Back-compat: old padX/padY -> use as bg inset defaults if new fields are missing
+        const padXLegacy = typeof styleFromServer?.padX === 'number' ? styleFromServer.padX : 24;
+        const padYLegacy = typeof styleFromServer?.padY === 'number' ? styleFromServer.padY : 24;
+
+        const nextBgInsetLeft = typeof styleFromServer?.bgInsetLeft === 'number' ? styleFromServer.bgInsetLeft : creditsBgInsetLeft ?? padXLegacy;
+        const nextBgInsetRight = typeof styleFromServer?.bgInsetRight === 'number' ? styleFromServer.bgInsetRight : creditsBgInsetRight ?? padXLegacy;
+        const nextBgInsetTop = typeof styleFromServer?.bgInsetTop === 'number' ? styleFromServer.bgInsetTop : creditsBgInsetTop ?? padYLegacy;
+        const nextBgInsetBottom = typeof styleFromServer?.bgInsetBottom === 'number' ? styleFromServer.bgInsetBottom : creditsBgInsetBottom ?? padYLegacy;
+
+        const nextContentPadLeft =
+          typeof styleFromServer?.contentPadLeft === 'number' ? styleFromServer.contentPadLeft : creditsContentPadLeft;
+        const nextContentPadRight =
+          typeof styleFromServer?.contentPadRight === 'number' ? styleFromServer.contentPadRight : creditsContentPadRight;
+        const nextContentPadTop =
+          typeof styleFromServer?.contentPadTop === 'number' ? styleFromServer.contentPadTop : creditsContentPadTop;
+        const nextContentPadBottom =
+          typeof styleFromServer?.contentPadBottom === 'number' ? styleFromServer.contentPadBottom : creditsContentPadBottom;
         const nextMaxWidthPx = typeof styleFromServer?.maxWidthPx === 'number' ? styleFromServer.maxWidthPx : creditsMaxWidthPx;
         const nextMaxHeightVh = typeof styleFromServer?.maxHeightVh === 'number' ? styleFromServer.maxHeightVh : creditsMaxHeightVh;
         const nextTextAlign: 'left' | 'center' | 'right' =
@@ -751,6 +790,32 @@ export function ObsLinksSettings() {
             : styleFromServer?.titleTransform === 'lowercase'
               ? 'lowercase'
               : 'none';
+
+        const nextTextShadowBlur =
+          typeof styleFromServer?.textShadowBlur === 'number' ? styleFromServer.textShadowBlur : creditsTextShadowBlur;
+        const nextTextShadowOpacity =
+          typeof styleFromServer?.textShadowOpacity === 'number' ? styleFromServer.textShadowOpacity : creditsTextShadowOpacity;
+        const nextTextShadowColor =
+          typeof styleFromServer?.textShadowColor === 'string' ? styleFromServer.textShadowColor : creditsTextShadowColor;
+        const nextTextStrokeWidth =
+          typeof styleFromServer?.textStrokeWidth === 'number' ? styleFromServer.textStrokeWidth : creditsTextStrokeWidth;
+        const nextTextStrokeOpacity =
+          typeof styleFromServer?.textStrokeOpacity === 'number' ? styleFromServer.textStrokeOpacity : creditsTextStrokeOpacity;
+        const nextTextStrokeColor =
+          typeof styleFromServer?.textStrokeColor === 'string' ? styleFromServer.textStrokeColor : creditsTextStrokeColor;
+
+        const nextTitleShadowBlur =
+          typeof styleFromServer?.titleShadowBlur === 'number' ? styleFromServer.titleShadowBlur : creditsTitleShadowBlur;
+        const nextTitleShadowOpacity =
+          typeof styleFromServer?.titleShadowOpacity === 'number' ? styleFromServer.titleShadowOpacity : creditsTitleShadowOpacity;
+        const nextTitleShadowColor =
+          typeof styleFromServer?.titleShadowColor === 'string' ? styleFromServer.titleShadowColor : creditsTitleShadowColor;
+        const nextTitleStrokeWidth =
+          typeof styleFromServer?.titleStrokeWidth === 'number' ? styleFromServer.titleStrokeWidth : creditsTitleStrokeWidth;
+        const nextTitleStrokeOpacity =
+          typeof styleFromServer?.titleStrokeOpacity === 'number' ? styleFromServer.titleStrokeOpacity : creditsTitleStrokeOpacity;
+        const nextTitleStrokeColor =
+          typeof styleFromServer?.titleStrokeColor === 'string' ? styleFromServer.titleStrokeColor : creditsTitleStrokeColor;
 
         const nextScrollSpeed = typeof styleFromServer?.scrollSpeed === 'number' ? styleFromServer.scrollSpeed : creditsScrollSpeed;
         const nextSectionGapPx = typeof styleFromServer?.sectionGapPx === 'number' ? styleFromServer.sectionGapPx : creditsSectionGapPx;
@@ -783,8 +848,15 @@ export function ObsLinksSettings() {
 
         setCreditsAnchorX(nextAnchorX);
         setCreditsAnchorY(nextAnchorY);
-        setCreditsPadX(Math.max(0, Math.min(400, Math.round(nextPadX))));
-        setCreditsPadY(Math.max(0, Math.min(400, Math.round(nextPadY))));
+        setCreditsBgInsetLeft(Math.max(0, Math.min(600, Math.round(nextBgInsetLeft))));
+        setCreditsBgInsetRight(Math.max(0, Math.min(600, Math.round(nextBgInsetRight))));
+        setCreditsBgInsetTop(Math.max(0, Math.min(600, Math.round(nextBgInsetTop))));
+        setCreditsBgInsetBottom(Math.max(0, Math.min(600, Math.round(nextBgInsetBottom))));
+
+        setCreditsContentPadLeft(Math.max(0, Math.min(240, Math.round(nextContentPadLeft))));
+        setCreditsContentPadRight(Math.max(0, Math.min(240, Math.round(nextContentPadRight))));
+        setCreditsContentPadTop(Math.max(0, Math.min(240, Math.round(nextContentPadTop))));
+        setCreditsContentPadBottom(Math.max(0, Math.min(240, Math.round(nextContentPadBottom))));
         setCreditsMaxWidthPx(Math.max(240, Math.min(2400, Math.round(nextMaxWidthPx))));
         setCreditsMaxHeightVh(Math.max(20, Math.min(100, Math.round(nextMaxHeightVh))));
         setCreditsTextAlign(nextTextAlign);
@@ -798,6 +870,20 @@ export function ObsLinksSettings() {
         setCreditsTitleColor(String(nextTitleColor || '#ffffff').toLowerCase());
         setCreditsTitleTransform(nextTitleTransform);
 
+        setCreditsTextShadowBlur(Math.max(0, Math.min(120, Math.round(nextTextShadowBlur))));
+        setCreditsTextShadowOpacity(Math.max(0, Math.min(1, Number(nextTextShadowOpacity) || 0)));
+        setCreditsTextShadowColor(String(nextTextShadowColor || '#000000').toLowerCase());
+        setCreditsTextStrokeWidth(Math.max(0, Math.min(6, Number(nextTextStrokeWidth) || 0)));
+        setCreditsTextStrokeOpacity(Math.max(0, Math.min(1, Number(nextTextStrokeOpacity) || 0)));
+        setCreditsTextStrokeColor(String(nextTextStrokeColor || '#000000').toLowerCase());
+
+        setCreditsTitleShadowBlur(Math.max(0, Math.min(120, Math.round(nextTitleShadowBlur))));
+        setCreditsTitleShadowOpacity(Math.max(0, Math.min(1, Number(nextTitleShadowOpacity) || 0)));
+        setCreditsTitleShadowColor(String(nextTitleShadowColor || '#000000').toLowerCase());
+        setCreditsTitleStrokeWidth(Math.max(0, Math.min(6, Number(nextTitleStrokeWidth) || 0)));
+        setCreditsTitleStrokeOpacity(Math.max(0, Math.min(1, Number(nextTitleStrokeOpacity) || 0)));
+        setCreditsTitleStrokeColor(String(nextTitleStrokeColor || '#000000').toLowerCase());
+
         setCreditsScrollSpeed(Math.max(8, Math.min(600, Number(nextScrollSpeed) || 48)));
         setCreditsSectionGapPx(Math.max(0, Math.min(120, Math.round(nextSectionGapPx))));
         setCreditsLineGapPx(Math.max(0, Math.min(80, Math.round(nextLineGapPx))));
@@ -810,11 +896,17 @@ export function ObsLinksSettings() {
         const baselineStyleJson = JSON.stringify({
           anchorX: nextAnchorX,
           anchorY: nextAnchorY,
-          padX: nextPadX,
-          padY: nextPadY,
+          bgInsetLeft: nextBgInsetLeft,
+          bgInsetRight: nextBgInsetRight,
+          bgInsetTop: nextBgInsetTop,
+          bgInsetBottom: nextBgInsetBottom,
           maxWidthPx: nextMaxWidthPx,
           maxHeightVh: nextMaxHeightVh,
           textAlign: nextTextAlign,
+          contentPadLeft: nextContentPadLeft,
+          contentPadRight: nextContentPadRight,
+          contentPadTop: nextContentPadTop,
+          contentPadBottom: nextContentPadBottom,
           sectionsOrder: nextOrder.length ? nextOrder : ['donors', 'chatters'],
           showDonors: Boolean(nextShowDonors),
           showChatters: Boolean(nextShowChatters),
@@ -829,6 +921,18 @@ export function ObsLinksSettings() {
           titleWeight: nextTitleWeight,
           titleColor: nextTitleColor,
           titleTransform: nextTitleTransform,
+          textShadowBlur: nextTextShadowBlur,
+          textShadowOpacity: nextTextShadowOpacity,
+          textShadowColor: nextTextShadowColor,
+          textStrokeWidth: nextTextStrokeWidth,
+          textStrokeOpacity: nextTextStrokeOpacity,
+          textStrokeColor: nextTextStrokeColor,
+          titleShadowBlur: nextTitleShadowBlur,
+          titleShadowOpacity: nextTitleShadowOpacity,
+          titleShadowColor: nextTitleShadowColor,
+          titleStrokeWidth: nextTitleStrokeWidth,
+          titleStrokeOpacity: nextTitleStrokeOpacity,
+          titleStrokeColor: nextTitleStrokeColor,
           backgroundMode: nextBackgroundMode,
           bgColor: nextBgColor,
           bgOpacity: nextBgOpacity,
@@ -1084,11 +1188,17 @@ export function ObsLinksSettings() {
     return JSON.stringify({
       anchorX: creditsAnchorX,
       anchorY: creditsAnchorY,
-      padX: creditsPadX,
-      padY: creditsPadY,
+      bgInsetLeft: creditsBgInsetLeft,
+      bgInsetRight: creditsBgInsetRight,
+      bgInsetTop: creditsBgInsetTop,
+      bgInsetBottom: creditsBgInsetBottom,
       maxWidthPx: creditsMaxWidthPx,
       maxHeightVh: creditsMaxHeightVh,
       textAlign: creditsTextAlign,
+      contentPadLeft: creditsContentPadLeft,
+      contentPadRight: creditsContentPadRight,
+      contentPadTop: creditsContentPadTop,
+      contentPadBottom: creditsContentPadBottom,
       sectionsOrder: creditsSectionsOrder,
       showDonors: creditsShowDonors,
       showChatters: creditsShowChatters,
@@ -1103,6 +1213,18 @@ export function ObsLinksSettings() {
       titleWeight: creditsTitleWeight,
       titleColor: creditsTitleColor,
       titleTransform: creditsTitleTransform,
+      textShadowBlur: creditsTextShadowBlur,
+      textShadowOpacity: creditsTextShadowOpacity,
+      textShadowColor: creditsTextShadowColor,
+      textStrokeWidth: creditsTextStrokeWidth,
+      textStrokeOpacity: creditsTextStrokeOpacity,
+      textStrokeColor: creditsTextStrokeColor,
+      titleShadowBlur: creditsTitleShadowBlur,
+      titleShadowOpacity: creditsTitleShadowOpacity,
+      titleShadowColor: creditsTitleShadowColor,
+      titleStrokeWidth: creditsTitleStrokeWidth,
+      titleStrokeOpacity: creditsTitleStrokeOpacity,
+      titleStrokeColor: creditsTitleStrokeColor,
       backgroundMode: creditsBackgroundMode,
       bgColor: creditsBgColor,
       bgOpacity: creditsBgOpacity,
@@ -1126,8 +1248,14 @@ export function ObsLinksSettings() {
   }, [
     creditsAnchorX,
     creditsAnchorY,
-    creditsPadX,
-    creditsPadY,
+    creditsBgInsetLeft,
+    creditsBgInsetRight,
+    creditsBgInsetTop,
+    creditsBgInsetBottom,
+    creditsContentPadLeft,
+    creditsContentPadRight,
+    creditsContentPadTop,
+    creditsContentPadBottom,
     creditsMaxWidthPx,
     creditsMaxHeightVh,
     creditsTextAlign,
@@ -1164,6 +1292,18 @@ export function ObsLinksSettings() {
     creditsTitleSize,
     creditsTitleTransform,
     creditsTitleWeight,
+    creditsTextShadowBlur,
+    creditsTextShadowOpacity,
+    creditsTextShadowColor,
+    creditsTextStrokeWidth,
+    creditsTextStrokeOpacity,
+    creditsTextStrokeColor,
+    creditsTitleShadowBlur,
+    creditsTitleShadowOpacity,
+    creditsTitleShadowColor,
+    creditsTitleStrokeWidth,
+    creditsTitleStrokeOpacity,
+    creditsTitleStrokeColor,
   ]);
 
   const creditsPreviewParams = useMemo(() => {
@@ -1172,11 +1312,17 @@ export function ObsLinksSettings() {
       previewBg,
       anchorX: creditsAnchorX,
       anchorY: creditsAnchorY,
-      padX: String(creditsPadX),
-      padY: String(creditsPadY),
+      bgInsetLeft: String(creditsBgInsetLeft),
+      bgInsetRight: String(creditsBgInsetRight),
+      bgInsetTop: String(creditsBgInsetTop),
+      bgInsetBottom: String(creditsBgInsetBottom),
       maxWidthPx: String(creditsMaxWidthPx),
       maxHeightVh: String(creditsMaxHeightVh),
       textAlign: creditsTextAlign,
+      contentPadLeft: String(creditsContentPadLeft),
+      contentPadRight: String(creditsContentPadRight),
+      contentPadTop: String(creditsContentPadTop),
+      contentPadBottom: String(creditsContentPadBottom),
       sectionsOrder: JSON.stringify(creditsSectionsOrder),
       showDonors: creditsShowDonors ? '1' : '0',
       showChatters: creditsShowChatters ? '1' : '0',
@@ -1191,6 +1337,18 @@ export function ObsLinksSettings() {
       titleWeight: String(creditsTitleWeight),
       titleColor: String(creditsTitleColor),
       titleTransform: creditsTitleTransform,
+      textShadowBlur: String(creditsTextShadowBlur),
+      textShadowOpacity: String(creditsTextShadowOpacity),
+      textShadowColor: String(creditsTextShadowColor),
+      textStrokeWidth: String(creditsTextStrokeWidth),
+      textStrokeOpacity: String(creditsTextStrokeOpacity),
+      textStrokeColor: String(creditsTextStrokeColor),
+      titleShadowBlur: String(creditsTitleShadowBlur),
+      titleShadowOpacity: String(creditsTitleShadowOpacity),
+      titleShadowColor: String(creditsTitleShadowColor),
+      titleStrokeWidth: String(creditsTitleStrokeWidth),
+      titleStrokeOpacity: String(creditsTitleStrokeOpacity),
+      titleStrokeColor: String(creditsTitleStrokeColor),
       backgroundMode: creditsBackgroundMode,
       bgColor: String(creditsBgColor),
       bgOpacity: String(creditsBgOpacity),
@@ -1241,8 +1399,14 @@ export function ObsLinksSettings() {
     creditsStartDelayMs,
     creditsMaxHeightVh,
     creditsMaxWidthPx,
-    creditsPadX,
-    creditsPadY,
+    creditsBgInsetLeft,
+    creditsBgInsetRight,
+    creditsBgInsetTop,
+    creditsBgInsetBottom,
+    creditsContentPadLeft,
+    creditsContentPadRight,
+    creditsContentPadTop,
+    creditsContentPadBottom,
     creditsTextAlign,
     creditsSectionGapPx,
     creditsSectionsOrder,
@@ -1255,6 +1419,18 @@ export function ObsLinksSettings() {
     creditsTitleSize,
     creditsTitleTransform,
     creditsTitleWeight,
+    creditsTextShadowBlur,
+    creditsTextShadowOpacity,
+    creditsTextShadowColor,
+    creditsTextStrokeWidth,
+    creditsTextStrokeOpacity,
+    creditsTextStrokeColor,
+    creditsTitleShadowBlur,
+    creditsTitleShadowOpacity,
+    creditsTitleShadowColor,
+    creditsTitleStrokeWidth,
+    creditsTitleStrokeOpacity,
+    creditsTitleStrokeColor,
     previewBg,
   ]);
 
@@ -1847,8 +2023,14 @@ export function ObsLinksSettings() {
         setCreditsTitleTransform('uppercase');
         setCreditsAnchorX('center');
         setCreditsAnchorY('center');
-        setCreditsPadX(24);
-        setCreditsPadY(24);
+        setCreditsBgInsetLeft(24);
+        setCreditsBgInsetRight(24);
+        setCreditsBgInsetTop(24);
+        setCreditsBgInsetBottom(24);
+        setCreditsContentPadLeft(28);
+        setCreditsContentPadRight(28);
+        setCreditsContentPadTop(28);
+        setCreditsContentPadBottom(28);
         setCreditsMaxWidthPx(920);
         setCreditsMaxHeightVh(88);
         setCreditsTextAlign('center');
@@ -1871,6 +2053,18 @@ export function ObsLinksSettings() {
         setCreditsSectionGapPx(22);
         setCreditsLineGapPx(8);
         setCreditsFadeInMs(450);
+        setCreditsTextShadowBlur(16);
+        setCreditsTextShadowOpacity(0.65);
+        setCreditsTextShadowColor('#000000');
+        setCreditsTextStrokeWidth(0);
+        setCreditsTextStrokeOpacity(0.85);
+        setCreditsTextStrokeColor('#000000');
+        setCreditsTitleShadowBlur(18);
+        setCreditsTitleShadowOpacity(0.7);
+        setCreditsTitleShadowColor('#000000');
+        setCreditsTitleStrokeWidth(0);
+        setCreditsTitleStrokeOpacity(0.9);
+        setCreditsTitleStrokeColor('#000000');
         return;
       }
 
@@ -1891,8 +2085,14 @@ export function ObsLinksSettings() {
         setCreditsTitleTransform('uppercase');
         setCreditsAnchorX('center');
         setCreditsAnchorY('center');
-        setCreditsPadX(28);
-        setCreditsPadY(28);
+        setCreditsBgInsetLeft(28);
+        setCreditsBgInsetRight(28);
+        setCreditsBgInsetTop(28);
+        setCreditsBgInsetBottom(28);
+        setCreditsContentPadLeft(30);
+        setCreditsContentPadRight(30);
+        setCreditsContentPadTop(28);
+        setCreditsContentPadBottom(28);
         setCreditsMaxWidthPx(980);
         setCreditsMaxHeightVh(90);
         setCreditsTextAlign('center');
@@ -1915,6 +2115,18 @@ export function ObsLinksSettings() {
         setCreditsSectionGapPx(26);
         setCreditsLineGapPx(8);
         setCreditsFadeInMs(420);
+        setCreditsTextShadowBlur(26);
+        setCreditsTextShadowOpacity(0.7);
+        setCreditsTextShadowColor('#000000');
+        setCreditsTextStrokeWidth(0.75);
+        setCreditsTextStrokeOpacity(0.9);
+        setCreditsTextStrokeColor('#000000');
+        setCreditsTitleShadowBlur(30);
+        setCreditsTitleShadowOpacity(0.8);
+        setCreditsTitleShadowColor('#000000');
+        setCreditsTitleStrokeWidth(0.75);
+        setCreditsTitleStrokeOpacity(0.95);
+        setCreditsTitleStrokeColor('#000000');
         return;
       }
 
@@ -1935,8 +2147,14 @@ export function ObsLinksSettings() {
         setCreditsTitleTransform('uppercase');
         setCreditsAnchorX('center');
         setCreditsAnchorY('center');
-        setCreditsPadX(0);
-        setCreditsPadY(0);
+        setCreditsBgInsetLeft(0);
+        setCreditsBgInsetRight(0);
+        setCreditsBgInsetTop(0);
+        setCreditsBgInsetBottom(0);
+        setCreditsContentPadLeft(48);
+        setCreditsContentPadRight(48);
+        setCreditsContentPadTop(36);
+        setCreditsContentPadBottom(36);
         setCreditsMaxWidthPx(2400);
         setCreditsMaxHeightVh(100);
         setCreditsTextAlign('center');
@@ -1959,6 +2177,18 @@ export function ObsLinksSettings() {
         setCreditsSectionGapPx(32);
         setCreditsLineGapPx(10);
         setCreditsFadeInMs(600);
+        setCreditsTextShadowBlur(22);
+        setCreditsTextShadowOpacity(0.65);
+        setCreditsTextShadowColor('#000000');
+        setCreditsTextStrokeWidth(0.5);
+        setCreditsTextStrokeOpacity(0.9);
+        setCreditsTextStrokeColor('#000000');
+        setCreditsTitleShadowBlur(26);
+        setCreditsTitleShadowOpacity(0.75);
+        setCreditsTitleShadowColor('#000000');
+        setCreditsTitleStrokeWidth(0.5);
+        setCreditsTitleStrokeOpacity(0.95);
+        setCreditsTitleStrokeColor('#000000');
         return;
       }
 
@@ -1979,8 +2209,14 @@ export function ObsLinksSettings() {
       setCreditsTitleTransform('uppercase');
       setCreditsAnchorX('center');
       setCreditsAnchorY('center');
-      setCreditsPadX(24);
-      setCreditsPadY(24);
+      setCreditsBgInsetLeft(24);
+      setCreditsBgInsetRight(24);
+      setCreditsBgInsetTop(24);
+      setCreditsBgInsetBottom(24);
+      setCreditsContentPadLeft(28);
+      setCreditsContentPadRight(28);
+      setCreditsContentPadTop(28);
+      setCreditsContentPadBottom(28);
       setCreditsMaxWidthPx(920);
       setCreditsMaxHeightVh(88);
       setCreditsTextAlign('center');
@@ -2003,6 +2239,18 @@ export function ObsLinksSettings() {
       setCreditsSectionGapPx(24);
       setCreditsLineGapPx(8);
       setCreditsFadeInMs(600);
+      setCreditsTextShadowBlur(18);
+      setCreditsTextShadowOpacity(0.65);
+      setCreditsTextShadowColor('#000000');
+      setCreditsTextStrokeWidth(0.5);
+      setCreditsTextStrokeOpacity(0.9);
+      setCreditsTextStrokeColor('#000000');
+      setCreditsTitleShadowBlur(20);
+      setCreditsTitleShadowOpacity(0.7);
+      setCreditsTitleShadowColor('#000000');
+      setCreditsTitleStrokeWidth(0.5);
+      setCreditsTitleStrokeOpacity(0.95);
+      setCreditsTitleStrokeColor('#000000');
     },
     [],
   );
@@ -3656,7 +3904,8 @@ export function ObsLinksSettings() {
                     <input
                       type="number"
                       min={10}
-                      max={64}
+                      max={96}
+                      step={0.5}
                       value={creditsFontSize}
                       onChange={(e) => setCreditsFontSize(Number(e.target.value) || 10)}
                       className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
@@ -3694,25 +3943,84 @@ export function ObsLinksSettings() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsPadX', { defaultValue: 'Отступ слева/справа' })}</label>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetX', { defaultValue: 'Фон: отступ слева' })}</label>
                     <input
                       type="number"
                       min={0}
-                      max={400}
-                      value={creditsPadX}
-                      onChange={(e) => setCreditsPadX(Number(e.target.value) || 0)}
+                      max={600}
+                      step={1}
+                      value={creditsBgInsetLeft}
+                      onChange={(e) => setCreditsBgInsetLeft(Number(e.target.value) || 0)}
                       className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                       disabled={loadingCreditsSettings || savingCreditsSettings}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsPadY', { defaultValue: 'Отступ сверху/снизу' })}</label>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetRight', { defaultValue: 'Фон: отступ справа' })}</label>
                     <input
                       type="number"
                       min={0}
-                      max={400}
-                      value={creditsPadY}
-                      onChange={(e) => setCreditsPadY(Number(e.target.value) || 0)}
+                      max={600}
+                      step={1}
+                      value={creditsBgInsetRight}
+                      onChange={(e) => setCreditsBgInsetRight(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetTop', { defaultValue: 'Фон: отступ сверху' })}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={600}
+                      step={1}
+                      value={creditsBgInsetTop}
+                      onChange={(e) => setCreditsBgInsetTop(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBgInsetBottom', { defaultValue: 'Фон: отступ снизу' })}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={600}
+                      step={1}
+                      value={creditsBgInsetBottom}
+                      onChange={(e) => setCreditsBgInsetBottom(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsContentPadLeft', { defaultValue: 'Текст: padding слева' })}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={240}
+                      step={1}
+                      value={creditsContentPadLeft}
+                      onChange={(e) => setCreditsContentPadLeft(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsContentPadRight', { defaultValue: 'Текст: padding справа' })}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={240}
+                      step={1}
+                      value={creditsContentPadRight}
+                      onChange={(e) => setCreditsContentPadRight(Number(e.target.value) || 0)}
                       className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                       disabled={loadingCreditsSettings || savingCreditsSettings}
                     />
@@ -3852,6 +4160,46 @@ export function ObsLinksSettings() {
                           <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsFontColor}</div>
                         </div>
                       </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTextShadow', { defaultValue: 'Тень текста (blur)' })}</label>
+                          <input type="number" min={0} max={120} step={1} value={creditsTextShadowBlur} onChange={(e) => setCreditsTextShadowBlur(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                            {t('admin.creditsTextShadowOpacity', { defaultValue: 'Тень текста (opacity)' })}: {Math.round(creditsTextShadowOpacity * 100)}%
+                          </label>
+                          <input type="range" min={0} max={1} step={0.02} value={creditsTextShadowOpacity} onChange={(e) => setCreditsTextShadowOpacity(parseFloat(e.target.value))} className="w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTextShadowColor', { defaultValue: 'Тень текста (color)' })}</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={creditsTextShadowColor} onChange={(e) => setCreditsTextShadowColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" />
+                            <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsTextShadowColor}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTextStrokeWidth', { defaultValue: 'Обводка текста (px)' })}</label>
+                          <input type="number" min={0} max={6} step={0.25} value={creditsTextStrokeWidth} onChange={(e) => setCreditsTextStrokeWidth(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                            {t('admin.creditsTextStrokeOpacity', { defaultValue: 'Обводка текста (opacity)' })}: {Math.round(creditsTextStrokeOpacity * 100)}%
+                          </label>
+                          <input type="range" min={0} max={1} step={0.02} value={creditsTextStrokeOpacity} onChange={(e) => setCreditsTextStrokeOpacity(parseFloat(e.target.value))} className="w-full" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTextStrokeColor', { defaultValue: 'Обводка текста (color)' })}</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={creditsTextStrokeColor} onChange={(e) => setCreditsTextStrokeColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" />
+                            <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsTextStrokeColor}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
@@ -3877,6 +4225,46 @@ export function ObsLinksSettings() {
                         <div className="flex items-center gap-3">
                           <input type="color" value={creditsTitleColor} onChange={(e) => setCreditsTitleColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" disabled={!creditsTitleEnabled} />
                           <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsTitleColor}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleShadow', { defaultValue: 'Тень заголовка (blur)' })}</label>
+                          <input type="number" min={0} max={120} step={1} value={creditsTitleShadowBlur} onChange={(e) => setCreditsTitleShadowBlur(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsTitleEnabled} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                            {t('admin.creditsTitleShadowOpacity', { defaultValue: 'Тень заголовка (opacity)' })}: {Math.round(creditsTitleShadowOpacity * 100)}%
+                          </label>
+                          <input type="range" min={0} max={1} step={0.02} value={creditsTitleShadowOpacity} onChange={(e) => setCreditsTitleShadowOpacity(parseFloat(e.target.value))} className="w-full" disabled={!creditsTitleEnabled} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleShadowColor', { defaultValue: 'Тень заголовка (color)' })}</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={creditsTitleShadowColor} onChange={(e) => setCreditsTitleShadowColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" disabled={!creditsTitleEnabled} />
+                            <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsTitleShadowColor}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleStrokeWidth', { defaultValue: 'Обводка заголовка (px)' })}</label>
+                          <input type="number" min={0} max={6} step={0.25} value={creditsTitleStrokeWidth} onChange={(e) => setCreditsTitleStrokeWidth(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsTitleEnabled} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                            {t('admin.creditsTitleStrokeOpacity', { defaultValue: 'Обводка заголовка (opacity)' })}: {Math.round(creditsTitleStrokeOpacity * 100)}%
+                          </label>
+                          <input type="range" min={0} max={1} step={0.02} value={creditsTitleStrokeOpacity} onChange={(e) => setCreditsTitleStrokeOpacity(parseFloat(e.target.value))} className="w-full" disabled={!creditsTitleEnabled} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleStrokeColor', { defaultValue: 'Обводка заголовка (color)' })}</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={creditsTitleStrokeColor} onChange={(e) => setCreditsTitleStrokeColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" disabled={!creditsTitleEnabled} />
+                            <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsTitleStrokeColor}</div>
+                          </div>
                         </div>
                       </div>
                     </div>

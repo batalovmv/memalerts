@@ -205,7 +205,6 @@ export default function CreditsOverlayView() {
       display: 'flex',
       alignItems: resolved.anchorY === 'top' ? 'flex-start' : resolved.anchorY === 'bottom' ? 'flex-end' : 'center',
       justifyContent: resolved.anchorX === 'left' ? 'flex-start' : resolved.anchorX === 'right' ? 'flex-end' : 'center',
-      padding: `${resolved.padY}px ${resolved.padX}px`,
       color: resolved.fontColor,
       fontFamily: cssFontFamily(resolved.fontFamily),
       fontSize: resolved.fontSize,
@@ -228,8 +227,6 @@ export default function CreditsOverlayView() {
     resolved.fontWeight,
     resolved.letterSpacing,
     resolved.lineHeight,
-    resolved.padX,
-    resolved.padY,
   ]);
 
   const cardStyle = useMemo((): React.CSSProperties => {
@@ -240,6 +237,10 @@ export default function CreditsOverlayView() {
           ? `rgba(${hexToRgb(resolved.bgColor).join(',')}, ${resolved.bgOpacity})`
           : `rgba(${hexToRgb(resolved.bgColor).join(',')}, ${resolved.bgOpacity})`;
     return {
+      marginLeft: resolved.bgInsetLeft,
+      marginRight: resolved.bgInsetRight,
+      marginTop: resolved.bgInsetTop,
+      marginBottom: resolved.bgInsetBottom,
       width: `min(${resolved.maxWidthPx}px, 92vw)`,
       maxHeight: `${resolved.maxHeightVh}vh`,
       overflow: 'hidden',
@@ -253,6 +254,10 @@ export default function CreditsOverlayView() {
     resolved.bgColor,
     resolved.backgroundMode,
     resolved.bgOpacity,
+    resolved.bgInsetBottom,
+    resolved.bgInsetLeft,
+    resolved.bgInsetRight,
+    resolved.bgInsetTop,
     resolved.blur,
     resolved.borderColor,
     resolved.borderEnabled,
@@ -264,7 +269,7 @@ export default function CreditsOverlayView() {
 
   const listStyle = useMemo((): React.CSSProperties => {
     return {
-      padding: 28,
+      padding: `${resolved.contentPadTop}px ${resolved.contentPadRight}px ${resolved.contentPadBottom}px ${resolved.contentPadLeft}px`,
       display: 'grid',
       gap: resolved.sectionGapPx,
       animation: `memalertsCreditsScroll ${scrollDurationSec}s linear ${resolved.loop ? 'infinite' : '1'}`,
@@ -272,7 +277,17 @@ export default function CreditsOverlayView() {
       willChange: 'transform',
       textAlign: resolved.textAlign,
     };
-  }, [resolved.loop, resolved.sectionGapPx, resolved.startDelayMs, resolved.textAlign, scrollDurationSec]);
+  }, [
+    resolved.contentPadBottom,
+    resolved.contentPadLeft,
+    resolved.contentPadRight,
+    resolved.contentPadTop,
+    resolved.loop,
+    resolved.sectionGapPx,
+    resolved.startDelayMs,
+    resolved.textAlign,
+    scrollDurationSec,
+  ]);
 
   const fadeOutStyle = useMemo((): React.CSSProperties => {
     if (resolved.loop) return {};
@@ -285,9 +300,33 @@ export default function CreditsOverlayView() {
     };
   }, [resolved.endFadeMs, resolved.loop, resolved.startDelayMs, scrollDurationSec]);
 
+  const baseTextEffectsStyle = useMemo((): React.CSSProperties => {
+    const shadow =
+      resolved.textShadowBlur > 0 && resolved.textShadowOpacity > 0
+        ? `0 2px ${resolved.textShadowBlur}px rgba(${hexToRgb(resolved.textShadowColor).join(',')}, ${resolved.textShadowOpacity})`
+        : undefined;
+    const strokeColor =
+      resolved.textStrokeWidth > 0 && resolved.textStrokeOpacity > 0
+        ? `rgba(${hexToRgb(resolved.textStrokeColor).join(',')}, ${resolved.textStrokeOpacity})`
+        : undefined;
+
+    return {
+      textShadow: shadow,
+      WebkitTextStrokeWidth: resolved.textStrokeWidth > 0 ? `${resolved.textStrokeWidth}px` : undefined,
+      WebkitTextStrokeColor: strokeColor,
+    };
+  }, [
+    resolved.textShadowBlur,
+    resolved.textShadowColor,
+    resolved.textShadowOpacity,
+    resolved.textStrokeColor,
+    resolved.textStrokeOpacity,
+    resolved.textStrokeWidth,
+  ]);
+
   const lineStyle = useMemo((): React.CSSProperties => {
-    return { lineHeight: resolved.lineHeight, marginTop: resolved.lineGapPx };
-  }, [resolved.lineGapPx, resolved.lineHeight]);
+    return { lineHeight: resolved.lineHeight, marginTop: resolved.lineGapPx, ...baseTextEffectsStyle };
+  }, [baseTextEffectsStyle, resolved.lineGapPx, resolved.lineHeight]);
 
   const listBlockStyle = useMemo((): React.CSSProperties => {
     return { paddingLeft: resolved.indentPx > 0 ? resolved.indentPx : undefined };
@@ -300,6 +339,14 @@ export default function CreditsOverlayView() {
         : resolved.titleTransform === 'lowercase'
           ? 'lowercase'
           : 'none';
+    const shadow =
+      resolved.titleShadowBlur > 0 && resolved.titleShadowOpacity > 0
+        ? `0 2px ${resolved.titleShadowBlur}px rgba(${hexToRgb(resolved.titleShadowColor).join(',')}, ${resolved.titleShadowOpacity})`
+        : undefined;
+    const strokeColor =
+      resolved.titleStrokeWidth > 0 && resolved.titleStrokeOpacity > 0
+        ? `rgba(${hexToRgb(resolved.titleStrokeColor).join(',')}, ${resolved.titleStrokeOpacity})`
+        : undefined;
     return {
       display: resolved.titleEnabled ? 'block' : 'none',
       fontSize: resolved.titleSize,
@@ -308,8 +355,23 @@ export default function CreditsOverlayView() {
       opacity: 0.92,
       letterSpacing: '0.02em',
       textTransform: transform as any,
+      textShadow: shadow,
+      WebkitTextStrokeWidth: resolved.titleStrokeWidth > 0 ? `${resolved.titleStrokeWidth}px` : undefined,
+      WebkitTextStrokeColor: strokeColor,
     };
-  }, [resolved.titleColor, resolved.titleEnabled, resolved.titleSize, resolved.titleTransform, resolved.titleWeight]);
+  }, [
+    resolved.titleColor,
+    resolved.titleEnabled,
+    resolved.titleShadowBlur,
+    resolved.titleShadowColor,
+    resolved.titleShadowOpacity,
+    resolved.titleSize,
+    resolved.titleStrokeColor,
+    resolved.titleStrokeOpacity,
+    resolved.titleStrokeWidth,
+    resolved.titleTransform,
+    resolved.titleWeight,
+  ]);
 
   const rootCss = useMemo(() => {
     return `
