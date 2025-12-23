@@ -12,6 +12,7 @@ streamerRoutes.use(requireRole('streamer', 'admin'));
 streamerRoutes.get('/submissions', adminController.getSubmissions);
 streamerRoutes.post('/submissions/:id/approve', adminController.approveSubmission);
 streamerRoutes.post('/submissions/:id/reject', adminController.rejectSubmission);
+streamerRoutes.post('/submissions/:id/needs-changes', adminController.needsChangesSubmission);
 
 // Memes management
 streamerRoutes.get('/memes', adminController.getMemes);

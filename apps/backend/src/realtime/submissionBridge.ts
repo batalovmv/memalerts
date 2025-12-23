@@ -1,6 +1,11 @@
 import { Server } from 'socket.io';
 
-export type SubmissionEventType = 'submission:created' | 'submission:approved' | 'submission:rejected';
+export type SubmissionEventType =
+  | 'submission:created'
+  | 'submission:approved'
+  | 'submission:rejected'
+  | 'submission:needs_changes'
+  | 'submission:resubmitted';
 
 export type SubmissionEvent = {
   event: SubmissionEventType;

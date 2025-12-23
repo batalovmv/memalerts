@@ -158,7 +158,18 @@ export async function logFileUpload(
  * Log admin actions (approve, reject, update, delete)
  */
 export async function logAdminAction(
-  action: 'approve_submission' | 'reject_submission' | 'update_meme' | 'delete_meme' | 'update_channel_settings' | 'adjust_wallet' | 'create_promotion' | 'update_promotion' | 'delete_promotion',
+  action:
+    | 'approve_submission'
+    | 'reject_submission'
+    | 'needs_changes_submission'
+    | 'resubmit_submission'
+    | 'update_meme'
+    | 'delete_meme'
+    | 'update_channel_settings'
+    | 'adjust_wallet'
+    | 'create_promotion'
+    | 'update_promotion'
+    | 'delete_promotion',
   userId: string,
   channelId: string,
   targetId: string,

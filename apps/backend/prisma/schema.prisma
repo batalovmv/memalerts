@@ -124,6 +124,9 @@ model MemeSubmission {
   notes           String?
   status          String // pending, approved, rejected
   moderatorNotes  String?
+  // Number of times the submitter resubmitted this submission after "needs_changes".
+  // Used to enforce a small iteration limit for scale (prevents infinite loops).
+  revision        Int      @default(0)
   createdAt       DateTime @default(now())
 
   channel   Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)

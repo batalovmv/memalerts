@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import type { Server } from 'socket.io';
 import { prisma } from '../../lib/prisma.js';
-import { approveSubmissionSchema, rejectSubmissionSchema } from '../../shared/index.js';
+import { approveSubmissionSchema, needsChangesSubmissionSchema, rejectSubmissionSchema } from '../../shared/index.js';
 import { getOrCreateTags } from '../../utils/tags.js';
 import {
   calculateFileHash,
@@ -76,6 +76,7 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
       notes: true,
       status: true,
       moderatorNotes: true,
+      revision: true,
       createdAt: true,
       submitter: {
         select: { id: true, displayName: true },
@@ -98,6 +99,7 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
       notes: true,
       status: true,
       moderatorNotes: true,
+      revision: true,
       createdAt: true,
       submitter: {
         select: { id: true, displayName: true },
@@ -701,6 +703,109 @@ export const rejectSubmission = async (req: AuthRequest, res: Response) => {
       return res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to reject submission',
+      });
+    }
+  }
+};
+
+export const needsChangesSubmission = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const channelId = req.channelId;
+
+  if (!channelId) {
+    return res.status(400).json({ error: 'Channel ID required' });
+  }
+
+  const maxFromEnv = parseInt(String(process.env.SUBMISSION_MAX_RESUBMITS || ''), 10);
+  const MAX_RESUBMITS = Number.isFinite(maxFromEnv) && maxFromEnv >= 0 ? maxFromEnv : 2;
+
+  try {
+    const body = needsChangesSubmissionSchema.parse(req.body);
+
+    const submission = await prisma.memeSubmission.findUnique({
+      where: { id },
+      select: { id: true, channelId: true, status: true, submitterUserId: true, revision: true },
+    });
+
+    if (!submission || submission.channelId !== channelId) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    if (submission.status !== 'pending') {
+      return res.status(400).json({ error: 'Submission already processed' });
+    }
+
+    // If attempts are exhausted, "needs changes" would dead-end the user. Force reject instead.
+    if (submission.revision >= MAX_RESUBMITS) {
+      return res.status(400).json({
+        error: 'No resubmits remaining',
+        message: `This submission already used ${submission.revision}/${MAX_RESUBMITS} resubmits. Please reject instead.`,
+      });
+    }
+
+    const updated = await prisma.memeSubmission.update({
+      where: { id },
+      data: {
+        status: 'needs_changes',
+        moderatorNotes: body.moderatorNotes,
+      },
+    });
+
+    await logAdminAction(
+      'needs_changes_submission',
+      req.userId!,
+      channelId,
+      id,
+      {
+        submissionId: id,
+        revision: submission.revision,
+        maxResubmits: MAX_RESUBMITS,
+        notes: body.moderatorNotes,
+      },
+      true,
+      req
+    );
+
+    // Emit Socket.IO event to both streamer channel room and submitter user room.
+    try {
+      const io: Server = req.app.get('io');
+      const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { slug: true },
+      });
+      if (channel) {
+        const channelSlug = String(channel.slug).toLowerCase();
+        const evt = {
+          event: 'submission:needs_changes' as const,
+          submissionId: id,
+          channelId,
+          channelSlug,
+          submitterId: submission.submitterUserId,
+          moderatorId: req.userId || undefined,
+          userIds: [submission.submitterUserId].filter(Boolean),
+          source: 'local' as const,
+        };
+        emitSubmissionEvent(io, evt);
+        void relaySubmissionEventToPeer(evt);
+      }
+    } catch (error) {
+      console.error('Error emitting submission:needs_changes event:', error);
+    }
+
+    return res.json(updated);
+  } catch (error: any) {
+    console.error('Error in needsChangesSubmission:', error);
+    if (!res.headersSent) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          error: 'Validation error',
+          message: 'Validation failed',
+          details: error.errors,
+        });
+      }
+      return res.status(500).json({
+        error: 'Internal server error',
+        message: 'Failed to update submission',
       });
     }
   }
