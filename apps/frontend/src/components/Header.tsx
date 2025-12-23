@@ -4,7 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { store } from '../store/index';
 import { updateWalletBalance } from '../store/slices/authSlice';
-import { fetchSubmissions, submissionApproved, submissionCreated, submissionRejected } from '../store/slices/submissionsSlice';
+import {
+  fetchSubmissions,
+  submissionApproved,
+  submissionCreated,
+  submissionNeedsChanges,
+  submissionRejected,
+  submissionResubmitted,
+} from '../store/slices/submissionsSlice';
 import { api } from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import { useChannelColors } from '../contexts/ChannelColorsContext';
@@ -395,9 +402,22 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       dispatch(submissionRejected({ submissionId: data.submissionId }));
     };
 
+    const onNeedsChanges = (data: { submissionId: string; channelId: string }) => {
+      if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
+      dispatch(submissionNeedsChanges({ submissionId: data.submissionId }));
+    };
+
+    const onResubmitted = (data: { submissionId: string; channelId: string; submitterId?: string }) => {
+      if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
+      dispatch(submissionResubmitted(data));
+      scheduleRefreshPending();
+    };
+
     socket.on('submission:created', onCreated);
     socket.on('submission:approved', onApproved);
     socket.on('submission:rejected', onRejected);
+    socket.on('submission:needs_changes', onNeedsChanges);
+    socket.on('submission:resubmitted', onResubmitted);
 
     // Ensure moderators are in their channel room (needed on /dashboard and /settings too)
     if (isConnected && effectiveModeratorChannelSlug) {
@@ -409,6 +429,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       socket.off('submission:created', onCreated);
       socket.off('submission:approved', onApproved);
       socket.off('submission:rejected', onRejected);
+      socket.off('submission:needs_changes', onNeedsChanges);
+      socket.off('submission:resubmitted', onResubmitted);
     };
   }, [socket, isConnected, user?.id, user?.role, effectiveModeratorChannelId, effectiveModeratorChannelSlug, dispatch]);
 

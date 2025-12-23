@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { store } from '@/store/index';
-import { fetchSubmissions, approveSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
+import { fetchSubmissions, approveSubmission, rejectSubmission, needsChangesSubmission } from '@/store/slices/submissionsSlice';
 import { api } from '@/lib/api';
 import Header from '@/components/Header';
 import SubmitModal from '@/components/SubmitModal';
@@ -32,8 +32,18 @@ export default function DashboardPage() {
     open: false,
     submissionId: null,
   });
+  const [needsChangesModal, setNeedsChangesModal] = useState<{ open: boolean; submissionId: string | null }>({
+    open: false,
+    submissionId: null,
+  });
   const [priceCoins, setPriceCoins] = useState('100');
   const [rejectReason, setRejectReason] = useState('');
+  const [needsChangesPreset, setNeedsChangesPreset] = useState<{ badTitle: boolean; noTags: boolean; other: boolean }>({
+    badTitle: false,
+    noTags: false,
+    other: false,
+  });
+  const [needsChangesText, setNeedsChangesText] = useState('');
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const { autoplayMemesEnabled } = useAutoplayMemes();
@@ -297,6 +307,11 @@ export default function DashboardPage() {
                       setRejectModal({ open: true, submissionId });
                       setRejectReason('');
                     }}
+                    onNeedsChanges={(submissionId) => {
+                      setNeedsChangesModal({ open: true, submissionId });
+                      setNeedsChangesPreset({ badTitle: false, noTags: false, other: false });
+                      setNeedsChangesText('');
+                    }}
                   />
                 </div>
 
@@ -424,6 +439,139 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Needs Changes Modal (Dashboard) */}
+      {needsChangesModal.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setNeedsChangesModal({ open: false, submissionId: null })} />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+                <h2 className="text-2xl font-bold dark:text-white">
+                  {t('submissions.needsChangesTitle', { defaultValue: 'Send for changes' })}
+                </h2>
+                <button
+                  onClick={() => setNeedsChangesModal({ open: false, submissionId: null })}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  aria-label={t('common.close', { defaultValue: 'Close' })}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {(() => {
+                  const s = submissions.find((x) => x.id === needsChangesModal.submissionId);
+                  const revision = Math.max(0, Math.min(2, Number(s?.revision ?? 0) || 0));
+                  const left = Math.max(0, 2 - revision);
+                  return (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                      <p className="text-sm text-amber-900 dark:text-amber-100 font-medium">
+                        {t('submissions.resubmitsInfo', {
+                          defaultValue: 'User can resubmit up to {{max}} times. Remaining: {{left}}.',
+                          max: 2,
+                          left,
+                        })}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('submissions.quickReasons', { defaultValue: 'Quick reasons' })}
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                    <input
+                      type="checkbox"
+                      checked={needsChangesPreset.badTitle}
+                      onChange={(e) => setNeedsChangesPreset((p) => ({ ...p, badTitle: e.target.checked }))}
+                    />
+                    {t('submissions.reasonBadTitle', { defaultValue: 'Title is not OK' })}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                    <input
+                      type="checkbox"
+                      checked={needsChangesPreset.noTags}
+                      onChange={(e) => setNeedsChangesPreset((p) => ({ ...p, noTags: e.target.checked }))}
+                    />
+                    {t('submissions.reasonNoTags', { defaultValue: 'No tags' })}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                    <input
+                      type="checkbox"
+                      checked={needsChangesPreset.other}
+                      onChange={(e) => setNeedsChangesPreset((p) => ({ ...p, other: e.target.checked }))}
+                    />
+                    {t('submissions.reasonOther', { defaultValue: 'Other (write below)' })}
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('submissions.messageToUser', { defaultValue: 'Message to user (optional)' })}
+                  </label>
+                  <textarea
+                    value={needsChangesText}
+                    onChange={(e) => setNeedsChangesText(e.target.value)}
+                    rows={4}
+                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder={t('submissions.messagePlaceholder', { defaultValue: 'Explain what to fix…' })}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('submissions.messageHint', { defaultValue: 'This will be shown to the submitter.' })}
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setNeedsChangesModal({ open: false, submissionId: null })}
+                    className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    {t('common.cancel', { defaultValue: 'Cancel' })}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!needsChangesModal.submissionId) return;
+                      const codes: string[] = [];
+                      if (needsChangesPreset.badTitle) codes.push('bad_title');
+                      if (needsChangesPreset.noTags) codes.push('no_tags');
+                      if (needsChangesPreset.other) codes.push('other');
+                      const msg = needsChangesText.trim();
+                      const hasReason = codes.length > 0 || msg.length > 0;
+                      const otherNeedsText = needsChangesPreset.other && msg.length === 0;
+                      if (!hasReason || otherNeedsText) {
+                        toast.error(
+                          t('submissions.needsChangesReasonRequired', {
+                            defaultValue: 'Select a reason or write a message.',
+                          })
+                        );
+                        return;
+                      }
+                      const packed = JSON.stringify({ v: 1, codes, message: msg });
+                      try {
+                        await dispatch(needsChangesSubmission({ submissionId: needsChangesModal.submissionId, moderatorNotes: packed })).unwrap();
+                        toast.success(t('submissions.sentForChanges', { defaultValue: 'Sent for changes.' }));
+                        setNeedsChangesModal({ open: false, submissionId: null });
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+                      } catch (e: any) {
+                        toast.error(t('submissions.failedToSendForChanges', { defaultValue: 'Failed to send for changes.' }));
+                      }
+                    }}
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    {t('submissions.sendForChanges', { defaultValue: 'Send' })}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reject Modal (Dashboard) */}
       {rejectModal.open && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -443,22 +591,16 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                  <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                    {t('admin.rejectWarning', { defaultValue: 'This action cannot be undone. Please provide a reason for rejection.' })}
-                  </p>
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('admin.rejectionReason', { defaultValue: 'Reason for rejection' })} <span className="text-red-500">*</span>
+                    {t('admin.rejectionReason', { defaultValue: 'Reason (optional)' })}
                   </label>
                   <textarea
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
                     rows={4}
                     className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter reason for rejection...' })}
-                    required
+                    placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter a reason (optional)…' })}
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {t('admin.rejectionReasonDescription', { defaultValue: 'This reason will be visible to the submitter' })}
@@ -474,12 +616,11 @@ export default function DashboardPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={!rejectReason.trim()}
                     onClick={async () => {
                       if (!rejectModal.submissionId) return;
-                      if (!rejectReason.trim()) return;
+                      const notes = rejectReason.trim() ? rejectReason.trim() : null;
                       try {
-                        await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: rejectReason.trim() })).unwrap();
+                        await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: notes })).unwrap();
                         toast.success(t('admin.reject', { defaultValue: 'Reject' }));
                         setRejectModal({ open: false, submissionId: null });
                         dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
@@ -487,7 +628,7 @@ export default function DashboardPage() {
                         toast.error(t('admin.failedToReject', { defaultValue: 'Failed to reject submission' }));
                       }
                     }}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                   >
                     {t('admin.reject', { defaultValue: 'Reject' })}
                   </button>

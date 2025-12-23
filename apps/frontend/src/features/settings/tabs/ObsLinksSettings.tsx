@@ -25,7 +25,8 @@ export function ObsLinksSettings() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewInitialized, setPreviewInitialized] = useState(false);
   const [previewLoopEnabled, setPreviewLoopEnabled] = useState<boolean>(true);
-  const [previewBg, setPreviewBg] = useState<'twitch' | 'white'>('twitch');
+  const [previewBg, setPreviewBg] = useState<'twitch' | 'white' | 'image'>('twitch');
+  const [previewBgUrl, setPreviewBgUrl] = useState<string>('');
   const [advancedTab, setAdvancedTab] = useState<'layout' | 'animation' | 'shadow' | 'border' | 'glass' | 'sender'>('layout');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
   const [previewPosSeed, setPreviewPosSeed] = useState<number>(1);
@@ -682,8 +683,12 @@ export function ObsLinksSettings() {
     if (!overlayUrl) return '';
     const u = new URL(overlayUrl);
     u.searchParams.set('demo', '1');
+    // Put preview-only toggles into the URL so they work even before the first postMessage lands.
+    // This will reload the iframe when toggled, which is acceptable (rare action).
+    u.searchParams.set('previewBg', previewBg);
+    if (previewBg === 'image') u.searchParams.set('previewBgUrl', previewBgUrl);
     return u.toString();
-  }, [overlayUrl]);
+  }, [overlayUrl, previewBg, previewBgUrl]);
 
   const overlayPreviewParams = useMemo(() => {
     // These values are pushed into the iframe via postMessage to avoid reloading.
@@ -702,6 +707,7 @@ export function ObsLinksSettings() {
       seed: String(previewSeed),
       posSeed: String(previewPosSeed),
       previewBg,
+      previewBgUrl,
       position: urlPosition,
       safePad: String(safePad),
       lockPos: previewLockPositions ? '1' : '0',
@@ -815,6 +821,7 @@ export function ObsLinksSettings() {
     urlRadius,
     urlVolume,
     previewBg,
+    previewBgUrl,
     previewLockPositions,
     previewShowSafeGuide,
   ]);
@@ -1072,6 +1079,37 @@ export function ObsLinksSettings() {
     return `memalerts:obsCustomPresets:v1:${slug}`;
   }, [channelSlug]);
 
+  const previewBgStorageKey = useMemo(() => {
+    const slug = String(channelSlug || '').trim() || '__no_channel__';
+    return `memalerts:obsPreviewBgUrl:v1:${slug}`;
+  }, [channelSlug]);
+
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(previewBgStorageKey) : null;
+      if (!raw) return;
+      const url = String(raw || '').trim();
+      setPreviewBgUrl(url);
+      if (url) setPreviewBg('image');
+    } catch {
+      // ignore
+    }
+  }, [previewBgStorageKey]);
+
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return;
+      const url = String(previewBgUrl || '').trim();
+      if (!url) {
+        window.localStorage.removeItem(previewBgStorageKey);
+      } else {
+        window.localStorage.setItem(previewBgStorageKey, url);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [previewBgStorageKey, previewBgUrl]);
+
   useEffect(() => {
     try {
       const raw = typeof window !== 'undefined' ? window.localStorage.getItem(presetsStorageKey) : null;
@@ -1136,8 +1174,9 @@ export function ObsLinksSettings() {
     (id: string) => {
       const next = customPresets.filter((p) => p.id !== id);
       persistCustomPresets(next);
+      toast.success(t('admin.obsPresetDeleted', { defaultValue: 'Preset deleted.' }));
     },
-    [customPresets, persistCustomPresets]
+    [customPresets, persistCustomPresets, t]
   );
 
   const resetOverlayToDefaults = useCallback(() => {
@@ -1204,7 +1243,7 @@ export function ObsLinksSettings() {
     setSenderFontColor('#ffffff');
 
     setAdvancedTab('border');
-    toast.success(t('admin.overlayDefaultsApplied', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё СЃР±СЂРѕС€РµРЅС‹ РґРѕ СЃС‚Р°РЅРґР°СЂС‚РЅС‹С… (РЅРµ Р·Р°Р±СѓРґСЊС‚Рµ РЅР°Р¶Р°С‚СЊ В«РЎРѕС…СЂР°РЅРёС‚СЊВ»)' }));
+    toast.success(t('admin.overlayDefaultsApplied', { defaultValue: 'Settings reset to defaults (don’t forget to click “Save”).' }));
   }, [t]);
 
   const applyPreset = useCallback(
@@ -1303,10 +1342,10 @@ export function ObsLinksSettings() {
       setLastSavedOverlaySettingsPayload(overlaySettingsPayload);
       lastChangeRef.current = null;
       // No extra GET here: saving should be a single request for better UX / lower load.
-      toast.success(t('admin.settingsSaved', { defaultValue: 'РќР°СЃС‚СЂРѕР№РєРё СЃРѕС…СЂР°РЅРµРЅС‹!' }));
+      toast.success(t('admin.settingsSaved', { defaultValue: 'Settings saved!' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ' }));
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
     } finally {
       await ensureMinDuration(startedAt, 650);
       setSavingOverlaySettings(false);
@@ -1398,7 +1437,7 @@ export function ObsLinksSettings() {
           <div className="mt-3 space-y-4">
             <div className="text-xs text-gray-600 dark:text-gray-300">
               {t('admin.obsOverlayAdvancedHintShort', {
-                defaultValue: 'Change the look here вЂ” then copy the single overlay URL above into OBS.',
+                defaultValue: 'Change the look here — then copy the single overlay URL above into OBS.',
               })}
             </div>
 
@@ -1435,11 +1474,9 @@ export function ObsLinksSettings() {
             </div>
 
             <div className="relative">
-              {(loadingOverlaySettings || savingOverlaySettings) && (
-                <SavingOverlay label={t('admin.saving', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' })} />
-              )}
+              {(loadingOverlaySettings || savingOverlaySettings) && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving...' })} />}
               {overlaySettingsSavedPulse && !savingOverlaySettings && !loadingOverlaySettings && (
-                <SavedOverlay label={t('admin.saved', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРѕ' })} />
+                <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />
               )}
 
               <div
@@ -1521,7 +1558,7 @@ export function ObsLinksSettings() {
                 <div className="pt-2">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {t('admin.obsOverlayLivePreview', { defaultValue: 'Р”РµРјРѕРЅСЃС‚СЂР°С†РёСЏ' })}
+                      {t('admin.obsOverlayLivePreview', { defaultValue: 'Live preview' })}
                     </div>
                     <button
                       type="button"
@@ -1533,8 +1570,8 @@ export function ObsLinksSettings() {
                         // We fetch using next seed and then commit seed+urls in the same render.
                         void fetchPreviewMemes(previewCount, next, { commitSeed: true });
                       }}
-                      title={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
-                      aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'РЎР»РµРґСѓСЋС‰РёР№ РјРµРј' })}
+                      title={t('admin.obsPreviewNextMeme', { defaultValue: 'Next meme' })}
+                      aria-label={t('admin.obsPreviewNextMeme', { defaultValue: 'Next meme' })}
                     >
                       {/* Next arrow icon */}
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -1545,8 +1582,8 @@ export function ObsLinksSettings() {
                     <button
                       type="button"
                       className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
-                      title={t('admin.obsPreviewLoop', { defaultValue: 'Р—Р°С†РёРєР»РёС‚СЊ' })}
-                      aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Р—Р°С†РёРєР»РёС‚СЊ' })}
+                      title={t('admin.obsPreviewLoop', { defaultValue: 'Loop' })}
+                      aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Loop' })}
                       onClick={() => setPreviewLoopEnabled((p) => !p)}
                     >
                       {/* Loop icon */}
@@ -1576,10 +1613,10 @@ export function ObsLinksSettings() {
                     </button>
                     <button
                       type="button"
-                      className={`glass-btn p-2 shrink-0 ${previewBg === 'white' ? 'ring-2 ring-primary/40' : ''}`}
-                      title={t('admin.obsPreviewBackground', { defaultValue: 'Р¤РѕРЅ РїСЂРµРІСЊСЋ (Р±РµР»С‹Р№/С‚РµРјР°С‚РёС‡РµСЃРєРёР№)' })}
-                      aria-label={t('admin.obsPreviewBackground', { defaultValue: 'Р¤РѕРЅ РїСЂРµРІСЊСЋ (Р±РµР»С‹Р№/С‚РµРјР°С‚РёС‡РµСЃРєРёР№)' })}
-                      onClick={() => setPreviewBg((b) => (b === 'twitch' ? 'white' : 'twitch'))}
+                      className={`glass-btn p-2 shrink-0 ${previewBg !== 'twitch' ? 'ring-2 ring-primary/40' : ''}`}
+                      title={t('admin.obsPreviewBackground', { defaultValue: 'Preview background' })}
+                      aria-label={t('admin.obsPreviewBackground', { defaultValue: 'Preview background' })}
+                      onClick={() => setPreviewBg((b) => (b === 'twitch' ? 'white' : b === 'white' ? 'image' : 'twitch'))}
                     >
                       {/* Photo / background icon */}
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -1614,6 +1651,50 @@ export function ObsLinksSettings() {
                       />
                     )}
                   </div>
+                  {previewBg === 'image' && (
+                    <div className="mt-2 glass p-3">
+                      <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                        {t('admin.obsPreviewBackgroundImage', { defaultValue: 'Preview background image URL' })}
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          value={previewBgUrl}
+                          onChange={(e) => setPreviewBgUrl(e.target.value)}
+                          placeholder={t('admin.obsPreviewBackgroundImagePlaceholder', { defaultValue: 'https://...' })}
+                          className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        />
+                        <button
+                          type="button"
+                          className="glass-btn px-3 py-2 text-sm font-semibold"
+                          onClick={() => {
+                            const url = (user?.profileImageUrl || '').trim();
+                            if (!url) {
+                              toast.error(t('admin.obsPreviewBackgroundNoAvatar', { defaultValue: 'No profile image available.' }));
+                              return;
+                            }
+                            setPreviewBgUrl(url);
+                          }}
+                        >
+                          {t('admin.obsPreviewBackgroundUseAvatar', { defaultValue: 'Use avatar' })}
+                        </button>
+                        <button
+                          type="button"
+                          className="glass-btn px-3 py-2 text-sm font-semibold"
+                          onClick={() => {
+                            setPreviewBgUrl('');
+                            setPreviewBg('twitch');
+                          }}
+                        >
+                          {t('admin.obsPreviewBackgroundClear', { defaultValue: 'Clear' })}
+                        </button>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                        {t('admin.obsPreviewBackgroundImageHint', {
+                          defaultValue: 'Preview-only. Paste an image URL (for example your Twitch banner URL) to check readability.',
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <div className="text-xs text-gray-600 dark:text-gray-300 min-w-0">
                       {previewMemes?.[0]?.title ? (
@@ -1675,7 +1756,7 @@ export function ObsLinksSettings() {
                       {overlaySettingsDirty && (
                         <div className="hidden sm:flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                           <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-                          {t('admin.unsavedChanges', { defaultValue: 'Р•СЃС‚СЊ РЅРµСЃРѕС…СЂР°РЅС‘РЅРЅС‹Рµ РёР·РјРµРЅРµРЅРёСЏ' })}
+                          {t('admin.unsavedChanges', { defaultValue: 'Unsaved changes' })}
                         </div>
                       )}
                       <button
@@ -1683,13 +1764,13 @@ export function ObsLinksSettings() {
                         className="glass-btn px-3 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10 flex items-center gap-2"
                         onClick={resetOverlayToDefaults}
                         disabled={savingOverlaySettings || loadingOverlaySettings}
-                        title={t('admin.overlayResetDefaults', { defaultValue: 'РЎР±СЂРѕСЃРёС‚СЊ' })}
+                        title={t('admin.overlayResetDefaults', { defaultValue: 'Reset' })}
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
                         </svg>
-                        <span className="hidden sm:inline">{t('admin.overlayResetDefaults', { defaultValue: 'РЎР±СЂРѕСЃРёС‚СЊ' })}</span>
+                        <span className="hidden sm:inline">{t('admin.overlayResetDefaults', { defaultValue: 'Reset' })}</span>
                       </button>
                       {/* Import/Export removed: users can save custom presets locally instead */}
                       <button
@@ -1699,8 +1780,8 @@ export function ObsLinksSettings() {
                         onClick={() => void handleSaveOverlaySettings()}
                       >
                         {savingOverlaySettings
-                          ? t('admin.saving', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' })
-                          : t('common.save', { defaultValue: 'РЎРѕС…СЂР°РЅРёС‚СЊ' })}
+                          ? t('admin.saving', { defaultValue: 'Saving...' })
+                          : t('common.save', { defaultValue: 'Save' })}
                       </button>
                     </div>
                   </div>
@@ -2040,28 +2121,43 @@ export function ObsLinksSettings() {
                   </div>
                 )}
 
-                <div className={obsUiMode === 'pro' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'hidden'}>
-              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.obsOverlayPosition', { defaultValue: 'РџРѕР·РёС†РёСЏ' })}
-                </label>
-                <select
-                  value={urlPosition}
-                  onChange={(e) => setUrlPosition(e.target.value as any)}
-                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                >
-                  <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'РЎР»СѓС‡Р°Р№РЅРѕ' })}</option>
-                  <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Р¦РµРЅС‚СЂ' })}</option>
-                  <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'РЎРІРµСЂС…Сѓ' })}</option>
-                  <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'РЎРЅРёР·Сѓ' })}</option>
-                  <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'РЎР»РµРІР° СЃРІРµСЂС…Сѓ' })}</option>
-                  <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'РЎРїСЂР°РІР° СЃРІРµСЂС…Сѓ' })}</option>
-                  <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'РЎР»РµРІР° СЃРЅРёР·Сѓ' })}</option>
-                  <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'РЎРїСЂР°РІР° СЃРЅРёР·Сѓ' })}</option>
-                </select>
-              </div>
+                <div className={obsUiMode === 'pro' ? 'glass p-4' : 'hidden'}>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">
+                    {advancedTab === 'layout'
+                      ? t('admin.obsAdvancedTabLayout', { defaultValue: 'Layout' })
+                      : advancedTab === 'animation'
+                        ? t('admin.obsAdvancedTabAnimation', { defaultValue: 'Animation' })
+                        : advancedTab === 'shadow'
+                          ? t('admin.obsAdvancedTabShadow', { defaultValue: 'Shadow' })
+                          : advancedTab === 'border'
+                            ? t('admin.obsAdvancedTabBorder', { defaultValue: 'Border' })
+                            : advancedTab === 'glass'
+                              ? t('admin.obsAdvancedTabGlass', { defaultValue: 'Glass' })
+                              : t('admin.obsAdvancedTabSender', { defaultValue: 'Sender' })}
+                  </div>
 
-              <div className={advancedTab === 'layout' ? '' : 'hidden'}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 [&>div]:rounded-xl [&>div]:border [&>div]:border-white/20 dark:[&>div]:border-white/10 [&>div]:bg-white/40 dark:[&>div]:bg-white/5 [&>div]:p-3">
+                    <div className={advancedTab === 'layout' ? '' : 'hidden'}>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.obsOverlayPosition', { defaultValue: 'Position' })}
+                      </label>
+                      <select
+                        value={urlPosition}
+                        onChange={(e) => setUrlPosition(e.target.value as any)}
+                        className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      >
+                        <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'Random' })}</option>
+                        <option value="center">{t('admin.obsOverlayPositionCenter', { defaultValue: 'Center' })}</option>
+                        <option value="top">{t('admin.obsOverlayPositionTop', { defaultValue: 'Top' })}</option>
+                        <option value="bottom">{t('admin.obsOverlayPositionBottom', { defaultValue: 'Bottom' })}</option>
+                        <option value="top-left">{t('admin.obsOverlayPositionTopLeft', { defaultValue: 'Top-left' })}</option>
+                        <option value="top-right">{t('admin.obsOverlayPositionTopRight', { defaultValue: 'Top-right' })}</option>
+                        <option value="bottom-left">{t('admin.obsOverlayPositionBottomLeft', { defaultValue: 'Bottom-left' })}</option>
+                        <option value="bottom-right">{t('admin.obsOverlayPositionBottomRight', { defaultValue: 'Bottom-right' })}</option>
+                      </select>
+                    </div>
+
+                    <div className={advancedTab === 'layout' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlaySafeArea', { defaultValue: 'Safe area (px)' })}:{' '}
                   <span className="font-mono">{safePad}</span>
@@ -2303,7 +2399,7 @@ export function ObsLinksSettings() {
               <div className={advancedTab === 'shadow' ? '' : 'hidden'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   {t('admin.obsOverlayShadowAngle', { defaultValue: 'Shadow direction' })}:{' '}
-                  <span className="font-mono">{Math.round(shadowAngle)}В°</span>
+                  <span className="font-mono">{Math.round(shadowAngle)}°</span>
                 </label>
                 <input
                   type="range"
@@ -2599,7 +2695,7 @@ export function ObsLinksSettings() {
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                         {t('admin.obsOverlayBorderGradientAngle', { defaultValue: 'Gradient angle' })}:{' '}
-                        <span className="font-mono">{Math.round(urlBorderGradientAngle)}В°</span>
+                        <span className="font-mono">{Math.round(urlBorderGradientAngle)}°</span>
                       </label>
                       <input
                         type="range"
@@ -2777,7 +2873,7 @@ export function ObsLinksSettings() {
                       </button>
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                      {t('admin.obsOverlaySenderBgRadiusHint', { defaultValue: 'Tip: try 8вЂ“16 for a modern rounded rectangle.' })}
+                      {t('admin.obsOverlaySenderBgRadiusHint', { defaultValue: 'Tip: try 8–16 for a modern rounded rectangle.' })}
                     </div>
                   </div>
 
@@ -2855,6 +2951,8 @@ export function ObsLinksSettings() {
                 </div>
               </div>
               )}
+                  </div>
+                </div>
             </div>
           </div>
           </div>
@@ -2867,7 +2965,11 @@ export function ObsLinksSettings() {
           <ol className="list-decimal list-inside text-sm text-gray-700 dark:text-gray-200 space-y-1">
             <li>{t('admin.obsHowToStep1', { defaultValue: 'Add a new Browser Source.' })}</li>
             <li>{t('admin.obsHowToStep2', { defaultValue: 'Paste the Overlay URL.' })}</li>
-            <li>{t('admin.obsHowToStep3', { defaultValue: 'Set Width/Height (e.g. 1920Г—1080) and enable вЂњShutdown source when not visibleвЂќ if you want.' })}</li>
+            <li>
+              {t('admin.obsHowToStep3', {
+                defaultValue: 'Set Width/Height (e.g. 1920×1080) and enable “Shutdown source when not visible” if you want.',
+              })}
+            </li>
           </ol>
         </div>
       </div>

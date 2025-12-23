@@ -117,6 +117,25 @@ export const rejectSubmission = createAsyncThunk<
   }
 });
 
+export const needsChangesSubmission = createAsyncThunk<
+  void,
+  { submissionId: string; moderatorNotes: string },
+  { rejectValue: ApiError }
+>('submissions/needsChangesSubmission', async ({ submissionId, moderatorNotes }, { rejectWithValue }) => {
+  try {
+    await api.post(`/streamer/submissions/${submissionId}/needs-changes`, {
+      moderatorNotes,
+    });
+  } catch (error: unknown) {
+    const apiError = error as { response?: { data?: ApiError; status?: number } };
+    return rejectWithValue({
+      message: apiError.response?.data?.message || 'Failed to send submission for changes',
+      error: apiError.response?.data?.error,
+      statusCode: apiError.response?.status,
+    });
+  }
+});
+
 const submissionsSlice = createSlice({
   name: 'submissions',
   initialState,
@@ -157,6 +176,29 @@ const submissionsSlice = createSlice({
       state.submissions = state.submissions.filter((s) => s.id !== action.payload.submissionId);
       const removed = before !== state.submissions.length;
       if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
+    },
+    submissionNeedsChanges: (state, action: PayloadAction<{ submissionId: string }>) => {
+      const before = state.submissions.length;
+      state.submissions = state.submissions.filter((s) => s.id !== action.payload.submissionId);
+      const removed = before !== state.submissions.length;
+      if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
+    },
+    submissionResubmitted: (state, action: PayloadAction<{ submissionId: string; channelId: string; submitterId?: string }>) => {
+      // Resubmitted goes back to pending list.
+      const exists = state.submissions.some((s) => s.id === action.payload.submissionId);
+      if (exists) return;
+      if (typeof state.total === 'number') state.total += 1;
+      state.submissions.unshift({
+        id: action.payload.submissionId,
+        channelId: action.payload.channelId,
+        submitterUserId: action.payload.submitterId || '',
+        title: 'Updated submission',
+        type: 'video',
+        fileUrlTemp: '',
+        status: 'pending',
+        notes: null,
+        createdAt: new Date().toISOString(),
+      } as unknown as Submission);
     },
   },
   extraReducers: (builder) => {
@@ -212,10 +254,26 @@ const submissionsSlice = createSlice({
         state.submissions = state.submissions.filter((s) => s.id !== id);
         const removed = before !== state.submissions.length;
         if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
+      })
+      // needsChangesSubmission
+      .addCase(needsChangesSubmission.fulfilled, (state, action) => {
+        const id = action.meta.arg.submissionId;
+        const before = state.submissions.length;
+        state.submissions = state.submissions.filter((s) => s.id !== id);
+        const removed = before !== state.submissions.length;
+        if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
       });
   },
 });
 
-export const { clearError, removeSubmission, submissionCreated, submissionApproved, submissionRejected } = submissionsSlice.actions;
+export const {
+  clearError,
+  removeSubmission,
+  submissionCreated,
+  submissionApproved,
+  submissionRejected,
+  submissionNeedsChanges,
+  submissionResubmitted,
+} = submissionsSlice.actions;
 export default submissionsSlice.reducer;
 

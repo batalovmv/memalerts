@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Submission } from '../../types';
 import { resolveMediaUrl } from '../../lib/urls';
+import { AttemptsPill } from '@/shared/ui/AttemptsPill';
 
 type Props = {
   isOpen: boolean;
@@ -13,6 +14,7 @@ type Props = {
   onClose: () => void;
   onLoadMore: () => void;
   onApprove: (submissionId: string) => void;
+  onNeedsChanges: (submissionId: string) => void;
   onReject: (submissionId: string) => void;
 };
 
@@ -26,6 +28,7 @@ export function PendingSubmissionsPanel({
   onClose,
   onLoadMore,
   onApprove,
+  onNeedsChanges,
   onReject,
 }: Props) {
   const { t } = useTranslation();
@@ -104,6 +107,7 @@ export function PendingSubmissionsPanel({
                 submission={submission}
                 resolveMediaUrl={resolveMedia}
                 onApprove={onApprove}
+                onNeedsChanges={onNeedsChanges}
                 onReject={onReject}
               />
             ))}
@@ -125,11 +129,13 @@ function PendingSubmissionCard({
   submission,
   resolveMediaUrl,
   onApprove,
+  onNeedsChanges,
   onReject,
 }: {
   submission: Submission;
   resolveMediaUrl: (src: string) => string;
   onApprove: (id: string) => void;
+  onNeedsChanges: (id: string) => void;
   onReject: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -141,6 +147,10 @@ function PendingSubmissionCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const src = resolveMediaUrl(submission.fileUrlTemp || '');
+  const revision = Math.max(0, Math.min(999, Number(submission.revision ?? 0) || 0));
+  const maxResubmits = 2;
+  const resubmitsLeft = Math.max(0, maxResubmits - revision);
+  const canSendForChanges = resubmitsLeft > 0;
 
   useEffect(() => {
     const el = cardRef.current;
@@ -286,6 +296,9 @@ function PendingSubmissionCard({
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 {t('dashboard.submittedBy', { defaultValue: 'Submitted by {{name}}', name: submission.submitter?.displayName || 'Unknown' })}
               </p>
+              <div className="mt-2">
+                <AttemptsPill left={resubmitsLeft} max={maxResubmits} />
+              </div>
 
             </div>
             <div className="flex gap-2 shrink-0">
@@ -294,6 +307,22 @@ function PendingSubmissionCard({
                 className="glass-btn bg-emerald-500/90 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-semibold"
               >
                 {t('admin.approve', 'Approve')}
+              </button>
+              <button
+                onClick={() => onNeedsChanges(submission.id)}
+                disabled={!canSendForChanges}
+                className={`glass-btn px-4 py-2 rounded-xl font-semibold ${
+                  canSendForChanges
+                    ? 'bg-amber-500/90 hover:bg-amber-500 text-white'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 opacity-60 cursor-not-allowed'
+                }`}
+                title={
+                  canSendForChanges
+                    ? t('submissions.needsChanges', { defaultValue: 'Needs changes' })
+                    : t('submissions.noResubmitsLeftHint', { defaultValue: 'No resubmits left — reject instead.' })
+                }
+              >
+                {t('submissions.needsChanges', { defaultValue: 'Needs changes' })}
               </button>
               <button
                 onClick={() => onReject(submission.id)}

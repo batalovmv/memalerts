@@ -49,7 +49,7 @@ export interface Meme {
   };
 }
 
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type SubmissionStatus = 'pending' | 'needs_changes' | 'approved' | 'rejected';
 
 export interface Tag {
   id: string;
@@ -64,6 +64,7 @@ export interface Submission {
   notes: string | null;
   status: SubmissionStatus;
   moderatorNotes?: string | null;
+  revision?: number; // number of resubmits after "needs_changes" (0..2)
   tags?: Array<{ tag: Tag }>;
   submitter: {
     id: string;

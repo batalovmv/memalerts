@@ -210,11 +210,33 @@ export default function OverlayView() {
 
   // Preview-only background (does not affect real OBS usage; default is transparent unless demo=1).
   const previewBgRaw = String(getParam('previewBg') || '').trim().toLowerCase();
-  const previewBg: 'twitch' | 'white' = previewBgRaw === 'white' ? 'white' : 'twitch';
+  const previewBg: 'twitch' | 'white' | 'image' =
+    previewBgRaw === 'white' ? 'white' : previewBgRaw === 'image' ? 'image' : 'twitch';
+  const previewBgUrlRaw = String(getParam('previewBgUrl') || '').trim();
+  const previewBgUrl =
+    /^https?:\/\//i.test(previewBgUrlRaw) && previewBgUrlRaw.length <= 800 ? previewBgUrlRaw : '';
   const demoBgCss =
     previewBg === 'white'
       ? `body { background: #ffffff; }`
-      : `body { background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.85) 60%), linear-gradient(135deg, rgba(56,189,248,0.12), rgba(167,139,250,0.12)); }`;
+      : previewBg === 'image' && previewBgUrl
+        ? `
+          body {
+            background-image: url(${JSON.stringify(previewBgUrl)});
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+          }
+          /* Keep overlay readable on busy images */
+          body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.72) 65%);
+          }
+        `
+        : `body { background: radial-gradient(60% 60% at 25% 15%, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.85) 60%), linear-gradient(135deg, rgba(56,189,248,0.12), rgba(167,139,250,0.12)); }`;
 
   // Appearance / animation: prefer server config; allow URL overrides (useful for preview).
   const parsedStyle = useMemo(() => {

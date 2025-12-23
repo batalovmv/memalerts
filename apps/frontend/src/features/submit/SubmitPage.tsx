@@ -3,19 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/store/hooks';
 import UserMenu from '@/components/UserMenu';
 import TagInput from '@/components/TagInput';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
 import type { AxiosProgressEvent } from 'axios';
+import { AttemptsPill } from '@/shared/ui/AttemptsPill';
 
 type MySubmission = {
   id: string;
   title: string;
   status: 'pending' | 'approved' | 'rejected' | string;
   createdAt: string;
+  notes?: string | null;
   moderatorNotes?: string | null;
+  revision?: number;
+  tags?: string[];
 };
 
 export default function Submit() {
+  const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
@@ -46,8 +52,20 @@ export default function Submit() {
     if (!user) return;
     try {
       setLoadingMySubmissions(true);
-      const data = await api.get<MySubmission[]>('/submissions', { timeout: 10000 });
-      setMySubmissions(Array.isArray(data) ? data : []);
+      const data = await api.get<any[]>('/submissions', { timeout: 10000 });
+      const normalized = Array.isArray(data)
+        ? data.map((s) => ({
+            id: String(s.id),
+            title: String(s.title || ''),
+            status: String(s.status || ''),
+            createdAt: String(s.createdAt || new Date().toISOString()),
+            notes: (s.notes ?? null) as string | null,
+            moderatorNotes: (s.moderatorNotes ?? null) as string | null,
+            revision: typeof s.revision === 'number' ? s.revision : 0,
+            tags: Array.isArray(s.tags) ? s.tags.map((x: any) => String(x?.tag?.name || '')).filter(Boolean) : [],
+          }))
+        : [];
+      setMySubmissions(normalized);
     } catch (err) {
       setMySubmissions([]);
     } finally {
@@ -329,25 +347,28 @@ export default function Submit() {
           </button>
         </form>
 
-        {/* My submissions (so submitter can see rejection reason / status) */}
+        {/* My submissions (so submitter can see status + fix if needed) */}
         <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold dark:text-white">My submissions</h3>
+            <h3 className="text-xl font-bold dark:text-white">{t('submit.mySubmissions', { defaultValue: 'My submissions' })}</h3>
             <button
               type="button"
               onClick={loadMySubmissions}
               disabled={loadingMySubmissions}
               className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-800 dark:text-gray-200 font-semibold py-2 px-3 rounded-lg transition-colors"
             >
-              {loadingMySubmissions ? 'Loading...' : 'Refresh'}
+              {loadingMySubmissions ? t('common.loading', { defaultValue: 'Loading...' }) : t('common.retry', { defaultValue: 'Refresh' })}
             </button>
           </div>
 
           {mySubmissions.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400">No submissions yet.</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('submit.noSubmissionsYet', { defaultValue: 'No submissions yet.' })}</div>
           ) : (
             <div className="space-y-3">
               {mySubmissions.slice(0, 20).map((s) => {
+                if (s.status === 'needs_changes') {
+                  return <NeedsChangesSubmissionCard key={s.id} submission={s} onUpdated={() => void loadMySubmissions()} />;
+                }
                 const statusColor =
                   s.status === 'approved'
                     ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
@@ -364,14 +385,22 @@ export default function Submit() {
                           {new Date(s.createdAt).toLocaleString()}
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColor}`}>{s.status}</span>
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColor}`}>
+                        {s.status === 'approved'
+                          ? t('submissions.statusApproved', { defaultValue: 'approved' })
+                          : s.status === 'rejected'
+                            ? t('submissions.statusRejected', { defaultValue: 'rejected' })
+                            : t('submissions.statusPending', { defaultValue: 'pending' })}
+                      </span>
                     </div>
 
                     {s.status === 'rejected' && (
                       <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-                        <div className="font-semibold mb-1">Rejection reason</div>
+                        <div className="font-semibold mb-1">{t('submissions.rejectionReasonTitle', { defaultValue: 'Rejection reason' })}</div>
                         <div className="text-gray-600 dark:text-gray-400">
-                          {s.moderatorNotes?.trim() ? s.moderatorNotes : 'No reason provided.'}
+                          {s.moderatorNotes?.trim()
+                            ? s.moderatorNotes
+                            : t('submissions.noReasonProvided', { defaultValue: 'No reason provided.' })}
                         </div>
                       </div>
                     )}
@@ -382,6 +411,139 @@ export default function Submit() {
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function parseNeedsChangesPayload(raw: string | null | undefined): { codes: string[]; message: string } | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  try {
+    const j = JSON.parse(s) as any;
+    if (!j || typeof j !== 'object') return null;
+    const codes = Array.isArray(j.codes) ? j.codes.map((c: any) => String(c || '').trim()).filter(Boolean) : [];
+    const message = String(j.message || '').trim();
+    return { codes, message };
+  } catch {
+    return null;
+  }
+}
+
+function NeedsChangesSubmissionCard(props: { submission: MySubmission; onUpdated: () => void }) {
+  const { submission, onUpdated } = props;
+  const { t } = useTranslation();
+  const [title, setTitle] = useState(submission.title);
+  const [notes, setNotes] = useState(submission.notes || '');
+  const [tags, setTags] = useState<string[]>(submission.tags || []);
+  const [saving, setSaving] = useState(false);
+
+  const revision = Math.max(0, Math.min(2, Number(submission.revision ?? 0) || 0));
+  const maxResubmits = 2;
+  const left = Math.max(0, maxResubmits - revision);
+
+  const parsed = parseNeedsChangesPayload(submission.moderatorNotes);
+  const codes = parsed?.codes || [];
+  const message = parsed?.message || '';
+
+  const codeToText = (code: string): string => {
+    if (code === 'no_tags') return t('submissions.reasonNoTagsUser', { defaultValue: 'Add tags' });
+    if (code === 'bad_title') return t('submissions.reasonBadTitleUser', { defaultValue: 'Fix the title' });
+    if (code === 'other') return t('submissions.reasonOtherUser', { defaultValue: 'Other changes' });
+    return code;
+  };
+
+  const canResubmit = left > 0 && title.trim().length > 0 && !saving;
+
+  return (
+    <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-900/10">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="font-semibold text-gray-900 dark:text-white truncate">{submission.title}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(submission.createdAt).toLocaleString()}</div>
+        </div>
+        <span className="px-2 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-200">
+          {t('submissions.statusNeedsChanges', { defaultValue: 'needs changes' })}
+        </span>
+      </div>
+
+      <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+        <div className="font-semibold mb-1">{t('submissions.changesRequested', { defaultValue: 'Changes requested' })}</div>
+        {codes.length > 0 && (
+          <ul className="list-disc pl-5 text-gray-600 dark:text-gray-400">
+            {codes.map((c) => (
+              <li key={c}>{codeToText(c)}</li>
+            ))}
+          </ul>
+        )}
+        {message && <div className="mt-2 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{message}</div>}
+        {!parsed && submission.moderatorNotes?.trim() && (
+          <div className="mt-2 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{submission.moderatorNotes}</div>
+        )}
+        <div className="mt-2">
+          <AttemptsPill left={left} max={maxResubmits} />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            {t('submit.titleLabel', { defaultValue: 'Title' })}
+          </label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            {t('submit.tags', { defaultValue: 'Tags (optional)' })}
+          </label>
+          <TagInput
+            tags={tags}
+            onChange={(next) => setTags(next)}
+            placeholder={t('submit.addTags', { defaultValue: 'Add tags to help categorize your meme...' })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            {t('submit.notes', { defaultValue: 'Notes (optional)' })}
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={!canResubmit}
+          onClick={async () => {
+            if (!canResubmit) return;
+            setSaving(true);
+            try {
+              await api.post(`/submissions/${submission.id}/resubmit`, {
+                title: title.trim(),
+                notes: notes.trim() ? notes.trim() : null,
+                tags,
+              });
+              toast.success(t('submissions.resubmitted', { defaultValue: 'Resubmitted.' }));
+              onUpdated();
+            } catch (e: any) {
+              toast.error(t('submissions.failedToResubmit', { defaultValue: 'Failed to resubmit.' }));
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+        >
+          {saving ? t('common.loading', { defaultValue: 'Loading...' }) : t('submissions.fixAndResubmit', { defaultValue: 'Fix & resubmit' })}
+        </button>
+      </div>
     </div>
   );
 }
