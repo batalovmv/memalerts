@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import { clampInt } from './lib/math';
 import { useCreditsParams } from './model/useCreditsParams';
 import { getSocketBaseUrl } from './urls';
+import { ensureGoogleFontLoaded, GOOGLE_FONTS_CURATED } from './lib/fonts';
 
 type CreditsConfig = {
   creditsStyleJson?: string | null;
@@ -14,6 +15,14 @@ type CreditsState = {
   chatters?: Array<{ name: string }>;
   donors?: Array<{ name: string; amount?: number; currency?: string }>;
 };
+
+function hexToRgb(hex: string): [number, number, number] {
+  const raw = String(hex || '').trim().replace(/^#/, '');
+  const v = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  if (!/^[0-9a-f]{6}$/i.test(v)) return [0, 0, 0];
+  const n = parseInt(v, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 
 function isProbablyOBSUserAgent(): boolean {
   const ua = (navigator.userAgent || '').toLowerCase();
@@ -80,6 +89,17 @@ export default function CreditsOverlayView() {
     creditsStyleJson: config.creditsStyleJson,
     demoSeqRef,
   });
+
+  // Google Fonts (curated) loader. We keep it simple: if fontFamily matches a curated family,
+  // we load up to 3 weights (safety) including the chosen weight.
+  useEffect(() => {
+    const famRaw = String(resolved.fontFamily || '').trim();
+    if (!famRaw) return;
+    const hit = GOOGLE_FONTS_CURATED.find((f) => f.family.toLowerCase() === famRaw.toLowerCase() || f.label.toLowerCase() === famRaw.toLowerCase());
+    if (!hit) return;
+    const weights = Array.from(new Set([resolved.fontWeight, ...(hit.weights || [])])).slice(0, 4);
+    ensureGoogleFontLoaded({ family: hit.family, weights });
+  }, [resolved.fontFamily, resolved.fontWeight]);
 
   // Connect to socket and listen for credits events.
   useEffect(() => {
@@ -183,61 +203,128 @@ export default function CreditsOverlayView() {
       position: 'fixed',
       inset: 0,
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
+      alignItems: resolved.anchorY === 'top' ? 'flex-start' : resolved.anchorY === 'bottom' ? 'flex-end' : 'center',
+      justifyContent: resolved.anchorX === 'left' ? 'flex-start' : resolved.anchorX === 'right' ? 'flex-end' : 'center',
+      padding: `${resolved.padY}px ${resolved.padX}px`,
       color: resolved.fontColor,
       fontFamily: cssFontFamily(resolved.fontFamily),
       fontSize: resolved.fontSize,
       fontWeight: resolved.fontWeight,
+      lineHeight: resolved.lineHeight,
+      letterSpacing: resolved.letterSpacing ? `${resolved.letterSpacing}px` : undefined,
       opacity: 1,
       transition: `opacity ${resolved.fadeInMs}ms ease`,
       // Avoid harsh subpixel jitter in OBS
       transform: isProbablyOBS ? 'translateZ(0)' : undefined,
     };
-  }, [isProbablyOBS, resolved.bgOpacity, resolved.fadeInMs, resolved.fontColor, resolved.fontFamily, resolved.fontSize, resolved.fontWeight, resolved.shadowBlur, resolved.shadowOpacity]);
+  }, [
+    isProbablyOBS,
+    resolved.anchorX,
+    resolved.anchorY,
+    resolved.fadeInMs,
+    resolved.fontColor,
+    resolved.fontFamily,
+    resolved.fontSize,
+    resolved.fontWeight,
+    resolved.letterSpacing,
+    resolved.lineHeight,
+    resolved.padX,
+    resolved.padY,
+  ]);
 
   const cardStyle = useMemo((): React.CSSProperties => {
-    const bg = `rgba(0,0,0,${resolved.bgOpacity})`;
+    const background =
+      resolved.backgroundMode === 'transparent'
+        ? 'transparent'
+        : resolved.backgroundMode === 'full'
+          ? `rgba(${hexToRgb(resolved.bgColor).join(',')}, ${resolved.bgOpacity})`
+          : `rgba(${hexToRgb(resolved.bgColor).join(',')}, ${resolved.bgOpacity})`;
     return {
-      width: 'min(920px, 92vw)',
-      maxHeight: '88vh',
+      width: `min(${resolved.maxWidthPx}px, 92vw)`,
+      maxHeight: `${resolved.maxHeightVh}vh`,
       overflow: 'hidden',
       borderRadius: resolved.radius,
-      background: bg,
+      background: resolved.backgroundMode === 'transparent' ? 'transparent' : background,
       backdropFilter: resolved.blur > 0 ? `blur(${resolved.blur}px)` : undefined,
       WebkitBackdropFilter: resolved.blur > 0 ? `blur(${resolved.blur}px)` : undefined,
+      border: resolved.borderEnabled ? `${resolved.borderWidth}px solid ${resolved.borderColor}` : undefined,
     };
-  }, [resolved.bgOpacity, resolved.blur, resolved.radius]);
+  }, [
+    resolved.bgColor,
+    resolved.backgroundMode,
+    resolved.bgOpacity,
+    resolved.blur,
+    resolved.borderColor,
+    resolved.borderEnabled,
+    resolved.borderWidth,
+    resolved.maxHeightVh,
+    resolved.maxWidthPx,
+    resolved.radius,
+  ]);
 
   const listStyle = useMemo((): React.CSSProperties => {
     return {
       padding: 28,
       display: 'grid',
       gap: resolved.sectionGapPx,
-      animation: `memalertsCreditsScroll ${scrollDurationSec}s linear infinite`,
+      animation: `memalertsCreditsScroll ${scrollDurationSec}s linear ${resolved.loop ? 'infinite' : '1'}`,
+      animationDelay: resolved.startDelayMs > 0 ? `${resolved.startDelayMs}ms` : undefined,
       willChange: 'transform',
+      textAlign: resolved.textAlign,
     };
-  }, [resolved.sectionGapPx, scrollDurationSec]);
+  }, [resolved.loop, resolved.sectionGapPx, resolved.startDelayMs, resolved.textAlign, scrollDurationSec]);
+
+  const fadeOutStyle = useMemo((): React.CSSProperties => {
+    if (resolved.loop) return {};
+    if (resolved.endFadeMs <= 0) return {};
+    const totalMs = Math.max(0, Math.round(scrollDurationSec * 1000));
+    const delayMs = Math.max(0, totalMs - resolved.endFadeMs + resolved.startDelayMs);
+    return {
+      animation: `memalertsCreditsFadeOut ${resolved.endFadeMs}ms ease forwards`,
+      animationDelay: `${delayMs}ms`,
+    };
+  }, [resolved.endFadeMs, resolved.loop, resolved.startDelayMs, scrollDurationSec]);
 
   const lineStyle = useMemo((): React.CSSProperties => {
-    return { lineHeight: 1.15, marginTop: resolved.lineGapPx };
-  }, [resolved.lineGapPx]);
+    return { lineHeight: resolved.lineHeight, marginTop: resolved.lineGapPx };
+  }, [resolved.lineGapPx, resolved.lineHeight]);
+
+  const listBlockStyle = useMemo((): React.CSSProperties => {
+    return { paddingLeft: resolved.indentPx > 0 ? resolved.indentPx : undefined };
+  }, [resolved.indentPx]);
 
   const titleStyle = useMemo((): React.CSSProperties => {
-    return { fontSize: Math.max(14, Math.round(resolved.fontSize * 0.85)), opacity: 0.9, letterSpacing: '0.02em' };
-  }, [resolved.fontSize]);
+    const transform =
+      resolved.titleTransform === 'uppercase'
+        ? 'uppercase'
+        : resolved.titleTransform === 'lowercase'
+          ? 'lowercase'
+          : 'none';
+    return {
+      display: resolved.titleEnabled ? 'block' : 'none',
+      fontSize: resolved.titleSize,
+      fontWeight: resolved.titleWeight,
+      color: resolved.titleColor,
+      opacity: 0.92,
+      letterSpacing: '0.02em',
+      textTransform: transform as any,
+    };
+  }, [resolved.titleColor, resolved.titleEnabled, resolved.titleSize, resolved.titleTransform, resolved.titleWeight]);
 
   const rootCss = useMemo(() => {
     return `
       ${demo ? demoBgCss : ''}
       body { margin: 0; overflow: hidden; background: transparent; }
       @keyframes memalertsCreditsScroll {
-        0%   { transform: translateY(50%); }
-        100% { transform: translateY(-100%); }
+        0%   { transform: translateY(${resolved.scrollDirection === 'down' ? '-100%' : '50%'}); }
+        100% { transform: translateY(${resolved.scrollDirection === 'down' ? '50%' : '-100%'}); }
+      }
+      @keyframes memalertsCreditsFadeOut {
+        0% { opacity: 1; }
+        100% { opacity: 0; }
       }
     `;
-  }, [demo, demoBgCss]);
+  }, [demo, demoBgCss, resolved.scrollDirection]);
 
   // If there is no data yet, keep overlay empty (transparent) to avoid blocking scene.
   const hasAny = sections.some((s) => s.lines.length > 0);
@@ -247,12 +334,12 @@ export default function CreditsOverlayView() {
     <>
       <style>{rootCss}</style>
       <div style={wrapperStyle}>
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, ...fadeOutStyle }}>
           <div ref={listRef} style={listStyle}>
             {sections.map((s) => (
               <div key={s.key}>
                 <div style={titleStyle}>{s.title}</div>
-                <div>
+                <div style={listBlockStyle}>
                   {s.lines.map((line, idx) => (
                     <div key={`${s.key}_${idx}`} style={idx === 0 ? undefined : lineStyle}>
                       {line}
@@ -265,7 +352,7 @@ export default function CreditsOverlayView() {
             {sections.map((s) => (
               <div key={`${s.key}__dup`}>
                 <div style={titleStyle}>{s.title}</div>
-                <div>
+                <div style={listBlockStyle}>
                   {s.lines.map((line, idx) => (
                     <div key={`${s.key}__dup_${idx}`} style={idx === 0 ? undefined : lineStyle}>
                       {line}

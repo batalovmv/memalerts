@@ -6,6 +6,15 @@ import type { MutableRefObject } from 'react';
 export type CreditsSectionKey = 'donors' | 'chatters';
 
 export type CreditsStyle = {
+  // Layout
+  anchorX: 'left' | 'center' | 'right';
+  anchorY: 'top' | 'center' | 'bottom';
+  padX: number;
+  padY: number;
+  maxWidthPx: number;
+  maxHeightVh: number;
+  textAlign: 'left' | 'center' | 'right';
+
   // Sections
   sectionsOrder: CreditsSectionKey[];
   showDonors: boolean;
@@ -16,19 +25,36 @@ export type CreditsStyle = {
   fontSize: number;
   fontWeight: number;
   fontColor: string;
+  lineHeight: number;
+  letterSpacing: number;
+  titleEnabled: boolean;
+  titleSize: number;
+  titleWeight: number;
+  titleColor: string;
+  titleTransform: 'none' | 'uppercase' | 'lowercase';
 
   // Background
+  backgroundMode: 'transparent' | 'card' | 'full';
+  bgColor: string;
   bgOpacity: number;
   blur: number;
   radius: number;
   shadowBlur: number;
   shadowOpacity: number;
+  borderEnabled: boolean;
+  borderWidth: number;
+  borderColor: string;
 
   // Spacing
   sectionGapPx: number;
   lineGapPx: number;
+  indentPx: number;
 
   // Motion
+  scrollDirection: 'up' | 'down';
+  loop: boolean;
+  startDelayMs: number;
+  endFadeMs: number;
   scrollSpeed: number; // px/s
   fadeInMs: number;
 };
@@ -57,6 +83,12 @@ function toBool(raw: string | null | undefined, fallback: boolean): boolean {
   const v = String(raw ?? '').trim().toLowerCase();
   if (!v) return fallback;
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+function toEnum<T extends string>(raw: unknown, allowed: readonly T[], fallback: T): T {
+  const v = String(raw ?? '').trim().toLowerCase();
+  const hit = allowed.find((a) => a.toLowerCase() === v);
+  return hit ?? fallback;
 }
 
 function parseSectionsOrder(raw: unknown): CreditsSectionKey[] | null {
@@ -109,6 +141,15 @@ export function useCreditsParams(args: {
     return j as Partial<CreditsStyle>;
   }, [creditsStyleJson]);
 
+  // Layout
+  const anchorX = toEnum(getParam('anchorX') || (parsedStyle?.anchorX as any), ['left', 'center', 'right'] as const, 'center');
+  const anchorY = toEnum(getParam('anchorY') || (parsedStyle?.anchorY as any), ['top', 'center', 'bottom'] as const, 'center');
+  const padX = clampInt(parseInt(String(getParam('padX') || parsedStyle?.padX || '24'), 10), 0, 400);
+  const padY = clampInt(parseInt(String(getParam('padY') || parsedStyle?.padY || '24'), 10), 0, 400);
+  const maxWidthPx = clampInt(parseInt(String(getParam('maxWidthPx') || parsedStyle?.maxWidthPx || '920'), 10), 240, 2400);
+  const maxHeightVh = clampInt(parseInt(String(getParam('maxHeightVh') || parsedStyle?.maxHeightVh || '88'), 10), 20, 100);
+  const textAlign = toEnum(getParam('textAlign') || (parsedStyle?.textAlign as any), ['left', 'center', 'right'] as const, 'center');
+
   // Sections
   const sectionsOrder = useMemo(() => {
     const fromLiveOrUrl = parseSectionsOrder(getParam('sectionsOrder'));
@@ -131,24 +172,62 @@ export function useCreditsParams(args: {
   const fontSize = clampInt(parseInt(String(getParam('fontSize') || parsedStyle?.fontSize || '22'), 10), 10, 64);
   const fontWeight = clampInt(parseInt(String(getParam('fontWeight') || parsedStyle?.fontWeight || '700'), 10), 300, 900);
   const fontColor = String(getParam('fontColor') || parsedStyle?.fontColor || '#ffffff').trim() || '#ffffff';
+  const lineHeight = clampFloat(parseFloat(String(getParam('lineHeight') || parsedStyle?.lineHeight || '1.15')), 0.9, 2.2);
+  const letterSpacing = clampFloat(parseFloat(String(getParam('letterSpacing') || parsedStyle?.letterSpacing || '0')), -2, 8);
+  const titleEnabled = toBool(getParam('titleEnabled') ?? (parsedStyle?.titleEnabled as any), true);
+  const titleSizeFallback = Math.max(10, Math.min(64, Math.round(fontSize * 0.85)));
+  const titleSize = clampInt(parseInt(String(getParam('titleSize') || parsedStyle?.titleSize || String(titleSizeFallback)), 10), 10, 64);
+  const titleWeightFallback = Math.max(300, Math.min(900, Math.round(fontWeight)));
+  const titleWeight = clampInt(parseInt(String(getParam('titleWeight') || parsedStyle?.titleWeight || String(titleWeightFallback)), 10), 300, 900);
+  const titleColor = String(getParam('titleColor') || parsedStyle?.titleColor || fontColor).trim() || fontColor;
+  const titleTransform = toEnum(
+    getParam('titleTransform') || (parsedStyle?.titleTransform as any),
+    ['none', 'uppercase', 'lowercase'] as const,
+    'none',
+  );
 
   // Background
+  const backgroundMode = toEnum(
+    getParam('backgroundMode') || (parsedStyle?.backgroundMode as any),
+    ['transparent', 'card', 'full'] as const,
+    'card',
+  );
+  const bgColor = String(getParam('bgColor') || parsedStyle?.bgColor || '#000000').trim() || '#000000';
   const bgOpacity = clampFloat(parseFloat(String(getParam('bgOpacity') || parsedStyle?.bgOpacity || '0')), 0, 0.85);
   const blur = clampInt(parseInt(String(getParam('blur') || parsedStyle?.blur || '0'), 10), 0, 40);
   const radius = clampInt(parseInt(String(getParam('radius') || parsedStyle?.radius || '18'), 10), 0, 80);
   const shadowBlur = clampInt(parseInt(String(getParam('shadowBlur') || parsedStyle?.shadowBlur || '60'), 10), 0, 240);
   const shadowOpacity = clampFloat(parseFloat(String(getParam('shadowOpacity') || parsedStyle?.shadowOpacity || '0.6')), 0, 1);
+  const borderEnabled = toBool(getParam('borderEnabled') ?? (parsedStyle?.borderEnabled as any), false);
+  const borderWidth = clampInt(parseInt(String(getParam('borderWidth') || parsedStyle?.borderWidth || '1'), 10), 0, 16);
+  const borderColor = String(getParam('borderColor') || parsedStyle?.borderColor || '#ffffff').trim() || '#ffffff';
 
   // Spacing
   const sectionGapPx = clampInt(parseInt(String(getParam('sectionGapPx') || parsedStyle?.sectionGapPx || '24'), 10), 0, 120);
   const lineGapPx = clampInt(parseInt(String(getParam('lineGapPx') || parsedStyle?.lineGapPx || '8'), 10), 0, 80);
+  const indentPx = clampInt(parseInt(String(getParam('indentPx') || parsedStyle?.indentPx || '0'), 10), 0, 240);
 
   // Motion
+  const scrollDirection = toEnum(
+    getParam('scrollDirection') || (parsedStyle?.scrollDirection as any),
+    ['up', 'down'] as const,
+    'up',
+  );
+  const loop = toBool(getParam('loop') ?? (parsedStyle?.loop as any), true);
+  const startDelayMs = clampInt(parseInt(String(getParam('startDelayMs') || parsedStyle?.startDelayMs || '0'), 10), 0, 60000);
+  const endFadeMs = clampInt(parseInt(String(getParam('endFadeMs') || parsedStyle?.endFadeMs || '0'), 10), 0, 60000);
   const scrollSpeed = clampFloat(parseFloat(String(getParam('scrollSpeed') || parsedStyle?.scrollSpeed || '48')), 8, 600);
   const fadeInMs = clampInt(parseInt(String(getParam('fadeInMs') || parsedStyle?.fadeInMs || '600'), 10), 0, 5000);
 
   const resolved: CreditsStyle = useMemo(
     () => ({
+      anchorX,
+      anchorY,
+      padX,
+      padY,
+      maxWidthPx,
+      maxHeightVh,
+      textAlign,
       sectionsOrder,
       showDonors,
       showChatters,
@@ -156,26 +235,60 @@ export function useCreditsParams(args: {
       fontSize,
       fontWeight,
       fontColor,
+      lineHeight,
+      letterSpacing,
+      titleEnabled,
+      titleSize,
+      titleWeight,
+      titleColor,
+      titleTransform,
+      backgroundMode,
+      bgColor,
       bgOpacity,
       blur,
       radius,
       shadowBlur,
       shadowOpacity,
+      borderEnabled,
+      borderWidth,
+      borderColor,
       sectionGapPx,
       lineGapPx,
+      indentPx,
+      scrollDirection,
+      loop,
+      startDelayMs,
+      endFadeMs,
       scrollSpeed,
       fadeInMs,
     }),
     [
+      anchorX,
+      anchorY,
+      bgColor,
+      backgroundMode,
       bgOpacity,
       blur,
+      borderColor,
+      borderEnabled,
+      borderWidth,
       fadeInMs,
       fontColor,
       fontFamily,
       fontSize,
       fontWeight,
+      letterSpacing,
+      lineHeight,
       lineGapPx,
+      endFadeMs,
+      indentPx,
+      loop,
+      maxHeightVh,
+      maxWidthPx,
+      padX,
+      padY,
       radius,
+      scrollDirection,
       scrollSpeed,
       sectionGapPx,
       sectionsOrder,
@@ -183,6 +296,13 @@ export function useCreditsParams(args: {
       shadowOpacity,
       showChatters,
       showDonors,
+      startDelayMs,
+      textAlign,
+      titleColor,
+      titleEnabled,
+      titleSize,
+      titleTransform,
+      titleWeight,
     ],
   );
 

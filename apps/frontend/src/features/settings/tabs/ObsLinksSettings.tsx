@@ -84,11 +84,40 @@ export function ObsLinksSettings() {
   const [creditsRadius, setCreditsRadius] = useState<number>(20);
   const [creditsShadowBlur, setCreditsShadowBlur] = useState<number>(90);
   const [creditsShadowOpacity, setCreditsShadowOpacity] = useState<number>(0.6);
+  const [creditsBgColor, setCreditsBgColor] = useState<string>('#000000');
+  const [creditsBackgroundMode, setCreditsBackgroundMode] = useState<'transparent' | 'card' | 'full'>('card');
+  const [creditsBorderEnabled, setCreditsBorderEnabled] = useState(false);
+  const [creditsBorderWidth, setCreditsBorderWidth] = useState<number>(1);
+  const [creditsBorderColor, setCreditsBorderColor] = useState<string>('#ffffff');
+
+  const [creditsAnchorX, setCreditsAnchorX] = useState<'left' | 'center' | 'right'>('center');
+  const [creditsAnchorY, setCreditsAnchorY] = useState<'top' | 'center' | 'bottom'>('center');
+  const [creditsPadX, setCreditsPadX] = useState<number>(24);
+  const [creditsPadY, setCreditsPadY] = useState<number>(24);
+  const [creditsMaxWidthPx, setCreditsMaxWidthPx] = useState<number>(920);
+  const [creditsMaxHeightVh, setCreditsMaxHeightVh] = useState<number>(88);
+  const [creditsTextAlign, setCreditsTextAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [creditsIndentPx, setCreditsIndentPx] = useState<number>(0);
+
+  const [creditsLineHeight, setCreditsLineHeight] = useState<number>(1.15);
+  const [creditsLetterSpacing, setCreditsLetterSpacing] = useState<number>(0);
+  const [creditsTitleEnabled, setCreditsTitleEnabled] = useState<boolean>(true);
+  const [creditsTitleSize, setCreditsTitleSize] = useState<number>(22);
+  const [creditsTitleWeight, setCreditsTitleWeight] = useState<number>(800);
+  const [creditsTitleColor, setCreditsTitleColor] = useState<string>('#ffffff');
+  const [creditsTitleTransform, setCreditsTitleTransform] = useState<'none' | 'uppercase' | 'lowercase'>('none');
 
   const [creditsScrollSpeed, setCreditsScrollSpeed] = useState<number>(48);
   const [creditsSectionGapPx, setCreditsSectionGapPx] = useState<number>(24);
   const [creditsLineGapPx, setCreditsLineGapPx] = useState<number>(8);
   const [creditsFadeInMs, setCreditsFadeInMs] = useState<number>(600);
+  const [creditsScrollDirection, setCreditsScrollDirection] = useState<'up' | 'down'>('up');
+  const [creditsLoop, setCreditsLoop] = useState<boolean>(true);
+  const [creditsStartDelayMs, setCreditsStartDelayMs] = useState<number>(0);
+  const [creditsEndFadeMs, setCreditsEndFadeMs] = useState<number>(0);
+
+  const [creditsUiMode, setCreditsUiMode] = useState<'quick' | 'advanced'>('quick');
+  const [creditsTab, setCreditsTab] = useState<'layout' | 'typography' | 'sections' | 'visual' | 'motion'>('layout');
 
   // Custom presets are stored locally (per browser) to avoid extra backend complexity.
   const [presetName, setPresetName] = useState('');
@@ -684,11 +713,53 @@ export function ObsLinksSettings() {
         const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : creditsRadius;
         const nextShadowBlur = typeof styleFromServer?.shadowBlur === 'number' ? styleFromServer.shadowBlur : creditsShadowBlur;
         const nextShadowOpacity = typeof styleFromServer?.shadowOpacity === 'number' ? styleFromServer.shadowOpacity : creditsShadowOpacity;
+        const nextBgColor = typeof styleFromServer?.bgColor === 'string' ? styleFromServer.bgColor : creditsBgColor;
+        const nextBackgroundMode: 'transparent' | 'card' | 'full' =
+          styleFromServer?.backgroundMode === 'transparent'
+            ? 'transparent'
+            : styleFromServer?.backgroundMode === 'full'
+              ? 'full'
+              : 'card';
+        const nextBorderEnabled = typeof styleFromServer?.borderEnabled === 'boolean' ? styleFromServer.borderEnabled : creditsBorderEnabled;
+        const nextBorderWidth = typeof styleFromServer?.borderWidth === 'number' ? styleFromServer.borderWidth : creditsBorderWidth;
+        const nextBorderColor = typeof styleFromServer?.borderColor === 'string' ? styleFromServer.borderColor : creditsBorderColor;
+
+        const nextAnchorX: 'left' | 'center' | 'right' =
+          styleFromServer?.anchorX === 'left' ? 'left' : styleFromServer?.anchorX === 'right' ? 'right' : 'center';
+        const nextAnchorY: 'top' | 'center' | 'bottom' =
+          styleFromServer?.anchorY === 'top' ? 'top' : styleFromServer?.anchorY === 'bottom' ? 'bottom' : 'center';
+        const nextPadX = typeof styleFromServer?.padX === 'number' ? styleFromServer.padX : creditsPadX;
+        const nextPadY = typeof styleFromServer?.padY === 'number' ? styleFromServer.padY : creditsPadY;
+        const nextMaxWidthPx = typeof styleFromServer?.maxWidthPx === 'number' ? styleFromServer.maxWidthPx : creditsMaxWidthPx;
+        const nextMaxHeightVh = typeof styleFromServer?.maxHeightVh === 'number' ? styleFromServer.maxHeightVh : creditsMaxHeightVh;
+        const nextTextAlign: 'left' | 'center' | 'right' =
+          styleFromServer?.textAlign === 'left' ? 'left' : styleFromServer?.textAlign === 'right' ? 'right' : 'center';
+        const nextIndentPx = typeof styleFromServer?.indentPx === 'number' ? styleFromServer.indentPx : creditsIndentPx;
+
+        const nextLineHeight = typeof styleFromServer?.lineHeight === 'number' ? styleFromServer.lineHeight : creditsLineHeight;
+        const nextLetterSpacing =
+          typeof styleFromServer?.letterSpacing === 'number' ? styleFromServer.letterSpacing : creditsLetterSpacing;
+        const nextTitleEnabled = typeof styleFromServer?.titleEnabled === 'boolean' ? styleFromServer.titleEnabled : creditsTitleEnabled;
+        const nextTitleSize =
+          typeof styleFromServer?.titleSize === 'number' ? styleFromServer.titleSize : Math.round((typeof nextFontSize === 'number' ? nextFontSize : creditsFontSize) * 0.85);
+        const nextTitleWeight =
+          typeof styleFromServer?.titleWeight === 'number' ? styleFromServer.titleWeight : typeof nextFontWeight === 'number' ? nextFontWeight : creditsFontWeight;
+        const nextTitleColor = typeof styleFromServer?.titleColor === 'string' ? styleFromServer.titleColor : nextFontColor;
+        const nextTitleTransform: 'none' | 'uppercase' | 'lowercase' =
+          styleFromServer?.titleTransform === 'uppercase'
+            ? 'uppercase'
+            : styleFromServer?.titleTransform === 'lowercase'
+              ? 'lowercase'
+              : 'none';
 
         const nextScrollSpeed = typeof styleFromServer?.scrollSpeed === 'number' ? styleFromServer.scrollSpeed : creditsScrollSpeed;
         const nextSectionGapPx = typeof styleFromServer?.sectionGapPx === 'number' ? styleFromServer.sectionGapPx : creditsSectionGapPx;
         const nextLineGapPx = typeof styleFromServer?.lineGapPx === 'number' ? styleFromServer.lineGapPx : creditsLineGapPx;
         const nextFadeInMs = typeof styleFromServer?.fadeInMs === 'number' ? styleFromServer.fadeInMs : creditsFadeInMs;
+        const nextScrollDirection: 'up' | 'down' = styleFromServer?.scrollDirection === 'down' ? 'down' : 'up';
+        const nextLoop = typeof styleFromServer?.loop === 'boolean' ? styleFromServer.loop : creditsLoop;
+        const nextStartDelayMs = typeof styleFromServer?.startDelayMs === 'number' ? styleFromServer.startDelayMs : creditsStartDelayMs;
+        const nextEndFadeMs = typeof styleFromServer?.endFadeMs === 'number' ? styleFromServer.endFadeMs : creditsEndFadeMs;
 
         setCreditsSectionsOrder(nextOrder.length ? nextOrder : ['donors', 'chatters']);
         setCreditsShowDonors(Boolean(nextShowDonors));
@@ -704,13 +775,46 @@ export function ObsLinksSettings() {
         setCreditsRadius(Math.max(0, Math.min(80, Math.round(nextRadius))));
         setCreditsShadowBlur(Math.max(0, Math.min(240, Math.round(nextShadowBlur))));
         setCreditsShadowOpacity(Math.max(0, Math.min(1, Number(nextShadowOpacity) || 0)));
+        setCreditsBgColor(String(nextBgColor || '#000000').toLowerCase());
+        setCreditsBackgroundMode(nextBackgroundMode);
+        setCreditsBorderEnabled(Boolean(nextBorderEnabled));
+        setCreditsBorderWidth(Math.max(0, Math.min(16, Math.round(nextBorderWidth))));
+        setCreditsBorderColor(String(nextBorderColor || '#ffffff').toLowerCase());
+
+        setCreditsAnchorX(nextAnchorX);
+        setCreditsAnchorY(nextAnchorY);
+        setCreditsPadX(Math.max(0, Math.min(400, Math.round(nextPadX))));
+        setCreditsPadY(Math.max(0, Math.min(400, Math.round(nextPadY))));
+        setCreditsMaxWidthPx(Math.max(240, Math.min(2400, Math.round(nextMaxWidthPx))));
+        setCreditsMaxHeightVh(Math.max(20, Math.min(100, Math.round(nextMaxHeightVh))));
+        setCreditsTextAlign(nextTextAlign);
+        setCreditsIndentPx(Math.max(0, Math.min(240, Math.round(nextIndentPx))));
+
+        setCreditsLineHeight(Math.max(0.9, Math.min(2.2, Number(nextLineHeight) || 1.15)));
+        setCreditsLetterSpacing(Math.max(-2, Math.min(8, Number(nextLetterSpacing) || 0)));
+        setCreditsTitleEnabled(Boolean(nextTitleEnabled));
+        setCreditsTitleSize(Math.max(10, Math.min(64, Math.round(nextTitleSize))));
+        setCreditsTitleWeight(Math.max(300, Math.min(900, Math.round(nextTitleWeight))));
+        setCreditsTitleColor(String(nextTitleColor || '#ffffff').toLowerCase());
+        setCreditsTitleTransform(nextTitleTransform);
 
         setCreditsScrollSpeed(Math.max(8, Math.min(600, Number(nextScrollSpeed) || 48)));
         setCreditsSectionGapPx(Math.max(0, Math.min(120, Math.round(nextSectionGapPx))));
         setCreditsLineGapPx(Math.max(0, Math.min(80, Math.round(nextLineGapPx))));
         setCreditsFadeInMs(Math.max(0, Math.min(5000, Math.round(nextFadeInMs))));
+        setCreditsScrollDirection(nextScrollDirection);
+        setCreditsLoop(Boolean(nextLoop));
+        setCreditsStartDelayMs(Math.max(0, Math.min(60000, Math.round(nextStartDelayMs))));
+        setCreditsEndFadeMs(Math.max(0, Math.min(60000, Math.round(nextEndFadeMs))));
 
         const baselineStyleJson = JSON.stringify({
+          anchorX: nextAnchorX,
+          anchorY: nextAnchorY,
+          padX: nextPadX,
+          padY: nextPadY,
+          maxWidthPx: nextMaxWidthPx,
+          maxHeightVh: nextMaxHeightVh,
+          textAlign: nextTextAlign,
           sectionsOrder: nextOrder.length ? nextOrder : ['donors', 'chatters'],
           showDonors: Boolean(nextShowDonors),
           showChatters: Boolean(nextShowChatters),
@@ -718,14 +822,31 @@ export function ObsLinksSettings() {
           fontSize: nextFontSize,
           fontWeight: nextFontWeight,
           fontColor: nextFontColor,
+          lineHeight: nextLineHeight,
+          letterSpacing: nextLetterSpacing,
+          titleEnabled: Boolean(nextTitleEnabled),
+          titleSize: nextTitleSize,
+          titleWeight: nextTitleWeight,
+          titleColor: nextTitleColor,
+          titleTransform: nextTitleTransform,
+          backgroundMode: nextBackgroundMode,
+          bgColor: nextBgColor,
           bgOpacity: nextBgOpacity,
           blur: nextBlur,
           radius: nextRadius,
           shadowBlur: nextShadowBlur,
           shadowOpacity: nextShadowOpacity,
+          borderEnabled: Boolean(nextBorderEnabled),
+          borderWidth: nextBorderWidth,
+          borderColor: nextBorderColor,
           scrollSpeed: nextScrollSpeed,
+          scrollDirection: nextScrollDirection,
+          loop: Boolean(nextLoop),
+          startDelayMs: nextStartDelayMs,
+          endFadeMs: nextEndFadeMs,
           sectionGapPx: nextSectionGapPx,
           lineGapPx: nextLineGapPx,
+          indentPx: nextIndentPx,
           fadeInMs: nextFadeInMs,
         });
         setLastSavedCreditsSettingsPayload(baselineStyleJson);
@@ -961,6 +1082,13 @@ export function ObsLinksSettings() {
 
   const creditsStyleJson = useMemo(() => {
     return JSON.stringify({
+      anchorX: creditsAnchorX,
+      anchorY: creditsAnchorY,
+      padX: creditsPadX,
+      padY: creditsPadY,
+      maxWidthPx: creditsMaxWidthPx,
+      maxHeightVh: creditsMaxHeightVh,
+      textAlign: creditsTextAlign,
       sectionsOrder: creditsSectionsOrder,
       showDonors: creditsShowDonors,
       showChatters: creditsShowChatters,
@@ -968,39 +1096,87 @@ export function ObsLinksSettings() {
       fontSize: creditsFontSize,
       fontWeight: creditsFontWeight,
       fontColor: creditsFontColor,
+      lineHeight: creditsLineHeight,
+      letterSpacing: creditsLetterSpacing,
+      titleEnabled: creditsTitleEnabled,
+      titleSize: creditsTitleSize,
+      titleWeight: creditsTitleWeight,
+      titleColor: creditsTitleColor,
+      titleTransform: creditsTitleTransform,
+      backgroundMode: creditsBackgroundMode,
+      bgColor: creditsBgColor,
       bgOpacity: creditsBgOpacity,
       blur: creditsBlur,
       radius: creditsRadius,
       shadowBlur: creditsShadowBlur,
       shadowOpacity: creditsShadowOpacity,
+      borderEnabled: creditsBorderEnabled,
+      borderWidth: creditsBorderWidth,
+      borderColor: creditsBorderColor,
       scrollSpeed: creditsScrollSpeed,
+      scrollDirection: creditsScrollDirection,
+      loop: creditsLoop,
+      startDelayMs: creditsStartDelayMs,
+      endFadeMs: creditsEndFadeMs,
       sectionGapPx: creditsSectionGapPx,
       lineGapPx: creditsLineGapPx,
+      indentPx: creditsIndentPx,
       fadeInMs: creditsFadeInMs,
     });
   }, [
+    creditsAnchorX,
+    creditsAnchorY,
+    creditsPadX,
+    creditsPadY,
+    creditsMaxWidthPx,
+    creditsMaxHeightVh,
+    creditsTextAlign,
     creditsBgOpacity,
+    creditsBgColor,
+    creditsBackgroundMode,
     creditsBlur,
+    creditsBorderColor,
+    creditsBorderEnabled,
+    creditsBorderWidth,
+    creditsEndFadeMs,
     creditsFadeInMs,
     creditsFontColor,
     creditsFontFamily,
     creditsFontSize,
     creditsFontWeight,
+    creditsIndentPx,
+    creditsLetterSpacing,
+    creditsLineHeight,
     creditsLineGapPx,
     creditsRadius,
+    creditsLoop,
+    creditsScrollDirection,
     creditsScrollSpeed,
+    creditsStartDelayMs,
     creditsSectionGapPx,
     creditsSectionsOrder,
     creditsShadowBlur,
     creditsShadowOpacity,
     creditsShowChatters,
     creditsShowDonors,
+    creditsTitleColor,
+    creditsTitleEnabled,
+    creditsTitleSize,
+    creditsTitleTransform,
+    creditsTitleWeight,
   ]);
 
   const creditsPreviewParams = useMemo(() => {
     return {
       demo: '1',
       previewBg,
+      anchorX: creditsAnchorX,
+      anchorY: creditsAnchorY,
+      padX: String(creditsPadX),
+      padY: String(creditsPadY),
+      maxWidthPx: String(creditsMaxWidthPx),
+      maxHeightVh: String(creditsMaxHeightVh),
+      textAlign: creditsTextAlign,
       sectionsOrder: JSON.stringify(creditsSectionsOrder),
       showDonors: creditsShowDonors ? '1' : '0',
       showChatters: creditsShowChatters ? '1' : '0',
@@ -1008,36 +1184,77 @@ export function ObsLinksSettings() {
       fontSize: String(creditsFontSize),
       fontWeight: String(creditsFontWeight),
       fontColor: String(creditsFontColor),
+      lineHeight: String(creditsLineHeight),
+      letterSpacing: String(creditsLetterSpacing),
+      titleEnabled: creditsTitleEnabled ? '1' : '0',
+      titleSize: String(creditsTitleSize),
+      titleWeight: String(creditsTitleWeight),
+      titleColor: String(creditsTitleColor),
+      titleTransform: creditsTitleTransform,
+      backgroundMode: creditsBackgroundMode,
+      bgColor: String(creditsBgColor),
       bgOpacity: String(creditsBgOpacity),
       blur: String(creditsBlur),
       radius: String(creditsRadius),
       shadowBlur: String(creditsShadowBlur),
       shadowOpacity: String(creditsShadowOpacity),
+      borderEnabled: creditsBorderEnabled ? '1' : '0',
+      borderWidth: String(creditsBorderWidth),
+      borderColor: String(creditsBorderColor),
       scrollSpeed: String(creditsScrollSpeed),
+      scrollDirection: creditsScrollDirection,
+      loop: creditsLoop ? '1' : '0',
+      startDelayMs: String(creditsStartDelayMs),
+      endFadeMs: String(creditsEndFadeMs),
       sectionGapPx: String(creditsSectionGapPx),
       lineGapPx: String(creditsLineGapPx),
+      indentPx: String(creditsIndentPx),
       fadeInMs: String(creditsFadeInMs),
       // demo list sizes (overlay reads from query, but keeping here is harmless and consistent)
       demoChatters: '24',
       demoDonors: '12',
     } satisfies Record<string, string>;
   }, [
+    creditsAnchorX,
+    creditsAnchorY,
     creditsBgOpacity,
+    creditsBgColor,
+    creditsBackgroundMode,
     creditsBlur,
+    creditsBorderColor,
+    creditsBorderEnabled,
+    creditsBorderWidth,
+    creditsEndFadeMs,
     creditsFadeInMs,
     creditsFontColor,
     creditsFontFamily,
     creditsFontSize,
     creditsFontWeight,
+    creditsIndentPx,
+    creditsLetterSpacing,
+    creditsLineHeight,
     creditsLineGapPx,
+    creditsLoop,
     creditsRadius,
+    creditsScrollDirection,
     creditsScrollSpeed,
+    creditsStartDelayMs,
+    creditsMaxHeightVh,
+    creditsMaxWidthPx,
+    creditsPadX,
+    creditsPadY,
+    creditsTextAlign,
     creditsSectionGapPx,
     creditsSectionsOrder,
     creditsShadowBlur,
     creditsShadowOpacity,
     creditsShowChatters,
     creditsShowDonors,
+    creditsTitleColor,
+    creditsTitleEnabled,
+    creditsTitleSize,
+    creditsTitleTransform,
+    creditsTitleWeight,
     previewBg,
   ]);
 
@@ -1609,6 +1826,186 @@ export function ObsLinksSettings() {
       setRotatingCreditsToken(false);
     }
   };
+
+  const applyCreditsPreset = useCallback(
+    (preset: 'minimal' | 'classic' | 'neon' | 'fullscreen') => {
+      // These are local-only changes; user still clicks Save.
+      if (preset === 'minimal') {
+        setCreditsShowDonors(true);
+        setCreditsShowChatters(true);
+        setCreditsSectionsOrder(['donors', 'chatters']);
+        setCreditsFontFamily('Inter');
+        setCreditsFontSize(26);
+        setCreditsFontWeight(700);
+        setCreditsFontColor('#ffffff');
+        setCreditsLineHeight(1.15);
+        setCreditsLetterSpacing(0);
+        setCreditsTitleEnabled(true);
+        setCreditsTitleSize(20);
+        setCreditsTitleWeight(800);
+        setCreditsTitleColor('#ffffff');
+        setCreditsTitleTransform('uppercase');
+        setCreditsAnchorX('center');
+        setCreditsAnchorY('center');
+        setCreditsPadX(24);
+        setCreditsPadY(24);
+        setCreditsMaxWidthPx(920);
+        setCreditsMaxHeightVh(88);
+        setCreditsTextAlign('center');
+        setCreditsIndentPx(0);
+        setCreditsBackgroundMode('transparent');
+        setCreditsBgColor('#000000');
+        setCreditsBgOpacity(0);
+        setCreditsBlur(0);
+        setCreditsRadius(0);
+        setCreditsBorderEnabled(false);
+        setCreditsBorderWidth(1);
+        setCreditsBorderColor('#ffffff');
+        setCreditsShadowBlur(0);
+        setCreditsShadowOpacity(0);
+        setCreditsScrollSpeed(52);
+        setCreditsScrollDirection('up');
+        setCreditsLoop(true);
+        setCreditsStartDelayMs(0);
+        setCreditsEndFadeMs(0);
+        setCreditsSectionGapPx(22);
+        setCreditsLineGapPx(8);
+        setCreditsFadeInMs(450);
+        return;
+      }
+
+      if (preset === 'neon') {
+        setCreditsShowDonors(true);
+        setCreditsShowChatters(true);
+        setCreditsSectionsOrder(['donors', 'chatters']);
+        setCreditsFontFamily('JetBrains Mono');
+        setCreditsFontSize(24);
+        setCreditsFontWeight(700);
+        setCreditsFontColor('#ffffff');
+        setCreditsLineHeight(1.1);
+        setCreditsLetterSpacing(0.2);
+        setCreditsTitleEnabled(true);
+        setCreditsTitleSize(18);
+        setCreditsTitleWeight(800);
+        setCreditsTitleColor('#7dd3fc');
+        setCreditsTitleTransform('uppercase');
+        setCreditsAnchorX('center');
+        setCreditsAnchorY('center');
+        setCreditsPadX(28);
+        setCreditsPadY(28);
+        setCreditsMaxWidthPx(980);
+        setCreditsMaxHeightVh(90);
+        setCreditsTextAlign('center');
+        setCreditsIndentPx(0);
+        setCreditsBackgroundMode('card');
+        setCreditsBgColor('#000000');
+        setCreditsBgOpacity(0.22);
+        setCreditsBlur(10);
+        setCreditsRadius(26);
+        setCreditsBorderEnabled(true);
+        setCreditsBorderWidth(2);
+        setCreditsBorderColor('#00e5ff');
+        setCreditsShadowBlur(110);
+        setCreditsShadowOpacity(0.55);
+        setCreditsScrollSpeed(56);
+        setCreditsScrollDirection('up');
+        setCreditsLoop(true);
+        setCreditsStartDelayMs(0);
+        setCreditsEndFadeMs(0);
+        setCreditsSectionGapPx(26);
+        setCreditsLineGapPx(8);
+        setCreditsFadeInMs(420);
+        return;
+      }
+
+      if (preset === 'fullscreen') {
+        setCreditsShowDonors(true);
+        setCreditsShowChatters(true);
+        setCreditsSectionsOrder(['donors', 'chatters']);
+        setCreditsFontFamily('Montserrat');
+        setCreditsFontSize(30);
+        setCreditsFontWeight(800);
+        setCreditsFontColor('#ffffff');
+        setCreditsLineHeight(1.1);
+        setCreditsLetterSpacing(0);
+        setCreditsTitleEnabled(true);
+        setCreditsTitleSize(22);
+        setCreditsTitleWeight(900);
+        setCreditsTitleColor('#ffffff');
+        setCreditsTitleTransform('uppercase');
+        setCreditsAnchorX('center');
+        setCreditsAnchorY('center');
+        setCreditsPadX(0);
+        setCreditsPadY(0);
+        setCreditsMaxWidthPx(2400);
+        setCreditsMaxHeightVh(100);
+        setCreditsTextAlign('center');
+        setCreditsIndentPx(0);
+        setCreditsBackgroundMode('full');
+        setCreditsBgColor('#000000');
+        setCreditsBgOpacity(0.18);
+        setCreditsBlur(0);
+        setCreditsRadius(0);
+        setCreditsBorderEnabled(false);
+        setCreditsBorderWidth(1);
+        setCreditsBorderColor('#ffffff');
+        setCreditsShadowBlur(90);
+        setCreditsShadowOpacity(0.55);
+        setCreditsScrollSpeed(64);
+        setCreditsScrollDirection('up');
+        setCreditsLoop(false);
+        setCreditsStartDelayMs(1200);
+        setCreditsEndFadeMs(2000);
+        setCreditsSectionGapPx(32);
+        setCreditsLineGapPx(10);
+        setCreditsFadeInMs(600);
+        return;
+      }
+
+      // classic (default)
+      setCreditsShowDonors(true);
+      setCreditsShowChatters(true);
+      setCreditsSectionsOrder(['donors', 'chatters']);
+      setCreditsFontFamily('Inter');
+      setCreditsFontSize(26);
+      setCreditsFontWeight(800);
+      setCreditsFontColor('#ffffff');
+      setCreditsLineHeight(1.15);
+      setCreditsLetterSpacing(0);
+      setCreditsTitleEnabled(true);
+      setCreditsTitleSize(20);
+      setCreditsTitleWeight(900);
+      setCreditsTitleColor('#ffffff');
+      setCreditsTitleTransform('uppercase');
+      setCreditsAnchorX('center');
+      setCreditsAnchorY('center');
+      setCreditsPadX(24);
+      setCreditsPadY(24);
+      setCreditsMaxWidthPx(920);
+      setCreditsMaxHeightVh(88);
+      setCreditsTextAlign('center');
+      setCreditsIndentPx(0);
+      setCreditsBackgroundMode('card');
+      setCreditsBgColor('#000000');
+      setCreditsBgOpacity(0.18);
+      setCreditsBlur(6);
+      setCreditsRadius(20);
+      setCreditsBorderEnabled(false);
+      setCreditsBorderWidth(1);
+      setCreditsBorderColor('#ffffff');
+      setCreditsShadowBlur(90);
+      setCreditsShadowOpacity(0.6);
+      setCreditsScrollSpeed(48);
+      setCreditsScrollDirection('up');
+      setCreditsLoop(true);
+      setCreditsStartDelayMs(0);
+      setCreditsEndFadeMs(0);
+      setCreditsSectionGapPx(24);
+      setCreditsLineGapPx(8);
+      setCreditsFadeInMs(600);
+    },
+    [],
+  );
 
   return (
     <div className="surface p-6">
@@ -3194,285 +3591,400 @@ export function ObsLinksSettings() {
               <SavedOverlay label={t('admin.saved', { defaultValue: 'РЎРѕС…СЂР°РЅРµРЅРѕ' })} />
             )}
 
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex rounded-xl overflow-hidden border border-white/20 dark:border-white/10">
+                <button
+                  type="button"
+                  className={`px-3 py-2 text-sm font-semibold ${creditsUiMode === 'quick' ? 'bg-primary text-white' : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white'}`}
+                  onClick={() => setCreditsUiMode('quick')}
+                >
+                  {t('admin.obsUiBasic', { defaultValue: 'Basic' })}
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-2 text-sm font-semibold border-l border-white/20 dark:border-white/10 ${creditsUiMode === 'advanced' ? 'bg-primary text-white' : 'bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white'}`}
+                  onClick={() => setCreditsUiMode('advanced')}
+                >
+                  {t('admin.obsUiPro', { defaultValue: 'Pro' })}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('minimal')}>
+                  {t('admin.creditsPresetMinimal', { defaultValue: 'Minimal' })}
+                </button>
+                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('classic')}>
+                  {t('admin.creditsPresetClassic', { defaultValue: 'Classic' })}
+                </button>
+                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('neon')}>
+                  {t('admin.creditsPresetNeon', { defaultValue: 'Neon' })}
+                </button>
+                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('fullscreen')}>
+                  {t('admin.creditsPresetFullscreen', { defaultValue: 'Fullscreen' })}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.creditsSections', { defaultValue: 'Секции' })}
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <input
-                      type="checkbox"
-                      checked={creditsShowDonors}
-                      onChange={(e) => setCreditsShowDonors(e.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                    {t('admin.creditsShowDonors', { defaultValue: 'Донаты (DonationAlerts)' })}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <input
-                      type="checkbox"
-                      checked={creditsShowChatters}
-                      onChange={(e) => setCreditsShowChatters(e.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                    {t('admin.creditsShowChatters', { defaultValue: 'Чат (Twitch)' })}
-                  </label>
-                  <div className="text-xs text-gray-600 dark:text-gray-300">
-                    {t('admin.creditsOrderHint', { defaultValue: 'Порядок: первая секция будет показана первой.' })}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.fontFamily', { defaultValue: 'Шрифт' })}</label>
+                  <select
+                    value={creditsFontFamily}
+                    onChange={(e) => setCreditsFontFamily(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                    disabled={loadingCreditsSettings || savingCreditsSettings}
+                  >
+                    <option value="system">System</option>
+                    <option value="Inter">Inter (Google)</option>
+                    <option value="Roboto">Roboto (Google)</option>
+                    <option value="Montserrat">Montserrat (Google)</option>
+                    <option value="Poppins">Poppins (Google)</option>
+                    <option value="Oswald">Oswald (Google)</option>
+                    <option value="Raleway">Raleway (Google)</option>
+                    <option value="Nunito">Nunito (Google)</option>
+                    <option value="Playfair Display">Playfair Display (Google)</option>
+                    <option value="JetBrains Mono">JetBrains Mono (Google)</option>
+                  </select>
+                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                    {t('admin.creditsGoogleFontsHint', { defaultValue: 'Google Fonts подгружаются автоматически в оверлее (без загрузки файлов).' })}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white"
-                      onClick={() => setCreditsSectionsOrder(['donors', 'chatters'])}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.fontSize', { defaultValue: 'Размер' })}</label>
+                    <input
+                      type="number"
+                      min={10}
+                      max={64}
+                      value={creditsFontSize}
+                      onChange={(e) => setCreditsFontSize(Number(e.target.value) || 10)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTextAlign', { defaultValue: 'Выравнивание' })}</label>
+                    <select
+                      value={creditsTextAlign}
+                      onChange={(e) => setCreditsTextAlign(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                       disabled={loadingCreditsSettings || savingCreditsSettings}
                     >
-                      {t('admin.creditsOrderDonorsFirst', { defaultValue: 'Донаты → Чат' })}
-                    </button>
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white"
-                      onClick={() => setCreditsSectionsOrder(['chatters', 'donors'])}
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    >
-                      {t('admin.creditsOrderChattersFirst', { defaultValue: 'Чат → Донаты' })}
-                    </button>
+                      <option value="left">{t('admin.alignLeft', { defaultValue: 'Left' })}</option>
+                      <option value="center">{t('admin.alignCenter', { defaultValue: 'Center' })}</option>
+                      <option value="right">{t('admin.alignRight', { defaultValue: 'Right' })}</option>
+                    </select>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.creditsTypography', { defaultValue: 'Текст' })}
-                </label>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.fontSize', { defaultValue: 'Размер' })}
-                      </label>
-                      <input
-                        type="number"
-                        min={10}
-                        max={64}
-                        value={creditsFontSize}
-                        onChange={(e) => setCreditsFontSize(Number(e.target.value) || 10)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.fontWeight', { defaultValue: 'Насыщенность' })}
-                      </label>
-                      <input
-                        type="number"
-                        min={300}
-                        max={900}
-                        step={50}
-                        value={creditsFontWeight}
-                        onChange={(e) => setCreditsFontWeight(Number(e.target.value) || 300)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
-                    </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsScrollSpeed', { defaultValue: 'Скорость прокрутки (px/s)' })}</label>
+                  <input
+                    type="number"
+                    min={8}
+                    max={600}
+                    value={creditsScrollSpeed}
+                    onChange={(e) => setCreditsScrollSpeed(Number(e.target.value) || 8)}
+                    className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                    disabled={loadingCreditsSettings || savingCreditsSettings}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsPadX', { defaultValue: 'Отступ слева/справа' })}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={400}
+                      value={creditsPadX}
+                      onChange={(e) => setCreditsPadX(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
                   </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsPadY', { defaultValue: 'Отступ сверху/снизу' })}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={400}
+                      value={creditsPadY}
+                      onChange={(e) => setCreditsPadY(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                      disabled={loadingCreditsSettings || savingCreditsSettings}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.fontFamily', { defaultValue: 'Шрифт' })}
-                      </label>
-                      <select
-                        value={creditsFontFamily}
-                        onChange={(e) => setCreditsFontFamily(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      >
-                        <option value="system">System</option>
-                        <option value="inter">Inter</option>
-                        <option value="roboto">Roboto</option>
-                        <option value="montserrat">Montserrat</option>
-                        <option value="poppins">Poppins</option>
-                        <option value="oswald">Oswald</option>
-                        <option value="raleway">Raleway</option>
-                        <option value="nunito">Nunito</option>
-                      </select>
+            {creditsUiMode === 'advanced' && (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['layout', t('admin.creditsTabLayout', { defaultValue: 'Layout' })],
+                      ['typography', t('admin.creditsTabTypography', { defaultValue: 'Typography' })],
+                      ['sections', t('admin.creditsTabSections', { defaultValue: 'Sections' })],
+                      ['visual', t('admin.creditsTabVisual', { defaultValue: 'Visual' })],
+                      ['motion', t('admin.creditsTabMotion', { defaultValue: 'Motion' })],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                        creditsTab === id
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                      onClick={() => setCreditsTab(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {creditsTab === 'layout' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsAnchorX', { defaultValue: 'Anchor X' })}</label>
+                          <select
+                            value={creditsAnchorX}
+                            onChange={(e) => setCreditsAnchorX(e.target.value as any)}
+                            className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                          >
+                            <option value="left">{t('admin.alignLeft', { defaultValue: 'Left' })}</option>
+                            <option value="center">{t('admin.alignCenter', { defaultValue: 'Center' })}</option>
+                            <option value="right">{t('admin.alignRight', { defaultValue: 'Right' })}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsAnchorY', { defaultValue: 'Anchor Y' })}</label>
+                          <select
+                            value={creditsAnchorY}
+                            onChange={(e) => setCreditsAnchorY(e.target.value as any)}
+                            className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                          >
+                            <option value="top">{t('admin.alignTop', { defaultValue: 'Top' })}</option>
+                            <option value="center">{t('admin.alignCenter', { defaultValue: 'Center' })}</option>
+                            <option value="bottom">{t('admin.alignBottom', { defaultValue: 'Bottom' })}</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsMaxWidth', { defaultValue: 'Max width (px)' })}</label>
+                          <input type="number" min={240} max={2400} value={creditsMaxWidthPx} onChange={(e) => setCreditsMaxWidthPx(Number(e.target.value) || 240)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsMaxHeight', { defaultValue: 'Max height (vh)' })}</label>
+                          <input type="number" min={20} max={100} value={creditsMaxHeightVh} onChange={(e) => setCreditsMaxHeightVh(Number(e.target.value) || 20)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.color', { defaultValue: 'Цвет' })}
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={creditsFontColor}
-                          onChange={(e) => setCreditsFontColor(String(e.target.value || '').toLowerCase())}
-                          className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent"
-                          disabled={loadingCreditsSettings || savingCreditsSettings}
-                        />
-                        <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsFontColor}</div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsIndent', { defaultValue: 'Indent (px)' })}</label>
+                          <input type="number" min={0} max={240} value={creditsIndentPx} onChange={(e) => setCreditsIndentPx(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.lineHeight', { defaultValue: 'Line height' })}</label>
+                          <input type="number" min={0.9} max={2.2} step={0.05} value={creditsLineHeight} onChange={(e) => setCreditsLineHeight(Number(e.target.value) || 1.15)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.letterSpacing', { defaultValue: 'Letter spacing (px)' })}</label>
+                        <input type="number" min={-2} max={8} step={0.1} value={creditsLetterSpacing} onChange={(e) => setCreditsLetterSpacing(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.creditsBackground', { defaultValue: 'Фон' })}
-                </label>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                      {t('admin.opacity', { defaultValue: 'Прозрачность' })}: {Math.round(creditsBgOpacity * 100)}%
+                {creditsTab === 'sections' && (
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input type="checkbox" checked={creditsShowDonors} onChange={(e) => setCreditsShowDonors(e.target.checked)} className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10" />
+                      {t('admin.creditsShowDonors', { defaultValue: 'Донаты (DonationAlerts)' })}
                     </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={0.85}
-                      step={0.01}
-                      value={creditsBgOpacity}
-                      onChange={(e) => setCreditsBgOpacity(parseFloat(e.target.value))}
-                      className="w-full"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.blur', { defaultValue: 'Blur' })}
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={40}
-                        value={creditsBlur}
-                        onChange={(e) => setCreditsBlur(Number(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input type="checkbox" checked={creditsShowChatters} onChange={(e) => setCreditsShowChatters(e.target.checked)} className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10" />
+                      {t('admin.creditsShowChatters', { defaultValue: 'Чат (Twitch)' })}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => setCreditsSectionsOrder(['donors', 'chatters'])}>
+                        {t('admin.creditsOrderDonorsFirst', { defaultValue: 'Донаты → Чат' })}
+                      </button>
+                      <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => setCreditsSectionsOrder(['chatters', 'donors'])}>
+                        {t('admin.creditsOrderChattersFirst', { defaultValue: 'Чат → Донаты' })}
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.radius', { defaultValue: 'Скругление' })}
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={80}
-                        value={creditsRadius}
-                        onChange={(e) => setCreditsRadius(Number(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsSectionGap', { defaultValue: 'Отступ между секциями' })}</label>
+                        <input type="number" min={0} max={120} value={creditsSectionGapPx} onChange={(e) => setCreditsSectionGapPx(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsLineGap', { defaultValue: 'Отступ между строками' })}</label>
+                        <input type="number" min={0} max={80} value={creditsLineGapPx} onChange={(e) => setCreditsLineGapPx(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.shadow', { defaultValue: 'Тень (blur)' })}
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={240}
-                        value={creditsShadowBlur}
-                        onChange={(e) => setCreditsShadowBlur(Number(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.shadowOpacity', { defaultValue: 'Тень (opacity)' })}: {Math.round(creditsShadowOpacity * 100)}%
-                      </label>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.02}
-                        value={creditsShadowOpacity}
-                        onChange={(e) => setCreditsShadowOpacity(parseFloat(e.target.value))}
-                        className="w-full"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+                )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  {t('admin.creditsMotion', { defaultValue: 'Анимация' })}
-                </label>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                      {t('admin.creditsScrollSpeed', { defaultValue: 'Скорость прокрутки (px/s)' })}
-                    </label>
-                    <input
-                      type="number"
-                      min={8}
-                      max={600}
-                      value={creditsScrollSpeed}
-                      onChange={(e) => setCreditsScrollSpeed(Number(e.target.value) || 8)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.creditsSectionGap', { defaultValue: 'Отступ между секциями' })}
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={120}
-                        value={creditsSectionGapPx}
-                        onChange={(e) => setCreditsSectionGapPx(Number(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
+                {creditsTab === 'typography' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.fontWeight', { defaultValue: 'Насыщенность' })}</label>
+                        <input type="number" min={300} max={900} step={50} value={creditsFontWeight} onChange={(e) => setCreditsFontWeight(Number(e.target.value) || 300)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.color', { defaultValue: 'Цвет' })}</label>
+                        <div className="flex items-center gap-3">
+                          <input type="color" value={creditsFontColor} onChange={(e) => setCreditsFontColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" />
+                          <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsFontColor}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                        {t('admin.creditsLineGap', { defaultValue: 'Отступ между строками' })}
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                        <input type="checkbox" checked={creditsTitleEnabled} onChange={(e) => setCreditsTitleEnabled(e.target.checked)} className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10" />
+                        {t('admin.creditsTitleEnabled', { defaultValue: 'Заголовки секций' })}
                       </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={80}
-                        value={creditsLineGapPx}
-                        onChange={(e) => setCreditsLineGapPx(Number(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                        disabled={loadingCreditsSettings || savingCreditsSettings}
-                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleSize', { defaultValue: 'Размер заголовка' })}</label>
+                          <input type="number" min={10} max={64} value={creditsTitleSize} onChange={(e) => setCreditsTitleSize(Number(e.target.value) || 10)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsTitleEnabled} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleTransform', { defaultValue: 'Регистр' })}</label>
+                          <select value={creditsTitleTransform} onChange={(e) => setCreditsTitleTransform(e.target.value as any)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsTitleEnabled}>
+                            <option value="none">{t('admin.none', { defaultValue: 'None' })}</option>
+                            <option value="uppercase">{t('admin.uppercase', { defaultValue: 'UPPERCASE' })}</option>
+                            <option value="lowercase">{t('admin.lowercase', { defaultValue: 'lowercase' })}</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleColor', { defaultValue: 'Цвет заголовка' })}</label>
+                        <div className="flex items-center gap-3">
+                          <input type="color" value={creditsTitleColor} onChange={(e) => setCreditsTitleColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" disabled={!creditsTitleEnabled} />
+                          <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsTitleColor}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
-                      {t('admin.creditsFadeIn', { defaultValue: 'Fade-in (ms)' })}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={5000}
-                      value={creditsFadeInMs}
-                      onChange={(e) => setCreditsFadeInMs(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
-                      disabled={loadingCreditsSettings || savingCreditsSettings}
-                    />
+                )}
+
+                {creditsTab === 'visual' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBackgroundMode', { defaultValue: 'Режим фона' })}</label>
+                        <select value={creditsBackgroundMode} onChange={(e) => setCreditsBackgroundMode(e.target.value as any)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white">
+                          <option value="transparent">{t('admin.transparent', { defaultValue: 'Transparent' })}</option>
+                          <option value="card">{t('admin.card', { defaultValue: 'Card' })}</option>
+                          <option value="full">{t('admin.fullscreen', { defaultValue: 'Full' })}</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.color', { defaultValue: 'Цвет' })}</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={creditsBgColor} onChange={(e) => setCreditsBgColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" />
+                            <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsBgColor}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.opacity', { defaultValue: 'Прозрачность' })}: {Math.round(creditsBgOpacity * 100)}%</label>
+                          <input type="range" min={0} max={0.85} step={0.01} value={creditsBgOpacity} onChange={(e) => setCreditsBgOpacity(parseFloat(e.target.value))} className="w-full" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.blur', { defaultValue: 'Blur' })}</label>
+                          <input type="number" min={0} max={40} value={creditsBlur} onChange={(e) => setCreditsBlur(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.radius', { defaultValue: 'Скругление' })}</label>
+                          <input type="number" min={0} max={80} value={creditsRadius} onChange={(e) => setCreditsRadius(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                        <input type="checkbox" checked={creditsBorderEnabled} onChange={(e) => setCreditsBorderEnabled(e.target.checked)} className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10" />
+                        {t('admin.border', { defaultValue: 'Border' })}
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.borderWidth', { defaultValue: 'Width' })}</label>
+                          <input type="number" min={0} max={16} value={creditsBorderWidth} onChange={(e) => setCreditsBorderWidth(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsBorderEnabled} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.borderColor', { defaultValue: 'Color' })}</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={creditsBorderColor} onChange={(e) => setCreditsBorderColor(String(e.target.value || '').toLowerCase())} className="h-10 w-14 rounded-lg border border-white/20 dark:border-white/10 bg-transparent" disabled={!creditsBorderEnabled} />
+                            <div className="text-xs text-gray-600 dark:text-gray-300 font-mono">{creditsBorderColor}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.shadow', { defaultValue: 'Тень (blur)' })}</label>
+                          <input type="number" min={0} max={240} value={creditsShadowBlur} onChange={(e) => setCreditsShadowBlur(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.shadowOpacity', { defaultValue: 'Тень (opacity)' })}: {Math.round(creditsShadowOpacity * 100)}%</label>
+                          <input type="range" min={0} max={1} step={0.02} value={creditsShadowOpacity} onChange={(e) => setCreditsShadowOpacity(parseFloat(e.target.value))} className="w-full" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                )}
+
+                {creditsTab === 'motion' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsScrollDirection', { defaultValue: 'Направление' })}</label>
+                        <select value={creditsScrollDirection} onChange={(e) => setCreditsScrollDirection(e.target.value as any)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white">
+                          <option value="up">{t('admin.up', { defaultValue: 'Up' })}</option>
+                          <option value="down">{t('admin.down', { defaultValue: 'Down' })}</option>
+                        </select>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                        <input type="checkbox" checked={creditsLoop} onChange={(e) => setCreditsLoop(e.target.checked)} className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10" />
+                        {t('admin.creditsLoop', { defaultValue: 'Loop' })}
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsStartDelay', { defaultValue: 'Start delay (ms)' })}</label>
+                          <input type="number" min={0} max={60000} value={creditsStartDelayMs} onChange={(e) => setCreditsStartDelayMs(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsEndFade', { defaultValue: 'End fade (ms)' })}</label>
+                          <input type="number" min={0} max={60000} value={creditsEndFadeMs} onChange={(e) => setCreditsEndFadeMs(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={creditsLoop} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsFadeIn', { defaultValue: 'Fade-in (ms)' })}</label>
+                        <input type="number" min={0} max={5000} value={creditsFadeInMs} onChange={(e) => setCreditsFadeInMs(Number(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
               {activePreviewBaseUrl ? (
