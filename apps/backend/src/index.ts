@@ -22,7 +22,7 @@ import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
 dotenv.config();
 
-// In production, remove console noise (keep console.error for real issues).
+// In production, remove console noise (keep console.error for real issues
 if (process.env.NODE_ENV === 'production') {
   // eslint-disable-next-line no-console
   console.log = () => {};
