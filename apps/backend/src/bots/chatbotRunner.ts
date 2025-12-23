@@ -58,6 +58,19 @@ async function postInternalCreditsChatter(baseUrl: string, payload: { channelSlu
   }
 }
 
+function parseBaseUrls(): string[] {
+  const raw = String(process.env.CHATBOT_BACKEND_BASE_URLS || '').trim();
+  if (raw) {
+    const urls = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return Array.from(new Set(urls));
+  }
+  const single = String(process.env.CHATBOT_BACKEND_BASE_URL || '').trim();
+  return single ? [single] : [];
+}
+
 async function fetchEnabledSubscriptions(): Promise<Array<{ login: string; slug: string }>> {
   const rows = await prisma.chatBotSubscription.findMany({
     where: { enabled: true },
@@ -74,9 +87,20 @@ async function fetchEnabledSubscriptions(): Promise<Array<{ login: string; slug:
 }
 
 async function start() {
-  const botLogin = normalizeLogin(String(process.env.CHAT_BOT_LOGIN || 'lotas_bot'));
+  const botLogin = normalizeLogin(String(process.env.CHAT_BOT_LOGIN || ''));
   const syncSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_SYNC_SECONDS, 30));
-  const backendBaseUrl = String(process.env.CHATBOT_BACKEND_BASE_URL || 'http://127.0.0.1:3001').trim();
+  const backendBaseUrls = parseBaseUrls();
+
+  // Hard requirements: avoid silently connecting to the wrong instance (prod vs beta)
+  // and make misconfig obvious in deploy logs.
+  if (!botLogin) {
+    logger.error('chatbot.missing_env', { key: 'CHAT_BOT_LOGIN' });
+    process.exit(1);
+  }
+  if (backendBaseUrls.length === 0) {
+    logger.error('chatbot.missing_env', { key: 'CHATBOT_BACKEND_BASE_URLS' });
+    process.exit(1);
+  }
 
   let stopped = false;
   let client: any = null;
@@ -167,7 +191,9 @@ async function start() {
       const displayName = String(tags?.['display-name'] || tags?.username || '').trim();
       if (!userId || !displayName) return;
 
-      void postInternalCreditsChatter(backendBaseUrl, { channelSlug: slug, userId, displayName });
+      for (const baseUrl of backendBaseUrls) {
+        void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId, displayName });
+      }
     });
 
     try {
@@ -203,6 +229,12 @@ void start().catch((e: any) => {
   logger.error('chatbot.fatal', { errorMessage: e?.message || String(e) });
   process.exit(1);
 });
+
+
+
+
+
+
 
 
 

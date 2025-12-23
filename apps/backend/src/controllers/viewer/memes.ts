@@ -29,6 +29,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     where: {
       channelId: targetChannelId,
       status: 'approved',
+      deletedAt: null,
     },
     include: {
       createdBy: {

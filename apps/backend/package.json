@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "prebuild": "prisma generate",
+    "migrations:check": "tsx scripts/check-migrations.ts",
+    "schema:check": "tsx scripts/check-prisma-schema.ts",
+    "prebuild": "pnpm -s schema:check && prisma generate",
     "build": "tsc",
     "start": "node dist/index.js",
     "start:chatbot": "node dist/bots/chatbotRunner.js",

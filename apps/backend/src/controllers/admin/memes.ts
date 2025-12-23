@@ -49,6 +49,13 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     where.status = { not: 'deleted' };
   }
 
+  // Default behavior: exclude soft-deleted rows. If explicitly querying deleted status, include them.
+  if (where.status === 'deleted') {
+    // include deletedAt
+  } else {
+    where.deletedAt = null;
+  }
+
   const sortOrderRaw = String(req.query.sortOrder || '').toLowerCase();
   const sortOrder: 'asc' | 'desc' = sortOrderRaw === 'asc' ? 'asc' : 'desc';
 
@@ -181,10 +188,10 @@ export const deleteMeme = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Meme not found' });
     }
 
-    // Soft delete: change status to 'deleted'
+    // Soft delete: mark as deleted (keep row for shared DB safety / auditability)
     const deleted = await prisma.meme.update({
       where: { id },
-      data: { status: 'deleted' },
+      data: { status: 'deleted', deletedAt: new Date() },
       include: {
         createdBy: {
           select: {

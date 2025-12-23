@@ -59,6 +59,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Prisma schema (drift guard)
+        run: pnpm -s schema:check
+
+      - name: Check migrations (shared DB guard)
+        env:
+          # On PR: compare base -> HEAD. On push: compare github.event.before -> github.sha.
+          MIGRATIONS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          MIGRATIONS_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm -s migrations:check
+
       - name: Generate Prisma Client
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/memalerts_test?schema=public
@@ -207,13 +217,13 @@ jobs:
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
 
             # Global chat bot runner (DB subscriptions)
-            # Runs as separate PM2 process: memalerts-chatbot
+            # Runs as separate PM2 process: memalerts-chatbot (single process posting to both prod+beta backends)
             CHAT_BOT_LOGIN=${{ secrets.CHAT_BOT_LOGIN || 'lotas_bot' }}
             # Optional: explicit bot user mapping (recommended)
             CHAT_BOT_USER_ID=${{ secrets.CHAT_BOT_USER_ID || '' }}
             CHAT_BOT_TWITCH_USER_ID=${{ secrets.CHAT_BOT_TWITCH_USER_ID || '' }}
             # Runner settings
-            CHATBOT_BACKEND_BASE_URL=http://127.0.0.1:3001
+            CHATBOT_BACKEND_BASE_URLS=http://127.0.0.1:3001,http://127.0.0.1:3002
             CHATBOT_SYNC_SECONDS=${{ secrets.CHATBOT_SYNC_SECONDS || '30' }}
             EOF
             
@@ -604,13 +614,12 @@ jobs:
             RATE_LIMIT_WHITELIST_IPS=${{ secrets.RATE_LIMIT_WHITELIST_IPS || '' }}
 
             # Global chat bot runner (DB subscriptions)
-            # Runs as separate PM2 process: memalerts-chatbot-beta
+            # NOTE: single bot process runs on production deploy and posts to both 3001+3002.
+            # Keeping these vars for back-compat / local runs; beta deploy does not start the bot.
             CHAT_BOT_LOGIN=${{ secrets.CHAT_BOT_LOGIN || 'lotas_bot' }}
-            # Optional: explicit bot user mapping (recommended)
             CHAT_BOT_USER_ID=${{ secrets.CHAT_BOT_USER_ID || '' }}
             CHAT_BOT_TWITCH_USER_ID=${{ secrets.CHAT_BOT_TWITCH_USER_ID || '' }}
-            # Runner settings
-            CHATBOT_BACKEND_BASE_URL=http://127.0.0.1:3002
+            CHATBOT_BACKEND_BASE_URLS=http://127.0.0.1:3001,http://127.0.0.1:3002
             CHATBOT_SYNC_SECONDS=${{ secrets.CHATBOT_SYNC_SECONDS || '30' }}
 
             # Debug logging (beta only)
@@ -799,21 +808,7 @@ jobs:
               }
               echo "✅ Beta backend health check passed"
 
-              # Start/update global chat bot runner (best-effort; don't block deploy if tokens are missing)
-              echo ""
-              echo "Starting/updating chat bot runner with PM2..."
-              if [ ! -f dist/bots/chatbotRunner.js ]; then
-                echo "⚠️  dist/bots/chatbotRunner.js not found - skipping chat bot start"
-              else
-                pm2 stop memalerts-chatbot-beta 2>/dev/null || true
-                pm2 delete memalerts-chatbot-beta 2>/dev/null || true
-                pm2 start dist/bots/chatbotRunner.js --name memalerts-chatbot-beta --update-env
-                pm2 save
-                sleep 2
-                pm2 list | grep memalerts-chatbot-beta || true
-                echo "Recent chat bot logs:"
-                pm2 logs memalerts-chatbot-beta --lines 30 --nostream || true
-              fi
+              # Bot runner is started on production deploy (single process posting to both instances).
             else
               echo "❌ Beta backend failed to start"
               pm2 logs memalerts-api-beta --lines 100 --nostream

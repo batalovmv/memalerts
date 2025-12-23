@@ -32,6 +32,12 @@ model Channel {
   overlayStyleJson  String?  @db.Text
   // Increment to invalidate previously issued overlay tokens.
   overlayTokenVersion Int @default(1)
+  // OBS credits overlay (titres) settings (stored as JSON string)
+  creditsStyleJson  String?  @db.Text
+  // Increment to invalidate previously issued credits tokens.
+  creditsTokenVersion Int @default(1)
+  // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
+  creditsReconnectWindowMinutes Int @default(60)
   createdAt         DateTime @default(now())
 
   users       User[]
@@ -42,6 +48,27 @@ model Channel {
   activations MemeActivation[]
   auditLogs   AuditLog[]
   promotions  Promotion[]
+  dailyStats  ChannelDailyStats[]
+  userStats30d ChannelUserStats30d[]
+  memeStats30d ChannelMemeStats30d[]
+  memeDailyStats ChannelMemeDailyStats[]
+  chatBotSubscriptions ChatBotSubscription[]
+}
+
+// Global Twitch IRC bot subscriptions (single bot account joins many channels).
+model ChatBotSubscription {
+  id         String   @id @default(uuid())
+  channelId  String
+  twitchLogin String  // lowercase twitch channel login (for JOIN #login)
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([twitchLogin])
+  @@index([channelId])
 }
 
 model User {
@@ -63,6 +90,7 @@ model User {
   submissions   MemeSubmission[]
   redemptions   Redemption[]
   activations   MemeActivation[]
+  channelStats30d ChannelUserStats30d[]
   auditLogs     AuditLog[]
   betaAccess    BetaAccess?
 
@@ -96,6 +124,7 @@ model Meme {
   durationMs       Int
   priceCoins       Int
   status           String // pending, approved, rejected
+  deletedAt        DateTime?
   createdByUserId  String?
   approvedByUserId String?
   createdAt        DateTime @default(now())
@@ -104,13 +133,20 @@ model Meme {
   createdBy   User?            @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   approvedBy  User?            @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   activations MemeActivation[]
+  globalStats30d GlobalMemeStats30d?
+  globalDailyStats GlobalMemeDailyStats[]
   tags        MemeTag[]
+  channelStats30d ChannelMemeStats30d[]
+  channelDailyStats ChannelMemeDailyStats[]
   fileHashRef FileHash?        @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
 
   @@index([channelId])
   @@index([status])
+  @@index([deletedAt])
   @@index([createdByUserId])
   @@index([fileHash])
+  // Common read pattern: list approved memes for a channel ordered by createdAt
+  @@index([channelId, status, createdAt])
 }
 
 model MemeSubmission {
@@ -173,6 +209,11 @@ model MemeActivation {
   @@index([userId])
   @@index([status])
   @@index([memeId])
+  // Common time-range scans (e.g., daily charts / rollups)
+  @@index([channelId, createdAt])
+  // Admin stats groupBy helpers (group by userId/memeId within a channel)
+  @@index([channelId, userId])
+  @@index([channelId, memeId])
   // Query helpers:
   // - popularity ranking: filter by channelId + status + createdAt, group by memeId
   @@index([channelId, status, createdAt, memeId])
@@ -278,4 +319,136 @@ model BetaAccess {
   @@index([userId])
   @@index([status])
   @@index([requestedAt])
+}
+
+// Rollup / pre-aggregations for performance at scale.
+// These tables are additive and safe for shared DB (beta+prod) when deployed with expand/contract strategy.
+model ChannelDailyStats {
+  channelId String
+  day       DateTime // date_trunc('day', createdAt) in UTC
+
+  // All statuses (queued/playing/done/failed/etc). Mirrors admin daily chart semantics.
+  totalActivationsCount Int    @default(0)
+  totalCoinsSpentSum    BigInt @default(0)
+
+  // Completed-only (done/completed). Mirrors viewer stats semantics.
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  // Best-effort unique user counts (all statuses / completed).
+  uniqueUsersCountAll       Int @default(0)
+  uniqueUsersCountCompleted Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, day])
+  @@index([channelId, day])
+  @@index([day])
+}
+
+// 30-day rolling window rollups (min-load strategy):
+// keep expensive groupBy queries off the hot path by precomputing aggregates on a fixed window.
+model ChannelUserStats30d {
+  channelId String
+  userId    String
+
+  // Window boundaries (UTC). Informational; recomputed by job.
+  windowStart DateTime
+  windowEnd   DateTime
+
+  totalActivationsCount Int    @default(0)
+  totalCoinsSpentSum    BigInt @default(0)
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
+  @@index([channelId])
+  @@index([channelId, totalCoinsSpentSum])
+  @@index([channelId, totalActivationsCount])
+  @@index([updatedAt])
+}
+
+model ChannelMemeStats30d {
+  channelId String
+  memeId    String
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  totalActivationsCount Int    @default(0)
+  totalCoinsSpentSum    BigInt @default(0)
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, memeId])
+  @@index([channelId])
+  @@index([channelId, completedActivationsCount])
+  @@index([channelId, totalActivationsCount])
+  @@index([updatedAt])
+}
+
+model GlobalMemeStats30d {
+  memeId String
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([memeId])
+  @@index([completedActivationsCount])
+  @@index([updatedAt])
+}
+
+// Daily rollups for viewer stats (day/week/month aggregation without scanning MemeActivation).
+model ChannelMemeDailyStats {
+  channelId String
+  day       DateTime // date_trunc('day', createdAt) in UTC
+  memeId    String
+
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, day, memeId])
+  @@index([channelId, day])
+  @@index([channelId, memeId])
+  @@index([day])
+}
+
+model GlobalMemeDailyStats {
+  day    DateTime // date_trunc('day', createdAt) in UTC
+  memeId String
+
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([day, memeId])
+  @@index([day])
+  @@index([memeId])
 }
