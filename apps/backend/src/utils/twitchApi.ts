@@ -355,6 +355,80 @@ export async function createEventSubSubscription(
 }
 
 /**
+ * Create EventSub subscription (generic).
+ * Note: EventSub subscriptions require app access token, not user access token.
+ */
+export async function createEventSubSubscriptionOfType(opts: {
+  type: string;
+  version?: string;
+  broadcasterId: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<any> {
+  const accessToken = await getAppAccessToken();
+  const version = String(opts.version || '1');
+
+  const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+    method: 'POST',
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID!,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      type: opts.type,
+      version,
+      condition: {
+        broadcaster_user_id: opts.broadcasterId,
+      },
+      transport: {
+        method: 'webhook',
+        callback: opts.webhookUrl,
+        secret: opts.secret,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    const err = new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`);
+    (err as any).status = response.status;
+    (err as any).body = errorText;
+    throw err;
+  }
+
+  return response.json();
+}
+
+export async function createStreamOnlineEventSubSubscription(opts: {
+  broadcasterId: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<any> {
+  return createEventSubSubscriptionOfType({
+    type: 'stream.online',
+    version: '1',
+    broadcasterId: opts.broadcasterId,
+    webhookUrl: opts.webhookUrl,
+    secret: opts.secret,
+  });
+}
+
+export async function createStreamOfflineEventSubSubscription(opts: {
+  broadcasterId: string;
+  webhookUrl: string;
+  secret: string;
+}): Promise<any> {
+  return createEventSubSubscriptionOfType({
+    type: 'stream.offline',
+    version: '1',
+    broadcasterId: opts.broadcasterId,
+    webhookUrl: opts.webhookUrl,
+    secret: opts.secret,
+  });
+}
+
+/**
  * Get existing EventSub subscriptions for a broadcaster
  */
 export async function getEventSubSubscriptions(broadcasterId: string): Promise<any> {

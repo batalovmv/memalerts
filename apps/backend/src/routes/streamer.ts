@@ -42,5 +42,7 @@ streamerRoutes.get('/overlay/preview-memes', adminController.getOverlayPreviewMe
 streamerRoutes.get('/credits/token', adminController.getCreditsToken);
 streamerRoutes.post('/credits/settings', adminController.saveCreditsSettings);
 streamerRoutes.post('/credits/token/rotate', adminController.rotateCreditsToken);
+streamerRoutes.post('/credits/reset', adminController.resetCredits);
+streamerRoutes.post('/credits/reconnect-window', adminController.setCreditsReconnectWindow);
 
 

@@ -36,6 +36,8 @@ model Channel {
   creditsStyleJson  String?  @db.Text
   // Increment to invalidate previously issued credits tokens.
   creditsTokenVersion Int @default(1)
+  // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
+  creditsReconnectWindowMinutes Int @default(60)
   createdAt         DateTime @default(now())
 
   users       User[]

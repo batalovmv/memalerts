@@ -16,6 +16,7 @@ import { Server } from 'socket.io';
 import { emitWalletUpdated, isInternalWalletRelayRequest, WalletUpdatedEvent } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, isInternalSubmissionRelayRequest, SubmissionEvent } from '../realtime/submissionBridge.js';
 import { debugLog, isDebugLogsEnabled } from '../utils/debug.js';
+import { creditsInternalController } from '../controllers/internal/creditsInternal.js';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
@@ -216,6 +217,10 @@ export function setupRoutes(app: Express) {
     emitSubmissionEvent(io, body as SubmissionEvent);
     return res.json({ ok: true });
   });
+
+  // Internal-only credits events (chat bot / DA proxy). Localhost + internal header required.
+  app.post('/internal/credits/chatter', creditsInternalController.chatter);
+  app.post('/internal/credits/donor', creditsInternalController.donor);
 
   // Temporary endpoint to debug IP detection.
   // Must be opt-in via DEBUG_LOGS=1 (beta only) to avoid exposing debug info on production.

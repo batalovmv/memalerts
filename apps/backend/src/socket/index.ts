@@ -1,7 +1,8 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
-import { getCreditsState, startCreditsTicker, stopCreditsTicker } from '../realtime/creditsState.js';
+import { emitCreditsState, startCreditsTicker, stopCreditsTicker } from '../realtime/creditsState.js';
+import { getCreditsStateFromStore } from '../realtime/creditsSessionStore.js';
 
 type JwtPayload = {
   userId?: string;
@@ -171,7 +172,7 @@ export function setupSocketIO(io: Server) {
           socket.emit('credits:config', {
             creditsStyleJson: (channel as any)?.creditsStyleJson ?? null,
           });
-          socket.emit('credits:state', getCreditsState(slug));
+          socket.emit('credits:state', await getCreditsStateFromStore(slug));
           startCreditsTicker(io, slug, 5000);
         }
       } catch (e) {

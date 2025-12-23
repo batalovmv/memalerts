@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
 import { twitchRedemptionEventSchema } from '../shared/schemas.js';
+import { markCreditsSessionOffline, startOrResumeCreditsSession } from '../realtime/creditsSessionStore.js';
 
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
@@ -135,6 +136,39 @@ export const webhookController = {
       } catch (error) {
         console.error('Error processing redemption:', error);
         return res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+
+    // Credits session boundaries (used for chatters/donors persistence with reconnect window).
+    if (req.body.subscription?.type === 'stream.online' || req.body.subscription?.type === 'stream.offline') {
+      try {
+        const broadcasterId = String(req.body?.event?.broadcaster_user_id || '').trim();
+        if (!broadcasterId) {
+          return res.status(200).json({ message: 'No broadcaster id, ignoring' });
+        }
+
+        const channel = await prisma.channel.findUnique({
+          where: { twitchChannelId: broadcasterId },
+          select: { slug: true, creditsReconnectWindowMinutes: true },
+        });
+        const slug = String((channel as any)?.slug || '').toLowerCase();
+        if (!slug) {
+          return res.status(200).json({ message: 'Channel not found, ignoring' });
+        }
+        const windowMin = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
+          ? Number((channel as any).creditsReconnectWindowMinutes)
+          : 60;
+
+        if (req.body.subscription.type === 'stream.online') {
+          await startOrResumeCreditsSession(slug, windowMin);
+        } else {
+          await markCreditsSessionOffline(slug, windowMin);
+        }
+
+        return res.status(200).json({ message: 'Stream session processed' });
+      } catch (error) {
+        console.error('Error processing stream session event:', error);
+        return res.status(200).json({ message: 'Stream session error (ignored)' });
       }
     }
 
