@@ -49,7 +49,7 @@ export const authController = {
     // In production, use proper session storage or signed cookies
     const clientId = process.env.TWITCH_CLIENT_ID;
     const redirectUri = encodeURIComponent(process.env.TWITCH_CALLBACK_URL || '');
-    const scopes = encodeURIComponent('user:read:email channel:read:redemptions channel:manage:redemptions');
+    const scopes = encodeURIComponent('user:read:email channel:read:redemptions channel:manage:redemptions chat:read chat:edit');
 
     if (!clientId) {
       console.error('TWITCH_CLIENT_ID is not set');
