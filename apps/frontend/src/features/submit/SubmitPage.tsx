@@ -1,4 +1,4 @@
-﻿import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -13,14 +13,10 @@ import type { MySubmission } from './types';
 import { MySubmissionsSection } from './components/MySubmissionsSection';
 import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
 
-const SubmitModal = lazy(() => import('@/components/SubmitModal'));
-
 export default function Submit() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
-
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
   const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
   const [loadingMySubmissions, setLoadingMySubmissions] = useState(false);
@@ -182,17 +178,9 @@ export default function Submit() {
               })}
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setIsSubmitModalOpen(true)}
-            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-          >
-            {t('submit.submitNewMeme', { defaultValue: 'Submit a new meme' })}
-          </button>
         </div>
 
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow border border-secondary/20 p-2">
+        <div className="mt-6 surface p-2">
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -287,10 +275,6 @@ export default function Submit() {
           />
         )}
       </main>
-
-      <Suspense fallback={null}>
-        <SubmitModal isOpen={isSubmitModalOpen} onClose={() => setIsSubmitModalOpen(false)} />
-      </Suspense>
     </div>
   );
 }
