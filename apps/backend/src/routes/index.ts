@@ -22,6 +22,163 @@ export function setupRoutes(app: Express) {
     res.json({ status: 'ok' });
   });
 
+  // Public OBS Browser Source: Credits overlay (titres).
+  // Served by backend so OBS can point to backend domain directly.
+  app.get('/overlay/credits/t/:token', (req, res) => {
+    const token = String((req.params as any)?.token || '').trim();
+    if (!token) return res.status(400).send('Bad Request');
+
+    // No caching: OBS should always get the latest HTML.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+    // IMPORTANT:
+    // - We load Socket.IO client from the same origin to satisfy CSP (helmet).
+    // - The overlay joins via join:overlay { token } and then listens to credits:* events.
+    const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Credits Overlay</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #fff; }
+      .wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+      .panel {
+        max-width: 92vw;
+        max-height: 92vh;
+        padding: 20px 24px;
+        background: rgba(0,0,0,0.18);
+        border-radius: 20px;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 0 90px rgba(0,0,0,0.6);
+        overflow: hidden;
+      }
+      .title { font-weight: 800; font-size: 26px; margin: 0 0 12px 0; opacity: 0.95; }
+      .list { display: flex; flex-direction: column; gap: 8px; font-weight: 800; font-size: 26px; }
+      .section { margin-top: 12px; }
+      .section h3 { margin: 0 0 8px 0; font-size: 18px; opacity: 0.8; font-weight: 700; }
+      .muted { opacity: 0.7; font-size: 14px; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel" id="panel">
+        <div class="title">Credits</div>
+        <div class="muted" id="status">Connecting...</div>
+        <div class="section" id="donorsSection" style="display:none;">
+          <h3>Donors</h3>
+          <div class="list" id="donors"></div>
+        </div>
+        <div class="section" id="chattersSection" style="display:none;">
+          <h3>Chatters</h3>
+          <div class="list" id="chatters"></div>
+        </div>
+      </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const TOKEN = ${JSON.stringify(token)};
+
+      const statusEl = document.getElementById('status');
+      const donorsSection = document.getElementById('donorsSection');
+      const chattersSection = document.getElementById('chattersSection');
+      const donorsEl = document.getElementById('donors');
+      const chattersEl = document.getElementById('chatters');
+
+      let cfg = { creditsStyleJson: null };
+
+      function safeParseJson(s) {
+        try { return JSON.parse(s); } catch { return null; }
+      }
+
+      function applyStyle(styleJson) {
+        if (!styleJson) return;
+        const obj = safeParseJson(styleJson);
+        if (!obj || typeof obj !== 'object') return;
+
+        const panel = document.getElementById('panel');
+        if (obj.fontFamily) document.body.style.fontFamily = String(obj.fontFamily);
+        const fontSize = Number(obj.fontSize);
+        if (Number.isFinite(fontSize)) {
+          donorsEl.style.fontSize = fontSize + 'px';
+          chattersEl.style.fontSize = fontSize + 'px';
+          document.querySelector('.title').style.fontSize = Math.max(14, Math.round(fontSize * 1.0)) + 'px';
+        }
+        if (obj.fontWeight) {
+          donorsEl.style.fontWeight = String(obj.fontWeight);
+          chattersEl.style.fontWeight = String(obj.fontWeight);
+        }
+        if (obj.fontColor) document.body.style.color = String(obj.fontColor);
+        const bgOpacity = Number(obj.bgOpacity);
+        if (Number.isFinite(bgOpacity)) panel.style.background = 'rgba(0,0,0,' + bgOpacity + ')';
+        const blur = Number(obj.blur);
+        if (Number.isFinite(blur)) panel.style.backdropFilter = 'blur(' + blur + 'px)';
+        const radius = Number(obj.radius);
+        if (Number.isFinite(radius)) panel.style.borderRadius = radius + 'px';
+        const shadowBlur = Number(obj.shadowBlur);
+        const shadowOpacity = Number(obj.shadowOpacity);
+        if (Number.isFinite(shadowBlur) && Number.isFinite(shadowOpacity)) {
+          panel.style.boxShadow = '0 0 ' + shadowBlur + 'px rgba(0,0,0,' + shadowOpacity + ')';
+        }
+      }
+
+      function renderState(state) {
+        const donors = Array.isArray(state && state.donors) ? state.donors : [];
+        const chatters = Array.isArray(state && state.chatters) ? state.chatters : [];
+
+        donorsEl.innerHTML = '';
+        chattersEl.innerHTML = '';
+
+        if (donors.length) {
+          donorsSection.style.display = '';
+          for (const d of donors.slice(0, 200)) {
+            const line = document.createElement('div');
+            line.textContent = d && d.name ? (d.name + (d.amount ? (' — ' + d.amount + ' ' + (d.currency || '')) : '')) : '';
+            donorsEl.appendChild(line);
+          }
+        } else {
+          donorsSection.style.display = 'none';
+        }
+
+        if (chatters.length) {
+          chattersSection.style.display = '';
+          for (const c of chatters.slice(0, 500)) {
+            const line = document.createElement('div');
+            line.textContent = c && c.name ? c.name : '';
+            chattersEl.appendChild(line);
+          }
+        } else {
+          chattersSection.style.display = 'none';
+        }
+      }
+
+      const socket = io({ transports: ['websocket', 'polling'] });
+      socket.on('connect', () => {
+        statusEl.textContent = 'Connected';
+        socket.emit('join:overlay', { token: TOKEN });
+      });
+      socket.on('disconnect', () => {
+        statusEl.textContent = 'Disconnected';
+      });
+      socket.on('credits:config', (payload) => {
+        cfg = payload || { creditsStyleJson: null };
+        applyStyle(cfg.creditsStyleJson);
+      });
+      socket.on('credits:state', (payload) => {
+        statusEl.textContent = 'Live';
+        renderState(payload || { donors: [], chatters: [] });
+      });
+    </script>
+  </body>
+</html>`;
+
+    return res.status(200).send(html);
+  });
+
   // Internal-only relay endpoint (used to mirror wallet updates between prod/beta backends on the same VPS)
   // Not exposed via nginx public routes; additionally, requires localhost source + internal header.
   app.post('/internal/wallet-updated', (req, res) => {
@@ -99,6 +256,7 @@ export function setupRoutes(app: Express) {
     const isSkipped = req.path.startsWith('/beta/request') ||
         req.path.startsWith('/beta/status') ||
         req.path === '/health' ||
+        /^\/overlay\/credits\/t\/[^\/]+$/.test(req.path) ||
         req.path.startsWith('/auth/twitch') ||
         req.path === '/auth/logout' || // Logout doesn't require authentication
         req.path.startsWith('/uploads') || // Static files should not require beta access

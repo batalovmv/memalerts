@@ -32,6 +32,10 @@ model Channel {
   overlayStyleJson  String?  @db.Text
   // Increment to invalidate previously issued overlay tokens.
   overlayTokenVersion Int @default(1)
+  // OBS credits overlay (titres) settings (stored as JSON string)
+  creditsStyleJson  String?  @db.Text
+  // Increment to invalidate previously issued credits tokens.
+  creditsTokenVersion Int @default(1)
   createdAt         DateTime @default(now())
 
   users       User[]

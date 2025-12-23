@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { debugLog, debugError } from '../utils/debug.js';
+import { getCreditsState, startCreditsTicker, stopCreditsTicker } from '../realtime/creditsState.js';
 
 type JwtPayload = {
   userId?: string;
@@ -104,29 +105,40 @@ export function setupSocketIO(io: Server) {
       if (!token) return;
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-        if (decoded.kind !== 'overlay' || !decoded.channelId) {
-          return;
-        }
+        if (!decoded?.kind || !decoded.channelId) return;
+        const isMemeOverlay = decoded.kind === 'overlay';
+        const isCreditsOverlay = decoded.kind === 'credits';
+        if (!isMemeOverlay && !isCreditsOverlay) return;
 
-        // Resolve current channel slug + overlay defaults from DB so tokens survive slug changes.
+        // Resolve current channel slug + config from DB so tokens survive slug changes.
         const { prisma } = await import('../lib/prisma.js');
         const channel = await prisma.channel.findUnique({
           where: { id: decoded.channelId },
-          select: {
-            slug: true,
-            overlayMode: true,
-            overlayShowSender: true,
-            overlayMaxConcurrent: true,
-            overlayStyleJson: true,
-            overlayTokenVersion: true,
-          },
+          select: isMemeOverlay
+            ? {
+                slug: true,
+                overlayMode: true,
+                overlayShowSender: true,
+                overlayMaxConcurrent: true,
+                overlayStyleJson: true,
+                overlayTokenVersion: true,
+              }
+            : {
+                slug: true,
+                creditsStyleJson: true,
+                creditsTokenVersion: true,
+              },
         });
 
         // Token rotation: deny old links after streamer regenerates overlay URL.
         const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
-        const currentVersion = Number.isFinite((channel as any)?.overlayTokenVersion)
-          ? Number((channel as any)?.overlayTokenVersion)
-          : 1;
+        const currentVersion = isMemeOverlay
+          ? Number.isFinite((channel as any)?.overlayTokenVersion)
+            ? Number((channel as any)?.overlayTokenVersion)
+            : 1
+          : Number.isFinite((channel as any)?.creditsTokenVersion)
+            ? Number((channel as any)?.creditsTokenVersion)
+            : 1;
         if (tokenVersion !== currentVersion) {
           debugLog('[socket] join:overlay denied (token rotated)', {
             socketId: socket.id,
@@ -142,17 +154,26 @@ export function setupSocketIO(io: Server) {
 
         // Join the normalized channel room only.
         socket.join(`channel:${slug}`);
-        socket.data.isOverlay = true;
+        socket.data.isOverlay = isMemeOverlay;
+        socket.data.isCreditsOverlay = isCreditsOverlay;
         socket.data.channelSlug = slug;
         debugLog(`Client ${socket.id} joined channel:${slug} (overlay token)`);
 
-        // Private config (sent only to the overlay client socket).
-        socket.emit('overlay:config', {
-          overlayMode: channel?.overlayMode ?? 'queue',
-          overlayShowSender: channel?.overlayShowSender ?? false,
-          overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
-          overlayStyleJson: (channel as any)?.overlayStyleJson ?? null,
-        });
+        if (isMemeOverlay) {
+          // Private config (sent only to the overlay client socket).
+          socket.emit('overlay:config', {
+            overlayMode: (channel as any)?.overlayMode ?? 'queue',
+            overlayShowSender: (channel as any)?.overlayShowSender ?? false,
+            overlayMaxConcurrent: (channel as any)?.overlayMaxConcurrent ?? 3,
+            overlayStyleJson: (channel as any)?.overlayStyleJson ?? null,
+          });
+        } else {
+          socket.emit('credits:config', {
+            creditsStyleJson: (channel as any)?.creditsStyleJson ?? null,
+          });
+          socket.emit('credits:state', getCreditsState(slug));
+          startCreditsTicker(io, slug, 5000);
+        }
       } catch (e) {
         debugLog('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
       }
@@ -180,6 +201,13 @@ export function setupSocketIO(io: Server) {
     });
 
     socket.on('disconnect', () => {
+      try {
+        if ((socket.data as any)?.isCreditsOverlay && (socket.data as any)?.channelSlug) {
+          stopCreditsTicker(String((socket.data as any).channelSlug));
+        }
+      } catch {
+        // ignore
+      }
       debugLog('Client disconnected:', socket.id);
     });
   });

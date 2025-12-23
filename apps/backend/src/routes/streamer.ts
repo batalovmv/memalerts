@@ -38,4 +38,9 @@ streamerRoutes.post('/overlay/token/rotate', adminController.rotateOverlayToken)
 streamerRoutes.get('/overlay/preview-meme', adminController.getOverlayPreviewMeme);
 streamerRoutes.get('/overlay/preview-memes', adminController.getOverlayPreviewMemes);
 
+// OBS credits overlay (titres)
+streamerRoutes.get('/credits/token', adminController.getCreditsToken);
+streamerRoutes.post('/credits/settings', adminController.saveCreditsSettings);
+streamerRoutes.post('/credits/token/rotate', adminController.rotateCreditsToken);
+
 
