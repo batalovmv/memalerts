@@ -45,7 +45,7 @@ export function ChannelStatistics() {
   return (
     <div className="space-y-6">
       {/* Activity chart (last 14 days) */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <div className="surface p-6">
         <h2 className="text-2xl font-bold mb-4 dark:text-white">
           {t('admin.activityLast14Days', { defaultValue: 'Activity (last 14 days)' })}
         </h2>
@@ -101,18 +101,18 @@ export function ChannelStatistics() {
       </div>
 
       {/* Overall Stats */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <div className="surface p-6">
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.overallStatistics') || 'Overall Statistics'}</h2>
         <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-primary/10 rounded-lg border border-secondary/20">
+          <div className="text-center p-4 bg-primary/10 rounded-xl ring-1 ring-primary/20">
             <p className="text-3xl font-bold text-primary">{(stats.overall as { totalActivations: number })?.totalActivations || 0}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalActivations')}</p>
           </div>
-          <div className="text-center p-4 bg-accent/10 rounded-lg border border-secondary/20">
+          <div className="text-center p-4 bg-accent/10 rounded-xl ring-1 ring-accent/20">
             <p className="text-3xl font-bold text-accent">{(stats.overall as { totalCoinsSpent: number })?.totalCoinsSpent || 0}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalCoinsSpent')}</p>
           </div>
-          <div className="text-center p-4 bg-secondary/10 rounded-lg border border-secondary/20">
+          <div className="text-center p-4 bg-secondary/10 rounded-xl ring-1 ring-secondary/20">
             <p className="text-3xl font-bold text-secondary">{(stats.overall as { totalMemes: number })?.totalMemes || 0}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.totalMemes')}</p>
           </div>
@@ -120,12 +120,12 @@ export function ChannelStatistics() {
       </div>
 
       {/* Top Users */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <div className="surface p-6">
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.topUsersBySpending')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
+              <tr className="border-b border-black/5 dark:border-white/10">
                 <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.user')}</th>
                 <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.activations')}</th>
                 <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.totalCoins')}</th>
@@ -135,7 +135,7 @@ export function ChannelStatistics() {
               {Array.isArray(stats.userSpending) && stats.userSpending.map((item: Record<string, unknown>) => {
                 const i = item as { user: { id: string; displayName: string }; activationsCount: number; totalCoinsSpent: number };
                 return (
-                <tr key={i.user.id} className="border-b border-gray-200 dark:border-gray-700">
+                <tr key={i.user.id} className="border-b border-black/5 dark:border-white/10">
                   <td className="p-2 text-gray-900 dark:text-gray-100">{i.user.displayName}</td>
                   <td className="p-2 text-gray-900 dark:text-gray-100">{i.activationsCount}</td>
                   <td className="p-2 font-bold text-accent">{i.totalCoinsSpent}</td>
@@ -148,12 +148,12 @@ export function ChannelStatistics() {
       </div>
 
       {/* Top Memes */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-secondary/20">
+      <div className="surface p-6">
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.mostPopularMemes')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
+              <tr className="border-b border-black/5 dark:border-white/10">
                 <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.meme')}</th>
                 <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.activations')}</th>
                 <th className="text-left p-2 text-gray-700 dark:text-gray-300">{t('admin.totalCoins')}</th>
@@ -163,7 +163,7 @@ export function ChannelStatistics() {
               {Array.isArray(stats.memePopularity) && stats.memePopularity.map((item: Record<string, unknown>, index: number) => {
                 const i = item as { meme?: { id: string; title: string }; activationsCount: number; totalCoinsSpent: number };
                 return (
-                <tr key={i.meme?.id || index} className="border-b border-gray-200 dark:border-gray-700">
+                <tr key={i.meme?.id || index} className="border-b border-black/5 dark:border-white/10">
                   <td className="p-2 text-gray-900 dark:text-gray-100">{i.meme?.title || t('common.unknown') || 'Unknown'}</td>
                   <td className="p-2 text-gray-900 dark:text-gray-100">{i.activationsCount}</td>
                   <td className="p-2 font-bold text-accent">{i.totalCoinsSpent}</td>

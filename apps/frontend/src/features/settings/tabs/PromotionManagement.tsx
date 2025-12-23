@@ -2,6 +2,7 @@ import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { Button, Card, Input } from '@/shared/ui';
 
 export function PromotionManagement() {
   const { t } = useTranslation();
@@ -98,15 +99,15 @@ export function PromotionManagement() {
     return (
       <div className="text-center py-8">
         <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-        <button
+        <Button
           onClick={() => {
             promotionsLoadedRef.current = false; // Reset to allow reload
             fetchPromotions();
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          variant="primary"
         >
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
@@ -115,34 +116,33 @@ export function PromotionManagement() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="surface p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">{t('admin.promotions')}</h2>
-          <button
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.promotions')}</h2>
+          <Button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded transition-colors"
+            variant={showCreateForm ? 'secondary' : 'primary'}
           >
             {showCreateForm ? t('common.cancel') : t('admin.createPromotion')}
-          </button>
+          </Button>
         </div>
 
         {showCreateForm && (
-          <form onSubmit={handleCreate} className="mb-6 p-4 bg-gray-50 rounded-lg space-y-4">
+          <form onSubmit={handleCreate} className="mb-6 p-4 glass rounded-xl space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.name')}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.name')}</label>
+              <Input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('admin.discountPercent')}
               </label>
-              <input
+              <Input
                 type="number"
                 value={formData.discountPercent}
                 onChange={(e) => setFormData({ ...formData, discountPercent: e.target.value })}
@@ -150,37 +150,31 @@ export function PromotionManagement() {
                 min="0"
                 max="100"
                 step="0.1"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.startDate')}</label>
-                <input
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.startDate')}</label>
+                <Input
                   type="datetime-local"
                   value={formData.startDate}
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.endDate')}</label>
-                <input
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.endDate')}</label>
+                <Input
                   type="datetime-local"
                   value={formData.endDate}
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                   required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
               </div>
             </div>
-            <button
-              type="submit"
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-            >
+            <Button type="submit" variant="success">
               {t('admin.create')}
-            </button>
+            </Button>
           </form>
         )}
 
@@ -195,54 +189,50 @@ export function PromotionManagement() {
               const isCurrentlyActive = p.isActive && now >= startDate && now <= endDate;
               
               return (
-                <div
+                <Card
                   key={p.id}
-                  className={`p-4 border rounded-lg ${
-                    isCurrentlyActive ? 'border-green-500 bg-green-50' : 'border-gray-300'
-                  }`}
+                  className={`p-4 ${isCurrentlyActive ? 'ring-2 ring-emerald-500/25' : ''}`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-semibold text-lg">{p.name}</h3>
-                      <p className="text-accent font-bold">{p.discountPercent}% discount</p>
-                      <p className="text-sm text-gray-600">
+                      <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{p.name}</h3>
+                      <p className="text-accent font-bold">
+                        {p.discountPercent}% {t('admin.discount', { defaultValue: 'discount' })}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         {startDate.toLocaleString()} - {endDate.toLocaleString()}
                       </p>
                       <div className="flex gap-2 mt-2">
                         <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          p.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        className={`px-2 py-1 rounded-lg text-xs font-semibold ring-1 ${
+                          p.isActive
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 ring-emerald-500/20'
+                            : 'bg-black/5 dark:bg-white/10 text-gray-700 dark:text-gray-200 ring-black/5 dark:ring-white/10'
                         }`}
                       >
                         {p.isActive ? t('admin.active') : t('admin.inactive')}
                       </span>
                       {isCurrentlyActive && (
-                        <span className="px-2 py-1 rounded text-xs bg-green-200 text-green-900">
+                        <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/25">
                           {t('admin.currentlyRunning')}
                         </span>
                       )}
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button
+                      <Button
                         onClick={() => handleToggleActive(p.id, p.isActive)}
-                        className={`px-3 py-1 rounded text-sm ${
-                          p.isActive
-                            ? 'bg-yellow-600 hover:bg-yellow-700'
-                            : 'bg-green-600 hover:bg-green-700'
-                        } text-white`}
+                        variant={p.isActive ? 'warning' : 'success'}
+                        size="sm"
                       >
                         {p.isActive ? t('admin.deactivate') : t('admin.activate')}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
-                      >
+                      </Button>
+                      <Button onClick={() => handleDelete(p.id)} variant="danger" size="sm">
                         {t('common.delete')}
-                      </button>
+                      </Button>
                     </div>
                   </div>
-                </div>
+                </Card>
               );
             })
           )}

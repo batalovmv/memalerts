@@ -21,6 +21,7 @@ import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { useSocket } from '@/contexts/SocketContext';
 
 import UserMenu from '@/components/UserMenu';
+import { Button } from '@/shared/ui';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const AuthRequiredModal = lazy(() => import('@/components/AuthRequiredModal'));
@@ -589,23 +590,27 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Submit Meme Button - only show on own pages */}
                 {showSubmitButton && (
-                  <button
+                  <Button
                     onClick={() => setIsSubmitModalOpen(true)}
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    }
+                    className="text-primary"
                     title={t('header.submitMeme')}
                     aria-label={t('header.submitMeme')}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
                     <span className="text-sm hidden sm:inline">{t('header.submitMeme')}</span>
-                  </button>
+                  </Button>
                 )}
 
                 {/* Balance Display */}
                 <div className="relative group">
                   <div
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
                     onClick={() => {
                       setCoinUpdateDelta(null);
                     }}
@@ -661,7 +666,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* Pending Submissions (guest preview) */}
                 <button
                   onClick={requireAuth}
-                  className="relative p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
+                  className="relative p-2 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
                   title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                   aria-label={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                 >
@@ -676,22 +681,26 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 </button>
 
                 {/* Submit Meme (guest preview) */}
-                <button
+                <Button
                   onClick={requireAuth}
-                  className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary font-medium"
                   title={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
                   aria-label={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  }
+                  className="text-primary"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
                   <span className="text-sm hidden sm:inline">{t('header.submitMeme', { defaultValue: 'Submit Meme' })}</span>
-                </button>
+                </Button>
 
                 {/* Balance (guest preview) */}
                 <div className="relative group">
                   <div
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-primary/10 dark:bg-primary/20 shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10 cursor-pointer"
                     onClick={requireAuth}
                     role="button"
                     tabIndex={0}

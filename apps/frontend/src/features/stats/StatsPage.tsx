@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '@/store/hooks';
 import { api } from '@/lib/api';
-import UserMenu from '@/components/UserMenu';
+import Header from '@/components/Header';
 
 export default function Stats() {
   const { user } = useAppSelector((state) => state.auth);
@@ -32,24 +32,17 @@ export default function Stats() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold">Mem Alerts - Statistics</h1>
-            <UserMenu />
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6 bg-white rounded-lg shadow p-6">
+        <div className="mb-6 surface p-6">
           <div className="flex items-center gap-4 mb-4">
-            <label className="text-sm font-medium text-gray-700">Period:</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period:</label>
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2"
+              className="rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
             >
               <option value="day">Last 24 hours</option>
               <option value="week">Last week</option>
@@ -60,30 +53,30 @@ export default function Stats() {
           </div>
 
           {loading ? (
-            <div className="text-center py-8">Loading statistics...</div>
+            <div className="text-center py-8 text-gray-600 dark:text-gray-300">Loading statistics...</div>
           ) : stats && (stats.stats as Array<unknown>)?.length > 0 ? (
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Top Memes</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Top Memes</h2>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Rank</th>
-                      <th className="text-left p-2">Meme</th>
-                      <th className="text-left p-2">Activations</th>
-                      <th className="text-left p-2">Total Coins</th>
+                    <tr className="border-b border-black/5 dark:border-white/10">
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Rank</th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Meme</th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Activations</th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Total Coins</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Array.isArray(stats.stats) && (stats.stats as Array<Record<string, unknown>>).map((stat: Record<string, unknown>, index: number) => {
                       const s = stat as { meme?: { id: string; title: string }; activationsCount: number; totalCoinsSpent: number };
                       return (
-                      <tr key={s.meme?.id || index} className="border-b">
-                        <td className="p-2 font-bold">#{index + 1}</td>
-                        <td className="p-2">{s.meme?.title || 'Unknown'}</td>
-                        <td className="p-2">{s.activationsCount}</td>
-                        <td className="p-2 font-bold text-purple-600">{s.totalCoinsSpent}</td>
-                      </tr>
+                        <tr key={s.meme?.id || index} className="border-b border-black/5 dark:border-white/10">
+                          <td className="p-2 font-bold text-gray-900 dark:text-gray-100">#{index + 1}</td>
+                          <td className="p-2 text-gray-900 dark:text-gray-100">{s.meme?.title || 'Unknown'}</td>
+                          <td className="p-2 text-gray-900 dark:text-gray-100">{s.activationsCount}</td>
+                          <td className="p-2 font-bold text-accent">{s.totalCoinsSpent}</td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -91,7 +84,7 @@ export default function Stats() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">No statistics available</div>
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">No statistics available</div>
           )}
         </div>
       </main>

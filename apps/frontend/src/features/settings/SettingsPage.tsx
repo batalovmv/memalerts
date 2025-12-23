@@ -15,8 +15,17 @@ import { WalletManagement } from '@/features/settings/tabs/WalletManagement';
 import { RewardsSettings } from '@/features/settings/tabs/RewardsSettings';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
 import { ObsLinksSettings } from '@/features/settings/tabs/ObsLinksSettings';
+import { Button, Card, IconButton, Input, Modal, Textarea } from '@/shared/ui';
 
 type TabType = 'submissions' | 'settings' | 'rewards' | 'obs' | 'wallets' | 'promotions' | 'statistics' | 'beta';
+
+function XIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
 
 export default function Admin() {
   const { t } = useTranslation();
@@ -284,7 +293,7 @@ export default function Admin() {
                     className="fixed inset-0 z-10" 
                     onClick={() => setIsMoreMenuOpen(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 py-1">
+                  <div className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-20 py-1">
                     <button
                       onClick={() => {
                         setActiveTab('statistics');
@@ -311,7 +320,7 @@ export default function Admin() {
                     >
                       {t('admin.promotions')}
                     </button>
-                    <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                    <div className="border-t border-black/5 dark:border-white/10 my-1" />
 
                     {user?.role === 'admin' && (
                       <button
@@ -372,12 +381,9 @@ export default function Admin() {
             ) : submissionsError ? (
               <div className="text-center py-8">
                 <p className="text-red-600 dark:text-red-400 mb-4">{submissionsError}</p>
-                <button
-                  onClick={() => dispatch(fetchSubmissions({ status: 'pending' }))}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                >
+                <Button onClick={() => dispatch(fetchSubmissions({ status: 'pending' }))} variant="primary">
                   {t('common.retry') || 'Retry'}
-                </button>
+                </Button>
               </div>
             ) : submissions.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -385,190 +391,161 @@ export default function Admin() {
                 <p className="text-sm mt-2">{t('admin.allSubmissionsReviewed')}</p>
               </div>
             ) : (
-                     submissions.map((submission) => (
-                       <div key={submission.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                         <div className="flex justify-between items-start mb-4">
-                           <div className="flex-1">
-                             <h3 className="font-semibold text-lg dark:text-white">{submission.title}</h3>
-                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                               By {submission.submitter.displayName} вЂў {submission.type}
-                             </p>
-                             {submission.notes && (
-                               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{submission.notes}</p>
-                             )}
-                             {submission.tags && submission.tags.length > 0 && (
-                               <div className="flex flex-wrap gap-1 mt-2">
-                                 {submission.tags.map((tagItem, idx) => (
-                                   <span
-                                     key={idx}
-                                     className="px-2 py-1 bg-accent/20 text-accent rounded text-xs"
-                                   >
-                                     {tagItem.tag.name}
-                                   </span>
-                                 ))}
-                               </div>
-                             )}
+              submissions.map((submission) => (
+                <Card key={submission.id} className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg dark:text-white">{submission.title}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        By {submission.submitter.displayName} • {submission.type}
+                      </p>
+                      {submission.notes && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{submission.notes}</p>
+                      )}
+                      {submission.tags && submission.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {submission.tags.map((tagItem, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20"
+                            >
+                              {tagItem.tag.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  
+
                   {/* Video Preview */}
                   <div className="mb-4">
-                    <VideoPreview 
-                      src={submission.fileUrlTemp} 
-                      title={submission.title}
-                      className="w-full"
-                    />
+                    <VideoPreview src={submission.fileUrlTemp} title={submission.title} className="w-full" />
                   </div>
-                  
+
                   <div className="flex gap-2">
-                  <button
-                    onClick={() => openApproveModal(submission.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded transition-colors font-semibold"
-                  >
-                    {t('admin.approve')}
-                  </button>
-                  <button
-                    onClick={() => openRejectModal(submission.id)}
-                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded transition-colors font-semibold"
-                  >
-                    {t('admin.reject')}
-                  </button>
+                    <Button onClick={() => openApproveModal(submission.id)} variant="success">
+                      {t('admin.approve')}
+                    </Button>
+                    <Button onClick={() => openRejectModal(submission.id)} variant="danger">
+                      {t('admin.reject')}
+                    </Button>
                   </div>
-                </div>
+                </Card>
               ))
             )}
           </div>
         )}
 
-        {/* Approve Modal */}
-        {approveModal.open && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div 
-              className="fixed inset-0 bg-black/50 transition-opacity"
-              onClick={closeApproveModal}
-              aria-hidden="true"
-            />
-            <div className="flex min-h-full items-center justify-center p-4">
-              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                  <h2 className="text-2xl font-bold dark:text-white">
-                    {t('admin.approveSubmission', { defaultValue: 'Approve submission' })}
-                  </h2>
-                  <button
-                    onClick={closeApproveModal}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    aria-label={t('common.close') || 'Close'}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={approveForm.priceCoins}
-                      onChange={(e) => setApproveForm({ ...approveForm, priceCoins: e.target.value })}
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={closeApproveModal}
-                      className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-                    >
-                      {t('common.cancel')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                    >
-                      {t('admin.approve')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <Modal
+          isOpen={approveModal.open}
+          onClose={closeApproveModal}
+          overlayClassName="overflow-y-auto"
+          contentClassName="relative rounded-2xl max-w-md w-full overflow-hidden"
+          ariaLabel={t('admin.approveSubmission', { defaultValue: 'Approve submission' })}
+        >
+          <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-black/5 dark:border-white/10 px-5 py-4 flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+              {t('admin.approveSubmission', { defaultValue: 'Approve submission' })}
+            </h2>
+            <IconButton icon={<XIcon />} onClick={closeApproveModal} aria-label={t('common.close', { defaultValue: 'Close' })} />
           </div>
-        )}
+          <div className="p-5 space-y-4">
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
+              </label>
+              <Input
+                type="number"
+                min={1}
+                value={approveForm.priceCoins}
+                onChange={(e) => setApproveForm({ ...approveForm, priceCoins: e.target.value })}
+                required
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
+              </p>
+            </div>
 
-        {/* Reject Modal */}
-        {rejectModal.open && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div 
-              className="fixed inset-0 bg-black/50 transition-opacity"
-              onClick={closeRejectModal}
-              aria-hidden="true"
-            />
-            <div className="flex min-h-full items-center justify-center p-4">
-              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
-                  <h2 className="text-2xl font-bold dark:text-white">{t('admin.rejectSubmission') || 'Reject Submission'}</h2>
-                  <button
-                    onClick={closeRejectModal}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    aria-label={t('common.close') || 'Close'}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <p className="text-sm text-red-800 dark:text-red-200 font-medium">
-                      {t('admin.rejectWarning', { defaultValue: 'This action cannot be undone. Please provide a reason for rejection.' })}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t('admin.rejectionReason') || 'Reason for rejection'} <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      rows={4}
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                      placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter reason for rejection...' })}
-                      required
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t('admin.rejectionReasonDescription', { defaultValue: 'This reason will be visible to the submitter' })}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={closeRejectModal}
-                      className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-colors"
-                    >
-                      {t('common.cancel')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleReject}
-                      disabled={!rejectReason.trim()}
-                      className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                    >
-                      {t('admin.reject')}
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('admin.durationMs', { defaultValue: 'Duration (ms)' })}
+              </label>
+              <Input
+                type="number"
+                min={1000}
+                max={15000}
+                value={approveForm.durationMs}
+                onChange={(e) => setApproveForm({ ...approveForm, durationMs: e.target.value })}
+                required
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.durationHint', { defaultValue: '1,000–15,000 ms (auto-detected for videos).' })}
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="secondary" className="flex-1" onClick={closeApproveModal}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="button" variant="success" className="flex-1" onClick={() => void handleApprove()}>
+                {t('admin.approve')}
+              </Button>
             </div>
           </div>
-        )}
+        </Modal>
+
+        <Modal
+          isOpen={rejectModal.open}
+          onClose={closeRejectModal}
+          overlayClassName="overflow-y-auto"
+          contentClassName="relative rounded-2xl max-w-md w-full overflow-hidden"
+          ariaLabel={t('admin.rejectSubmission', { defaultValue: 'Reject submission' })}
+        >
+          <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-black/5 dark:border-white/10 px-5 py-4 flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+              {t('admin.rejectSubmission', { defaultValue: 'Reject submission' })}
+            </h2>
+            <IconButton icon={<XIcon />} onClick={closeRejectModal} aria-label={t('common.close', { defaultValue: 'Close' })} />
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="rounded-xl bg-rose-500/10 ring-1 ring-rose-500/20 px-4 py-3">
+              <p className="text-sm text-rose-950 dark:text-rose-100 font-medium">
+                {t('admin.rejectWarning', { defaultValue: 'This action cannot be undone. Please provide a reason for rejection.' })}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('admin.rejectionReason', { defaultValue: 'Reason for rejection' })} <span className="text-rose-500">*</span>
+              </label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={4}
+                placeholder={t('admin.rejectionReasonPlaceholder', { defaultValue: 'Enter reason for rejection…' })}
+                required
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.rejectionReasonDescription', { defaultValue: 'This reason will be visible to the submitter' })}
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button type="button" variant="secondary" className="flex-1" onClick={closeRejectModal}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                className="flex-1"
+                onClick={() => void handleReject()}
+                disabled={!rejectReason.trim()}
+              >
+                {t('admin.reject')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
 
         {activeTab === 'settings' && isStreamerAdmin && (
           <ChannelSettings />

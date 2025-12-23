@@ -14,6 +14,7 @@ import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
 import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
 import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesModal';
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
+import { Button } from '@/shared/ui';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const MemeModal = lazy(() => import('@/components/MemeModal'));
@@ -257,12 +258,14 @@ export default function DashboardPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
                 </p>
-                <button
+                <Button
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="mt-auto w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                  variant="primary"
+                  size="lg"
+                  className="mt-auto w-full"
                 >
                   {t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}
-                </button>
+                </Button>
               </div>
 
               {/* Pending Submissions Card - Secondary */}
@@ -278,25 +281,21 @@ export default function DashboardPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
                 </p>
-                <button
+                <Button
                   onClick={() => {
                     const next = panel === 'submissions' ? null : 'submissions';
                     if (next) scrollToPanelIfMobile('submissions');
                     setPanel(next);
                   }}
-                  className={`mt-auto w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
-                    panel === 'submissions'
-                      ? 'bg-red-600 hover:bg-red-700 text-white'
-                      : pendingSubmissionsCount > 0
-                        ? 'bg-red-500 hover:bg-red-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
-                  }`}
+                  variant={panel === 'submissions' || pendingSubmissionsCount > 0 ? 'danger' : 'secondary'}
+                  size="lg"
+                  className="mt-auto w-full"
                 >
                   {pendingSubmissionsCount > 0 
                     ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, { count: pendingSubmissionsCount })
                     : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')
                   }
-                </button>
+                </Button>
               </div>
 
               {/* All Memes Card */}
@@ -312,22 +311,20 @@ export default function DashboardPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
                 </p>
-                <button
+                <Button
                   onClick={() => {
                     const next = panel === 'memes' ? null : 'memes';
                     if (next) scrollToPanelIfMobile('memes');
                     setPanel(next);
                   }}
-                  className={`mt-auto w-full font-semibold py-3 px-6 rounded-lg transition-colors ${
-                    panel === 'memes'
-                      ? 'bg-primary hover:bg-secondary text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
-                  }`}
+                  variant={panel === 'memes' ? 'primary' : 'secondary'}
+                  size="lg"
+                  className="mt-auto w-full"
                 >
                   {panel === 'memes'
                     ? t('common.close', { defaultValue: 'Close' })
                     : t('dashboard.quickActions.openAllMemes', { defaultValue: 'Open' })}
-                </button>
+                </Button>
               </div>
 
               {/* Settings Card - Tertiary */}
@@ -336,12 +333,14 @@ export default function DashboardPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
                 </p>
-                <button
+                <Button
                   onClick={() => navigate('/settings?tab=settings')}
-                  className="mt-auto w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-3 px-6 rounded-lg transition-colors"
+                  variant="secondary"
+                  size="lg"
+                  className="mt-auto w-full"
                 >
                   {t('dashboard.quickActions.settingsButton', 'Open Settings')}
-                </button>
+                </Button>
               </div>
             </div>
 
