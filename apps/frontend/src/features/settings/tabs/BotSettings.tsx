@@ -83,7 +83,7 @@ export function BotSettings() {
   // Treat undefined as "unknown" (do not block). Block only when backend explicitly says null.
   const twitchLinked = user?.channel?.twitchChannelId !== null;
 
-  const [botTab, setBotTab] = useState<'twitch' | 'vk'>('twitch');
+  const [botTab, setBotTab] = useState<'twitch' | 'youtube' | 'vk'>('twitch');
   const [loading, setLoading] = useState<'toggle' | 'load' | null>(null);
   const [botEnabled, setBotEnabled] = useState<boolean | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
@@ -807,6 +807,20 @@ export function BotSettings() {
         <button
           type="button"
           onClick={() => {
+            setBotTab('youtube');
+            setTestMessageProvider('youtube');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            botTab === 'youtube'
+              ? 'bg-primary text-white border-primary'
+              : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}
+        >
+          YouTube
+        </button>
+        <button
+          type="button"
+          onClick={() => {
             setBotTab('vk');
             setTestMessageProvider('vkvideo');
           }}
@@ -823,48 +837,6 @@ export function BotSettings() {
 
       {botTab === 'twitch' ? (
         <>
-          {/* Integrations (YouTube) */}
-          <div className="glass p-4 mb-4 relative">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="font-semibold text-gray-900 dark:text-white">
-                  {t('admin.botIntegrationsTitle', { defaultValue: 'Bot integrations' })}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {t('admin.botIntegrationsHint', {
-                    defaultValue: 'Enable/disable bot providers. If YouTube returns an error, re-link YouTube to grant new permissions.',
-                  })}
-                </div>
-              </div>
-              {botsLoading ? <Spinner className="h-5 w-5" /> : null}
-            </div>
-
-            <div className="mt-3 space-y-2">
-              <div className="flex items-start justify-between gap-4 rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                    {t('admin.youtubeBotIntegrationHint', {
-                      defaultValue: 'Requires YouTube re-link after scope update (YouTube Data API).',
-                    })}
-                    {yt?.updatedAt ? (
-                      <span className="ml-2 opacity-80">
-                        {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(yt.updatedAt).toLocaleString()}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                <ToggleSwitch
-                  checked={ytEnabled}
-                  disabled={!botsLoaded || botsLoading || ytBusy}
-                  busy={ytBusy}
-                  onChange={(next) => void toggleBotIntegration('youtube', next)}
-                  ariaLabel={t('admin.youtubeBotIntegrationLabel', { defaultValue: 'YouTube bot enabled' })}
-                />
-              </div>
-            </div>
-          </div>
-
           <div className={`glass p-4 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
             {loading === 'toggle' ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
             <div className="flex items-start justify-between gap-4">
@@ -1507,27 +1479,21 @@ export function BotSettings() {
                 </div>
 
                 <div className="mt-3 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      {t('admin.botProviderLabel', { defaultValue: 'Provider' })}
-                    </label>
-                    <select
-                      className="ml-auto rounded-lg bg-white/60 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                      value={testMessageProvider}
-                      onChange={(e) => setTestMessageProvider(e.target.value as 'twitch' | 'youtube' | 'vkvideo')}
-                      disabled={sendingTestMessage}
-                    >
-                      <option value="twitch">Twitch</option>
-                      <option value="youtube">YouTube</option>
-                    </select>
-                  </div>
                   <Textarea
                     rows={2}
                     value={testMessage}
                     onChange={(e) => setTestMessage(e.target.value)}
                     placeholder={t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })}
                   />
-                  <Button type="button" variant="primary" onClick={() => void sendTestMessage()} disabled={sendingTestMessage}>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => {
+                      setTestMessageProvider('twitch');
+                      void sendTestMessage();
+                    }}
+                    disabled={sendingTestMessage}
+                  >
                     {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
                   </Button>
                 </div>
@@ -1542,6 +1508,72 @@ export function BotSettings() {
           )}
         </div>
       </div>
+        </>
+      ) : botTab === 'youtube' ? (
+        <>
+          {/* YouTube integration */}
+          <div className="glass p-4 mb-4 relative">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.youtubeBotIntegrationHint', {
+                    defaultValue: 'Requires YouTube re-link after scope update (YouTube Data API).',
+                  })}
+                  {yt?.updatedAt ? (
+                    <span className="ml-2 opacity-80">
+                      {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(yt.updatedAt).toLocaleString()}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              {botsLoading ? <Spinner className="h-5 w-5" /> : null}
+              <ToggleSwitch
+                checked={ytEnabled}
+                disabled={!botsLoaded || botsLoading || ytBusy}
+                busy={ytBusy}
+                onChange={(next) => void toggleBotIntegration('youtube', next)}
+                ariaLabel={t('admin.youtubeBotIntegrationLabel', { defaultValue: 'YouTube bot enabled' })}
+              />
+            </div>
+          </div>
+
+          {/* YouTube test message */}
+          <div className="glass p-4">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.botTestMessageHintYoutube', {
+                defaultValue: 'Send a message from the bot into your YouTube live chat. This helps confirm the bot is connected.',
+              })}
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <Textarea
+                rows={2}
+                value={testMessage}
+                onChange={(e) => setTestMessage(e.target.value)}
+                placeholder={t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })}
+              />
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setTestMessageProvider('youtube');
+                  void sendTestMessage();
+                }}
+                disabled={sendingTestMessage}
+              >
+                {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
+              </Button>
+              {!ytEnabled && (
+                <div className="text-xs text-amber-800 dark:text-amber-200">
+                  {t('admin.youtubeEnableRequiredToSend', { defaultValue: 'Сначала включите YouTube-бота для канала.' })}
+                </div>
+              )}
+            </div>
+          </div>
         </>
       ) : (
         <>
