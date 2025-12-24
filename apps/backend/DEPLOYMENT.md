@@ -131,6 +131,13 @@ pnpm migrate:beta-to-production
 
 - production: `memalerts-api` (порт 3001)
 - beta: `memalerts-api-beta` (порт 3002)
+- chat bot runner (global): `memalerts-chatbot`
+  - запускается **отдельным процессом** (не внутри API)
+  - в текущем CI стартуется на **production deploy** и работает сразу на оба инстанса (post → `http://127.0.0.1:3001` и `http://127.0.0.1:3002`)
+  - полезно:
+    - статус: `pm2 status`
+    - логи: `pm2 logs memalerts-chatbot --lines 200`
+    - рестарт: `pm2 restart memalerts-chatbot`
 
 ## Nginx / домены
 

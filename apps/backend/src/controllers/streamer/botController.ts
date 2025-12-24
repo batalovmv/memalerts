@@ -116,10 +116,42 @@ export const streamerBotController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
 
+    const providerRaw = (req.body as any)?.provider;
+    const provider = String(providerRaw ?? 'twitch').trim().toLowerCase();
+
     const message = normalizeMessage((req.body as any)?.message);
     if (!message) return res.status(400).json({ error: 'Bad Request', message: 'Message is required' });
     if (message.length > TWITCH_MESSAGE_MAX_LEN) {
       return res.status(400).json({ error: 'Bad Request', message: `Message is too long (max ${TWITCH_MESSAGE_MAX_LEN})` });
+    }
+
+    if (provider === 'youtube') {
+      try {
+        const sub = await (prisma as any).youTubeChatBotSubscription.findUnique({
+          where: { channelId },
+          select: { enabled: true, youtubeChannelId: true },
+        });
+        if (!sub?.enabled || !sub.youtubeChannelId) {
+          return res.status(400).json({ error: 'Bad Request', message: 'YouTube chat bot is not enabled for this channel' });
+        }
+
+        const row = await (prisma as any).youTubeChatBotOutboxMessage.create({
+          data: {
+            channelId,
+            youtubeChannelId: String(sub.youtubeChannelId),
+            message,
+            status: 'pending',
+          },
+          select: { id: true, status: true, createdAt: true },
+        });
+        return res.json({ ok: true, outbox: row });
+      } catch (e: any) {
+        // Feature not deployed / migrations not applied
+        if (e?.code === 'P2021') {
+          return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+        }
+        throw e;
+      }
     }
 
     const sub = await prisma.chatBotSubscription.findUnique({

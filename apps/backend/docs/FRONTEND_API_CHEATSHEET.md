@@ -377,6 +377,12 @@
   - body — partial object; нужно передать **хотя бы одно** поле (любое из 4)
 - **DELETE `/streamer/bot/commands/:id`** → `{ ok: true }`
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (если подписки нет — `enabled: false`)
+
+### Bot integrations (панель стримера)
+- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkplaylive", enabled, updatedAt }] }`
+- **PATCH `/streamer/bots/:provider`** body `{ enabled: boolean }` → `{ ok: true }`
+  - **Twitch-only guard**: при `provider="twitch"` и `Channel.twitchChannelId == null` вернёт `400` как и `/streamer/bot/enable`.
+  - ⚠️ если фича ещё не задеплоена/не применены миграции — backend может вернуть `404` (фронт должен показать “недоступно”).
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/enable`** body optional `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/disable`** → `{ ok, followGreetingsEnabled, followGreetingTemplate }`

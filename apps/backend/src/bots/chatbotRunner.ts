@@ -144,12 +144,46 @@ async function fetchEnabledSubscriptions(): Promise<Array<{ channelId: string; l
     where: { enabled: true },
     select: { channelId: true, twitchLogin: true, channel: { select: { slug: true } } },
   });
+
+  // Optional gating by BotIntegrationSettings(provider=twitch).
+  // Back-compat rules:
+  // - If the table doesn't exist yet (partial deploy), ignore gating.
+  // - If a channel has no settings row yet, treat it as enabled (so legacy /bot/enable keeps working).
+  let twitchGate: Map<string, boolean> | null = null; // channelId -> enabled
+  try {
+    const channelIds = Array.from(new Set(rows.map((r) => String((r as any)?.channelId || '').trim()).filter(Boolean)));
+    if (channelIds.length > 0) {
+      const gateRows = await (prisma as any).botIntegrationSettings.findMany({
+        where: { channelId: { in: channelIds }, provider: 'twitch' },
+        select: { channelId: true, enabled: true },
+      });
+      twitchGate = new Map<string, boolean>();
+      for (const gr of gateRows) {
+        const channelId = String((gr as any)?.channelId || '').trim();
+        if (!channelId) continue;
+        twitchGate.set(channelId, Boolean((gr as any)?.enabled));
+      }
+    }
+  } catch (e: any) {
+    // Prisma "table does not exist" (feature not deployed / migrations not applied)
+    if (e?.code !== 'P2021') throw e;
+    twitchGate = null;
+  }
+
   const out: Array<{ channelId: string; login: string; slug: string }> = [];
   for (const r of rows) {
     const login = normalizeLogin(r.twitchLogin);
     const slug = String(r.channel?.slug || '').trim().toLowerCase();
     const channelId = String((r as any)?.channelId || '').trim();
     if (!channelId || !login || !slug) continue;
+
+    if (twitchGate) {
+      const gated = twitchGate.get(channelId);
+      // If row exists and is false => disabled.
+      if (gated === false) continue;
+      // If row missing => legacy mode => allow.
+    }
+
     out.push({ channelId, login, slug });
   }
   return out;

@@ -68,6 +68,34 @@ model Channel {
   chatBotOutboxMessages ChatBotOutboxMessage[]
   chatBotCommands       ChatBotCommand[]
   chatBotEventDedups    ChatBotEventDedup[]
+  botIntegrations       BotIntegrationSettings[]
+  youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
+  youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
+}
+
+enum BotIntegrationProvider {
+  twitch
+  vkplaylive
+  youtube
+}
+
+// Per-channel bot integration toggles (survive restarts/deploys).
+// - twitch: gates ChatBotSubscription (Twitch IRC bot joins/parts)
+// - vkplaylive: reserved for VKPlay Live chat integration (uses ENV mapping for now)
+model BotIntegrationSettings {
+  id        String                 @id @default(uuid())
+  channelId String
+  provider  BotIntegrationProvider
+  enabled   Boolean                @default(false)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, provider])
+  @@index([channelId])
+  @@index([provider, enabled])
+  @@index([enabled])
 }
 
 enum ExternalAccountProvider {
@@ -99,6 +127,52 @@ model ChatBotSubscription {
   @@index([enabled])
   @@index([twitchLogin])
   @@index([channelId])
+}
+
+// YouTube chat bot subscriptions (per-channel, uses the streamer's linked YouTube account).
+// Each MemAlerts Channel maps to a single YouTube channelId (owner's channel).
+model YouTubeChatBotSubscription {
+  id              String   @id @default(uuid())
+  channelId        String
+  userId           String
+  youtubeChannelId String
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([youtubeChannelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// YouTube chat bot outbox for sending messages via the separate youtubeChatbotRunner process.
+// API enqueues messages here; runner polls, delivers to YouTube Live Chat, then marks sent/failed.
+model YouTubeChatBotOutboxMessage {
+  id              String @id @default(uuid())
+  channelId        String
+  youtubeChannelId String
+  message         String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([youtubeChannelId, status, createdAt])
+  @@index([createdAt])
 }
 
 // Chat bot outbox for sending messages via the separate chatbotRunner process.
@@ -206,6 +280,7 @@ model User {
   preference       UserPreference?
   externalAccounts ExternalAccount[]
   oauthStates      OAuthState[]
+  youTubeChatBotSubscriptions YouTubeChatBotSubscription[]
   wallets          Wallet[]
   memesCreated     Meme[]                @relation("CreatedBy")
   memesApproved    Meme[]                @relation("ApprovedBy")

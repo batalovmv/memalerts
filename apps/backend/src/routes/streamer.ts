@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { adminController } from '../controllers/adminController.js';
 import { streamerBotController } from '../controllers/streamer/botController.js';
+import { botIntegrationsController } from '../controllers/streamer/botIntegrationsController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -52,6 +53,10 @@ streamerRoutes.post('/credits/reconnect-window', adminController.setCreditsRecon
 streamerRoutes.post('/bot/enable', streamerBotController.enable);
 streamerRoutes.post('/bot/disable', streamerBotController.disable);
 streamerRoutes.post('/bot/say', streamerBotController.say);
+
+// Bot integrations (per-provider toggles; persisted in DB)
+streamerRoutes.get('/bots', botIntegrationsController.get);
+streamerRoutes.patch('/bots/:provider', botIntegrationsController.patch);
 
 // Bot commands CRUD
 streamerRoutes.get('/bot/commands', streamerBotController.getCommands);

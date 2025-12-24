@@ -721,7 +721,16 @@ export const authController = {
         origin,
       });
 
-      const scopes = ['openid', 'profile', 'email'];
+      // NOTE:
+      // We also request YouTube Data API scopes to enable YouTube live chat integration (bot runner).
+      // Users may need to re-consent if they previously linked YouTube with only OpenID scopes.
+      const scopes = [
+        'openid',
+        'profile',
+        'email',
+        'https://www.googleapis.com/auth/youtube.readonly',
+        'https://www.googleapis.com/auth/youtube.force-ssl',
+      ];
       authUrl = getYouTubeAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,
