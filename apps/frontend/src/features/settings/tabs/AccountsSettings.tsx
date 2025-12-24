@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/store/hooks';
 import { Button, Card } from '@/shared/ui';
@@ -83,11 +83,39 @@ export function AccountsSettings() {
   const { user } = useAppSelector((s) => s.auth);
   const dispatch = useAppDispatch();
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
+  const [accountsOverride, setAccountsOverride] = useState<ExternalAccount[] | null>(null);
+  const refreshedOnMountRef = useRef(false);
 
   useAuthQueryErrorToast();
 
-  const accounts = useMemo(() => normalizeAccounts(user?.externalAccounts), [user?.externalAccounts]);
+  const accounts = useMemo(
+    () => (accountsOverride ? accountsOverride : normalizeAccounts(user?.externalAccounts)),
+    [accountsOverride, user?.externalAccounts]
+  );
   const linkedProviders = useMemo(() => new Set(accounts.map((a) => a.provider)), [accounts]);
+
+  // After OAuth callback user returns to /settings/accounts. Refresh linked accounts from backend.
+  useEffect(() => {
+    if (refreshedOnMountRef.current) return;
+    refreshedOnMountRef.current = true;
+
+    void (async () => {
+      try {
+        const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
+        const normalized = normalizeAccounts(items);
+        setAccountsOverride(normalized);
+      } catch {
+        // Best-effort: keep existing accounts from /me.
+      }
+
+      // Optional refresh of /me (updates redux user, channel data, etc).
+      try {
+        await dispatch(fetchUser()).unwrap();
+      } catch {
+        // best-effort
+      }
+    })();
+  }, [dispatch]);
 
   const ensureSessionOrLogin = useCallback(async () => {
     try {
@@ -198,6 +226,18 @@ export function AccountsSettings() {
           supportsLink: true,
           onLink: () => linkProvider('boosty'),
         },
+        {
+          provider: 'vkvideo',
+          title: t('settings.accountsServiceVkvideo', { defaultValue: 'VK Video Live' }),
+          description: t('settings.accountsServiceVkvideoHint', {
+            defaultValue: 'Used for VK Video Live integrations.',
+          }),
+          icon: VkIcon,
+          iconClassName: 'text-[#0077FF]',
+          supportsLink: true,
+          onLink: () => linkProvider('vkvideo'),
+          linkLabel: t('settings.accountsLinkVkvideo', { defaultValue: 'Connect VK Video Live' }),
+        },
       ] as const,
     [linkProvider, linkTwitch, t]
   );
@@ -293,7 +333,9 @@ export function AccountsSettings() {
                   </>
                 ) : (
                   <Button variant="primary" onClick={service.onLink}>
-                    {t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
+                    {'linkLabel' in service && service.linkLabel
+                      ? service.linkLabel
+                      : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
                 )}
               </div>

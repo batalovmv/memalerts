@@ -30,6 +30,8 @@ type StreamerBotIntegration = {
   provider: 'twitch' | 'youtube' | string;
   enabled?: boolean;
   updatedAt?: string | null;
+  // Optional config fields (provider-specific).
+  vkvideoChannelId?: string | null;
 };
 
 type ToggleSwitchProps = {
@@ -89,6 +91,8 @@ export function BotSettings() {
   const [botsLoading, setBotsLoading] = useState(false);
   const [bots, setBots] = useState<StreamerBotIntegration[]>([]);
   const [botIntegrationToggleLoading, setBotIntegrationToggleLoading] = useState<string | null>(null);
+  const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
+  const [vkvideoChannelId, setVkvideoChannelId] = useState('');
 
   const [commands, setCommands] = useState<BotCommand[]>([]);
   const [commandsLoaded, setCommandsLoaded] = useState(false);
@@ -201,7 +205,15 @@ export function BotSettings() {
       setBotsLoading(true);
       const { api } = await import('@/lib/api');
       const res = await api.get<{ items?: StreamerBotIntegration[] }>('/streamer/bots', { timeout: 8000 });
-      setBots(Array.isArray(res?.items) ? res.items : []);
+      const items = Array.isArray(res?.items) ? res.items : [];
+      setBots(items);
+
+      // Seed VKVideo channel id from backend if present.
+      const vk = items.find((b) => b.provider === 'vkvideo');
+      if (vk && typeof vk.vkvideoChannelId === 'string' && vk.vkvideoChannelId.trim()) {
+        setVkvideoChannelId(vk.vkvideoChannelId.trim());
+      }
+
       setBotsLoaded(true);
     } catch (error: unknown) {
       // Keep quiet on load; the rest of the page works without it.
@@ -560,6 +572,53 @@ export function BotSettings() {
     [loadBotIntegrations, t]
   );
 
+  const toggleVkvideoIntegration = useCallback(
+    async (nextEnabled: boolean) => {
+      const startedAt = Date.now();
+      try {
+        setBotIntegrationToggleLoading('vkvideo');
+
+        if (nextEnabled) {
+          const channelId = vkvideoChannelId.trim();
+          if (!channelId) {
+            toast.error(t('admin.vkvideoChannelIdRequired', { defaultValue: 'Enter VKVideo channel id.' }));
+            return;
+          }
+        }
+
+        // optimistic
+        setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: nextEnabled } : b)));
+
+        const { api } = await import('@/lib/api');
+        if (nextEnabled) {
+          await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelId: vkvideoChannelId.trim() });
+        } else {
+          await api.patch('/streamer/bots/vkvideo', { enabled: false });
+        }
+
+        setVkvideoNotAvailable(false);
+        toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+        void loadBotIntegrations();
+      } catch (error: unknown) {
+        void loadBotIntegrations();
+        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
+        if (apiError.response?.status === 404) {
+          // Backend does not support this feature on this instance yet.
+          setVkvideoNotAvailable(true);
+          toast.error(
+            t('admin.featureNotAvailable', { defaultValue: 'Feature not available on this server yet.' })
+          );
+          return;
+        }
+        toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      } finally {
+        await ensureMinDuration(startedAt, 450);
+        setBotIntegrationToggleLoading(null);
+      }
+    },
+    [loadBotIntegrations, t, vkvideoChannelId]
+  );
+
   const callToggle = async (nextEnabled: boolean) => {
     const startedAt = Date.now();
     try {
@@ -685,30 +744,90 @@ export function BotSettings() {
             const yt = map.get('youtube');
             const ytEnabled = yt?.enabled === true;
             const ytBusy = botIntegrationToggleLoading === 'youtube';
+            const vk = map.get('vkvideo');
+            const vkEnabled = vk?.enabled === true;
+            const vkBusy = botIntegrationToggleLoading === 'vkvideo';
 
             return (
-              <div className="flex items-start justify-between gap-4 rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                    {t('admin.youtubeBotIntegrationHint', {
-                      defaultValue: 'Requires YouTube re-link after scope update (YouTube Data API).',
-                    })}
-                    {yt?.updatedAt ? (
-                      <span className="ml-2 opacity-80">
-                        {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(yt.updatedAt).toLocaleString()}
-                      </span>
-                    ) : null}
+              <>
+                <div className="flex items-start justify-between gap-4 rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                      {t('admin.youtubeBotIntegrationHint', {
+                        defaultValue: 'Requires YouTube re-link after scope update (YouTube Data API).',
+                      })}
+                      {yt?.updatedAt ? (
+                        <span className="ml-2 opacity-80">
+                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(yt.updatedAt).toLocaleString()}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={ytEnabled}
+                    disabled={!botsLoaded || botsLoading || ytBusy}
+                    busy={ytBusy}
+                    onChange={(next) => void toggleBotIntegration('youtube', next)}
+                    ariaLabel={t('admin.youtubeBotIntegrationLabel', { defaultValue: 'YouTube bot enabled' })}
+                  />
+                </div>
+
+                <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-900 dark:text-white">VK Video Live</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        {vkvideoNotAvailable
+                          ? t('admin.featureNotAvailableShort', { defaultValue: 'Not available on this server.' })
+                          : t('admin.vkvideoBotIntegrationHint', {
+                              defaultValue:
+                                "First link your VKVideo account in 'Accounts', then enable the bot and enter VKVideo channel id.",
+                            })}
+                        <span className="ml-2">
+                          <a
+                            href="https://dev.live.vkvideo.ru/docs/main/authorization"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline hover:no-underline"
+                          >
+                            {t('admin.vkvideoDocs', { defaultValue: 'Docs' })}
+                          </a>
+                        </span>
+                        {vk?.updatedAt ? (
+                          <span className="ml-2 opacity-80">
+                            {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(vk.updatedAt).toLocaleString()}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <ToggleSwitch
+                      checked={vkEnabled}
+                      disabled={!botsLoaded || botsLoading || vkBusy || vkvideoNotAvailable}
+                      busy={vkBusy}
+                      onChange={(next) => void toggleVkvideoIntegration(next)}
+                      ariaLabel={t('admin.vkvideoBotIntegrationLabel', { defaultValue: 'VKVideo bot enabled' })}
+                    />
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.vkvideoChannelIdLabel', { defaultValue: 'VKVideo channel id' })}
+                    </label>
+                    <Input
+                      value={vkvideoChannelId}
+                      onChange={(e) => setVkvideoChannelId(e.target.value)}
+                      placeholder={t('admin.vkvideoChannelIdPlaceholder', { defaultValue: 'e.g. 1234567890' })}
+                      disabled={!botsLoaded || botsLoading || vkvideoNotAvailable || vkBusy}
+                    />
+                    <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                      {t('admin.vkvideoChannelIdHelp', {
+                        defaultValue: 'Used only when enabling VKVideo bot.',
+                      })}
+                    </div>
                   </div>
                 </div>
-                <ToggleSwitch
-                  checked={ytEnabled}
-                  disabled={!botsLoaded || botsLoading || ytBusy}
-                  busy={ytBusy}
-                  onChange={(next) => void toggleBotIntegration('youtube', next)}
-                  ariaLabel={t('admin.youtubeBotIntegrationLabel', { defaultValue: 'YouTube bot enabled' })}
-                />
-              </div>
+              </>
             );
           })()}
         </div>
