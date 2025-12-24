@@ -13,6 +13,14 @@ type BotCommand = {
   updatedAt?: string;
 };
 
+type StreamDurationSettings = {
+  enabled?: boolean;
+  trigger?: string | null;
+  responseTemplate?: string | null;
+  breakCreditMinutes?: number | null;
+  onlyWhenLive?: boolean | null;
+};
+
 type ToggleSwitchProps = {
   checked: boolean;
   disabled?: boolean;
@@ -80,6 +88,15 @@ export function BotSettings() {
   const followGreetingSaveTimerRef = useRef<number | null>(null);
   const followGreetingsEnableInFlightRef = useRef(false);
 
+  const [streamDurationLoaded, setStreamDurationLoaded] = useState(false);
+  const [streamDurationNotAvailable, setStreamDurationNotAvailable] = useState(false);
+  const [savingStreamDuration, setSavingStreamDuration] = useState(false);
+  const [streamDurationEnabled, setStreamDurationEnabled] = useState(false);
+  const [streamDurationTrigger, setStreamDurationTrigger] = useState('!time');
+  const [streamDurationTemplate, setStreamDurationTemplate] = useState('');
+  const [streamDurationBreakCreditMinutes, setStreamDurationBreakCreditMinutes] = useState<number>(60);
+  const [streamDurationOnlyWhenLive, setStreamDurationOnlyWhenLive] = useState<boolean>(false);
+
   const loadFollowGreetings = useCallback(async () => {
     try {
       const { api } = await import('@/lib/api');
@@ -94,6 +111,33 @@ export function BotSettings() {
       // Backend may not support this endpoint yet.
       if (apiError.response?.status === 404) return;
       // Keep quiet on load; user will see errors on interaction if needed.
+    }
+  }, []);
+
+  const loadStreamDuration = useCallback(async () => {
+    try {
+      const { api } = await import('@/lib/api');
+      const res = await api.get<StreamDurationSettings>('/streamer/bot/stream-duration', { timeout: 8000 });
+
+      if (typeof res?.enabled === 'boolean') setStreamDurationEnabled(res.enabled);
+      if (typeof res?.trigger === 'string' && res.trigger.trim()) setStreamDurationTrigger(res.trigger);
+      if (typeof res?.responseTemplate === 'string') setStreamDurationTemplate(res.responseTemplate);
+      if (typeof res?.breakCreditMinutes === 'number' && Number.isFinite(res.breakCreditMinutes)) {
+        setStreamDurationBreakCreditMinutes(Math.max(0, Math.round(res.breakCreditMinutes)));
+      }
+      if (typeof res?.onlyWhenLive === 'boolean') setStreamDurationOnlyWhenLive(res.onlyWhenLive);
+
+      setStreamDurationNotAvailable(false);
+      setStreamDurationLoaded(true);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { status?: number } };
+      if (apiError.response?.status === 404) {
+        setStreamDurationNotAvailable(true);
+        setStreamDurationLoaded(true);
+        return;
+      }
+      // Keep quiet on load; user will see errors on interaction if needed.
+      setStreamDurationLoaded(false);
     }
   }, []);
 
@@ -317,6 +361,56 @@ export function BotSettings() {
     [t]
   );
 
+  const saveStreamDuration = useCallback(async () => {
+    const startedAt = Date.now();
+    const trigger = streamDurationTrigger.trim();
+    const responseTemplate = streamDurationTemplate.trim();
+    const breakCreditMinutes = Number.isFinite(streamDurationBreakCreditMinutes)
+      ? Math.max(0, Math.round(streamDurationBreakCreditMinutes))
+      : 0;
+
+    if (!trigger) {
+      toast.error(t('admin.streamDurationTriggerRequired', { defaultValue: 'Enter a trigger.' }));
+      return;
+    }
+
+    try {
+      setSavingStreamDuration(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.patch<StreamDurationSettings>('/streamer/bot/stream-duration', {
+        enabled: streamDurationEnabled,
+        trigger,
+        responseTemplate: responseTemplate || null,
+        breakCreditMinutes,
+        onlyWhenLive: streamDurationOnlyWhenLive,
+      });
+
+      if (typeof res?.enabled === 'boolean') setStreamDurationEnabled(res.enabled);
+      if (typeof res?.trigger === 'string' && res.trigger.trim()) setStreamDurationTrigger(res.trigger);
+      if (typeof res?.responseTemplate === 'string') setStreamDurationTemplate(res.responseTemplate);
+      if (typeof res?.breakCreditMinutes === 'number' && Number.isFinite(res.breakCreditMinutes)) {
+        setStreamDurationBreakCreditMinutes(Math.max(0, Math.round(res.breakCreditMinutes)));
+      }
+      if (typeof res?.onlyWhenLive === 'boolean') setStreamDurationOnlyWhenLive(res.onlyWhenLive);
+
+      toast.success(t('admin.streamDurationSaved', { defaultValue: 'Saved.' }));
+    } catch (error: unknown) {
+      const apiErr = error as { response?: { status?: number; data?: { error?: string } } };
+      if (apiErr.response?.status === 404) {
+        toast.error(
+          t('admin.streamDurationNotAvailable', {
+            defaultValue: 'Stream duration command is not available on this server yet. Please deploy the backend update.',
+          })
+        );
+        return;
+      }
+      toast.error(apiErr.response?.data?.error || t('admin.failedToSaveStreamDuration', { defaultValue: 'Failed to save.' }));
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setSavingStreamDuration(false);
+    }
+  }, [streamDurationBreakCreditMinutes, streamDurationEnabled, streamDurationOnlyWhenLive, streamDurationTemplate, streamDurationTrigger, t]);
+
   const sendTestMessage = useCallback(async () => {
     const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
     if (!msg) {
@@ -377,6 +471,12 @@ export function BotSettings() {
     if (!showMenus) return;
     if (!commandsLoaded && !commandsLoading) void loadCommands();
   }, [commandsLoaded, commandsLoading, loadCommands, showMenus]);
+
+  useEffect(() => {
+    if (!showMenus) return;
+    if (streamDurationLoaded || streamDurationNotAvailable) return;
+    void loadStreamDuration();
+  }, [loadStreamDuration, showMenus, streamDurationLoaded, streamDurationNotAvailable]);
 
   // Debounced save of follow greeting template (while enabled).
   useEffect(() => {
@@ -502,6 +602,119 @@ export function BotSettings() {
                     />
                     <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                       {t('admin.followGreetingTemplateVars', { defaultValue: 'You can use {user} placeholder.' })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Stream duration command */}
+              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      {t('admin.streamDurationTitle', { defaultValue: 'Stream duration command' })}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      {t('admin.streamDurationHint', {
+                        defaultValue:
+                          'Bot command that tracks how long your stream has been live. Optional “break credit” keeps the timer running during short interruptions.',
+                      })}
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={streamDurationEnabled}
+                    disabled={savingStreamDuration || streamDurationNotAvailable}
+                    busy={savingStreamDuration}
+                    onChange={(enabled) => setStreamDurationEnabled(enabled)}
+                    ariaLabel={t('admin.streamDurationTitle', { defaultValue: 'Stream duration command' })}
+                  />
+                </div>
+
+                {streamDurationNotAvailable && (
+                  <div className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+                    {t('admin.streamDurationNotAvailable', {
+                      defaultValue:
+                        'Stream duration command is not available on this server yet. Please deploy the backend update.',
+                    })}
+                  </div>
+                )}
+
+                {!streamDurationNotAvailable && (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          {t('admin.streamDurationOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          {t('admin.streamDurationOnlyWhenLiveHint', {
+                            defaultValue: 'When enabled, the command replies only while your Twitch stream is online.',
+                          })}
+                        </div>
+                      </div>
+                      <ToggleSwitch
+                        checked={streamDurationOnlyWhenLive}
+                        disabled={savingStreamDuration}
+                        busy={savingStreamDuration}
+                        onChange={(next) => setStreamDurationOnlyWhenLive(next)}
+                        ariaLabel={t('admin.streamDurationOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.streamDurationTriggerLabel', { defaultValue: 'Trigger' })}
+                        </label>
+                        <Input
+                          value={streamDurationTrigger}
+                          onChange={(e) => setStreamDurationTrigger(e.target.value)}
+                          placeholder="!time"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.streamDurationBreakCreditLabel', { defaultValue: 'Break credit (minutes)' })}
+                        </label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={String(streamDurationBreakCreditMinutes)}
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            setStreamDurationBreakCreditMinutes(Number.isFinite(n) ? n : 0);
+                          }}
+                        />
+                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          {t('admin.streamDurationBreakCreditHint', {
+                            defaultValue:
+                              'If the stream goes offline briefly (e.g. 30 min) and credit is 60 min, the timer won’t reset.',
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.streamDurationTemplateLabel', { defaultValue: 'Response template' })}
+                      </label>
+                      <Input
+                        value={streamDurationTemplate}
+                        onChange={(e) => setStreamDurationTemplate(e.target.value)}
+                        placeholder={t('admin.streamDurationTemplatePlaceholder', { defaultValue: 'Live for {hours}h {minutes}m' })}
+                      />
+                      <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                        {t('admin.streamDurationTemplateVars', {
+                          defaultValue: 'Variables: {hours}, {minutes}, {totalMinutes}.',
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3">
+                      <Button type="button" variant="primary" onClick={() => void saveStreamDuration()} disabled={savingStreamDuration}>
+                        {t('common.save', { defaultValue: 'Save' })}
+                      </Button>
                     </div>
                   </div>
                 )}

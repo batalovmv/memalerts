@@ -21,7 +21,9 @@ export function RewardsSettings() {
     rewardTitle: '',
     rewardCost: '',
     rewardCoins: '',
+    rewardOnlyWhenLive: false,
     submissionRewardCoins: '0',
+    submissionRewardOnlyWhenLive: false,
   });
   const [savingTwitchReward, setSavingTwitchReward] = useState(false);
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
@@ -50,7 +52,10 @@ export function RewardsSettings() {
           rewardTitle: cached.rewardTitle || '',
           rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
           rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
+          rewardOnlyWhenLive: typeof (cached as any).rewardOnlyWhenLive === 'boolean' ? (cached as any).rewardOnlyWhenLive : false,
           submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
+          submissionRewardOnlyWhenLive:
+            typeof (cached as any).submissionRewardOnlyWhenLive === 'boolean' ? (cached as any).submissionRewardOnlyWhenLive : false,
         });
         settingsLoadedRef.current = user.channel.slug;
         lastSavedTwitchRef.current = JSON.stringify({
@@ -59,9 +64,12 @@ export function RewardsSettings() {
           rewardTitle: cached.rewardTitle || null,
           rewardCost: cached.rewardCost ?? null,
           rewardCoins: cached.rewardCoins ?? null,
+          rewardOnlyWhenLive: typeof (cached as any).rewardOnlyWhenLive === 'boolean' ? (cached as any).rewardOnlyWhenLive : false,
         });
         lastSavedApprovedRef.current = JSON.stringify({
           submissionRewardCoins: cached.submissionRewardCoins !== undefined ? cached.submissionRewardCoins : 0,
+          submissionRewardOnlyWhenLive:
+            typeof (cached as any).submissionRewardOnlyWhenLive === 'boolean' ? (cached as any).submissionRewardOnlyWhenLive : false,
         });
         return;
       }
@@ -74,7 +82,11 @@ export function RewardsSettings() {
           rewardTitle: channelData.rewardTitle || '',
           rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
           rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
+          rewardOnlyWhenLive:
+            typeof (channelData as any).rewardOnlyWhenLive === 'boolean' ? (channelData as any).rewardOnlyWhenLive : false,
           submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
+          submissionRewardOnlyWhenLive:
+            typeof (channelData as any).submissionRewardOnlyWhenLive === 'boolean' ? (channelData as any).submissionRewardOnlyWhenLive : false,
         });
         settingsLoadedRef.current = user.channel.slug;
         lastSavedTwitchRef.current = JSON.stringify({
@@ -83,9 +95,13 @@ export function RewardsSettings() {
           rewardTitle: channelData.rewardTitle || null,
           rewardCost: channelData.rewardCost ?? null,
           rewardCoins: channelData.rewardCoins ?? null,
+          rewardOnlyWhenLive:
+            typeof (channelData as any).rewardOnlyWhenLive === 'boolean' ? (channelData as any).rewardOnlyWhenLive : false,
         });
         lastSavedApprovedRef.current = JSON.stringify({
           submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? channelData.submissionRewardCoins : 0,
+          submissionRewardOnlyWhenLive:
+            typeof (channelData as any).submissionRewardOnlyWhenLive === 'boolean' ? (channelData as any).submissionRewardOnlyWhenLive : false,
         });
       }
     } catch (error) {
@@ -172,6 +188,7 @@ export function RewardsSettings() {
         rewardTitle: effectiveTitle || null,
         rewardCost: effectiveCostStr ? parseInt(effectiveCostStr, 10) : null,
         rewardCoins: effectiveCoinsStr ? parseInt(effectiveCoinsStr, 10) : null,
+        rewardOnlyWhenLive: !!rewardSettings.rewardOnlyWhenLive,
       });
       lastSavedTwitchRef.current = JSON.stringify({
         rewardIdForCoins: rewardSettings.rewardIdForCoins || null,
@@ -179,6 +196,7 @@ export function RewardsSettings() {
         rewardTitle: effectiveTitle || null,
         rewardCost: effectiveCostStr ? parseInt(effectiveCostStr, 10) : null,
         rewardCoins: effectiveCoinsStr ? parseInt(effectiveCoinsStr, 10) : null,
+        rewardOnlyWhenLive: !!rewardSettings.rewardOnlyWhenLive,
       });
       setLastErrorRequestId(null);
     } catch (error: unknown) {
@@ -228,8 +246,12 @@ export function RewardsSettings() {
       await api.patch('/streamer/channel/settings', {
         // Approved meme reward only (do NOT include Twitch reward fields here)
         submissionRewardCoins: coins,
+        submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
       });
-      lastSavedApprovedRef.current = JSON.stringify({ submissionRewardCoins: coins });
+      lastSavedApprovedRef.current = JSON.stringify({
+        submissionRewardCoins: coins,
+        submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
+      });
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       const errorMessage = apiError.response?.data?.error || t('admin.failedToSaveSettings') || 'Failed to save settings';
@@ -253,6 +275,7 @@ export function RewardsSettings() {
       rewardTitle: rewardSettings.rewardTitle || null,
       rewardCost: rewardSettings.rewardCost ? parseInt(rewardSettings.rewardCost, 10) : null,
       rewardCoins: rewardSettings.rewardCoins ? parseInt(rewardSettings.rewardCoins, 10) : null,
+      rewardOnlyWhenLive: !!rewardSettings.rewardOnlyWhenLive,
     });
 
     if (payload === lastSavedTwitchRef.current) return;
@@ -272,6 +295,7 @@ export function RewardsSettings() {
     rewardSettings.rewardTitle,
     rewardSettings.rewardCost,
     rewardSettings.rewardCoins,
+    rewardSettings.rewardOnlyWhenLive,
     user?.channel?.slug,
   ]);
 
@@ -281,7 +305,10 @@ export function RewardsSettings() {
     if (!settingsLoadedRef.current) return;
 
     const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
-    const payload = JSON.stringify({ submissionRewardCoins: Number.isFinite(coins) ? coins : 0 });
+    const payload = JSON.stringify({
+      submissionRewardCoins: Number.isFinite(coins) ? coins : 0,
+      submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
+    });
 
     if (payload === lastSavedApprovedRef.current) return;
     if (saveApprovedTimerRef.current) window.clearTimeout(saveApprovedTimerRef.current);
@@ -294,7 +321,7 @@ export function RewardsSettings() {
       saveApprovedTimerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rewardSettings.submissionRewardCoins, user?.channel?.slug]);
+  }, [rewardSettings.submissionRewardCoins, rewardSettings.submissionRewardOnlyWhenLive, user?.channel?.slug]);
 
   return (
     <div className="surface p-6">
@@ -376,6 +403,29 @@ export function RewardsSettings() {
 
           {rewardSettings.rewardEnabled && (
             <div className={`space-y-4 mt-4 ${savingTwitchReward ? 'pointer-events-none opacity-60' : ''}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('admin.rewardOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.rewardOnlyWhenLiveHint', {
+                      defaultValue: 'When enabled, the reward works only while your Twitch stream is online.',
+                    })}
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={rewardSettings.rewardOnlyWhenLive}
+                    disabled={savingTwitchReward}
+                    onChange={(e) => setRewardSettings((p) => ({ ...p, rewardOnlyWhenLive: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                </label>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('admin.rewardTitle')}
@@ -493,6 +543,29 @@ export function RewardsSettings() {
           </div>
 
           <div className={savingApprovedMemeReward ? 'pointer-events-none opacity-60' : ''}>
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('admin.rewardOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.rewardOnlyWhenLiveHint', {
+                    defaultValue: 'When enabled, the reward works only while your Twitch stream is online.',
+                  })}
+                </div>
+              </div>
+              <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={rewardSettings.submissionRewardOnlyWhenLive}
+                  disabled={savingApprovedMemeReward}
+                  onChange={(e) => setRewardSettings((p) => ({ ...p, submissionRewardOnlyWhenLive: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </div>
+
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
             </label>
