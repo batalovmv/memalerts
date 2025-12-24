@@ -51,6 +51,18 @@ const DEFAULT_LINK_REDIRECT = '/settings/accounts';
 
 const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/dashboard', '/']);
 
+function decodeJwtPayloadNoVerify(token: string): any | null {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length < 2) return null;
+    const payload = parts[1]!;
+    const json = Buffer.from(payload, 'base64url').toString('utf8');
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeRedirectTo(input: unknown): string {
   const redirectTo = typeof input === 'string' ? input.trim() : '';
   if (!redirectTo) return DEFAULT_LINK_REDIRECT;
@@ -431,6 +443,24 @@ export const authController = {
 
         const tokenUserId = String(tokenExchange.data.sub ?? tokenExchange.data.user_id ?? '').trim();
         providerAccountId = String(vkVideoUser?.id || tokenUserId).trim();
+
+        // Fallback: if userinfo is not configured and token response does not include user id,
+        // attempt to decode access_token as JWT and use its "sub" claim.
+        if (!providerAccountId) {
+          const jwtPayload = decodeJwtPayloadNoVerify(tokenExchange.data.access_token);
+          const jwtSub = String(jwtPayload?.sub ?? '').trim();
+          if (isVkVideo) {
+            logger.info('oauth.vkvideo.callback.access_token_claims', {
+              provider: 'vkvideo',
+              has_jwt_payload: !!jwtPayload,
+              jwt_sub_present: !!jwtSub,
+              jwt_sub_preview: jwtSub ? jwtSub.slice(0, 24) : null,
+              jwt_keys: jwtPayload && typeof jwtPayload === 'object' ? Object.keys(jwtPayload).slice(0, 12) : null,
+            });
+          }
+          if (jwtSub) providerAccountId = jwtSub;
+        }
+
         if (!providerAccountId) {
           const redirectUrl = getRedirectUrl(req, stateOrigin);
           return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
