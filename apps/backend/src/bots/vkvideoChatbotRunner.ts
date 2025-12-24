@@ -3,8 +3,10 @@ import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { VkVideoChatBot } from './vkvideoChatBot.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
+import { ensureNodeMajor } from '../utils/nodeVersion.js';
 
 dotenv.config();
+ensureNodeMajor(20);
 
 function parseIntSafe(v: any, def: number): number {
   const n = Number.parseInt(String(v ?? ''), 10);

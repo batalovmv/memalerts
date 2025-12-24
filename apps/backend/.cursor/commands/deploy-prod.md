@@ -1,3 +1,3 @@
 # deploy-prod
 
-git switch main && git pull && git tag prod-v1.0.11 && git push origin prod-v1.0.11
+git switch develop && git pull && git add -A && git commit -m "prod: ..." && git tag prod-v$(node -p "require('./package.json').version") && git push origin develop && git push origin prod-v$(node -p "require('./package.json').version")

@@ -2,8 +2,10 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import crypto from 'crypto';
 import { logAuthEvent } from '../utils/auditLogger.js';
 import { debugLog, debugError } from '../utils/debug.js';
+import { logger } from '../utils/logger.js';
 import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
 import { exchangeYouTubeCodeForToken, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
@@ -47,6 +49,8 @@ const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
 
+const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/dashboard', '/']);
+
 function sanitizeRedirectTo(input: unknown): string {
   const redirectTo = typeof input === 'string' ? input.trim() : '';
   if (!redirectTo) return DEFAULT_LINK_REDIRECT;
@@ -59,6 +63,9 @@ function sanitizeRedirectTo(input: unknown): string {
   // Hard block common open-redirect patterns.
   if (redirectTo.includes('://')) return DEFAULT_LINK_REDIRECT;
   if (redirectTo.includes('\\')) return DEFAULT_LINK_REDIRECT;
+
+  // Strict allowlist to prevent open redirects / unexpected navigation.
+  if (!REDIRECT_ALLOWLIST.has(redirectTo)) return DEFAULT_LINK_REDIRECT;
 
   return redirectTo;
 }
@@ -154,6 +161,7 @@ export const authController = {
     const providerFromUrl = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
 
     const { code, error, state } = req.query;
+    const errorDescription = (req.query as any)?.error_description;
 
     // Load+consume state from DB (real verification; old JSON-state is no longer supported).
     const stateId = typeof state === 'string' ? state : '';
@@ -162,16 +170,51 @@ export const authController = {
     const stateRedirectTo = consumed.ok ? (consumed.row.redirectTo || undefined) : undefined;
     const stateKind: OAuthStateKind | undefined = consumed.ok ? consumed.row.kind : undefined;
     const stateUserId: string | undefined = consumed.ok ? (consumed.row.userId || undefined) : undefined;
+    const stateCodeVerifier: string | undefined = consumed.ok ? ((consumed.row as any).codeVerifier || undefined) : undefined;
     const providerFromState: ExternalAccountProvider | undefined = consumed.ok ? consumed.row.provider : undefined;
 
     // Prefer provider from state, because URL provider may come from legacy aliases (e.g. vkplay).
     const provider: ExternalAccountProvider = providerFromState ?? providerFromUrl;
 
+    const isVkVideo = provider === 'vkvideo';
+    const codePreview = typeof code === 'string' ? code.slice(0, 8) : '';
+    const statePreview = typeof stateId === 'string' ? stateId.slice(0, 12) : '';
+    const stateFound = consumed.ok ? true : consumed.reason !== 'state_not_found';
+    const verifierFound = consumed.ok ? !!stateCodeVerifier : !!(consumed as any)?.row?.codeVerifier;
+    const errorDescPreview =
+      typeof errorDescription === 'string' ? errorDescription.slice(0, 180) : undefined;
+
+    if (isVkVideo) {
+      logger.info('oauth.vkvideo.callback.received', {
+        provider: 'vkvideo',
+        state: statePreview,
+        code: codePreview,
+        error: typeof error === 'string' ? error : undefined,
+        error_description: errorDescPreview,
+        state_found: stateFound,
+        verifier_found: verifierFound,
+      });
+    }
+
     debugLog('OAuth callback received', { provider, code: code ? 'present' : 'missing', error, stateOrigin });
 
     if (error) {
-      console.error('OAuth error:', { provider, error });
+      console.error('OAuth error:', { provider, error, error_description: errorDescription });
       const redirectUrl = getRedirectUrl(req, stateOrigin);
+
+      // VKVideo can return error + error_description instead of code (e.g. user denied consent).
+      if (provider === 'vkvideo') {
+        const details = typeof errorDescription === 'string' ? errorDescription.slice(0, 240) : String(error);
+        logger.error('oauth.vkvideo.callback.oauth_error', {
+          provider: 'vkvideo',
+          error: typeof error === 'string' ? error : String(error),
+          error_description: typeof errorDescription === 'string' ? errorDescription.slice(0, 240) : undefined,
+        });
+        return res.redirect(
+          `${redirectUrl}/?error=auth_failed&reason=vk_oauth_error&provider=vkvideo&details=${encodeURIComponent(details)}`
+        );
+      }
+
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${error}`);
     }
 
@@ -327,29 +370,66 @@ export const authController = {
           return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env`);
         }
 
-        const tokenData = await exchangeVkVideoCodeForToken({
+        const tokenExchange = await exchangeVkVideoCodeForToken({
           tokenUrl,
           clientId,
           clientSecret,
           code: code as string,
           redirectUri: callbackUrl,
+          codeVerifier: stateCodeVerifier || null,
         });
 
-        if (!tokenData.access_token) {
-          console.error('No access token received from VKVideo:', tokenData);
+        if (isVkVideo) {
+          logger.info('oauth.vkvideo.callback.token_exchange', {
+            provider: 'vkvideo',
+            status: tokenExchange.status,
+            ok: tokenExchange.status >= 200 && tokenExchange.status < 300,
+            has_access_token: !!tokenExchange.data?.access_token,
+            error: tokenExchange.data?.error,
+            error_description: tokenExchange.data?.error_description,
+          });
+          if (tokenExchange.status >= 400) {
+            logger.error('oauth.vkvideo.callback.token_exchange_error', {
+              provider: 'vkvideo',
+              status: tokenExchange.status,
+              body: tokenExchange.raw,
+            });
+          }
+        }
+
+        if (!tokenExchange.data.access_token) {
+          console.error('No access token received from VKVideo:', tokenExchange.data);
           const redirectUrl = getRedirectUrl(req, stateOrigin);
           return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
         }
 
-        accessToken = tokenData.access_token;
-        refreshToken = tokenData.refresh_token || null;
-        tokenExpiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
-        scopes = (Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : tokenData.scope) || null;
+        accessToken = tokenExchange.data.access_token;
+        refreshToken = tokenExchange.data.refresh_token || null;
+        tokenExpiresAt = tokenExchange.data.expires_in ? new Date(Date.now() + tokenExchange.data.expires_in * 1000) : null;
+        scopes = (Array.isArray(tokenExchange.data.scope) ? tokenExchange.data.scope.join(' ') : tokenExchange.data.scope) || null;
 
         const userInfoUrl = process.env.VKVIDEO_USERINFO_URL || null;
-        const vkVideoUser = await fetchVkVideoUser({ userInfoUrl, accessToken: tokenData.access_token });
+        const userFetch = await fetchVkVideoUser({ userInfoUrl, accessToken: tokenExchange.data.access_token });
+        const vkVideoUser = userFetch.user;
 
-        const tokenUserId = String(tokenData.sub ?? tokenData.user_id ?? '').trim();
+        if (isVkVideo) {
+          logger.info('oauth.vkvideo.callback.userinfo', {
+            provider: 'vkvideo',
+            status: userFetch.status,
+            ok: userFetch.status === 0 ? null : userFetch.status >= 200 && userFetch.status < 300,
+            has_user: !!vkVideoUser,
+          });
+          // If non-2xx, include response body best-effort (can help diagnose provider errors).
+          if (userFetch.status >= 400) {
+            logger.error('oauth.vkvideo.callback.userinfo_error', {
+              provider: 'vkvideo',
+              status: userFetch.status,
+              body: userFetch.raw,
+            });
+          }
+        }
+
+        const tokenUserId = String(tokenExchange.data.sub ?? tokenExchange.data.user_id ?? '').trim();
         providerAccountId = String(vkVideoUser?.id || tokenUserId).trim();
         if (!providerAccountId) {
           const redirectUrl = getRedirectUrl(req, stateOrigin);
@@ -669,12 +749,28 @@ export const authController = {
         redirectPath,
         stateRedirectTo,
       });
+
+      if (isVkVideo) {
+        logger.info('oauth.vkvideo.callback.final_redirect', {
+          provider: 'vkvideo',
+          final_redirect: redirectPath,
+          base: redirectUrl,
+          state_redirect: stateRedirectTo ? sanitizeRedirectTo(stateRedirectTo) : null,
+          state_kind: stateKind,
+        });
+      }
       
       // Use 302 redirect (temporary) to ensure cookie is sent
       res.status(302).redirect(finalRedirectUrl);
     } catch (error) {
       console.error('Auth error:', error);
       debugError('Auth error (debug)', error);
+      if (providerFromUrl === 'vkvideo') {
+        logger.error('oauth.vkvideo.callback.exception', {
+          provider: 'vkvideo',
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
@@ -818,13 +914,28 @@ export const authController = {
       const codeVerifier = generatePkceVerifier();
       const codeChallenge = pkceChallengeS256(codeVerifier);
 
-      const { state } = await createOAuthState({
+      const { state, expiresAt } = await createOAuthState({
         provider,
         kind: 'link',
         userId: req.userId,
         redirectTo,
         origin,
         codeVerifier,
+      });
+
+      const ttlMs = Math.max(0, expiresAt.getTime() - Date.now());
+      const verifierHash = crypto.createHash('sha256').update(codeVerifier).digest('hex').slice(0, 12);
+      logger.info('oauth.vkvideo.link.start', {
+        provider: 'vkvideo',
+        userId: req.userId,
+        flow: 'link',
+        redirect_to: redirectTo,
+        state: state.slice(0, 12),
+        state_ttl_ms: ttlMs,
+        state_storage: 'db:OAuthState',
+        code_challenge_method: 'S256',
+        code_verifier_saved: true,
+        code_verifier_hash: verifierHash,
       });
 
       const scopes = String(process.env.VKVIDEO_SCOPES || '')

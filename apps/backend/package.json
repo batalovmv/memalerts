@@ -3,6 +3,9 @@
   "_deploy_trigger": "rollback-to-b396db2",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "migrations:check": "tsx scripts/check-migrations.ts",

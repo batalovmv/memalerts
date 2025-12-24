@@ -1,17 +1,17 @@
-# Deployment / Releases (develop → beta, main → production)
+# Deployment / Releases (main → beta, develop → production)
 
 ## TL;DR (как работать без боли)
 
-- Разрабатываем и мерджим фичи в **`develop`** → это автоматически деплоится на **beta**.
-- Когда готовы релизиться: делаем PR **`develop` → `main`** (лучше часто и небольшими порциями).
-- После релиза: **back-merge `main` → `develop`**, чтобы ветки не “разъезжались” и следующие мерджи были проще.
+- Разрабатываем и мерджим фичи в **`main`** → это автоматически деплоится на **beta**.
+- Когда готовы релизиться: делаем PR **`main` → `develop`** (лучше часто и небольшими порциями).
+- После релиза: **back-merge `develop` → `main`**, чтобы ветки не “разъезжались” и следующие мерджи были проще.
 
 ## CI/CD (GitHub Actions)
 
 Workflow: `.github/workflows/ci-cd.yml`
 
-- **push в `develop`** → деплой в `/opt/memalerts-backend-beta` (порт 3002)
-- **push в `main`** → деплой в `/opt/memalerts-backend` (порт 3001)
+- **push в `main`** → деплой в `/opt/memalerts-backend-beta` (порт 3002)
+- **push в `develop`** → деплой в `/opt/memalerts-backend` (порт 3001)
 
 Технически деплой делает:
 

@@ -22,7 +22,7 @@ Backend API для MemAlerts: активация мемов через Twitch Ch
 
 ## Быстрый старт (локально)
 
-**Требования:** Node.js 18+ (в CI используется 20), pnpm, PostgreSQL 15+.
+**Требования:** Node.js 20+, pnpm, PostgreSQL 15+.
 
 ```bash
 pnpm install

@@ -76,7 +76,8 @@ export async function exchangeVkVideoCodeForToken(params: {
   clientSecret: string;
   code: string;
   redirectUri: string;
-}): Promise<VkVideoTokenResponse> {
+  codeVerifier?: string | null;
+}): Promise<{ status: number; data: VkVideoTokenResponse; raw: any }> {
   // VKVideo token exchange uses:
   // - POST application/x-www-form-urlencoded
   // - Authorization: Basic base64(client_id:secret)
@@ -85,6 +86,8 @@ export async function exchangeVkVideoCodeForToken(params: {
     code: params.code,
     redirect_uri: params.redirectUri,
   });
+  // If PKCE was used during authorize request, code_verifier must be provided here.
+  if (params.codeVerifier) body.set('code_verifier', params.codeVerifier);
 
   const basic = Buffer.from(`${params.clientId}:${params.clientSecret}`, 'utf8').toString('base64');
 
@@ -98,14 +101,14 @@ export async function exchangeVkVideoCodeForToken(params: {
   });
   const tokenData = (post.json ?? {}) as VkVideoTokenResponse;
   debugLog('vkvideo.token.exchange', { method: 'POST', status: post.status, hasAccessToken: !!tokenData?.access_token });
-  return tokenData;
+  return { status: post.status, data: tokenData, raw: post.json };
 }
 
 export async function fetchVkVideoUser(params: {
   userInfoUrl?: string | null;
   accessToken: string;
-}): Promise<VkVideoUser | null> {
-  if (!params.userInfoUrl) return null;
+}): Promise<{ status: number; user: VkVideoUser | null; raw: any }> {
+  if (!params.userInfoUrl) return { status: 0, user: null, raw: null };
 
   const resp = await fetch(params.userInfoUrl, {
     headers: {
@@ -118,7 +121,7 @@ export async function fetchVkVideoUser(params: {
   const id = String(data?.id ?? data?.user_id ?? data?.sub ?? '').trim();
   if (!id) {
     debugLog('vkvideo.user.fetch', { status: resp.status, hasUser: false });
-    return null;
+    return { status: resp.status, user: null, raw: data };
   }
 
   const displayName = String(data?.display_name ?? data?.name ?? data?.username ?? '').trim() || null;
@@ -127,7 +130,7 @@ export async function fetchVkVideoUser(params: {
   const profileUrl = String(data?.profile_url ?? '').trim() || null;
 
   debugLog('vkvideo.user.fetch', { status: resp.status, hasUser: true, id });
-  return { id, displayName, login, avatarUrl, profileUrl };
+  return { status: resp.status, user: { id, displayName, login, avatarUrl, profileUrl }, raw: data };
 }
 
 

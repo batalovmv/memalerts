@@ -19,8 +19,10 @@ import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup
 import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
+import { ensureNodeMajor } from './utils/nodeVersion.js';
 
 dotenv.config();
+ensureNodeMajor(20);
 
 // In production, remove console noise (keep console.error for real issues
 if (process.env.NODE_ENV === 'production') {
