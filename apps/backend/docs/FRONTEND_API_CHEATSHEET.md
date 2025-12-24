@@ -11,7 +11,7 @@
   - beta: `token_beta` (изолирован от prod)
   - На фронте **всегда** делайте запросы с `credentials: 'include'`.
 - **CSRF**: для `POST/PUT/PATCH/DELETE` в production **обязателен** `Origin`/`Referer` из разрешённых origin (CORS).  
-  Исключения: `/internal/*`, `/webhooks/*`, `/health`, `/auth/twitch*`.
+  Исключения: `/internal/*`, `/webhooks/*`, `/health` (OAuth endpoints обычно `GET`, поэтому CSRF на них не применяется).
 - **Uploads**: статика доступна по `GET /uploads/...` (файлы, которые вернул `fileUrl`/`fileUrlTemp`).
 - **Enums** (см. `src/shared/schemas.ts`):
   - `SubmissionStatus`: `pending | needs_changes | approved | rejected`
@@ -66,9 +66,10 @@
 ### GET `/me`
 - **Auth**: `authenticate + requireBetaAccess`
 - **Response**:
-  - `{ id, displayName, profileImageUrl, role, channelId, channel, wallets }`
+  - `{ id, displayName, profileImageUrl, role, channelId, channel, wallets, externalAccounts }`
   - `channel`: `{ id, slug, name } | null`
   - `wallets`: array wallet rows
+  - `externalAccounts`: array привязанных аккаунтов (см. `/auth/accounts`)
 
 ### GET `/me/preferences`
 - **Auth**: `authenticate + requireBetaAccess`
@@ -146,15 +147,16 @@
   - в `channel:{slugLower}`: `activation:new { id, memeId, type, fileUrl, durationMs, title, senderDisplayName }`
   - в `user:{userId}`: `wallet:updated { userId, channelId, balance, delta, reason, channelSlug }` (если были списания)
 
-## Auth (Twitch OAuth)
+## Auth (OAuth + account linking)
 
-### GET `/auth/twitch`
+### GET `/auth/:provider`
 - **Auth**: нет
 - **Query**:
   - `redirect_to` — куда на фронте вернуть после логина (например `/dashboard`)
-- **Response**: редирект на Twitch OAuth
+- **Response**: редирект на OAuth провайдера
+- **Поддерживаемые provider (пока)**: `twitch`
 
-### GET `/auth/twitch/callback`
+### GET `/auth/:provider/callback`
 - **Auth**: нет
 - **Response**: редирект на фронт + ставит cookie `token` или `token_beta`
 
@@ -163,10 +165,38 @@
 - **Query**: `token`, `state`
 - **Response**: редирект на фронт + ставит cookie `token_beta`
 
+### GET `/auth/:provider/link`
+- **Auth**: `authenticate + requireBetaAccess`
+- **Query**:
+  - `redirect_to` (optional, default `/settings/accounts`)
+- **Response**: редирект на OAuth провайдера для привязки аккаунта к текущему `User`
+
+### GET `/auth/:provider/link/callback`
+- **Auth**: нет (OAuth callback)
+- **Response**: редирект на фронт (cookie не меняет)  
+  Если аккаунт уже привязан к другому пользователю: редирект с `?error=auth_failed&reason=account_already_linked`
+
+### GET `/auth/accounts`
+- **Auth**: `authenticate + requireBetaAccess`
+- **Response**:
+  - `{ accounts: ExternalAccount[] }`
+
+### DELETE `/auth/accounts/:externalAccountId`
+- **Auth**: `authenticate + requireBetaAccess`
+- **CSRF**: да (как и для любых `DELETE` в production)
+- **Response**: `{ ok: true }`
+- **Ошибки**:
+  - `400` если это последний привязанный аккаунт (нельзя отвязать последний)
+  - `404` если аккаунт не найден или не принадлежит текущему пользователю
+
 ### POST `/auth/logout`
 - **Auth**: нет (можно без cookie)
 - **Response**: `{ "message": "Logged out successfully" }`  
   Очищает **оба** cookie: `token` и `token_beta` (с несколькими вариантами domain).
+
+### (Legacy) Twitch-only aliases
+- `GET /auth/twitch` — legacy entrypoint (эквивалент `GET /auth/:provider` при `provider=twitch`)
+- `GET /auth/twitch/callback` — legacy callback (эквивалент `GET /auth/:provider/callback` при `provider=twitch`)
 
 ## Submissions (загрузка/импорт/ресабмит)
 

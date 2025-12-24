@@ -2,11 +2,11 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import jwt, { SignOptions } from 'jsonwebtoken';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
 import { logAuthEvent } from '../utils/auditLogger.js';
 import { debugLog, debugError } from '../utils/debug.js';
+import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
+import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
+import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -44,64 +44,72 @@ const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
 
 // Simple Twitch OAuth implementation (you can replace with passport-twitch-new)
 export const authController = {
-  initiateTwitchAuth: (req: AuthRequest, res: Response) => {
-    // For MVP, we'll generate state but skip verification
-    // In production, use proper session storage or signed cookies
-    const clientId = process.env.TWITCH_CLIENT_ID;
-    const redirectUri = encodeURIComponent(process.env.TWITCH_CALLBACK_URL || '');
-    const scopes = encodeURIComponent('user:read:email channel:read:redemptions channel:manage:redemptions chat:read chat:edit');
+  initiateAuth: async (req: AuthRequest, res: Response) => {
+    const provider = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
+    if (provider !== 'twitch') {
+      const redirectUrl = getRedirectUrl(req);
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=unsupported_provider`);
+    }
 
+    const clientId = process.env.TWITCH_CLIENT_ID;
+    const callbackUrl = process.env.TWITCH_CALLBACK_URL;
     if (!clientId) {
-      console.error('TWITCH_CLIENT_ID is not set');
       const redirectUrl = getRedirectUrl(req);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_client_id`);
     }
-
-    if (!redirectUri) {
-      console.error('TWITCH_CALLBACK_URL is not set');
+    if (!callbackUrl) {
       const redirectUrl = getRedirectUrl(req);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_callback_url`);
     }
 
-    // Get redirect_to parameter from query string (where user wants to go after login)
-    const redirectTo = (req.query.redirect_to as string) || '';
-    
-    // Store origin domain in state to determine redirect target after callback
-    // Check both Host header and Referer to determine if request came from beta
+    const redirectTo = (req.query.redirect_to as string) || null;
+
+    // Best-effort origin detection (beta/prod isolation is handled via cookieName + domain logic later).
     const originHost = req.get('host') || '';
     const referer = req.get('referer') || '';
     const isBeta = originHost.includes('beta.') || referer.includes('beta.');
-    
-    // Determine origin URL - prefer beta if detected, otherwise use WEB_URL or construct from host
-    let originUrl: string | undefined;
+
+    let originUrl: string | null = null;
     if (isBeta) {
       if (originHost.includes('beta.')) {
         originUrl = `https://${originHost.split(':')[0]}`;
-      } else if (referer.includes('beta.')) {
-        // Extract beta domain from referer
+      } else if (referer) {
         try {
           const refererUrl = new URL(referer);
           originUrl = `${refererUrl.protocol}//${refererUrl.host}`;
-        } catch (e) {
-          // Fallback to WEB_URL if available
-          originUrl = process.env.WEB_URL?.includes('beta') ? process.env.WEB_URL : undefined;
+        } catch {
+          originUrl = null;
         }
       }
     }
-    
-    const stateData = {
-      redirectTo: redirectTo || undefined,
-      origin: originUrl
-    };
-    // Always create state if we have any data, even if origin is undefined (for production)
-    const state = encodeURIComponent(JSON.stringify(stateData));
+    // If not beta, we can leave origin unset and fall back to getRedirectUrl() at callback time.
 
-    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}${state ? `&state=${state}` : ''}`;
-    debugLog('Initiating Twitch auth, redirecting to:', authUrl);
-    res.redirect(authUrl);
+    const { state } = await createOAuthState({
+      provider,
+      kind: 'login',
+      redirectTo,
+      origin: originUrl,
+    });
+
+    const scopes = ['user:read:email', 'channel:read:redemptions', 'channel:manage:redemptions', 'chat:read', 'chat:edit'];
+    const authUrl = getTwitchAuthorizeUrl({
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+    });
+
+    debugLog('auth.initiate', { provider, hasOrigin: !!originUrl, hasRedirectTo: !!redirectTo });
+    return res.redirect(authUrl);
   },
 
-  handleTwitchCallback: async (req: AuthRequest, res: Response) => {
+  initiateTwitchAuth: (req: AuthRequest, res: Response) => {
+    // Backward-compatible alias for older frontend URLs: /auth/twitch
+    (req.params as any).provider = 'twitch';
+    return authController.initiateAuth(req, res);
+  },
+
+  handleCallback: async (req: AuthRequest, res: Response) => {
     // IMPORTANT: avoid `channel: true` in includes here.
     // If DB is temporarily behind migrations, selecting all Channel columns will throw (P2022).
     const safeChannelSelect = {
@@ -114,21 +122,21 @@ export const authController = {
       createdAt: true,
     } as const;
 
+    const provider = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
+    if (provider !== 'twitch') {
+      const redirectUrl = getRedirectUrl(req);
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=unsupported_provider`);
+    }
+
     const { code, error, state } = req.query;
 
-    // Extract origin from state if present
-    let stateOrigin: string | undefined;
-    let stateRedirectTo: string | undefined;
-    if (state && typeof state === 'string') {
-      try {
-        const decodedState = decodeURIComponent(state);
-        const stateData = JSON.parse(decodedState);
-        stateOrigin = stateData.origin;
-        stateRedirectTo = stateData.redirectTo;
-      } catch (e) {
-        // State might be old format (just redirect path), ignore
-      }
-    }
+    // Load+consume state from DB (real verification; old JSON-state is no longer supported).
+    const stateId = typeof state === 'string' ? state : '';
+    const consumed = await loadAndConsumeOAuthState(stateId);
+    const stateOrigin = consumed.ok ? (consumed.row.origin || undefined) : undefined;
+    const stateRedirectTo = consumed.ok ? (consumed.row.redirectTo || undefined) : undefined;
+    const stateKind: OAuthStateKind | undefined = consumed.ok ? consumed.row.kind : undefined;
+    const stateUserId: string | undefined = consumed.ok ? (consumed.row.userId || undefined) : undefined;
 
     debugLog('Twitch callback received', { code: code ? 'present' : 'missing', error, stateOrigin });
 
@@ -145,6 +153,17 @@ export const authController = {
     }
 
     try {
+      if (!consumed.ok) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${consumed.reason}`);
+      }
+
+      // This callback handler serves both login and link flows.
+      if (stateKind !== 'login' && stateKind !== 'link') {
+        const redirectUrl = getRedirectUrl(req, stateOrigin);
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=invalid_state_kind`);
+      }
+
       debugLog('Exchanging code for token...');
       
       // Check if this is production backend handling beta callback
@@ -155,24 +174,12 @@ export const authController = {
       const requestHost = req.get('host') || '';
       const callbackCameToProduction = !requestHost.includes('beta.');
       
-      // Exchange code for token
-      // Use the callback URL that was registered with Twitch (must match exactly)
-      const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: process.env.TWITCH_CLIENT_ID!,
-          client_secret: process.env.TWITCH_CLIENT_SECRET!,
-          code: code as string,
-          grant_type: 'authorization_code',
-          redirect_uri: process.env.TWITCH_CALLBACK_URL!,
-        }),
+      const tokenData = await exchangeTwitchCodeForToken({
+        clientId: process.env.TWITCH_CLIENT_ID!,
+        clientSecret: process.env.TWITCH_CLIENT_SECRET!,
+        code: code as string,
+        redirectUri: process.env.TWITCH_CALLBACK_URL!,
       });
-
-      const tokenData = await tokenResponse.json();
-      debugLog('Token response status:', tokenResponse.status);
       debugLog('Token response keys:', Object.keys(tokenData || {}));
 
       if (!tokenData.access_token) {
@@ -183,28 +190,13 @@ export const authController = {
 
       debugLog('Access token received, fetching user info...');
 
-      // Get user info from Twitch
-      const userResponse = await fetch('https://api.twitch.tv/helix/users', {
-        headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
-          'Client-Id': process.env.TWITCH_CLIENT_ID!,
-        },
+      const twitchUser = await fetchTwitchUser({
+        accessToken: tokenData.access_token,
+        clientId: process.env.TWITCH_CLIENT_ID!,
       });
-
-      const userData = await userResponse.json();
-      debugLog('User response status:', userResponse.status);
-      // Never log full user payload in production; keep minimal even in debug.
-      debugLog('User data (sanitized):', {
-        hasData: !!userData?.data?.[0],
-        id: userData?.data?.[0]?.id,
-        login: userData?.data?.[0]?.login,
-        display_name: userData?.data?.[0]?.display_name,
-      });
-
-      const twitchUser = userData.data?.[0];
 
       if (!twitchUser) {
-        console.error('No user data received from Twitch:', userData);
+        console.error('No user data received from Twitch');
         await logAuthEvent('login_failed', null, false, req, 'No user data from Twitch');
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
@@ -212,190 +204,116 @@ export const authController = {
 
       debugLog('Twitch user found', { login: twitchUser.login });
 
-      // Find or create user with proper error handling
-      let user;
-      try {
+      // Map (provider, providerAccountId) -> ExternalAccount -> User
+      const providerAccountId = twitchUser.id;
+
+      // Fetch ExternalAccount first (new flow). Fallback to legacy User.twitchUserId if missing.
+      const existingExternal = await prisma.externalAccount.findUnique({
+        where: { provider_providerAccountId: { provider: 'twitch', providerAccountId } },
+        select: { id: true, userId: true },
+      });
+
+      let user = null as any;
+
+      if (stateKind === 'link') {
+        if (!stateUserId) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_link_user`);
+        }
+        if (existingExternal && existingExternal.userId !== stateUserId) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=account_already_linked`);
+        }
+
         user = await prisma.user.findUnique({
-          where: { twitchUserId: twitchUser.id },
+          where: { id: stateUserId },
           include: { wallets: true, channel: { select: safeChannelSelect } },
         });
-      } catch (error: any) {
-        // If error is about missing columns, try query without color fields
-        if (error.message && error.message.includes('does not exist')) {
-          user = await prisma.user.findUnique({
-            where: { twitchUserId: twitchUser.id },
-            include: { 
-              wallets: true,
-              channel: {
-                select: safeChannelSelect,
-              },
-            },
-          });
-        } else {
-          throw error;
-        }
-      }
-
-      if (!user) {
-        debugLog('User not found, creating new user...');
-        try {
-          // Use transaction to ensure atomicity
-          user = await prisma.$transaction(async (tx) => {
-            // Check if channel exists for this Twitch user
-            let channel = await tx.channel.findUnique({
-              where: { twitchChannelId: twitchUser.id },
-            });
-
-            let channelId = null;
-            let role = 'viewer';
-
-            if (!channel) {
-              // Create new channel for this streamer
-              // Use upsert to handle race conditions
-              // Generate random slug (8 characters: alphanumeric)
-              const generateRandomSlug = () => {
-                const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-                let result = '';
-                for (let i = 0; i < 8; i++) {
-                  result += chars.charAt(Math.floor(Math.random() * chars.length));
-                }
-                return result;
-              };
-              
-              // Ensure slug is unique
-              let slug = generateRandomSlug();
-              let existingChannel = await tx.channel.findUnique({ where: { slug } });
-              let attempts = 0;
-              while (existingChannel && attempts < 10) {
-                slug = generateRandomSlug();
-                existingChannel = await tx.channel.findUnique({ where: { slug } });
-                attempts++;
-              }
-              
-              channel = await tx.channel.upsert({
-                where: { twitchChannelId: twitchUser.id },
-                update: {},
-                create: {
-                  twitchChannelId: twitchUser.id,
-                  slug: slug,
-                  name: twitchUser.display_name,
-                },
-              });
-              role = 'streamer'; // First user who creates channel is streamer
-              debugLog('Created new channel', { slug: channel.slug });
-            } else {
-              // Channel exists - user owns this channel
-              role = 'streamer';
-              debugLog('Found existing channel', { slug: channel.slug });
-            }
-            
-            channelId = channel.id;
-
-            // Create user
-            const newUser = await tx.user.create({
-              data: {
-                twitchUserId: twitchUser.id,
-                displayName: twitchUser.display_name,
-                profileImageUrl: twitchUser.profile_image_url || null,
-                role,
-                channelId,
-                twitchAccessToken: tokenData.access_token,
-                twitchRefreshToken: tokenData.refresh_token || null,
-              },
-              include: {
-                wallets: true,
-                channel: { select: safeChannelSelect },
-              },
-            });
-
-            // Create wallet for this channel if channelId exists
-            if (channelId) {
-              await tx.wallet.create({
-                data: {
-                  userId: newUser.id,
-                  channelId: channelId,
-                  balance: 0,
-                },
-              });
-            }
-
-            // Fetch user with wallets after creation
-            const userWithWallets = await tx.user.findUnique({
-              where: { id: newUser.id },
-              include: { wallets: true, channel: { select: safeChannelSelect } },
-            });
-            debugLog('Created new user:', { userId: newUser.id });
-            return userWithWallets!;
-          });
-        } catch (error: any) {
-          console.error('Error creating user:', error);
-          // If user was created in a previous attempt, try to find it
-          if (error.code === 'P2002') {
-            debugLog('User or channel already exists, trying to find user...');
-            // Update existing user with new tokens
-            user = await prisma.user.update({
-              where: { twitchUserId: twitchUser.id },
-              data: {
-                twitchAccessToken: tokenData.access_token,
-                twitchRefreshToken: tokenData.refresh_token || null,
-                profileImageUrl: twitchUser.profile_image_url || null,
-                displayName: twitchUser.display_name,
-              },
-              include: { wallets: true, channel: { select: safeChannelSelect } },
-            });
-            if (!user) {
-              throw new Error('Failed to create or find user');
-            }
-          } else {
-            throw error;
-          }
+        if (!user) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_not_found`);
         }
       } else {
-        debugLog('User found:', { userId: user.id });
-        // Update tokens for existing user
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            twitchAccessToken: tokenData.access_token,
-            twitchRefreshToken: tokenData.refresh_token || null,
-            profileImageUrl: twitchUser.profile_image_url || null,
-            displayName: twitchUser.display_name,
-          },
-          include: { wallets: true, channel: { select: safeChannelSelect } },
-        });
-      }
+        // login
+        if (existingExternal) {
+          user = await prisma.user.findUnique({
+            where: { id: existingExternal.userId },
+            include: { wallets: true, channel: { select: safeChannelSelect } },
+          });
+        }
 
-      // Ensure wallet exists for user's channel (if user has a channel)
-      if (user && user.channelId) {
-        const userChannelId = user.channelId; // Store to avoid null check issues
-        const existingWallet = user.wallets?.find(w => w.channelId === userChannelId);
-        if (!existingWallet) {
-          debugLog('Wallet missing for channel, creating wallet...');
-          try {
-            await prisma.wallet.create({
-              data: {
-                userId: user.id,
-                channelId: userChannelId,
-                balance: 0,
-              },
-            });
-            user = await prisma.user.findUnique({
-              where: { id: user.id },
-              include: { wallets: true, channel: { select: safeChannelSelect } },
-            });
-            debugLog('Wallet created for channel');
-          } catch (error: any) {
-            console.error('Error creating wallet:', error);
-            if (user) {
-              // Wallet might have been created by another request, try to fetch user again
-              user = await prisma.user.findUnique({
-                where: { id: user.id },
-                include: { wallets: true, channel: { select: safeChannelSelect } },
-              });
-            }
-          }
+        // Legacy fallback (pre-backfill)
+        if (!user) {
+          user = await prisma.user.findUnique({
+            where: { twitchUserId: providerAccountId },
+            include: { wallets: true, channel: { select: safeChannelSelect } },
+          });
+        }
+
+        if (!user) {
+          // First login: create viewer user (no Channel auto-creation)
+          user = await prisma.user.create({
+            data: {
+              twitchUserId: providerAccountId,
+              displayName: twitchUser.display_name,
+              profileImageUrl: twitchUser.profile_image_url || null,
+              role: 'viewer',
+              channelId: null,
+              twitchAccessToken: tokenData.access_token,
+              twitchRefreshToken: tokenData.refresh_token || null,
+            },
+            include: { wallets: true, channel: { select: safeChannelSelect } },
+          });
         }
       }
+
+      // Upsert ExternalAccount (either login or link) + refresh legacy user tokens for compatibility.
+      await prisma.$transaction(async (tx) => {
+        await tx.externalAccount.upsert({
+          where: { provider_providerAccountId: { provider: 'twitch', providerAccountId } },
+          create: {
+            userId: user.id,
+            provider: 'twitch',
+            providerAccountId,
+            displayName: twitchUser.display_name,
+            login: twitchUser.login,
+            avatarUrl: twitchUser.profile_image_url || null,
+            profileUrl: twitchUser.login ? `https://www.twitch.tv/${twitchUser.login}` : null,
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token || null,
+            tokenExpiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
+            scopes: Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : null,
+          },
+          update: {
+            userId: user.id,
+            displayName: twitchUser.display_name,
+            login: twitchUser.login,
+            avatarUrl: twitchUser.profile_image_url || null,
+            profileUrl: twitchUser.login ? `https://www.twitch.tv/${twitchUser.login}` : null,
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token || null,
+            tokenExpiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
+            scopes: Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : null,
+          },
+        });
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            twitchUserId: providerAccountId,
+            displayName: twitchUser.display_name,
+            profileImageUrl: twitchUser.profile_image_url || null,
+            twitchAccessToken: tokenData.access_token,
+            twitchRefreshToken: tokenData.refresh_token || null,
+          },
+        });
+      });
+
+      // Reload user to reflect updated fields
+      user = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { wallets: true, channel: { select: safeChannelSelect } },
+      });
 
       // Ensure user exists
       if (!user) {
@@ -555,7 +473,7 @@ export const authController = {
         // Use redirect path from state - this preserves where user was before login
         redirectPath = stateRedirectTo;
         debugLog('Using redirectTo from state:', redirectPath);
-      } else if (user.role === 'streamer' && user.channel?.slug) {
+      } else if (stateKind === 'login' && user.role === 'streamer' && user.channel?.slug) {
         // Second priority: If user is streamer with channel, redirect to dashboard
         // (but only if no redirectTo was specified)
         redirectPath = '/dashboard';
@@ -606,11 +524,10 @@ export const authController = {
       let stateOrigin: string | undefined;
       if (req.query.state && typeof req.query.state === 'string') {
         try {
-          const decodedState = decodeURIComponent(req.query.state);
-          const stateData = JSON.parse(decodedState);
-          stateOrigin = stateData.origin;
-        } catch (e) {
-          // Ignore parse errors
+          const row = await prisma.oAuthState.findUnique({ where: { state: req.query.state } });
+          stateOrigin = row?.origin || undefined;
+        } catch {
+          // ignore
         }
       }
       
@@ -618,6 +535,96 @@ export const authController = {
       const errorReason = error instanceof Error ? encodeURIComponent(error.message.substring(0, 100)) : 'unknown';
       res.redirect(`${redirectUrl}/?error=auth_failed&reason=exception&details=${errorReason}`);
     }
+  },
+
+  handleTwitchCallback: (req: AuthRequest, res: Response) => {
+    // Backward-compatible alias for older frontend URLs: /auth/twitch/callback
+    (req.params as any).provider = 'twitch';
+    return authController.handleCallback(req, res);
+  },
+
+  initiateLink: async (req: AuthRequest, res: Response) => {
+    const provider = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
+    if (provider !== 'twitch') {
+      const redirectUrl = getRedirectUrl(req);
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=unsupported_provider`);
+    }
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const clientId = process.env.TWITCH_CLIENT_ID;
+    const callbackUrl = process.env.TWITCH_CALLBACK_URL;
+    if (!clientId || !callbackUrl) {
+      const redirectUrl = getRedirectUrl(req);
+      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env`);
+    }
+
+    const redirectTo = (req.query.redirect_to as string) || '/settings/accounts';
+    const origin = (req.query.origin as string) || null;
+
+    const { state } = await createOAuthState({
+      provider,
+      kind: 'link',
+      userId: req.userId,
+      redirectTo,
+      origin,
+    });
+
+    const scopes = ['user:read:email', 'channel:read:redemptions', 'channel:manage:redemptions', 'chat:read', 'chat:edit'];
+    const authUrl = getTwitchAuthorizeUrl({
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+    });
+
+    return res.redirect(authUrl);
+  },
+
+  handleLinkCallback: async (req: AuthRequest, res: Response) => {
+    // Same handler: the state.kind determines whether this becomes login or link.
+    return authController.handleCallback(req, res);
+  },
+
+  listAccounts: async (req: AuthRequest, res: Response) => {
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const accounts = await prisma.externalAccount.findMany({
+      where: { userId: req.userId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        provider: true,
+        providerAccountId: true,
+        displayName: true,
+        login: true,
+        avatarUrl: true,
+        profileUrl: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return res.json({ accounts });
+  },
+
+  unlinkAccount: async (req: AuthRequest, res: Response) => {
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+    const externalAccountId = String((req.params as any)?.externalAccountId || '').trim();
+    if (!externalAccountId) return res.status(400).json({ error: 'Bad Request' });
+
+    const count = await prisma.externalAccount.count({ where: { userId: req.userId } });
+    if (count <= 1) {
+      return res.status(400).json({ error: 'Cannot unlink last account' });
+    }
+
+    const deleted = await prisma.externalAccount.deleteMany({
+      where: { id: externalAccountId, userId: req.userId },
+    });
+    if (deleted.count === 0) return res.status(404).json({ error: 'Not found' });
+
+    return res.json({ ok: true });
   },
 
   logout: async (req: AuthRequest, res: Response) => {
@@ -686,14 +693,11 @@ export const authController = {
       let stateOrigin: string | undefined;
       if (state && typeof state === 'string') {
         try {
-          const decodedState = decodeURIComponent(state);
-          const stateData = JSON.parse(decodedState);
-          stateOrigin = stateData.origin;
-          if (stateData.redirectTo) {
-            redirectPath = stateData.redirectTo;
-          }
-        } catch (e) {
-          // Ignore parse errors
+          const row = await prisma.oAuthState.findUnique({ where: { state } });
+          if (row?.origin) stateOrigin = row.origin;
+          if (row?.redirectTo) redirectPath = row.redirectTo;
+        } catch {
+          // ignore
         }
       }
 

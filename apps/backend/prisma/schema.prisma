@@ -9,7 +9,8 @@ datasource db {
 
 model Channel {
   id                String   @id @default(uuid())
-  twitchChannelId   String   @unique
+  // Legacy: Twitch channel id. Optional to support non-Twitch streamers in the future.
+  twitchChannelId   String?  @unique
   slug              String   @unique
   name              String
   rewardIdForCoins  String?
@@ -67,6 +68,19 @@ model Channel {
   chatBotOutboxMessages ChatBotOutboxMessage[]
   chatBotCommands ChatBotCommand[]
   chatBotEventDedups ChatBotEventDedup[]
+}
+
+enum ExternalAccountProvider {
+  twitch
+  youtube
+  vkplay
+  trovo
+  boosty
+}
+
+enum OAuthStateKind {
+  login
+  link
 }
 
 // Global Twitch IRC bot subscriptions (single bot account joins many channels).
@@ -175,7 +189,8 @@ model UserPreference {
 
 model User {
   id                 String   @id @default(uuid())
-  twitchUserId       String   @unique
+  // Legacy: Twitch user id. Optional to support non-Twitch identities in the future.
+  twitchUserId       String?  @unique
   displayName        String
   profileImageUrl    String? // Twitch profile image URL
   role               String // viewer, streamer, admin
@@ -187,6 +202,7 @@ model User {
 
   channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: SetNull)
   preference    UserPreference?
+  externalAccounts ExternalAccount[]
   wallets       Wallet[]
   memesCreated  Meme[]           @relation("CreatedBy")
   memesApproved Meme[]           @relation("ApprovedBy")
@@ -200,6 +216,63 @@ model User {
   @@index([twitchUserId])
   @@index([channelId])
   @@index([hasBetaAccess])
+}
+
+model ExternalAccount {
+  id                String  @id @default(uuid())
+  userId            String
+  provider          ExternalAccountProvider
+  providerAccountId String
+
+  // Profile-ish fields (best-effort, provider-dependent)
+  displayName String?
+  login       String?
+  avatarUrl   String?
+  profileUrl  String?
+
+  // OAuth tokens (optional; some providers may not return refresh tokens etc.)
+  accessToken     String?
+  refreshToken    String?
+  tokenExpiresAt  DateTime?
+  scopes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@index([provider])
+  @@index([providerAccountId])
+}
+
+model OAuthState {
+  // Random state string used as primary key (stored server-side for verification)
+  state     String @id
+  provider  ExternalAccountProvider
+  kind      OAuthStateKind
+
+  // For link flows: the authenticated user that initiated linking.
+  userId    String?
+
+  // Redirect handling
+  redirectTo String?
+  origin     String?
+
+  // PKCE-ready (not used for Twitch currently, but stored for future providers)
+  codeVerifier String?
+
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([provider, kind])
+  @@index([userId])
 }
 
 model Wallet {

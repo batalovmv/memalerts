@@ -11,6 +11,20 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       where: { id: req.userId! },
       include: {
         wallets: true,
+        externalAccounts: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            provider: true,
+            providerAccountId: true,
+            displayName: true,
+            login: true,
+            avatarUrl: true,
+            profileUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
         channel: {
           select: {
             id: true,
@@ -35,6 +49,7 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       channelId: user.channelId,
       channel: user.channel,
       wallets: user.wallets,
+      externalAccounts: user.externalAccounts,
     };
     debugLog('[DEBUG] getMe sending response', { userId: user.id, hasChannel: !!user.channelId });
     res.json(response);
