@@ -138,6 +138,12 @@ const axiosInstance: AxiosInstance = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
   timeout: 30000, // 30 seconds for regular requests (file uploads will override this)
+  // Avoid browser conditional caching (304 Not Modified) for API JSON calls.
+  // 304 responses usually have an empty body which breaks data consumers.
+  headers: {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  },
   // Axios default validateStatus rejects 304, which can happen for cached GETs.
   // Treat 304 as a successful response; we will serve cached JSON when possible.
   validateStatus: (status) => (status >= 200 && status < 300) || status === 304,
@@ -180,6 +186,20 @@ export const api: CustomAxiosInstance = {
             if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL) {
               return cached.data as T;
             }
+
+            // No cached body to serve — retry once with explicit no-cache headers.
+            const retryConfig: AxiosRequestConfig = {
+              ...config,
+              headers: {
+                ...(config.headers || {}),
+                'Cache-Control': 'no-cache',
+                Pragma: 'no-cache',
+              },
+            };
+            return axiosInstance.request<unknown>(retryConfig).then((r) => {
+              responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+              return r.data as T;
+            });
           } else {
             responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
           }
@@ -234,6 +254,19 @@ export const api: CustomAxiosInstance = {
           if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL) {
             return cached.data as T;
           }
+
+          const retryConfig: AxiosRequestConfig = {
+            ...requestConfig,
+            headers: {
+              ...(requestConfig.headers || {}),
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+            },
+          };
+          return axiosInstance.request<unknown>(retryConfig).then((r) => {
+            responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+            return r.data as T;
+          });
         } else {
           responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
         }
