@@ -34,6 +34,23 @@ export function BotSettings() {
   const [followGreetingTemplate, setFollowGreetingTemplate] = useState<string>('');
   const [savingFollowGreetings, setSavingFollowGreetings] = useState(false);
   const followGreetingSaveTimerRef = useRef<number | null>(null);
+  const followGreetingsEnableInFlightRef = useRef(false);
+
+  const followGreetingsStorageKey = 'memalerts:bot:followGreetingsEnabled:v1';
+
+  // #region agent log (debug-session)
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(followGreetingsStorageKey);
+      const parsed = raw === '1' ? true : raw === '0' ? false : null;
+      __dbg('H5', 'followGreetings:restore_from_localStorage', { raw, parsed });
+      if (parsed !== null) setFollowGreetingsEnabled(parsed);
+    } catch {
+      __dbg('H5', 'followGreetings:restore_from_localStorage_failed', {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // #endregion agent log (debug-session)
 
   // #region agent log (debug-session)
   const __dbg = useCallback(
@@ -172,6 +189,7 @@ export function BotSettings() {
     const startedAt = Date.now();
     try {
       setSavingFollowGreetings(true);
+      followGreetingsEnableInFlightRef.current = true;
       const { api } = await import('@/lib/api');
       // #region agent log (debug-session)
       __dbg('H1', 'enableFollowGreetings:request', {
@@ -192,6 +210,11 @@ export function BotSettings() {
       });
       // #endregion agent log (debug-session)
       setFollowGreetingsEnabled(!!res?.followGreetingsEnabled);
+      try {
+        window.localStorage.setItem(followGreetingsStorageKey, res?.followGreetingsEnabled ? '1' : '0');
+      } catch {
+        // ignore
+      }
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsEnabled', { defaultValue: 'Follow greetings enabled.' }));
     } catch (error: unknown) {
@@ -206,6 +229,7 @@ export function BotSettings() {
       toast.error(apiErr.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
     } finally {
       await ensureMinDuration(startedAt, 450);
+      followGreetingsEnableInFlightRef.current = false;
       setSavingFollowGreetings(false);
     }
   }, [followGreetingTemplate, t]);
@@ -228,6 +252,11 @@ export function BotSettings() {
       });
       // #endregion agent log (debug-session)
       setFollowGreetingsEnabled(!!res?.followGreetingsEnabled);
+      try {
+        window.localStorage.setItem(followGreetingsStorageKey, res?.followGreetingsEnabled ? '1' : '0');
+      } catch {
+        // ignore
+      }
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsDisabled', { defaultValue: 'Follow greetings disabled.' }));
     } catch (error: unknown) {
@@ -356,22 +385,33 @@ export function BotSettings() {
   useEffect(() => {
     if (!showMenus) return;
     if (!followGreetingsEnabled) return;
+    const trimmed = followGreetingTemplate.trim();
+    // Avoid sending invalid empty template (backend returns 400), and avoid racing enable response.
+    if (!trimmed) {
+      __dbg('H4', 'followGreeting:debounce_skipped_empty', { inFlight: followGreetingsEnableInFlightRef.current });
+      return;
+    }
+    if (followGreetingsEnableInFlightRef.current) {
+      __dbg('H4', 'followGreeting:debounce_skipped_in_flight', { templateTrimLen: trimmed.length });
+      return;
+    }
     if (followGreetingSaveTimerRef.current) window.clearTimeout(followGreetingSaveTimerRef.current);
     // #region agent log (debug-session)
     __dbg('H4', 'followGreeting:debounce_scheduled', {
       enabled: followGreetingsEnabled,
       templateLen: followGreetingTemplate.length,
-      templateTrimLen: followGreetingTemplate.trim().length,
+      templateTrimLen: trimmed.length,
+      inFlight: followGreetingsEnableInFlightRef.current,
     });
     // #endregion agent log (debug-session)
     followGreetingSaveTimerRef.current = window.setTimeout(() => {
       // #region agent log (debug-session)
       __dbg('H4', 'followGreeting:debounce_fired', {
         enabled: followGreetingsEnabled,
-        templateTrimLen: followGreetingTemplate.trim().length,
+        templateTrimLen: trimmed.length,
       });
       // #endregion agent log (debug-session)
-      void saveFollowGreetingTemplate(followGreetingTemplate.trim());
+      void saveFollowGreetingTemplate(trimmed);
     }, 600);
     return () => {
       if (followGreetingSaveTimerRef.current) window.clearTimeout(followGreetingSaveTimerRef.current);
@@ -533,9 +573,6 @@ export function BotSettings() {
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <Button type="button" variant="primary" onClick={() => void addCommand()} disabled={commandsLoading}>
                         {t('admin.addBotCommand', { defaultValue: 'Add command' })}
-                      </Button>
-                      <Button type="button" variant="secondary" onClick={() => void loadCommands()} disabled={commandsLoading}>
-                        {t('common.retry', { defaultValue: 'Retry' })}
                       </Button>
                     </div>
 
