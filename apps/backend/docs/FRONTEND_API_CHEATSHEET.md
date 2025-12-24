@@ -307,11 +307,17 @@
 - **POST `/streamer/bot/enable`** → `{ ok: true }`
 - **POST `/streamer/bot/disable`** → `{ ok: true }`
 - **POST `/streamer/bot/say`** body `{ message }` → `{ ok, outbox: { id, status, createdAt } }`
-- **GET `/streamer/bot/commands`** → `{ items: [{ id, trigger, response, enabled, onlyWhenLive, createdAt, updatedAt }] }`
-- **POST `/streamer/bot/commands`** body `{ trigger, response, onlyWhenLive? }` → `201` command row; `409` если trigger уже есть
+- **GET `/streamer/bot/commands`** → `{ items: [{ id, trigger, response, enabled, onlyWhenLive, allowedRoles, allowedUsers, createdAt, updatedAt }] }`
+- **POST `/streamer/bot/commands`**
+  - body `{ trigger, response, onlyWhenLive?, allowedRoles?, allowedUsers? }` → `201` command row; `409` если trigger уже есть
   - `onlyWhenLive` (optional, default `false`) — если `true`, бот отвечает на команду **только когда стрим онлайн**
-- **PATCH `/streamer/bot/commands/:id`** body `{ enabled?, onlyWhenLive? }` → updated command row
-  - body — partial object; нужно передать **хотя бы одно** поле
+  - `allowedRoles` (optional) — массив ролей: `["vip","moderator","subscriber","follower"]`
+  - `allowedUsers` (optional) — массив логинов Twitch (lowercase, без `@`), max 100 (валидируется regex `^[a-z0-9_]{1,25}$`)
+  - **правило по умолчанию**: если `allowedRoles=[]` и `allowedUsers=[]` → команду может триггерить любой
+  - ⚠️ роль `follower` из IRC tags Twitch не определяется (нужна отдельная проверка через Helix + кеш); пока реально работает только whitelist по `allowedUsers` и роли `vip/moderator/subscriber`
+- **PATCH `/streamer/bot/commands/:id`**
+  - body `{ enabled?, onlyWhenLive?, allowedRoles?, allowedUsers? }` → updated command row
+  - body — partial object; нужно передать **хотя бы одно** поле (любое из 4)
 - **DELETE `/streamer/bot/commands/:id`** → `{ ok: true }`
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (если подписки нет — `enabled: false`)
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`
