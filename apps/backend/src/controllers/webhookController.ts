@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
 import { twitchFollowEventSchema, twitchRedemptionEventSchema } from '../shared/schemas.js';
 import { markCreditsSessionOffline, startOrResumeCreditsSession } from '../realtime/creditsSessionStore.js';
+import { getStreamDurationSnapshot, handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
@@ -59,8 +60,10 @@ export const webhookController = {
           // Perf: avoid loading channel.users (unused here); keep payload minimal.
           select: {
             id: true,
+            slug: true,
             rewardIdForCoins: true,
             coinPerPointRatio: true,
+            rewardOnlyWhenLive: true,
           },
         });
 
@@ -70,6 +73,36 @@ export const webhookController = {
 
         // Check if this reward is configured for coins
         if (channel.rewardIdForCoins && channel.rewardIdForCoins === event.reward.id) {
+          // Optional restriction: grant coins only when stream is online.
+          if (channel.rewardOnlyWhenLive) {
+            const snap = await getStreamDurationSnapshot(String(channel.slug || '').toLowerCase());
+            if (snap.status !== 'online') {
+              // Record redemption to dedupe retries, but do not grant coins.
+              await prisma.redemption.create({
+                data: {
+                  channelId: channel.id,
+                  userId: (await prisma.user.upsert({
+                    where: { twitchUserId: event.user_id },
+                    update: { displayName: event.user_name },
+                    create: {
+                      twitchUserId: event.user_id,
+                      displayName: event.user_name,
+                      role: 'viewer',
+                      channelId: channel.id,
+                      wallets: { create: { channelId: channel.id, balance: 0 } },
+                    },
+                    select: { id: true },
+                  })).id,
+                  twitchRedemptionId: event.id,
+                  pointsSpent: event.reward.cost,
+                  coinsGranted: 0,
+                  status: 'skipped_offline',
+                },
+              });
+              return res.status(200).json({ message: 'Redemption skipped (offline)', errorCode: 'REWARD_DISABLED_OFFLINE' });
+            }
+          }
+
           // Find or create user
           let user = await prisma.user.findUnique({
             where: { twitchUserId: event.user_id },
@@ -199,7 +232,7 @@ export const webhookController = {
 
         const channel = await prisma.channel.findUnique({
           where: { twitchChannelId: broadcasterId },
-          select: { slug: true, creditsReconnectWindowMinutes: true },
+          select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true },
         });
         const slug = String((channel as any)?.slug || '').toLowerCase();
         if (!slug) {
@@ -211,8 +244,22 @@ export const webhookController = {
 
         if (req.body.subscription.type === 'stream.online') {
           await startOrResumeCreditsSession(slug, windowMin);
+          // Stream duration "smart command" state (pause credit is per-channel setting).
+          let breakCreditMinutes = 60;
+          try {
+            const raw = String((channel as any)?.streamDurationCommandJson || '').trim();
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const v = Number((parsed as any)?.breakCreditMinutes);
+              if (Number.isFinite(v)) breakCreditMinutes = v;
+            }
+          } catch {
+            // ignore invalid JSON
+          }
+          await handleStreamOnline(slug, breakCreditMinutes);
         } else {
           await markCreditsSessionOffline(slug, windowMin);
+          await handleStreamOffline(slug);
         }
 
         return res.status(200).json({ message: 'Stream session processed' });

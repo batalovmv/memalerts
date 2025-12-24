@@ -453,7 +453,13 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       rewardTitle: body.rewardTitle !== undefined ? body.rewardTitle : (channel as any).rewardTitle,
       rewardCost: body.rewardCost !== undefined ? body.rewardCost : (channel as any).rewardCost,
       rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : (channel as any).rewardCoins,
+      rewardOnlyWhenLive:
+        (body as any).rewardOnlyWhenLive !== undefined ? (body as any).rewardOnlyWhenLive : (channel as any).rewardOnlyWhenLive,
       submissionRewardCoins: body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : (channel as any).submissionRewardCoins,
+      submissionRewardOnlyWhenLive:
+        (body as any).submissionRewardOnlyWhenLive !== undefined
+          ? (body as any).submissionRewardOnlyWhenLive
+          : (channel as any).submissionRewardOnlyWhenLive,
       primaryColor: body.primaryColor !== undefined ? body.primaryColor : (channel as any).primaryColor,
       secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : (channel as any).secondaryColor,
       accentColor: body.accentColor !== undefined ? body.accentColor : (channel as any).accentColor,

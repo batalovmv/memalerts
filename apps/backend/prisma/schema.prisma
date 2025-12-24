@@ -18,12 +18,16 @@ model Channel {
   rewardTitle       String? // Title of the reward in Twitch
   rewardCost        Int? // Cost in channel points
   rewardCoins       Int? // Coins granted per redemption
+  // If true, coins for the Twitch channel points reward are granted only when stream is online.
+  rewardOnlyWhenLive Boolean @default(false)
   coinIconUrl       String? // Custom coin icon URL from Twitch reward
   primaryColor      String? // Hex color for primary theme
   secondaryColor    String? // Hex color for secondary theme
   accentColor       String? // Hex color for accent
   defaultPriceCoins Int?    @default(100) // Default price for memes in this channel
   submissionRewardCoins Int @default(0) // Coins granted to submitter when their submission is approved
+  // If true, submission approval coins are granted only when stream is online.
+  submissionRewardOnlyWhenLive Boolean @default(false)
   // OBS overlay settings (server-side defaults for tokenized overlay URLs)
   overlayMode       String  @default("queue") // queue | simultaneous
   overlayShowSender Boolean @default(false)
@@ -40,6 +44,8 @@ model Channel {
   creditsTokenVersion Int @default(1)
   // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
   creditsReconnectWindowMinutes Int @default(60)
+  // Chat bot "smart" command: stream duration settings (stored as JSON string; validated by API).
+  streamDurationCommandJson String? @db.Text
   // Chat bot follow greeting settings
   followGreetingsEnabled Boolean @default(false)
   followGreetingTemplate String? @db.Text

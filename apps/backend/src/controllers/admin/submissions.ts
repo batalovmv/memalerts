@@ -21,6 +21,7 @@ import path from 'path';
 import { debugLog, debugError } from '../../utils/debug.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../../realtime/walletBridge.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
+import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
 
 export const getSubmissions = async (req: AuthRequest, res: Response) => {
   const status = req.query.status as string | undefined;
@@ -212,7 +213,7 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
 
           const channel = await tx.channel.findUnique({
             where: { id: channelId },
-            select: { defaultPriceCoins: true, slug: true, submissionRewardCoins: true },
+            select: { defaultPriceCoins: true, slug: true, submissionRewardCoins: true, submissionRewardOnlyWhenLive: true },
           });
 
           debugLog('[DEBUG] Channel fetched', { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins });
@@ -406,6 +407,17 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
             // Reward submitter for approved submission (per-channel setting)
             // Only if enabled (>0) and submitter is not the moderator approving.
             if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
+              if (channel?.submissionRewardOnlyWhenLive) {
+                const snap = await getStreamDurationSnapshot(String(channel?.slug || '').toLowerCase());
+                if (snap.status !== 'online') {
+                  debugLog('[DEBUG] Submission approval reward skipped (offline)', {
+                    submissionId: id,
+                    channelId,
+                    channelSlug: channel?.slug,
+                  });
+                  return meme;
+                }
+              }
               const updatedWallet = await tx.wallet.upsert({
                 where: {
                   userId_channelId: {

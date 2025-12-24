@@ -37,7 +37,9 @@
   - `id`, `slug`, `name`
   - `coinPerPointRatio`
   - `rewardIdForCoins`, `rewardEnabled`, `rewardTitle`, `rewardCost`, `rewardCoins`
+  - `rewardOnlyWhenLive` (boolean, default `false`) — начислять coins за Twitch reward только когда стрим онлайн
   - `submissionRewardCoins`
+  - `submissionRewardOnlyWhenLive` (boolean, default `false`) — начислять coins за approved submission только когда стрим онлайн
   - `coinIconUrl`
   - `primaryColor`, `secondaryColor`, `accentColor`
   - `overlayMode`, `overlayShowSender`, `overlayMaxConcurrent`
@@ -256,7 +258,9 @@
 - **Response**: soft-deleted meme (`status: "deleted"`, `deletedAt`)
 
 ### PATCH `/streamer/channel/settings`
-- **Body (JSON)**: см. `updateChannelSettingsSchema` (reward + цвета + overlay + `submissionRewardCoins`)
+- **Body (JSON)**: см. `updateChannelSettingsSchema` (reward + флаги live-only + цвета + overlay + `submissionRewardCoins`)
+- **Пример body**:
+  - `{ "rewardOnlyWhenLive": true, "submissionRewardOnlyWhenLive": false }`
 - **Response**: обновлённая запись Channel (много полей; фронту важны поля из schema)
 - **Realtime**: `overlay:config` в `channel:{slugLower}` (чтобы OBS не перезагружать)
 
@@ -311,6 +315,24 @@
 - **POST `/streamer/bot/follow-greetings/enable`** body optional `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/disable`** → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
 - **PATCH `/streamer/bot/follow-greetings`** body `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
+- **GET `/streamer/bot/stream-duration`** → `{ enabled, trigger, responseTemplate, breakCreditMinutes, onlyWhenLive }`
+- **PATCH `/streamer/bot/stream-duration`** body `{ enabled, trigger, responseTemplate, breakCreditMinutes, onlyWhenLive }` → те же поля
+
+#### “Умная” команда бота: время стрима
+- **Назначение**: бот отвечает на команду (например `!time`) “время стрима” — **сумма онлайна** за текущую сессию.
+- **Кредит паузы**: оффлайн пауза **<= `breakCreditMinutes`** не разрывает сессию; если **> `breakCreditMinutes`** — считается новым стримом (таймер “сбрасывается”).
+- **responseTemplate**: строка (или `null`) с плейсхолдерами:
+  - `{hours}` — часы (целое)
+  - `{minutes}` — минуты (остаток 0..59)
+  - `{totalMinutes}` — всего минут (целое)
+- **onlyWhenLive**: задел на будущее; если `true` — бот отвечает только когда стрим онлайн.
+- **Дефолты** (если настройки ещё не сохранены):
+  - `enabled=false`
+  - `trigger="!time"`
+  - `responseTemplate="Время стрима: {hours}ч {minutes}м ({totalMinutes}м)"`
+  - `breakCreditMinutes=60`
+  - `onlyWhenLive=false`
+- **Важно**: если фича ещё не задеплоена/не применены миграции — backend может вернуть `404` (фронт должен показать “недоступно”).
 
 ## Owner panel (`/owner/*`) — admin only
 

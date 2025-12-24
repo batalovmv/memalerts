@@ -3,6 +3,7 @@ import tmi from 'tmi.js';
 import { prisma } from '../lib/prisma.js';
 import { getValidAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
 import { logger } from '../utils/logger.js';
+import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 
 dotenv.config();
 
@@ -119,6 +120,19 @@ async function start() {
     string,
     { ts: number; items: Array<{ triggerNormalized: string; response: string }> }
   >();
+  const streamDurationByChannelId = new Map<
+    string,
+    {
+      ts: number;
+      cfg: {
+        enabled: boolean;
+        triggerNormalized: string;
+        responseTemplate: string | null;
+        breakCreditMinutes: number;
+        onlyWhenLive: boolean;
+      } | null;
+    }
+  >();
   let commandsRefreshing = false;
 
   const refreshCommands = async () => {
@@ -146,6 +160,52 @@ async function start() {
       const now = Date.now();
       for (const id of channelIds) {
         commandsByChannelId.set(id, { ts: now, items: grouped.get(id) || [] });
+      }
+
+      // Smart command config is stored on Channel (per-channel JSON).
+      try {
+        const chRows = await (prisma as any).channel.findMany({
+          where: { id: { in: channelIds } },
+          select: { id: true, streamDurationCommandJson: true },
+        });
+        const byId = new Map<string, any>();
+        for (const r of chRows) {
+          const id = String((r as any)?.id || '').trim();
+          if (!id) continue;
+          byId.set(id, r);
+        }
+        for (const id of channelIds) {
+          const raw = String(byId.get(id)?.streamDurationCommandJson || '').trim();
+          if (!raw) {
+            streamDurationByChannelId.set(id, { ts: now, cfg: null });
+            continue;
+          }
+          try {
+            const parsed = JSON.parse(raw);
+            const triggerNormalized = String((parsed as any)?.triggerNormalized || (parsed as any)?.trigger || '').trim().toLowerCase();
+            const enabled = Boolean((parsed as any)?.enabled);
+            const breakCreditMinutes = Number.isFinite(Number((parsed as any)?.breakCreditMinutes))
+              ? Math.max(0, Math.min(24 * 60, Math.floor(Number((parsed as any)?.breakCreditMinutes))))
+              : 60;
+            const responseTemplate = (parsed as any)?.responseTemplate === null ? null : String((parsed as any)?.responseTemplate || '').trim() || null;
+            const onlyWhenLive = Boolean((parsed as any)?.onlyWhenLive);
+            if (!triggerNormalized) {
+              streamDurationByChannelId.set(id, { ts: now, cfg: null });
+              continue;
+            }
+            streamDurationByChannelId.set(id, {
+              ts: now,
+              cfg: { enabled, triggerNormalized, responseTemplate, breakCreditMinutes, onlyWhenLive },
+            });
+          } catch {
+            streamDurationByChannelId.set(id, { ts: now, cfg: null });
+          }
+        }
+      } catch (e: any) {
+        // Feature might not be deployed on this instance DB (missing column).
+        if (e?.code !== 'P2022') {
+          logger.warn('chatbot.stream_duration_cfg_refresh_failed', { errorMessage: e?.message || String(e) });
+        }
       }
     } catch (e: any) {
       logger.warn('chatbot.commands_refresh_failed', { errorMessage: e?.message || String(e) });
@@ -295,6 +355,8 @@ async function start() {
       const slug = loginToSlug.get(login);
       if (!slug) return;
 
+      const msgNorm = String(_message || '').trim().toLowerCase();
+
       // Bot commands (trigger -> response) are per-channel.
       const channelId = loginToChannelId.get(login);
       if (channelId) {
@@ -304,7 +366,40 @@ async function start() {
           void refreshCommands();
         }
 
-        const msgNorm = String(_message || '').trim().toLowerCase();
+        // Smart command: stream duration
+        if (msgNorm) {
+          const smartCached = streamDurationByChannelId.get(channelId);
+          if (smartCached && now - smartCached.ts <= commandsRefreshSeconds * 1000) {
+            const cfg = smartCached.cfg;
+            if (cfg?.enabled && cfg.triggerNormalized === msgNorm) {
+              try {
+                const snap = await getStreamDurationSnapshot(slug);
+                if (cfg.onlyWhenLive && snap.status !== 'online') {
+                  // ignore (future flag)
+                } else {
+                  const totalMinutes = snap.totalMinutes;
+                  const hours = Math.floor(totalMinutes / 60);
+                  const minutes = totalMinutes % 60;
+                  const template = cfg.responseTemplate ?? 'Время стрима: {hours}ч {minutes}м ({totalMinutes}м)';
+                  const msg = template
+                    .replace(/\{hours\}/g, String(hours))
+                    .replace(/\{minutes\}/g, String(minutes))
+                    .replace(/\{totalMinutes\}/g, String(totalMinutes))
+                    .trim();
+                  if (msg) {
+                    await client.say(login, msg);
+                    return;
+                  }
+                }
+              } catch (e: any) {
+                logger.warn('chatbot.stream_duration_reply_failed', { login, errorMessage: e?.message || String(e) });
+              }
+            }
+          } else if (smartCached && now - smartCached.ts > commandsRefreshSeconds * 1000) {
+            void refreshCommands();
+          }
+        }
+
         if (msgNorm) {
           const items = commandsByChannelId.get(channelId)?.items || [];
           const match = items.find((c) => c.triggerNormalized === msgNorm);

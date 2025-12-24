@@ -66,4 +66,8 @@ streamerRoutes.post('/bot/follow-greetings/enable', streamerBotController.enable
 streamerRoutes.post('/bot/follow-greetings/disable', streamerBotController.disableFollowGreetings);
 streamerRoutes.patch('/bot/follow-greetings', streamerBotController.patchFollowGreetings);
 
+// Smart bot command: stream duration
+streamerRoutes.get('/bot/stream-duration', streamerBotController.getStreamDuration);
+streamerRoutes.patch('/bot/stream-duration', streamerBotController.patchStreamDuration);
+
 

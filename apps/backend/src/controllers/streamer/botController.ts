@@ -28,6 +28,11 @@ const BOT_TRIGGER_MAX_LEN = 50;
 const BOT_RESPONSE_MAX_LEN = 450;
 const FOLLOW_GREETING_TEMPLATE_MAX_LEN = 450;
 const DEFAULT_FOLLOW_GREETING_TEMPLATE = 'Спасибо за фоллоу, {user}!';
+const STREAM_DURATION_TRIGGER_MAX_LEN = 50;
+const STREAM_DURATION_TEMPLATE_MAX_LEN = 450;
+const DEFAULT_STREAM_DURATION_TRIGGER = '!time';
+const DEFAULT_STREAM_DURATION_TEMPLATE = 'Время стрима: {hours}ч {minutes}м ({totalMinutes}м)';
+const DEFAULT_BREAK_CREDIT_MINUTES = 60;
 
 function computeApiBaseUrl(req: Request): string {
   // Keep beta/prod separated by using the request host when it matches allowed hosts.
@@ -336,6 +341,135 @@ export const streamerBotController = {
     });
 
     return res.json({ ok: true, followGreetingsEnabled: channel.followGreetingsEnabled, followGreetingTemplate: channel.followGreetingTemplate ?? null });
+  },
+
+  getStreamDuration: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    try {
+      const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { streamDurationCommandJson: true },
+      });
+      if (!channel) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
+
+      const raw = String((channel as any)?.streamDurationCommandJson || '').trim();
+      if (!raw) {
+        return res.json({
+          enabled: false,
+          trigger: DEFAULT_STREAM_DURATION_TRIGGER,
+          responseTemplate: DEFAULT_STREAM_DURATION_TEMPLATE,
+          breakCreditMinutes: DEFAULT_BREAK_CREDIT_MINUTES,
+          onlyWhenLive: false,
+        });
+      }
+
+      try {
+        const parsed = JSON.parse(raw);
+        return res.json({
+          enabled: Boolean((parsed as any)?.enabled),
+          trigger: String((parsed as any)?.trigger || DEFAULT_STREAM_DURATION_TRIGGER),
+          responseTemplate:
+            (parsed as any)?.responseTemplate === null
+              ? null
+              : String((parsed as any)?.responseTemplate || DEFAULT_STREAM_DURATION_TEMPLATE),
+          breakCreditMinutes: Number.isFinite(Number((parsed as any)?.breakCreditMinutes))
+            ? Math.max(0, Math.min(24 * 60, Math.floor(Number((parsed as any)?.breakCreditMinutes))))
+            : DEFAULT_BREAK_CREDIT_MINUTES,
+          onlyWhenLive: Boolean((parsed as any)?.onlyWhenLive),
+        });
+      } catch {
+        // Invalid JSON in DB: fall back to defaults instead of crashing.
+        return res.json({
+          enabled: false,
+          trigger: DEFAULT_STREAM_DURATION_TRIGGER,
+          responseTemplate: DEFAULT_STREAM_DURATION_TEMPLATE,
+          breakCreditMinutes: DEFAULT_BREAK_CREDIT_MINUTES,
+          onlyWhenLive: false,
+        });
+      }
+    } catch (e: any) {
+      // Prisma "column does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2022') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
+      throw e;
+    }
+  },
+
+  patchStreamDuration: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const body = (req.body ?? {}) as any;
+
+    const enabled = body.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
+    }
+
+    const trigger = String(body.trigger ?? '').trim();
+    if (!trigger) return res.status(400).json({ error: 'Bad Request', message: 'trigger is required' });
+    if (trigger.length > STREAM_DURATION_TRIGGER_MAX_LEN) {
+      return res.status(400).json({ error: 'Bad Request', message: `trigger is too long (max ${STREAM_DURATION_TRIGGER_MAX_LEN})` });
+    }
+
+    const responseTemplateRaw = body.responseTemplate;
+    let responseTemplate: string | null;
+    if (responseTemplateRaw === null) {
+      responseTemplate = null;
+    } else {
+      const t = normalizeMessage(responseTemplateRaw ?? DEFAULT_STREAM_DURATION_TEMPLATE);
+      if (!t) return res.status(400).json({ error: 'Bad Request', message: 'responseTemplate must be non-empty or null' });
+      if (t.length > STREAM_DURATION_TEMPLATE_MAX_LEN) {
+        return res.status(400).json({ error: 'Bad Request', message: `responseTemplate is too long (max ${STREAM_DURATION_TEMPLATE_MAX_LEN})` });
+      }
+      responseTemplate = t;
+    }
+
+    const breakCreditMinutesRaw = body.breakCreditMinutes;
+    if (!Number.isFinite(Number(breakCreditMinutesRaw))) {
+      return res.status(400).json({ error: 'Bad Request', message: 'breakCreditMinutes must be a number' });
+    }
+    const breakCreditMinutes = Math.max(0, Math.min(24 * 60, Math.floor(Number(breakCreditMinutesRaw))));
+
+    const onlyWhenLive = body.onlyWhenLive;
+    if (typeof onlyWhenLive !== 'boolean') {
+      return res.status(400).json({ error: 'Bad Request', message: 'onlyWhenLive must be boolean' });
+    }
+
+    const payload = {
+      enabled,
+      trigger,
+      triggerNormalized: trigger.toLowerCase(),
+      responseTemplate,
+      breakCreditMinutes,
+      onlyWhenLive,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      const updated = await prisma.channel.update({
+        where: { id: channelId },
+        data: { streamDurationCommandJson: JSON.stringify(payload) },
+        select: { streamDurationCommandJson: true },
+      });
+      void updated;
+      return res.json({
+        enabled,
+        trigger,
+        responseTemplate,
+        breakCreditMinutes,
+        onlyWhenLive,
+      });
+    } catch (e: any) {
+      // Prisma "column does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2022') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
+      throw e;
+    }
   },
 };
 
