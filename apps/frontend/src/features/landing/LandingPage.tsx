@@ -1,5 +1,5 @@
 ﻿import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/store/hooks';
 import { login } from '@/lib/auth';
@@ -10,7 +10,6 @@ export default function Landing() {
   const { user, loading } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
 
   useAuthQueryErrorToast();
 
@@ -68,11 +67,6 @@ export default function Landing() {
             </p>
             {!user && (
               <>
-                {authError && (
-                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
-                    {authError}
-                  </div>
-                )}
                 <button
                   onClick={() => login()}
                   className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-4"
