@@ -44,8 +44,8 @@ export function BotSettings() {
       const parsed = raw === '1' ? true : raw === '0' ? false : null;
       if (parsed !== null) setFollowGreetingsEnabled(parsed);
     } catch {
+      // ignore (storage may be unavailable)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSubscription = async () => {
@@ -234,7 +234,7 @@ export function BotSettings() {
         setSavingFollowGreetings(false);
       }
     },
-    [followGreetingsEnabled, t]
+    [t]
   );
 
   const sendTestMessage = useCallback(async () => {
