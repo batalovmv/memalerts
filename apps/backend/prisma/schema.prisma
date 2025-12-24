@@ -38,6 +38,9 @@ model Channel {
   creditsTokenVersion Int @default(1)
   // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
   creditsReconnectWindowMinutes Int @default(60)
+  // Chat bot follow greeting settings
+  followGreetingsEnabled Boolean @default(false)
+  followGreetingTemplate String? @db.Text
   createdAt         DateTime @default(now())
 
   users       User[]
@@ -54,6 +57,8 @@ model Channel {
   memeDailyStats ChannelMemeDailyStats[]
   chatBotSubscriptions ChatBotSubscription[]
   chatBotOutboxMessages ChatBotOutboxMessage[]
+  chatBotCommands ChatBotCommand[]
+  chatBotEventDedups ChatBotEventDedup[]
 }
 
 // Global Twitch IRC bot subscriptions (single bot account joins many channels).
@@ -95,6 +100,42 @@ model ChatBotOutboxMessage {
   @@index([status, createdAt])
   @@index([channelId, status, createdAt])
   @@index([twitchLogin, status, createdAt])
+  @@index([createdAt])
+}
+
+// Per-channel chat bot commands (trigger -> response).
+model ChatBotCommand {
+  id                String   @id @default(uuid())
+  channelId          String
+  trigger            String
+  triggerNormalized  String
+  response           String  @db.Text
+  enabled            Boolean @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, triggerNormalized])
+  @@index([channelId])
+  @@index([enabled])
+  @@index([channelId, enabled])
+  @@index([triggerNormalized])
+}
+
+// Dedupe table for chat-bot-triggering events (e.g., EventSub follow) to prevent duplicate greetings.
+model ChatBotEventDedup {
+  id        String   @id @default(uuid())
+  channelId String
+  kind      String   // e.g. "follow"
+  eventId   String
+  createdAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, eventId])
+  @@index([channelId])
+  @@index([kind])
   @@index([createdAt])
 }
 

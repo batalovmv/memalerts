@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
-import { twitchRedemptionEventSchema } from '../shared/schemas.js';
+import { twitchFollowEventSchema, twitchRedemptionEventSchema } from '../shared/schemas.js';
 import { markCreditsSessionOffline, startOrResumeCreditsSession } from '../realtime/creditsSessionStore.js';
 
 export const webhookController = {
@@ -136,6 +136,56 @@ export const webhookController = {
       } catch (error) {
         console.error('Error processing redemption:', error);
         return res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+
+    // Follow greetings (EventSub: channel.follow)
+    if (req.body.subscription?.type === 'channel.follow') {
+      try {
+        const event = twitchFollowEventSchema.parse(req.body.event);
+
+        // Find channel
+        const channel = await prisma.channel.findUnique({
+          where: { twitchChannelId: event.broadcaster_user_id },
+          select: { id: true, followGreetingsEnabled: true, followGreetingTemplate: true },
+        });
+        if (!channel) return res.status(200).json({ message: 'Channel not found, ignoring' });
+        if (!channel.followGreetingsEnabled) return res.status(200).json({ message: 'Follow greetings disabled' });
+
+        // Dedupe by EventSub message id (unique per event delivery; Twitch retries keep the same id).
+        try {
+          await prisma.chatBotEventDedup.create({
+            data: { channelId: channel.id, kind: 'follow', eventId: messageId },
+            select: { id: true },
+          });
+        } catch (e: any) {
+          if (e?.code === 'P2002') {
+            return res.status(200).json({ message: 'Duplicate follow ignored' });
+          }
+          throw e;
+        }
+
+        const sub = await prisma.chatBotSubscription.findUnique({
+          where: { channelId: channel.id },
+          select: { enabled: true, twitchLogin: true },
+        });
+        if (!sub?.enabled || !sub.twitchLogin) {
+          return res.status(200).json({ message: 'Bot not enabled for channel, ignoring' });
+        }
+
+        const template = String(channel.followGreetingTemplate || 'Спасибо за фоллоу, {user}!').trim();
+        const msg = template.replace(/\{user\}/g, event.user_name);
+        if (!msg) return res.status(200).json({ message: 'Empty greeting, ignoring' });
+
+        await prisma.chatBotOutboxMessage.create({
+          data: { channelId: channel.id, twitchLogin: sub.twitchLogin, message: msg, status: 'pending' },
+          select: { id: true },
+        });
+
+        return res.status(200).json({ message: 'Follow greeting enqueued' });
+      } catch (error) {
+        console.error('Error processing follow event:', error);
+        return res.status(200).json({ message: 'Follow event error (ignored)' });
       }
     }
 

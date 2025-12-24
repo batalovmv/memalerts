@@ -1,7 +1,8 @@
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
+import { createEventSubSubscriptionOfType, getEventSubSubscriptions } from '../../utils/twitchApi.js';
 
 function requireChannelId(req: AuthRequest, res: Response): string | null {
   const channelId = String(req.channelId || '').trim();
@@ -16,7 +17,25 @@ function normalizeMessage(v: any): string {
   return String(v ?? '').replace(/\r\n/g, '\n').trim();
 }
 
+function normalizeTrigger(v: any): { trigger: string; triggerNormalized: string } {
+  const trigger = String(v ?? '').trim();
+  const triggerNormalized = trigger.toLowerCase();
+  return { trigger, triggerNormalized };
+}
+
 const TWITCH_MESSAGE_MAX_LEN = 500;
+const BOT_TRIGGER_MAX_LEN = 50;
+const BOT_RESPONSE_MAX_LEN = 450;
+const FOLLOW_GREETING_TEMPLATE_MAX_LEN = 450;
+const DEFAULT_FOLLOW_GREETING_TEMPLATE = 'Спасибо за фоллоу, {user}!';
+
+function computeApiBaseUrl(req: Request): string {
+  // Keep beta/prod separated by using the request host when it matches allowed hosts.
+  const domain = process.env.DOMAIN || 'twitchmemes.ru';
+  const reqHost = req.get('host') || '';
+  const allowedHosts = new Set([domain, `www.${domain}`, `beta.${domain}`]);
+  return allowedHosts.has(reqHost) ? `https://${reqHost}` : `https://${domain}`;
+}
 
 export const streamerBotController = {
   enable: async (req: AuthRequest, res: Response) => {
@@ -94,6 +113,181 @@ export const streamerBotController = {
     });
 
     return res.json({ ok: true, subscription: sub });
+  },
+
+  getCommands: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const items = await prisma.chatBotCommand.findMany({
+      where: { channelId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, trigger: true, response: true, enabled: true, createdAt: true, updatedAt: true },
+    });
+
+    // Frontend accepts both array and {items}.
+    return res.json({ items });
+  },
+
+  createCommand: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const { trigger, triggerNormalized } = normalizeTrigger((req.body as any)?.trigger);
+    const responseText = normalizeMessage((req.body as any)?.response);
+
+    if (!trigger) return res.status(400).json({ error: 'Bad Request', message: 'Trigger is required' });
+    if (!responseText) return res.status(400).json({ error: 'Bad Request', message: 'Response is required' });
+    if (trigger.length > BOT_TRIGGER_MAX_LEN) {
+      return res.status(400).json({ error: 'Bad Request', message: `Trigger is too long (max ${BOT_TRIGGER_MAX_LEN})` });
+    }
+    if (responseText.length > BOT_RESPONSE_MAX_LEN) {
+      return res.status(400).json({ error: 'Bad Request', message: `Response is too long (max ${BOT_RESPONSE_MAX_LEN})` });
+    }
+
+    try {
+      const row = await prisma.chatBotCommand.create({
+        data: {
+          channelId,
+          trigger,
+          triggerNormalized,
+          response: responseText,
+          enabled: true,
+        },
+        select: { id: true, trigger: true, response: true, enabled: true, createdAt: true },
+      });
+      return res.status(201).json(row);
+    } catch (e: any) {
+      // Prisma unique violation (channelId + triggerNormalized)
+      if (e?.code === 'P2002') {
+        return res.status(409).json({ error: 'Conflict', message: 'Command trigger already exists' });
+      }
+      throw e;
+    }
+  },
+
+  deleteCommand: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const id = String((req.params as any)?.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
+
+    const deleted = await prisma.chatBotCommand.deleteMany({
+      where: { id, channelId },
+    });
+    if (deleted.count === 0) return res.status(404).json({ error: 'Not Found', message: 'Command not found' });
+    return res.json({ ok: true });
+  },
+
+  subscription: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const [sub, ch] = await Promise.all([
+      prisma.chatBotSubscription.findUnique({ where: { channelId }, select: { enabled: true } }),
+      prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { followGreetingsEnabled: true, followGreetingTemplate: true },
+      }),
+    ]);
+
+    return res.json({
+      enabled: Boolean(sub?.enabled),
+      followGreetingsEnabled: Boolean((ch as any)?.followGreetingsEnabled),
+      followGreetingTemplate: (ch as any)?.followGreetingTemplate ?? null,
+    });
+  },
+
+  enableFollowGreetings: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const maybeTemplateRaw = (req.body as any)?.followGreetingTemplate;
+    let templateUpdate: string | null | undefined = undefined;
+    if (maybeTemplateRaw !== undefined) {
+      const t = normalizeMessage(maybeTemplateRaw);
+      if (!t) return res.status(400).json({ error: 'Bad Request', message: 'followGreetingTemplate must be non-empty' });
+      if (t.length > FOLLOW_GREETING_TEMPLATE_MAX_LEN) {
+        return res.status(400).json({ error: 'Bad Request', message: `followGreetingTemplate is too long (max ${FOLLOW_GREETING_TEMPLATE_MAX_LEN})` });
+      }
+      templateUpdate = t;
+    }
+
+    const current = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { twitchChannelId: true, followGreetingTemplate: true },
+    });
+    if (!current) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
+
+    const channel = await prisma.channel.update({
+      where: { id: channelId },
+      data: {
+        followGreetingsEnabled: true,
+        ...(templateUpdate !== undefined
+          ? { followGreetingTemplate: templateUpdate }
+          : current.followGreetingTemplate
+            ? {}
+            : { followGreetingTemplate: DEFAULT_FOLLOW_GREETING_TEMPLATE }),
+      },
+      select: { twitchChannelId: true, followGreetingsEnabled: true, followGreetingTemplate: true },
+    });
+
+    // Best-effort: ensure EventSub subscription exists for channel.follow.
+    try {
+      const apiBaseUrl = computeApiBaseUrl(req);
+      const webhookUrl = `${apiBaseUrl}/webhooks/twitch/eventsub`;
+      const existingSubs = await getEventSubSubscriptions(channel.twitchChannelId);
+      const relevant = (existingSubs?.data || []).filter(
+        (s: any) => s.type === 'channel.follow' && (s.status === 'enabled' || s.status === 'webhook_callback_verification_pending')
+      );
+      const hasActive = relevant.some((s: any) => s.transport?.callback === webhookUrl);
+      if (!hasActive) {
+        await createEventSubSubscriptionOfType({
+          type: 'channel.follow',
+          version: '2',
+          broadcasterId: channel.twitchChannelId,
+          webhookUrl,
+          secret: process.env.TWITCH_EVENTSUB_SECRET!,
+        });
+      }
+    } catch {
+      // ignore (subscription might already exist or creation might be restricted)
+    }
+
+    return res.json({ ok: true, followGreetingsEnabled: channel.followGreetingsEnabled, followGreetingTemplate: channel.followGreetingTemplate ?? null });
+  },
+
+  disableFollowGreetings: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const channel = await prisma.channel.update({
+      where: { id: channelId },
+      data: { followGreetingsEnabled: false },
+      select: { followGreetingsEnabled: true, followGreetingTemplate: true },
+    });
+
+    return res.json({ ok: true, followGreetingsEnabled: channel.followGreetingsEnabled, followGreetingTemplate: channel.followGreetingTemplate ?? null });
+  },
+
+  patchFollowGreetings: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const template = normalizeMessage((req.body as any)?.followGreetingTemplate);
+    if (!template) return res.status(400).json({ error: 'Bad Request', message: 'followGreetingTemplate is required' });
+    if (template.length > FOLLOW_GREETING_TEMPLATE_MAX_LEN) {
+      return res.status(400).json({ error: 'Bad Request', message: `followGreetingTemplate is too long (max ${FOLLOW_GREETING_TEMPLATE_MAX_LEN})` });
+    }
+
+    const channel = await prisma.channel.update({
+      where: { id: channelId },
+      data: { followGreetingTemplate: template },
+      select: { followGreetingsEnabled: true, followGreetingTemplate: true },
+    });
+
+    return res.json({ ok: true, followGreetingsEnabled: channel.followGreetingsEnabled, followGreetingTemplate: channel.followGreetingTemplate ?? null });
   },
 };
 

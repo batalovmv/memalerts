@@ -91,6 +91,7 @@ async function start() {
   const botLogin = normalizeLogin(String(process.env.CHAT_BOT_LOGIN || ''));
   const syncSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_SYNC_SECONDS, 30));
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.CHATBOT_OUTBOX_POLL_MS, 1_000));
+  const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
   const backendBaseUrls = parseBaseUrls();
 
   // Hard requirements: avoid silently connecting to the wrong instance (prod vs beta)
@@ -108,11 +109,50 @@ async function start() {
   let client: any = null;
   let subscriptionsTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
+  let commandsTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
 
   const joined = new Set<string>(); // login
   const loginToSlug = new Map<string, string>();
   const loginToChannelId = new Map<string, string>();
+  const commandsByChannelId = new Map<
+    string,
+    { ts: number; items: Array<{ triggerNormalized: string; response: string }> }
+  >();
+  let commandsRefreshing = false;
+
+  const refreshCommands = async () => {
+    if (stopped || commandsRefreshing) return;
+    const channelIds = Array.from(new Set(Array.from(loginToChannelId.values()).filter(Boolean)));
+    if (channelIds.length === 0) return;
+
+    commandsRefreshing = true;
+    try {
+      const rows = await (prisma as any).chatBotCommand.findMany({
+        where: { channelId: { in: channelIds }, enabled: true },
+        select: { channelId: true, triggerNormalized: true, response: true },
+      });
+      const grouped = new Map<string, Array<{ triggerNormalized: string; response: string }>>();
+      for (const r of rows) {
+        const channelId = String((r as any)?.channelId || '').trim();
+        const triggerNormalized = String((r as any)?.triggerNormalized || '').trim().toLowerCase();
+        const response = String((r as any)?.response || '').trim();
+        if (!channelId || !triggerNormalized || !response) continue;
+        const arr = grouped.get(channelId) || [];
+        arr.push({ triggerNormalized, response });
+        grouped.set(channelId, arr);
+      }
+
+      const now = Date.now();
+      for (const id of channelIds) {
+        commandsByChannelId.set(id, { ts: now, items: grouped.get(id) || [] });
+      }
+    } catch (e: any) {
+      logger.warn('chatbot.commands_refresh_failed', { errorMessage: e?.message || String(e) });
+    } finally {
+      commandsRefreshing = false;
+    }
+  };
 
   const MAX_OUTBOX_BATCH = 25;
   const MAX_SEND_ATTEMPTS = 3;
@@ -186,6 +226,8 @@ async function start() {
         loginToSlug.set(s.login, s.slug);
         loginToChannelId.set(s.login, s.channelId);
       }
+      // Keep commands cache in sync with current subscriptions (no DB writes here).
+      void refreshCommands();
 
       const toJoin = Array.from(desired).filter((l) => !joined.has(l));
       const toPart = Array.from(joined).filter((l) => !desired.has(l));
@@ -253,6 +295,29 @@ async function start() {
       const slug = loginToSlug.get(login);
       if (!slug) return;
 
+      // Bot commands (trigger -> response) are per-channel.
+      const channelId = loginToChannelId.get(login);
+      if (channelId) {
+        const cached = commandsByChannelId.get(channelId);
+        const now = Date.now();
+        if (!cached || now - cached.ts > commandsRefreshSeconds * 1000) {
+          void refreshCommands();
+        }
+
+        const msgNorm = String(_message || '').trim().toLowerCase();
+        if (msgNorm) {
+          const items = commandsByChannelId.get(channelId)?.items || [];
+          const match = items.find((c) => c.triggerNormalized === msgNorm);
+          if (match?.response) {
+            try {
+              await client.say(login, match.response);
+            } catch (e: any) {
+              logger.warn('chatbot.command_reply_failed', { login, errorMessage: e?.message || String(e) });
+            }
+          }
+        }
+      }
+
       const userId = String(tags?.['user-id'] || '').trim();
       const displayName = String(tags?.['display-name'] || tags?.username || '').trim();
       if (!userId || !displayName) return;
@@ -268,6 +333,9 @@ async function start() {
       await syncSubscriptions();
       subscriptionsTimer = setInterval(syncSubscriptions, syncSeconds * 1000);
       outboxTimer = setInterval(() => void processOutboxOnce(), outboxPollMs);
+      // Commands refresh loop (read-only, safe)
+      if (commandsTimer) clearInterval(commandsTimer);
+      commandsTimer = setInterval(() => void refreshCommands(), commandsRefreshSeconds * 1000);
     } catch (e: any) {
       logger.warn('chatbot.connect_failed', { botLogin, errorMessage: e?.message || String(e) });
       reconnectTimer = setTimeout(connect, 30_000);
@@ -278,6 +346,7 @@ async function start() {
     stopped = true;
     if (subscriptionsTimer) clearInterval(subscriptionsTimer);
     if (outboxTimer) clearInterval(outboxTimer);
+    if (commandsTimer) clearInterval(commandsTimer);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     try {
       if (client) await client.disconnect();

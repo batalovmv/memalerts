@@ -51,4 +51,15 @@ streamerRoutes.post('/bot/enable', streamerBotController.enable);
 streamerRoutes.post('/bot/disable', streamerBotController.disable);
 streamerRoutes.post('/bot/say', streamerBotController.say);
 
+// Bot commands CRUD
+streamerRoutes.get('/bot/commands', streamerBotController.getCommands);
+streamerRoutes.post('/bot/commands', streamerBotController.createCommand);
+streamerRoutes.delete('/bot/commands/:id', streamerBotController.deleteCommand);
+
+// Bot settings
+streamerRoutes.get('/bot/subscription', streamerBotController.subscription);
+streamerRoutes.post('/bot/follow-greetings/enable', streamerBotController.enableFollowGreetings);
+streamerRoutes.post('/bot/follow-greetings/disable', streamerBotController.disableFollowGreetings);
+streamerRoutes.patch('/bot/follow-greetings', streamerBotController.patchFollowGreetings);
+
 

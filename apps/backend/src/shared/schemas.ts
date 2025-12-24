@@ -118,4 +118,15 @@ export const twitchRedemptionEventSchema = z.object({
   redeemed_at: z.string(),
 });
 
+// EventSub: channel.follow (v2)
+export const twitchFollowEventSchema = z.object({
+  user_id: z.string(),
+  user_login: z.string(),
+  user_name: z.string(),
+  broadcaster_user_id: z.string(),
+  broadcaster_user_login: z.string(),
+  broadcaster_user_name: z.string(),
+  followed_at: z.string(),
+});
+
 
