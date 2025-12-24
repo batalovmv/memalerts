@@ -11,6 +11,8 @@ type BotCommand = {
   response: string;
   enabled?: boolean;
   onlyWhenLive?: boolean;
+  allowedRoles?: Array<'vip' | 'moderator' | 'subscriber' | 'follower'>;
+  allowedUsers?: string[];
   createdAt?: string;
   updatedAt?: string;
 };
@@ -81,9 +83,15 @@ export function BotSettings() {
   const [commandsOpen, setCommandsOpen] = useState<boolean>(false);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
-  const [newOnlyWhenLive, setNewOnlyWhenLive] = useState(false);
+  const [commandsOnlyWhenLive, setCommandsOnlyWhenLive] = useState(false);
+  const [newAllowedRoles, setNewAllowedRoles] = useState<Array<'vip' | 'moderator' | 'subscriber' | 'follower'>>([]);
+  const [newAllowedUsers, setNewAllowedUsers] = useState('');
   const [savingCommandsBulk, setSavingCommandsBulk] = useState(false);
   const lastCommandsEnabledMapRef = useRef<Record<string, boolean> | null>(null);
+
+  const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null);
+  const [audienceDraftRoles, setAudienceDraftRoles] = useState<Array<'vip' | 'moderator' | 'subscriber' | 'follower'>>([]);
+  const [audienceDraftUsers, setAudienceDraftUsers] = useState<string>('');
 
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
@@ -206,6 +214,21 @@ export function BotSettings() {
     }
   }, [t]);
 
+  const normalizeUserList = useCallback((raw: string): string[] => {
+    const items = raw
+      .split(/[\s,;]+/g)
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map((v) => v.replace(/^@/, '').toLowerCase());
+    // de-dup
+    return Array.from(new Set(items));
+  }, []);
+
+  const formatUserList = useCallback((users: string[] | undefined | null): string => {
+    if (!Array.isArray(users) || users.length === 0) return '';
+    return users.map((u) => u.trim()).filter(Boolean).join(', ');
+  }, []);
+
   const addCommand = useCallback(async () => {
     const trigger = newTrigger.trim();
     const response = newResponse.trim();
@@ -219,7 +242,14 @@ export function BotSettings() {
     }
     try {
       const { api } = await import('@/lib/api');
-      const res = await api.post<BotCommand>('/streamer/bot/commands', { trigger, response, onlyWhenLive: newOnlyWhenLive });
+      const allowedUsers = normalizeUserList(newAllowedUsers);
+      const res = await api.post<BotCommand>('/streamer/bot/commands', {
+        trigger,
+        response,
+        onlyWhenLive: commandsOnlyWhenLive,
+        allowedRoles: newAllowedRoles,
+        allowedUsers,
+      });
       if (res && typeof res === 'object' && 'id' in res) {
         setCommands((prev) => [res as BotCommand, ...prev]);
       } else {
@@ -227,7 +257,8 @@ export function BotSettings() {
       }
       setNewTrigger('');
       setNewResponse('');
-      setNewOnlyWhenLive(false);
+      setNewAllowedRoles([]);
+      setNewAllowedUsers('');
       toast.success(t('admin.botCommandAdded', { defaultValue: 'Command added.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
@@ -244,7 +275,7 @@ export function BotSettings() {
       }
       toast.error(apiError.response?.data?.error || t('admin.failedToAddBotCommand', { defaultValue: 'Failed to add command.' }));
     }
-  }, [loadCommands, newOnlyWhenLive, newResponse, newTrigger, t]);
+  }, [commandsOnlyWhenLive, loadCommands, newAllowedRoles, newAllowedUsers, newResponse, newTrigger, normalizeUserList, t]);
 
   const deleteCommand = useCallback(
     async (id: string) => {
@@ -262,7 +293,7 @@ export function BotSettings() {
   );
 
   const updateCommand = useCallback(
-    async (id: string, patch: Partial<Pick<BotCommand, 'enabled' | 'onlyWhenLive'>>) => {
+    async (id: string, patch: Partial<Pick<BotCommand, 'enabled' | 'onlyWhenLive' | 'allowedRoles' | 'allowedUsers'>>) => {
       const startedAt = Date.now();
       const prev = commands.find((c) => c.id === id) || null;
       try {
@@ -490,6 +521,10 @@ export function BotSettings() {
 
   const visibleCommands = useMemo(() => [...commands].sort((a, b) => a.trigger.localeCompare(b.trigger)), [commands]);
   const anyCommandEnabled = useMemo(() => visibleCommands.some((c) => c.enabled !== false), [visibleCommands]);
+  const allCommandsLiveOnly = useMemo(() => {
+    if (visibleCommands.length === 0) return false;
+    return visibleCommands.every((c) => c.onlyWhenLive === true);
+  }, [visibleCommands]);
 
   useEffect(() => {
     if (!showMenus) return;
@@ -502,6 +537,13 @@ export function BotSettings() {
     if (!commandsLoaded) return;
     setCommandsOpen(anyCommandEnabled);
   }, [anyCommandEnabled, commandsLoaded, showMenus]);
+
+  // Initialize global live-only toggle from current commands (best-effort).
+  useEffect(() => {
+    if (!showMenus) return;
+    if (!commandsLoaded) return;
+    setCommandsOnlyWhenLive(allCommandsLiveOnly);
+  }, [allCommandsLiveOnly, commandsLoaded, showMenus]);
 
   useEffect(() => {
     if (!showMenus) return;
@@ -834,6 +876,41 @@ export function BotSettings() {
 
                 {!commandsNotAvailable && commandsOpen && (
                   <>
+                    <div className="mt-3 flex items-start justify-between gap-4 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          {t('admin.botCommandsOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          {t('admin.botCommandsOnlyWhenLiveHint', {
+                            defaultValue: 'If enabled, all bot commands reply only while your stream is online.',
+                          })}
+                        </div>
+                      </div>
+                      <ToggleSwitch
+                        checked={commandsOnlyWhenLive}
+                        onChange={async (next) => {
+                          const startedAt = Date.now();
+                          try {
+                            setSavingCommandsBulk(true);
+                            setCommandsOnlyWhenLive(next);
+                            // Apply to all commands.
+                            for (const c of commands) {
+                              if ((c.onlyWhenLive === true) !== next) {
+                                await updateCommand(c.id, { onlyWhenLive: next });
+                              }
+                            }
+                          } finally {
+                            await ensureMinDuration(startedAt, 450);
+                            setSavingCommandsBulk(false);
+                          }
+                        }}
+                        disabled={commandsLoading || savingCommandsBulk || commandToggleLoadingId !== null || visibleCommands.length === 0}
+                        busy={savingCommandsBulk}
+                        ariaLabel={t('admin.botCommandsOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                      />
+                    </div>
+
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
@@ -859,21 +936,63 @@ export function BotSettings() {
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-start justify-between gap-4 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                          {t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                          {t('admin.botCommandOnlyWhenLiveHint', { defaultValue: 'If enabled, this command replies only while your stream is online.' })}
+                    <div className="mt-3 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                        {t('admin.botCommandAudienceTitle', { defaultValue: 'Who can trigger' })}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                        {t('admin.botCommandAudienceHint', {
+                          defaultValue: 'Choose roles and/or specific users. Leave empty to allow everyone.',
+                        })}
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        {(['vip', 'moderator', 'subscriber', 'follower'] as const).map((role) => {
+                          const checked = newAllowedRoles.includes(role);
+                          return (
+                            <label key={role} className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const next = e.target.checked;
+                                  setNewAllowedRoles((prev) => (next ? [...prev, role] : prev.filter((r) => r !== role)));
+                                }}
+                                disabled={commandsLoading}
+                              />
+                              <span>
+                                {t(`admin.botRole_${role}`, {
+                                  defaultValue:
+                                    role === 'vip'
+                                      ? 'VIP'
+                                      : role === 'moderator'
+                                        ? 'Moderators'
+                                        : role === 'subscriber'
+                                          ? 'Subscribers'
+                                          : 'Followers',
+                                })}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-2">
+                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                          {t('admin.botCommandAudienceUsersLabel', { defaultValue: 'Specific users (logins)' })}
+                        </label>
+                        <Input
+                          value={newAllowedUsers}
+                          onChange={(e) => setNewAllowedUsers(e.target.value)}
+                          placeholder={t('admin.botCommandAudienceUsersPlaceholder', { defaultValue: 'e.g. lotas_bro, someuser' })}
+                          disabled={commandsLoading}
+                        />
+                        <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                          {t('admin.botCommandAudienceUsersHint', {
+                            defaultValue: 'Comma/space separated. “@” is allowed.',
+                          })}
                         </div>
                       </div>
-                      <ToggleSwitch
-                        checked={newOnlyWhenLive}
-                        onChange={(next) => setNewOnlyWhenLive(next)}
-                        disabled={commandsLoading}
-                        ariaLabel={t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
-                      />
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-3">
@@ -906,6 +1025,147 @@ export function BotSettings() {
                               <div className="min-w-0">
                                 <div className="font-mono text-sm text-gray-900 dark:text-white truncate">{cmd.trigger}</div>
                                 <div className="text-sm text-gray-700 dark:text-gray-200 break-words">{cmd.response}</div>
+                                <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                  {t('admin.botCommandAudienceSummary', { defaultValue: 'Audience' })}:{' '}
+                                  {(() => {
+                                    const roles = Array.isArray(cmd.allowedRoles) ? cmd.allowedRoles : [];
+                                    const users = Array.isArray(cmd.allowedUsers) ? cmd.allowedUsers : [];
+                                    if (roles.length === 0 && users.length === 0) {
+                                      return t('admin.botCommandAudienceEveryone', { defaultValue: 'Everyone' });
+                                    }
+                                    const parts: string[] = [];
+                                    if (roles.length) {
+                                      parts.push(
+                                        roles
+                                          .map((r) =>
+                                            t(`admin.botRole_${r}`, {
+                                              defaultValue:
+                                                r === 'vip'
+                                                  ? 'VIP'
+                                                  : r === 'moderator'
+                                                    ? 'Moderators'
+                                                    : r === 'subscriber'
+                                                      ? 'Subscribers'
+                                                      : 'Followers',
+                                            })
+                                          )
+                                          .join(', ')
+                                      );
+                                    }
+                                    if (users.length) {
+                                      parts.push(users.map((u) => `@${u}`).join(', '));
+                                    }
+                                    return parts.join(' • ');
+                                  })()}
+                                </div>
+
+                                <div className="mt-2">
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => {
+                                      if (editingAudienceId === cmd.id) {
+                                        setEditingAudienceId(null);
+                                        return;
+                                      }
+                                      setEditingAudienceId(cmd.id);
+                                      setAudienceDraftRoles(Array.isArray(cmd.allowedRoles) ? cmd.allowedRoles : []);
+                                      setAudienceDraftUsers(formatUserList(cmd.allowedUsers));
+                                    }}
+                                    disabled={commandToggleLoadingId === cmd.id || savingCommandsBulk}
+                                  >
+                                    {editingAudienceId === cmd.id
+                                      ? t('common.close', { defaultValue: 'Close' })
+                                      : t('admin.editAudience', { defaultValue: 'Audience' })}
+                                  </Button>
+                                </div>
+
+                                {editingAudienceId === cmd.id && (
+                                  <div className="mt-2 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                                    <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                                      {t('admin.botCommandAudienceTitle', { defaultValue: 'Who can trigger' })}
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                      {t('admin.botCommandAudienceHint', {
+                                        defaultValue: 'Choose roles and/or specific users. Leave empty to allow everyone.',
+                                      })}
+                                    </div>
+
+                                    <div className="mt-2 flex flex-wrap gap-3">
+                                      {(['vip', 'moderator', 'subscriber', 'follower'] as const).map((role) => {
+                                        const checked = audienceDraftRoles.includes(role);
+                                        return (
+                                          <label key={role} className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+                                            <input
+                                              type="checkbox"
+                                              checked={checked}
+                                              onChange={(e) => {
+                                                const next = e.target.checked;
+                                                setAudienceDraftRoles((prev) =>
+                                                  next ? [...prev, role] : prev.filter((r) => r !== role)
+                                                );
+                                              }}
+                                              disabled={commandToggleLoadingId === cmd.id}
+                                            />
+                                            <span>
+                                              {t(`admin.botRole_${role}`, {
+                                                defaultValue:
+                                                  role === 'vip'
+                                                    ? 'VIP'
+                                                    : role === 'moderator'
+                                                      ? 'Moderators'
+                                                      : role === 'subscriber'
+                                                        ? 'Subscribers'
+                                                        : 'Followers',
+                                              })}
+                                            </span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="mt-2">
+                                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                                        {t('admin.botCommandAudienceUsersLabel', { defaultValue: 'Specific users (logins)' })}
+                                      </label>
+                                      <Input
+                                        value={audienceDraftUsers}
+                                        onChange={(e) => setAudienceDraftUsers(e.target.value)}
+                                        placeholder={t('admin.botCommandAudienceUsersPlaceholder', { defaultValue: 'e.g. lotas_bro, someuser' })}
+                                        disabled={commandToggleLoadingId === cmd.id}
+                                      />
+                                      <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                        {t('admin.botCommandAudienceUsersHint', { defaultValue: 'Comma/space separated. “@” is allowed.' })}
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-3 flex items-center justify-end gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() => {
+                                          setEditingAudienceId(null);
+                                          setAudienceDraftRoles([]);
+                                          setAudienceDraftUsers('');
+                                        }}
+                                        disabled={commandToggleLoadingId === cmd.id}
+                                      >
+                                        {t('common.cancel', { defaultValue: 'Cancel' })}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="primary"
+                                        onClick={() => {
+                                          const allowedUsers = normalizeUserList(audienceDraftUsers);
+                                          void updateCommand(cmd.id, { allowedRoles: audienceDraftRoles, allowedUsers });
+                                        }}
+                                        disabled={commandToggleLoadingId === cmd.id}
+                                      >
+                                        {t('common.save', { defaultValue: 'Save' })}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 <div className="flex flex-col items-end gap-1">
@@ -919,18 +1179,6 @@ export function BotSettings() {
                                       busy={commandToggleLoadingId === cmd.id}
                                       onChange={(next) => void updateCommand(cmd.id, { enabled: next })}
                                       ariaLabel={t('admin.botCommandEnabledLabel', { defaultValue: 'Enabled' })}
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <div className="text-[10px] text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                      {t('admin.botCommandLiveOnlyLabel', { defaultValue: 'Live-only' })}
-                                    </div>
-                                    <ToggleSwitch
-                                      checked={cmd.onlyWhenLive === true}
-                                      disabled={commandToggleLoadingId !== null || savingCommandsBulk}
-                                      busy={commandToggleLoadingId === cmd.id}
-                                      onChange={(next) => void updateCommand(cmd.id, { onlyWhenLive: next })}
-                                      ariaLabel={t('admin.botCommandLiveOnlyLabel', { defaultValue: 'Live-only' })}
                                     />
                                   </div>
                                 </div>
