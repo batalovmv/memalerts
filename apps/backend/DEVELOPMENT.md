@@ -2,7 +2,7 @@
 
 ## Требования
 
-- Node.js 20+
+- Node.js 18+ (в CI используется 20)
 - pnpm
 - PostgreSQL 15+
 

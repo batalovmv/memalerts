@@ -4,10 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import { getValidAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
 import { logger } from '../utils/logger.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
-import { ensureNodeMajor } from '../utils/nodeVersion.js';
 
 dotenv.config();
-ensureNodeMajor(20);
 
 function parseIntSafe(v: any, def: number): number {
   const n = Number.parseInt(String(v ?? ''), 10);

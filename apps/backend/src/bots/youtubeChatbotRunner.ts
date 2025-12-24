@@ -10,10 +10,8 @@ import {
 } from '../utils/youtubeApi.js';
 import { getStreamDurationSnapshot, handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import { markCreditsSessionOffline } from '../realtime/creditsSessionStore.js';
-import { ensureNodeMajor } from '../utils/nodeVersion.js';
 
 dotenv.config();
-ensureNodeMajor(20);
 
 function parseIntSafe(v: any, def: number): number {
   const n = Number.parseInt(String(v ?? ''), 10);
