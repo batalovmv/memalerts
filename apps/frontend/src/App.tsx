@@ -93,7 +93,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/channel/:slug" element={<StreamerProfile />} />
               <Route path="/submit" element={<Submit />} />
-              <Route path="/settings" element={<Admin />} />
+              <Route path="/settings/*" element={<Admin />} />
               <Route path="/admin" element={<AdminRedirect />} />
               <Route path="/search" element={<Search />} />
               <Route path="/beta-access" element={<BetaAccess />} />

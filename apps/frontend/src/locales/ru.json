@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Загрузка...",
+    "refresh": "Обновить",
     "error": "Ошибка",
     "errorId": "ID ошибки",
     "copyId": "Скопировать ID",
@@ -37,6 +38,18 @@
     "logout": "Выйти",
     "myChannel": "Мой канал"
   },
+  "settings": {
+    "accounts": "Аккаунты",
+    "accountsTitle": "Привязанные аккаунты",
+    "accountsHint": "Привяжите аккаунт, чтобы входить и использовать Twitch-функции.",
+    "linkTwitch": "Привязать Twitch аккаунт",
+    "unlink": "Отвязать",
+    "accountsUnlinked": "Аккаунт отвязан.",
+    "accountsCannotUnlinkLast": "Нельзя отвязать последний привязанный аккаунт.",
+    "accountsNotFound": "Аккаунт не найден или не принадлежит вам.",
+    "noLinkedAccounts": "Привязанных аккаунтов пока нет.",
+    "noLinkedAccountsHint": "Привяжите хотя бы один аккаунт, чтобы не потерять доступ."
+  },
   "auth": {
     "login": "Войти через Twitch",
     "guest": "Гость",
@@ -48,7 +61,9 @@
     "modal": {
       "title": "Нужен вход",
       "description": "Войдите через Twitch, чтобы пользоваться этой функцией."
-    }
+    },
+    "authFailed": "Ошибка авторизации. Попробуйте ещё раз.",
+    "accountAlreadyLinked": "Этот Twitch аккаунт уже привязан к другому пользователю."
   },
   "landing": {
     "title": "Channel Points Mem Alerts",
@@ -207,6 +222,7 @@
     "bot": "Бот",
     "botTitle": "Бот",
     "botDescription": "Включите/выключите подписку на чат-бота для вашего канала. Бот будет автоматически заходить/выходить из чатов в зависимости от этой настройки.",
+    "twitchChannelNotLinked": "Этот канал не привязан к Twitch.",
     "botToggleTitle": "Чат-бот",
     "botToggleHint": "Когда включено, runner зайдёт в ваш чат и сможет отправлять сообщения.",
     "botStatusLoading": "Загрузка статуса…",

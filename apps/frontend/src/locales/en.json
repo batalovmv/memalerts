@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Loading...",
+    "refresh": "Refresh",
     "error": "Error",
     "errorId": "Error ID",
     "copyId": "Copy ID",
@@ -33,6 +34,18 @@
     "logout": "Logout",
     "myChannel": "My Channel"
   },
+  "settings": {
+    "accounts": "Accounts",
+    "accountsTitle": "Linked accounts",
+    "accountsHint": "Link an account to sign in and manage Twitch-only features.",
+    "linkTwitch": "Link Twitch account",
+    "unlink": "Unlink",
+    "accountsUnlinked": "Account unlinked.",
+    "accountsCannotUnlinkLast": "You can't unlink the last linked account.",
+    "accountsNotFound": "Account not found or doesn't belong to you.",
+    "noLinkedAccounts": "No linked accounts yet.",
+    "noLinkedAccountsHint": "Link at least one account to avoid losing access."
+  },
   "auth": {
     "login": "Log in with Twitch",
     "guest": "Guest",
@@ -44,7 +57,9 @@
     "modal": {
       "title": "Login required",
       "description": "Log in with Twitch to use this feature."
-    }
+    },
+    "authFailed": "Authentication failed. Please try again.",
+    "accountAlreadyLinked": "This Twitch account is already linked to another user."
   },
   "landing": {
     "title": "Channel Points Mem Alerts",
@@ -192,6 +207,7 @@
     "bot": "Bot",
     "botTitle": "Bot",
     "botDescription": "Enable/disable the chat bot subscription for your channel. The bot joins/leaves chats automatically based on this setting.",
+    "twitchChannelNotLinked": "This channel is not linked to Twitch.",
     "botToggleTitle": "Chat bot",
     "botToggleHint": "When enabled, the runner will join your chat and can send messages.",
     "botStatusLoading": "Loading status…",

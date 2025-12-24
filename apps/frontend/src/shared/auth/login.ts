@@ -37,4 +37,28 @@ export const login = (redirectTo?: string): void => {
   window.location.href = authUrl.toString();
 };
 
+export const linkTwitchAccount = (redirectTo?: string): void => {
+  const runtime = getRuntimeConfig();
+  const envUrl = import.meta.env.VITE_API_URL;
+  let apiUrl: string;
+
+  if (runtime?.apiBaseUrl !== undefined) {
+    apiUrl = runtime.apiBaseUrl === '' ? window.location.origin : runtime.apiBaseUrl;
+  } else if (envUrl !== undefined) {
+    apiUrl = envUrl === '' ? window.location.origin : envUrl;
+  } else if (import.meta.env.PROD) {
+    apiUrl = window.location.origin;
+  } else {
+    apiUrl = 'http://localhost:3001';
+  }
+
+  const redirectPath = redirectTo || '/settings/accounts';
+  const authUrl = new URL(`${apiUrl}/auth/twitch/link`);
+  if (redirectPath && redirectPath !== '/') {
+    authUrl.searchParams.set('redirect_to', redirectPath);
+  }
+
+  window.location.href = authUrl.toString();
+};
+
 

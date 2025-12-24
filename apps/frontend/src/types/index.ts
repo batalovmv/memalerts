@@ -12,6 +12,28 @@ export interface Channel {
   id: string;
   slug: string;
   name: string;
+  /**
+   * Twitch broadcaster id if the channel is linked to Twitch.
+   * When null/undefined, Twitch-only features must be disabled in UI.
+   */
+  twitchChannelId?: string | null;
+}
+
+export type ExternalAccountProvider = 'twitch' | string;
+
+export interface ExternalAccount {
+  id: string;
+  provider: ExternalAccountProvider;
+  /**
+   * Provider-specific account identifier. Name varies across backends; keep flexible.
+   */
+  providerAccountId?: string | null;
+  providerUserId?: string | null;
+  login?: string | null;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface User {
@@ -22,6 +44,7 @@ export interface User {
   channelId: string | null;
   channel?: Channel;
   wallets?: Wallet[];
+  externalAccounts?: ExternalAccount[];
 }
 
 export type MemeType = 'image' | 'gif' | 'video' | 'audio';

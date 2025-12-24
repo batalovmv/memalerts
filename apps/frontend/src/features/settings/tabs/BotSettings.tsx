@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
+import { useAppSelector } from '@/store/hooks';
 import { Button, Input, Spinner, Textarea } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
 
@@ -70,6 +71,8 @@ function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSw
 
 export function BotSettings() {
   const { t } = useTranslation();
+  const { user } = useAppSelector((s) => s.auth);
+  const twitchLinked = user?.channel?.twitchChannelId != null;
   const [loading, setLoading] = useState<'toggle' | 'load' | null>(null);
   const [botEnabled, setBotEnabled] = useState<boolean | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
@@ -493,13 +496,17 @@ export function BotSettings() {
   const callToggle = async (nextEnabled: boolean) => {
     const startedAt = Date.now();
     try {
+      if (!twitchLinked) {
+        toast.error(t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' }));
+        return;
+      }
       setLoading('toggle');
       const { api } = await import('@/lib/api');
       await api.post(nextEnabled ? '/streamer/bot/enable' : '/streamer/bot/disable');
       setBotEnabled(nextEnabled);
       toast.success(nextEnabled ? t('admin.botEnabled', { defaultValue: 'Bot enabled.' }) : t('admin.botDisabled', { defaultValue: 'Bot disabled.' }));
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
+      const apiError = error as { response?: { status?: number; data?: { error?: string; message?: string; errorCode?: string } } };
       const { getRequestIdFromError } = await import('@/lib/api');
       const rid = getRequestIdFromError(error);
       const fallback =
@@ -507,7 +514,13 @@ export function BotSettings() {
           ? t('admin.failedToEnableBot', { defaultValue: 'Failed to enable bot.' })
           : t('admin.failedToDisableBot', { defaultValue: 'Failed to disable bot.' });
 
-      const msg = apiError.response?.data?.error || fallback;
+      const rawMsg = apiError.response?.data?.error || apiError.response?.data?.message || fallback;
+      const errorCode = apiError.response?.data?.errorCode;
+      const msg =
+        apiError.response?.status === 400 &&
+        (errorCode === 'TWITCH_CHANNEL_NOT_LINKED' || String(rawMsg).includes('not linked to Twitch'))
+          ? t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })
+          : rawMsg;
       toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
     } finally {
       await ensureMinDuration(startedAt, 500);
@@ -597,11 +610,17 @@ export function BotSettings() {
           <ToggleSwitch
             checked={botEnabled ?? false}
             onChange={(next) => void callToggle(next)}
-            disabled={isBusy || !statusLoaded}
+            disabled={isBusy || !statusLoaded || !twitchLinked}
             busy={loading === 'toggle'}
             ariaLabel={t('admin.botToggleTitle', { defaultValue: 'Chat bot' })}
           />
         </div>
+
+        {!twitchLinked && (
+          <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
+            {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+          </div>
+        )}
 
         {!statusLoaded && (
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -942,7 +961,8 @@ export function BotSettings() {
                       </div>
                       <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                         {t('admin.botCommandAudienceHint', {
-                          defaultValue: 'Choose roles and/or specific users. Leave empty to allow everyone.',
+                          defaultValue:
+                            'Choose roles and/or specific users. Leave empty to allow everyone. Note: the broadcaster (streamer) may always be allowed to run commands even if their role is not selected.',
                         })}
                       </div>
 
@@ -1087,7 +1107,8 @@ export function BotSettings() {
                                     </div>
                                     <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                       {t('admin.botCommandAudienceHint', {
-                                        defaultValue: 'Choose roles and/or specific users. Leave empty to allow everyone.',
+                                            defaultValue:
+                                              'Choose roles and/or specific users. Leave empty to allow everyone. Note: the broadcaster (streamer) may always be allowed to run commands even if their role is not selected.',
                                       })}
                                     </div>
 

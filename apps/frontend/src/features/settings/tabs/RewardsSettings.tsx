@@ -12,6 +12,7 @@ export function RewardsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { getChannelData, getCachedChannelData } = useChannelColors();
+  const twitchLinked = user?.channel?.twitchChannelId != null;
   const [twitchRewardEligible, setTwitchRewardEligible] = useState<boolean | null>(null);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [lastErrorRequestId, setLastErrorRequestId] = useState<string | null>(null);
@@ -368,13 +369,22 @@ export function RewardsSettings() {
                   {t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' })}
                 </p>
               )}
+              {!twitchLinked && (
+                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+                </p>
+              )}
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={rewardSettings.rewardEnabled}
-                disabled={savingTwitchReward || eligibilityLoading || twitchRewardEligible === false}
+                disabled={savingTwitchReward || eligibilityLoading || twitchRewardEligible === false || !twitchLinked}
                 onChange={(e) => {
+                  if (!twitchLinked) {
+                    toast.error(t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' }));
+                    return;
+                  }
                   if (twitchRewardEligible === false) {
                     toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
                     return;

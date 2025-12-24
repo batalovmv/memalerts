@@ -1,17 +1,18 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/store/hooks';
 import { login } from '@/lib/auth';
 import UserMenu from '@/components/UserMenu';
-import toast from 'react-hot-toast';
+import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 
 export default function Landing() {
   const { user, loading } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+
+  useAuthQueryErrorToast();
 
   useEffect(() => {
     if (!loading && user) {
@@ -36,63 +37,7 @@ export default function Landing() {
     }
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    // Check for OAuth error in URL parameters
-    const error = searchParams.get('error');
-    const reason = searchParams.get('reason');
-    const details = searchParams.get('details');
-
-    if (error === 'auth_failed') {
-      let errorMessage = 'Authentication failed. Please try again.';
-      
-      if (reason) {
-        switch (reason) {
-          case 'no_client_id':
-            errorMessage = 'Authentication error: Client ID not configured.';
-            break;
-          case 'no_callback_url':
-            errorMessage = 'Authentication error: Callback URL not configured.';
-            break;
-          case 'no_code':
-            errorMessage = 'Authentication error: No authorization code received.';
-            break;
-          case 'no_token':
-            errorMessage = 'Authentication error: Failed to get access token.';
-            break;
-          case 'no_user':
-            errorMessage = 'Authentication error: Failed to get user information.';
-            break;
-          case 'user_null':
-            errorMessage = 'Authentication error: User creation failed.';
-            break;
-          case 'exception':
-            if (details) {
-              try {
-                const decodedDetails = decodeURIComponent(details);
-                errorMessage = `Authentication error: ${decodedDetails}`;
-              } catch (e) {
-                errorMessage = 'Authentication error: An unexpected error occurred.';
-              }
-            } else {
-              errorMessage = 'Authentication error: An unexpected error occurred.';
-            }
-            break;
-          default:
-            errorMessage = `Authentication failed: ${reason}`;
-        }
-      }
-      
-      setAuthError(errorMessage);
-      toast.error(errorMessage);
-      
-      // Remove error parameters from URL
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('error');
-      newSearchParams.delete('reason');
-      newSearchParams.delete('details');
-      setSearchParams(newSearchParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+  // OAuth error handling is handled by useAuthQueryErrorToast.
 
   if (loading) {
     return (

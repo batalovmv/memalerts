@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { store } from '@/store/index';
@@ -16,9 +16,20 @@ import { RewardsSettings } from '@/features/settings/tabs/RewardsSettings';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
 import { ObsLinksSettings } from '@/features/settings/tabs/ObsLinksSettings';
 import { BotSettings } from '@/features/settings/tabs/BotSettings';
+import { AccountsSettings } from '@/features/settings/tabs/AccountsSettings';
 import { Button, Card, IconButton, Input, Modal, Textarea } from '@/shared/ui';
 
-type TabType = 'submissions' | 'settings' | 'rewards' | 'obs' | 'bot' | 'wallets' | 'promotions' | 'statistics' | 'beta';
+type TabType =
+  | 'submissions'
+  | 'settings'
+  | 'rewards'
+  | 'obs'
+  | 'bot'
+  | 'accounts'
+  | 'wallets'
+  | 'promotions'
+  | 'statistics'
+  | 'beta';
 
 function XIcon() {
   return (
@@ -35,6 +46,7 @@ export default function Admin() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabType>('settings');
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
@@ -55,6 +67,14 @@ export default function Admin() {
 
   // Handle tab parameter from URL
   useEffect(() => {
+    // Support deep link: /settings/accounts
+    const maybeSubPath = location.pathname.replace(/^\/settings\/?/, '');
+    const pathTab = (maybeSubPath.split('/')[0] || '').trim();
+    if (pathTab === 'accounts') {
+      setActiveTab('accounts');
+      return;
+    }
+
     const tabParam = searchParams.get('tab');
     if (tabParam === 'submissions') {
       // Pending submissions live on the dashboard now.
@@ -66,23 +86,32 @@ export default function Admin() {
       navigate('/dashboard?panel=memes', { replace: true });
       return;
     }
-    if (tabParam && ['settings', 'rewards', 'obs', 'bot', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
+    if (tabParam && ['settings', 'rewards', 'obs', 'bot', 'accounts', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, location.pathname]);
 
   // Viewers should land on beta access tab in settings.
   useEffect(() => {
-    if (user && !isStreamerAdmin && activeTab !== 'beta') {
+    if (user && !isStreamerAdmin && activeTab !== 'beta' && activeTab !== 'accounts') {
       setActiveTab('beta');
     }
   }, [user, isStreamerAdmin, activeTab]);
 
   useEffect(() => {
-    if (!authLoading && (!user || (user.role !== 'streamer' && user.role !== 'admin'))) {
-      navigate('/dashboard');
+    if (authLoading) return;
+    if (!user) {
+      navigate('/', { replace: true });
+      return;
     }
-  }, [user, authLoading, navigate]);
+    // Allow viewers to access /settings for beta + accounts only.
+    if (user.role !== 'streamer' && user.role !== 'admin') {
+      const allowedViewerTabs: TabType[] = ['beta', 'accounts'];
+      if (!allowedViewerTabs.includes(activeTab)) {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, authLoading, navigate, activeTab]);
 
   useEffect(() => {
     if (user && (user.role === 'streamer' || user.role === 'admin')) {
@@ -365,6 +394,20 @@ export default function Admin() {
                       {t('admin.betaAccess')}
                     </button>
 
+                    <button
+                      onClick={() => {
+                        setActiveTab('accounts');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        activeTab === 'accounts'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {t('settings.accounts', { defaultValue: 'Accounts' })}
+                    </button>
+
                     {isStreamerAdmin && (
                       <button
                         onClick={() => {
@@ -574,6 +617,10 @@ export default function Admin() {
 
         {activeTab === 'bot' && isStreamerAdmin && (
           <BotSettings />
+        )}
+
+        {activeTab === 'accounts' && (
+          <AccountsSettings />
         )}
 
         {activeTab === 'wallets' && user?.role === 'admin' && (
