@@ -155,6 +155,8 @@
   - `redirect_to` — куда на фронте вернуть после логина (например `/dashboard`)
 - **Response**: редирект на OAuth провайдера
 - **Поддерживаемые provider (пока)**: `twitch`
+- **Важно**:
+  - при первом логине пользователь создаётся как `role="viewer"` **без автосоздания Channel** (канал появляется только когда юзер станет стримером отдельным действием).
 
 ### GET `/auth/:provider/callback`
 - **Auth**: нет
@@ -293,6 +295,9 @@
   - `{ "rewardOnlyWhenLive": true, "submissionRewardOnlyWhenLive": false }`
 - **Response**: обновлённая запись Channel (много полей; фронту важны поля из schema)
 - **Realtime**: `overlay:config` в `channel:{slugLower}` (чтобы OBS не перезагружать)
+- **Twitch-only guard**:
+  - если `Channel.twitchChannelId == null`, то попытка включить/обновлять Twitch reward вернёт `400`:
+    - `{ errorCode: "TWITCH_CHANNEL_NOT_LINKED" }`
 
 ### GET `/streamer/twitch/reward/eligibility`
 - **Response**:
@@ -337,6 +342,9 @@
 - **POST `/streamer/bot/enable`** → `{ ok: true }`
 - **POST `/streamer/bot/disable`** → `{ ok: true }`
 - **POST `/streamer/bot/say`** body `{ message }` → `{ ok, outbox: { id, status, createdAt } }`
+- **Twitch-only guard**:
+  - если `Channel.twitchChannelId == null`, то `enable/disable` и follow-greetings enable вернут `400`:
+    - `{ error: "Bad Request", message: "This channel is not linked to Twitch" }`
 - **GET `/streamer/bot/commands`** → `{ items: [{ id, trigger, response, enabled, onlyWhenLive, allowedRoles, allowedUsers, createdAt, updatedAt }] }`
 - **POST `/streamer/bot/commands`**
   - body `{ trigger, response, onlyWhenLive?, allowedRoles?, allowedUsers? }` → `201` command row; `409` если trigger уже есть
