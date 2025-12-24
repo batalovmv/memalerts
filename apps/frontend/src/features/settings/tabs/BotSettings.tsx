@@ -35,7 +35,6 @@ export function BotSettings() {
 
   useEffect(() => {
     void loadSubscription();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const callToggle = async (nextEnabled: boolean) => {
