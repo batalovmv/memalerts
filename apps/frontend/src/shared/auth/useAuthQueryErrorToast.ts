@@ -28,6 +28,17 @@ export function useAuthQueryErrorToast(options?: Options): void {
         ? t('auth.authRequired', { defaultValue: 'Please sign in to continue.' })
         : t('auth.authFailed', { defaultValue: 'Authentication failed. Please try again.' });
 
+    const prettyProvider = provider ? String(provider) : null;
+    const decodedDetails = (() => {
+      if (!details) return null;
+      try {
+        const decoded = decodeURIComponent(details);
+        return decoded.trim() ? decoded : null;
+      } catch {
+        return null;
+      }
+    })();
+
     if (reason) {
       switch (reason) {
         case 'account_already_linked':
@@ -36,10 +47,10 @@ export function useAuthQueryErrorToast(options?: Options): void {
           });
           break;
         case 'provider_not_supported': {
-          const prettyProvider = provider ? String(provider) : 'provider';
+          const safe = prettyProvider ?? 'provider';
           errorMessage = t('auth.providerNotSupported', {
-            defaultValue: `This provider is not supported yet: ${prettyProvider}.`,
-            provider: prettyProvider,
+            defaultValue: `This provider is not supported yet: ${safe}.`,
+            provider: safe,
           });
           break;
         }
@@ -65,21 +76,23 @@ export function useAuthQueryErrorToast(options?: Options): void {
           errorMessage = 'Authentication error: User creation failed.';
           break;
         case 'exception': {
-          if (details) {
-            try {
-              const decoded = decodeURIComponent(details);
-              errorMessage = `Authentication error: ${decoded}`;
-            } catch {
-              errorMessage = 'Authentication error: An unexpected error occurred.';
-            }
-          } else {
-            errorMessage = 'Authentication error: An unexpected error occurred.';
-          }
+          errorMessage = decodedDetails
+            ? `Authentication error: ${decodedDetails}`
+            : 'Authentication error: An unexpected error occurred.';
           break;
         }
         default:
           errorMessage = `Authentication failed: ${reason}`;
       }
+    }
+
+    // Add provider/details context if present to make OAuth debugging easier.
+    // Backend may attach these in the callback redirect URL.
+    if (prettyProvider) {
+      errorMessage += ` (provider: ${prettyProvider})`;
+    }
+    if (decodedDetails) {
+      errorMessage += ` — ${decodedDetails}`;
     }
 
     toast.error(errorMessage);
