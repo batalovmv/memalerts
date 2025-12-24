@@ -38,6 +38,8 @@ streamerRoutes.get('/overlay/token', adminController.getOverlayToken);
 streamerRoutes.post('/overlay/token/rotate', adminController.rotateOverlayToken);
 streamerRoutes.get('/overlay/preview-meme', adminController.getOverlayPreviewMeme);
 streamerRoutes.get('/overlay/preview-memes', adminController.getOverlayPreviewMemes);
+streamerRoutes.get('/overlay/presets', adminController.getOverlayPresets);
+streamerRoutes.put('/overlay/presets', adminController.putOverlayPresets);
 
 // OBS credits overlay (titres)
 streamerRoutes.get('/credits/token', adminController.getCreditsToken);
@@ -58,6 +60,7 @@ streamerRoutes.delete('/bot/commands/:id', streamerBotController.deleteCommand);
 
 // Bot settings
 streamerRoutes.get('/bot/subscription', streamerBotController.subscription);
+streamerRoutes.get('/bot/follow-greetings', streamerBotController.getFollowGreetings);
 streamerRoutes.post('/bot/follow-greetings/enable', streamerBotController.enableFollowGreetings);
 streamerRoutes.post('/bot/follow-greetings/disable', streamerBotController.disableFollowGreetings);
 streamerRoutes.patch('/bot/follow-greetings', streamerBotController.patchFollowGreetings);

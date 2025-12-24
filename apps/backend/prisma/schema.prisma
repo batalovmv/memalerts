@@ -30,6 +30,8 @@ model Channel {
   overlayMaxConcurrent Int  @default(3)
   // Advanced OBS overlay appearance/animation settings (stored as JSON string)
   overlayStyleJson  String?  @db.Text
+  // OBS overlay presets (per-channel, stored as JSON string; validated/size-limited by API)
+  overlayPresetsJson String? @db.Text
   // Increment to invalidate previously issued overlay tokens.
   overlayTokenVersion Int @default(1)
   // OBS credits overlay (titres) settings (stored as JSON string)
@@ -139,6 +141,23 @@ model ChatBotEventDedup {
   @@index([createdAt])
 }
 
+// Per-user cross-device UI preferences.
+// NOTE: kept additive and isolated to a single row per user (no channel dimension).
+model UserPreference {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  theme                String   @default("light") // light | dark
+  autoplayMemesEnabled Boolean  @default(true)
+  memeModalMuted       Boolean  @default(false)
+  coinsInfoSeen        Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model User {
   id                 String   @id @default(uuid())
   twitchUserId       String   @unique
@@ -152,6 +171,7 @@ model User {
   createdAt          DateTime @default(now())
 
   channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  preference    UserPreference?
   wallets       Wallet[]
   memesCreated  Meme[]           @relation("CreatedBy")
   memesApproved Meme[]           @relation("ApprovedBy")

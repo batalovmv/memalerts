@@ -294,6 +294,8 @@ export function setupRoutes(app: Express) {
   // because viewerRoutes has /:slug which would conflict
   // Apply authenticate first, then requireBetaAccess (if beta domain)
   app.get('/me', authenticate, requireBetaAccess, viewerController.getMe);
+  app.get('/me/preferences', authenticate, requireBetaAccess, viewerController.getMePreferences);
+  app.patch('/me/preferences', authenticate, requireBetaAccess, viewerController.patchMePreferences);
   app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
   app.get('/memes', authenticate, requireBetaAccess, viewerController.getMemes);
 

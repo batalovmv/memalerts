@@ -5,6 +5,7 @@ import * as memes from './viewer/memes.js';
 import * as search from './viewer/search.js';
 import * as stats from './viewer/stats.js';
 import * as activation from './viewer/activation.js';
+import * as preferences from './viewer/preferences.js';
 
 // Back-compat facade: keep `viewerController` shape stable for routes.
 export const viewerController = {
@@ -15,6 +16,6 @@ export const viewerController = {
   ...search,
   ...stats,
   ...activation,
+  ...preferences,
 };
 
- 

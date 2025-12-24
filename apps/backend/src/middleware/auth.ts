@@ -25,7 +25,11 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const token = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
 
   if (!token) {
-    return res.status(401).json({ error: 'Unauthorized', message: 'No token cookie found' });
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'No token cookie found',
+      requestId: req.requestId,
+    });
   }
 
   try {
@@ -42,7 +46,11 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     next();
   } catch (error) {
     logger.warn('auth.jwt_invalid', { requestId: req.requestId });
-    return res.status(401).json({ error: 'Unauthorized', message: 'Invalid token' });
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid token',
+      requestId: req.requestId,
+    });
   }
 }
 
@@ -70,7 +78,11 @@ export function optionalAuthenticate(req: AuthRequest, _res: Response, next: Nex
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userRole || !roles.includes(req.userRole)) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Forbidden',
+        requestId: req.requestId,
+      });
     }
     next();
   };

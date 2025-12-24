@@ -129,4 +129,39 @@ export const twitchFollowEventSchema = z.object({
   followed_at: z.string(),
 });
 
+// Viewer UI preferences (cross-device, per-user)
+export const userPreferencesSchema = z.object({
+  theme: z.enum(['light', 'dark']).default('light'),
+  autoplayMemesEnabled: z.boolean().default(true),
+  memeModalMuted: z.boolean().default(false),
+  coinsInfoSeen: z.boolean().default(false),
+});
+
+// PATCH body: any subset of fields
+export const patchUserPreferencesSchema = userPreferencesSchema.partial().refine((obj) => Object.keys(obj).length > 0, {
+  message: 'At least one preference field must be provided',
+});
+
+// OBS overlay presets (per-channel)
+export const overlayPresetPayloadSchema = z
+  .object({
+    v: z.number().int().min(1).max(10),
+    overlayMode: z.enum(['queue', 'simultaneous']).optional(),
+    overlayShowSender: z.boolean().optional(),
+    overlayMaxConcurrent: z.number().int().min(1).max(5).optional(),
+    style: z.any().optional(),
+  })
+  .passthrough();
+
+export const overlayPresetSchema = z.object({
+  id: z.string().min(2).max(80),
+  name: z.string().min(1).max(120),
+  createdAt: z.number().int().nonnegative(),
+  payload: overlayPresetPayloadSchema,
+});
+
+export const overlayPresetsBodySchema = z.object({
+  presets: z.array(overlayPresetSchema).max(30),
+});
+
 

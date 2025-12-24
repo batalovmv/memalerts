@@ -58,7 +58,10 @@ export const streamerBotController = {
       select: { channelId: true, twitchLogin: true, enabled: true, createdAt: true },
     });
 
-    return res.json({ ok: true, subscription: sub });
+    // Contract: 200 OK with minimal payload for idempotent enable.
+    // (We still keep the upsert for idempotency and for bot runner to pick up.)
+    void sub;
+    return res.json({ ok: true });
   },
 
   say: async (req: AuthRequest, res: Response) => {
@@ -112,7 +115,8 @@ export const streamerBotController = {
       select: { channelId: true, twitchLogin: true, enabled: true, createdAt: true },
     });
 
-    return res.json({ ok: true, subscription: sub });
+    void sub;
+    return res.json({ ok: true });
   },
 
   getCommands: async (req: AuthRequest, res: Response) => {
@@ -184,18 +188,26 @@ export const streamerBotController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
 
-    const [sub, ch] = await Promise.all([
-      prisma.chatBotSubscription.findUnique({ where: { channelId }, select: { enabled: true } }),
-      prisma.channel.findUnique({
-        where: { id: channelId },
-        select: { followGreetingsEnabled: true, followGreetingTemplate: true },
-      }),
-    ]);
+    const sub = await prisma.chatBotSubscription.findUnique({ where: { channelId }, select: { enabled: true } });
 
     return res.json({
       enabled: Boolean(sub?.enabled),
-      followGreetingsEnabled: Boolean((ch as any)?.followGreetingsEnabled),
-      followGreetingTemplate: (ch as any)?.followGreetingTemplate ?? null,
+    });
+  },
+
+  getFollowGreetings: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { followGreetingsEnabled: true, followGreetingTemplate: true },
+    });
+    if (!channel) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
+
+    return res.json({
+      followGreetingsEnabled: Boolean(channel.followGreetingsEnabled),
+      followGreetingTemplate: channel.followGreetingTemplate ?? DEFAULT_FOLLOW_GREETING_TEMPLATE,
     });
   },
 
