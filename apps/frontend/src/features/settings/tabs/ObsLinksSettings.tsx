@@ -1694,42 +1694,94 @@ export function ObsLinksSettings() {
   }, [channelSlug]);
 
   useEffect(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(presetsStorageKey) : null;
-      if (!raw) {
+    let cancelled = false;
+
+    const loadFromLocalStorage = () => {
+      try {
+        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(presetsStorageKey) : null;
+        if (!raw) {
+          setCustomPresets([]);
+          return;
+        }
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+          setCustomPresets([]);
+          return;
+        }
+        const cleaned = parsed
+          .map((p: any) => ({
+            id: String(p?.id || ''),
+            name: String(p?.name || '').trim(),
+            createdAt: Number(p?.createdAt || 0),
+            payload: p?.payload as OverlaySharePayload,
+          }))
+          .filter((p: any) => p.id && p.name && p.payload && typeof p.payload === 'object')
+          .slice(0, 30);
+        setCustomPresets(cleaned);
+      } catch {
         setCustomPresets([]);
-        return;
       }
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) {
-        setCustomPresets([]);
+    };
+
+    (async () => {
+      try {
+        const { api } = await import('@/lib/api');
+        const res = await api.get<{ presets?: Array<{ id: string; name: string; createdAt: number; payload: OverlaySharePayload }> }>(
+          '/streamer/overlay/presets',
+          { timeout: 8000 }
+        );
+        if (cancelled) return;
+        const list = Array.isArray(res?.presets) ? res.presets : [];
+        const cleaned = list
+          .map((p: any) => ({
+            id: String(p?.id || ''),
+            name: String(p?.name || '').trim(),
+            createdAt: Number(p?.createdAt || 0),
+            payload: p?.payload as OverlaySharePayload,
+          }))
+          .filter((p: any) => p.id && p.name && p.payload && typeof p.payload === 'object')
+          .slice(0, 30);
+        setCustomPresets(cleaned);
         return;
+      } catch (e: unknown) {
+        const err = e as { response?: { status?: number } };
+        // Backend may not support it yet -> fallback to localStorage so UX remains the same.
+        if (err?.response?.status === 404) {
+          if (!cancelled) loadFromLocalStorage();
+          return;
+        }
+        if (!cancelled) loadFromLocalStorage();
       }
-      const cleaned = parsed
-        .map((p: any) => ({
-          id: String(p?.id || ''),
-          name: String(p?.name || '').trim(),
-          createdAt: Number(p?.createdAt || 0),
-          payload: p?.payload as OverlaySharePayload,
-        }))
-        .filter((p: any) => p.id && p.name && p.payload && typeof p.payload === 'object')
-        .slice(0, 30);
-      setCustomPresets(cleaned);
-    } catch {
-      setCustomPresets([]);
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [presetsStorageKey]);
 
   const persistCustomPresets = useCallback(
     (next: Array<{ id: string; name: string; createdAt: number; payload: OverlaySharePayload }>) => {
       setCustomPresets(next);
-      try {
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(presetsStorageKey, JSON.stringify(next));
+      // Backend-first persistence (fallback to localStorage if backend doesn't support it yet).
+      (async () => {
+        try {
+          const { api } = await import('@/lib/api');
+          await api.put('/streamer/overlay/presets', { presets: next }, { timeout: 12000 });
+          return;
+        } catch (e: unknown) {
+          const err = e as { response?: { status?: number } };
+          if (err?.response?.status !== 404) {
+            // non-404 failures: still keep local fallback, but don't spam UI with errors here
+          }
+          try {
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(presetsStorageKey, JSON.stringify(next));
+            }
+          } catch {
+            // ignore storage errors
+          }
         }
-      } catch {
-        // ignore storage errors
-      }
+      })();
     },
     [presetsStorageKey]
   );

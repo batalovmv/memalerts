@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAppSelector } from '@/store/hooks';
+import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 
 import { Modal } from '@/shared/ui/Modal/Modal';
 
@@ -9,20 +11,47 @@ interface CoinsInfoModalProps {
 
 export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
   const { t } = useTranslation();
+  const { user } = useAppSelector((s) => s.auth);
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // Check if user has already seen this modal
-    const hasSeen = localStorage.getItem('coinsInfoSeen');
-    if (!hasSeen) {
-      setIsOpen(true);
-    }
-  }, []);
+    let cancelled = false;
+    (async () => {
+      // Logged in: backend-first.
+      if (user) {
+        const prefs = await getUserPreferences();
+        if (cancelled) return;
+        const seen = !!prefs?.coinsInfoSeen;
+        if (!seen) setIsOpen(true);
+        return;
+      }
+
+      // Guest: localStorage fallback.
+      try {
+        const hasSeen = localStorage.getItem('coinsInfoSeen');
+        if (!hasSeen) setIsOpen(true);
+      } catch {
+        setIsOpen(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const handleClose = () => {
     setIsOpen(false);
-    // Mark as seen in localStorage
-    localStorage.setItem('coinsInfoSeen', 'true');
+    // Persist (backend-first; local fallback for guests).
+    if (user) {
+      void patchUserPreferences({ coinsInfoSeen: true });
+      return;
+    }
+    try {
+      localStorage.setItem('coinsInfoSeen', 'true');
+    } catch {
+      // ignore
+    }
   };
 
   if (!isOpen) {

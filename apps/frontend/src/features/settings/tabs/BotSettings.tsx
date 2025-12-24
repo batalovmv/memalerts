@@ -36,15 +36,20 @@ export function BotSettings() {
   const followGreetingSaveTimerRef = useRef<number | null>(null);
   const followGreetingsEnableInFlightRef = useRef(false);
 
-  const followGreetingsStorageKey = 'memalerts:bot:followGreetingsEnabled:v1';
-
-  useEffect(() => {
+  const loadFollowGreetings = useCallback(async () => {
     try {
-      const raw = window.localStorage.getItem(followGreetingsStorageKey);
-      const parsed = raw === '1' ? true : raw === '0' ? false : null;
-      if (parsed !== null) setFollowGreetingsEnabled(parsed);
-    } catch {
-      // ignore (storage may be unavailable)
+      const { api } = await import('@/lib/api');
+      const res = await api.get<{ followGreetingsEnabled?: boolean; followGreetingTemplate?: string | null }>(
+        '/streamer/bot/follow-greetings',
+        { timeout: 8000 }
+      );
+      if (typeof res?.followGreetingsEnabled === 'boolean') setFollowGreetingsEnabled(res.followGreetingsEnabled);
+      if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
+    } catch (error: unknown) {
+      const apiError = error as { response?: { status?: number } };
+      // Backend may not support this endpoint yet.
+      if (apiError.response?.status === 404) return;
+      // Keep quiet on load; user will see errors on interaction if needed.
     }
   }, []);
 
@@ -75,6 +80,7 @@ export function BotSettings() {
 
   useEffect(() => {
     void loadSubscription();
+    void loadFollowGreetings();
   }, []);
 
   // UX: when the bot is enabled, auto-expand settings; when disabled, collapse.
@@ -171,11 +177,6 @@ export function BotSettings() {
         followGreetingTemplate.trim() ? { followGreetingTemplate: followGreetingTemplate.trim() } : {}
       );
       setFollowGreetingsEnabled(!!res?.followGreetingsEnabled);
-      try {
-        window.localStorage.setItem(followGreetingsStorageKey, res?.followGreetingsEnabled ? '1' : '0');
-      } catch {
-        // ignore
-      }
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsEnabled', { defaultValue: 'Follow greetings enabled.' }));
     } catch (error: unknown) {
@@ -197,11 +198,6 @@ export function BotSettings() {
         '/streamer/bot/follow-greetings/disable'
       );
       setFollowGreetingsEnabled(!!res?.followGreetingsEnabled);
-      try {
-        window.localStorage.setItem(followGreetingsStorageKey, res?.followGreetingsEnabled ? '1' : '0');
-      } catch {
-        // ignore
-      }
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsDisabled', { defaultValue: 'Follow greetings disabled.' }));
     } catch (error: unknown) {

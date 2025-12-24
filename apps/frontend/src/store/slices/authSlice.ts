@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
+import { clearUserPreferencesCache } from '@/shared/lib/userPreferences';
 import type { ApiError, User, Wallet } from '@/types';
 
 export interface AuthState {
@@ -105,6 +106,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = null;
         state.error = null;
+        clearUserPreferencesCache();
       })
       .addCase(logout.rejected, (state, action) => {
         state.loading = false;

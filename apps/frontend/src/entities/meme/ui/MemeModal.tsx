@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
+import { useAppSelector } from '@/store/hooks';
+import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import type { Meme } from '@/types';
@@ -31,6 +33,7 @@ export default function MemeModal({
   walletBalance,
 }: MemeModalProps) {
   const { t } = useTranslation();
+  const { user } = useAppSelector((s) => s.auth);
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
@@ -67,6 +70,20 @@ export default function MemeModal({
     if (!isOpen) return;
     if (videoRef.current) videoRef.current.muted = isMuted;
   }, [isOpen, currentMeme?.id, isMuted]);
+
+  // Backend-first mute hydration (when logged in).
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const prefs = await getUserPreferences();
+      if (cancelled) return;
+      if (typeof prefs?.memeModalMuted === 'boolean') setIsMuted(prefs.memeModalMuted);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   // Auto-play video when modal opens
   useEffect(() => {
@@ -130,10 +147,14 @@ export default function MemeModal({
       const next = !isMuted;
       videoRef.current.muted = next;
       setIsMuted(next);
-      try {
-        window.localStorage.setItem('memalerts:memeModalMuted', next ? '1' : '0');
-      } catch {
-        // ignore
+      if (user) {
+        void patchUserPreferences({ memeModalMuted: next });
+      } else {
+        try {
+          window.localStorage.setItem('memalerts:memeModalMuted', next ? '1' : '0');
+        } catch {
+          // ignore
+        }
       }
     }
   };

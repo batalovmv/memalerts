@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { useAppSelector } from '@/store/hooks';
+import { getUserPreferences, patchUserPreferences, type ThemePreference } from '@/shared/lib/userPreferences';
 
-type Theme = 'light' | 'dark';
+type Theme = ThemePreference;
 
 interface ThemeContextType {
   theme: Theme;
@@ -10,22 +12,61 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const { user } = useAppSelector((s) => s.auth);
+  const hydratedFromBackendRef = useRef(false);
+
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('theme');
-    return (saved as Theme) || 'light';
+    try {
+      const saved = localStorage.getItem('theme');
+      return (saved as Theme) || 'light';
+    } catch {
+      return 'light';
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem('theme', theme);
+    // Persist theme locally only for guests (logged-in users are persisted in backend).
+    if (!user) {
+      try {
+        localStorage.setItem('theme', theme);
+      } catch {
+        // ignore
+      }
+    }
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [theme]);
+  }, [theme, user]);
+
+  // Backend-first hydration (when logged in). Keeps localStorage as a safe fallback until backend is deployed.
+  useEffect(() => {
+    if (!user) {
+      hydratedFromBackendRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const prefs = await getUserPreferences();
+      if (cancelled) return;
+      if (prefs?.theme === 'light' || prefs?.theme === 'dark') {
+        hydratedFromBackendRef.current = true;
+        setTheme(prefs.theme);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    setTheme((prev) => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      // Best-effort persist to backend (if available).
+      if (user) void patchUserPreferences({ theme: next });
+      return next;
+    });
   };
 
   return (
