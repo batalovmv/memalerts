@@ -118,7 +118,7 @@ async function start() {
   const loginToChannelId = new Map<string, string>();
   const commandsByChannelId = new Map<
     string,
-    { ts: number; items: Array<{ triggerNormalized: string; response: string }> }
+    { ts: number; items: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }> }
   >();
   const streamDurationByChannelId = new Map<
     string,
@@ -142,18 +142,32 @@ async function start() {
 
     commandsRefreshing = true;
     try {
-      const rows = await (prisma as any).chatBotCommand.findMany({
-        where: { channelId: { in: channelIds }, enabled: true },
-        select: { channelId: true, triggerNormalized: true, response: true },
-      });
-      const grouped = new Map<string, Array<{ triggerNormalized: string; response: string }>>();
+      let rows: any[] = [];
+      try {
+        rows = await (prisma as any).chatBotCommand.findMany({
+          where: { channelId: { in: channelIds }, enabled: true },
+          select: { channelId: true, triggerNormalized: true, response: true, onlyWhenLive: true },
+        });
+      } catch (e: any) {
+        // Back-compat for partial deploys: column might not exist yet.
+        if (e?.code === 'P2022') {
+          rows = await (prisma as any).chatBotCommand.findMany({
+            where: { channelId: { in: channelIds }, enabled: true },
+            select: { channelId: true, triggerNormalized: true, response: true },
+          });
+        } else {
+          throw e;
+        }
+      }
+      const grouped = new Map<string, Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }>>();
       for (const r of rows) {
         const channelId = String((r as any)?.channelId || '').trim();
         const triggerNormalized = String((r as any)?.triggerNormalized || '').trim().toLowerCase();
         const response = String((r as any)?.response || '').trim();
+        const onlyWhenLive = Boolean((r as any)?.onlyWhenLive);
         if (!channelId || !triggerNormalized || !response) continue;
         const arr = grouped.get(channelId) || [];
-        arr.push({ triggerNormalized, response });
+        arr.push({ triggerNormalized, response, onlyWhenLive });
         grouped.set(channelId, arr);
       }
 
@@ -405,6 +419,10 @@ async function start() {
           const match = items.find((c) => c.triggerNormalized === msgNorm);
           if (match?.response) {
             try {
+              if (match.onlyWhenLive) {
+                const snap = await getStreamDurationSnapshot(slug);
+                if (snap.status !== 'online') return;
+              }
               await client.say(login, match.response);
             } catch (e: any) {
               logger.warn('chatbot.command_reply_failed', { login, errorMessage: e?.message || String(e) });

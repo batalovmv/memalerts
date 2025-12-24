@@ -307,8 +307,11 @@
 - **POST `/streamer/bot/enable`** → `{ ok: true }`
 - **POST `/streamer/bot/disable`** → `{ ok: true }`
 - **POST `/streamer/bot/say`** body `{ message }` → `{ ok, outbox: { id, status, createdAt } }`
-- **GET `/streamer/bot/commands`** → `{ items: [{ id, trigger, response, enabled, createdAt, updatedAt }] }`
-- **POST `/streamer/bot/commands`** body `{ trigger, response }` → `201` command row; `409` если trigger уже есть
+- **GET `/streamer/bot/commands`** → `{ items: [{ id, trigger, response, enabled, onlyWhenLive, createdAt, updatedAt }] }`
+- **POST `/streamer/bot/commands`** body `{ trigger, response, onlyWhenLive? }` → `201` command row; `409` если trigger уже есть
+  - `onlyWhenLive` (optional, default `false`) — если `true`, бот отвечает на команду **только когда стрим онлайн**
+- **PATCH `/streamer/bot/commands/:id`** body `{ enabled?, onlyWhenLive? }` → updated command row
+  - body — partial object; нужно передать **хотя бы одно** поле
 - **DELETE `/streamer/bot/commands/:id`** → `{ ok: true }`
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (если подписки нет — `enabled: false`)
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`
@@ -325,7 +328,7 @@
   - `{hours}` — часы (целое)
   - `{minutes}` — минуты (остаток 0..59)
   - `{totalMinutes}` — всего минут (целое)
-- **onlyWhenLive**: задел на будущее; если `true` — бот отвечает только когда стрим онлайн.
+- **onlyWhenLive**: если `true` — бот отвечает только когда стрим онлайн (если стрим оффлайн — бот **молчит**).
 - **Дефолты** (если настройки ещё не сохранены):
   - `enabled=false`
   - `trigger="!time"`

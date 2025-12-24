@@ -119,6 +119,8 @@ model ChatBotCommand {
   triggerNormalized  String
   response           String  @db.Text
   enabled            Boolean @default(true)
+  // If true, bot replies only when stream is online.
+  onlyWhenLive       Boolean @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

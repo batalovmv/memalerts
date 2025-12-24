@@ -128,14 +128,22 @@ export const streamerBotController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
 
-    const items = await prisma.chatBotCommand.findMany({
-      where: { channelId },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, trigger: true, response: true, enabled: true, createdAt: true, updatedAt: true },
-    });
+    try {
+      const items = await prisma.chatBotCommand.findMany({
+        where: { channelId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, trigger: true, response: true, enabled: true, onlyWhenLive: true, createdAt: true, updatedAt: true },
+      });
 
-    // Frontend accepts both array and {items}.
-    return res.json({ items });
+      // Frontend accepts both array and {items}.
+      return res.json({ items });
+    } catch (e: any) {
+      // Prisma "column does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2022') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
+      throw e;
+    }
   },
 
   createCommand: async (req: AuthRequest, res: Response) => {
@@ -144,9 +152,14 @@ export const streamerBotController = {
 
     const { trigger, triggerNormalized } = normalizeTrigger((req.body as any)?.trigger);
     const responseText = normalizeMessage((req.body as any)?.response);
+    const onlyWhenLiveRaw = (req.body as any)?.onlyWhenLive;
+    const onlyWhenLive = onlyWhenLiveRaw === undefined ? false : onlyWhenLiveRaw;
 
     if (!trigger) return res.status(400).json({ error: 'Bad Request', message: 'Trigger is required' });
     if (!responseText) return res.status(400).json({ error: 'Bad Request', message: 'Response is required' });
+    if (typeof onlyWhenLive !== 'boolean') {
+      return res.status(400).json({ error: 'Bad Request', message: 'onlyWhenLive must be boolean' });
+    }
     if (trigger.length > BOT_TRIGGER_MAX_LEN) {
       return res.status(400).json({ error: 'Bad Request', message: `Trigger is too long (max ${BOT_TRIGGER_MAX_LEN})` });
     }
@@ -162,11 +175,16 @@ export const streamerBotController = {
           triggerNormalized,
           response: responseText,
           enabled: true,
+          onlyWhenLive,
         },
-        select: { id: true, trigger: true, response: true, enabled: true, createdAt: true },
+        select: { id: true, trigger: true, response: true, enabled: true, onlyWhenLive: true, createdAt: true, updatedAt: true },
       });
       return res.status(201).json(row);
     } catch (e: any) {
+      // Prisma "column does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2022') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
       // Prisma unique violation (channelId + triggerNormalized)
       if (e?.code === 'P2002') {
         return res.status(409).json({ error: 'Conflict', message: 'Command trigger already exists' });
@@ -183,20 +201,31 @@ export const streamerBotController = {
     if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
 
     const enabled = (req.body as any)?.enabled;
-    if (typeof enabled !== 'boolean') {
+    const onlyWhenLive = (req.body as any)?.onlyWhenLive;
+    if (enabled === undefined && onlyWhenLive === undefined) {
+      return res.status(400).json({ error: 'Bad Request', message: 'At least one field is required (enabled, onlyWhenLive)' });
+    }
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
     }
+    if (onlyWhenLive !== undefined && typeof onlyWhenLive !== 'boolean') {
+      return res.status(400).json({ error: 'Bad Request', message: 'onlyWhenLive must be boolean' });
+    }
+
+    const data: any = {};
+    if (enabled !== undefined) data.enabled = enabled;
+    if (onlyWhenLive !== undefined) data.onlyWhenLive = onlyWhenLive;
 
     try {
       const updated = await prisma.chatBotCommand.updateMany({
         where: { id, channelId },
-        data: { enabled },
+        data,
       });
       if (updated.count === 0) return res.status(404).json({ error: 'Not Found', message: 'Command not found' });
 
       const row = await prisma.chatBotCommand.findUnique({
         where: { id },
-        select: { id: true, trigger: true, response: true, enabled: true, createdAt: true, updatedAt: true },
+        select: { id: true, trigger: true, response: true, enabled: true, onlyWhenLive: true, createdAt: true, updatedAt: true },
       });
 
       // Shouldn't happen, but keep 404 contract for "feature not deployed / missing".
@@ -205,6 +234,10 @@ export const streamerBotController = {
     } catch (e: any) {
       // Prisma "table does not exist" (feature not deployed / migrations not applied)
       if (e?.code === 'P2021') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
+      // Prisma "column does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2022') {
         return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
       }
       throw e;
