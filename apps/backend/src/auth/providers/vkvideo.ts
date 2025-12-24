@@ -50,7 +50,8 @@ export function getVkVideoAuthorizeUrl(params: {
   url.searchParams.set('redirect_uri', params.redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', params.state);
-  if (params.scopes?.length) url.searchParams.set('scope', params.scopes.join(' '));
+  // VKVideo expects scopes separated by comma.
+  if (params.scopes?.length) url.searchParams.set('scope', params.scopes.join(','));
   if (params.codeChallenge) {
     url.searchParams.set('code_challenge', params.codeChallenge);
     url.searchParams.set('code_challenge_method', 'S256');
@@ -72,38 +73,31 @@ async function fetchJsonSafe(url: string, init: RequestInit): Promise<{ status: 
 export async function exchangeVkVideoCodeForToken(params: {
   tokenUrl: string;
   clientId: string;
-  clientSecret?: string | null;
+  clientSecret: string;
   code: string;
   redirectUri: string;
-  codeVerifier?: string | null;
 }): Promise<VkVideoTokenResponse> {
-  // VKVideo endpoints/requirements may differ by environment; we support both POST(form) and GET(query).
-  // If POST is not allowed, we retry GET.
+  // VKVideo token exchange uses:
+  // - POST application/x-www-form-urlencoded
+  // - Authorization: Basic base64(client_id:secret)
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: params.clientId,
     code: params.code,
     redirect_uri: params.redirectUri,
   });
-  if (params.clientSecret) body.set('client_secret', params.clientSecret);
-  if (params.codeVerifier) body.set('code_verifier', params.codeVerifier);
+
+  const basic = Buffer.from(`${params.clientId}:${params.clientSecret}`, 'utf8').toString('base64');
 
   const post = await fetchJsonSafe(params.tokenUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${basic}`,
+    },
     body,
   });
-  if (post.status !== 405 && post.status !== 404 && post.json) {
-    const tokenData = post.json as VkVideoTokenResponse;
-    debugLog('vkvideo.token.exchange', { method: 'POST', status: post.status, hasAccessToken: !!tokenData?.access_token });
-    return tokenData;
-  }
-
-  const getUrl = new URL(params.tokenUrl);
-  for (const [k, v] of body.entries()) getUrl.searchParams.set(k, v);
-  const get = await fetchJsonSafe(getUrl.toString(), { method: 'GET' });
-  const tokenData = (get.json ?? {}) as VkVideoTokenResponse;
-  debugLog('vkvideo.token.exchange', { method: 'GET', status: get.status, hasAccessToken: !!tokenData?.access_token });
+  const tokenData = (post.json ?? {}) as VkVideoTokenResponse;
+  debugLog('vkvideo.token.exchange', { method: 'POST', status: post.status, hasAccessToken: !!tokenData?.access_token });
   return tokenData;
 }
 

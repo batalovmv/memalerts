@@ -321,16 +321,18 @@ export const authController = {
         const clientId = process.env.VKVIDEO_CLIENT_ID!;
         const callbackUrl = process.env.VKVIDEO_CALLBACK_URL!;
         const tokenUrl = process.env.VKVIDEO_TOKEN_URL!;
-        const clientSecret = process.env.VKVIDEO_CLIENT_SECRET || null;
+        const clientSecret = process.env.VKVIDEO_CLIENT_SECRET;
+        if (!clientSecret) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env`);
+        }
 
-        const codeVerifier = consumed.row.codeVerifier || null;
         const tokenData = await exchangeVkVideoCodeForToken({
           tokenUrl,
           clientId,
           clientSecret,
           code: code as string,
           redirectUri: callbackUrl,
-          codeVerifier,
         });
 
         if (!tokenData.access_token) {
