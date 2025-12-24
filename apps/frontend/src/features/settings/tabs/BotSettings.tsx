@@ -20,6 +20,7 @@ export function BotSettings() {
   const [commands, setCommands] = useState<BotCommand[]>([]);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
+  const [commandsApiAvailable, setCommandsApiAvailable] = useState(true);
 
   const defaultTestMessage = useMemo(
     () => t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' }),
@@ -60,7 +61,10 @@ export function BotSettings() {
         const res = await api.get<{ enabled?: boolean | null }>('/streamer/bot/subscription', { timeout: 8000 });
         if (cancelled) return;
         if (typeof res?.enabled === 'boolean') setBotEnabled(res.enabled);
-      } catch {
+      } catch (error: unknown) {
+        const apiError = error as { response?: { status?: number } };
+        // Backend may not support this endpoint yet (404). Don't show an error; fallback to optimistic toggle.
+        if (apiError.response?.status === 404) return;
         // ignore
       }
     })();
@@ -109,6 +113,12 @@ export function BotSettings() {
       const items = Array.isArray(res) ? res : (res?.items || []);
       setCommands(items);
     } catch (error: unknown) {
+      const apiError404 = error as { response?: { status?: number } };
+      if (apiError404.response?.status === 404) {
+        setCommandsApiAvailable(false);
+        setCommands([]);
+        return;
+      }
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToLoadBotCommands', { defaultValue: 'Failed to load commands.' }));
     } finally {
@@ -150,6 +160,10 @@ export function BotSettings() {
       setNewResponse('');
       setCommands((prev) => [created, ...prev]);
     } catch (error: unknown) {
+      const apiError404 = error as { response?: { status?: number } };
+      if (apiError404.response?.status === 404) {
+        setCommandsApiAvailable(false);
+      }
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToAddBotCommand', { defaultValue: 'Failed to add command.' }));
     } finally {
@@ -165,6 +179,10 @@ export function BotSettings() {
       setCommands((prev) => prev.filter((c) => c.id !== id));
       toast.success(t('admin.botCommandDeleted', { defaultValue: 'Command deleted.' }));
     } catch (error: unknown) {
+      const apiError404 = error as { response?: { status?: number } };
+      if (apiError404.response?.status === 404) {
+        setCommandsApiAvailable(false);
+      }
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToDeleteBotCommand', { defaultValue: 'Failed to delete command.' }));
     } finally {
@@ -230,6 +248,16 @@ export function BotSettings() {
             defaultValue: 'Create a trigger word and the bot reply. When someone sends the trigger in chat, the bot will respond.',
           })}
         </p>
+
+        {!commandsApiAvailable && (
+          <div className="rounded-xl bg-gray-500/10 ring-1 ring-black/10 dark:ring-white/10 px-4 py-3 mb-4">
+            <p className="text-sm text-gray-800 dark:text-gray-200">
+              {t('admin.botCommandsNotAvailable', {
+                defaultValue: 'Commands are not available on this server yet. Please deploy the backend update.',
+              })}
+            </p>
+          </div>
+        )}
 
         <div className={`glass p-4 ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

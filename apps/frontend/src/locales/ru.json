@@ -218,6 +218,7 @@
     "botDefaultTestMessage": "Бот подключен ✅",
     "botCommandsTitle": "Команды",
     "botCommandsHint": "Создайте слово-триггер и ответ бота. Когда кто-то напишет триггер в чате — бот ответит.",
+    "botCommandsNotAvailable": "Команды пока недоступны на этом сервере. Задеплойте обновление бэкенда.",
     "botCommandTrigger": "Триггер",
     "botCommandResponse": "Ответ",
     "addBotCommand": "Добавить команду",

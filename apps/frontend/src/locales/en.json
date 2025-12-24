@@ -206,6 +206,7 @@
     "botDefaultTestMessage": "Bot connected ✅",
     "botCommandsTitle": "Commands",
     "botCommandsHint": "Create a trigger word and the bot reply. When someone sends the trigger in chat, the bot will respond.",
+    "botCommandsNotAvailable": "Commands are not available on this server yet. Please deploy the backend update.",
     "botCommandTrigger": "Trigger",
     "botCommandResponse": "Response",
     "addBotCommand": "Add command",
