@@ -72,7 +72,8 @@ function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSw
 export function BotSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
-  const twitchLinked = user?.channel?.twitchChannelId != null;
+  // Treat undefined as "unknown" (do not block). Block only when backend explicitly says null.
+  const twitchLinked = user?.channel?.twitchChannelId !== null;
   const [loading, setLoading] = useState<'toggle' | 'load' | null>(null);
   const [botEnabled, setBotEnabled] = useState<boolean | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);

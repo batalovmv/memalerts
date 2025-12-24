@@ -12,7 +12,8 @@ export function RewardsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const { getChannelData, getCachedChannelData } = useChannelColors();
-  const twitchLinked = user?.channel?.twitchChannelId != null;
+  // Treat undefined as "unknown" (do not block). Block only when backend explicitly says null.
+  const twitchLinked = user?.channel?.twitchChannelId !== null;
   const [twitchRewardEligible, setTwitchRewardEligible] = useState<boolean | null>(null);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [lastErrorRequestId, setLastErrorRequestId] = useState<string | null>(null);

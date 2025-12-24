@@ -62,6 +62,14 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
 
 export async function patchUserPreferences(patch: Partial<UserPreferences>): Promise<UserPreferences | null> {
   try {
+    // Avoid PATCH noise on public pages (e.g. /channel/:slug) where backend/proxy may not allow PATCH.
+    // Preferences are a dashboard/settings concern; public pages should stay read-only.
+    try {
+      const p = window.location?.pathname || '';
+      if (p.startsWith('/channel/')) return null;
+    } catch {
+      // ignore
+    }
     const res = await api.patch<UserPreferences>('/me/preferences', patch, { timeout: 8000 });
     cached = normalize(res);
     return cached;
