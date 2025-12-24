@@ -19,17 +19,32 @@ export function useAuthQueryErrorToast(options?: Options): void {
     const error = searchParams.get('error');
     const reason = searchParams.get('reason');
     const details = searchParams.get('details');
+    const provider = searchParams.get('provider');
 
-    if (error !== 'auth_failed') return;
+    if (error !== 'auth_failed' && error !== 'auth_required') return;
 
-    let errorMessage = t('auth.authFailed', { defaultValue: 'Authentication failed. Please try again.' });
+    let errorMessage =
+      error === 'auth_required'
+        ? t('auth.authRequired', { defaultValue: 'Please sign in to continue.' })
+        : t('auth.authFailed', { defaultValue: 'Authentication failed. Please try again.' });
 
     if (reason) {
       switch (reason) {
         case 'account_already_linked':
           errorMessage = t('auth.accountAlreadyLinked', {
-            defaultValue: 'This Twitch account is already linked to another user.',
+            defaultValue: 'This account is already linked to another user.',
           });
+          break;
+        case 'provider_not_supported': {
+          const prettyProvider = provider ? String(provider) : 'provider';
+          errorMessage = t('auth.providerNotSupported', {
+            defaultValue: `This provider is not supported yet: ${prettyProvider}.`,
+            provider: prettyProvider,
+          });
+          break;
+        }
+        case 'no_session':
+          errorMessage = t('auth.noSession', { defaultValue: 'Please sign in to link accounts.' });
           break;
         case 'no_client_id':
           errorMessage = 'Authentication error: Client ID not configured.';
@@ -75,6 +90,7 @@ export function useAuthQueryErrorToast(options?: Options): void {
     next.delete('error');
     next.delete('reason');
     next.delete('details');
+    next.delete('provider');
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, setSearchParams, clearFromUrl]);

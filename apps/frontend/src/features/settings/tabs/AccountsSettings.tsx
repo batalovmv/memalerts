@@ -1,9 +1,14 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/store/hooks';
 import { Button, Card } from '@/shared/ui';
 import { linkExternalAccount, linkTwitchAccount } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
+import { api } from '@/lib/api';
+import { useAppDispatch } from '@/store/hooks';
+import { fetchUser } from '@/store/slices/authSlice';
+import { toApiError } from '@/shared/api/toApiError';
+import toast from 'react-hot-toast';
 import type { ExternalAccount } from '@/types';
 
 function normalizeAccounts(input: unknown): ExternalAccount[] {
@@ -76,6 +81,8 @@ function BoostyIcon({ className }: ServiceIconProps) {
 export function AccountsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
+  const dispatch = useAppDispatch();
+  const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
 
   useAuthQueryErrorToast();
 
@@ -117,7 +124,7 @@ export function AccountsSettings() {
           }),
           icon: YouTubeIcon,
           iconClassName: 'text-[#FF0000]',
-          supportsLink: false,
+          supportsLink: true,
           onLink: () => linkProvider('youtube'),
         },
         {
@@ -128,7 +135,7 @@ export function AccountsSettings() {
           }),
           icon: KickIcon,
           iconClassName: 'text-[#53FC18]',
-          supportsLink: false,
+          supportsLink: true,
           onLink: () => linkProvider('kick'),
         },
         {
@@ -139,7 +146,7 @@ export function AccountsSettings() {
           }),
           icon: TrovoIcon,
           iconClassName: 'text-[#1BD96A]',
-          supportsLink: false,
+          supportsLink: true,
           onLink: () => linkProvider('trovo'),
         },
         {
@@ -150,7 +157,7 @@ export function AccountsSettings() {
           }),
           icon: VkIcon,
           iconClassName: 'text-[#0077FF]',
-          supportsLink: false,
+          supportsLink: true,
           onLink: () => linkProvider('vk'),
         },
         {
@@ -161,11 +168,43 @@ export function AccountsSettings() {
           }),
           icon: BoostyIcon,
           iconClassName: 'text-[#F15A24]',
-          supportsLink: false,
+          supportsLink: true,
           onLink: () => linkProvider('boosty'),
         },
       ] as const,
     [linkProvider, linkTwitch, t]
+  );
+
+  const unlinkAccount = useCallback(
+    async (account: ExternalAccount) => {
+      if (!account?.id) return;
+
+      const providerLabel = String(account.provider || '').toUpperCase() || 'ACCOUNT';
+      const confirmed = window.confirm(
+        t('settings.accountsUnlinkConfirm', {
+          defaultValue: `Disconnect ${providerLabel}?`,
+          provider: providerLabel,
+        })
+      );
+      if (!confirmed) return;
+
+      try {
+        setUnlinkingProvider(account.provider);
+        await api.delete(`/auth/accounts/${encodeURIComponent(account.id)}`);
+        await dispatch(fetchUser()).unwrap();
+        toast.success(
+          t('settings.accountsUnlinked', {
+            defaultValue: 'Disconnected.',
+          })
+        );
+      } catch (e) {
+        const err = toApiError(e, 'Failed to disconnect account');
+        toast.error(err.message);
+      } finally {
+        setUnlinkingProvider(null);
+      }
+    },
+    [dispatch, t]
   );
 
   return (
@@ -210,14 +249,21 @@ export function AccountsSettings() {
               </div>
               <div className="flex items-center justify-end gap-2 shrink-0">
                 {isLinked ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-sm font-semibold whitespace-nowrap">
-                    <CheckIcon />
-                    {t('settings.accountsLinked', { defaultValue: 'Connected' })}
-                  </span>
-                ) : !service.supportsLink ? (
-                  <span className="inline-flex items-center text-sm font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    {t('common.notAvailable', { defaultValue: 'Not available' })}
-                  </span>
+                  <>
+                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-sm font-semibold whitespace-nowrap">
+                      <CheckIcon />
+                      {t('settings.accountsLinked', { defaultValue: 'Connected' })}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      onClick={() => linkedAccount && void unlinkAccount(linkedAccount)}
+                      disabled={!linkedAccount || unlinkingProvider === service.provider}
+                    >
+                      {unlinkingProvider === service.provider
+                        ? t('common.loading', { defaultValue: 'Loading…' })
+                        : t('settings.accountsUnlinkAction', { defaultValue: 'Disconnect' })}
+                    </Button>
+                  </>
                 ) : (
                   <Button variant="primary" onClick={service.onLink}>
                     {t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
