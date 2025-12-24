@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import toast from 'react-hot-toast';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchUser } from '@/store/slices/authSlice';
 import { Button, Card } from '@/shared/ui';
@@ -8,11 +7,21 @@ import { linkTwitchAccount } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 import type { ExternalAccount } from '@/types';
 
-type ExternalAccountsResponse = { accounts: ExternalAccount[] };
-
 function normalizeAccounts(input: unknown): ExternalAccount[] {
   if (Array.isArray(input)) return input as ExternalAccount[];
   return [];
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M16.704 5.29a1 1 0 0 1 .007 1.414l-7.5 7.6a1 1 0 0 1-1.42.004l-3.5-3.5a1 1 0 1 1 1.414-1.414l2.79 2.79 6.792-6.884a1 1 0 0 1 1.417-.01Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
 }
 
 export function AccountsSettings() {
@@ -22,67 +31,30 @@ export function AccountsSettings() {
 
   useAuthQueryErrorToast();
 
-  const [loading, setLoading] = useState(false);
-  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
-  const [accounts, setAccounts] = useState<ExternalAccount[]>([]);
-
-  const initialFromMe = useMemo(() => normalizeAccounts(user?.externalAccounts), [user?.externalAccounts]);
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { api } = await import('@/lib/api');
-      const res = await api.get<ExternalAccountsResponse>('/auth/accounts', { timeout: 15000 });
-      setAccounts(Array.isArray(res?.accounts) ? res.accounts : []);
-    } catch (error: unknown) {
-      // Keep it quiet and show current state; interactions will surface errors.
-      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
-      const msg = apiError.response?.data?.error || apiError.response?.data?.message;
-      if (msg) toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const accounts = useMemo(() => normalizeAccounts(user?.externalAccounts), [user?.externalAccounts]);
+  const linkedProviders = useMemo(() => new Set(accounts.map((a) => a.provider)), [accounts]);
 
   useEffect(() => {
-    // Seed from /me to avoid blank state while fetching.
-    if (initialFromMe.length) setAccounts(initialFromMe);
-    void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void dispatch(fetchUser());
+  }, [dispatch]);
 
   const linkTwitch = useCallback(() => {
     linkTwitchAccount('/settings/accounts');
   }, []);
 
-  const unlink = useCallback(
-    async (externalAccountId: string) => {
-      setUnlinkingId(externalAccountId);
-      try {
-        const { api } = await import('@/lib/api');
-        await api.delete(`/auth/accounts/${externalAccountId}`, { timeout: 15000 });
-        toast.success(t('settings.accountsUnlinked', { defaultValue: 'Account unlinked.' }));
-        await reload();
-        // Keep /me in sync for other screens.
-        void dispatch(fetchUser());
-      } catch (error: unknown) {
-        const apiError = error as { response?: { status?: number; data?: { error?: string; message?: string } } };
-        const status = apiError.response?.status;
-        if (status === 400) {
-          toast.error(t('settings.accountsCannotUnlinkLast', { defaultValue: "You can't unlink the last linked account." }));
-          return;
-        }
-        if (status === 404) {
-          toast.error(t('settings.accountsNotFound', { defaultValue: "Account not found or doesn't belong to you." }));
-          return;
-        }
-        const msg = apiError.response?.data?.error || apiError.response?.data?.message || t('common.error', { defaultValue: 'Error' });
-        toast.error(String(msg));
-      } finally {
-        setUnlinkingId(null);
-      }
-    },
-    [dispatch, reload, t]
+  const services = useMemo(
+    () =>
+      [
+        {
+          provider: 'twitch' as const,
+          title: t('settings.accountsServiceTwitch', { defaultValue: 'Twitch' }),
+          description: t('settings.accountsServiceTwitchHint', {
+            defaultValue: 'Used to sign in and enable Twitch-only features.',
+          }),
+          onLink: linkTwitch,
+        },
+      ] as const,
+    [linkTwitch, t]
   );
 
   return (
@@ -91,58 +63,47 @@ export function AccountsSettings() {
         <div>
           <h2 className="text-2xl font-bold dark:text-white">{t('settings.accountsTitle', { defaultValue: 'Linked accounts' })}</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {t('settings.accountsHint', { defaultValue: 'Link an account to sign in and manage Twitch-only features.' })}
+            {t('settings.accountsHint', {
+              defaultValue: 'Connect services to sign in and enable integrations.',
+            })}
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => void reload()} disabled={loading}>
-            {t('common.refresh', { defaultValue: 'Refresh' })}
-          </Button>
-          <Button variant="primary" onClick={linkTwitch} disabled={loading}>
-            {t('settings.linkTwitch', { defaultValue: 'Link Twitch account' })}
-          </Button>
         </div>
       </div>
 
       <div className="space-y-3">
-        {accounts.length === 0 ? (
-          <Card className="p-5">
-            <div className="text-gray-700 dark:text-gray-200 font-semibold">
-              {t('settings.noLinkedAccounts', { defaultValue: 'No linked accounts yet.' })}
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              {t('settings.noLinkedAccountsHint', { defaultValue: 'Link at least one account to avoid losing access.' })}
-            </div>
-          </Card>
-        ) : (
-          accounts.map((a) => {
-            const label =
-              a.provider === 'twitch'
-                ? `Twitch${a.login ? ` (@${a.login})` : ''}`
-                : `${a.provider}${a.login ? ` (${a.login})` : ''}`;
-            return (
-              <Card key={a.id} className="p-5 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="font-semibold text-gray-900 dark:text-white truncate">{label}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {a.displayName ? a.displayName : null}
-                  </div>
+        {services.map((service) => {
+          const isLinked = linkedProviders.has(service.provider);
+          const linkedAccount = accounts.find((a) => a.provider === service.provider) as ExternalAccount | undefined;
+          return (
+            <Card key={service.provider} className="p-5 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white truncate">{service.title}</div>
+                  {isLinked ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
+                      <CheckIcon />
+                      {t('settings.accountsLinked', { defaultValue: 'Connected' })}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {t('settings.accountsNotLinked', { defaultValue: 'Not connected' })}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="danger"
-                    onClick={() => void unlink(a.id)}
-                    disabled={unlinkingId === a.id || loading}
-                  >
-                    {unlinkingId === a.id
-                      ? t('common.loading', { defaultValue: 'Loading' })
-                      : t('settings.unlink', { defaultValue: 'Unlink' })}
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
+                  {isLinked && linkedAccount?.login ? `@${linkedAccount.login}` : service.description}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isLinked ? (
+                  <Button variant="primary" onClick={service.onLink}>
+                    {t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
-                </div>
-              </Card>
-            );
-          })
-        )}
+                ) : null}
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

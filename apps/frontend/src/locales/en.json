@@ -37,7 +37,12 @@
   "settings": {
     "accounts": "Accounts",
     "accountsTitle": "Linked accounts",
-    "accountsHint": "Link an account to sign in and manage Twitch-only features.",
+    "accountsHint": "Connect services to sign in and enable integrations.",
+    "accountsServiceTwitch": "Twitch",
+    "accountsServiceTwitchHint": "Used to sign in and enable Twitch-only features.",
+    "accountsLinked": "Connected",
+    "accountsNotLinked": "Not connected",
+    "accountsLinkAction": "Connect",
     "linkTwitch": "Link Twitch account",
     "unlink": "Unlink",
     "accountsUnlinked": "Account unlinked.",

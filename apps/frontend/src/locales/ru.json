@@ -41,7 +41,12 @@
   "settings": {
     "accounts": "Аккаунты",
     "accountsTitle": "Привязанные аккаунты",
-    "accountsHint": "Привяжите аккаунт, чтобы входить и использовать Twitch-функции.",
+    "accountsHint": "Подключайте сервисы для входа и интеграций.",
+    "accountsServiceTwitch": "Twitch",
+    "accountsServiceTwitchHint": "Используется для входа и Twitch‑функций.",
+    "accountsLinked": "Подключено",
+    "accountsNotLinked": "Не подключено",
+    "accountsLinkAction": "Подключить",
     "linkTwitch": "Привязать Twitch аккаунт",
     "unlink": "Отвязать",
     "accountsUnlinked": "Аккаунт отвязан.",
