@@ -202,6 +202,19 @@ jobs:
               # Fallback to IP (not recommended for production)
               VK_CB_URL="https://155.212.172.136/auth/vk/link/callback"
             fi
+
+            # Determine VKVideo callback URL (production).
+            # IMPORTANT:
+            # - VKVIDEO_CALLBACK_URL secret should be the PRODUCTION callback (e.g. https://twitchmemes.ru/auth/vkvideo/callback)
+            # - Beta deploy overrides it separately in the beta job.
+            if [ -n "${{ secrets.VKVIDEO_CALLBACK_URL }}" ]; then
+              VKVIDEO_CB_URL="${{ secrets.VKVIDEO_CALLBACK_URL }}"
+            elif [ -n "${{ secrets.DOMAIN }}" ]; then
+              VKVIDEO_CB_URL="https://${{ secrets.DOMAIN }}/auth/vkvideo/callback"
+            else
+              # Fallback to IP (not recommended for production)
+              VKVIDEO_CB_URL="https://155.212.172.136/auth/vkvideo/callback"
+            fi
             
             # Create .env file with actual values
             cat > .env << EOF
@@ -233,6 +246,15 @@ jobs:
             VK_CLIENT_ID=${{ secrets.VK_CLIENT_ID }}
             VK_CLIENT_SECRET=${{ secrets.VK_CLIENT_SECRET }}
             VK_CALLBACK_URL=$VK_CB_URL
+
+            # VKVideo OAuth — external account linking
+            VKVIDEO_CLIENT_ID=${{ secrets.VKVIDEO_CLIENT_ID }}
+            VKVIDEO_CLIENT_SECRET=${{ secrets.VKVIDEO_CLIENT_SECRET }}
+            VKVIDEO_AUTHORIZE_URL=${{ secrets.VKVIDEO_AUTHORIZE_URL }}
+            VKVIDEO_TOKEN_URL=${{ secrets.VKVIDEO_TOKEN_URL }}
+            VKVIDEO_CALLBACK_URL=$VKVIDEO_CB_URL
+            VKVIDEO_SCOPES=${{ secrets.VKVIDEO_SCOPES || '' }}
+            VKVIDEO_USERINFO_URL=${{ secrets.VKVIDEO_USERINFO_URL || '' }}
             
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
@@ -549,6 +571,14 @@ jobs:
             else
               VK_CB_URL="https://beta.twitchmemes.ru/auth/vk/link/callback"
             fi
+
+            # Determine VKVideo callback URL for beta.
+            # IMPORTANT: for beta, ALWAYS use beta callback URL, regardless of VKVIDEO_CALLBACK_URL secret (production only).
+            if [ -n "${{ secrets.DOMAIN }}" ]; then
+              VKVIDEO_CB_URL="https://beta.${{ secrets.DOMAIN }}/auth/vkvideo/callback"
+            else
+              VKVIDEO_CB_URL="https://beta.twitchmemes.ru/auth/vkvideo/callback"
+            fi
             
             # Create .env file with beta port
             #
@@ -662,6 +692,15 @@ jobs:
             VK_CLIENT_ID=${{ secrets.VK_CLIENT_ID }}
             VK_CLIENT_SECRET=${{ secrets.VK_CLIENT_SECRET }}
             VK_CALLBACK_URL=$VK_CB_URL
+
+            # VKVideo OAuth — external account linking
+            VKVIDEO_CLIENT_ID=${{ secrets.VKVIDEO_CLIENT_ID }}
+            VKVIDEO_CLIENT_SECRET=${{ secrets.VKVIDEO_CLIENT_SECRET }}
+            VKVIDEO_AUTHORIZE_URL=${{ secrets.VKVIDEO_AUTHORIZE_URL }}
+            VKVIDEO_TOKEN_URL=${{ secrets.VKVIDEO_TOKEN_URL }}
+            VKVIDEO_CALLBACK_URL=$VKVIDEO_CB_URL
+            VKVIDEO_SCOPES=${{ secrets.VKVIDEO_SCOPES || '' }}
+            VKVIDEO_USERINFO_URL=${{ secrets.VKVIDEO_USERINFO_URL || '' }}
             
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
