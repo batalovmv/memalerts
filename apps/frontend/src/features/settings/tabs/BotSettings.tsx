@@ -3,12 +3,14 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, Input, Spinner, Textarea } from '@/shared/ui';
+import { SavingOverlay } from '@/shared/ui/StatusOverlays';
 
 type BotCommand = {
   id: string;
   trigger: string;
   response: string;
   enabled?: boolean;
+  onlyWhenLive?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -78,6 +80,7 @@ export function BotSettings() {
   const [commandToggleLoadingId, setCommandToggleLoadingId] = useState<string | null>(null);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
+  const [newOnlyWhenLive, setNewOnlyWhenLive] = useState(false);
 
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
@@ -95,7 +98,6 @@ export function BotSettings() {
   const [streamDurationTrigger, setStreamDurationTrigger] = useState('!time');
   const [streamDurationTemplate, setStreamDurationTemplate] = useState('');
   const [streamDurationBreakCreditMinutes, setStreamDurationBreakCreditMinutes] = useState<number>(60);
-  const [streamDurationOnlyWhenLive, setStreamDurationOnlyWhenLive] = useState<boolean>(false);
 
   const loadFollowGreetings = useCallback(async () => {
     try {
@@ -125,7 +127,6 @@ export function BotSettings() {
       if (typeof res?.breakCreditMinutes === 'number' && Number.isFinite(res.breakCreditMinutes)) {
         setStreamDurationBreakCreditMinutes(Math.max(0, Math.round(res.breakCreditMinutes)));
       }
-      if (typeof res?.onlyWhenLive === 'boolean') setStreamDurationOnlyWhenLive(res.onlyWhenLive);
 
       setStreamDurationNotAvailable(false);
       setStreamDurationLoaded(true);
@@ -213,7 +214,7 @@ export function BotSettings() {
     }
     try {
       const { api } = await import('@/lib/api');
-      const res = await api.post<BotCommand>('/streamer/bot/commands', { trigger, response });
+      const res = await api.post<BotCommand>('/streamer/bot/commands', { trigger, response, onlyWhenLive: newOnlyWhenLive });
       if (res && typeof res === 'object' && 'id' in res) {
         setCommands((prev) => [res as BotCommand, ...prev]);
       } else {
@@ -221,6 +222,7 @@ export function BotSettings() {
       }
       setNewTrigger('');
       setNewResponse('');
+      setNewOnlyWhenLive(false);
       toast.success(t('admin.botCommandAdded', { defaultValue: 'Command added.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
@@ -237,7 +239,7 @@ export function BotSettings() {
       }
       toast.error(apiError.response?.data?.error || t('admin.failedToAddBotCommand', { defaultValue: 'Failed to add command.' }));
     }
-  }, [loadCommands, newResponse, newTrigger, t]);
+  }, [loadCommands, newOnlyWhenLive, newResponse, newTrigger, t]);
 
   const deleteCommand = useCallback(
     async (id: string) => {
@@ -254,16 +256,17 @@ export function BotSettings() {
     [t]
   );
 
-  const toggleCommandEnabled = useCallback(
-    async (id: string, nextEnabled: boolean) => {
+  const updateCommand = useCallback(
+    async (id: string, patch: Partial<Pick<BotCommand, 'enabled' | 'onlyWhenLive'>>) => {
       const startedAt = Date.now();
+      const prev = commands.find((c) => c.id === id) || null;
       try {
         setCommandToggleLoadingId(id);
         // Optimistic UI
-        setCommands((prev) => prev.map((c) => (c.id === id ? { ...c, enabled: nextEnabled } : c)));
+        setCommands((list) => list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
 
         const { api } = await import('@/lib/api');
-        const res = await api.patch<BotCommand>(`/streamer/bot/commands/${encodeURIComponent(id)}`, { enabled: nextEnabled });
+        const res = await api.patch<BotCommand>(`/streamer/bot/commands/${encodeURIComponent(id)}`, patch);
         // Keep UI consistent with backend (in case it normalizes fields).
         if (res && typeof res === 'object' && 'id' in res) {
           const updated = res as BotCommand;
@@ -271,7 +274,9 @@ export function BotSettings() {
         }
       } catch (error: unknown) {
         // Revert optimistic update on failure.
-        setCommands((prev) => prev.map((c) => (c.id === id ? { ...c, enabled: !nextEnabled } : c)));
+        if (prev) {
+          setCommands((list) => list.map((c) => (c.id === id ? { ...c, ...prev } : c)));
+        }
         const apiErr = error as { response?: { status?: number; data?: { error?: string } } };
         if (apiErr.response?.status === 400) {
           toast.error(apiErr.response?.data?.error || t('admin.failedToToggleBotCommand', { defaultValue: 'Failed to update command.' }));
@@ -291,7 +296,7 @@ export function BotSettings() {
         setCommandToggleLoadingId(null);
       }
     },
-    [t]
+    [commands, t]
   );
 
   const enableFollowGreetings = useCallback(async () => {
@@ -382,7 +387,8 @@ export function BotSettings() {
         trigger,
         responseTemplate: responseTemplate || null,
         breakCreditMinutes,
-        onlyWhenLive: streamDurationOnlyWhenLive,
+        // This command only makes sense while the stream is live, so we force live-only.
+        onlyWhenLive: true,
       });
 
       if (typeof res?.enabled === 'boolean') setStreamDurationEnabled(res.enabled);
@@ -391,7 +397,6 @@ export function BotSettings() {
       if (typeof res?.breakCreditMinutes === 'number' && Number.isFinite(res.breakCreditMinutes)) {
         setStreamDurationBreakCreditMinutes(Math.max(0, Math.round(res.breakCreditMinutes)));
       }
-      if (typeof res?.onlyWhenLive === 'boolean') setStreamDurationOnlyWhenLive(res.onlyWhenLive);
 
       toast.success(t('admin.streamDurationSaved', { defaultValue: 'Saved.' }));
     } catch (error: unknown) {
@@ -409,7 +414,7 @@ export function BotSettings() {
       await ensureMinDuration(startedAt, 450);
       setSavingStreamDuration(false);
     }
-  }, [streamDurationBreakCreditMinutes, streamDurationEnabled, streamDurationOnlyWhenLive, streamDurationTemplate, streamDurationTrigger, t]);
+  }, [streamDurationBreakCreditMinutes, streamDurationEnabled, streamDurationTemplate, streamDurationTrigger, t]);
 
   const sendTestMessage = useCallback(async () => {
     const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
@@ -510,7 +515,8 @@ export function BotSettings() {
         })}
       </p>
 
-      <div className={`glass p-4 ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
+      <div className={`glass p-4 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
+        {loading === 'toggle' ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="font-semibold text-gray-900 dark:text-white">
@@ -563,14 +569,17 @@ export function BotSettings() {
           {showMenus && menusOpen && (
             <div className={`mt-3 space-y-4 ${menusDisabled ? 'pointer-events-none opacity-60' : ''}`}>
               {/* Follow greetings */}
-              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative">
+                {savingFollowGreetings ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="font-semibold text-gray-900 dark:text-white">
                       {t('admin.followGreetingsTitle', { defaultValue: 'Follow greetings' })}
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                      {t('admin.followGreetingsHint', { defaultValue: 'When someone follows your channel, the bot will post a greeting in chat.' })}
+                      {t('admin.followGreetingsHint', {
+                        defaultValue: 'When someone follows your channel (while you are live), the bot will post a greeting in chat.',
+                      })}
                     </div>
                   </div>
                   <ToggleSwitch
@@ -608,7 +617,8 @@ export function BotSettings() {
               </div>
 
               {/* Stream duration command */}
-              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative">
+                {savingStreamDuration ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="font-semibold text-gray-900 dark:text-white">
@@ -641,24 +651,10 @@ export function BotSettings() {
 
                 {!streamDurationNotAvailable && (
                   <div className="mt-3 space-y-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                          {t('admin.streamDurationOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                          {t('admin.streamDurationOnlyWhenLiveHint', {
-                            defaultValue: 'When enabled, the command replies only while your Twitch stream is online.',
-                          })}
-                        </div>
-                      </div>
-                      <ToggleSwitch
-                        checked={streamDurationOnlyWhenLive}
-                        disabled={savingStreamDuration}
-                        busy={savingStreamDuration}
-                        onChange={(next) => setStreamDurationOnlyWhenLive(next)}
-                        ariaLabel={t('admin.streamDurationOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
-                      />
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      {t('admin.streamDurationLiveOnlyInfo', {
+                        defaultValue: 'This command works only while your Twitch stream is live.',
+                      })}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -757,6 +753,22 @@ export function BotSettings() {
                       </div>
                     </div>
 
+                    <div className="mt-3 flex items-start justify-between gap-4 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          {t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          {t('admin.botCommandOnlyWhenLiveHint', { defaultValue: 'If enabled, this command replies only while your stream is online.' })}
+                        </div>
+                      </div>
+                      <ToggleSwitch
+                        checked={newOnlyWhenLive}
+                        onChange={(next) => setNewOnlyWhenLive(next)}
+                        ariaLabel={t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                      />
+                    </div>
+
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <Button type="button" variant="primary" onClick={() => void addCommand()} disabled={commandsLoading}>
                         {t('admin.addBotCommand', { defaultValue: 'Add command' })}
@@ -779,8 +791,11 @@ export function BotSettings() {
                           {visibleCommands.map((cmd) => (
                             <div
                               key={cmd.id}
-                              className="flex items-start justify-between gap-3 rounded-lg bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2"
+                              className="flex items-start justify-between gap-3 rounded-lg bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2 relative"
                             >
+                              {commandToggleLoadingId === cmd.id ? (
+                                <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />
+                              ) : null}
                               <div className="min-w-0">
                                 <div className="font-mono text-sm text-gray-900 dark:text-white truncate">{cmd.trigger}</div>
                                 <div className="text-sm text-gray-700 dark:text-gray-200 break-words">{cmd.response}</div>
@@ -790,8 +805,15 @@ export function BotSettings() {
                                   checked={cmd.enabled !== false}
                                   disabled={commandToggleLoadingId !== null}
                                   busy={commandToggleLoadingId === cmd.id}
-                                  onChange={(next) => void toggleCommandEnabled(cmd.id, next)}
+                                  onChange={(next) => void updateCommand(cmd.id, { enabled: next })}
                                   ariaLabel={t('admin.botCommandEnabled', { defaultValue: 'Command enabled' })}
+                                />
+                                <ToggleSwitch
+                                  checked={cmd.onlyWhenLive === true}
+                                  disabled={commandToggleLoadingId !== null}
+                                  busy={commandToggleLoadingId === cmd.id}
+                                  onChange={(next) => void updateCommand(cmd.id, { onlyWhenLive: next })}
+                                  ariaLabel={t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
                                 />
                                 <Button type="button" variant="secondary" onClick={() => void deleteCommand(cmd.id)} disabled={commandToggleLoadingId === cmd.id}>
                                   {t('common.delete', { defaultValue: 'Delete' })}
