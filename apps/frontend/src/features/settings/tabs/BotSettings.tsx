@@ -21,6 +21,8 @@ export function BotSettings() {
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
   const [commandsApiAvailable, setCommandsApiAvailable] = useState(true);
+  const [followGreetingsEnabled, setFollowGreetingsEnabled] = useState<boolean | null>(null);
+  const [followGreetingTemplate, setFollowGreetingTemplate] = useState<string>('');
 
   const defaultTestMessage = useMemo(
     () => t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' }),
@@ -58,9 +60,15 @@ export function BotSettings() {
     (async () => {
       try {
         const { api } = await import('@/lib/api');
-        const res = await api.get<{ enabled?: boolean | null }>('/streamer/bot/subscription', { timeout: 8000 });
+        const res = await api.get<{
+          enabled?: boolean | null;
+          followGreetingsEnabled?: boolean;
+          followGreetingTemplate?: string | null;
+        }>('/streamer/bot/subscription', { timeout: 8000 });
         if (cancelled) return;
         if (typeof res?.enabled === 'boolean') setBotEnabled(res.enabled);
+        if (typeof res?.followGreetingsEnabled === 'boolean') setFollowGreetingsEnabled(res.followGreetingsEnabled);
+        if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       } catch (error: unknown) {
         const apiError = error as { response?: { status?: number } };
         // Backend may not support this endpoint yet (404). Don't show an error; fallback to optimistic toggle.
@@ -72,6 +80,53 @@ export function BotSettings() {
       cancelled = true;
     };
   }, []);
+
+  const callFollowGreetingsToggle = async (nextEnabled: boolean) => {
+    const startedAt = Date.now();
+    try {
+      setLoading('toggle');
+      const { api } = await import('@/lib/api');
+      await api.post(nextEnabled ? '/streamer/bot/follow-greetings/enable' : '/streamer/bot/follow-greetings/disable');
+      setFollowGreetingsEnabled(nextEnabled);
+      toast.success(
+        nextEnabled
+          ? t('admin.followGreetingsEnabled', { defaultValue: 'Follow greetings enabled.' })
+          : t('admin.followGreetingsDisabled', { defaultValue: 'Follow greetings disabled.' })
+      );
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
+    } finally {
+      await ensureMinDuration(startedAt, 500);
+      setLoading(null);
+    }
+  };
+
+  const saveFollowGreetingTemplate = async () => {
+    const startedAt = Date.now();
+    const raw = followGreetingTemplate.trim();
+    if (!raw) {
+      toast.error(t('admin.followGreetingTemplateRequired', { defaultValue: 'Enter a template.' }));
+      return;
+    }
+    if (raw.length > 450) {
+      toast.error(t('admin.followGreetingTemplateTooLong', { defaultValue: 'Template is too long.' }));
+      return;
+    }
+
+    try {
+      setLoading('toggle');
+      const { api } = await import('@/lib/api');
+      await api.patch('/streamer/bot/follow-greetings', { followGreetingTemplate: raw });
+      toast.success(t('admin.followGreetingTemplateSaved', { defaultValue: 'Template saved.' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSaveFollowGreetingTemplate', { defaultValue: 'Failed to save template.' }));
+    } finally {
+      await ensureMinDuration(startedAt, 500);
+      setLoading(null);
+    }
+  };
 
   const sendTestMessage = async () => {
     const startedAt = Date.now();
@@ -164,6 +219,10 @@ export function BotSettings() {
       if (apiError404.response?.status === 404) {
         setCommandsApiAvailable(false);
       }
+      if (apiError404.response?.status === 409) {
+        toast.error(t('admin.botCommandAlreadyExists', { defaultValue: 'This trigger already exists.' }));
+        return;
+      }
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToAddBotCommand', { defaultValue: 'Failed to add command.' }));
     } finally {
@@ -237,6 +296,52 @@ export function BotSettings() {
             {t('admin.botStatusUnknown', { defaultValue: 'Status is unknown until you toggle it (or until the server provides it).' })}
           </div>
         )}
+      </div>
+
+      <div className="mt-4">
+        <div className={`glass p-4 ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('admin.followGreetingsTitle', { defaultValue: 'Follow greetings' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                {t('admin.followGreetingsHint', { defaultValue: 'When someone follows your channel, the bot will post a greeting in chat.' })}
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={followGreetingsEnabled ?? false}
+                onChange={(e) => void callFollowGreetingsToggle(e.target.checked)}
+                className="sr-only peer"
+                disabled={followGreetingsEnabled === null && isBusy}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
+            </label>
+          </div>
+
+          <div className="mt-3">
+            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+              {t('admin.followGreetingTemplateLabel', { defaultValue: 'Greeting template' })}
+            </div>
+            <Textarea
+              value={followGreetingTemplate}
+              onChange={(e) => setFollowGreetingTemplate(e.target.value)}
+              rows={2}
+              placeholder={t('admin.followGreetingTemplatePlaceholder', { defaultValue: 'Thanks for the follow, {user}!' })}
+              disabled={isBusy}
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.followGreetingTemplateVars', { defaultValue: 'You can use {user} placeholder.' })}
+              </div>
+              <Button type="button" variant="secondary" onClick={() => void saveFollowGreetingTemplate()} disabled={isBusy}>
+                {t('common.save', { defaultValue: 'Save' })}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mt-6 pt-6 border-t border-black/5 dark:border-white/10">
