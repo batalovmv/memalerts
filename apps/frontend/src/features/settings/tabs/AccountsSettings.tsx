@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { fetchUser } from '@/store/slices/authSlice';
+import { useAppSelector } from '@/store/hooks';
 import { Button, Card } from '@/shared/ui';
 import { linkTwitchAccount } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
@@ -26,17 +25,12 @@ function CheckIcon() {
 
 export function AccountsSettings() {
   const { t } = useTranslation();
-  const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
 
   useAuthQueryErrorToast();
 
   const accounts = useMemo(() => normalizeAccounts(user?.externalAccounts), [user?.externalAccounts]);
   const linkedProviders = useMemo(() => new Set(accounts.map((a) => a.provider)), [accounts]);
-
-  useEffect(() => {
-    void dispatch(fetchUser());
-  }, [dispatch]);
 
   const linkTwitch = useCallback(() => {
     linkTwitchAccount('/settings/accounts');

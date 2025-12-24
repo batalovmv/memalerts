@@ -62,7 +62,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isBetaDomain, user]);
+  }, [isBetaDomain, user?.id]);
 
   // Beta gating: only show access request screen (after login) until approved.
   if (isBetaDomain && user && betaChecked && !betaHasAccess) {
