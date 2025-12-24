@@ -26,6 +26,12 @@ type StreamDurationSettings = {
   onlyWhenLive?: boolean | null;
 };
 
+type StreamerBotIntegration = {
+  provider: 'twitch' | 'youtube' | string;
+  enabled?: boolean;
+  updatedAt?: string | null;
+};
+
 type ToggleSwitchProps = {
   checked: boolean;
   disabled?: boolean;
@@ -79,6 +85,11 @@ export function BotSettings() {
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [menusOpen, setMenusOpen] = useState(true);
 
+  const [botsLoaded, setBotsLoaded] = useState(false);
+  const [botsLoading, setBotsLoading] = useState(false);
+  const [bots, setBots] = useState<StreamerBotIntegration[]>([]);
+  const [botIntegrationToggleLoading, setBotIntegrationToggleLoading] = useState<string | null>(null);
+
   const [commands, setCommands] = useState<BotCommand[]>([]);
   const [commandsLoaded, setCommandsLoaded] = useState(false);
   const [commandsLoading, setCommandsLoading] = useState(false);
@@ -99,6 +110,7 @@ export function BotSettings() {
 
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
+  const [testMessageProvider, setTestMessageProvider] = useState<'twitch' | 'youtube'>('twitch');
 
   const [followGreetingsEnabled, setFollowGreetingsEnabled] = useState<boolean>(false);
   const [followGreetingTemplate, setFollowGreetingTemplate] = useState<string>('');
@@ -184,10 +196,26 @@ export function BotSettings() {
     }
   }, []);
 
+  const loadBotIntegrations = useCallback(async () => {
+    try {
+      setBotsLoading(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<{ items?: StreamerBotIntegration[] }>('/streamer/bots', { timeout: 8000 });
+      setBots(Array.isArray(res?.items) ? res.items : []);
+      setBotsLoaded(true);
+    } catch (error: unknown) {
+      // Keep quiet on load; the rest of the page works without it.
+      setBotsLoaded(false);
+    } finally {
+      setBotsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadSubscription();
+    void loadBotIntegrations();
     void loadFollowGreetings();
-  }, [loadFollowGreetings, loadSubscription]);
+  }, [loadBotIntegrations, loadFollowGreetings, loadSubscription]);
 
   // UX: when the bot is enabled, auto-expand settings; when disabled, collapse.
   useEffect(() => {
@@ -479,7 +507,7 @@ export function BotSettings() {
     try {
       setSendingTestMessage(true);
       const { api } = await import('@/lib/api');
-      await api.post('/streamer/bot/say', { message: msg });
+      await api.post('/streamer/bot/say', testMessageProvider === 'twitch' ? { message: msg } : { provider: testMessageProvider, message: msg });
       toast.success(t('admin.botTestMessageSent', { defaultValue: 'Message sent.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { status?: number; data?: { error?: string } } };
@@ -487,12 +515,50 @@ export function BotSettings() {
         toast.error(t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' }));
         return;
       }
+      if (apiError.response?.status === 400 && testMessageProvider === 'youtube') {
+        toast.error(
+          t('admin.youtubeRelinkRequired', { defaultValue: 'Сначала привяжите YouTube заново (нужны новые разрешения).' })
+        );
+        return;
+      }
       toast.error(apiError.response?.data?.error || t('admin.failedToSendBotTestMessage', { defaultValue: 'Failed to send message.' }));
     } finally {
       await ensureMinDuration(startedAt, 450);
       setSendingTestMessage(false);
     }
-  }, [t, testMessage]);
+  }, [t, testMessage, testMessageProvider]);
+
+  const toggleBotIntegration = useCallback(
+    async (provider: 'youtube', nextEnabled: boolean) => {
+      const startedAt = Date.now();
+      try {
+        setBotIntegrationToggleLoading(provider);
+        // optimistic
+        setBots((prev) => prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b)));
+
+        const { api } = await import('@/lib/api');
+        await api.patch(`/streamer/bots/${encodeURIComponent(provider)}`, { enabled: nextEnabled });
+        toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+        // best-effort refresh (updatedAt may change)
+        void loadBotIntegrations();
+      } catch (error: unknown) {
+        // revert optimistic update by refetching
+        void loadBotIntegrations();
+        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
+        if (apiError.response?.status === 400) {
+          toast.error(
+            t('admin.youtubeRelinkRequired', { defaultValue: 'Сначала привяжите YouTube заново (нужны новые разрешения).' })
+          );
+          return;
+        }
+        toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      } finally {
+        await ensureMinDuration(startedAt, 450);
+        setBotIntegrationToggleLoading(null);
+      }
+    },
+    [loadBotIntegrations, t]
+  );
 
   const callToggle = async (nextEnabled: boolean) => {
     const startedAt = Date.now();
@@ -596,6 +662,57 @@ export function BotSettings() {
             'Enable/disable the chat bot subscription for your channel. The bot joins/leaves chats automatically based on this setting.',
         })}
       </p>
+
+      {/* Integrations (YouTube/Twitch) */}
+      <div className="glass p-4 mb-4 relative">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.botIntegrationsTitle', { defaultValue: 'Bot integrations' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.botIntegrationsHint', {
+                defaultValue: 'Enable/disable bot providers. If YouTube returns an error, re-link YouTube to grant new permissions.',
+              })}
+            </div>
+          </div>
+          {botsLoading ? <Spinner className="h-5 w-5" /> : null}
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {(() => {
+            const map = new Map(bots.map((b) => [b.provider, b]));
+            const yt = map.get('youtube');
+            const ytEnabled = yt?.enabled === true;
+            const ytBusy = botIntegrationToggleLoading === 'youtube';
+
+            return (
+              <div className="flex items-start justify-between gap-4 rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                    {t('admin.youtubeBotIntegrationHint', {
+                      defaultValue: 'Requires YouTube re-link after scope update (YouTube Data API).',
+                    })}
+                    {yt?.updatedAt ? (
+                      <span className="ml-2 opacity-80">
+                        {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(yt.updatedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={ytEnabled}
+                  disabled={!botsLoaded || botsLoading || ytBusy}
+                  busy={ytBusy}
+                  onChange={(next) => void toggleBotIntegration('youtube', next)}
+                  ariaLabel={t('admin.youtubeBotIntegrationLabel', { defaultValue: 'YouTube bot enabled' })}
+                />
+              </div>
+            );
+          })()}
+        </div>
+      </div>
 
       <div className={`glass p-4 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
         {loading === 'toggle' ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
@@ -741,7 +858,7 @@ export function BotSettings() {
                   <div className="mt-3 space-y-3">
                     <div className="text-xs text-gray-600 dark:text-gray-300">
                       {t('admin.streamDurationLiveOnlyInfo', {
-                        defaultValue: 'This command works only while your Twitch stream is live.',
+                        defaultValue: 'This command works only while your stream is live.',
                       })}
                     </div>
 
@@ -1236,11 +1353,25 @@ export function BotSettings() {
                 <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                   {t('admin.botTestMessageHint', {
                     defaultValue:
-                      'Send a message from the bot into your Twitch chat. This helps confirm the bot is connected and visible.',
+                      'Send a message from the bot into your chat. This helps confirm the bot is connected and visible.',
                   })}
                 </div>
 
                 <div className="mt-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                      {t('admin.botProviderLabel', { defaultValue: 'Provider' })}
+                    </label>
+                    <select
+                      className="ml-auto rounded-lg bg-white/60 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                      value={testMessageProvider}
+                      onChange={(e) => setTestMessageProvider(e.target.value as 'twitch' | 'youtube')}
+                      disabled={sendingTestMessage}
+                    >
+                      <option value="twitch">Twitch</option>
+                      <option value="youtube">YouTube</option>
+                    </select>
+                  </div>
                   <Textarea
                     rows={2}
                     value={testMessage}
