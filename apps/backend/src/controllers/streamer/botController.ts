@@ -92,6 +92,9 @@ export const streamerBotController = {
       select: { id: true, twitchChannelId: true },
     });
     if (!channel) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
+    if (!channel.twitchChannelId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'This channel is not linked to Twitch' });
+    }
 
     const login = await getTwitchLoginByUserId(channel.twitchChannelId);
     if (!login) return res.status(400).json({ error: 'Bad Request', message: 'Failed to resolve twitch login' });
@@ -150,6 +153,9 @@ export const streamerBotController = {
       select: { twitchChannelId: true },
     });
     if (!channel) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
+    if (!channel.twitchChannelId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'This channel is not linked to Twitch' });
+    }
 
     const login = await getTwitchLoginByUserId(channel.twitchChannelId);
 
@@ -424,6 +430,9 @@ export const streamerBotController = {
       },
       select: { twitchChannelId: true, followGreetingsEnabled: true, followGreetingTemplate: true },
     });
+    if (!channel.twitchChannelId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'This channel is not linked to Twitch' });
+    }
 
     // Best-effort: ensure EventSub subscription exists for channel.follow.
     try {

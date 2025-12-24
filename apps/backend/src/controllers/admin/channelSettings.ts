@@ -54,6 +54,15 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
     // Only run it when rewardEnabled actually changes (false -> true). For normal edits (title/cost/coins),
     // do a lightweight update against the already known rewardId.
     if ((isRewardToggle && wantsRewardEnabled) || (!isRewardToggle && wantsRewardEnabled && hasRewardUpdateFields)) {
+      // Twitch-only: rewards/EventSub require a Twitch-linked channel.
+      const broadcasterId = channel.twitchChannelId;
+      if (!broadcasterId) {
+        return res.status(400).json({
+          error: 'This channel is not linked to Twitch.',
+          errorCode: 'TWITCH_CHANNEL_NOT_LINKED',
+        });
+      }
+
       if (isRewardToggle && wantsRewardEnabled) {
         // Enable reward - create or update in Twitch
         if (!body.rewardCost || !body.rewardCoins) {
@@ -81,8 +90,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         try {
           const who = await getAuthenticatedTwitchUser(userId);
           const tokenTwitchUserId = who?.id || null;
-          const broadcasterId = channel.twitchChannelId || null;
-          if (tokenTwitchUserId && broadcasterId && tokenTwitchUserId !== String(broadcasterId)) {
+          if (tokenTwitchUserId && tokenTwitchUserId !== String(broadcasterId)) {
             return res.status(403).json({
               error: 'Twitch account mismatch. Please log in as the channel owner to manage rewards.',
               errorCode: 'TWITCH_ACCOUNT_MISMATCH',
@@ -102,7 +110,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
 
         // Prevent enabling rewards for channels without affiliate/partner status.
         try {
-          const info = await getChannelInformation(userId, channel.twitchChannelId);
+          const info = await getChannelInformation(userId, broadcasterId);
           const btRaw = info?.broadcaster_type;
           if (btRaw === null || btRaw === undefined) {
             // We couldn't reliably check eligibility. On beta, don't hard-block: allow attempt and let Twitch
@@ -111,7 +119,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
               requestId: req.requestId,
               userId,
               channelId,
-              broadcasterId: channel.twitchChannelId,
+              broadcasterId,
               tokenMode: info?._meta?.tokenMode,
               itemKeys: info?._meta?.itemKeys,
               rawBroadcasterType: info?._meta?.rawBroadcasterType,
@@ -137,7 +145,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
             requestId: req.requestId,
             userId,
             channelId,
-            broadcasterId: channel.twitchChannelId,
+            broadcasterId,
             errorMessage: e?.message,
           });
           return res.status(502).json({
@@ -150,7 +158,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         let existingRewardId: string | null = null;
         let oldRewardsToDelete: string[] = [];
         try {
-          const rewards = await getChannelRewards(userId, channel.twitchChannelId);
+          const rewards = await getChannelRewards(userId, broadcasterId);
 
           if (rewards?.data) {
             // Check if we have a stored reward ID that still exists
@@ -184,7 +192,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
             requestId: req.requestId,
             userId,
             channelId,
-            broadcasterId: channel.twitchChannelId,
+            broadcasterId,
             errorMessage: error?.message,
           });
           // Continue with create/update logic
@@ -193,13 +201,13 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         // Delete old rewards
         for (const oldRewardId of oldRewardsToDelete) {
           try {
-            await deleteChannelReward(userId, channel.twitchChannelId, oldRewardId);
+            await deleteChannelReward(userId, broadcasterId, oldRewardId);
           } catch (error: any) {
             logger.warn('twitch.rewards.delete_old_failed', {
               requestId: req.requestId,
               userId,
               channelId,
-              broadcasterId: channel.twitchChannelId,
+              broadcasterId,
               rewardId: oldRewardId,
               errorMessage: error?.message,
             });
@@ -210,7 +218,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         if (existingRewardId) {
           // Update existing reward
           try {
-            await updateChannelReward(userId, channel.twitchChannelId, existingRewardId, {
+            await updateChannelReward(userId, broadcasterId, existingRewardId, {
               title: body.rewardTitle || `Get ${body.rewardCoins} Coins`,
               cost: body.rewardCost,
               is_enabled: true,
@@ -221,7 +229,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
             // Fetch reward details to get image URL (wait a bit for Twitch to process)
             try {
               await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
-              const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, existingRewardId);
+              const rewardDetails = await getChannelRewards(userId, broadcasterId, existingRewardId);
               if (
                 rewardDetails?.data?.[0]?.image?.url_1x ||
                 rewardDetails?.data?.[0]?.image?.url_2x ||
@@ -235,7 +243,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
                 requestId: req.requestId,
                 userId,
                 channelId,
-                broadcasterId: channel.twitchChannelId,
+                broadcasterId,
                 rewardId: existingRewardId,
               });
             }
@@ -244,14 +252,14 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
               requestId: req.requestId,
               userId,
               channelId,
-              broadcasterId: channel.twitchChannelId,
+              broadcasterId,
               rewardId: existingRewardId,
               errorMessage: error?.message,
             });
             // If update fails, create new one
             const rewardResponse = await createChannelReward(
               userId,
-              channel.twitchChannelId,
+              broadcasterId,
               body.rewardTitle || `Get ${body.rewardCoins} Coins`,
               body.rewardCost,
               `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
@@ -265,7 +273,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
               // If image not in response, fetch reward details
               try {
                 await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
-                const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, (body as any).rewardIdForCoins ?? undefined);
+                const rewardDetails = await getChannelRewards(userId, broadcasterId, (body as any).rewardIdForCoins ?? undefined);
                 if (
                   rewardDetails?.data?.[0]?.image?.url_1x ||
                   rewardDetails?.data?.[0]?.image?.url_2x ||
@@ -279,7 +287,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
                   requestId: req.requestId,
                   userId,
                   channelId,
-                  broadcasterId: channel.twitchChannelId,
+                  broadcasterId,
                   rewardId: (body as any).rewardIdForCoins ?? null,
                 });
               }
@@ -289,7 +297,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
           // Create new reward
           const rewardResponse = await createChannelReward(
             userId,
-            channel.twitchChannelId,
+            broadcasterId,
             body.rewardTitle || `Get ${body.rewardCoins} Coins`,
             body.rewardCost,
             `Redeem ${body.rewardCost} channel points to get ${body.rewardCoins} coins!`
@@ -303,7 +311,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
             // If image not in response, fetch reward details
             try {
               await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second for Twitch to process
-              const rewardDetails = await getChannelRewards(userId, channel.twitchChannelId, (body as any).rewardIdForCoins ?? undefined);
+              const rewardDetails = await getChannelRewards(userId, broadcasterId, (body as any).rewardIdForCoins ?? undefined);
               if (
                 rewardDetails?.data?.[0]?.image?.url_1x ||
                 rewardDetails?.data?.[0]?.image?.url_2x ||
@@ -316,7 +324,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
                 requestId: req.requestId,
                 userId,
                 channelId,
-                broadcasterId: channel.twitchChannelId,
+                broadcasterId,
                 rewardId: (body as any).rewardIdForCoins ?? null,
               });
             }
@@ -335,7 +343,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
 
           // Check existing subscriptions first
           try {
-            const existingSubs = await getEventSubSubscriptions(channel.twitchChannelId);
+            const existingSubs = await getEventSubSubscriptions(broadcasterId);
 
             // Check if we already have an active subscription for this event type
             const relevantSubs = (existingSubs?.data || []).filter(
@@ -371,7 +379,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
               }
               // Create new subscription
               try {
-                await createEventSubSubscription(userId, channel.twitchChannelId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
+                await createEventSubSubscription(userId, broadcasterId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
               } catch (createErr: any) {
                 // If Twitch says "already exists", do a best-effort cleanup and retry once.
                 if (createErr?.status === 409) {
@@ -386,7 +394,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
                       console.error('[adminController] Cleanup delete failed:', { id: sub.id, error: (deleteErr as any)?.message });
                     }
                   }
-                  await createEventSubSubscription(userId, channel.twitchChannelId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
+                  await createEventSubSubscription(userId, broadcasterId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
                 } else {
                   throw createErr;
                 }
@@ -395,7 +403,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
           } catch (checkError: any) {
             // If check fails, try to create anyway
             console.error('Error checking subscriptions, will try to create:', checkError);
-            await createEventSubSubscription(userId, channel.twitchChannelId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
+            await createEventSubSubscription(userId, broadcasterId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
           }
         } catch (error: any) {
           // Log but don't fail - subscription might already exist
@@ -412,7 +420,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
 
         if (rewardId && cost && coins) {
           try {
-            await updateChannelReward(userId, channel.twitchChannelId, rewardId, {
+            await updateChannelReward(userId, broadcasterId, rewardId, {
               title: title || `Get ${coins} Coins`,
               cost,
               is_enabled: true,
@@ -424,7 +432,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
               requestId: req.requestId,
               userId,
               channelId,
-              broadcasterId: channel.twitchChannelId,
+              broadcasterId,
               rewardId,
               errorMessage: error?.message,
             });
@@ -433,9 +441,10 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       }
     } else if (isRewardToggle && !wantsRewardEnabled) {
       // Disable reward - disable in Twitch but don't delete (only if this is a real toggle).
-      if ((channel as any).rewardIdForCoins) {
+      const broadcasterId = channel.twitchChannelId;
+      if (broadcasterId && (channel as any).rewardIdForCoins) {
         try {
-          await updateChannelReward(userId, channel.twitchChannelId, (channel as any).rewardIdForCoins, {
+          await updateChannelReward(userId, broadcasterId, (channel as any).rewardIdForCoins, {
             is_enabled: false,
           });
         } catch (error: any) {
