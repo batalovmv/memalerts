@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { Button } from '@/shared/ui';
+import { Button, Textarea } from '@/shared/ui';
 
 export function BotSettings() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState<'enable' | 'disable' | null>(null);
+  const [testMessage, setTestMessage] = useState('');
+
+  const defaultTestMessage = useMemo(
+    () => t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' }),
+    [t]
+  );
 
   const call = async (action: 'enable' | 'disable') => {
     const startedAt = Date.now();
@@ -29,6 +35,38 @@ export function BotSettings() {
           : t('admin.failedToDisableBot', { defaultValue: 'Failed to disable bot.' });
 
       const msg = apiError.response?.data?.error || fallback;
+      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+    } finally {
+      await ensureMinDuration(startedAt, 500);
+      setLoading(null);
+    }
+  };
+
+  const sendTestMessage = async () => {
+    const startedAt = Date.now();
+    const raw = testMessage.trim() || defaultTestMessage.trim();
+    if (!raw) {
+      toast.error(t('admin.botTestMessageRequired', { defaultValue: 'Enter a message.' }));
+      return;
+    }
+    if (raw.length > 450) {
+      toast.error(t('admin.botTestMessageTooLong', { defaultValue: 'Message is too long.' }));
+      return;
+    }
+
+    try {
+      setLoading('enable'); // lock both buttons while sending
+      const { api } = await import('@/lib/api');
+      await api.post('/streamer/bot/say', { message: raw });
+      toast.success(t('admin.botTestMessageSent', { defaultValue: 'Message sent.' }));
+      setTestMessage('');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      const msg =
+        apiError.response?.data?.error ||
+        t('admin.failedToSendBotTestMessage', { defaultValue: 'Failed to send message.' });
       toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
     } finally {
       await ensureMinDuration(startedAt, 500);
@@ -72,6 +110,32 @@ export function BotSettings() {
         >
           {loading === 'disable' ? t('admin.disabling', { defaultValue: 'Disabling…' }) : t('admin.disableBot', { defaultValue: 'Disable' })}
         </Button>
+      </div>
+
+      <div className="mt-6 pt-6 border-t border-black/5 dark:border-white/10">
+        <h3 className="text-lg font-semibold mb-2 dark:text-white">
+          {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+          {t('admin.botTestMessageHint', {
+            defaultValue:
+              'Send a message from the bot into your Twitch chat. This helps confirm the bot is connected and visible.',
+          })}
+        </p>
+
+        <Textarea
+          value={testMessage}
+          onChange={(e) => setTestMessage(e.target.value)}
+          rows={3}
+          placeholder={defaultTestMessage}
+          disabled={loading !== null}
+        />
+
+        <div className="mt-3">
+          <Button type="button" variant="primary" onClick={() => void sendTestMessage()} disabled={loading !== null}>
+            {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
+          </Button>
+        </div>
       </div>
     </div>
   );
