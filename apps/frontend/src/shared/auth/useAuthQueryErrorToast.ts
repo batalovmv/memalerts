@@ -54,6 +54,15 @@ export function useAuthQueryErrorToast(options?: Options): void {
           });
           break;
         }
+        // Backward/alternate backend reason key
+        case 'unsupported_provider': {
+          const safe = prettyProvider ?? 'provider';
+          errorMessage = t('auth.providerNotSupported', {
+            defaultValue: `This provider is not supported yet: ${safe}.`,
+            provider: safe,
+          });
+          break;
+        }
         case 'no_session':
           errorMessage = t('auth.noSession', { defaultValue: 'Please sign in to link accounts.' });
           break;
@@ -71,6 +80,9 @@ export function useAuthQueryErrorToast(options?: Options): void {
           break;
         case 'no_user':
           errorMessage = 'Authentication error: Failed to get user information.';
+          break;
+        case 'state_not_found':
+          errorMessage = 'Authentication error: State is missing or expired. Please try again.';
           break;
         case 'user_null':
           errorMessage = 'Authentication error: User creation failed.';
