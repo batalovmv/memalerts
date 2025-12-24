@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
 import { fetchMyYouTubeChannelId } from '../../utils/youtubeApi.js';
+import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
 type BotProviderV2 = BotProvider | 'vkvideo';
@@ -166,13 +167,58 @@ export const botIntegrationsController = {
 
       if (provider === 'vkvideo') {
         if (enabled) {
-          const vkvideoChannelId = String((req.body as any)?.vkvideoChannelId || '').trim();
+          let vkvideoChannelId = String((req.body as any)?.vkvideoChannelId || '').trim();
+
+          // UX: if channelId is not provided, try to resolve it from VKVideo API using streamer's linked VKVideo account.
           if (!vkvideoChannelId) {
-            return res.status(400).json({
-              error: 'Bad Request',
-              message: 'vkvideoChannelId is required to enable VKVideo bot',
-            });
+            if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+            const account = await getVkVideoExternalAccount(req.userId);
+            if (!account?.accessToken) {
+              return res.status(400).json({
+                error: 'Bad Request',
+                message: 'vkvideoChannelId is required (or link VKVideo account and retry)',
+              });
+            }
+
+            const currentUser = await fetchVkVideoCurrentUser({ accessToken: account.accessToken });
+            if (!currentUser.ok) {
+              return res.status(400).json({
+                error: 'Bad Request',
+                message: `Failed to resolve VKVideo channel from current_user (${currentUser.error || 'unknown'})`,
+              });
+            }
+
+            const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
+            const urlPrimary = String(root?.channel?.url || '').trim();
+            const urls = Array.isArray(root?.channels) ? root.channels.map((c: any) => String(c?.url || '').trim()).filter(Boolean) : [];
+
+            const candidateUrls = [urlPrimary, ...urls].filter(Boolean);
+            const unique = Array.from(new Set(candidateUrls));
+            if (unique.length === 0) {
+              return res.status(400).json({
+                error: 'Bad Request',
+                message: 'Failed to resolve VKVideo channel: no channel.url in current_user response',
+              });
+            }
+            if (unique.length > 1) {
+              return res.status(400).json({
+                error: 'Bad Request',
+                message: 'Multiple VKVideo channels found. Please pass vkvideoChannelId explicitly.',
+                channels: unique,
+              });
+            }
+
+            const parsed = extractVkVideoChannelIdFromUrl(unique[0]);
+            if (!parsed) {
+              return res.status(400).json({
+                error: 'Bad Request',
+                message: 'Failed to extract vkvideoChannelId from VKVideo channel.url. Please pass vkvideoChannelId explicitly.',
+                channelUrl: unique[0],
+              });
+            }
+            vkvideoChannelId = parsed;
           }
+
           await (prisma as any).vkVideoChatBotSubscription.upsert({
             where: { channelId },
             create: { channelId, vkvideoChannelId, enabled: true },

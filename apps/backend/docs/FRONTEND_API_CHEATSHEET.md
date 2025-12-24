@@ -359,9 +359,14 @@
 - **POST `/streamer/credits/reconnect-window`** body: `{ minutes }` → `{ creditsReconnectWindowMinutes }`
 
 ### Chat bot (панель стримера)
+- **Док для разработчиков про запуск/ENV/диагностику ботов**: `docs/BOTS.md`
 - **POST `/streamer/bot/enable`** → `{ ok: true }`
 - **POST `/streamer/bot/disable`** → `{ ok: true }`
-- **POST `/streamer/bot/say`** body `{ message }` → `{ ok, outbox: { id, status, createdAt } }`
+- **POST `/streamer/bot/say`** body:
+  - `{ message }` → отправляет в **Twitch** (если Twitch bot включён для канала)
+  - `{ provider: "youtube", message }` → отправляет в **YouTube** (если YouTube bot включён для канала)
+  - `{ provider: "vkvideo", message }` → отправляет в **VKVideo** (если VKVideo bot включён для канала)
+  - response: `{ ok, outbox: { id, status, createdAt } }`
 - **Twitch-only guard**:
   - если `Channel.twitchChannelId == null`, то `enable/disable` и follow-greetings enable вернут `400`:
     - `{ error: "Bad Request", message: "This channel is not linked to Twitch" }`
@@ -385,6 +390,8 @@
   - body для всех провайдеров: `{ enabled: boolean }`
   - **дополнительно для `provider="vkvideo"` при `enabled=true`** нужно передать `vkvideoChannelId`:
     - body: `{ enabled: true, vkvideoChannelId: string }`
+    - или можно включить без `vkvideoChannelId`: `{ enabled: true }` — backend попробует определить канал автоматически через VKVideo `GET /v1/current_user` (нужна линковка VKVideo аккаунта). Если каналов несколько — нужно передать `vkvideoChannelId` явно.
+  - **Важно (про раннеры)**: включение через этот эндпоинт меняет состояние в БД, но **сообщения/команды начнут работать только если запущен соответствующий воркер** (см. `docs/BOTS.md`).
   - **Twitch-only guard**: при `provider="twitch"` и `Channel.twitchChannelId == null` вернёт `400` как и `/streamer/bot/enable`.
   - ⚠️ если фича ещё не задеплоена/не применены миграции — backend может вернуть `404` (фронт должен показать “недоступно”).
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`

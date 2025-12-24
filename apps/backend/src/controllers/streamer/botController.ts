@@ -154,6 +154,49 @@ export const streamerBotController = {
       }
     }
 
+    if (provider === 'vkvideo') {
+      try {
+        // Optional gating by BotIntegrationSettings(provider=vkvideo).
+        try {
+          const gate = await (prisma as any).botIntegrationSettings.findUnique({
+            where: { channelId_provider: { channelId, provider: 'vkvideo' } },
+            select: { enabled: true },
+          });
+          if (gate && !gate.enabled) {
+            return res.status(400).json({ error: 'Bad Request', message: 'VKVideo chat bot is not enabled for this channel' });
+          }
+        } catch (e: any) {
+          // Feature not deployed / migrations not applied (older instances): ignore gate.
+          if (e?.code !== 'P2021') throw e;
+        }
+
+        const sub = await (prisma as any).vkVideoChatBotSubscription.findUnique({
+          where: { channelId },
+          select: { enabled: true, vkvideoChannelId: true },
+        });
+        if (!sub?.enabled || !sub.vkvideoChannelId) {
+          return res.status(400).json({ error: 'Bad Request', message: 'VKVideo chat bot is not enabled for this channel' });
+        }
+
+        const row = await (prisma as any).vkVideoChatBotOutboxMessage.create({
+          data: {
+            channelId,
+            vkvideoChannelId: String(sub.vkvideoChannelId),
+            message,
+            status: 'pending',
+          },
+          select: { id: true, status: true, createdAt: true },
+        });
+        return res.json({ ok: true, outbox: row });
+      } catch (e: any) {
+        // Feature not deployed / migrations not applied
+        if (e?.code === 'P2021') {
+          return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+        }
+        throw e;
+      }
+    }
+
     const sub = await prisma.chatBotSubscription.findUnique({
       where: { channelId },
       select: { enabled: true, twitchLogin: true },
