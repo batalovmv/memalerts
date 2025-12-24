@@ -195,16 +195,15 @@ export function BotSettings() {
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsEnabled', { defaultValue: 'Follow greetings enabled.' }));
     } catch (error: unknown) {
-      const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+      const apiErr = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
       // #region agent log (debug-session)
       __dbg('H1', 'enableFollowGreetings:error', {
-        status: apiError.response?.status,
-        errorCode: apiError.response?.data?.errorCode,
-        hasErrorText: Boolean(apiError.response?.data?.error),
+        status: apiErr.response?.status,
+        errorCode: apiErr.response?.data?.errorCode,
+        hasErrorText: Boolean(apiErr.response?.data?.error),
       });
       // #endregion agent log (debug-session)
-      const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
+      toast.error(apiErr.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
     } finally {
       await ensureMinDuration(startedAt, 450);
       setSavingFollowGreetings(false);
@@ -232,16 +231,15 @@ export function BotSettings() {
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsDisabled', { defaultValue: 'Follow greetings disabled.' }));
     } catch (error: unknown) {
-      const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+      const apiErr = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
       // #region agent log (debug-session)
       __dbg('H2', 'disableFollowGreetings:error', {
-        status: apiError.response?.status,
-        errorCode: apiError.response?.data?.errorCode,
-        hasErrorText: Boolean(apiError.response?.data?.error),
+        status: apiErr.response?.status,
+        errorCode: apiErr.response?.data?.errorCode,
+        hasErrorText: Boolean(apiErr.response?.data?.error),
       });
       // #endregion agent log (debug-session)
-      const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
+      toast.error(apiErr.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
     } finally {
       await ensureMinDuration(startedAt, 450);
       setSavingFollowGreetings(false);
@@ -276,16 +274,15 @@ export function BotSettings() {
         if (typeof res?.followGreetingsEnabled === 'boolean') setFollowGreetingsEnabled(res.followGreetingsEnabled);
         if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       } catch (error: unknown) {
-        const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+        const apiErr = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
         // #region agent log (debug-session)
         __dbg('H3', 'saveFollowGreetingTemplate:error', {
-          status: apiError.response?.status,
-          errorCode: apiError.response?.data?.errorCode,
-          hasErrorText: Boolean(apiError.response?.data?.error),
+          status: apiErr.response?.status,
+          errorCode: apiErr.response?.data?.errorCode,
+          hasErrorText: Boolean(apiErr.response?.data?.error),
         });
         // #endregion agent log (debug-session)
-        const apiError = error as { response?: { data?: { error?: string } } };
-        toast.error(apiError.response?.data?.error || t('admin.failedToSaveFollowGreetingTemplate', { defaultValue: 'Failed to save template.' }));
+        toast.error(apiErr.response?.data?.error || t('admin.failedToSaveFollowGreetingTemplate', { defaultValue: 'Failed to save template.' }));
       } finally {
         await ensureMinDuration(startedAt, 450);
         setSavingFollowGreetings(false);
