@@ -35,6 +35,27 @@ export function BotSettings() {
   const [savingFollowGreetings, setSavingFollowGreetings] = useState(false);
   const followGreetingSaveTimerRef = useRef<number | null>(null);
 
+  // #region agent log (debug-session)
+  const __dbg = useCallback(
+    (hypothesisId: string, message: string, data: Record<string, unknown>) => {
+      fetch('http://127.0.0.1:7245/ingest/7e3c7663-07d0-4b19-b672-242e78cd89e3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'debug-session',
+          runId: 'pre-fix',
+          hypothesisId,
+          location: 'src/features/settings/tabs/BotSettings.tsx',
+          message,
+          data,
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    },
+    []
+  );
+  // #endregion agent log (debug-session)
+
   const loadSubscription = async () => {
     try {
       setLoading('load');
@@ -152,14 +173,36 @@ export function BotSettings() {
     try {
       setSavingFollowGreetings(true);
       const { api } = await import('@/lib/api');
+      // #region agent log (debug-session)
+      __dbg('H1', 'enableFollowGreetings:request', {
+        enabledBefore: followGreetingsEnabled,
+        templateLen: followGreetingTemplate.trim().length,
+        hasTemplate: Boolean(followGreetingTemplate.trim()),
+      });
+      // #endregion agent log (debug-session)
       const res = await api.post<{ ok?: boolean; followGreetingsEnabled?: boolean; followGreetingTemplate?: string | null }>(
         '/streamer/bot/follow-greetings/enable',
         followGreetingTemplate.trim() ? { followGreetingTemplate: followGreetingTemplate.trim() } : {}
       );
+      // #region agent log (debug-session)
+      __dbg('H1', 'enableFollowGreetings:response', {
+        followGreetingsEnabled: res?.followGreetingsEnabled,
+        followGreetingTemplateType: typeof res?.followGreetingTemplate,
+        followGreetingTemplateLen: typeof res?.followGreetingTemplate === 'string' ? res.followGreetingTemplate.length : null,
+      });
+      // #endregion agent log (debug-session)
       setFollowGreetingsEnabled(!!res?.followGreetingsEnabled);
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsEnabled', { defaultValue: 'Follow greetings enabled.' }));
     } catch (error: unknown) {
+      const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+      // #region agent log (debug-session)
+      __dbg('H1', 'enableFollowGreetings:error', {
+        status: apiError.response?.status,
+        errorCode: apiError.response?.data?.errorCode,
+        hasErrorText: Boolean(apiError.response?.data?.error),
+      });
+      // #endregion agent log (debug-session)
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
     } finally {
@@ -173,13 +216,30 @@ export function BotSettings() {
     try {
       setSavingFollowGreetings(true);
       const { api } = await import('@/lib/api');
+      // #region agent log (debug-session)
+      __dbg('H2', 'disableFollowGreetings:request', { enabledBefore: followGreetingsEnabled });
+      // #endregion agent log (debug-session)
       const res = await api.post<{ ok?: boolean; followGreetingsEnabled?: boolean; followGreetingTemplate?: string | null }>(
         '/streamer/bot/follow-greetings/disable'
       );
+      // #region agent log (debug-session)
+      __dbg('H2', 'disableFollowGreetings:response', {
+        followGreetingsEnabled: res?.followGreetingsEnabled,
+        followGreetingTemplateType: typeof res?.followGreetingTemplate,
+      });
+      // #endregion agent log (debug-session)
       setFollowGreetingsEnabled(!!res?.followGreetingsEnabled);
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       toast.success(t('admin.followGreetingsDisabled', { defaultValue: 'Follow greetings disabled.' }));
     } catch (error: unknown) {
+      const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+      // #region agent log (debug-session)
+      __dbg('H2', 'disableFollowGreetings:error', {
+        status: apiError.response?.status,
+        errorCode: apiError.response?.data?.errorCode,
+        hasErrorText: Boolean(apiError.response?.data?.error),
+      });
+      // #endregion agent log (debug-session)
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToToggleFollowGreetings', { defaultValue: 'Failed to update follow greetings.' }));
     } finally {
@@ -194,14 +254,36 @@ export function BotSettings() {
       try {
         setSavingFollowGreetings(true);
         const { api } = await import('@/lib/api');
+        // #region agent log (debug-session)
+        __dbg('H3', 'saveFollowGreetingTemplate:request', {
+          enabled: followGreetingsEnabled,
+          nextTemplateLen: nextTemplate.length,
+          nextTemplateEmpty: nextTemplate.length === 0,
+        });
+        // #endregion agent log (debug-session)
         const res = await api.patch<{ ok?: boolean; followGreetingsEnabled?: boolean; followGreetingTemplate?: string | null }>(
           '/streamer/bot/follow-greetings',
           { followGreetingTemplate: nextTemplate || null }
         );
+        // #region agent log (debug-session)
+        __dbg('H3', 'saveFollowGreetingTemplate:response', {
+          followGreetingsEnabled: typeof res?.followGreetingsEnabled === 'boolean' ? res.followGreetingsEnabled : null,
+          followGreetingTemplateType: typeof res?.followGreetingTemplate,
+          followGreetingTemplateLen: typeof res?.followGreetingTemplate === 'string' ? res.followGreetingTemplate.length : null,
+        });
+        // #endregion agent log (debug-session)
         // Keep UI in sync with backend-returned state.
         if (typeof res?.followGreetingsEnabled === 'boolean') setFollowGreetingsEnabled(res.followGreetingsEnabled);
         if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
       } catch (error: unknown) {
+        const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
+        // #region agent log (debug-session)
+        __dbg('H3', 'saveFollowGreetingTemplate:error', {
+          status: apiError.response?.status,
+          errorCode: apiError.response?.data?.errorCode,
+          hasErrorText: Boolean(apiError.response?.data?.error),
+        });
+        // #endregion agent log (debug-session)
         const apiError = error as { response?: { data?: { error?: string } } };
         toast.error(apiError.response?.data?.error || t('admin.failedToSaveFollowGreetingTemplate', { defaultValue: 'Failed to save template.' }));
       } finally {
@@ -209,7 +291,7 @@ export function BotSettings() {
         setSavingFollowGreetings(false);
       }
     },
-    [t]
+    [__dbg, followGreetingsEnabled, t]
   );
 
   const sendTestMessage = useCallback(async () => {
@@ -278,7 +360,20 @@ export function BotSettings() {
     if (!showMenus) return;
     if (!followGreetingsEnabled) return;
     if (followGreetingSaveTimerRef.current) window.clearTimeout(followGreetingSaveTimerRef.current);
+    // #region agent log (debug-session)
+    __dbg('H4', 'followGreeting:debounce_scheduled', {
+      enabled: followGreetingsEnabled,
+      templateLen: followGreetingTemplate.length,
+      templateTrimLen: followGreetingTemplate.trim().length,
+    });
+    // #endregion agent log (debug-session)
     followGreetingSaveTimerRef.current = window.setTimeout(() => {
+      // #region agent log (debug-session)
+      __dbg('H4', 'followGreeting:debounce_fired', {
+        enabled: followGreetingsEnabled,
+        templateTrimLen: followGreetingTemplate.trim().length,
+      });
+      // #endregion agent log (debug-session)
       void saveFollowGreetingTemplate(followGreetingTemplate.trim());
     }, 600);
     return () => {
