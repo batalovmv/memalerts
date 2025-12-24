@@ -35,14 +35,13 @@ export function useAutoplayMemes() {
 
   const setAutoplayMemes = useCallback((next: boolean) => {
     setEnabled(next);
-    if (user) {
-      void patchUserPreferences({ autoplayMemesEnabled: next });
-      return;
-    }
     try {
       localStorage.setItem(KEY, next ? 'true' : 'false');
     } catch {
       // ignore
+    }
+    if (user) {
+      void patchUserPreferences({ autoplayMemesEnabled: next });
     }
   }, [user]);
 

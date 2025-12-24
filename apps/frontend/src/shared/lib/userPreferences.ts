@@ -68,7 +68,8 @@ export async function patchUserPreferences(patch: Partial<UserPreferences>): Pro
   } catch (e: unknown) {
     const err = e as ApiErrorLike;
     const status = err?.response?.status;
-    if (status === 401 || status === 403 || status === 404) return null;
+    // Some environments may not support this endpoint/method yet (back-compat).
+    if (status === 401 || status === 403 || status === 404 || status === 405) return null;
     return null;
   }
 }

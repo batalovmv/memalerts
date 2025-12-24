@@ -103,7 +103,6 @@ export function ChannelSettings() {
       primaryColor: settings.primaryColor || null,
       secondaryColor: settings.secondaryColor || null,
       accentColor: settings.accentColor || null,
-      autoplayMemesEnabled,
     });
 
     // Skip if nothing changed from last saved.
@@ -142,7 +141,6 @@ export function ChannelSettings() {
     settings.primaryColor,
     settings.secondaryColor,
     settings.accentColor,
-    autoplayMemesEnabled,
     user?.channelId,
     t,
   ]);

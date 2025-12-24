@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { Button, Input, Textarea } from '@/shared/ui';
+import { Button, Input, Spinner, Textarea } from '@/shared/ui';
 
 type BotCommand = {
   id: string;
@@ -12,6 +12,49 @@ type BotCommand = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+type ToggleSwitchProps = {
+  checked: boolean;
+  disabled?: boolean;
+  busy?: boolean;
+  onChange: (next: boolean) => void;
+  ariaLabel?: string;
+};
+
+function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSwitchProps) {
+  const isDisabled = !!disabled || !!busy;
+  return (
+    <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${isDisabled ? 'opacity-80' : ''}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only peer"
+        disabled={isDisabled}
+        aria-label={ariaLabel}
+      />
+      <div
+        className={[
+          'relative w-11 h-6 rounded-full transition-colors',
+          'bg-gray-200 dark:bg-gray-600',
+          'peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30',
+          'peer-checked:bg-primary',
+        ].join(' ')}
+      >
+        <div
+          className={[
+            'absolute top-[2px] left-[2px] h-5 w-5 rounded-full bg-white border border-gray-300 dark:border-gray-600',
+            'transition-transform',
+            checked ? 'translate-x-full' : 'translate-x-0',
+            busy ? 'grid place-items-center' : '',
+          ].join(' ')}
+        >
+          {busy ? <Spinner className="h-3 w-3 border-[2px]" /> : null}
+        </div>
+      </div>
+    </label>
+  );
+}
 
 export function BotSettings() {
   const { t } = useTranslation();
@@ -24,6 +67,7 @@ export function BotSettings() {
   const [commandsLoaded, setCommandsLoaded] = useState(false);
   const [commandsLoading, setCommandsLoading] = useState(false);
   const [commandsNotAvailable, setCommandsNotAvailable] = useState(false);
+  const [commandToggleLoadingId, setCommandToggleLoadingId] = useState<string | null>(null);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
 
@@ -161,6 +205,46 @@ export function BotSettings() {
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { error?: string } } };
         toast.error(apiError.response?.data?.error || t('admin.failedToDeleteBotCommand', { defaultValue: 'Failed to delete command.' }));
+      }
+    },
+    [t]
+  );
+
+  const toggleCommandEnabled = useCallback(
+    async (id: string, nextEnabled: boolean) => {
+      const startedAt = Date.now();
+      try {
+        setCommandToggleLoadingId(id);
+        // Optimistic UI
+        setCommands((prev) => prev.map((c) => (c.id === id ? { ...c, enabled: nextEnabled } : c)));
+
+        const { api } = await import('@/lib/api');
+        const res = await api.patch<BotCommand>(`/streamer/bot/commands/${encodeURIComponent(id)}`, { enabled: nextEnabled });
+        // Keep UI consistent with backend (in case it normalizes fields).
+        if (res && typeof res === 'object' && 'id' in res) {
+          const updated = res as BotCommand;
+          setCommands((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+        }
+      } catch (error: unknown) {
+        // Revert optimistic update on failure.
+        setCommands((prev) => prev.map((c) => (c.id === id ? { ...c, enabled: !nextEnabled } : c)));
+        const apiErr = error as { response?: { status?: number; data?: { error?: string } } };
+        if (apiErr.response?.status === 400) {
+          toast.error(apiErr.response?.data?.error || t('admin.failedToToggleBotCommand', { defaultValue: 'Failed to update command.' }));
+          return;
+        }
+        if (apiErr.response?.status === 404) {
+          toast.error(
+            t('admin.botCommandsToggleNotAvailable', {
+              defaultValue: 'Command not found (or bot commands are not available on this server yet).',
+            })
+          );
+          return;
+        }
+        toast.error(apiErr.response?.data?.error || t('admin.failedToToggleBotCommand', { defaultValue: 'Failed to update command.' }));
+      } finally {
+        await ensureMinDuration(startedAt, 450);
+        setCommandToggleLoadingId(null);
       }
     },
     [t]
@@ -336,16 +420,13 @@ export function BotSettings() {
               {t('admin.botToggleHint', { defaultValue: 'When enabled, the runner will join your chat.' })}
             </div>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer shrink-0">
-            <input
-              type="checkbox"
-              checked={botEnabled ?? false}
-              onChange={(e) => void callToggle(e.target.checked)}
-              className="sr-only peer"
-              disabled={isBusy || !statusLoaded}
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
-          </label>
+          <ToggleSwitch
+            checked={botEnabled ?? false}
+            onChange={(next) => void callToggle(next)}
+            disabled={isBusy || !statusLoaded}
+            busy={loading === 'toggle'}
+            ariaLabel={t('admin.botToggleTitle', { defaultValue: 'Chat bot' })}
+          />
         </div>
 
         {!statusLoaded && (
@@ -392,25 +473,21 @@ export function BotSettings() {
                       {t('admin.followGreetingsHint', { defaultValue: 'When someone follows your channel, the bot will post a greeting in chat.' })}
                     </div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={followGreetingsEnabled}
-                      disabled={savingFollowGreetings}
-                      onChange={(e) => {
-                        const enabled = e.target.checked;
-                        if (enabled) {
-                          setFollowGreetingsEnabled(true);
-                          void enableFollowGreetings();
-                        } else {
-                          setFollowGreetingsEnabled(false);
-                          void disableFollowGreetings();
-                        }
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary" />
-                  </label>
+                  <ToggleSwitch
+                    checked={followGreetingsEnabled}
+                    disabled={savingFollowGreetings}
+                    busy={savingFollowGreetings}
+                    onChange={(enabled) => {
+                      if (enabled) {
+                        setFollowGreetingsEnabled(true);
+                        void enableFollowGreetings();
+                      } else {
+                        setFollowGreetingsEnabled(false);
+                        void disableFollowGreetings();
+                      }
+                    }}
+                    ariaLabel={t('admin.followGreetingsTitle', { defaultValue: 'Follow greetings' })}
+                  />
                 </div>
 
                 {followGreetingsEnabled && (
@@ -495,9 +572,18 @@ export function BotSettings() {
                                 <div className="font-mono text-sm text-gray-900 dark:text-white truncate">{cmd.trigger}</div>
                                 <div className="text-sm text-gray-700 dark:text-gray-200 break-words">{cmd.response}</div>
                               </div>
-                              <Button type="button" variant="secondary" onClick={() => void deleteCommand(cmd.id)}>
-                                {t('common.delete', { defaultValue: 'Delete' })}
-                              </Button>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <ToggleSwitch
+                                  checked={cmd.enabled !== false}
+                                  disabled={commandToggleLoadingId !== null}
+                                  busy={commandToggleLoadingId === cmd.id}
+                                  onChange={(next) => void toggleCommandEnabled(cmd.id, next)}
+                                  ariaLabel={t('admin.botCommandEnabled', { defaultValue: 'Command enabled' })}
+                                />
+                                <Button type="button" variant="secondary" onClick={() => void deleteCommand(cmd.id)} disabled={commandToggleLoadingId === cmd.id}>
+                                  {t('common.delete', { defaultValue: 'Delete' })}
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>
