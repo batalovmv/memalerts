@@ -8,66 +8,66 @@ datasource db {
 }
 
 model Channel {
-  id                String   @id @default(uuid())
+  id                            String   @id @default(uuid())
   // Legacy: Twitch channel id. Optional to support non-Twitch streamers in the future.
-  twitchChannelId   String?  @unique
-  slug              String   @unique
-  name              String
-  rewardIdForCoins  String?
-  coinPerPointRatio Float    @default(1.0)
-  rewardEnabled     Boolean  @default(false) // Is reward enabled/active
-  rewardTitle       String? // Title of the reward in Twitch
-  rewardCost        Int? // Cost in channel points
-  rewardCoins       Int? // Coins granted per redemption
+  twitchChannelId               String?  @unique
+  slug                          String   @unique
+  name                          String
+  rewardIdForCoins              String?
+  coinPerPointRatio             Float    @default(1.0)
+  rewardEnabled                 Boolean  @default(false) // Is reward enabled/active
+  rewardTitle                   String? // Title of the reward in Twitch
+  rewardCost                    Int? // Cost in channel points
+  rewardCoins                   Int? // Coins granted per redemption
   // If true, coins for the Twitch channel points reward are granted only when stream is online.
-  rewardOnlyWhenLive Boolean @default(false)
-  coinIconUrl       String? // Custom coin icon URL from Twitch reward
-  primaryColor      String? // Hex color for primary theme
-  secondaryColor    String? // Hex color for secondary theme
-  accentColor       String? // Hex color for accent
-  defaultPriceCoins Int?    @default(100) // Default price for memes in this channel
-  submissionRewardCoins Int @default(0) // Coins granted to submitter when their submission is approved
+  rewardOnlyWhenLive            Boolean  @default(false)
+  coinIconUrl                   String? // Custom coin icon URL from Twitch reward
+  primaryColor                  String? // Hex color for primary theme
+  secondaryColor                String? // Hex color for secondary theme
+  accentColor                   String? // Hex color for accent
+  defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
+  submissionRewardCoins         Int      @default(0) // Coins granted to submitter when their submission is approved
   // If true, submission approval coins are granted only when stream is online.
-  submissionRewardOnlyWhenLive Boolean @default(false)
+  submissionRewardOnlyWhenLive  Boolean  @default(false)
   // OBS overlay settings (server-side defaults for tokenized overlay URLs)
-  overlayMode       String  @default("queue") // queue | simultaneous
-  overlayShowSender Boolean @default(false)
-  overlayMaxConcurrent Int  @default(3)
+  overlayMode                   String   @default("queue") // queue | simultaneous
+  overlayShowSender             Boolean  @default(false)
+  overlayMaxConcurrent          Int      @default(3)
   // Advanced OBS overlay appearance/animation settings (stored as JSON string)
-  overlayStyleJson  String?  @db.Text
+  overlayStyleJson              String?  @db.Text
   // OBS overlay presets (per-channel, stored as JSON string; validated/size-limited by API)
-  overlayPresetsJson String? @db.Text
+  overlayPresetsJson            String?  @db.Text
   // Increment to invalidate previously issued overlay tokens.
-  overlayTokenVersion Int @default(1)
+  overlayTokenVersion           Int      @default(1)
   // OBS credits overlay (titres) settings (stored as JSON string)
-  creditsStyleJson  String?  @db.Text
+  creditsStyleJson              String?  @db.Text
   // Increment to invalidate previously issued credits tokens.
-  creditsTokenVersion Int @default(1)
+  creditsTokenVersion           Int      @default(1)
   // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
-  creditsReconnectWindowMinutes Int @default(60)
+  creditsReconnectWindowMinutes Int      @default(60)
   // Chat bot "smart" command: stream duration settings (stored as JSON string; validated by API).
-  streamDurationCommandJson String? @db.Text
+  streamDurationCommandJson     String?  @db.Text
   // Chat bot follow greeting settings
-  followGreetingsEnabled Boolean @default(false)
-  followGreetingTemplate String? @db.Text
-  createdAt         DateTime @default(now())
+  followGreetingsEnabled        Boolean  @default(false)
+  followGreetingTemplate        String?  @db.Text
+  createdAt                     DateTime @default(now())
 
-  users       User[]
-  wallets     Wallet[]
-  memes       Meme[]
-  submissions MemeSubmission[]
-  redemptions Redemption[]
-  activations MemeActivation[]
-  auditLogs   AuditLog[]
-  promotions  Promotion[]
-  dailyStats  ChannelDailyStats[]
-  userStats30d ChannelUserStats30d[]
-  memeStats30d ChannelMemeStats30d[]
-  memeDailyStats ChannelMemeDailyStats[]
-  chatBotSubscriptions ChatBotSubscription[]
+  users                 User[]
+  wallets               Wallet[]
+  memes                 Meme[]
+  submissions           MemeSubmission[]
+  redemptions           Redemption[]
+  activations           MemeActivation[]
+  auditLogs             AuditLog[]
+  promotions            Promotion[]
+  dailyStats            ChannelDailyStats[]
+  userStats30d          ChannelUserStats30d[]
+  memeStats30d          ChannelMemeStats30d[]
+  memeDailyStats        ChannelMemeDailyStats[]
+  chatBotSubscriptions  ChatBotSubscription[]
   chatBotOutboxMessages ChatBotOutboxMessage[]
-  chatBotCommands ChatBotCommand[]
-  chatBotEventDedups ChatBotEventDedup[]
+  chatBotCommands       ChatBotCommand[]
+  chatBotEventDedups    ChatBotEventDedup[]
 }
 
 enum ExternalAccountProvider {
@@ -85,11 +85,11 @@ enum OAuthStateKind {
 
 // Global Twitch IRC bot subscriptions (single bot account joins many channels).
 model ChatBotSubscription {
-  id         String   @id @default(uuid())
-  channelId  String
-  twitchLogin String  // lowercase twitch channel login (for JOIN #login)
-  enabled    Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid())
+  channelId   String
+  twitchLogin String // lowercase twitch channel login (for JOIN #login)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -102,20 +102,20 @@ model ChatBotSubscription {
 // Chat bot outbox for sending messages via the separate chatbotRunner process.
 // API enqueues messages here; runner polls, delivers to Twitch IRC, then marks sent/failed.
 model ChatBotOutboxMessage {
-  id          String   @id @default(uuid())
+  id          String @id @default(uuid())
   channelId   String
   twitchLogin String // lowercase twitch channel login (target channel)
-  message     String  @db.Text
+  message     String @db.Text
 
-  status      String  @default("pending") // pending | processing | sent | failed
-  attempts    Int     @default(0)
-  lastError   String? @db.Text
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
 
   processingAt DateTime?
   sentAt       DateTime?
   failedAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -128,22 +128,22 @@ model ChatBotOutboxMessage {
 // Per-channel chat bot commands (trigger -> response).
 model ChatBotCommand {
   id                String   @id @default(uuid())
-  channelId          String
-  trigger            String
-  triggerNormalized  String
-  response           String  @db.Text
-  enabled            Boolean @default(true)
+  channelId         String
+  trigger           String
+  triggerNormalized String
+  response          String   @db.Text
+  enabled           Boolean  @default(true)
   // If true, bot replies only when stream is online.
-  onlyWhenLive       Boolean @default(false)
+  onlyWhenLive      Boolean  @default(false)
   // Command audience:
   // - if both arrays are empty => everyone can trigger the command
   // - if allowedUsers contains sender login => allowed
   // - else if allowedRoles contains sender role => allowed
   // NOTE: "follower" role is currently not resolvable from IRC tags; see chatbotRunner.ts.
-  allowedRoles       Json     @db.JsonB @default(dbgenerated("'[]'::jsonb"))
-  allowedUsers       Json     @db.JsonB @default(dbgenerated("'[]'::jsonb"))
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  allowedRoles      Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  allowedUsers      Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -158,7 +158,7 @@ model ChatBotCommand {
 model ChatBotEventDedup {
   id        String   @id @default(uuid())
   channelId String
-  kind      String   // e.g. "follow"
+  kind      String // e.g. "follow"
   eventId   String
   createdAt DateTime @default(now())
 
@@ -200,18 +200,19 @@ model User {
   hasBetaAccess      Boolean  @default(false) // Beta access flag
   createdAt          DateTime @default(now())
 
-  channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  preference    UserPreference?
+  channel          Channel?              @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  preference       UserPreference?
   externalAccounts ExternalAccount[]
-  wallets       Wallet[]
-  memesCreated  Meme[]           @relation("CreatedBy")
-  memesApproved Meme[]           @relation("ApprovedBy")
-  submissions   MemeSubmission[]
-  redemptions   Redemption[]
-  activations   MemeActivation[]
-  channelStats30d ChannelUserStats30d[]
-  auditLogs     AuditLog[]
-  betaAccess    BetaAccess?
+  oauthStates      OAuthState[]
+  wallets          Wallet[]
+  memesCreated     Meme[]                @relation("CreatedBy")
+  memesApproved    Meme[]                @relation("ApprovedBy")
+  submissions      MemeSubmission[]
+  redemptions      Redemption[]
+  activations      MemeActivation[]
+  channelStats30d  ChannelUserStats30d[]
+  auditLogs        AuditLog[]
+  betaAccess       BetaAccess?
 
   @@index([twitchUserId])
   @@index([channelId])
@@ -219,7 +220,7 @@ model User {
 }
 
 model ExternalAccount {
-  id                String  @id @default(uuid())
+  id                String                  @id @default(uuid())
   userId            String
   provider          ExternalAccountProvider
   providerAccountId String
@@ -231,10 +232,10 @@ model ExternalAccount {
   profileUrl  String?
 
   // OAuth tokens (optional; some providers may not return refresh tokens etc.)
-  accessToken     String?
-  refreshToken    String?
-  tokenExpiresAt  DateTime?
-  scopes          String?
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  scopes         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -249,12 +250,12 @@ model ExternalAccount {
 
 model OAuthState {
   // Random state string used as primary key (stored server-side for verification)
-  state     String @id
-  provider  ExternalAccountProvider
-  kind      OAuthStateKind
+  state    String                  @id
+  provider ExternalAccountProvider
+  kind     OAuthStateKind
 
   // For link flows: the authenticated user that initiated linking.
-  userId    String?
+  userId String?
 
   // Redirect handling
   redirectTo String?
@@ -291,7 +292,7 @@ model Wallet {
 }
 
 model Meme {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   channelId        String
   title            String
   type             String // image, gif, video, audio
@@ -303,18 +304,18 @@ model Meme {
   deletedAt        DateTime?
   createdByUserId  String?
   approvedByUserId String?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
-  channel     Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  createdBy   User?            @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  approvedBy  User?            @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  activations MemeActivation[]
-  globalStats30d GlobalMemeStats30d?
-  globalDailyStats GlobalMemeDailyStats[]
-  tags        MemeTag[]
-  channelStats30d ChannelMemeStats30d[]
+  channel           Channel                 @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy         User?                   @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy        User?                   @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  activations       MemeActivation[]
+  globalStats30d    GlobalMemeStats30d?
+  globalDailyStats  GlobalMemeDailyStats[]
+  tags              MemeTag[]
+  channelStats30d   ChannelMemeStats30d[]
   channelDailyStats ChannelMemeDailyStats[]
-  fileHashRef FileHash?        @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
+  fileHashRef       FileHash?               @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
 
   @@index([channelId])
   @@index([status])
@@ -534,8 +535,8 @@ model ChannelUserStats30d {
   windowStart DateTime
   windowEnd   DateTime
 
-  totalActivationsCount Int    @default(0)
-  totalCoinsSpentSum    BigInt @default(0)
+  totalActivationsCount     Int    @default(0)
+  totalCoinsSpentSum        BigInt @default(0)
   completedActivationsCount Int    @default(0)
   completedCoinsSpentSum    BigInt @default(0)
 
@@ -558,8 +559,8 @@ model ChannelMemeStats30d {
   windowStart DateTime
   windowEnd   DateTime
 
-  totalActivationsCount Int    @default(0)
-  totalCoinsSpentSum    BigInt @default(0)
+  totalActivationsCount     Int    @default(0)
+  totalCoinsSpentSum        BigInt @default(0)
   completedActivationsCount Int    @default(0)
   completedCoinsSpentSum    BigInt @default(0)
 
