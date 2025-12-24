@@ -45,9 +45,10 @@ export function invalidateBetaAccessCache(userId: string): void {
 
 // Check if request is for beta domain
 export function isBetaDomain(req: Request): boolean {
-  const host = req.get('host') || '';
+  const forwardedHost = (req.get('x-forwarded-host') || '').split(',')[0]?.trim() || '';
+  const host = (req.get('host') || '').split(',')[0]?.trim() || '';
   const domain = process.env.DOMAIN || '';
-  return host.includes('beta.') || domain.includes('beta.');
+  return forwardedHost.includes('beta.') || host.includes('beta.') || domain.includes('beta.');
 }
 
 export async function requireBetaAccess(req: AuthRequest, res: Response, next: NextFunction) {
@@ -60,7 +61,8 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
 
   // Allow authenticated users to load their session/profile and request beta access.
   // On beta, everything else is blocked until access is granted.
-  if (req.path === '/me' || req.path.startsWith('/beta/')) {
+  // IMPORTANT: /auth/* must remain accessible on beta for login/link flows.
+  if (req.path === '/me' || req.path.startsWith('/beta/') || req.path.startsWith('/auth/')) {
     return next();
   }
 

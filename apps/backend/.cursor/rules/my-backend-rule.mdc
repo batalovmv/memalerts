@@ -4,7 +4,7 @@ alwaysApply: true
 
 ### MemAlerts Backend — рабочее правило для агентов (обязательно к соблюдению)
 
-Этот репозиторий — backend API для MemAlerts: Twitch OAuth, мем‑сабмишены/модерация, экономика (кошельки), realtime через Socket.IO (overlay для OBS + live‑обновления).
+Этот репозиторий — backend API для MemAlerts: multi‑provider OAuth (Twitch + линковка YouTube/VK), мем‑сабмишены/модерация, экономика (кошельки), realtime через Socket.IO (meme overlay для OBS + credits overlay + live‑обновления).
 
 ### Доступ к серверу (VPS)
 
@@ -24,9 +24,9 @@ alwaysApply: true
 ### TL;DR архитектура
 
 - **HTTP API**: Express (`src/index.ts`, `src/routes/*`, `src/controllers/*`)
-- **Realtime**: Socket.IO (`src/socket/index.ts`) + мосты между инстансами (`src/realtime/*`)
+- **Realtime**: Socket.IO (`src/socket/index.ts`) + (опционально) Redis adapter (`src/socket/redisAdapter.ts`) + мосты между инстансами (`src/realtime/*`)
 - **DB**: PostgreSQL через Prisma (`prisma/schema.prisma`, `src/lib/prisma.ts`)
-- **Uploads**: `uploads/` (локально на сервере) + дедуп по SHA‑256 (`FileHash`)
+- **Uploads**: local `uploads/` или S3‑совместимое хранилище (`src/storage/*`) + дедуп по SHA‑256 (`FileHash`)
 
 ### Стек/рантайм
 
@@ -39,6 +39,7 @@ alwaysApply: true
 - **dev**: `pnpm dev` (tsx watch `src/index.ts`)
 - **build**: `pnpm build` (tsc → `dist/`)
 - **start**: `pnpm start` (node `dist/index.js`)
+- **start:chatbot**: `pnpm build && pnpm start:chatbot` (node `dist/bots/chatbotRunner.js`)
 - **Prisma**:
   - `pnpm db:migrate` (dev миграции)
   - `pnpm prisma migrate deploy` (на сервере, в CI)
@@ -47,17 +48,19 @@ alwaysApply: true
 ### Структура проекта (куда смотреть)
 
 - **`src/index.ts`**: поднятие Express/Socket.IO, CORS/Helmet/CSRF, timeouts, `setupRoutes`, `setupSocketIO`
-- **`src/routes/index.ts`**: главная карта роутов + beta‑gating + internal relay endpoints
+- **`src/routes/index.ts`**: главная карта роутов + beta‑gating + internal relay endpoints (+ credits)
 - **`src/controllers/`**:
   - viewer: `src/controllers/viewer/*` (публичные/юзерские эндпоинты)
   - admin/streamer/owner: `src/controllers/admin/*` + `src/routes/streamer.ts`, `src/routes/owner.ts`
   - submissions: `src/controllers/submission/*`
   - webhooks: `src/controllers/webhookController.ts` (Twitch EventSub)
+- **`src/controllers/internal/creditsInternal.ts`**: internal‑эндпоинты для credits overlay (localhost only)
 - **`src/middleware/`**: `auth`, `betaAccess`, `csrf`, `rateLimit`, `requestContext`, `upload`, `errorHandler`
-- **`src/socket/index.ts`**: правила join комнат, overlay token, user rooms, ack
+- **`src/socket/index.ts`**: правила join комнат, overlay token (meme/credits), user rooms, ack
 - **`src/realtime/*`**:
   - `walletBridge.ts`: `wallet:updated` (только user room!)
   - `submissionBridge.ts`: submission events (+ relay to peer)
+- **`src/realtime/credits*`**: credits overlay state/ticker/store
 - **`prisma/schema.prisma`**: модель данных + индексы/уникальности
 - **`DEPLOYMENT.md`** и **`.github/workflows/ci-cd.yml`**: CI/CD, окружения, порты, пути, секреты
 
@@ -89,6 +92,9 @@ alwaysApply: true
 - **`DOMAIN`**, **`TWITCH_CALLBACK_URL`**
 - **`RATE_LIMIT_WHITELIST_IPS`** (для доверенных IP)
 - **`DEBUG_LOGS`** (включать только на beta при необходимости)
+- **`REDIS_URL`** + `RATE_LIMIT_REDIS=1` (если нужен общий rate‑limit store и Socket.IO scaling)
+- **`UPLOAD_STORAGE=local|s3`** + `S3_*` (если uploads должны храниться в S3‑совместимом storage)
+- **`CHAT_BOT_*` / `CHATBOT_*`** (если используется credits overlay и сбор чаттеров)
 
 См. `ENV.example`, `DEVELOPMENT.md`, `.github/workflows/ci-cd.yml`.
 
@@ -96,12 +102,14 @@ alwaysApply: true
 
 - **Public**:
   - `GET /health`
+  - `GET /overlay/credits/t/:token` (OBS browser source: credits overlay HTML)
   - `GET /channels/:slug` (prod public, beta gated)
   - `GET /channels/:slug/memes` (prod public, beta gated)
   - `GET /channels/memes/search` (prod public + optional auth, beta gated)
   - `GET /memes/stats` (prod public + optional auth, beta gated)
 - **Viewer (auth)**:
   - `GET /me`
+  - `GET /me/preferences` / `PATCH /me/preferences`
   - `GET /wallet`
   - `GET /memes`
   - `GET /channels/:slug/wallet`
@@ -113,6 +121,12 @@ alwaysApply: true
   - `/owner/*` и дополнительно `requireRole('admin')`
 - **Webhooks**:
   - `POST /webhooks/twitch/eventsub` (HMAC, без CSRF)
+- **Auth (multi-provider)**:
+  - `GET /auth/twitch` + `GET /auth/twitch/callback` (backward-compatible)
+  - `GET /auth/:provider` / `GET /auth/:provider/callback`
+  - `GET /auth/:provider/link` / `GET /auth/:provider/link/callback`
+  - `GET /auth/accounts` / `DELETE /auth/accounts/:externalAccountId`
+  - `POST /auth/logout`
 - **Beta access**:
   - роуты из `src/routes/beta.ts` (смонтированы в корень)
   - user:
@@ -132,26 +146,26 @@ alwaysApply: true
   - **исключения**: `/internal/*`, `/webhooks/*`, `/health`, `/auth/twitch*`
 - **`globalLimiter`** + точечные лимитеры:
   - `activateMemeLimiter` (1 запрос / 3 сек)
-  - `uploadLimiter` (per-user если auth, иначе per-IP)
+  - `uploadLimiter` (per-user если auth, иначе per-IP; лимитер может быть Redis-backed)
 - **`requireBetaAccess`**:
   - применяется только на beta домене
   - кеш на 5 минут в памяти
-  - пропускает `/me` и `/beta/*` для запроса доступа
+  - пропускает `/me`, `/beta/*` и `/auth/*` (для логина/линковки)
 
 ### Realtime / Socket.IO (комнаты и события)
 
 **Комнаты:**
 
-- **`channel:{slugLower}`**: overlay (OBS) и стримерская панель для одного канала
+- **`channel:{slugLower}`**: overlay (OBS: meme/credits) и стримерская панель для одного канала
 - **`user:{userId}`**: персональные события пользователя (например, кошелек)
 
 **Join события (клиент → сервер):**
 
 - **`join:overlay`** `{ token }`:
-  - token — JWT с `kind='overlay'`, `channelId`, `channelSlug`, `tv` (overlayTokenVersion)
-  - сервер подтягивает актуальный slug и overlay настройки из DB
-  - при несовпадении `tv` (токен “ротирован”) — join отклоняется
-  - после join сервер шлёт **`overlay:config`** только в сокет overlay
+  - token — JWT с `kind='overlay'|'credits'`, `channelId`, (optional `channelSlug`), `tv` (token rotation version)
+  - сервер подтягивает актуальный `slug` и конфиг из DB (токены переживают смену slug)
+  - при несовпадении `tv` с `overlayTokenVersion`/`creditsTokenVersion` — join отклоняется (токен “ротирован”)
+  - после join сервер шлёт **`overlay:config`** (meme overlay) или **`credits:config` + `credits:state`** (credits overlay) только в сокет overlay
 - **`join:channel`** `(channelSlug)`:
   - только для authenticated `streamer/admin`
   - сервер проверяет, что slug совпадает с каналом пользователя
@@ -164,6 +178,9 @@ alwaysApply: true
 - **`overlay:config`**:
   - отправляется overlay‑сокету при `join:overlay`
   - также может эмититься в `channel:{slugLower}` при изменении настроек канала (чтобы OBS не требовал перезагрузку)
+- **`credits:config`** / **`credits:state`**:
+  - отправляется credits overlay‑сокету при `join:overlay` с `kind='credits'`
+  - state также может пушиться internal‑эндпоинтами (см. ниже)
 - **`wallet:updated`** (в `user:{userId}`): обновление кошелька
 - **`submission:*`**:
   - `submission:created|approved|rejected|needs_changes|resubmitted`
@@ -186,10 +203,13 @@ alwaysApply: true
 - **эндпоинты**:
   - `POST /internal/wallet-updated`
   - `POST /internal/submission-event`
+  - `POST /internal/credits/chatter`
+  - `POST /internal/credits/donor`
 - **требования безопасности**:
   - запрос должен идти с localhost (`127.0.0.1`/`::1`)
   - должен содержать заголовок `x-memalerts-internal` со значением:
     - `wallet-updated` или `submission-event`
+    - для credits: `credits-event`
 - **никогда не публиковать наружу** (nginx не должен проксировать эти пути).
 
 ### Uploads / сабмишены (инварианты безопасности и UX)
@@ -202,6 +222,9 @@ alwaysApply: true
   - magic bytes validation (`validateFileContent`) против spoofing MIME
   - path traversal защита (`validatePathWithinDirectory`)
   - дедуп файлов по SHA‑256 (`FileHash`) + referenceCount
+- Storage:
+  - `UPLOAD_STORAGE=local` → физически в `UPLOAD_DIR` (по умолчанию `./uploads`) + раздача через `GET /uploads/*`
+  - `UPLOAD_STORAGE=s3` → загрузка в S3, `FileHash.filePath` хранит публичный URL (см. `S3_PUBLIC_BASE_URL`)
 - Owner bypass:
   - если `req.channelId === target channelId` и роль `streamer/admin`, то submission может авто‑approved (создаётся `Meme` напрямую).
 
@@ -216,7 +239,7 @@ alwaysApply: true
 
 ### Модель данных (самое важное из Prisma)
 
-- **Channel**: slug (unique), twitchChannelId (unique), настройки overlay, pricing, reward settings, token rotation (`overlayTokenVersion`)
+- **Channel**: slug (unique), twitchChannelId (unique), настройки meme overlay + token rotation (`overlayTokenVersion`), настройки credits overlay (`creditsStyleJson`, `creditsTokenVersion`, `creditsReconnectWindowMinutes`)
 - **User**: роль `viewer|streamer|admin`, `hasBetaAccess`
 - **Wallet**: уникальность `(userId, channelId)`, баланс integer
 - **Meme**: status `pending|approved|rejected`, `fileHash` (для дедуп)
@@ -228,8 +251,8 @@ alwaysApply: true
 ### Деплой/релизы (как не сломать прод)
 
 - Ветки:
-  - `develop` → **beta**
-  - `main` → **production**
+  - `main` → **beta**
+  - `develop` → **production**
 - CI/CD: `.github/workflows/ci-cd.yml`
   - копирует код на VPS, ставит deps, билдит, делает `prisma migrate deploy`, перезапускает PM2
 - Миграции:
