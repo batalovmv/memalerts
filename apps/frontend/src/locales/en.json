@@ -142,10 +142,7 @@
     "noChannelSubmissions": "No submissions found for the current filters.",
     "failedToLoadChannelSubmissions": "Failed to load channel submissions."
   },
-  "submitModal": {
-    "whatHappensNext": "What happens next?",
-    "approvalProcess": "Your submission will be reviewed by moderators. Once approved, it will appear in the meme list."
-  },
+
   "submissions": {
     "statusPending": "pending",
     "statusApproved": "approved",
@@ -198,6 +195,7 @@
     "botRunnerHint": "Important: for the bot to actually connect to Twitch chats, the backend chatbotRunner must be running as a persistent service.",
     "botToggleTitle": "Chat bot",
     "botToggleHint": "When enabled, the runner will join your chat and can send messages.",
+    "botStatusLoading": "Loading status…",
     "botStatusUnknown": "Status is unknown until you toggle it (or until the server provides it).",
     "enableBot": "Enable",
     "disableBot": "Disable",
@@ -553,8 +551,7 @@
     "adjusting": "Adjusting...",
     "amount": "Amount",
     "enterAmount": "Enter a valid amount",
-    "balanceIncreased": "Balance increased",
-    "balanceDecreased": "Balance decreased",
+
     "by": "by",
     "rewardIdForCoins": "Reward ID for Coins",
     "coinPerPointRatio": "Coins per Point Ratio",
@@ -787,25 +784,6 @@
     "hasAccess": "You already have beta access.",
     "blacklistedTitle": "Access denied",
     "blacklistedDescription": "Sorry, you cannot get beta access because you are on the blacklist."
-  }
-  ,
-  "memeModal": {
-    "price": "Price",
-    "priceValue": "{{price}} coins",
-    "priceCoins": "Price (coins)",
-    "duration": "Duration",
-    "durationValue": "{{seconds}}s",
-    "durationSeconds": "Duration (seconds)",
-    "createdBy": "Created by",
-    "source": "Source",
-    "sourceImported": "imported",
-    "sourceUploaded": "uploaded",
-    "status": "Status",
-    "createdAt": "Created",
-    "yourBalance": "Your balance: {{balance}} coins",
-    "insufficientCoins": "Insufficient coins (need {{price}})",
-    "deleteMeme": "Delete Meme",
-    "videoLoadFailed": "Failed to load video source"
   }
   ,
   "memeModal": {
