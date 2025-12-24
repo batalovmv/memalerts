@@ -71,17 +71,18 @@ function parseBaseUrls(): string[] {
   return single ? [single] : [];
 }
 
-async function fetchEnabledSubscriptions(): Promise<Array<{ login: string; slug: string }>> {
+async function fetchEnabledSubscriptions(): Promise<Array<{ channelId: string; login: string; slug: string }>> {
   const rows = await prisma.chatBotSubscription.findMany({
     where: { enabled: true },
-    select: { twitchLogin: true, channel: { select: { slug: true } } },
+    select: { channelId: true, twitchLogin: true, channel: { select: { slug: true } } },
   });
-  const out: Array<{ login: string; slug: string }> = [];
+  const out: Array<{ channelId: string; login: string; slug: string }> = [];
   for (const r of rows) {
     const login = normalizeLogin(r.twitchLogin);
     const slug = String(r.channel?.slug || '').trim().toLowerCase();
-    if (!login || !slug) continue;
-    out.push({ login, slug });
+    const channelId = String((r as any)?.channelId || '').trim();
+    if (!channelId || !login || !slug) continue;
+    out.push({ channelId, login, slug });
   }
   return out;
 }
@@ -89,6 +90,7 @@ async function fetchEnabledSubscriptions(): Promise<Array<{ login: string; slug:
 async function start() {
   const botLogin = normalizeLogin(String(process.env.CHAT_BOT_LOGIN || ''));
   const syncSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_SYNC_SECONDS, 30));
+  const outboxPollMs = Math.max(250, parseIntSafe(process.env.CHATBOT_OUTBOX_POLL_MS, 1_000));
   const backendBaseUrls = parseBaseUrls();
 
   // Hard requirements: avoid silently connecting to the wrong instance (prod vs beta)
@@ -105,10 +107,72 @@ async function start() {
   let stopped = false;
   let client: any = null;
   let subscriptionsTimer: NodeJS.Timeout | null = null;
+  let outboxTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
 
   const joined = new Set<string>(); // login
   const loginToSlug = new Map<string, string>();
+  const loginToChannelId = new Map<string, string>();
+
+  const MAX_OUTBOX_BATCH = 25;
+  const MAX_SEND_ATTEMPTS = 3;
+  const PROCESSING_STALE_MS = 60_000;
+
+  const processOutboxOnce = async () => {
+    if (stopped || !client) return;
+    if (joined.size === 0) return;
+
+    // Only dispatch messages for currently-enabled subscriptions (avoid sending after disable).
+    const channelIds = Array.from(loginToChannelId.values()).filter(Boolean);
+    if (channelIds.length === 0) return;
+
+    const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
+
+    const rows = await (prisma as any).chatBotOutboxMessage.findMany({
+      where: {
+        channelId: { in: channelIds },
+        OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: MAX_OUTBOX_BATCH,
+      select: { id: true, twitchLogin: true, message: true, status: true, attempts: true },
+    });
+    if (rows.length === 0) return;
+
+    for (const r of rows) {
+      if (stopped || !client) return;
+
+      const login = normalizeLogin(r.twitchLogin);
+      if (!login) continue;
+      if (!joined.has(login)) continue; // wait until join completes
+
+      // Claim (best-effort safe if multiple runner processes ever happen).
+      const claim = await (prisma as any).chatBotOutboxMessage.updateMany({
+        where: { id: r.id, status: r.status },
+        data: { status: 'processing', processingAt: new Date(), lastError: null },
+      });
+      if (claim.count !== 1) continue;
+
+      try {
+        await client.say(login, r.message);
+        await (prisma as any).chatBotOutboxMessage.update({
+          where: { id: r.id },
+          data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
+        });
+      } catch (e: any) {
+        const nextAttempts = (r.attempts || 0) + 1;
+        const lastError = e?.message || String(e);
+        const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
+        await (prisma as any).chatBotOutboxMessage.update({
+          where: { id: r.id },
+          data: shouldFail
+            ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError }
+            : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError },
+        });
+        logger.warn('chatbot.outbox_send_failed', { login, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+      }
+    }
+  };
 
   const syncSubscriptions = async () => {
     if (stopped || !client) return;
@@ -116,9 +180,11 @@ async function start() {
       const subs = await fetchEnabledSubscriptions();
       const desired = new Set<string>();
       loginToSlug.clear();
+      loginToChannelId.clear();
       for (const s of subs) {
         desired.add(s.login);
         loginToSlug.set(s.login, s.slug);
+        loginToChannelId.set(s.login, s.channelId);
       }
 
       const toJoin = Array.from(desired).filter((l) => !joined.has(l));
@@ -201,6 +267,7 @@ async function start() {
       // Initial sync + periodic sync
       await syncSubscriptions();
       subscriptionsTimer = setInterval(syncSubscriptions, syncSeconds * 1000);
+      outboxTimer = setInterval(() => void processOutboxOnce(), outboxPollMs);
     } catch (e: any) {
       logger.warn('chatbot.connect_failed', { botLogin, errorMessage: e?.message || String(e) });
       reconnectTimer = setTimeout(connect, 30_000);
@@ -210,6 +277,7 @@ async function start() {
   const shutdown = async () => {
     stopped = true;
     if (subscriptionsTimer) clearInterval(subscriptionsTimer);
+    if (outboxTimer) clearInterval(outboxTimer);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     try {
       if (client) await client.disconnect();

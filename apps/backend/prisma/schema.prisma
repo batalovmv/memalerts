@@ -53,6 +53,7 @@ model Channel {
   memeStats30d ChannelMemeStats30d[]
   memeDailyStats ChannelMemeDailyStats[]
   chatBotSubscriptions ChatBotSubscription[]
+  chatBotOutboxMessages ChatBotOutboxMessage[]
 }
 
 // Global Twitch IRC bot subscriptions (single bot account joins many channels).
@@ -69,6 +70,32 @@ model ChatBotSubscription {
   @@index([enabled])
   @@index([twitchLogin])
   @@index([channelId])
+}
+
+// Chat bot outbox for sending messages via the separate chatbotRunner process.
+// API enqueues messages here; runner polls, delivers to Twitch IRC, then marks sent/failed.
+model ChatBotOutboxMessage {
+  id          String   @id @default(uuid())
+  channelId   String
+  twitchLogin String // lowercase twitch channel login (target channel)
+  message     String  @db.Text
+
+  status      String  @default("pending") // pending | processing | sent | failed
+  attempts    Int     @default(0)
+  lastError   String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([twitchLogin, status, createdAt])
+  @@index([createdAt])
 }
 
 model User {

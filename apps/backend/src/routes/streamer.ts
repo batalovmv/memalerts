@@ -49,5 +49,6 @@ streamerRoutes.post('/credits/reconnect-window', adminController.setCreditsRecon
 // Global chat bot subscription (joins streamer's chat as lotas_bot)
 streamerRoutes.post('/bot/enable', streamerBotController.enable);
 streamerRoutes.post('/bot/disable', streamerBotController.disable);
+streamerRoutes.post('/bot/say', streamerBotController.say);
 
 
