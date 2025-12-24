@@ -191,6 +191,17 @@ jobs:
               # Fallback to IP (not recommended for production)
               YT_CALLBACK_URL="https://155.212.172.136/auth/youtube/link/callback"
             fi
+
+            # Determine VK callback URL - use explicit secret if set, otherwise construct from DOMAIN.
+            # NOTE: This is used for external account linking (/auth/vk/link/callback).
+            if [ -n "${{ secrets.VK_CALLBACK_URL }}" ]; then
+              VK_CB_URL="${{ secrets.VK_CALLBACK_URL }}"
+            elif [ -n "${{ secrets.DOMAIN }}" ]; then
+              VK_CB_URL="https://${{ secrets.DOMAIN }}/auth/vk/link/callback"
+            else
+              # Fallback to IP (not recommended for production)
+              VK_CB_URL="https://155.212.172.136/auth/vk/link/callback"
+            fi
             
             # Create .env file with actual values
             cat > .env << EOF
@@ -217,6 +228,11 @@ jobs:
             YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}
             YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}
             YOUTUBE_CALLBACK_URL=$YT_CALLBACK_URL
+
+            # VK OAuth — external account linking
+            VK_CLIENT_ID=${{ secrets.VK_CLIENT_ID }}
+            VK_CLIENT_SECRET=${{ secrets.VK_CLIENT_SECRET }}
+            VK_CALLBACK_URL=$VK_CB_URL
             
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
@@ -522,6 +538,17 @@ jobs:
             else
               YT_CALLBACK_URL="https://beta.twitchmemes.ru/auth/youtube/link/callback"
             fi
+
+            # Determine VK callback URL for beta.
+            # Use explicit beta secret if set, otherwise construct from DOMAIN.
+            # NOTE: This is used for external account linking (/auth/vk/link/callback).
+            if [ -n "${{ secrets.VK_CALLBACK_URL_BETA }}" ]; then
+              VK_CB_URL="${{ secrets.VK_CALLBACK_URL_BETA }}"
+            elif [ -n "${{ secrets.DOMAIN }}" ]; then
+              VK_CB_URL="https://beta.${{ secrets.DOMAIN }}/auth/vk/link/callback"
+            else
+              VK_CB_URL="https://beta.twitchmemes.ru/auth/vk/link/callback"
+            fi
             
             # Create .env file with beta port
             #
@@ -630,6 +657,11 @@ jobs:
             YOUTUBE_CLIENT_ID=${{ secrets.YOUTUBE_CLIENT_ID }}
             YOUTUBE_CLIENT_SECRET=${{ secrets.YOUTUBE_CLIENT_SECRET }}
             YOUTUBE_CALLBACK_URL=$YT_CALLBACK_URL
+
+            # VK OAuth — external account linking
+            VK_CLIENT_ID=${{ secrets.VK_CLIENT_ID }}
+            VK_CLIENT_SECRET=${{ secrets.VK_CLIENT_SECRET }}
+            VK_CALLBACK_URL=$VK_CB_URL
             
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
