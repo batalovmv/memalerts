@@ -7,8 +7,9 @@ ADD COLUMN IF NOT EXISTS "overlayPresetsJson" TEXT;
 
 -- 2) User preferences table (one row per user).
 CREATE TABLE IF NOT EXISTS "UserPreference" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "userId" UUID NOT NULL,
+  -- Keep IDs as TEXT to match existing schema where User.id is TEXT (not UUID).
+  "id" TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
+  "userId" TEXT NOT NULL,
   "theme" TEXT NOT NULL DEFAULT 'light',
   "autoplayMemesEnabled" BOOLEAN NOT NULL DEFAULT TRUE,
   "memeModalMuted" BOOLEAN NOT NULL DEFAULT FALSE,
