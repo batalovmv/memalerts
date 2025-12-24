@@ -94,4 +94,49 @@ export function extractVkVideoChannelIdFromUrl(rawUrl: string): string | null {
   }
 }
 
+export async function fetchVkVideoUserRolesOnChannel(params: {
+  accessToken: string;
+  vkvideoChannelId: string;
+  vkvideoUserId: string;
+}): Promise<{ ok: boolean; status: number; roleIds: string[]; data: any; error: string | null }> {
+  const templateRaw = String(process.env.VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE || '').trim();
+  if (!templateRaw) {
+    return { ok: false, status: 0, roleIds: [], data: null, error: 'VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE is not configured' };
+  }
+
+  const url = templateRaw
+    .replace(/\{channelId\}/g, encodeURIComponent(String(params.vkvideoChannelId)))
+    .replace(/\{userId\}/g, encodeURIComponent(String(params.vkvideoUserId)));
+
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+    const text = await resp.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    if (!resp.ok) {
+      const reason = json?.error_description || json?.error || text || resp.statusText;
+      return { ok: false, status: resp.status, roleIds: [], data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
+    }
+
+    const root = json?.data ?? json ?? null;
+    const roles = Array.isArray(root?.roles) ? root.roles : [];
+    const roleIds = roles
+      .map((r: any) => String(r?.id || '').trim())
+      .filter(Boolean);
+    return { ok: true, status: resp.status, roleIds: Array.from(new Set(roleIds)), data: json, error: null };
+  } catch (e: any) {
+    logger.warn('vkvideo.channel_roles_user.fetch_failed', { errorMessage: e?.message || String(e) });
+    return { ok: false, status: 0, roleIds: [], data: null, error: e?.message || String(e) };
+  }
+}
+
 

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { VkVideoChatBot } from './vkvideoChatBot.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
+import { fetchVkVideoUserRolesOnChannel, getVkVideoExternalAccount } from '../utils/vkvideoApi.js';
 
 dotenv.config();
 
@@ -53,12 +54,37 @@ function normalizeAllowedRolesList(raw: any): ChatCommandRole[] {
   return out;
 }
 
-function canTriggerCommand(opts: { senderLogin: string; allowedUsers: string[]; allowedRoles: ChatCommandRole[] }): boolean {
-  // VKVideo: until role mapping exists, we gate only by allowedUsers.
+function normalizeVkVideoAllowedRoleIdsList(raw: any): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const id = String(v ?? '').trim();
+    if (!id) continue;
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+function canTriggerCommand(opts: {
+  senderLogin: string;
+  allowedUsers: string[];
+  allowedRoles: ChatCommandRole[];
+  vkvideoAllowedRoleIds: string[];
+  senderVkVideoRoleIds: string[];
+}): boolean {
   const users = opts.allowedUsers || [];
   const roles = opts.allowedRoles || [];
-  if (users.length === 0 && roles.length === 0) return true;
+  const vkRoles = opts.vkvideoAllowedRoleIds || [];
+  if (users.length === 0 && roles.length === 0 && vkRoles.length === 0) return true;
   if (opts.senderLogin && users.includes(opts.senderLogin)) return true;
+
+  // Legacy Twitch roles are ignored here; VKVideo uses role ids.
+  if (vkRoles.length) {
+    const senderRoleIds = new Set((opts.senderVkVideoRoleIds || []).filter(Boolean));
+    for (const roleId of vkRoles) {
+      if (senderRoleIds.has(roleId)) return true;
+    }
+  }
   return false;
 }
 
@@ -98,6 +124,7 @@ function parseBaseUrls(): string[] {
 
 type SubRow = {
   channelId: string;
+  userId: string | null;
   vkvideoChannelId: string;
   slug: string;
   creditsReconnectWindowMinutes: number;
@@ -109,6 +136,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
     where: { enabled: true },
     select: {
       channelId: true,
+      userId: true,
       vkvideoChannelId: true,
       channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
     },
@@ -138,6 +166,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
   const out: SubRow[] = [];
   for (const r of rows) {
     const channelId = String((r as any)?.channelId || '').trim();
+    const userId = String((r as any)?.userId || '').trim() || null;
     const vkvideoChannelId = String((r as any)?.vkvideoChannelId || '').trim();
     const slug = normalizeSlug(String(r?.channel?.slug || ''));
     const creditsReconnectWindowMinutes = Number.isFinite(Number((r as any)?.channel?.creditsReconnectWindowMinutes))
@@ -151,7 +180,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
       if (gated === false) continue;
     }
 
-    out.push({ channelId, vkvideoChannelId, slug, creditsReconnectWindowMinutes, streamDurationCommandJson });
+    out.push({ channelId, userId, vkvideoChannelId, slug, creditsReconnectWindowMinutes, streamDurationCommandJson });
   }
   return out;
 }
@@ -227,6 +256,7 @@ async function start() {
   // Live state per VKVideo channel
   const vkvideoIdToSlug = new Map<string, string>();
   const vkvideoIdToChannelId = new Map<string, string>();
+  const vkvideoIdToOwnerUserId = new Map<string, string>();
   const streamDurationCfgByChannelId = new Map<string, { ts: number; cfg: StreamDurationCfg | null }>();
   const commandsByChannelId = new Map<
     string,
@@ -238,9 +268,14 @@ async function start() {
         onlyWhenLive: boolean;
         allowedRoles: ChatCommandRole[];
         allowedUsers: string[];
+        vkvideoAllowedRoleIds: string[];
       }>;
     }
   >();
+
+  // Cache VKVideo roles of a user on a channel to avoid spamming API (key: `${vkvideoChannelId}:${vkvideoUserId}`).
+  const userRolesCache = new Map<string, { ts: number; roleIds: string[] }>();
+  const USER_ROLES_CACHE_TTL_MS = Math.max(5_000, parseIntSafe(process.env.VKVIDEO_USER_ROLES_CACHE_TTL_MS, 30_000));
 
   const bot = new VkVideoChatBot(
     {
@@ -253,6 +288,7 @@ async function start() {
       if (stopped) return;
       const slug = vkvideoIdToSlug.get(msg.vkvideoChannelId);
       const channelId = vkvideoIdToChannelId.get(msg.vkvideoChannelId);
+      const ownerUserId = vkvideoIdToOwnerUserId.get(msg.vkvideoChannelId) || null;
       if (!slug || !channelId) return;
 
       const msgNorm = normalizeMessage(msg.text).toLowerCase();
@@ -300,11 +336,41 @@ async function start() {
         const match = items.find((c) => c.triggerNormalized === msgNorm);
         if (match?.response) {
           try {
+            let senderRoleIds: string[] = [];
+            if (match.vkvideoAllowedRoleIds?.length) {
+              if (ownerUserId) {
+                const cacheKey = `${msg.vkvideoChannelId}:${msg.userId}`;
+                const cachedRoles = userRolesCache.get(cacheKey);
+                const now = Date.now();
+                if (cachedRoles && now - cachedRoles.ts <= USER_ROLES_CACHE_TTL_MS) {
+                  senderRoleIds = cachedRoles.roleIds;
+                } else {
+                  const account = await getVkVideoExternalAccount(ownerUserId);
+                  if (account?.accessToken) {
+                    const rolesResp = await fetchVkVideoUserRolesOnChannel({
+                      accessToken: account.accessToken,
+                      vkvideoChannelId: msg.vkvideoChannelId,
+                      vkvideoUserId: msg.userId,
+                    });
+                    if (rolesResp.ok) {
+                      senderRoleIds = rolesResp.roleIds;
+                      userRolesCache.set(cacheKey, { ts: now, roleIds: senderRoleIds });
+                    } else {
+                      // If we can't resolve roles, be conservative: do not allow role-gated commands.
+                      senderRoleIds = [];
+                    }
+                  }
+                }
+              }
+            }
+
             if (
               !canTriggerCommand({
                 senderLogin,
                 allowedUsers: match.allowedUsers || [],
                 allowedRoles: match.allowedRoles || [],
+                vkvideoAllowedRoleIds: match.vkvideoAllowedRoleIds || [],
+                senderVkVideoRoleIds: senderRoleIds,
               })
             ) {
               return;
@@ -337,7 +403,15 @@ async function start() {
       try {
         rows = await (prisma as any).chatBotCommand.findMany({
           where: { channelId: { in: channelIds }, enabled: true },
-          select: { channelId: true, triggerNormalized: true, response: true, onlyWhenLive: true, allowedRoles: true, allowedUsers: true },
+          select: {
+            channelId: true,
+            triggerNormalized: true,
+            response: true,
+            onlyWhenLive: true,
+            allowedRoles: true,
+            allowedUsers: true,
+            vkvideoAllowedRoleIds: true,
+          },
         });
       } catch (e: any) {
         if (e?.code === 'P2022') {
@@ -358,9 +432,10 @@ async function start() {
         const onlyWhenLive = Boolean((r as any)?.onlyWhenLive);
         const allowedRoles = normalizeAllowedRolesList((r as any)?.allowedRoles);
         const allowedUsers = normalizeAllowedUsersList((r as any)?.allowedUsers);
+        const vkvideoAllowedRoleIds = normalizeVkVideoAllowedRoleIdsList((r as any)?.vkvideoAllowedRoleIds);
         if (!channelId || !triggerNormalized || !response) continue;
         const arr = grouped.get(channelId) || [];
-        arr.push({ triggerNormalized, response, onlyWhenLive, allowedRoles, allowedUsers });
+        arr.push({ triggerNormalized, response, onlyWhenLive, allowedRoles, allowedUsers, vkvideoAllowedRoleIds });
         grouped.set(channelId, arr);
       }
 
@@ -403,6 +478,7 @@ async function start() {
       if (!wanted.has(existing)) {
         vkvideoIdToSlug.delete(existing);
         vkvideoIdToChannelId.delete(existing);
+        vkvideoIdToOwnerUserId.delete(existing);
         await bot.part(existing);
       }
     }
@@ -411,6 +487,7 @@ async function start() {
     for (const s of subs) {
       vkvideoIdToSlug.set(s.vkvideoChannelId, s.slug);
       vkvideoIdToChannelId.set(s.vkvideoChannelId, s.channelId);
+      if (s.userId) vkvideoIdToOwnerUserId.set(s.vkvideoChannelId, s.userId);
       if (!bot.isJoined(s.vkvideoChannelId)) {
         try {
           await bot.join(s.vkvideoChannelId);

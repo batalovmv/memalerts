@@ -117,16 +117,20 @@ enum ExternalAccountProvider {
 model VkVideoChatBotSubscription {
   id              String   @id @default(uuid())
   channelId        String
+  // Channel owner (used to access VKVideo API for roles; optional for backward compatibility).
+  userId           String?
   vkvideoChannelId String // platform channel identifier (exact format depends on VKVideo chat API)
   enabled          Boolean  @default(true)
   createdAt        DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([channelId])
   @@index([enabled])
   @@index([vkvideoChannelId])
   @@index([channelId])
+  @@index([userId])
 }
 
 // VK Video Live chat bot outbox for sending messages via the separate vkvideo chatbot runner process.
@@ -264,6 +268,9 @@ model ChatBotCommand {
   // NOTE: "follower" role is currently not resolvable from IRC tags; see chatbotRunner.ts.
   allowedRoles      Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
   allowedUsers      Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  // VKVideo-specific role ids (from VKVideo Channel Roles API).
+  // Stored separately because Twitch allowedRoles are a fixed enum.
+  vkvideoAllowedRoleIds Json  @default(dbgenerated("'[]'::jsonb")) @db.JsonB
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -327,6 +334,7 @@ model User {
   externalAccounts ExternalAccount[]
   oauthStates      OAuthState[]
   youTubeChatBotSubscriptions YouTubeChatBotSubscription[]
+  vkVideoChatBotSubscriptions VkVideoChatBotSubscription[]
   wallets          Wallet[]
   memesCreated     Meme[]                @relation("CreatedBy")
   memesApproved    Meme[]                @relation("ApprovedBy")

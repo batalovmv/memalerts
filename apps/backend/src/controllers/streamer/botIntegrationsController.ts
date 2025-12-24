@@ -168,10 +168,10 @@ export const botIntegrationsController = {
       if (provider === 'vkvideo') {
         if (enabled) {
           let vkvideoChannelId = String((req.body as any)?.vkvideoChannelId || '').trim();
+          if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
 
           // UX: if channelId is not provided, try to resolve it from VKVideo API using streamer's linked VKVideo account.
           if (!vkvideoChannelId) {
-            if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
             const account = await getVkVideoExternalAccount(req.userId);
             if (!account?.accessToken) {
               return res.status(400).json({
@@ -221,8 +221,8 @@ export const botIntegrationsController = {
 
           await (prisma as any).vkVideoChatBotSubscription.upsert({
             where: { channelId },
-            create: { channelId, vkvideoChannelId, enabled: true },
-            update: { vkvideoChannelId, enabled: true },
+            create: { channelId, userId: req.userId, vkvideoChannelId, enabled: true },
+            update: { userId: req.userId, vkvideoChannelId, enabled: true },
             select: { id: true },
           });
         } else {

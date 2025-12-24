@@ -4,6 +4,9 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
 import { createEventSubSubscriptionOfType, getEventSubSubscriptions } from '../../utils/twitchApi.js';
 
+// Prisma typings may lag behind during staged deployments/migrations; use a local escape hatch for optional/newer fields.
+const prismaAny = prisma as any;
+
 function requireChannelId(req: AuthRequest, res: Response): string | null {
   const channelId = String(req.channelId || '').trim();
   if (!channelId) {
@@ -59,6 +62,22 @@ function normalizeAllowedUsers(raw: any): string[] | null | undefined {
     if (login.length > TWITCH_LOGIN_MAX_LEN) return null;
     if (!TWITCH_LOGIN_RE.test(login)) return null;
     if (!out.includes(login)) out.push(login);
+  }
+  return out;
+}
+
+const VKVIDEO_ROLE_IDS_MAX_COUNT = 100;
+const VKVIDEO_ROLE_ID_MAX_LEN = 128;
+function normalizeVkVideoAllowedRoleIds(raw: any): string[] | null | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return null;
+  if (raw.length > VKVIDEO_ROLE_IDS_MAX_COUNT) return null;
+  const out: string[] = [];
+  for (const v of raw) {
+    const id = String(v ?? '').trim();
+    if (!id) continue;
+    if (id.length > VKVIDEO_ROLE_ID_MAX_LEN) return null;
+    if (!out.includes(id)) out.push(id);
   }
   return out;
 }
@@ -205,7 +224,7 @@ export const streamerBotController = {
       return res.status(400).json({ error: 'Bad Request', message: 'Chat bot is not enabled for this channel' });
     }
 
-    const row = await prisma.chatBotOutboxMessage.create({
+    const row = await prismaAny.chatBotOutboxMessage.create({
       data: {
         channelId,
         twitchLogin: sub.twitchLogin,
@@ -250,7 +269,7 @@ export const streamerBotController = {
     if (!channelId) return;
 
     try {
-      const items = await prisma.chatBotCommand.findMany({
+      const items = await prismaAny.chatBotCommand.findMany({
         where: { channelId },
         orderBy: { createdAt: 'desc' },
         select: {
@@ -261,6 +280,7 @@ export const streamerBotController = {
           onlyWhenLive: true,
           allowedRoles: true,
           allowedUsers: true,
+          vkvideoAllowedRoleIds: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -287,6 +307,7 @@ export const streamerBotController = {
     const onlyWhenLive = onlyWhenLiveRaw === undefined ? false : onlyWhenLiveRaw;
     const allowedRolesParsed = normalizeAllowedRoles((req.body as any)?.allowedRoles);
     const allowedUsersParsed = normalizeAllowedUsers((req.body as any)?.allowedUsers);
+    const vkvideoAllowedRoleIdsParsed = normalizeVkVideoAllowedRoleIds((req.body as any)?.vkvideoAllowedRoleIds);
 
     if (!trigger) return res.status(400).json({ error: 'Bad Request', message: 'Trigger is required' });
     if (!responseText) return res.status(400).json({ error: 'Bad Request', message: 'Response is required' });
@@ -305,6 +326,12 @@ export const streamerBotController = {
         message: `allowedUsers must be an array of lowercase twitch logins (max ${ALLOWED_USERS_MAX_COUNT})`,
       });
     }
+    if (vkvideoAllowedRoleIdsParsed === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `vkvideoAllowedRoleIds must be an array of role ids (max ${VKVIDEO_ROLE_IDS_MAX_COUNT})`,
+      });
+    }
     if (trigger.length > BOT_TRIGGER_MAX_LEN) {
       return res.status(400).json({ error: 'Bad Request', message: `Trigger is too long (max ${BOT_TRIGGER_MAX_LEN})` });
     }
@@ -313,7 +340,7 @@ export const streamerBotController = {
     }
 
     try {
-      const row = await prisma.chatBotCommand.create({
+      const row = await prismaAny.chatBotCommand.create({
         data: {
           channelId,
           trigger,
@@ -323,6 +350,7 @@ export const streamerBotController = {
           onlyWhenLive,
           allowedRoles: allowedRolesParsed ?? [],
           allowedUsers: allowedUsersParsed ?? [],
+          vkvideoAllowedRoleIds: vkvideoAllowedRoleIdsParsed ?? [],
         },
         select: {
           id: true,
@@ -332,6 +360,7 @@ export const streamerBotController = {
           onlyWhenLive: true,
           allowedRoles: true,
           allowedUsers: true,
+          vkvideoAllowedRoleIds: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -361,6 +390,7 @@ export const streamerBotController = {
     const onlyWhenLive = (req.body as any)?.onlyWhenLive;
     const allowedRolesParsed = normalizeAllowedRoles((req.body as any)?.allowedRoles);
     const allowedUsersParsed = normalizeAllowedUsers((req.body as any)?.allowedUsers);
+    const vkvideoAllowedRoleIdsParsed = normalizeVkVideoAllowedRoleIds((req.body as any)?.vkvideoAllowedRoleIds);
     if (enabled !== undefined && typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
     }
@@ -379,11 +409,23 @@ export const streamerBotController = {
         message: `allowedUsers must be an array of lowercase twitch logins (max ${ALLOWED_USERS_MAX_COUNT})`,
       });
     }
-
-    if (enabled === undefined && onlyWhenLive === undefined && allowedRolesParsed === undefined && allowedUsersParsed === undefined) {
+    if (vkvideoAllowedRoleIdsParsed === null) {
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'At least one field is required (enabled, onlyWhenLive, allowedRoles, allowedUsers)',
+        message: `vkvideoAllowedRoleIds must be an array of role ids (max ${VKVIDEO_ROLE_IDS_MAX_COUNT})`,
+      });
+    }
+
+    if (
+      enabled === undefined &&
+      onlyWhenLive === undefined &&
+      allowedRolesParsed === undefined &&
+      allowedUsersParsed === undefined &&
+      vkvideoAllowedRoleIdsParsed === undefined
+    ) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'At least one field is required (enabled, onlyWhenLive, allowedRoles, allowedUsers, vkvideoAllowedRoleIds)',
       });
     }
 
@@ -392,15 +434,16 @@ export const streamerBotController = {
     if (onlyWhenLive !== undefined) data.onlyWhenLive = onlyWhenLive;
     if (allowedRolesParsed !== undefined) data.allowedRoles = allowedRolesParsed;
     if (allowedUsersParsed !== undefined) data.allowedUsers = allowedUsersParsed;
+    if (vkvideoAllowedRoleIdsParsed !== undefined) data.vkvideoAllowedRoleIds = vkvideoAllowedRoleIdsParsed;
 
     try {
-      const updated = await prisma.chatBotCommand.updateMany({
+      const updated = await prismaAny.chatBotCommand.updateMany({
         where: { id, channelId },
         data,
       });
       if (updated.count === 0) return res.status(404).json({ error: 'Not Found', message: 'Command not found' });
 
-      const row = await prisma.chatBotCommand.findUnique({
+      const row = await prismaAny.chatBotCommand.findUnique({
         where: { id },
         select: {
           id: true,
@@ -410,6 +453,7 @@ export const streamerBotController = {
           onlyWhenLive: true,
           allowedRoles: true,
           allowedUsers: true,
+          vkvideoAllowedRoleIds: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -438,7 +482,7 @@ export const streamerBotController = {
     const id = String((req.params as any)?.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
 
-    const deleted = await prisma.chatBotCommand.deleteMany({
+    const deleted = await prismaAny.chatBotCommand.deleteMany({
       where: { id, channelId },
     });
     if (deleted.count === 0) return res.status(404).json({ error: 'Not Found', message: 'Command not found' });
@@ -460,7 +504,7 @@ export const streamerBotController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
 
-    const channel = await prisma.channel.findUnique({
+    const channel = await prismaAny.channel.findUnique({
       where: { id: channelId },
       select: { followGreetingsEnabled: true, followGreetingTemplate: true },
     });
@@ -487,13 +531,13 @@ export const streamerBotController = {
       templateUpdate = t;
     }
 
-    const current = await prisma.channel.findUnique({
+    const current = await prismaAny.channel.findUnique({
       where: { id: channelId },
       select: { twitchChannelId: true, followGreetingTemplate: true },
     });
     if (!current) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
 
-    const channel = await prisma.channel.update({
+    const channel = await prismaAny.channel.update({
       where: { id: channelId },
       data: {
         followGreetingsEnabled: true,
@@ -538,7 +582,7 @@ export const streamerBotController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
 
-    const channel = await prisma.channel.update({
+    const channel = await prismaAny.channel.update({
       where: { id: channelId },
       data: { followGreetingsEnabled: false },
       select: { followGreetingsEnabled: true, followGreetingTemplate: true },
@@ -557,7 +601,7 @@ export const streamerBotController = {
       return res.status(400).json({ error: 'Bad Request', message: `followGreetingTemplate is too long (max ${FOLLOW_GREETING_TEMPLATE_MAX_LEN})` });
     }
 
-    const channel = await prisma.channel.update({
+    const channel = await prismaAny.channel.update({
       where: { id: channelId },
       data: { followGreetingTemplate: template },
       select: { followGreetingsEnabled: true, followGreetingTemplate: true },
@@ -571,7 +615,7 @@ export const streamerBotController = {
     if (!channelId) return;
 
     try {
-      const channel = await prisma.channel.findUnique({
+      const channel = await prismaAny.channel.findUnique({
         where: { id: channelId },
         select: { streamDurationCommandJson: true },
       });
@@ -673,7 +717,7 @@ export const streamerBotController = {
     };
 
     try {
-      const updated = await prisma.channel.update({
+      const updated = await prismaAny.channel.update({
         where: { id: channelId },
         data: { streamDurationCommandJson: JSON.stringify(payload) },
         select: { streamDurationCommandJson: true },
