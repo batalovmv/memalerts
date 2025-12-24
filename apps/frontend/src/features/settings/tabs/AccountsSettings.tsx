@@ -192,6 +192,7 @@ export function AccountsSettings() {
           icon: TwitchIcon,
           iconClassName: 'text-[#9146FF]',
           supportsLink: true,
+          isAvailable: true,
           onLink: linkTwitch,
         },
         {
@@ -203,51 +204,8 @@ export function AccountsSettings() {
           icon: YouTubeIcon,
           iconClassName: 'text-[#FF0000]',
           supportsLink: true,
+          isAvailable: true,
           onLink: () => linkProvider('youtube'),
-        },
-        {
-          provider: 'kick',
-          title: t('settings.accountsServiceKick', { defaultValue: 'Kick' }),
-          description: t('settings.accountsServiceKickHint', {
-            defaultValue: 'Used for Kick integrations.',
-          }),
-          icon: KickIcon,
-          iconClassName: 'text-[#53FC18]',
-          supportsLink: true,
-          onLink: () => linkProvider('kick'),
-        },
-        {
-          provider: 'trovo',
-          title: t('settings.accountsServiceTrovo', { defaultValue: 'Trovo' }),
-          description: t('settings.accountsServiceTrovoHint', {
-            defaultValue: 'Used for Trovo integrations.',
-          }),
-          icon: TrovoIcon,
-          iconClassName: 'text-[#1BD96A]',
-          supportsLink: true,
-          onLink: () => linkProvider('trovo'),
-        },
-        {
-          provider: 'vk',
-          title: t('settings.accountsServiceVk', { defaultValue: 'VK' }),
-          description: t('settings.accountsServiceVkHint', {
-            defaultValue: 'Used for VK integrations.',
-          }),
-          icon: VkIcon,
-          iconClassName: 'text-[#0077FF]',
-          supportsLink: true,
-          onLink: () => linkProvider('vk'),
-        },
-        {
-          provider: 'boosty',
-          title: t('settings.accountsServiceBoosty', { defaultValue: 'Boosty' }),
-          description: t('settings.accountsServiceBoostyHint', {
-            defaultValue: 'Used for Boosty integrations.',
-          }),
-          icon: BoostyIcon,
-          iconClassName: 'text-[#F15A24]',
-          supportsLink: true,
-          onLink: () => linkProvider('boosty'),
         },
         {
           provider: 'vkvideo',
@@ -259,7 +217,43 @@ export function AccountsSettings() {
           iconClassName: 'text-[#0077FF]',
           supportsLink: true,
           onLink: () => linkProvider('vkvideo'),
-          linkLabel: t('settings.accountsLinkVkvideo', { defaultValue: 'Connect VK Video Live' }),
+          isAvailable: true,
+        },
+        {
+          provider: 'boosty',
+          title: t('settings.accountsServiceBoosty', { defaultValue: 'Boosty' }),
+          description: t('settings.accountsServiceBoostyHint', {
+            defaultValue: 'Used for Boosty integrations.',
+          }),
+          icon: BoostyIcon,
+          iconClassName: 'text-[#F15A24]',
+          supportsLink: true,
+          isAvailable: false,
+          onLink: () => linkProvider('boosty'),
+        },
+        {
+          provider: 'kick',
+          title: t('settings.accountsServiceKick', { defaultValue: 'Kick' }),
+          description: t('settings.accountsServiceKickHint', {
+            defaultValue: 'Used for Kick integrations.',
+          }),
+          icon: KickIcon,
+          iconClassName: 'text-[#53FC18]',
+          supportsLink: true,
+          isAvailable: false,
+          onLink: () => linkProvider('kick'),
+        },
+        {
+          provider: 'trovo',
+          title: t('settings.accountsServiceTrovo', { defaultValue: 'Trovo' }),
+          description: t('settings.accountsServiceTrovoHint', {
+            defaultValue: 'Used for Trovo integrations.',
+          }),
+          icon: TrovoIcon,
+          iconClassName: 'text-[#1BD96A]',
+          supportsLink: true,
+          isAvailable: false,
+          onLink: () => linkProvider('trovo'),
         },
       ] as const,
     [linkProvider, linkTwitch, t]
@@ -355,9 +349,9 @@ export function AccountsSettings() {
                     </Button>
                   </>
                 ) : (
-                  <Button variant="primary" onClick={service.onLink}>
-                    {'linkLabel' in service && service.linkLabel
-                      ? service.linkLabel
+                  <Button variant="primary" onClick={service.onLink} disabled={service.isAvailable === false}>
+                    {service.isAvailable === false
+                      ? t('common.notAvailable', { defaultValue: 'Not available' })
                       : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
                 )}
