@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/store/hooks';
 import { Button, Card } from '@/shared/ui';
-import { linkTwitchAccount } from '@/lib/auth';
+import { linkExternalAccount, linkTwitchAccount } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 import type { ExternalAccount } from '@/types';
 
@@ -23,6 +23,56 @@ function CheckIcon() {
   );
 }
 
+type ServiceIconProps = { className?: string };
+
+function TwitchIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M4 2h18v12l-6 6h-5l-3 3H6v-3H4V2zm2 2v14h3v3l3-3h5l4-4V4H6zm11 8h-2V6h2v6zm-5 0H10V6h2v6z" />
+    </svg>
+  );
+}
+
+function YouTubeIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M23.5 6.2a3.1 3.1 0 0 0-2.2-2.2C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.3.5A3.1 3.1 0 0 0 .5 6.2 32 32 0 0 0 0 12s0 4.2.5 5.8a3.1 3.1 0 0 0 2.2 2.2c1.9.5 9.3.5 9.3.5s7.4 0 9.3-.5a3.1 3.1 0 0 0 2.2-2.2c.5-1.6.5-5.8.5-5.8s0-4.2-.5-5.8zM9.7 15.5V8.5L16 12l-6.3 3.5z" />
+    </svg>
+  );
+}
+
+function KickIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M5 3h6v6h2V7h6v6h-2v2h2v6h-6v-2h-2v2H5V3zm2 2v14h2v-4h2v-2H9V5H7zm6 6v2h2v2h2V9h-4z" />
+    </svg>
+  );
+}
+
+function TrovoIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6zm7 3v6l5-3-5-3z" />
+    </svg>
+  );
+}
+
+function VkIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M3.5 7.2c.1-.4.5-.7 1-.7h2.8c.5 0 .9.3 1 .8.7 3 2.6 5.7 4.3 5.7.5 0 .7-.4.7-1.3V8.4c0-1 .3-1.4 1.2-1.4h2.7c.6 0 1 .4 1 .9 0 1.2-1.3 1.5-1.3 3 0 .5.2 1 .8 1.6 1 1 2.2 2.4 2.4 3.3.1.5-.2.9-.8.9h-2.8c-.6 0-1-.2-1.4-.7-.7-.9-1.4-2-2-2-.5 0-.6.4-.6 1.2v1c0 .6-.5 1.1-1.1 1.1C8.9 18.2 4.2 14.3 3.4 8c0-.3 0-.5.1-.8z" />
+    </svg>
+  );
+}
+
+function BoostyIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M12 2c4.4 0 8 3.6 8 8 0 3.2-1.9 6-4.7 7.3V22l-3.3-2-3.3 2v-4.7C5.9 16 4 13.2 4 10c0-4.4 3.6-8 8-8zm-2 6v4h2.2c.9 0 1.5-.6 1.5-1.5S13.1 9 12.2 9H10zm0 6v2h2.4c1.1 0 1.8-.7 1.8-1.7S13.5 12 12.4 12H10z" />
+    </svg>
+  );
+}
+
 export function AccountsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
@@ -36,6 +86,15 @@ export function AccountsSettings() {
     linkTwitchAccount('/settings/accounts');
   }, []);
 
+  const linkProvider = useCallback((provider: string) => {
+    // Keep dedicated Twitch link (backward compat), and use generic for others.
+    if (provider === 'twitch') {
+      linkTwitchAccount('/settings/accounts');
+      return;
+    }
+    linkExternalAccount(provider, '/settings/accounts');
+  }, []);
+
   const services = useMemo(
     () =>
       [
@@ -45,10 +104,62 @@ export function AccountsSettings() {
           description: t('settings.accountsServiceTwitchHint', {
             defaultValue: 'Used to sign in and enable Twitch-only features.',
           }),
+          icon: TwitchIcon,
+          iconClassName: 'text-[#9146FF]',
           onLink: linkTwitch,
         },
+        {
+          provider: 'youtube',
+          title: t('settings.accountsServiceYouTube', { defaultValue: 'YouTube' }),
+          description: t('settings.accountsServiceYouTubeHint', {
+            defaultValue: 'Used for YouTube integrations.',
+          }),
+          icon: YouTubeIcon,
+          iconClassName: 'text-[#FF0000]',
+          onLink: () => linkProvider('youtube'),
+        },
+        {
+          provider: 'kick',
+          title: t('settings.accountsServiceKick', { defaultValue: 'Kick' }),
+          description: t('settings.accountsServiceKickHint', {
+            defaultValue: 'Used for Kick integrations.',
+          }),
+          icon: KickIcon,
+          iconClassName: 'text-[#53FC18]',
+          onLink: () => linkProvider('kick'),
+        },
+        {
+          provider: 'trovo',
+          title: t('settings.accountsServiceTrovo', { defaultValue: 'Trovo' }),
+          description: t('settings.accountsServiceTrovoHint', {
+            defaultValue: 'Used for Trovo integrations.',
+          }),
+          icon: TrovoIcon,
+          iconClassName: 'text-[#1BD96A]',
+          onLink: () => linkProvider('trovo'),
+        },
+        {
+          provider: 'vk',
+          title: t('settings.accountsServiceVk', { defaultValue: 'VK' }),
+          description: t('settings.accountsServiceVkHint', {
+            defaultValue: 'Used for VK integrations.',
+          }),
+          icon: VkIcon,
+          iconClassName: 'text-[#0077FF]',
+          onLink: () => linkProvider('vk'),
+        },
+        {
+          provider: 'boosty',
+          title: t('settings.accountsServiceBoosty', { defaultValue: 'Boosty' }),
+          description: t('settings.accountsServiceBoostyHint', {
+            defaultValue: 'Used for Boosty integrations.',
+          }),
+          icon: BoostyIcon,
+          iconClassName: 'text-[#F15A24]',
+          onLink: () => linkProvider('boosty'),
+        },
       ] as const,
-    [linkTwitch, t]
+    [linkProvider, linkTwitch, t]
   );
 
   return (
@@ -68,32 +179,40 @@ export function AccountsSettings() {
         {services.map((service) => {
           const isLinked = linkedProviders.has(service.provider);
           const linkedAccount = accounts.find((a) => a.provider === service.provider) as ExternalAccount | undefined;
+          const Icon = service.icon;
           return (
             <Card key={service.provider} className="p-5 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="font-semibold text-gray-900 dark:text-white truncate">{service.title}</div>
-                  {isLinked ? (
-                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
-                      <CheckIcon />
-                      {t('settings.accountsLinked', { defaultValue: 'Connected' })}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {t('settings.accountsNotLinked', { defaultValue: 'Not connected' })}
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
-                  {isLinked && linkedAccount?.login ? `@${linkedAccount.login}` : service.description}
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={[
+                      'grid place-items-center shrink-0 w-9 h-9 rounded-lg',
+                      'bg-black/5 dark:bg-white/10',
+                      service.iconClassName ?? 'text-gray-700 dark:text-gray-200',
+                    ].join(' ')}
+                    aria-hidden="true"
+                  >
+                    <Icon className="w-5 h-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white truncate">{service.title}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
+                      {isLinked && linkedAccount?.login ? `@${linkedAccount.login}` : service.description}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {!isLinked ? (
+              <div className="flex items-center justify-end gap-2 shrink-0">
+                {isLinked ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-sm font-semibold whitespace-nowrap">
+                    <CheckIcon />
+                    {t('settings.accountsLinked', { defaultValue: 'Connected' })}
+                  </span>
+                ) : (
                   <Button variant="primary" onClick={service.onLink}>
                     {t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
-                ) : null}
+                )}
               </div>
             </Card>
           );
