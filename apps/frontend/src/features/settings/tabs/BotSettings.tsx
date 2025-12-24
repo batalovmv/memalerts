@@ -81,6 +81,8 @@ export function BotSettings() {
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
   const [newOnlyWhenLive, setNewOnlyWhenLive] = useState(false);
+  const [savingCommandsBulk, setSavingCommandsBulk] = useState(false);
+  const lastCommandsEnabledMapRef = useRef<Record<string, boolean> | null>(null);
 
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
@@ -98,6 +100,7 @@ export function BotSettings() {
   const [streamDurationTrigger, setStreamDurationTrigger] = useState('!time');
   const [streamDurationTemplate, setStreamDurationTemplate] = useState('');
   const [streamDurationBreakCreditMinutes, setStreamDurationBreakCreditMinutes] = useState<number>(60);
+  const [streamDurationOpen, setStreamDurationOpen] = useState<boolean>(false);
 
   const loadFollowGreetings = useCallback(async () => {
     try {
@@ -128,6 +131,7 @@ export function BotSettings() {
         setStreamDurationBreakCreditMinutes(Math.max(0, Math.round(res.breakCreditMinutes)));
       }
 
+      if (typeof res?.enabled === 'boolean') setStreamDurationOpen(res.enabled);
       setStreamDurationNotAvailable(false);
       setStreamDurationLoaded(true);
     } catch (error: unknown) {
@@ -142,7 +146,7 @@ export function BotSettings() {
     }
   }, []);
 
-  const loadSubscription = async () => {
+  const loadSubscription = useCallback(async () => {
     try {
       setLoading('load');
       const { api } = await import('@/lib/api');
@@ -165,12 +169,12 @@ export function BotSettings() {
       setStatusLoaded(true);
       setLoading(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadSubscription();
     void loadFollowGreetings();
-  }, []);
+  }, [loadFollowGreetings, loadSubscription]);
 
   // UX: when the bot is enabled, auto-expand settings; when disabled, collapse.
   useEffect(() => {
@@ -416,6 +420,17 @@ export function BotSettings() {
     }
   }, [streamDurationBreakCreditMinutes, streamDurationEnabled, streamDurationTemplate, streamDurationTrigger, t]);
 
+  const toggleStreamDurationEnabled = useCallback(
+    async (nextEnabled: boolean) => {
+      setStreamDurationEnabled(nextEnabled);
+      setStreamDurationOpen(nextEnabled);
+      // Persist immediately (so the toggle actually works without pressing "Save").
+      // Uses current form values; backend can validate/normalize.
+      void saveStreamDuration();
+    },
+    [saveStreamDuration]
+  );
+
   const sendTestMessage = useCallback(async () => {
     const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
     if (!msg) {
@@ -471,6 +486,7 @@ export function BotSettings() {
   const menusDisabled = !showMenus || isBusy;
 
   const visibleCommands = useMemo(() => [...commands].sort((a, b) => a.trigger.localeCompare(b.trigger)), [commands]);
+  const anyCommandEnabled = useMemo(() => visibleCommands.some((c) => c.enabled !== false), [visibleCommands]);
 
   useEffect(() => {
     if (!showMenus) return;
@@ -635,7 +651,7 @@ export function BotSettings() {
                     checked={streamDurationEnabled}
                     disabled={savingStreamDuration || streamDurationNotAvailable}
                     busy={savingStreamDuration}
-                    onChange={(enabled) => setStreamDurationEnabled(enabled)}
+                    onChange={(enabled) => void toggleStreamDurationEnabled(enabled)}
                     ariaLabel={t('admin.streamDurationTitle', { defaultValue: 'Stream duration command' })}
                   />
                 </div>
@@ -649,7 +665,7 @@ export function BotSettings() {
                   </div>
                 )}
 
-                {!streamDurationNotAvailable && (
+                {!streamDurationNotAvailable && streamDurationEnabled && streamDurationOpen && (
                   <div className="mt-3 space-y-3">
                     <div className="text-xs text-gray-600 dark:text-gray-300">
                       {t('admin.streamDurationLiveOnlyInfo', {
@@ -717,7 +733,8 @@ export function BotSettings() {
               </div>
 
               {/* Commands */}
-              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative">
+                {savingCommandsBulk ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
                 <div className="font-semibold text-gray-900 dark:text-white">
                   {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
                 </div>
@@ -728,6 +745,56 @@ export function BotSettings() {
                   })}
                 </div>
 
+                <div className="mt-3 flex items-start justify-between gap-4 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                      {t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
+                    </div>
+                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                      {t('admin.botCommandsMasterHint', {
+                        defaultValue: 'Turns all commands on/off. Individual command settings are preserved.',
+                      })}
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={anyCommandEnabled}
+                    disabled={savingCommandsBulk || commandToggleLoadingId !== null || commandsLoading}
+                    busy={savingCommandsBulk}
+                    onChange={async (next) => {
+                      const startedAt = Date.now();
+                      try {
+                        setSavingCommandsBulk(true);
+                        // Remember previous per-command enabled flags so we can restore on re-enable.
+                        if (!next) {
+                          lastCommandsEnabledMapRef.current = Object.fromEntries(
+                            commands.map((c) => [c.id, c.enabled !== false])
+                          );
+                          // Disable all enabled commands.
+                          for (const c of commands) {
+                            if (c.enabled !== false) {
+                              await updateCommand(c.id, { enabled: false });
+                            }
+                          }
+                          return;
+                        }
+                        // Restore previous states if we have them, otherwise do nothing (leave all disabled).
+                        const map = lastCommandsEnabledMapRef.current;
+                        if (!map) return;
+                        for (const c of commands) {
+                          const prevEnabled = map[c.id];
+                          if (prevEnabled === true) {
+                            await updateCommand(c.id, { enabled: true });
+                          }
+                        }
+                      } finally {
+                        await ensureMinDuration(startedAt, 450);
+                        setSavingCommandsBulk(false);
+                      }
+                    }}
+                    ariaLabel={t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
+                  />
+                </div>
+
                 {commandsNotAvailable && (
                   <div className="mt-3 text-sm text-amber-800 dark:text-amber-200">
                     {t('admin.botCommandsNotAvailable', {
@@ -736,7 +803,7 @@ export function BotSettings() {
                   </div>
                 )}
 
-                {!commandsNotAvailable && (
+                {!commandsNotAvailable && anyCommandEnabled && (
                   <>
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -801,20 +868,32 @@ export function BotSettings() {
                                 <div className="text-sm text-gray-700 dark:text-gray-200 break-words">{cmd.response}</div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                <ToggleSwitch
-                                  checked={cmd.enabled !== false}
-                                  disabled={commandToggleLoadingId !== null}
-                                  busy={commandToggleLoadingId === cmd.id}
-                                  onChange={(next) => void updateCommand(cmd.id, { enabled: next })}
-                                  ariaLabel={t('admin.botCommandEnabled', { defaultValue: 'Command enabled' })}
-                                />
-                                <ToggleSwitch
-                                  checked={cmd.onlyWhenLive === true}
-                                  disabled={commandToggleLoadingId !== null}
-                                  busy={commandToggleLoadingId === cmd.id}
-                                  onChange={(next) => void updateCommand(cmd.id, { onlyWhenLive: next })}
-                                  ariaLabel={t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
-                                />
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-[10px] text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                      {t('admin.botCommandEnabledLabel', { defaultValue: 'Enabled' })}
+                                    </div>
+                                    <ToggleSwitch
+                                      checked={cmd.enabled !== false}
+                                      disabled={commandToggleLoadingId !== null || savingCommandsBulk}
+                                      busy={commandToggleLoadingId === cmd.id}
+                                      onChange={(next) => void updateCommand(cmd.id, { enabled: next })}
+                                      ariaLabel={t('admin.botCommandEnabledLabel', { defaultValue: 'Enabled' })}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-[10px] text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                      {t('admin.botCommandLiveOnlyLabel', { defaultValue: 'Live-only' })}
+                                    </div>
+                                    <ToggleSwitch
+                                      checked={cmd.onlyWhenLive === true}
+                                      disabled={commandToggleLoadingId !== null || savingCommandsBulk}
+                                      busy={commandToggleLoadingId === cmd.id}
+                                      onChange={(next) => void updateCommand(cmd.id, { onlyWhenLive: next })}
+                                      ariaLabel={t('admin.botCommandLiveOnlyLabel', { defaultValue: 'Live-only' })}
+                                    />
+                                  </div>
+                                </div>
                                 <Button type="button" variant="secondary" onClick={() => void deleteCommand(cmd.id)} disabled={commandToggleLoadingId === cmd.id}>
                                   {t('common.delete', { defaultValue: 'Delete' })}
                                 </Button>
@@ -825,6 +904,12 @@ export function BotSettings() {
                       )}
                     </div>
                   </>
+                )}
+
+                {!commandsNotAvailable && !anyCommandEnabled && (
+                  <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                    {t('admin.botCommandsDisabledHint', { defaultValue: 'Enable commands to manage triggers and replies.' })}
+                  </div>
                 )}
               </div>
 
