@@ -119,17 +119,20 @@ export async function fetchVkVideoUser(params: {
 
   // Extremely defensive mapping: different APIs may use different keys.
   const root =
-    data?.user ??
-    data?.data ??
-    data?.response ??
-    data?.result ??
-    data?.payload ??
-    data?.profile ??
-    data ??
-    null;
+    // Common wrapper patterns:
+    // - { data: { user: {...}, ... } }
+    // - { response: {...} }
+    // - { result: {...} }
+    data?.data ?? data?.response ?? data?.result ?? data?.payload ?? data?.profile ?? data ?? null;
+
+  // If root has nested "user" object (VKVideo Live current_user), prefer it.
+  const userRoot = root?.user ?? root?.profile ?? root;
 
   const id = String(
-    root?.id ??
+    userRoot?.id ??
+      userRoot?.user_id ??
+      userRoot?.sub ??
+      root?.id ??
       root?.user_id ??
       root?.sub ??
       data?.id ??
@@ -143,11 +146,14 @@ export async function fetchVkVideoUser(params: {
   }
 
   const displayName =
-    String(root?.display_name ?? root?.displayName ?? root?.name ?? root?.username ?? '').trim() || null;
-  const login = String(root?.login ?? root?.screen_name ?? root?.email ?? root?.username ?? '').trim() || null;
+    String(userRoot?.display_name ?? userRoot?.displayName ?? userRoot?.name ?? userRoot?.username ?? '').trim() ||
+    null;
+  const login =
+    String(userRoot?.login ?? userRoot?.screen_name ?? userRoot?.email ?? userRoot?.username ?? '').trim() || null;
   const avatarUrl =
-    String(root?.avatar_url ?? root?.avatarUrl ?? root?.photo_200 ?? root?.picture ?? '').trim() || null;
-  const profileUrl = String(root?.profile_url ?? root?.profileUrl ?? '').trim() || null;
+    String(userRoot?.avatar_url ?? userRoot?.avatarUrl ?? userRoot?.photo_200 ?? userRoot?.picture ?? '').trim() ||
+    null;
+  const profileUrl = String(userRoot?.profile_url ?? userRoot?.profileUrl ?? '').trim() || null;
 
   debugLog('vkvideo.user.fetch', { status: resp.status, hasUser: true, id });
   return { status: resp.status, user: { id, displayName, login, avatarUrl, profileUrl }, raw: data };
