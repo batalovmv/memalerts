@@ -118,16 +118,36 @@ export async function fetchVkVideoUser(params: {
   const data = (await resp.json().catch(() => null)) as any;
 
   // Extremely defensive mapping: different APIs may use different keys.
-  const id = String(data?.id ?? data?.user_id ?? data?.sub ?? '').trim();
+  const root =
+    data?.user ??
+    data?.data ??
+    data?.response ??
+    data?.result ??
+    data?.payload ??
+    data?.profile ??
+    data ??
+    null;
+
+  const id = String(
+    root?.id ??
+      root?.user_id ??
+      root?.sub ??
+      data?.id ??
+      data?.user_id ??
+      data?.sub ??
+      ''
+  ).trim();
   if (!id) {
     debugLog('vkvideo.user.fetch', { status: resp.status, hasUser: false });
     return { status: resp.status, user: null, raw: data };
   }
 
-  const displayName = String(data?.display_name ?? data?.name ?? data?.username ?? '').trim() || null;
-  const login = String(data?.login ?? data?.screen_name ?? data?.email ?? '').trim() || null;
-  const avatarUrl = String(data?.avatar_url ?? data?.photo_200 ?? data?.picture ?? '').trim() || null;
-  const profileUrl = String(data?.profile_url ?? '').trim() || null;
+  const displayName =
+    String(root?.display_name ?? root?.displayName ?? root?.name ?? root?.username ?? '').trim() || null;
+  const login = String(root?.login ?? root?.screen_name ?? root?.email ?? root?.username ?? '').trim() || null;
+  const avatarUrl =
+    String(root?.avatar_url ?? root?.avatarUrl ?? root?.photo_200 ?? root?.picture ?? '').trim() || null;
+  const profileUrl = String(root?.profile_url ?? root?.profileUrl ?? '').trim() || null;
 
   debugLog('vkvideo.user.fetch', { status: resp.status, hasUser: true, id });
   return { status: resp.status, user: { id, displayName, login, avatarUrl, profileUrl }, raw: data };

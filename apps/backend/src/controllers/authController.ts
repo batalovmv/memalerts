@@ -431,6 +431,21 @@ export const authController = {
             ok: userFetch.status === 0 ? null : userFetch.status >= 200 && userFetch.status < 300,
             has_user: !!vkVideoUser,
           });
+          // If HTTP 200 but we couldn't map an id, log keys to adjust mapping (avoid logging tokens).
+          if (userFetch.status >= 200 && userFetch.status < 300 && !vkVideoUser) {
+            const raw = userFetch.raw;
+            const topKeys = raw && typeof raw === 'object' ? Object.keys(raw).slice(0, 30) : null;
+            const nestedKeys =
+              raw && typeof raw === 'object'
+                ? Object.keys((raw as any).user ?? (raw as any).data ?? (raw as any).response ?? (raw as any).result ?? {}).slice(0, 30)
+                : null;
+            logger.warn('oauth.vkvideo.callback.userinfo_unmapped', {
+              provider: 'vkvideo',
+              status: userFetch.status,
+              top_keys: topKeys,
+              nested_keys: nestedKeys,
+            });
+          }
           // If non-2xx, include response body best-effort (can help diagnose provider errors).
           if (userFetch.status >= 400) {
             logger.error('oauth.vkvideo.callback.userinfo_error', {
