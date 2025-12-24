@@ -106,6 +106,7 @@ export function AccountsSettings() {
           }),
           icon: TwitchIcon,
           iconClassName: 'text-[#9146FF]',
+          supportsLink: true,
           onLink: linkTwitch,
         },
         {
@@ -116,6 +117,7 @@ export function AccountsSettings() {
           }),
           icon: YouTubeIcon,
           iconClassName: 'text-[#FF0000]',
+          supportsLink: false,
           onLink: () => linkProvider('youtube'),
         },
         {
@@ -126,6 +128,7 @@ export function AccountsSettings() {
           }),
           icon: KickIcon,
           iconClassName: 'text-[#53FC18]',
+          supportsLink: false,
           onLink: () => linkProvider('kick'),
         },
         {
@@ -136,6 +139,7 @@ export function AccountsSettings() {
           }),
           icon: TrovoIcon,
           iconClassName: 'text-[#1BD96A]',
+          supportsLink: false,
           onLink: () => linkProvider('trovo'),
         },
         {
@@ -146,6 +150,7 @@ export function AccountsSettings() {
           }),
           icon: VkIcon,
           iconClassName: 'text-[#0077FF]',
+          supportsLink: false,
           onLink: () => linkProvider('vk'),
         },
         {
@@ -156,6 +161,7 @@ export function AccountsSettings() {
           }),
           icon: BoostyIcon,
           iconClassName: 'text-[#F15A24]',
+          supportsLink: false,
           onLink: () => linkProvider('boosty'),
         },
       ] as const,
@@ -207,6 +213,10 @@ export function AccountsSettings() {
                   <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-sm font-semibold whitespace-nowrap">
                     <CheckIcon />
                     {t('settings.accountsLinked', { defaultValue: 'Connected' })}
+                  </span>
+                ) : !service.supportsLink ? (
+                  <span className="inline-flex items-center text-sm font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    {t('common.notAvailable', { defaultValue: 'Not available' })}
                   </span>
                 ) : (
                   <Button variant="primary" onClick={service.onLink}>
