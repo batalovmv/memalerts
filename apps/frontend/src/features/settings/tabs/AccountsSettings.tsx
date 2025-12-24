@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/store/hooks';
 import { Button, Card } from '@/shared/ui';
-import { linkExternalAccount, linkTwitchAccount } from '@/lib/auth';
+import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 import { api } from '@/lib/api';
 import { useAppDispatch } from '@/store/hooks';
@@ -89,18 +89,45 @@ export function AccountsSettings() {
   const accounts = useMemo(() => normalizeAccounts(user?.externalAccounts), [user?.externalAccounts]);
   const linkedProviders = useMemo(() => new Set(accounts.map((a) => a.provider)), [accounts]);
 
+  const ensureSessionOrLogin = useCallback(async () => {
+    try {
+      // Fast check that cookie/session is present on the API origin.
+      await api.get('/me');
+      return true;
+    } catch (e) {
+      const err = toApiError(e, 'Authentication required');
+      if (err.statusCode === 401) {
+        toast.error(t('auth.authRequired', { defaultValue: 'Please sign in to continue.' }));
+        login('/settings/accounts');
+        return false;
+      }
+      // Non-auth errors: surface and don't redirect away.
+      toast.error(err.message);
+      return false;
+    }
+  }, [t]);
+
   const linkTwitch = useCallback(() => {
-    linkTwitchAccount('/settings/accounts');
-  }, []);
+    void (async () => {
+      const ok = await ensureSessionOrLogin();
+      if (!ok) return;
+      linkTwitchAccount('/settings/accounts');
+    })();
+  }, [ensureSessionOrLogin]);
 
   const linkProvider = useCallback((provider: string) => {
     // Keep dedicated Twitch link (backward compat), and use generic for others.
-    if (provider === 'twitch') {
-      linkTwitchAccount('/settings/accounts');
-      return;
-    }
-    linkExternalAccount(provider, '/settings/accounts');
-  }, []);
+    void (async () => {
+      const ok = await ensureSessionOrLogin();
+      if (!ok) return;
+
+      if (provider === 'twitch') {
+        linkTwitchAccount('/settings/accounts');
+        return;
+      }
+      linkExternalAccount(provider, '/settings/accounts');
+    })();
+  }, [ensureSessionOrLogin]);
 
   const services = useMemo(
     () =>
