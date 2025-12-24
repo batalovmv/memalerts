@@ -15,9 +15,10 @@ import { WalletManagement } from '@/features/settings/tabs/WalletManagement';
 import { RewardsSettings } from '@/features/settings/tabs/RewardsSettings';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
 import { ObsLinksSettings } from '@/features/settings/tabs/ObsLinksSettings';
+import { BotSettings } from '@/features/settings/tabs/BotSettings';
 import { Button, Card, IconButton, Input, Modal, Textarea } from '@/shared/ui';
 
-type TabType = 'submissions' | 'settings' | 'rewards' | 'obs' | 'wallets' | 'promotions' | 'statistics' | 'beta';
+type TabType = 'submissions' | 'settings' | 'rewards' | 'obs' | 'bot' | 'wallets' | 'promotions' | 'statistics' | 'beta';
 
 function XIcon() {
   return (
@@ -65,7 +66,7 @@ export default function Admin() {
       navigate('/dashboard?panel=memes', { replace: true });
       return;
     }
-    if (tabParam && ['settings', 'rewards', 'obs', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
+    if (tabParam && ['settings', 'rewards', 'obs', 'bot', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams, navigate]);
@@ -263,6 +264,18 @@ export default function Admin() {
                     }`}
                   >
                     {t('admin.obsLinks', { defaultValue: 'OBS' })}
+                  </button>
+                )}
+                {isStreamerAdmin && (
+                  <button
+                    onClick={() => setActiveTab('bot')}
+                    className={`pb-2 px-4 transition-colors ${
+                      activeTab === 'bot'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary'
+                    }`}
+                  >
+                    {t('admin.bot', { defaultValue: 'Bot' })}
                   </button>
                 )}
               </div>
@@ -557,6 +570,10 @@ export default function Admin() {
 
         {activeTab === 'obs' && isStreamerAdmin && (
           <ObsLinksSettings />
+        )}
+
+        {activeTab === 'bot' && isStreamerAdmin && (
+          <BotSettings />
         )}
 
         {activeTab === 'wallets' && user?.role === 'admin' && (
