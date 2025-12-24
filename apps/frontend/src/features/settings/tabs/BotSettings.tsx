@@ -78,6 +78,7 @@ export function BotSettings() {
   const [commandsLoading, setCommandsLoading] = useState(false);
   const [commandsNotAvailable, setCommandsNotAvailable] = useState(false);
   const [commandToggleLoadingId, setCommandToggleLoadingId] = useState<string | null>(null);
+  const [commandsOpen, setCommandsOpen] = useState<boolean>(false);
   const [newTrigger, setNewTrigger] = useState('');
   const [newResponse, setNewResponse] = useState('');
   const [newOnlyWhenLive, setNewOnlyWhenLive] = useState(false);
@@ -495,6 +496,13 @@ export function BotSettings() {
     if (!commandsLoaded && !commandsLoading) void loadCommands();
   }, [commandsLoaded, commandsLoading, loadCommands, showMenus]);
 
+  // UX: collapse commands panel when all commands are disabled; expand when any is enabled.
+  useEffect(() => {
+    if (!showMenus) return;
+    if (!commandsLoaded) return;
+    setCommandsOpen(anyCommandEnabled);
+  }, [anyCommandEnabled, commandsLoaded, showMenus]);
+
   useEffect(() => {
     if (!showMenus) return;
     if (streamDurationLoaded || streamDurationNotAvailable) return;
@@ -738,7 +746,14 @@ export function BotSettings() {
               <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative">
                 {savingCommandsBulk ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
                 <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    className={`min-w-0 text-left rounded-lg -m-1 p-1 transition-colors ${
+                      showMenus ? 'hover:bg-white/40 dark:hover:bg-white/5' : 'opacity-60 cursor-not-allowed'
+                    }`}
+                    disabled={!showMenus}
+                    onClick={() => setCommandsOpen((v) => !v)}
+                  >
                     <div className="font-semibold text-gray-900 dark:text-white">
                       {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
                     </div>
@@ -748,20 +763,25 @@ export function BotSettings() {
                           'Create a trigger word and the bot reply. When someone sends the trigger in chat, the bot will respond.',
                       })}
                     </div>
-                  </div>
+                  </button>
 
                   {/* Master toggle (moved into the Commands header; preserves per-command settings). */}
-                  <ToggleSwitch
-                    checked={anyCommandEnabled}
-                    disabled={
-                      savingCommandsBulk ||
-                      commandToggleLoadingId !== null ||
-                      commandsLoading ||
-                      commandsNotAvailable ||
-                      visibleCommands.length === 0
-                    }
-                    busy={savingCommandsBulk}
-                    onChange={async (next) => {
+                  <div className="flex items-center gap-3 shrink-0">
+                    <svg
+                      className={`w-4 h-4 text-gray-600 dark:text-gray-300 transition-transform ${commandsOpen ? 'rotate-180' : ''}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    <ToggleSwitch
+                      checked={anyCommandEnabled}
+                      disabled={savingCommandsBulk || commandToggleLoadingId !== null || commandsLoading || commandsNotAvailable}
+                      busy={savingCommandsBulk}
+                      onChange={async (next) => {
+                        setCommandsOpen(next);
                       const startedAt = Date.now();
                       try {
                         setSavingCommandsBulk(true);
@@ -798,9 +818,10 @@ export function BotSettings() {
                         await ensureMinDuration(startedAt, 450);
                         setSavingCommandsBulk(false);
                       }
-                    }}
-                    ariaLabel={t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
-                  />
+                      }}
+                      ariaLabel={t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
+                    />
+                  </div>
                 </div>
 
                 {commandsNotAvailable && (
@@ -811,7 +832,7 @@ export function BotSettings() {
                   </div>
                 )}
 
-                {!commandsNotAvailable && (
+                {!commandsNotAvailable && commandsOpen && (
                   <>
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -928,6 +949,12 @@ export function BotSettings() {
                       )}
                     </div>
                   </>
+                )}
+
+                {!commandsNotAvailable && !commandsOpen && (
+                  <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                    {t('admin.botCommandsDisabledHint', { defaultValue: 'Enable commands to manage triggers and replies.' })}
+                  </div>
                 )}
               </div>
 
