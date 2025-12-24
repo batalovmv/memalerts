@@ -370,13 +370,15 @@ export function BotSettings() {
     [t]
   );
 
-  const saveStreamDuration = useCallback(async () => {
+  const saveStreamDuration = useCallback(async (override?: { enabled?: boolean }) => {
     const startedAt = Date.now();
     const trigger = streamDurationTrigger.trim();
     const responseTemplate = streamDurationTemplate.trim();
     const breakCreditMinutes = Number.isFinite(streamDurationBreakCreditMinutes)
       ? Math.max(0, Math.round(streamDurationBreakCreditMinutes))
       : 0;
+
+    const enabledToSave = typeof override?.enabled === 'boolean' ? override.enabled : streamDurationEnabled;
 
     if (!trigger) {
       toast.error(t('admin.streamDurationTriggerRequired', { defaultValue: 'Enter a trigger.' }));
@@ -387,7 +389,7 @@ export function BotSettings() {
       setSavingStreamDuration(true);
       const { api } = await import('@/lib/api');
       const res = await api.patch<StreamDurationSettings>('/streamer/bot/stream-duration', {
-        enabled: streamDurationEnabled,
+        enabled: enabledToSave,
         trigger,
         responseTemplate: responseTemplate || null,
         breakCreditMinutes,
@@ -426,7 +428,7 @@ export function BotSettings() {
       setStreamDurationOpen(nextEnabled);
       // Persist immediately (so the toggle actually works without pressing "Save").
       // Uses current form values; backend can validate/normalize.
-      void saveStreamDuration();
+      void saveStreamDuration({ enabled: nextEnabled });
     },
     [saveStreamDuration]
   );
@@ -735,41 +737,40 @@ export function BotSettings() {
               {/* Commands */}
               <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative">
                 {savingCommandsBulk ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
-                <div className="font-semibold text-gray-900 dark:text-white">
-                  {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {t('admin.botCommandsHint', {
-                    defaultValue:
-                      'Create a trigger word and the bot reply. When someone sends the trigger in chat, the bot will respond.',
-                  })}
-                </div>
-
-                <div className="mt-3 flex items-start justify-between gap-4 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                      {t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
                     </div>
-                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                      {t('admin.botCommandsMasterHint', {
-                        defaultValue: 'Turns all commands on/off. Individual command settings are preserved.',
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      {t('admin.botCommandsHint', {
+                        defaultValue:
+                          'Create a trigger word and the bot reply. When someone sends the trigger in chat, the bot will respond.',
                       })}
                     </div>
                   </div>
+
+                  {/* Master toggle (moved into the Commands header; preserves per-command settings). */}
                   <ToggleSwitch
                     checked={anyCommandEnabled}
-                    disabled={savingCommandsBulk || commandToggleLoadingId !== null || commandsLoading}
+                    disabled={
+                      savingCommandsBulk ||
+                      commandToggleLoadingId !== null ||
+                      commandsLoading ||
+                      commandsNotAvailable ||
+                      visibleCommands.length === 0
+                    }
                     busy={savingCommandsBulk}
                     onChange={async (next) => {
                       const startedAt = Date.now();
                       try {
                         setSavingCommandsBulk(true);
+
                         // Remember previous per-command enabled flags so we can restore on re-enable.
                         if (!next) {
                           lastCommandsEnabledMapRef.current = Object.fromEntries(
                             commands.map((c) => [c.id, c.enabled !== false])
                           );
-                          // Disable all enabled commands.
                           for (const c of commands) {
                             if (c.enabled !== false) {
                               await updateCommand(c.id, { enabled: false });
@@ -777,9 +778,16 @@ export function BotSettings() {
                           }
                           return;
                         }
-                        // Restore previous states if we have them, otherwise do nothing (leave all disabled).
+
+                        // Restore previous states if we have them; otherwise enable all.
                         const map = lastCommandsEnabledMapRef.current;
-                        if (!map) return;
+                        if (!map) {
+                          for (const c of commands) {
+                            await updateCommand(c.id, { enabled: true });
+                          }
+                          return;
+                        }
+
                         for (const c of commands) {
                           const prevEnabled = map[c.id];
                           if (prevEnabled === true) {
@@ -803,20 +811,30 @@ export function BotSettings() {
                   </div>
                 )}
 
-                {!commandsNotAvailable && anyCommandEnabled && (
+                {!commandsNotAvailable && (
                   <>
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
                           {t('admin.botCommandTrigger', { defaultValue: 'Trigger' })}
                         </label>
-                        <Input value={newTrigger} onChange={(e) => setNewTrigger(e.target.value)} placeholder="!hello" />
+                        <Input
+                          value={newTrigger}
+                          onChange={(e) => setNewTrigger(e.target.value)}
+                          placeholder="!hello"
+                          disabled={commandsLoading}
+                        />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
                           {t('admin.botCommandResponse', { defaultValue: 'Response' })}
                         </label>
-                        <Input value={newResponse} onChange={(e) => setNewResponse(e.target.value)} placeholder="Hi chat!" />
+                        <Input
+                          value={newResponse}
+                          onChange={(e) => setNewResponse(e.target.value)}
+                          placeholder="Hi chat!"
+                          disabled={commandsLoading}
+                        />
                       </div>
                     </div>
 
@@ -832,6 +850,7 @@ export function BotSettings() {
                       <ToggleSwitch
                         checked={newOnlyWhenLive}
                         onChange={(next) => setNewOnlyWhenLive(next)}
+                        disabled={commandsLoading}
                         ariaLabel={t('admin.botCommandOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
                       />
                     </div>
@@ -894,7 +913,12 @@ export function BotSettings() {
                                     />
                                   </div>
                                 </div>
-                                <Button type="button" variant="secondary" onClick={() => void deleteCommand(cmd.id)} disabled={commandToggleLoadingId === cmd.id}>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() => void deleteCommand(cmd.id)}
+                                  disabled={commandToggleLoadingId === cmd.id}
+                                >
                                   {t('common.delete', { defaultValue: 'Delete' })}
                                 </Button>
                               </div>
@@ -904,12 +928,6 @@ export function BotSettings() {
                       )}
                     </div>
                   </>
-                )}
-
-                {!commandsNotAvailable && !anyCommandEnabled && (
-                  <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                    {t('admin.botCommandsDisabledHint', { defaultValue: 'Enable commands to manage triggers and replies.' })}
-                  </div>
                 )}
               </div>
 
