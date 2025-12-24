@@ -23,6 +23,46 @@ function normalizeTrigger(v: any): { trigger: string; triggerNormalized: string 
   return { trigger, triggerNormalized };
 }
 
+const CHAT_COMMAND_ALLOWED_ROLES = ['vip', 'moderator', 'subscriber', 'follower'] as const;
+type ChatCommandAllowedRole = (typeof CHAT_COMMAND_ALLOWED_ROLES)[number];
+const CHAT_COMMAND_ALLOWED_ROLES_SET = new Set<string>(CHAT_COMMAND_ALLOWED_ROLES);
+
+const ALLOWED_USERS_MAX_COUNT = 100;
+const TWITCH_LOGIN_MAX_LEN = 25; // Twitch login max length
+const TWITCH_LOGIN_RE = /^[a-z0-9_]{1,25}$/;
+
+function normalizeAllowedRoles(raw: any): ChatCommandAllowedRole[] | null | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return null;
+  const out: ChatCommandAllowedRole[] = [];
+  for (const v of raw) {
+    const role = String(v ?? '').trim().toLowerCase();
+    if (!role) continue;
+    if (!CHAT_COMMAND_ALLOWED_ROLES_SET.has(role)) return null;
+    if (!out.includes(role as ChatCommandAllowedRole)) out.push(role as ChatCommandAllowedRole);
+  }
+  return out;
+}
+
+function normalizeAllowedUsers(raw: any): string[] | null | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return null;
+  if (raw.length > ALLOWED_USERS_MAX_COUNT) return null;
+  const out: string[] = [];
+  for (const v of raw) {
+    // Accept "@Login" and normalize to "login" (lowercase, without '@')
+    const login = String(v ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '');
+    if (!login) continue;
+    if (login.length > TWITCH_LOGIN_MAX_LEN) return null;
+    if (!TWITCH_LOGIN_RE.test(login)) return null;
+    if (!out.includes(login)) out.push(login);
+  }
+  return out;
+}
+
 const TWITCH_MESSAGE_MAX_LEN = 500;
 const BOT_TRIGGER_MAX_LEN = 50;
 const BOT_RESPONSE_MAX_LEN = 450;
@@ -132,7 +172,17 @@ export const streamerBotController = {
       const items = await prisma.chatBotCommand.findMany({
         where: { channelId },
         orderBy: { createdAt: 'desc' },
-        select: { id: true, trigger: true, response: true, enabled: true, onlyWhenLive: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          trigger: true,
+          response: true,
+          enabled: true,
+          onlyWhenLive: true,
+          allowedRoles: true,
+          allowedUsers: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
 
       // Frontend accepts both array and {items}.
@@ -154,11 +204,25 @@ export const streamerBotController = {
     const responseText = normalizeMessage((req.body as any)?.response);
     const onlyWhenLiveRaw = (req.body as any)?.onlyWhenLive;
     const onlyWhenLive = onlyWhenLiveRaw === undefined ? false : onlyWhenLiveRaw;
+    const allowedRolesParsed = normalizeAllowedRoles((req.body as any)?.allowedRoles);
+    const allowedUsersParsed = normalizeAllowedUsers((req.body as any)?.allowedUsers);
 
     if (!trigger) return res.status(400).json({ error: 'Bad Request', message: 'Trigger is required' });
     if (!responseText) return res.status(400).json({ error: 'Bad Request', message: 'Response is required' });
     if (typeof onlyWhenLive !== 'boolean') {
       return res.status(400).json({ error: 'Bad Request', message: 'onlyWhenLive must be boolean' });
+    }
+    if (allowedRolesParsed === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `allowedRoles must be an array of roles (${CHAT_COMMAND_ALLOWED_ROLES.join(', ')})`,
+      });
+    }
+    if (allowedUsersParsed === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `allowedUsers must be an array of lowercase twitch logins (max ${ALLOWED_USERS_MAX_COUNT})`,
+      });
     }
     if (trigger.length > BOT_TRIGGER_MAX_LEN) {
       return res.status(400).json({ error: 'Bad Request', message: `Trigger is too long (max ${BOT_TRIGGER_MAX_LEN})` });
@@ -176,8 +240,20 @@ export const streamerBotController = {
           response: responseText,
           enabled: true,
           onlyWhenLive,
+          allowedRoles: allowedRolesParsed ?? [],
+          allowedUsers: allowedUsersParsed ?? [],
         },
-        select: { id: true, trigger: true, response: true, enabled: true, onlyWhenLive: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          trigger: true,
+          response: true,
+          enabled: true,
+          onlyWhenLive: true,
+          allowedRoles: true,
+          allowedUsers: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
       return res.status(201).json(row);
     } catch (e: any) {
@@ -202,19 +278,39 @@ export const streamerBotController = {
 
     const enabled = (req.body as any)?.enabled;
     const onlyWhenLive = (req.body as any)?.onlyWhenLive;
-    if (enabled === undefined && onlyWhenLive === undefined) {
-      return res.status(400).json({ error: 'Bad Request', message: 'At least one field is required (enabled, onlyWhenLive)' });
-    }
+    const allowedRolesParsed = normalizeAllowedRoles((req.body as any)?.allowedRoles);
+    const allowedUsersParsed = normalizeAllowedUsers((req.body as any)?.allowedUsers);
     if (enabled !== undefined && typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
     }
     if (onlyWhenLive !== undefined && typeof onlyWhenLive !== 'boolean') {
       return res.status(400).json({ error: 'Bad Request', message: 'onlyWhenLive must be boolean' });
     }
+    if (allowedRolesParsed === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `allowedRoles must be an array of roles (${CHAT_COMMAND_ALLOWED_ROLES.join(', ')})`,
+      });
+    }
+    if (allowedUsersParsed === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `allowedUsers must be an array of lowercase twitch logins (max ${ALLOWED_USERS_MAX_COUNT})`,
+      });
+    }
+
+    if (enabled === undefined && onlyWhenLive === undefined && allowedRolesParsed === undefined && allowedUsersParsed === undefined) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'At least one field is required (enabled, onlyWhenLive, allowedRoles, allowedUsers)',
+      });
+    }
 
     const data: any = {};
     if (enabled !== undefined) data.enabled = enabled;
     if (onlyWhenLive !== undefined) data.onlyWhenLive = onlyWhenLive;
+    if (allowedRolesParsed !== undefined) data.allowedRoles = allowedRolesParsed;
+    if (allowedUsersParsed !== undefined) data.allowedUsers = allowedUsersParsed;
 
     try {
       const updated = await prisma.chatBotCommand.updateMany({
@@ -225,7 +321,17 @@ export const streamerBotController = {
 
       const row = await prisma.chatBotCommand.findUnique({
         where: { id },
-        select: { id: true, trigger: true, response: true, enabled: true, onlyWhenLive: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          trigger: true,
+          response: true,
+          enabled: true,
+          onlyWhenLive: true,
+          allowedRoles: true,
+          allowedUsers: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
 
       // Shouldn't happen, but keep 404 contract for "feature not deployed / missing".

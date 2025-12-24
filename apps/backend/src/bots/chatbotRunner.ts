@@ -16,6 +16,73 @@ function normalizeLogin(v: string): string {
   return String(v || '').trim().toLowerCase().replace(/^#/, '');
 }
 
+type ChatCommandRole = 'vip' | 'moderator' | 'subscriber' | 'follower';
+
+function getSenderRolesFromTwitchIrcTags(tags: any): Set<ChatCommandRole> {
+  // Twitch IRC tags reference:
+  // - mod: '1' for moderators
+  // - subscriber: '1' for subscribers
+  // - badges: includes 'vip/1' for VIPs
+  // NOTE: "follower" is NOT available in IRC tags. Supporting it requires Helix follow-check + caching.
+  const roles = new Set<ChatCommandRole>();
+
+  const mod = String(tags?.mod ?? '').trim();
+  if (mod === '1') roles.add('moderator');
+
+  const subscriber = String(tags?.subscriber ?? '').trim();
+  if (subscriber === '1') roles.add('subscriber');
+
+  const badges = String(tags?.badges ?? '').trim().toLowerCase();
+  if (badges.includes('vip/')) roles.add('vip');
+
+  return roles;
+}
+
+function normalizeAllowedUsersList(raw: any): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const login = String(v ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '');
+    if (!login) continue;
+    if (!out.includes(login)) out.push(login);
+  }
+  return out;
+}
+
+function normalizeAllowedRolesList(raw: any): ChatCommandRole[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChatCommandRole[] = [];
+  for (const v of raw) {
+    const role = String(v ?? '').trim().toLowerCase() as ChatCommandRole;
+    if (!role) continue;
+    if (role !== 'vip' && role !== 'moderator' && role !== 'subscriber' && role !== 'follower') continue;
+    if (!out.includes(role)) out.push(role);
+  }
+  return out;
+}
+
+function canTriggerCommand(opts: {
+  senderLogin: string;
+  senderRoles: Set<ChatCommandRole>;
+  allowedUsers: string[];
+  allowedRoles: ChatCommandRole[];
+}): boolean {
+  const { senderLogin, senderRoles, allowedUsers, allowedRoles } = opts;
+
+  const users = allowedUsers || [];
+  const roles = allowedRoles || [];
+  if (users.length === 0 && roles.length === 0) return true; // default: allow everyone
+
+  if (senderLogin && users.includes(senderLogin)) return true;
+  for (const r of roles) {
+    if (senderRoles.has(r)) return true;
+  }
+  return false;
+}
+
 async function resolveBotUserId(): Promise<string | null> {
   const explicit = String(process.env.CHAT_BOT_USER_ID || '').trim();
   if (explicit) return explicit;
@@ -118,7 +185,16 @@ async function start() {
   const loginToChannelId = new Map<string, string>();
   const commandsByChannelId = new Map<
     string,
-    { ts: number; items: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }> }
+    {
+      ts: number;
+      items: Array<{
+        triggerNormalized: string;
+        response: string;
+        onlyWhenLive: boolean;
+        allowedRoles: ChatCommandRole[];
+        allowedUsers: string[];
+      }>;
+    }
   >();
   const streamDurationByChannelId = new Map<
     string,
@@ -146,7 +222,7 @@ async function start() {
       try {
         rows = await (prisma as any).chatBotCommand.findMany({
           where: { channelId: { in: channelIds }, enabled: true },
-          select: { channelId: true, triggerNormalized: true, response: true, onlyWhenLive: true },
+          select: { channelId: true, triggerNormalized: true, response: true, onlyWhenLive: true, allowedRoles: true, allowedUsers: true },
         });
       } catch (e: any) {
         // Back-compat for partial deploys: column might not exist yet.
@@ -159,15 +235,20 @@ async function start() {
           throw e;
         }
       }
-      const grouped = new Map<string, Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }>>();
+      const grouped = new Map<
+        string,
+        Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean; allowedRoles: ChatCommandRole[]; allowedUsers: string[] }>
+      >();
       for (const r of rows) {
         const channelId = String((r as any)?.channelId || '').trim();
         const triggerNormalized = String((r as any)?.triggerNormalized || '').trim().toLowerCase();
         const response = String((r as any)?.response || '').trim();
         const onlyWhenLive = Boolean((r as any)?.onlyWhenLive);
+        const allowedRoles = normalizeAllowedRolesList((r as any)?.allowedRoles);
+        const allowedUsers = normalizeAllowedUsersList((r as any)?.allowedUsers);
         if (!channelId || !triggerNormalized || !response) continue;
         const arr = grouped.get(channelId) || [];
-        arr.push({ triggerNormalized, response, onlyWhenLive });
+        arr.push({ triggerNormalized, response, onlyWhenLive, allowedRoles, allowedUsers });
         grouped.set(channelId, arr);
       }
 
@@ -370,6 +451,8 @@ async function start() {
       if (!slug) return;
 
       const msgNorm = String(_message || '').trim().toLowerCase();
+      const senderLogin = normalizeLogin(String(tags?.username || tags?.['display-name'] || ''));
+      const senderRoles = getSenderRolesFromTwitchIrcTags(tags);
 
       // Bot commands (trigger -> response) are per-channel.
       const channelId = loginToChannelId.get(login);
@@ -419,6 +502,16 @@ async function start() {
           const match = items.find((c) => c.triggerNormalized === msgNorm);
           if (match?.response) {
             try {
+              if (
+                !canTriggerCommand({
+                  senderLogin,
+                  senderRoles,
+                  allowedUsers: match.allowedUsers || [],
+                  allowedRoles: match.allowedRoles || [],
+                })
+              ) {
+                return;
+              }
               if (match.onlyWhenLive) {
                 const snap = await getStreamDurationSnapshot(slug);
                 if (snap.status !== 'online') return;

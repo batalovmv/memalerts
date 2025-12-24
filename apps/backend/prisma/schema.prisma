@@ -121,6 +121,13 @@ model ChatBotCommand {
   enabled            Boolean @default(true)
   // If true, bot replies only when stream is online.
   onlyWhenLive       Boolean @default(false)
+  // Command audience:
+  // - if both arrays are empty => everyone can trigger the command
+  // - if allowedUsers contains sender login => allowed
+  // - else if allowedRoles contains sender role => allowed
+  // NOTE: "follower" role is currently not resolvable from IRC tags; see chatbotRunner.ts.
+  allowedRoles       Json     @db.JsonB @default(dbgenerated("'[]'::jsonb"))
+  allowedUsers       Json     @db.JsonB @default(dbgenerated("'[]'::jsonb"))
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
