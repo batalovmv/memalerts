@@ -85,6 +85,7 @@ export function AccountsSettings() {
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
   const [accountsOverride, setAccountsOverride] = useState<ExternalAccount[] | null>(null);
   const refreshedOnMountRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   useAuthQueryErrorToast();
 
@@ -99,11 +100,29 @@ export function AccountsSettings() {
     if (refreshedOnMountRef.current) return;
     refreshedOnMountRef.current = true;
 
+    isMountedRef.current = true;
+
+    // Defensive cooldown: if this tab is repeatedly mounted/unmounted (navigation churn),
+    // avoid spamming backend with /auth/accounts + /me on each mount.
+    const COOLDOWN_MS = 10_000;
+    const storageKey = 'memalerts:accountsSettings:lastRefreshAt';
+    try {
+      const last = Number(sessionStorage.getItem(storageKey) || '0');
+      if (Number.isFinite(last) && last > 0 && Date.now() - last < COOLDOWN_MS) {
+        return () => {
+          isMountedRef.current = false;
+        };
+      }
+      sessionStorage.setItem(storageKey, String(Date.now()));
+    } catch {
+      // sessionStorage may be unavailable (privacy mode). Ignore.
+    }
+
     void (async () => {
       try {
         const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
         const normalized = normalizeAccounts(items);
-        setAccountsOverride(normalized);
+        if (isMountedRef.current) setAccountsOverride(normalized);
       } catch {
         // Best-effort: keep existing accounts from /me.
       }
@@ -115,6 +134,10 @@ export function AccountsSettings() {
         // best-effort
       }
     })();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [dispatch]);
 
   const ensureSessionOrLogin = useCallback(async () => {
