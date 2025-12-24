@@ -56,6 +56,7 @@ streamerRoutes.post('/bot/say', streamerBotController.say);
 // Bot commands CRUD
 streamerRoutes.get('/bot/commands', streamerBotController.getCommands);
 streamerRoutes.post('/bot/commands', streamerBotController.createCommand);
+streamerRoutes.patch('/bot/commands/:id', streamerBotController.patchCommand);
 streamerRoutes.delete('/bot/commands/:id', streamerBotController.deleteCommand);
 
 // Bot settings

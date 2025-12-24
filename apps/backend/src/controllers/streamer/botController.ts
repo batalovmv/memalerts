@@ -170,6 +170,42 @@ export const streamerBotController = {
     }
   },
 
+  patchCommand: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const id = String((req.params as any)?.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
+
+    const enabled = (req.body as any)?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
+    }
+
+    try {
+      const updated = await prisma.chatBotCommand.updateMany({
+        where: { id, channelId },
+        data: { enabled },
+      });
+      if (updated.count === 0) return res.status(404).json({ error: 'Not Found', message: 'Command not found' });
+
+      const row = await prisma.chatBotCommand.findUnique({
+        where: { id },
+        select: { id: true, trigger: true, response: true, enabled: true, createdAt: true, updatedAt: true },
+      });
+
+      // Shouldn't happen, but keep 404 contract for "feature not deployed / missing".
+      if (!row) return res.status(404).json({ error: 'Not Found', message: 'Command not found' });
+      return res.json(row);
+    } catch (e: any) {
+      // Prisma "table does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2021') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
+      throw e;
+    }
+  },
+
   deleteCommand: async (req: AuthRequest, res: Response) => {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
