@@ -73,7 +73,9 @@ model Channel {
 enum ExternalAccountProvider {
   twitch
   youtube
+  vk
   vkplay
+  kick
   trovo
   boosty
 }

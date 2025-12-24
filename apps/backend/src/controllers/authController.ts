@@ -6,6 +6,8 @@ import { logAuthEvent } from '../utils/auditLogger.js';
 import { debugLog, debugError } from '../utils/debug.js';
 import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
+import { exchangeYouTubeCodeForToken, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
+import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/providers/vk.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 
 // Helper function to get redirect URL based on environment and request
@@ -41,6 +43,32 @@ const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
   const devUrl = 'http://localhost:5173';
   return devUrl;
 };
+
+const DEFAULT_LINK_REDIRECT = '/settings/accounts';
+
+function sanitizeRedirectTo(input: unknown): string {
+  const redirectTo = typeof input === 'string' ? input.trim() : '';
+  if (!redirectTo) return DEFAULT_LINK_REDIRECT;
+
+  // Only allow relative paths like "/settings/accounts".
+  // Disallow protocol-relative URLs ("//evil.com") and absolute URLs ("https://...").
+  if (!redirectTo.startsWith('/')) return DEFAULT_LINK_REDIRECT;
+  if (redirectTo.startsWith('//')) return DEFAULT_LINK_REDIRECT;
+
+  // Hard block common open-redirect patterns.
+  if (redirectTo.includes('://')) return DEFAULT_LINK_REDIRECT;
+  if (redirectTo.includes('\\')) return DEFAULT_LINK_REDIRECT;
+
+  return redirectTo;
+}
+
+function buildRedirectWithError(baseUrl: string, redirectPath: string, params: Record<string, string | undefined>) {
+  const url = new URL(`${baseUrl}${redirectPath}`);
+  for (const [k, v] of Object.entries(params)) {
+    if (v) url.searchParams.set(k, v);
+  }
+  return url.toString();
+}
 
 // Simple Twitch OAuth implementation (you can replace with passport-twitch-new)
 export const authController = {
@@ -122,11 +150,7 @@ export const authController = {
       createdAt: true,
     } as const;
 
-    const provider = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
-    if (provider !== 'twitch') {
-      const redirectUrl = getRedirectUrl(req);
-      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=unsupported_provider`);
-    }
+    const providerFromUrl = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
 
     const { code, error, state } = req.query;
 
@@ -137,11 +161,15 @@ export const authController = {
     const stateRedirectTo = consumed.ok ? (consumed.row.redirectTo || undefined) : undefined;
     const stateKind: OAuthStateKind | undefined = consumed.ok ? consumed.row.kind : undefined;
     const stateUserId: string | undefined = consumed.ok ? (consumed.row.userId || undefined) : undefined;
+    const providerFromState: ExternalAccountProvider | undefined = consumed.ok ? consumed.row.provider : undefined;
 
-    debugLog('Twitch callback received', { code: code ? 'present' : 'missing', error, stateOrigin });
+    // Prefer provider from state, because URL provider may come from legacy aliases (e.g. vkplay).
+    const provider: ExternalAccountProvider = providerFromState ?? providerFromUrl;
+
+    debugLog('OAuth callback received', { provider, code: code ? 'present' : 'missing', error, stateOrigin });
 
     if (error) {
-      console.error('Twitch OAuth error:', error);
+      console.error('OAuth error:', { provider, error });
       const redirectUrl = getRedirectUrl(req, stateOrigin);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${error}`);
     }
@@ -164,7 +192,13 @@ export const authController = {
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=invalid_state_kind`);
       }
 
-      debugLog('Exchanging code for token...');
+      // We currently only support login via Twitch. Other providers are link-only.
+      if (stateKind === 'login' && provider !== 'twitch') {
+        const redirectUrl = getRedirectUrl(req, stateOrigin);
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=login_not_supported&provider=${provider}`);
+      }
+
+      debugLog('Exchanging code for token...', { provider, stateKind });
       
       // Check if this is production backend handling beta callback
       // If callback came to production domain but state indicates beta origin,
@@ -174,42 +208,122 @@ export const authController = {
       const requestHost = req.get('host') || '';
       const callbackCameToProduction = !requestHost.includes('beta.');
       
-      const tokenData = await exchangeTwitchCodeForToken({
-        clientId: process.env.TWITCH_CLIENT_ID!,
-        clientSecret: process.env.TWITCH_CLIENT_SECRET!,
-        code: code as string,
-        redirectUri: process.env.TWITCH_CALLBACK_URL!,
-      });
-      debugLog('Token response keys:', Object.keys(tokenData || {}));
+      // Provider-specific: exchange code -> token, fetch user profile.
+      let providerAccountId: string;
+      let displayName: string | null = null;
+      let login: string | null = null;
+      let avatarUrl: string | null = null;
+      let profileUrl: string | null = null;
+      let accessToken: string | null = null;
+      let refreshToken: string | null = null;
+      let tokenExpiresAt: Date | null = null;
+      let scopes: string | null = null;
 
-      if (!tokenData.access_token) {
-        console.error('No access token received from Twitch:', tokenData);
+      if (provider === 'twitch') {
+        const tokenData = await exchangeTwitchCodeForToken({
+          clientId: process.env.TWITCH_CLIENT_ID!,
+          clientSecret: process.env.TWITCH_CLIENT_SECRET!,
+          code: code as string,
+          redirectUri: process.env.TWITCH_CALLBACK_URL!,
+        });
+        debugLog('twitch.token.keys', { keys: Object.keys(tokenData || {}) });
+
+        if (!tokenData.access_token) {
+          console.error('No access token received from Twitch:', tokenData);
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
+        }
+
+        accessToken = tokenData.access_token;
+        refreshToken = tokenData.refresh_token || null;
+        tokenExpiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
+        scopes = Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : null;
+
+        const twitchUser = await fetchTwitchUser({
+          accessToken: tokenData.access_token,
+          clientId: process.env.TWITCH_CLIENT_ID!,
+        });
+        if (!twitchUser) {
+          console.error('No user data received from Twitch');
+          await logAuthEvent('login_failed', null, false, req, 'No user data from Twitch');
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
+        }
+
+        providerAccountId = twitchUser.id;
+        displayName = twitchUser.display_name ?? null;
+        login = twitchUser.login ?? null;
+        avatarUrl = twitchUser.profile_image_url || null;
+        profileUrl = twitchUser.login ? `https://www.twitch.tv/${twitchUser.login}` : null;
+      } else if (provider === 'youtube') {
+        const tokenData = await exchangeYouTubeCodeForToken({
+          clientId: process.env.YOUTUBE_CLIENT_ID!,
+          clientSecret: process.env.YOUTUBE_CLIENT_SECRET!,
+          code: code as string,
+          redirectUri: process.env.YOUTUBE_CALLBACK_URL!,
+        });
+
+        if (!tokenData.access_token) {
+          console.error('No access token received from YouTube/Google:', tokenData);
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
+        }
+
+        accessToken = tokenData.access_token;
+        refreshToken = tokenData.refresh_token || null;
+        tokenExpiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
+        scopes = tokenData.scope || null;
+
+        const googleUser = await fetchYouTubeUser({ accessToken: tokenData.access_token });
+        if (!googleUser) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
+        }
+
+        providerAccountId = googleUser.sub;
+        displayName = googleUser.name || null;
+        login = googleUser.email || null;
+        avatarUrl = googleUser.picture || null;
+        profileUrl = null;
+      } else if (provider === 'vk') {
+        const tokenData = await exchangeVkCodeForToken({
+          clientId: process.env.VK_CLIENT_ID!,
+          clientSecret: process.env.VK_CLIENT_SECRET!,
+          code: code as string,
+          redirectUri: process.env.VK_CALLBACK_URL!,
+        });
+
+        if (!tokenData.access_token || !tokenData.user_id) {
+          console.error('No access token/user_id received from VK:', tokenData);
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
+        }
+
+        accessToken = tokenData.access_token;
+        refreshToken = null;
+        tokenExpiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
+        scopes = null;
+
+        const vkUser = await fetchVkUser({ accessToken: tokenData.access_token, userId: tokenData.user_id });
+        if (!vkUser) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
+        }
+
+        providerAccountId = String(vkUser.id);
+        const dn = [vkUser.first_name, vkUser.last_name].filter(Boolean).join(' ').trim();
+        displayName = dn || null;
+        login = vkUser.screen_name || tokenData.email || null;
+        avatarUrl = vkUser.photo_200 || null;
+        profileUrl = vkUser.screen_name ? `https://vk.com/${vkUser.screen_name}` : `https://vk.com/id${vkUser.id}`;
+      } else {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
-        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=provider_not_supported&provider=${provider}`);
       }
-
-      debugLog('Access token received, fetching user info...');
-
-      const twitchUser = await fetchTwitchUser({
-        accessToken: tokenData.access_token,
-        clientId: process.env.TWITCH_CLIENT_ID!,
-      });
-
-      if (!twitchUser) {
-        console.error('No user data received from Twitch');
-        await logAuthEvent('login_failed', null, false, req, 'No user data from Twitch');
-        const redirectUrl = getRedirectUrl(req, stateOrigin);
-        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
-      }
-
-      debugLog('Twitch user found', { login: twitchUser.login });
 
       // Map (provider, providerAccountId) -> ExternalAccount -> User
-      const providerAccountId = twitchUser.id;
-
-      // Fetch ExternalAccount first (new flow). Fallback to legacy User.twitchUserId if missing.
       const existingExternal = await prisma.externalAccount.findUnique({
-        where: { provider_providerAccountId: { provider: 'twitch', providerAccountId } },
+        where: { provider_providerAccountId: { provider, providerAccountId } },
         select: { id: true, userId: true },
       });
 
@@ -222,7 +336,8 @@ export const authController = {
         }
         if (existingExternal && existingExternal.userId !== stateUserId) {
           const redirectUrl = getRedirectUrl(req, stateOrigin);
-          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=account_already_linked`);
+          const redirectPath = sanitizeRedirectTo(stateRedirectTo || DEFAULT_LINK_REDIRECT);
+          return res.redirect(buildRedirectWithError(redirectUrl, redirectPath, { error: 'auth_failed', reason: 'account_already_linked', provider }));
         }
 
         user = await prisma.user.findUnique({
@@ -234,7 +349,12 @@ export const authController = {
           return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_not_found`);
         }
       } else {
-        // login
+        // login (twitch only)
+        if (provider !== 'twitch') {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=login_not_supported&provider=${provider}`);
+        }
+
         if (existingExternal) {
           user = await prisma.user.findUnique({
             where: { id: existingExternal.userId },
@@ -255,58 +375,60 @@ export const authController = {
           user = await prisma.user.create({
             data: {
               twitchUserId: providerAccountId,
-              displayName: twitchUser.display_name,
-              profileImageUrl: twitchUser.profile_image_url || null,
+              displayName: displayName || 'Twitch User',
+              profileImageUrl: avatarUrl || null,
               role: 'viewer',
               channelId: null,
-              twitchAccessToken: tokenData.access_token,
-              twitchRefreshToken: tokenData.refresh_token || null,
+              twitchAccessToken: accessToken,
+              twitchRefreshToken: refreshToken,
             },
             include: { wallets: true, channel: { select: safeChannelSelect } },
           });
         }
       }
 
-      // Upsert ExternalAccount (either login or link) + refresh legacy user tokens for compatibility.
+      // Upsert ExternalAccount (either login or link). For Twitch login, also refresh legacy User fields.
       await prisma.$transaction(async (tx) => {
         await tx.externalAccount.upsert({
-          where: { provider_providerAccountId: { provider: 'twitch', providerAccountId } },
+          where: { provider_providerAccountId: { provider, providerAccountId } },
           create: {
             userId: user.id,
-            provider: 'twitch',
+            provider,
             providerAccountId,
-            displayName: twitchUser.display_name,
-            login: twitchUser.login,
-            avatarUrl: twitchUser.profile_image_url || null,
-            profileUrl: twitchUser.login ? `https://www.twitch.tv/${twitchUser.login}` : null,
-            accessToken: tokenData.access_token,
-            refreshToken: tokenData.refresh_token || null,
-            tokenExpiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
-            scopes: Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : null,
+            displayName,
+            login,
+            avatarUrl,
+            profileUrl,
+            accessToken,
+            refreshToken,
+            tokenExpiresAt,
+            scopes,
           },
           update: {
             userId: user.id,
-            displayName: twitchUser.display_name,
-            login: twitchUser.login,
-            avatarUrl: twitchUser.profile_image_url || null,
-            profileUrl: twitchUser.login ? `https://www.twitch.tv/${twitchUser.login}` : null,
-            accessToken: tokenData.access_token,
-            refreshToken: tokenData.refresh_token || null,
-            tokenExpiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
-            scopes: Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : null,
+            displayName,
+            login,
+            avatarUrl,
+            profileUrl,
+            accessToken,
+            refreshToken,
+            tokenExpiresAt,
+            scopes,
           },
         });
 
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            twitchUserId: providerAccountId,
-            displayName: twitchUser.display_name,
-            profileImageUrl: twitchUser.profile_image_url || null,
-            twitchAccessToken: tokenData.access_token,
-            twitchRefreshToken: tokenData.refresh_token || null,
-          },
-        });
+        if (provider === 'twitch') {
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              twitchUserId: providerAccountId,
+              displayName: displayName || user.displayName,
+              profileImageUrl: avatarUrl || null,
+              twitchAccessToken: accessToken,
+              twitchRefreshToken: refreshToken,
+            },
+          });
+        }
       });
 
       // Reload user to reflect updated fields
@@ -470,9 +592,12 @@ export const authController = {
       
       // First priority: Check if state parameter contains a redirect path (user came from a specific page)
       if (stateRedirectTo) {
-        // Use redirect path from state - this preserves where user was before login
-        redirectPath = stateRedirectTo;
+        // Use redirect path from state - this preserves where user was before login/link
+        redirectPath = sanitizeRedirectTo(stateRedirectTo);
         debugLog('Using redirectTo from state:', redirectPath);
+      } else if (stateKind === 'link') {
+        // Link flow default: return to accounts settings
+        redirectPath = DEFAULT_LINK_REDIRECT;
       } else if (stateKind === 'login' && user.role === 'streamer' && user.channel?.slug) {
         // Second priority: If user is streamer with channel, redirect to dashboard
         // (but only if no redirectTo was specified)
@@ -545,41 +670,95 @@ export const authController = {
 
   initiateLink: async (req: AuthRequest, res: Response) => {
     const provider = String((req.params as any)?.provider || '').trim().toLowerCase() as ExternalAccountProvider;
-    if (provider !== 'twitch') {
-      const redirectUrl = getRedirectUrl(req);
-      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=unsupported_provider`);
-    }
     if (!req.userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const clientId = process.env.TWITCH_CLIENT_ID;
-    const callbackUrl = process.env.TWITCH_CALLBACK_URL;
-    if (!clientId || !callbackUrl) {
       const redirectUrl = getRedirectUrl(req);
-      return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env`);
+      // Prefer redirect to frontend so user can continue login flow.
+      return res.redirect(`${redirectUrl}/?error=auth_required&reason=no_session`);
     }
 
-    const redirectTo = (req.query.redirect_to as string) || '/settings/accounts';
+    const rawRedirectTo = req.query.redirect_to;
+    const redirectTo = sanitizeRedirectTo(rawRedirectTo);
     const origin = (req.query.origin as string) || null;
 
-    const { state } = await createOAuthState({
-      provider,
-      kind: 'link',
-      userId: req.userId,
-      redirectTo,
-      origin,
-    });
+    // Provider-specific env validation + authorize url.
+    let authUrl: string | null = null;
+    if (provider === 'twitch') {
+      const clientId = process.env.TWITCH_CLIENT_ID;
+      const callbackUrl = process.env.TWITCH_CALLBACK_URL;
+      if (!clientId || !callbackUrl) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider }));
+      }
 
-    const scopes = ['user:read:email', 'channel:read:redemptions', 'channel:manage:redemptions', 'chat:read', 'chat:edit'];
-    const authUrl = getTwitchAuthorizeUrl({
-      clientId,
-      redirectUri: callbackUrl,
-      state,
-      scopes,
-    });
+      const { state } = await createOAuthState({
+        provider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+      });
 
-    return res.redirect(authUrl);
+      const scopes = ['user:read:email', 'channel:read:redemptions', 'channel:manage:redemptions', 'chat:read', 'chat:edit'];
+      authUrl = getTwitchAuthorizeUrl({
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes,
+      });
+    } else if (provider === 'youtube') {
+      const clientId = process.env.YOUTUBE_CLIENT_ID;
+      const callbackUrl = process.env.YOUTUBE_CALLBACK_URL;
+      if (!clientId || !callbackUrl || !process.env.YOUTUBE_CLIENT_SECRET) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider }));
+      }
+
+      const { state } = await createOAuthState({
+        provider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+      });
+
+      const scopes = ['openid', 'profile', 'email'];
+      authUrl = getYouTubeAuthorizeUrl({
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes,
+      });
+    } else if (provider === 'vk' || provider === 'vkplay') {
+      // NOTE: front expects provider "vk". We still accept "vkplay" for backward compatibility.
+      const effectiveProvider: ExternalAccountProvider = provider === 'vkplay' ? ('vk' as ExternalAccountProvider) : provider;
+      const clientId = process.env.VK_CLIENT_ID;
+      const callbackUrl = process.env.VK_CALLBACK_URL;
+      if (!clientId || !callbackUrl || !process.env.VK_CLIENT_SECRET) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider: effectiveProvider }));
+      }
+
+      const { state } = await createOAuthState({
+        provider: effectiveProvider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+      });
+
+      authUrl = getVkAuthorizeUrl({
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes: [],
+      });
+    } else {
+      // Providers without implemented OAuth yet: kick / trovo / boosty.
+      const redirectUrl = getRedirectUrl(req);
+      return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'provider_not_supported', provider }));
+    }
+
+    return res.redirect(authUrl!);
   },
 
   handleLinkCallback: async (req: AuthRequest, res: Response) => {

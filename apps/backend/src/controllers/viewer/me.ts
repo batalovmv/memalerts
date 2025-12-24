@@ -49,7 +49,11 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       channelId: user.channelId,
       channel: user.channel,
       wallets: user.wallets,
-      externalAccounts: user.externalAccounts,
+      // Backward compatibility: legacy enum value "vkplay" should be presented as "vk" to the frontend.
+      externalAccounts: user.externalAccounts.map((a) => ({
+        ...a,
+        provider: a.provider === ('vkplay' as any) ? ('vk' as any) : a.provider,
+      })),
     };
     debugLog('[DEBUG] getMe sending response', { userId: user.id, hasChannel: !!user.channelId });
     res.json(response);

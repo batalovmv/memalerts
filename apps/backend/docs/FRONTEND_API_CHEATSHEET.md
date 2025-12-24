@@ -154,7 +154,8 @@
 - **Query**:
   - `redirect_to` — куда на фронте вернуть после логина (например `/dashboard`)
 - **Response**: редирект на OAuth провайдера
-- **Поддерживаемые provider (пока)**: `twitch`
+- **Поддерживаемые provider (login)**: `twitch`  
+  Остальные провайдеры сейчас поддерживаются **только** в режиме привязки аккаунта (`/auth/:provider/link`).
 - **Важно**:
   - при первом логине пользователь создаётся как `role="viewer"` **без автосоздания Channel** (канал появляется только когда юзер станет стримером отдельным действием).
 
@@ -171,7 +172,16 @@
 - **Auth**: `authenticate + requireBetaAccess`
 - **Query**:
   - `redirect_to` (optional, default `/settings/accounts`)
+- **redirect_to security**:
+  - допускаются только **относительные** пути вида `/settings/accounts`
+  - внешние URL (`https://evil.com`, `//evil.com`) будут заменены на безопасный дефолт
 - **Response**: редирект на OAuth провайдера для привязки аккаунта к текущему `User`
+- **Поддерживаемые provider (link)**:
+  - `twitch` (полный OAuth)
+  - `youtube` (полный OAuth через Google OpenID userinfo)
+  - `vk` (полный OAuth)
+  - `kick | trovo | boosty` — пока **заглушка**: вернёт редирект обратно на `redirect_to` с `?error=auth_failed&reason=provider_not_supported&provider=<provider>`
+- **Если пользователь не залогинен**: редирект на фронт с `/?error=auth_required&reason=no_session`
 
 ### GET `/auth/:provider/link/callback`
 - **Auth**: нет (OAuth callback)
