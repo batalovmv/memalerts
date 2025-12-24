@@ -72,6 +72,16 @@ interface PendingRequest<T = unknown> {
 const pendingRequests = new Map<string, PendingRequest<unknown>>();
 const REQUEST_DEDUP_TTL = 5000; // 5 seconds - requests with same key within this time share the same promise
 
+// Response cache: allows serving cached JSON for conditional requests (304 Not Modified).
+// This prevents thunks like fetchUser() from breaking when axios receives 304 with an empty body.
+interface CachedResponse<T = unknown> {
+  data: T;
+  timestamp: number;
+}
+
+const responseCache = new Map<string, CachedResponse<unknown>>();
+const RESPONSE_CACHE_TTL = 60_000; // 60 seconds
+
 // Generate a unique key for a request
 function getRequestKey(config: AxiosRequestConfig): string {
   const method = config.method?.toUpperCase() || 'GET';
@@ -128,6 +138,9 @@ const axiosInstance: AxiosInstance = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
   timeout: 30000, // 30 seconds for regular requests (file uploads will override this)
+  // Axios default validateStatus rejects 304, which can happen for cached GETs.
+  // Treat 304 as a successful response; we will serve cached JSON when possible.
+  validateStatus: (status) => (status >= 200 && status < 300) || status === 304,
 });
 
 /**
@@ -160,6 +173,17 @@ export const api: CustomAxiosInstance = {
           setTimeout(() => {
             pendingRequests.delete(requestKey);
           }, 100);
+
+          // Handle conditional GET with 304 by serving cached JSON when available.
+          if (response.status === 304) {
+            const cached = responseCache.get(requestKey);
+            if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL) {
+              return cached.data as T;
+            }
+          } else {
+            responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
+          }
+
           return response.data as T;
         })
         .catch((error: unknown) => {
@@ -204,6 +228,16 @@ export const api: CustomAxiosInstance = {
         setTimeout(() => {
           pendingRequests.delete(requestKey);
         }, 100);
+
+        if (response.status === 304) {
+          const cached = responseCache.get(requestKey);
+          if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL) {
+            return cached.data as T;
+          }
+        } else {
+          responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
+        }
+
         return response.data as T;
       })
       .catch((error: unknown) => {
