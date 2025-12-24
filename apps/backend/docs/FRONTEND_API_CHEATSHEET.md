@@ -184,6 +184,7 @@
   - `twitch` (полный OAuth)
   - `youtube` (полный OAuth через Google OpenID userinfo)
   - `vk` (полный OAuth)
+  - `vkvideo` (полный OAuth VK Video Live, см. `https://dev.live.vkvideo.ru/docs/main/authorization`)
   - `kick | trovo | boosty` — пока **заглушка**: вернёт редирект обратно на `redirect_to` с `?error=auth_failed&reason=provider_not_supported&provider=<provider>`
 - **Если пользователь не залогинен**: редирект на фронт с `/?error=auth_required&reason=no_session`
 - **Если вместо редиректа видите `401 Unauthorized`**:
@@ -379,8 +380,11 @@
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (если подписки нет — `enabled: false`)
 
 ### Bot integrations (панель стримера)
-- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkplaylive", enabled, updatedAt }] }`
-- **PATCH `/streamer/bots/:provider`** body `{ enabled: boolean }` → `{ ok: true }`
+- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkplaylive"|"vkvideo"|"youtube", enabled, updatedAt }] }`
+- **PATCH `/streamer/bots/:provider`** → `{ ok: true }`
+  - body для всех провайдеров: `{ enabled: boolean }`
+  - **дополнительно для `provider="vkvideo"` при `enabled=true`** нужно передать `vkvideoChannelId`:
+    - body: `{ enabled: true, vkvideoChannelId: string }`
   - **Twitch-only guard**: при `provider="twitch"` и `Channel.twitchChannelId == null` вернёт `400` как и `/streamer/bot/enable`.
   - ⚠️ если фича ещё не задеплоена/не применены миграции — backend может вернуть `404` (фронт должен показать “недоступно”).
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`

@@ -8,6 +8,7 @@ import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.j
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
 import { exchangeYouTubeCodeForToken, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
 import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/providers/vk.js';
+import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 
 // Helper function to get redirect URL based on environment and request
@@ -316,6 +317,47 @@ export const authController = {
         login = vkUser.screen_name || tokenData.email || null;
         avatarUrl = vkUser.photo_200 || null;
         profileUrl = vkUser.screen_name ? `https://vk.com/${vkUser.screen_name}` : `https://vk.com/id${vkUser.id}`;
+      } else if (provider === 'vkvideo') {
+        const clientId = process.env.VKVIDEO_CLIENT_ID!;
+        const callbackUrl = process.env.VKVIDEO_CALLBACK_URL!;
+        const tokenUrl = process.env.VKVIDEO_TOKEN_URL!;
+        const clientSecret = process.env.VKVIDEO_CLIENT_SECRET || null;
+
+        const codeVerifier = consumed.row.codeVerifier || null;
+        const tokenData = await exchangeVkVideoCodeForToken({
+          tokenUrl,
+          clientId,
+          clientSecret,
+          code: code as string,
+          redirectUri: callbackUrl,
+          codeVerifier,
+        });
+
+        if (!tokenData.access_token) {
+          console.error('No access token received from VKVideo:', tokenData);
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token`);
+        }
+
+        accessToken = tokenData.access_token;
+        refreshToken = tokenData.refresh_token || null;
+        tokenExpiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
+        scopes = (Array.isArray(tokenData.scope) ? tokenData.scope.join(' ') : tokenData.scope) || null;
+
+        const userInfoUrl = process.env.VKVIDEO_USERINFO_URL || null;
+        const vkVideoUser = await fetchVkVideoUser({ userInfoUrl, accessToken: tokenData.access_token });
+
+        const tokenUserId = String(tokenData.sub ?? tokenData.user_id ?? '').trim();
+        providerAccountId = String(vkVideoUser?.id || tokenUserId).trim();
+        if (!providerAccountId) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
+        }
+
+        displayName = vkVideoUser?.displayName || null;
+        login = vkVideoUser?.login || null;
+        avatarUrl = vkVideoUser?.avatarUrl || null;
+        profileUrl = vkVideoUser?.profileUrl || null;
       } else {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=provider_not_supported&provider=${provider}`);
@@ -760,6 +802,41 @@ export const authController = {
         redirectUri: callbackUrl,
         state,
         scopes: [],
+      });
+    } else if (provider === 'vkvideo') {
+      const clientId = process.env.VKVIDEO_CLIENT_ID;
+      const callbackUrl = process.env.VKVIDEO_CALLBACK_URL;
+      const authorizeUrl = process.env.VKVIDEO_AUTHORIZE_URL;
+      const tokenUrl = process.env.VKVIDEO_TOKEN_URL;
+      if (!clientId || !callbackUrl || !authorizeUrl || !tokenUrl) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider }));
+      }
+
+      const codeVerifier = generatePkceVerifier();
+      const codeChallenge = pkceChallengeS256(codeVerifier);
+
+      const { state } = await createOAuthState({
+        provider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+        codeVerifier,
+      });
+
+      const scopes = String(process.env.VKVIDEO_SCOPES || '')
+        .split(/[ ,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      authUrl = getVkVideoAuthorizeUrl({
+        authorizeUrl,
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes,
+        codeChallenge,
       });
     } else {
       // Providers without implemented OAuth yet: kick / trovo / boosty.

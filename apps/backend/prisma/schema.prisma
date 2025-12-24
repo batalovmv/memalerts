@@ -68,6 +68,8 @@ model Channel {
   chatBotOutboxMessages ChatBotOutboxMessage[]
   chatBotCommands       ChatBotCommand[]
   chatBotEventDedups    ChatBotEventDedup[]
+  vkVideoChatBotSubscriptions  VkVideoChatBotSubscription[]
+  vkVideoChatBotOutboxMessages VkVideoChatBotOutboxMessage[]
   botIntegrations       BotIntegrationSettings[]
   youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
   youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
@@ -76,6 +78,7 @@ model Channel {
 enum BotIntegrationProvider {
   twitch
   vkplaylive
+  vkvideo
   youtube
 }
 
@@ -102,10 +105,53 @@ enum ExternalAccountProvider {
   twitch
   youtube
   vk
+  vkvideo
   vkplay
   kick
   trovo
   boosty
+}
+
+// VK Video Live chat bot subscriptions (global bot account joins many channels).
+// Each MemAlerts Channel maps to a single VK Video Live channel identifier used by the chat connection.
+model VkVideoChatBotSubscription {
+  id              String   @id @default(uuid())
+  channelId        String
+  vkvideoChannelId String // platform channel identifier (exact format depends on VKVideo chat API)
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([vkvideoChannelId])
+  @@index([channelId])
+}
+
+// VK Video Live chat bot outbox for sending messages via the separate vkvideo chatbot runner process.
+model VkVideoChatBotOutboxMessage {
+  id              String @id @default(uuid())
+  channelId        String
+  vkvideoChannelId String
+  message         String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([vkvideoChannelId, status, createdAt])
+  @@index([createdAt])
 }
 
 enum OAuthStateKind {

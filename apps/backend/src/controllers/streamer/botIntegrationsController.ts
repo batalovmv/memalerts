@@ -5,7 +5,8 @@ import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
 import { fetchMyYouTubeChannelId } from '../../utils/youtubeApi.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
-const PROVIDERS: BotProvider[] = ['twitch', 'vkplaylive', 'youtube'];
+type BotProviderV2 = BotProvider | 'vkvideo';
+const PROVIDERS: BotProviderV2[] = ['twitch', 'vkplaylive', 'vkvideo', 'youtube'];
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
 
 function requireChannelId(req: AuthRequest, res: Response): string | null {
@@ -17,10 +18,10 @@ function requireChannelId(req: AuthRequest, res: Response): string | null {
   return channelId;
 }
 
-function normalizeProvider(raw: any): BotProvider | null {
+function normalizeProvider(raw: any): BotProviderV2 | null {
   const p = String(raw ?? '').trim().toLowerCase();
   if (!p || !PROVIDERS_SET.has(p)) return null;
-  return p as BotProvider;
+  return p as BotProviderV2;
 }
 
 async function getTwitchEnabledFallback(channelId: string): Promise<boolean> {
@@ -28,6 +29,15 @@ async function getTwitchEnabledFallback(channelId: string): Promise<boolean> {
   // we still want GET /streamer/bots to reflect the actual Twitch bot subscription state.
   const sub = await prisma.chatBotSubscription.findUnique({ where: { channelId }, select: { enabled: true } });
   return Boolean(sub?.enabled);
+}
+
+async function getVkVideoEnabledFallback(channelId: string): Promise<boolean> {
+  try {
+    const sub = await (prisma as any).vkVideoChatBotSubscription.findUnique({ where: { channelId }, select: { enabled: true } });
+    return Boolean(sub?.enabled);
+  } catch {
+    return false;
+  }
 }
 
 export const botIntegrationsController = {
@@ -56,12 +66,14 @@ export const botIntegrationsController = {
       // Twitch falls back to ChatBotSubscription if no row exists yet.
       const twitch = byProvider.get('twitch') ?? { enabled: await getTwitchEnabledFallback(channelId), updatedAt: null };
       const vkplaylive = byProvider.get('vkplaylive') ?? { enabled: false, updatedAt: null };
+      const vkvideo = byProvider.get('vkvideo') ?? { enabled: await getVkVideoEnabledFallback(channelId), updatedAt: null };
       const youtube = byProvider.get('youtube') ?? { enabled: false, updatedAt: null };
 
       return res.json({
         items: [
           { provider: 'twitch', ...twitch },
           { provider: 'vkplaylive', ...vkplaylive },
+          { provider: 'vkvideo', ...vkvideo },
           { provider: 'youtube', ...youtube },
         ],
       });
@@ -146,6 +158,29 @@ export const botIntegrationsController = {
         } else {
           // Best-effort disable: if subscription exists, mark it disabled.
           await (prisma as any).youTubeChatBotSubscription.updateMany({
+            where: { channelId },
+            data: { enabled: false },
+          });
+        }
+      }
+
+      if (provider === 'vkvideo') {
+        if (enabled) {
+          const vkvideoChannelId = String((req.body as any)?.vkvideoChannelId || '').trim();
+          if (!vkvideoChannelId) {
+            return res.status(400).json({
+              error: 'Bad Request',
+              message: 'vkvideoChannelId is required to enable VKVideo bot',
+            });
+          }
+          await (prisma as any).vkVideoChatBotSubscription.upsert({
+            where: { channelId },
+            create: { channelId, vkvideoChannelId, enabled: true },
+            update: { vkvideoChannelId, enabled: true },
+            select: { id: true },
+          });
+        } else {
+          await (prisma as any).vkVideoChatBotSubscription.updateMany({
             where: { channelId },
             data: { enabled: false },
           });
