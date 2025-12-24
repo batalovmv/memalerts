@@ -10,6 +10,10 @@
   - prod: `token`
   - beta: `token_beta` (изолирован от prod)
   - На фронте **всегда** делайте запросы с `credentials: 'include'`.
+- **Beta cookie key selection (важно для 401)**:
+  - `/auth/:provider/link` защищён `authenticate`, и 401 будет, если backend не увидит правильную cookie.
+  - На **beta-инстансе** backend ожидает **`token_beta`** (и может принимать fallback `token` только для совместимости).
+  - Beta/Prod определяется не только по `Host`, но и по **инстансу** (например `PORT=3002`, `DOMAIN` с `beta.`, или `INSTANCE=beta`) — это защищает от случаев, когда фронт ходит в beta API через общий proxy/upstream.
 - **CSRF**: для `POST/PUT/PATCH/DELETE` в production **обязателен** `Origin`/`Referer` из разрешённых origin (CORS).  
   Исключения: `/internal/*`, `/webhooks/*`, `/health` (OAuth endpoints обычно `GET`, поэтому CSRF на них не применяется).
 - **Uploads**: статика доступна по `GET /uploads/...` (файлы, которые вернул `fileUrl`/`fileUrlTemp`).
@@ -182,6 +186,11 @@
   - `vk` (полный OAuth)
   - `kick | trovo | boosty` — пока **заглушка**: вернёт редирект обратно на `redirect_to` с `?error=auth_failed&reason=provider_not_supported&provider=<provider>`
 - **Если пользователь не залогинен**: редирект на фронт с `/?error=auth_required&reason=no_session`
+- **Если вместо редиректа видите `401 Unauthorized`**:
+  - Фронт отправил запрос **без cookies** → убедиться, что запрос сделан с `credentials: 'include'` (и в fetch/axios включены credentials).
+  - Cookies не дошли из-за CORS → backend должен отвечать `Access-Control-Allow-Credentials: true` и `Access-Control-Allow-Origin` конкретным origin (не `*`).
+  - Cookie выставлена на другой домен/поддомен (Domain mismatch) → `token_beta` должна быть доступна для домена API, куда реально идёт запрос.
+  - В логах backend на 401 теперь есть событие `auth.no_token_cookie` (видно `host/origin` и список ключей cookies, без значений).
 
 ### GET `/auth/:provider/link/callback`
 - **Auth**: нет (OAuth callback)
