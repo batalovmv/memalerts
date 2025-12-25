@@ -127,7 +127,38 @@ export function BotSettings() {
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
   const [testMessageProvider, setTestMessageProvider] = useState<'twitch' | 'youtube' | 'vkvideo'>('twitch');
-  const [lastOutbox, setLastOutbox] = useState<null | { provider: string; id?: string; status?: string; createdAt?: string }>(null);
+  type OutboxStatus = 'pending' | 'processing' | 'sent' | 'failed';
+  type OutboxLastError = 'bot_not_joined' | string | null;
+  type OutboxStatusResponse = {
+    provider?: 'twitch' | 'youtube' | 'vkvideo' | string;
+    id?: string;
+    status?: OutboxStatus | string;
+    attempts?: number;
+    lastError?: OutboxLastError;
+    processingAt?: string | null;
+    sentAt?: string | null;
+    failedAt?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  };
+
+  const [lastOutbox, setLastOutbox] = useState<null | {
+    provider: 'twitch' | 'youtube' | 'vkvideo';
+    id?: string;
+    status?: string;
+    attempts?: number;
+    lastError?: OutboxLastError;
+    processingAt?: string | null;
+    sentAt?: string | null;
+    failedAt?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  }>(null);
+
+  const outboxPollTimerRef = useRef<number | null>(null);
+  const outboxPollStartedAtRef = useRef<number>(0);
+  const outboxPollInFlightRef = useRef(false);
+  const outboxPollKeyRef = useRef<string>('');
 
   const [followGreetingsEnabled, setFollowGreetingsEnabled] = useState<boolean>(false);
   const [followGreetingTemplate, setFollowGreetingTemplate] = useState<string>('');
@@ -542,8 +573,21 @@ export function BotSettings() {
       }>('/streamer/bot/say', { provider: testMessageProvider, message: msg });
 
       const usedProvider = typeof res?.provider === 'string' && res.provider.trim() ? res.provider.trim() : testMessageProvider;
+      const normalizedProvider =
+        usedProvider === 'twitch' || usedProvider === 'youtube' || usedProvider === 'vkvideo' ? usedProvider : testMessageProvider;
       if (res?.outbox && typeof res.outbox === 'object') {
-        setLastOutbox({ provider: usedProvider, id: res.outbox.id, status: res.outbox.status, createdAt: res.outbox.createdAt });
+        setLastOutbox({
+          provider: normalizedProvider,
+          id: res.outbox.id,
+          status: res.outbox.status,
+          createdAt: res.outbox.createdAt ?? null,
+          updatedAt: null,
+          attempts: 0,
+          lastError: null,
+          processingAt: null,
+          sentAt: null,
+          failedAt: null,
+        });
       } else {
         setLastOutbox(null);
       }
@@ -595,6 +639,97 @@ export function BotSettings() {
     }
   }, [t, testMessage, testMessageProvider]);
 
+  const stopOutboxPolling = useCallback(() => {
+    if (outboxPollTimerRef.current) {
+      window.clearTimeout(outboxPollTimerRef.current);
+      outboxPollTimerRef.current = null;
+    }
+    outboxPollInFlightRef.current = false;
+  }, []);
+
+  const pollOutboxOnce = useCallback(async () => {
+    const scheduleNext = (delayMs: number) => {
+      stopOutboxPolling();
+      outboxPollTimerRef.current = window.setTimeout(() => {
+        outboxPollTimerRef.current = null;
+        void pollOutboxOnce();
+      }, Math.max(250, delayMs));
+    };
+
+    const current = lastOutbox;
+    if (!current?.id) return;
+    const provider = current.provider;
+    const id = String(current.id);
+    const status = String(current.status || '').toLowerCase();
+    if (status === 'sent' || status === 'failed') return;
+
+    const elapsedMs = outboxPollStartedAtRef.current ? Date.now() - outboxPollStartedAtRef.current : 0;
+    // Stop after 2 minutes to avoid infinite polling if backend/runner is down.
+    if (elapsedMs > 2 * 60 * 1000) return;
+
+    if (outboxPollInFlightRef.current) return;
+    outboxPollInFlightRef.current = true;
+    try {
+      const { api } = await import('@/lib/api');
+      const res = await api.get<OutboxStatusResponse>(`/streamer/bot/outbox/${encodeURIComponent(provider)}/${encodeURIComponent(id)}`, {
+        timeout: 8000,
+      });
+
+      setLastOutbox((prev) => {
+        if (!prev || prev.provider !== provider || String(prev.id || '') !== id) return prev;
+        return {
+          ...prev,
+          status: typeof res?.status === 'string' ? res.status : prev.status,
+          attempts: typeof res?.attempts === 'number' ? res.attempts : prev.attempts,
+          lastError: (res?.lastError ?? prev.lastError ?? null) as OutboxLastError,
+          processingAt: (res?.processingAt ?? prev.processingAt ?? null) as string | null,
+          sentAt: (res?.sentAt ?? prev.sentAt ?? null) as string | null,
+          failedAt: (res?.failedAt ?? prev.failedAt ?? null) as string | null,
+          createdAt: (res?.createdAt ?? prev.createdAt ?? null) as string | null,
+          updatedAt: (res?.updatedAt ?? prev.updatedAt ?? null) as string | null,
+        };
+      });
+
+      const nextStatus = String(res?.status || status).toLowerCase();
+      if (nextStatus === 'sent' || nextStatus === 'failed') return;
+
+      // Mild backoff: faster while pending, slower while processing.
+      const nextDelay = nextStatus === 'processing' ? 2000 : 1200;
+      scheduleNext(nextDelay);
+    } catch {
+      // If poll fails transiently, retry with backoff.
+      scheduleNext(2500);
+    } finally {
+      outboxPollInFlightRef.current = false;
+    }
+  }, [lastOutbox, stopOutboxPolling]);
+
+  useEffect(() => {
+    // Start polling when we have an outbox id and status is not final.
+    if (!lastOutbox?.id) {
+      stopOutboxPolling();
+      outboxPollStartedAtRef.current = 0;
+      outboxPollKeyRef.current = '';
+      return;
+    }
+    const status = String(lastOutbox.status || '').toLowerCase();
+    if (status === 'sent' || status === 'failed') {
+      stopOutboxPolling();
+      return;
+    }
+    const key = `${lastOutbox.provider}:${String(lastOutbox.id)}`;
+    if (outboxPollKeyRef.current !== key) {
+      outboxPollKeyRef.current = key;
+      outboxPollStartedAtRef.current = Date.now();
+    }
+    stopOutboxPolling();
+    outboxPollTimerRef.current = window.setTimeout(() => {
+      outboxPollTimerRef.current = null;
+      void pollOutboxOnce();
+    }, 650);
+    return () => stopOutboxPolling();
+  }, [lastOutbox?.id, lastOutbox?.provider, stopOutboxPolling, pollOutboxOnce, lastOutbox?.status]);
+
   const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
     const apiError = error as { response?: { status?: number; data?: any } };
     if (apiError.response?.status !== 412) return false;
@@ -602,6 +737,60 @@ export function BotSettings() {
     // Backend may send either code or needsRelink (or both).
     return data?.code === 'YOUTUBE_RELINK_REQUIRED' || data?.needsRelink === true;
   }, []);
+
+  const getYoutubeEnableErrorMessage = useCallback(
+    async (error: unknown): Promise<{ message: string; requestId: string | null } | null> => {
+      const apiError = error as { response?: { status?: number; data?: any } };
+      const status = apiError.response?.status ?? null;
+      const data = apiError.response?.data || {};
+      const code = typeof data?.code === 'string' ? data.code : null;
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const requestId = getRequestIdFromError(error);
+
+      // 412 is handled by relink modal (special UX)
+      if (status === 412 && code === 'YOUTUBE_RELINK_REQUIRED') return null;
+
+      if (status === 409 && code === 'YOUTUBE_CHANNEL_REQUIRED') {
+        return {
+          message: t('admin.youtubeChannelRequired', {
+            defaultValue: 'У аккаунта нет YouTube-канала. Создайте/активируйте канал и попробуйте снова.',
+          }),
+          requestId,
+        };
+      }
+
+      if (status === 503 && code === 'YOUTUBE_API_NOT_CONFIGURED') {
+        return {
+          message: t('admin.youtubeApiNotConfigured', {
+            defaultValue: 'YouTube Data API не настроен на сервере. Обратитесь в поддержку.',
+          }),
+          requestId,
+        };
+      }
+
+      if (status === 503 && code === 'YOUTUBE_API_QUOTA') {
+        return {
+          message: t('admin.youtubeApiQuota', {
+            defaultValue: 'Квота YouTube API исчерпана. Попробуйте позже.',
+          }),
+          requestId,
+        };
+      }
+
+      if (status === 412 && code) {
+        // Unknown 412 precondition — still show a helpful message.
+        return {
+          message:
+            data?.error ||
+            t('admin.youtubeEnablePreconditionFailed', { defaultValue: 'Не удалось включить YouTube-бота (предусловие не выполнено).' }),
+          requestId,
+        };
+      }
+
+      return null;
+    },
+    [t]
+  );
 
   const getCurrentRelativePath = useCallback((): string => {
     // Must be relative (no domain) per backend contract.
@@ -665,6 +854,7 @@ export function BotSettings() {
       const { api } = await import('@/lib/api');
       await api.patch('/streamer/bots/youtube', { enabled: true });
       setYoutubeNeedsRelink(false);
+      setYoutubeLastRelinkErrorId(null);
       toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
       void loadBotIntegrations();
     } catch (error: unknown) {
@@ -681,13 +871,28 @@ export function BotSettings() {
         setYoutubeRelinkModalOpen(true);
         return;
       }
-      const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      const extra = await getYoutubeEnableErrorMessage(error);
+      if (extra) {
+        toast.error(
+          extra.requestId
+            ? `${extra.message} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${extra.requestId})`
+            : extra.message
+        );
+        return;
+      }
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
     } finally {
       await ensureMinDuration(startedAt, 450);
       setBotIntegrationToggleLoading(null);
     }
-  }, [isYoutubeRelinkRequiredError, loadBotIntegrations, t]);
+  }, [getYoutubeEnableErrorMessage, isYoutubeRelinkRequiredError, loadBotIntegrations, t]);
 
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
@@ -724,14 +929,31 @@ export function BotSettings() {
           setYoutubeRelinkModalOpen(true);
           return;
         }
-        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
-        toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+        if (provider === 'youtube' && nextEnabled) {
+          const extra = await getYoutubeEnableErrorMessage(error);
+          if (extra) {
+            toast.error(
+              extra.requestId
+                ? `${extra.message} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${extra.requestId})`
+                : extra.message
+            );
+            return;
+          }
+        }
+        const { getRequestIdFromError } = await import('@/lib/api');
+        const rid = getRequestIdFromError(error);
+        const apiError = error as { response?: { status?: number; data?: { error?: string; message?: string } } };
+        const msg =
+          apiError.response?.data?.error ||
+          apiError.response?.data?.message ||
+          t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+        toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
       } finally {
         await ensureMinDuration(startedAt, 450);
         setBotIntegrationToggleLoading(null);
       }
     },
-    [isYoutubeRelinkRequiredError, loadBotIntegrations, t]
+    [getYoutubeEnableErrorMessage, isYoutubeRelinkRequiredError, loadBotIntegrations, t]
   );
 
   useEffect(() => {
@@ -948,6 +1170,64 @@ export function BotSettings() {
     if (streamDurationLoaded || streamDurationNotAvailable) return;
     void loadStreamDuration();
   }, [loadStreamDuration, showMenus, streamDurationLoaded, streamDurationNotAvailable]);
+
+  const renderOutboxStatus = useCallback(
+    (provider: 'twitch' | 'youtube' | 'vkvideo') => {
+      if (!lastOutbox || lastOutbox.provider !== provider) return null;
+
+      const status = String(lastOutbox.status || 'unknown');
+      const lastError = (lastOutbox.lastError ?? null) as OutboxLastError;
+      const attempts = typeof lastOutbox.attempts === 'number' ? lastOutbox.attempts : null;
+
+      return (
+        <div className="text-xs text-gray-600 dark:text-gray-300">
+          {t('admin.botOutboxStatus', {
+            defaultValue: 'Outbox status: {{status}}',
+            status,
+          })}
+          {typeof attempts === 'number' ? (
+            <span className="ml-2 opacity-80">
+              {t('admin.botOutboxAttempts', { defaultValue: 'attempts: {{n}}', n: attempts })}
+            </span>
+          ) : null}
+          {lastOutbox.id ? (
+            <div className="mt-1">
+              <span className="opacity-80">Outbox ID: </span>
+              <span className="font-mono">{lastOutbox.id}</span>
+              <button
+                type="button"
+                className="ml-2 underline hover:no-underline"
+                onClick={() => {
+                  try {
+                    void navigator.clipboard.writeText(String(lastOutbox.id));
+                    toast.success(t('common.copied', { defaultValue: 'Copied.' }));
+                  } catch {
+                    // ignore
+                  }
+                }}
+              >
+                {t('common.copy', { defaultValue: 'Copy' })}
+              </button>
+            </div>
+          ) : null}
+
+          {lastError === 'bot_not_joined' ? (
+            <div className="mt-1 text-amber-800 dark:text-amber-200">
+              {t('admin.botOutboxBotNotJoined', {
+                defaultValue:
+                  'Бот-раннер ещё не подключился к чату (не joined) или не запущен. Подождите и попробуйте снова позже.',
+              })}
+            </div>
+          ) : lastError ? (
+            <div className="mt-1 text-amber-800 dark:text-amber-200">
+              {t('admin.botOutboxLastError', { defaultValue: 'Last error: {{err}}', err: String(lastError) })}
+            </div>
+          ) : null}
+        </div>
+      );
+    },
+    [lastOutbox, t]
+  );
 
   // Debounced save of follow greeting template (while enabled).
   useEffect(() => {
@@ -1688,6 +1968,7 @@ export function BotSettings() {
                   >
                     {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
                   </Button>
+                  {renderOutboxStatus('twitch')}
                 </div>
               </div>
             </div>
@@ -1822,6 +2103,7 @@ export function BotSettings() {
               >
                 {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
               </Button>
+              {renderOutboxStatus('youtube')}
               {!ytEnabled && (
                 <div className="text-xs text-amber-800 dark:text-amber-200">
                   {t('admin.youtubeEnableRequiredToSend', { defaultValue: 'Сначала включите YouTube-бота для канала.' })}
@@ -1988,59 +2270,15 @@ export function BotSettings() {
               >
                 {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
               </Button>
-
-              {lastOutbox && lastOutbox.provider === 'vkvideo' && (
-                <div className="text-xs text-gray-600 dark:text-gray-300">
-                  {t('admin.vkvideoOutboxStatus', {
-                    defaultValue: 'Outbox status: {{status}}',
-                    status: lastOutbox.status || 'unknown',
+              {renderOutboxStatus('vkvideo')}
+              {lastOutbox?.provider === 'vkvideo' && String(lastOutbox.status || '').toLowerCase() === 'pending' ? (
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.vkvideoOutboxPendingHint', {
+                    defaultValue:
+                      'pending = сообщение в очереди. Если раннер/консьюмер на сервере не запущен или не подключён к чату — сообщение не появится.',
                   })}
-                  {lastOutbox.id ? (
-                    <div className="mt-1">
-                      <span className="opacity-80">Outbox ID: </span>
-                      <span className="font-mono">{lastOutbox.id}</span>
-                      <button
-                        type="button"
-                        className="ml-2 underline hover:no-underline"
-                        onClick={() => {
-                          try {
-                            void navigator.clipboard.writeText(String(lastOutbox.id));
-                            toast.success(t('common.copied', { defaultValue: 'Copied.' }));
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                      >
-                        {t('common.copy', { defaultValue: 'Copy' })}
-                      </button>
-                    </div>
-                  ) : null}
-                  {(lastOutbox.status || '').toLowerCase() === 'pending' ? (
-                    <div className="mt-1">
-                      {t('admin.vkvideoOutboxPendingHint', {
-                        defaultValue:
-                          'pending = сообщение в очереди. Если раннер/консьюмер на сервере не запущен или не подключён к чату — сообщение не появится.',
-                      })}
-                    </div>
-                  ) : null}
-                  {(() => {
-                    if (!lastOutbox.createdAt) return null;
-                    const createdAtMs = Date.parse(lastOutbox.createdAt);
-                    if (!Number.isFinite(createdAtMs)) return null;
-                    const ageSec = Math.max(0, Math.floor((Date.now() - createdAtMs) / 1000));
-                    if ((lastOutbox.status || '').toLowerCase() === 'pending' && ageSec >= 60) {
-                      return (
-                        <div className="mt-1 text-amber-800 dark:text-amber-200">
-                          {t('admin.vkvideoRunnerCheckHint', {
-                            defaultValue: 'Если статус долго не меняется — проверьте, запущен ли VKVideo bot runner на сервере.',
-                          })}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
                 </div>
-              )}
+              ) : null}
               {!vkEnabled && (
                 <div className="text-xs text-amber-800 dark:text-amber-200">
                   {t('admin.vkvideoEnableRequiredToSend', { defaultValue: 'Сначала включите VKVideo-бота для канала.' })}
