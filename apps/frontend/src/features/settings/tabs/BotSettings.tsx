@@ -5,6 +5,7 @@ import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { useAppSelector } from '@/store/hooks';
 import { Button, Input, Spinner, Textarea } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
+import { linkExternalAccount } from '@/shared/auth/login';
 
 type BotCommand = {
   id: string;
@@ -93,6 +94,8 @@ export function BotSettings() {
   const [botsLoading, setBotsLoading] = useState(false);
   const [bots, setBots] = useState<StreamerBotIntegration[]>([]);
   const [botIntegrationToggleLoading, setBotIntegrationToggleLoading] = useState<string | null>(null);
+  const [youtubeNeedsRelink, setYoutubeNeedsRelink] = useState(false);
+  const [youtubeEnableRetryQueued, setYoutubeEnableRetryQueued] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoEnableMode, setVkvideoEnableMode] = useState<'auto' | 'manual'>('auto');
@@ -120,6 +123,7 @@ export function BotSettings() {
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
   const [testMessageProvider, setTestMessageProvider] = useState<'twitch' | 'youtube' | 'vkvideo'>('twitch');
+  const [lastOutbox, setLastOutbox] = useState<null | { provider: string; id?: string; status?: string; createdAt?: string }>(null);
 
   const [followGreetingsEnabled, setFollowGreetingsEnabled] = useState<boolean>(false);
   const [followGreetingTemplate, setFollowGreetingTemplate] = useState<string>('');
@@ -212,6 +216,9 @@ export function BotSettings() {
       const res = await api.get<{ items?: StreamerBotIntegration[] }>('/streamer/bots', { timeout: 8000 });
       const items = Array.isArray(res?.items) ? res.items : [];
       setBots(items);
+      // If backend now reports YouTube enabled (or integrations were refreshed), clear relink flag.
+      const yt = items.find((b) => b.provider === 'youtube');
+      if (yt?.enabled === true) setYoutubeNeedsRelink(false);
 
       // Seed VKVideo channel id from backend if present.
       const vk = items.find((b) => b.provider === 'vkvideo');
@@ -531,6 +538,11 @@ export function BotSettings() {
       }>('/streamer/bot/say', { provider: testMessageProvider, message: msg });
 
       const usedProvider = typeof res?.provider === 'string' && res.provider.trim() ? res.provider.trim() : testMessageProvider;
+      if (res?.outbox && typeof res.outbox === 'object') {
+        setLastOutbox({ provider: usedProvider, id: res.outbox.id, status: res.outbox.status, createdAt: res.outbox.createdAt });
+      } else {
+        setLastOutbox(null);
+      }
       toast.success(
         t('admin.botTestMessageQueued', {
           defaultValue: 'Сообщение поставлено в очередь ({{provider}}).',
@@ -579,11 +591,54 @@ export function BotSettings() {
     }
   }, [t, testMessage, testMessageProvider]);
 
+  const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
+    const apiError = error as { response?: { status?: number; data?: any } };
+    if (apiError.response?.status !== 412) return false;
+    const data = apiError.response?.data || {};
+    return data?.code === 'YOUTUBE_RELINK_REQUIRED' && data?.needsRelink === true;
+  }, []);
+
+  const enableYoutubeIntegration = useCallback(async () => {
+    const startedAt = Date.now();
+    try {
+      setBotIntegrationToggleLoading('youtube');
+      // optimistic
+      setBots((prev) => prev.map((b) => (b.provider === 'youtube' ? { ...b, enabled: true } : b)));
+      const { api } = await import('@/lib/api');
+      await api.patch('/streamer/bots/youtube', { enabled: true });
+      setYoutubeNeedsRelink(false);
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      void loadBotIntegrations();
+    } catch (error: unknown) {
+      void loadBotIntegrations();
+      if (isYoutubeRelinkRequiredError(error)) {
+        setYoutubeNeedsRelink(true);
+        toast.error(
+          t('admin.youtubeRelinkRequiredNotice', {
+            defaultValue:
+              "Нужно перелинковать YouTube (не хватает прав или токен устарел). Нажмите ‘Перелинковать’.",
+          })
+        );
+        return;
+      }
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setBotIntegrationToggleLoading(null);
+    }
+  }, [isYoutubeRelinkRequiredError, loadBotIntegrations, t]);
+
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
       const startedAt = Date.now();
       try {
         setBotIntegrationToggleLoading(provider);
+        if (provider === 'youtube' && !nextEnabled) {
+          // Clearing relink UI when user explicitly turns integration off.
+          setYoutubeNeedsRelink(false);
+          setYoutubeEnableRetryQueued(false);
+        }
         // optimistic
         setBots((prev) => prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b)));
 
@@ -595,21 +650,48 @@ export function BotSettings() {
       } catch (error: unknown) {
         // revert optimistic update by refetching
         void loadBotIntegrations();
-        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
-        if (apiError.response?.status === 400) {
+        if (provider === 'youtube' && nextEnabled && isYoutubeRelinkRequiredError(error)) {
+          setYoutubeNeedsRelink(true);
+          setYoutubeEnableRetryQueued(false);
+          // Don't treat as "server down" — expected precondition.
           toast.error(
-            t('admin.youtubeRelinkRequired', { defaultValue: 'Сначала привяжите YouTube заново (нужны новые разрешения).' })
+            t('admin.youtubeRelinkRequiredNotice', {
+              defaultValue:
+                "Нужно перелинковать YouTube (не хватает прав или токен устарел). Нажмите ‘Перелинковать’.",
+            })
           );
           return;
         }
+        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
         toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
       } finally {
         await ensureMinDuration(startedAt, 450);
         setBotIntegrationToggleLoading(null);
       }
     },
-    [loadBotIntegrations, t]
+    [isYoutubeRelinkRequiredError, loadBotIntegrations, t]
   );
+
+  useEffect(() => {
+    // Auto-retry enabling YouTube after successful OAuth re-link.
+    // We can't rely on URL params after redirect, so we use a one-time localStorage flag.
+    const key = 'memalerts:youtubeRelink:retryEnable';
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return;
+      const ts = Number(raw);
+      // Expire after 10 minutes to avoid surprising retries later.
+      const isFresh = Number.isFinite(ts) && Date.now() - ts < 10 * 60 * 1000;
+      window.localStorage.removeItem(key);
+      if (!isFresh) return;
+
+      setBotTab('youtube');
+      setYoutubeEnableRetryQueued(false);
+      void enableYoutubeIntegration();
+    } catch {
+      // ignore (private mode, disabled storage, etc.)
+    }
+  }, [enableYoutubeIntegration]);
 
   const toggleVkvideoIntegration = useCallback(
     async (nextEnabled: boolean) => {
@@ -1565,6 +1647,47 @@ export function BotSettings() {
                 ariaLabel={t('admin.youtubeBotIntegrationLabel', { defaultValue: 'YouTube bot enabled' })}
               />
             </div>
+
+            {youtubeNeedsRelink && !ytEnabled && (
+              <div className="mt-3 rounded-lg bg-amber-50/70 dark:bg-amber-900/20 ring-1 ring-amber-200/60 dark:ring-amber-700/40 px-3 py-2">
+                <div className="text-sm text-amber-950 dark:text-amber-100 font-medium">
+                  {t('admin.youtubeRelinkRequiredNotice', {
+                    defaultValue:
+                      "Нужно перелинковать YouTube (не хватает прав или токен устарел). Нажмите ‘Перелинковать’.",
+                  })}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => {
+                      try {
+                        window.localStorage.setItem('memalerts:youtubeRelink:retryEnable', String(Date.now()));
+                        setYoutubeEnableRetryQueued(true);
+                      } catch {
+                        // ignore
+                      }
+                      linkExternalAccount('youtube', '/settings?tab=bot');
+                    }}
+                  >
+                    {t('admin.youtubeRelinkAction', { defaultValue: 'Перелинковать YouTube' })}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void enableYoutubeIntegration()}
+                    disabled={ytBusy}
+                  >
+                    {t('admin.youtubeRetryEnableAction', { defaultValue: 'Повторить включение' })}
+                  </Button>
+                </div>
+                {youtubeEnableRetryQueued ? (
+                  <div className="mt-2 text-xs text-amber-900/80 dark:text-amber-100/80">
+                    {t('admin.youtubeRelinkWillRetry', { defaultValue: 'После привязки попробуем включить автоматически.' })}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* YouTube test message */}
@@ -1762,6 +1885,31 @@ export function BotSettings() {
               >
                 {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
               </Button>
+
+              {lastOutbox && lastOutbox.provider === 'vkvideo' && (
+                <div className="text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.vkvideoOutboxStatus', {
+                    defaultValue: 'Outbox status: {{status}}',
+                    status: lastOutbox.status || 'unknown',
+                  })}
+                  {(() => {
+                    if (!lastOutbox.createdAt) return null;
+                    const createdAtMs = Date.parse(lastOutbox.createdAt);
+                    if (!Number.isFinite(createdAtMs)) return null;
+                    const ageSec = Math.max(0, Math.floor((Date.now() - createdAtMs) / 1000));
+                    if ((lastOutbox.status || '').toLowerCase() === 'pending' && ageSec >= 60) {
+                      return (
+                        <div className="mt-1 text-amber-800 dark:text-amber-200">
+                          {t('admin.vkvideoRunnerCheckHint', {
+                            defaultValue: 'Если статус долго не меняется — проверьте, запущен ли VKVideo bot runner на сервере.',
+                          })}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
               {!vkEnabled && (
                 <div className="text-xs text-amber-800 dark:text-amber-200">
                   {t('admin.vkvideoEnableRequiredToSend', { defaultValue: 'Сначала включите VKVideo-бота для канала.' })}
