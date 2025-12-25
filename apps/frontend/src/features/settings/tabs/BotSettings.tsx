@@ -110,10 +110,18 @@ function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSw
 export function BotSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
-  // Treat undefined as "unknown" (do not block). Block only when backend explicitly says null.
-  const twitchLinked = user?.channel?.twitchChannelId !== null;
+  const externalAccounts = Array.isArray(user?.externalAccounts) ? user!.externalAccounts! : [];
+  const linkedProviders = useMemo(
+    () => new Set(externalAccounts.map((a) => String((a as { provider?: unknown })?.provider || '').toLowerCase()).filter(Boolean)),
+    [externalAccounts]
+  );
 
-  const [botTab, setBotTab] = useState<'twitch' | 'youtube' | 'vk'>('twitch');
+  // Treat undefined as "unknown" (do not block). Block only when backend explicitly says null.
+  const twitchLinked = user?.channel?.twitchChannelId !== null && user?.channel?.twitchChannelId !== undefined ? true : linkedProviders.has('twitch');
+  const youtubeLinked = linkedProviders.has('youtube');
+  const vkvideoLinked = linkedProviders.has('vkvideo');
+
+  const [botTab, setBotTab] = useState<'commands' | 'twitch' | 'youtube' | 'vk'>('commands');
   const [loading, setLoading] = useState<'toggle' | 'load' | null>(null);
   const [botEnabled, setBotEnabled] = useState<boolean | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
@@ -143,19 +151,6 @@ export function BotSettings() {
   );
   const [twitchBotNotConfiguredHint, setTwitchBotNotConfiguredHint] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
-  const [vkvideoChannelId, setVkvideoChannelId] = useState('');
-  const [vkvideoChannelUrl, setVkvideoChannelUrl] = useState('');
-  const [vkvideoEnableMode, setVkvideoEnableMode] = useState<'auto' | 'manual'>('auto');
-  const [vkvideoChannels, setVkvideoChannels] = useState<string[] | null>(null);
-  const [vkvideoSelectedChannel, setVkvideoSelectedChannel] = useState<string>('');
-  const [vkvideoUrlModalOpen, setVkvideoUrlModalOpen] = useState(false);
-  const [vkvideoUrlModalBusy, setVkvideoUrlModalBusy] = useState(false);
-  const [vkvideoUrlModalRequestId, setVkvideoUrlModalRequestId] = useState<string | null>(null);
-  type VkvideoCandidate = { url: string; vkvideoChannelId?: string | null };
-  const [vkvideoCandidatesLoading, setVkvideoCandidatesLoading] = useState(false);
-  const [vkvideoCandidatesNotLinked, setVkvideoCandidatesNotLinked] = useState(false);
-  const [vkvideoCandidates, setVkvideoCandidates] = useState<VkvideoCandidate[] | null>(null);
-  const [vkvideoSelectedCandidateUrl, setVkvideoSelectedCandidateUrl] = useState<string>('');
 
   const [commands, setCommands] = useState<BotCommand[]>([]);
   const [commandsLoaded, setCommandsLoaded] = useState(false);
@@ -309,15 +304,6 @@ export function BotSettings() {
       const yt = items.find((b) => b.provider === 'youtube');
       if (yt?.enabled === true) setYoutubeNeedsRelink(false);
 
-      // Seed VKVideo channel id from backend if present.
-      const vk = items.find((b) => b.provider === 'vkvideo');
-      if (vk && typeof vk.vkvideoChannelId === 'string' && vk.vkvideoChannelId.trim()) {
-        setVkvideoChannelId(vk.vkvideoChannelId.trim());
-      }
-      if (vk && typeof vk.vkvideoChannelUrl === 'string' && vk.vkvideoChannelUrl.trim()) {
-        setVkvideoChannelUrl(vk.vkvideoChannelUrl.trim());
-      }
-
       setBotsLoaded(true);
     } catch (error: unknown) {
       // Keep quiet on load; the rest of the page works without it.
@@ -327,56 +313,13 @@ export function BotSettings() {
     }
   }, []);
 
-  const loadVkvideoCandidates = useCallback(async () => {
-    try {
-      setVkvideoCandidatesLoading(true);
-      setVkvideoCandidatesNotLinked(false);
-      const { api } = await import('@/lib/api');
-      const res = await api.get<{ items?: Array<{ url?: unknown; vkvideoChannelId?: unknown }> }>('/streamer/bots/vkvideo/candidates', {
-        timeout: 8000,
-      });
-      const items = Array.isArray(res?.items) ? res.items : [];
-      const normalized: VkvideoCandidate[] = items
-        .map((it) => ({
-          url: typeof it?.url === 'string' ? it.url.trim() : '',
-          vkvideoChannelId: typeof it?.vkvideoChannelId === 'string' ? it.vkvideoChannelId : null,
-        }))
-        .filter((it) => !!it.url);
-      setVkvideoCandidates(normalized);
-      if (normalized.length > 0) {
-        setVkvideoSelectedCandidateUrl((prev) => prev || normalized[0]!.url);
-      }
-    } catch (error: unknown) {
-      const apiError = error as ApiErrorShape;
-      if (apiError.response?.status === 400 && String(apiError.response?.data?.code || '') === 'VKVIDEO_NOT_LINKED') {
-        setVkvideoCandidatesNotLinked(true);
-        setVkvideoCandidates([]);
-        return;
-      }
-      // Best-effort: do not block if endpoint isn't available yet.
-      if (apiError.response?.status === 404) return;
-    } finally {
-      setVkvideoCandidatesLoading(false);
-    }
-  }, []);
+  // VKVideo enable flow is fully automated on backend; no manual candidates/URL UI in production.
 
   useEffect(() => {
     void loadSubscription();
     void loadBotIntegrations();
     void loadFollowGreetings();
   }, [loadBotIntegrations, loadFollowGreetings, loadSubscription]);
-
-  useEffect(() => {
-    if (botTab !== 'vk') return;
-    if (vkvideoCandidates !== null) return;
-    void loadVkvideoCandidates();
-  }, [botTab, loadVkvideoCandidates, vkvideoCandidates]);
-
-  // UX: when the bot is enabled, auto-expand settings; when disabled, collapse.
-  useEffect(() => {
-    if (botEnabled === true) setMenusOpen(true);
-    if (botEnabled === false) setMenusOpen(false);
-  }, [botEnabled]);
 
   const loadCommands = useCallback(async () => {
     try {
@@ -872,16 +815,6 @@ export function BotSettings() {
     return () => stopOutboxPolling();
   }, [lastOutbox?.id, lastOutbox?.provider, stopOutboxPolling, pollOutboxOnce, lastOutbox?.status]);
 
-  const isVkvideoChannelUrlRequiredError = useCallback(async (error: unknown): Promise<{ requestId: string | null } | null> => {
-    const apiError = error as ApiErrorShape;
-    if (apiError.response?.status !== 400) return null;
-    const data = apiError.response?.data || {};
-    const msg = String(data?.error || data?.message || '');
-    if (!msg.toLowerCase().includes('vkvideochannelurl')) return null;
-    const { getRequestIdFromError } = await import('@/lib/api');
-    return { requestId: getRequestIdFromError(error) };
-  }, []);
-
   const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
     const apiError = error as ApiErrorShape;
     if (apiError.response?.status !== 412) return false;
@@ -1311,51 +1244,14 @@ export function BotSettings() {
           setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: false } : b)));
           await api.patch('/streamer/bots/vkvideo', { enabled: false });
           setVkvideoNotAvailable(false);
-          setVkvideoChannels(null);
-          setVkvideoSelectedChannel('');
           toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
           void loadBotIntegrations();
           return;
         }
 
-        // enabling (recommended flow via candidates)
-        // Ensure candidates are loaded (best-effort).
-        if (vkvideoCandidates === null && !vkvideoCandidatesLoading) {
-          await loadVkvideoCandidates();
-        }
-
-        if (vkvideoCandidatesNotLinked) {
-          void loadBotIntegrations();
-          toast.error(t('admin.vkvideoNotLinked', { defaultValue: "Сначала привяжите VKVideo в 'Accounts'." }));
-          return;
-        }
-
-        const candidates = Array.isArray(vkvideoCandidates) ? vkvideoCandidates : [];
-        if (candidates.length === 1) {
-          // optimistic
-          setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
-          await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelUrl: candidates[0]!.url });
-        } else if (candidates.length > 1) {
-          // Let user pick a URL in UI, then click Enable.
-          setVkvideoSelectedCandidateUrl((prev) => prev || candidates[0]!.url);
-          toast.error(
-            t('admin.vkvideoMultipleCandidates', {
-              defaultValue: 'Найдено несколько VKVideo-каналов. Выберите канал и нажмите “Включить”.',
-            })
-          );
-          return;
-        } else {
-          // No candidates => require manual URL input.
-          const url = vkvideoChannelUrl.trim();
-          if (!url) {
-            setVkvideoUrlModalRequestId(null);
-            setVkvideoUrlModalOpen(true);
-            return;
-          }
-          // optimistic
-          setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
-          await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelUrl: url });
-        }
+        // enabling (automated backend flow)
+        setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
+        await api.patch('/streamer/bots/vkvideo', { enabled: true });
 
         setVkvideoNotAvailable(false);
         toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
@@ -1375,28 +1271,11 @@ export function BotSettings() {
           );
           return;
         }
-        const maybeUrlRequired = await isVkvideoChannelUrlRequiredError(error);
-        if (maybeUrlRequired) {
-          setVkvideoUrlModalRequestId(maybeUrlRequired.requestId);
-          setVkvideoUrlModalOpen(true);
-          return;
-        }
         if (apiError.response?.status === 404) {
           // Backend does not support this feature on this instance yet.
           setVkvideoNotAvailable(true);
           toast.error(
             t('admin.featureNotAvailable', { defaultValue: 'Feature not available on this server yet.' })
-          );
-          return;
-        }
-        if (apiError.response?.status === 400 && Array.isArray(apiError.response?.data?.channels) && apiError.response?.data?.channels.length > 0) {
-          const channels = apiError.response.data.channels.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim());
-          setVkvideoChannels(channels);
-          setVkvideoSelectedChannel(channels[0] || '');
-          toast.error(
-            t('admin.vkvideoMultipleChannels', {
-              defaultValue: 'Найдено несколько VKVideo-каналов. Выберите канал или включите вручную.',
-            })
           );
           return;
         }
@@ -1413,112 +1292,8 @@ export function BotSettings() {
         setBotIntegrationToggleLoading(null);
       }
     },
-    [
-      isVkvideoChannelUrlRequiredError,
-      loadBotIntegrations,
-      loadVkvideoCandidates,
-      t,
-      vkvideoCandidates,
-      vkvideoCandidatesLoading,
-      vkvideoCandidatesNotLinked,
-      vkvideoChannelUrl,
-    ]
+    [loadBotIntegrations, t]
   );
-
-  const enableVkvideoWithSelectedChannel = useCallback(async () => {
-    const channel = vkvideoSelectedChannel.trim();
-    if (!channel) return;
-    const startedAt = Date.now();
-    try {
-      setBotIntegrationToggleLoading('vkvideo');
-      const { api } = await import('@/lib/api');
-      const channelUrl = vkvideoChannelUrl.trim();
-      await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelId: channel, ...(channelUrl ? { vkvideoChannelUrl: channelUrl } : {}) });
-      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-      setVkvideoChannels(null);
-      void loadBotIntegrations();
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
-      try {
-        const { getRequestIdFromError } = await import('@/lib/api');
-        const rid = getRequestIdFromError(error);
-        const msg = apiError.response?.data?.error || apiError.response?.data?.message || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-        toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
-      } catch {
-        toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
-      }
-    } finally {
-      await ensureMinDuration(startedAt, 450);
-      setBotIntegrationToggleLoading(null);
-    }
-  }, [loadBotIntegrations, t, vkvideoChannelUrl, vkvideoSelectedChannel]);
-
-  const enableVkvideoWithSelectedCandidate = useCallback(async () => {
-    const url = vkvideoSelectedCandidateUrl.trim();
-    if (!url) return;
-    const startedAt = Date.now();
-    try {
-      setBotIntegrationToggleLoading('vkvideo');
-      // optimistic
-      setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
-      const { api } = await import('@/lib/api');
-      await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelUrl: url });
-      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-      void loadBotIntegrations();
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
-      const { getRequestIdFromError } = await import('@/lib/api');
-      const rid = getRequestIdFromError(error);
-      const msg =
-        apiError.response?.data?.error ||
-        apiError.response?.data?.message ||
-        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
-      void loadBotIntegrations();
-    } finally {
-      await ensureMinDuration(startedAt, 450);
-      setBotIntegrationToggleLoading(null);
-    }
-  }, [loadBotIntegrations, t, vkvideoSelectedCandidateUrl]);
-
-  const confirmEnableVkvideoWithUrl = useCallback(async () => {
-    const url = vkvideoChannelUrl.trim();
-    if (!url) {
-      toast.error(
-        t('admin.vkvideoChannelUrlRequired', {
-          defaultValue: 'Вставьте ссылку на канал VKVideo Live.',
-        })
-      );
-      return;
-    }
-    const startedAt = Date.now();
-    try {
-      setVkvideoUrlModalBusy(true);
-      setBotIntegrationToggleLoading('vkvideo');
-      const { api } = await import('@/lib/api');
-      const channelId = vkvideoEnableMode === 'manual' ? vkvideoChannelId.trim() : '';
-      await api.patch('/streamer/bots/vkvideo', {
-        enabled: true,
-        vkvideoChannelUrl: url,
-        ...(channelId ? { vkvideoChannelId: channelId } : {}),
-      });
-      setVkvideoUrlModalOpen(false);
-      setVkvideoUrlModalRequestId(null);
-      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-      void loadBotIntegrations();
-    } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
-      const { getRequestIdFromError } = await import('@/lib/api');
-      const rid = getRequestIdFromError(error);
-      const msg =
-        apiError.response?.data?.error || apiError.response?.data?.message || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
-    } finally {
-      await ensureMinDuration(startedAt, 450);
-      setVkvideoUrlModalBusy(false);
-      setBotIntegrationToggleLoading(null);
-    }
-  }, [loadBotIntegrations, t, vkvideoChannelId, vkvideoChannelUrl, vkvideoEnableMode]);
 
   const callToggle = async (nextEnabled: boolean) => {
     const startedAt = Date.now();
@@ -1798,6 +1573,19 @@ export function BotSettings() {
         <button
           type="button"
           onClick={() => {
+            setBotTab('commands');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            botTab === 'commands'
+              ? 'bg-primary text-white border-primary'
+              : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}
+        >
+          {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
             setBotTab('twitch');
           }}
           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
@@ -1832,73 +1620,288 @@ export function BotSettings() {
               : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
           }`}
         >
-          VK
+          VKVideo
         </button>
       </div>
 
 
-      {botTab === 'twitch' ? (
+      {botTab === 'commands' ? (
         <>
+          <div className="glass p-4 mb-4">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.botMenusTitle', { defaultValue: 'Bot settings' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.botCommandsHint', {
+                defaultValue: 'Команды и шаблоны работают для всех ботов (Twitch/YouTube/VKVideo).',
+              })}
+            </div>
+          </div>
+
+          {/* Follow greetings */}
+          <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative mb-4">
+            {savingFollowGreetings ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.followGreetingsTitle', { defaultValue: 'Follow greetings' })}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.followGreetingsHint', {
+                    defaultValue: 'When someone follows your channel (while you are live), the bot will post a greeting in chat.',
+                  })}
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={followGreetingsEnabled}
+                disabled={savingFollowGreetings}
+                busy={savingFollowGreetings}
+                onChange={(enabled) => {
+                  if (enabled) {
+                    setFollowGreetingsEnabled(true);
+                    void enableFollowGreetings();
+                  } else {
+                    setFollowGreetingsEnabled(false);
+                    void disableFollowGreetings();
+                  }
+                }}
+                ariaLabel={t('admin.followGreetingsTitle', { defaultValue: 'Follow greetings' })}
+              />
+            </div>
+
+            {followGreetingsEnabled && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.followGreetingTemplateLabel', { defaultValue: 'Greeting template' })}
+                </label>
+                <Input
+                  value={followGreetingTemplate}
+                  onChange={(e) => setFollowGreetingTemplate(e.target.value)}
+                  placeholder={t('admin.followGreetingTemplatePlaceholder', { defaultValue: 'Thanks for the follow, {user}!' })}
+                />
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                  {t('admin.followGreetingTemplateVars', { defaultValue: 'You can use {user} placeholder.' })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Stream duration command */}
+          <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative mb-4">
+            {savingStreamDuration ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.streamDurationTitle', { defaultValue: 'Stream duration command' })}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.streamDurationHint', {
+                    defaultValue: 'Команда времени стрима (общая для всех платформ).',
+                  })}
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={streamDurationEnabled}
+                disabled={savingStreamDuration || streamDurationNotAvailable}
+                busy={savingStreamDuration}
+                onChange={(enabled) => void toggleStreamDurationEnabled(enabled)}
+                ariaLabel={t('admin.streamDurationTitle', { defaultValue: 'Stream duration command' })}
+              />
+            </div>
+
+            {!streamDurationNotAvailable && streamDurationEnabled && (
+              <div className="mt-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.streamDurationTriggerLabel', { defaultValue: 'Trigger' })}
+                    </label>
+                    <Input value={streamDurationTrigger} onChange={(e) => setStreamDurationTrigger(e.target.value)} placeholder="!time" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.streamDurationBreakCreditLabel', { defaultValue: 'Break credit (minutes)' })}
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={String(streamDurationBreakCreditMinutes)}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setStreamDurationBreakCreditMinutes(Number.isFinite(n) ? n : 0);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.streamDurationTemplateLabel', { defaultValue: 'Response template' })}
+                  </label>
+                  <Input
+                    value={streamDurationTemplate}
+                    onChange={(e) => setStreamDurationTemplate(e.target.value)}
+                    placeholder={t('admin.streamDurationTemplatePlaceholder', { defaultValue: 'Live for {hours}h {minutes}m' })}
+                  />
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.streamDurationTemplateVars', { defaultValue: 'Variables: {hours}, {minutes}, {totalMinutes}.' })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                  <Button type="button" variant="primary" onClick={() => void saveStreamDuration()} disabled={savingStreamDuration}>
+                    {t('common.save', { defaultValue: 'Save' })}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Commands */}
+          <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 relative">
+            {savingCommandsBulk ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
+            <div className="flex items-start justify-between gap-4">
+              <button
+                type="button"
+                className="min-w-0 text-left rounded-lg -m-1 p-1 transition-colors hover:bg-white/40 dark:hover:bg-white/5"
+                onClick={() => setCommandsOpen((v) => !v)}
+              >
+                <div className="font-semibold text-gray-900 dark:text-white">{t('admin.botCommandsTitle', { defaultValue: 'Commands' })}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.botCommandsHint', {
+                    defaultValue: 'Create a trigger word and the bot reply.',
+                  })}
+                </div>
+              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <ToggleSwitch
+                  checked={anyCommandEnabled}
+                  disabled={savingCommandsBulk || commandToggleLoadingId !== null || commandsLoading || commandsNotAvailable}
+                  busy={savingCommandsBulk}
+                  onChange={async (next) => {
+                    setCommandsOpen(next);
+                    const startedAt = Date.now();
+                    try {
+                      setSavingCommandsBulk(true);
+
+                      // Remember previous per-command enabled flags so we can restore on re-enable.
+                      if (!next) {
+                        lastCommandsEnabledMapRef.current = Object.fromEntries(commands.map((c) => [c.id, c.enabled !== false]));
+                        for (const c of commands) {
+                          if (c.enabled !== false) {
+                            await updateCommand(c.id, { enabled: false });
+                          }
+                        }
+                        return;
+                      }
+
+                      // Restore previous states if we have them; otherwise enable all.
+                      const map = lastCommandsEnabledMapRef.current;
+                      if (!map) {
+                        for (const c of commands) {
+                          await updateCommand(c.id, { enabled: true });
+                        }
+                        return;
+                      }
+
+                      for (const c of commands) {
+                        const prevEnabled = map[c.id];
+                        if (prevEnabled === true) {
+                          await updateCommand(c.id, { enabled: true });
+                        }
+                      }
+                    } finally {
+                      await ensureMinDuration(startedAt, 450);
+                      setSavingCommandsBulk(false);
+                    }
+                  }}
+                  ariaLabel={t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
+                />
+              </div>
+            </div>
+
+            {commandsOpen && (
+              <>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <Button type="button" variant="primary" onClick={() => void addCommand()} disabled={commandsLoading}>
+                    {t('admin.addBotCommand', { defaultValue: 'Add command' })}
+                  </Button>
+                </div>
+                <div className="mt-3">
+                  {commandsLoading ? (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+                  ) : visibleCommands.length === 0 ? (
+                    <div className="text-sm text-gray-600 dark:text-gray-300">{t('admin.noBotCommands', { defaultValue: 'No commands yet.' })}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {visibleCommands.map((cmd) => (
+                        <div
+                          key={cmd.id}
+                          className="flex items-start justify-between gap-3 rounded-lg bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2 relative"
+                        >
+                          {commandToggleLoadingId === cmd.id ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
+                          <div className="min-w-0">
+                            <div className="font-mono text-sm text-gray-900 dark:text-white truncate">{cmd.trigger}</div>
+                            <div className="text-sm text-gray-700 dark:text-gray-200 break-words">{cmd.response}</div>
+                          </div>
+                          <ToggleSwitch
+                            checked={cmd.enabled !== false}
+                            disabled={commandToggleLoadingId !== null || savingCommandsBulk}
+                            busy={commandToggleLoadingId === cmd.id}
+                            onChange={(next) => void updateCommand(cmd.id, { enabled: next })}
+                            ariaLabel={t('admin.botCommandEnabledLabel', { defaultValue: 'Enabled' })}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      ) : botTab === 'twitch' ? (
+        <>
+          {!twitchLinked ? (
+            <div className="glass p-4 mb-4">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+              </div>
+              <div className="mt-2">
+                <a href="/settings/accounts" className="underline hover:no-underline text-sm">
+                  {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
+                </a>
+              </div>
+            </div>
+          ) : null}
           {/* Twitch override bot */}
+          {twitchLinked ? (
           <div className="glass p-4 mb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {t('admin.twitchOverrideTitle', { defaultValue: 'Свой Twitch бот (override)' })}
+                  {t('admin.twitchOverrideTitle', { defaultValue: 'Свой бот' })}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {twitchOverrideLoading ? (
-                    t('common.loading', { defaultValue: 'Loading…' })
-                  ) : twitchOverrideStatus?.enabled ? (
-                    <>
-                      {isOverrideConnectedButLocked(twitchOverrideStatus)
-                        ? t('subscription.overrideConnectedButLocked', {
-                            defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
-                          })
-                        : t('admin.twitchOverrideOn', { defaultValue: 'Используется ваш бот' })}
-                      {isOverrideConnectedButLocked(twitchOverrideStatus) ? (
-                        <span className="ml-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                          {t('subscription.lockedBySubscription', { defaultValue: 'Заблокировано подпиской' })}
-                        </span>
-                      ) : null}
-                      {twitchOverrideStatus.updatedAt ? (
-                        <span className="ml-2 opacity-80">
-                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(twitchOverrideStatus.updatedAt).toLocaleString()}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    t('admin.twitchOverrideOff', {
-                      defaultValue: 'Используется дефолтный бот MemAlerts (если настроен админом)',
-                    })
-                  )}
-                </div>
+                {isOverrideConnectedButLocked(twitchOverrideStatus) ? (
+                  <div className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                    {t('subscription.overrideConnectedButLocked', {
+                      defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                    })}
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {twitchOverrideStatus?.enabled ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void preflightAndRedirectToOverrideLink('twitch')}
-                      disabled={twitchOverrideBusy}
-                    >
-                      {t('admin.twitchOverrideRelink', { defaultValue: 'Перепривязать' })}
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => void disconnectTwitchOverride()} disabled={twitchOverrideBusy}>
-                      {t('admin.twitchOverrideDisconnect', { defaultValue: 'Отключить' })}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => void preflightAndRedirectToOverrideLink('twitch')}
-                    disabled={twitchOverrideBusy}
-                  >
-                    {t('admin.twitchOverrideConnect', { defaultValue: 'Подключить своего бота' })}
-                  </Button>
-                )}
+                <ToggleSwitch
+                  checked={twitchOverrideStatus?.enabled === true}
+                  disabled={twitchOverrideBusy || twitchOverrideLoading}
+                  busy={twitchOverrideBusy || twitchOverrideLoading}
+                  onChange={(next) => {
+                    if (next) void preflightAndRedirectToOverrideLink('twitch');
+                    else void disconnectTwitchOverride();
+                  }}
+                  ariaLabel={t('admin.twitchOverrideTitle', { defaultValue: 'Свой бот' })}
+                />
               </div>
             </div>
             {isCustomBotConnectLocked ? (
@@ -1907,6 +1910,7 @@ export function BotSettings() {
               </div>
             ) : null}
           </div>
+          ) : null}
 
           <div className={`glass p-4 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
             {loading === 'toggle' ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
@@ -2590,66 +2594,46 @@ export function BotSettings() {
         </>
       ) : botTab === 'youtube' ? (
         <>
+          {!youtubeLinked ? (
+            <div className="glass p-4 mb-4">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.accountsServiceYouTubeHint', { defaultValue: 'Нужно привязать YouTube аккаунт в Accounts.' })}
+              </div>
+              <div className="mt-2">
+                <a href="/settings/accounts" className="underline hover:no-underline text-sm">
+                  {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
+                </a>
+              </div>
+            </div>
+          ) : null}
+
           {/* YouTube override bot */}
+          {youtubeLinked ? (
           <div className="glass p-4 mb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 dark:text-white">
-                  {t('admin.youtubeOverrideTitle', { defaultValue: 'Свой бот (override)' })}
+                  {t('admin.youtubeOverrideTitle', { defaultValue: 'Свой бот' })}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {youtubeOverrideLoading ? (
-                    t('common.loading', { defaultValue: 'Loading…' })
-                  ) : youtubeOverrideStatus?.enabled ? (
-                    <>
-                      {isOverrideConnectedButLocked(youtubeOverrideStatus)
-                        ? t('subscription.overrideConnectedButLocked', {
-                            defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
-                          })
-                        : t('admin.youtubeOverrideOn', { defaultValue: 'Используется ваш бот' })}
-                      {isOverrideConnectedButLocked(youtubeOverrideStatus) ? (
-                        <span className="ml-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                          {t('subscription.lockedBySubscription', { defaultValue: 'Заблокировано подпиской' })}
-                        </span>
-                      ) : null}
-                      {youtubeOverrideStatus.updatedAt ? (
-                        <span className="ml-2 opacity-80">
-                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(youtubeOverrideStatus.updatedAt).toLocaleString()}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    t('admin.youtubeOverrideOff', {
-                      defaultValue: 'Используется дефолтный бот MemAlerts (если настроен админом)',
-                    })
-                  )}
-                </div>
+                {isOverrideConnectedButLocked(youtubeOverrideStatus) ? (
+                  <div className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                    {t('subscription.overrideConnectedButLocked', {
+                      defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                    })}
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {youtubeOverrideStatus?.enabled ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void preflightAndRedirectToOverrideLink('youtube')}
-                      disabled={youtubeOverrideBusy}
-                    >
-                      {t('admin.youtubeOverrideRelink', { defaultValue: 'Перепривязать' })}
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => void disconnectYoutubeOverride()} disabled={youtubeOverrideBusy}>
-                      {t('admin.youtubeOverrideDisconnect', { defaultValue: 'Отключить' })}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => void preflightAndRedirectToOverrideLink('youtube')}
-                    disabled={youtubeOverrideBusy}
-                  >
-                    {t('admin.youtubeOverrideConnect', { defaultValue: 'Подключить своего бота' })}
-                  </Button>
-                )}
+                <ToggleSwitch
+                  checked={youtubeOverrideStatus?.enabled === true}
+                  disabled={youtubeOverrideBusy || youtubeOverrideLoading}
+                  busy={youtubeOverrideBusy || youtubeOverrideLoading}
+                  onChange={(next) => {
+                    if (next) void preflightAndRedirectToOverrideLink('youtube');
+                    else void disconnectYoutubeOverride();
+                  }}
+                  ariaLabel={t('admin.youtubeOverrideTitle', { defaultValue: 'Свой бот' })}
+                />
               </div>
             </div>
             {isCustomBotConnectLocked ? (
@@ -2658,21 +2642,14 @@ export function BotSettings() {
               </div>
             ) : null}
           </div>
+          ) : null}
           {/* YouTube integration */}
-          <div className="glass p-4 mb-4 relative">
+          {youtubeLinked ? <div className="glass p-4 mb-4 relative">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
                 <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {t('admin.youtubeBotIntegrationHint', {
-                    defaultValue:
-                      'Для отправки сообщений ботом нужен scope https://www.googleapis.com/auth/youtube.force-ssl. Если YouTube был привязан раньше — потребуется перелинковка.',
-                  })}
-                  {yt?.updatedAt ? (
-                    <span className="ml-2 opacity-80">
-                      {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(yt.updatedAt).toLocaleString()}
-                    </span>
-                  ) : null}
+                  {t('admin.youtubeBotIntegrationLabel', { defaultValue: 'Включить YouTube-бота для канала.' })}
                 </div>
               </div>
               {botsLoading ? <Spinner className="h-5 w-5" /> : null}
@@ -2711,7 +2688,7 @@ export function BotSettings() {
                 </div>
               </div>
             )}
-          </div>
+          </div> : null}
 
           {/* YouTube test message */}
           <div className="glass p-4">
@@ -2752,333 +2729,73 @@ export function BotSettings() {
         </>
       ) : (
         <>
-          <ConfirmDialog
-            isOpen={vkvideoUrlModalOpen}
-            onClose={() => {
-              if (vkvideoUrlModalBusy) return;
-              setVkvideoUrlModalOpen(false);
-              setVkvideoUrlModalRequestId(null);
-            }}
-            onConfirm={() => void confirmEnableVkvideoWithUrl()}
-            title={t('admin.vkvideoChannelUrlModalTitle', { defaultValue: 'Нужна ссылка на канал VKVideo Live' })}
-            message={
-              <div className="space-y-3">
-                <div className="text-sm">
-                  {t('admin.vkvideoChannelUrlModalBody', {
-                    defaultValue:
-                      'Не удалось автоматически определить vkvideoChannelUrl. Вставьте ссылку на ваш канал VKVideo Live и нажмите “Сохранить”.',
-                  })}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                    {t('admin.vkvideoChannelUrlLabel', { defaultValue: 'VKVideo channel URL' })}
-                  </label>
-                  <Input
-                    value={vkvideoChannelUrl}
-                    onChange={(e) => setVkvideoChannelUrl(e.target.value)}
-                    placeholder={t('admin.vkvideoChannelUrlPlaceholder', { defaultValue: 'https://vkvideo.ru/@your_channel' })}
-                    disabled={vkvideoUrlModalBusy}
-                  />
-                  <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
-                    {t('admin.vkvideoChannelUrlHelp', {
-                      defaultValue:
-                        'Требуется для VKVideo Live DevAPI. Если вы включали VKVideo раньше обновления — выключите и включите заново, чтобы URL сохранился на сервере.',
-                    })}
+          {!vkvideoLinked ? (
+            <div className="glass p-4 mb-4">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.accountsServiceVkvideoHint', { defaultValue: 'Нужно привязать VKVideo аккаунт в Accounts.' })}
+              </div>
+              <div className="mt-2">
+                <a href="/settings/accounts" className="underline hover:no-underline text-sm">
+                  {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="glass p-4 mb-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      {t('admin.vkvideoOverrideTitle', { defaultValue: 'Свой бот' })}
+                    </div>
+                    {isOverrideConnectedButLocked(vkvideoOverrideStatus) ? (
+                      <div className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                        {t('subscription.overrideConnectedButLocked', {
+                          defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                        })}
+                      </div>
+                    ) : null}
                   </div>
+                  <ToggleSwitch
+                    checked={vkvideoOverrideStatus?.enabled === true}
+                    disabled={vkvideoOverrideBusy || vkvideoOverrideLoading}
+                    busy={vkvideoOverrideBusy || vkvideoOverrideLoading}
+                    onChange={(next) => {
+                      if (next) void preflightAndRedirectToOverrideLink('vkvideo');
+                      else void disconnectVkvideoOverride();
+                    }}
+                    ariaLabel={t('admin.vkvideoOverrideTitle', { defaultValue: 'Свой бот' })}
+                  />
                 </div>
-                {vkvideoUrlModalRequestId ? (
-                  <div className="text-xs text-gray-600 dark:text-gray-300">
-                    {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{vkvideoUrlModalRequestId}</span>
+                {isCustomBotConnectLocked ? (
+                  <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                    {t('subscription.availableOnlyWithSubscription', { defaultValue: 'Доступно только по подписке' })}
                   </div>
                 ) : null}
               </div>
-            }
-            confirmText={t('common.save', { defaultValue: 'Save' })}
-            cancelText={t('common.close', { defaultValue: 'Закрыть' })}
-            confirmButtonClass="bg-primary hover:bg-primary/90"
-            isLoading={vkvideoUrlModalBusy}
-          />
-          {/* VKVideo override bot */}
-          <div className="glass p-4 mb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="font-semibold text-gray-900 dark:text-white">
-                  {t('admin.vkvideoOverrideTitle', { defaultValue: 'Свой VKVideo бот (override)' })}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {vkvideoOverrideLoading ? (
-                    t('common.loading', { defaultValue: 'Loading…' })
-                  ) : vkvideoOverrideStatus?.enabled ? (
-                    <>
-                      {isOverrideConnectedButLocked(vkvideoOverrideStatus)
-                        ? t('subscription.overrideConnectedButLocked', {
-                            defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
-                          })
-                        : t('admin.vkvideoOverrideOn', { defaultValue: 'Используется ваш бот' })}
-                      {isOverrideConnectedButLocked(vkvideoOverrideStatus) ? (
-                        <span className="ml-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                          {t('subscription.lockedBySubscription', { defaultValue: 'Заблокировано подпиской' })}
-                        </span>
-                      ) : null}
-                      {vkvideoOverrideStatus.updatedAt ? (
-                        <span className="ml-2 opacity-80">
-                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(vkvideoOverrideStatus.updatedAt).toLocaleString()}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    t('admin.vkvideoOverrideOff', {
-                      defaultValue: 'Используется дефолтный бот MemAlerts (если настроен админом)',
-                    })
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {vkvideoOverrideStatus?.enabled ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void preflightAndRedirectToOverrideLink('vkvideo')}
-                      disabled={vkvideoOverrideBusy}
-                    >
-                      {t('admin.vkvideoOverrideRelink', { defaultValue: 'Перепривязать' })}
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => void disconnectVkvideoOverride()} disabled={vkvideoOverrideBusy}>
-                      {t('admin.vkvideoOverrideDisconnect', { defaultValue: 'Отключить' })}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => void preflightAndRedirectToOverrideLink('vkvideo')}
-                    disabled={vkvideoOverrideBusy}
-                  >
-                    {t('admin.vkvideoOverrideConnect', { defaultValue: 'Подключить своего бота' })}
-                  </Button>
-                )}
-              </div>
-            </div>
-            {isCustomBotConnectLocked ? (
-              <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                {t('subscription.availableOnlyWithSubscription', { defaultValue: 'Доступно только по подписке' })}
-              </div>
-            ) : null}
-          </div>
-          {/* VKVideo integration */}
-          <div className="glass p-4 mb-4 relative">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="font-semibold text-gray-900 dark:text-white">VK Video Live</div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {vkvideoNotAvailable
-                    ? t('admin.featureNotAvailableShort', { defaultValue: 'Not available on this server.' })
-                    : t('admin.vkvideoBotIntegrationHint', {
-                        defaultValue:
-                          "Сначала привяжите VKVideo в 'Accounts', затем включите бота. Если каналов несколько — выберите один; если не нашли — вставьте ссылку на канал.",
-                      })}
-                  <span className="ml-2">
-                    <a
-                      href="https://dev.live.vkvideo.ru/docs/main/authorization"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline hover:no-underline"
-                    >
-                      {t('admin.vkvideoDocs', { defaultValue: 'Docs' })}
-                    </a>
-                  </span>
-                  {vk?.updatedAt ? (
-                    <span className="ml-2 opacity-80">
-                      {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(vk.updatedAt).toLocaleString()}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              {botsLoading ? <Spinner className="h-5 w-5" /> : null}
-              <ToggleSwitch
-                checked={vkEnabled}
-                disabled={!botsLoaded || botsLoading || vkBusy || vkvideoNotAvailable}
-                busy={vkBusy}
-                onChange={(next) => void toggleVkvideoIntegration(next)}
-                ariaLabel={t('admin.vkvideoBotIntegrationLabel', { defaultValue: 'VKVideo bot enabled' })}
-              />
-            </div>
 
-            {!vkEnabled ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                <span className="opacity-80">
-                  {vkvideoCandidatesLoading
-                    ? t('common.loading', { defaultValue: 'Loading…' })
-                    : t('admin.vkvideoCandidatesHint', {
-                        defaultValue: 'Перед включением мы попробуем найти ваши VKVideo каналы.',
-                      })}
-                </span>
-                <button
-                  type="button"
-                  className="underline hover:no-underline"
-                  disabled={vkvideoCandidatesLoading}
-                  onClick={() => void loadVkvideoCandidates()}
-                >
-                  {t('admin.refresh', { defaultValue: 'Refresh' })}
-                </button>
-                {vkvideoCandidatesNotLinked ? (
-                  <span className="text-amber-800 dark:text-amber-200">
-                    {t('admin.vkvideoNotLinked', { defaultValue: "Сначала привяжите VKVideo в 'Accounts'." })}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
-            {vkEnabled && typeof vk?.vkvideoChannelUrl === 'string' && !vk.vkvideoChannelUrl.trim() ? (
-              <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                {t('admin.vkvideoMigrationHint', {
-                  defaultValue:
-                    'VKVideo был включён до обновления и vkvideoChannelUrl мог не сохраниться. Выключите → включите VKVideo, чтобы сервер сохранил URL канала.',
-                })}
-              </div>
-            ) : null}
-
-            {Array.isArray(vkvideoCandidates) && vkvideoCandidates.length > 1 && !vkEnabled ? (
-              <div className="mt-3 rounded-lg bg-amber-50/70 dark:bg-amber-900/20 ring-1 ring-amber-200/60 dark:ring-amber-700/40 px-3 py-2">
-                <div className="text-xs font-semibold text-amber-900 dark:text-amber-100">
-                  {t('admin.vkvideoCandidatesTitle', { defaultValue: 'Выберите канал VKVideo' })}
-                </div>
-                <div className="mt-1 text-xs text-amber-900/90 dark:text-amber-100/90">
-                  {t('admin.vkvideoCandidatesPickHint', {
-                    defaultValue: 'Найдены кандидаты. Выберите URL канала и нажмите “Включить”.',
-                  })}
-                </div>
-                <div className="mt-2 flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <select
-                    className="flex-1 rounded-lg bg-white/80 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                    value={vkvideoSelectedCandidateUrl}
-                    onChange={(e) => setVkvideoSelectedCandidateUrl(e.target.value)}
-                    disabled={vkBusy}
-                  >
-                    {vkvideoCandidates.map((c) => (
-                      <option key={c.url} value={c.url}>
-                        {c.url}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => void enableVkvideoWithSelectedCandidate()}
-                    disabled={vkBusy || !vkvideoSelectedCandidateUrl.trim()}
-                  >
-                    {t('admin.enable', { defaultValue: 'Enable' })}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-3">
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                {t('admin.vkvideoChannelUrlLabel', { defaultValue: 'VKVideo channel URL' })}
-              </label>
-              <Input
-                value={vkvideoChannelUrl}
-                onChange={(e) => setVkvideoChannelUrl(e.target.value)}
-                placeholder={t('admin.vkvideoChannelUrlPlaceholder', { defaultValue: 'https://vkvideo.ru/@your_channel' })}
-                disabled={!botsLoaded || botsLoading || vkvideoNotAvailable || vkBusy || vkEnabled}
-              />
-              <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
-                {t('admin.vkvideoChannelUrlHelp', {
-                  defaultValue:
-                    'URL канала нужен для VKVideo Live DevAPI. Бэкенд попробует определить его сам из привязанного VKVideo аккаунта, но если не получится — попросит вставить ссылку.',
-                })}
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
-              <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                {t('admin.vkvideoEnableModeTitle', { defaultValue: 'Enable mode' })}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-700 dark:text-gray-200">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="vkvideoEnableMode"
-                    checked={vkvideoEnableMode === 'auto'}
-                    onChange={() => setVkvideoEnableMode('auto')}
-                    disabled={vkBusy || vkEnabled}
+              <div className="glass p-4 mb-4 relative">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white">VK Video Live</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      {vkvideoNotAvailable
+                        ? t('admin.featureNotAvailableShort', { defaultValue: 'Not available on this server.' })
+                        : t('admin.vkvideoBotIntegrationLabel', { defaultValue: 'Включить VKVideo-бота для канала.' })}
+                    </div>
+                  </div>
+                  {botsLoading ? <Spinner className="h-5 w-5" /> : null}
+                  <ToggleSwitch
+                    checked={vkEnabled}
+                    disabled={!botsLoaded || botsLoading || vkBusy || vkvideoNotAvailable}
+                    busy={vkBusy}
+                    onChange={(next) => void toggleVkvideoIntegration(next)}
+                    ariaLabel={t('admin.vkvideoBotIntegrationLabel', { defaultValue: 'VKVideo bot enabled' })}
                   />
-                  {t('admin.vkvideoEnableModeAuto', { defaultValue: 'Auto (no id)' })}
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="vkvideoEnableMode"
-                    checked={vkvideoEnableMode === 'manual'}
-                    onChange={() => setVkvideoEnableMode('manual')}
-                    disabled={vkBusy || vkEnabled}
-                  />
-                  {t('admin.vkvideoEnableModeManual', { defaultValue: 'Manual (vkvideoChannelId)' })}
-                </label>
-              </div>
-              <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
-                {t('admin.vkvideoEnableModeHint', {
-                  defaultValue:
-                    'Auto requires a linked VKVideo account and that VKVideo API returns exactly one channel. Manual lets you specify the channel id/slug used in chat WS URL template.',
-                })}
-              </div>
-            </div>
-
-            {vkvideoChannels && vkvideoChannels.length > 0 && (
-              <div className="mt-3 rounded-lg bg-amber-50/70 dark:bg-amber-900/20 ring-1 ring-amber-200/60 dark:ring-amber-700/40 px-3 py-2">
-                <div className="text-xs font-semibold text-amber-900 dark:text-amber-100">
-                  {t('admin.vkvideoMultipleChannelsTitle', { defaultValue: 'Multiple channels detected' })}
-                </div>
-                <div className="mt-1 text-xs text-amber-900/90 dark:text-amber-100/90">
-                  {t('admin.vkvideoMultipleChannelsHint', {
-                    defaultValue: 'Select one channel and enable it (manual enable will be used under the hood).',
-                  })}
-                </div>
-                <div className="mt-2 flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <select
-                    className="flex-1 rounded-lg bg-white/80 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                    value={vkvideoSelectedChannel}
-                    onChange={(e) => setVkvideoSelectedChannel(e.target.value)}
-                    disabled={vkBusy}
-                  >
-                    {vkvideoChannels.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => void enableVkvideoWithSelectedChannel()}
-                    disabled={vkBusy || !vkvideoSelectedChannel.trim()}
-                  >
-                    {t('admin.enable', { defaultValue: 'Enable' })}
-                  </Button>
                 </div>
               </div>
-            )}
-
-            <div className="mt-3">
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                {t('admin.vkvideoChannelIdLabel', { defaultValue: 'VKVideo channel id' })}
-              </label>
-              <Input
-                value={vkvideoChannelId}
-                onChange={(e) => setVkvideoChannelId(e.target.value)}
-                placeholder={t('admin.vkvideoChannelIdPlaceholder', { defaultValue: 'e.g. 1234567890' })}
-                disabled={!botsLoaded || botsLoading || vkvideoNotAvailable || vkBusy || vkEnabled}
-              />
-              <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
-                {t('admin.vkvideoChannelIdHelpV2', {
-                  defaultValue:
-                    'Used when enabling in manual mode or when multiple channels were detected (we pass this value to backend as vkvideoChannelId).',
-                })}
-              </div>
-            </div>
-          </div>
+            </>
+          )}
 
           {/* VK test message */}
           <div className="glass p-4">
