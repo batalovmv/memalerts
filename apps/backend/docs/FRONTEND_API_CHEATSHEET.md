@@ -193,6 +193,11 @@
   - Cookie выставлена на другой домен/поддомен (Domain mismatch) → `token_beta` должна быть доступна для домена API, куда реально идёт запрос.
   - В логах backend на 401 теперь есть событие `auth.no_token_cookie` (видно `host/origin` и список ключей cookies, без значений).
 
+#### YouTube linking (важно для отправки сообщений ботом)
+- Для того, чтобы YouTube‑бот мог **отправлять** сообщения в чат (YouTube Data API `liveChatMessages.insert`), линковка YouTube должна включать scope:
+  - `https://www.googleapis.com/auth/youtube.force-ssl`
+- Если пользователь привязал YouTube раньше и scope не был выдан — нужно **перелинковать YouTube** (через `GET /auth/youtube/link`).
+
 ### GET `/auth/:provider/link/callback`
 - **Auth**: нет (OAuth callback)
 - **Response**: редирект на фронт (cookie не меняет)  
@@ -394,6 +399,12 @@
   - **Важно (про раннеры)**: включение через этот эндпоинт меняет состояние в БД, но **сообщения/команды начнут работать только если запущен соответствующий воркер** (см. `docs/BOTS.md`).
   - **Twitch-only guard**: при `provider="twitch"` и `Channel.twitchChannelId == null` вернёт `400` как и `/streamer/bot/enable`.
   - ⚠️ если фича ещё не задеплоена/не применены миграции — backend может вернуть `404` (фронт должен показать “недоступно”).
+- **YouTube enable может требовать relink**:
+  - если у пользователя привязан YouTube без нужных прав/refresh token — backend вернёт `412 Precondition Failed`:
+    - `code: "YOUTUBE_RELINK_REQUIRED"`
+    - `needsRelink: true`
+    - `reason` и (опционально) `requiredScopesMissing: string[]`
+  - UX: показать кнопку “Переподключить YouTube” → открыть `GET /auth/youtube/link` (с `redirect_to=/settings/accounts` или текущей страницей, если она в allowlist).
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/enable`** body optional `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/disable`** → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
