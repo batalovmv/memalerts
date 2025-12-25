@@ -34,6 +34,7 @@ type StreamerBotIntegration = {
   updatedAt?: string | null;
   // Optional config fields (provider-specific).
   vkvideoChannelId?: string | null;
+  vkvideoChannelUrl?: string | null;
 };
 
 type ToggleSwitchProps = {
@@ -102,9 +103,18 @@ export function BotSettings() {
   const [youtubeLastRelinkErrorId, setYoutubeLastRelinkErrorId] = useState<string | null>(null);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
+  const [vkvideoChannelUrl, setVkvideoChannelUrl] = useState('');
   const [vkvideoEnableMode, setVkvideoEnableMode] = useState<'auto' | 'manual'>('auto');
   const [vkvideoChannels, setVkvideoChannels] = useState<string[] | null>(null);
   const [vkvideoSelectedChannel, setVkvideoSelectedChannel] = useState<string>('');
+  const [vkvideoUrlModalOpen, setVkvideoUrlModalOpen] = useState(false);
+  const [vkvideoUrlModalBusy, setVkvideoUrlModalBusy] = useState(false);
+  const [vkvideoUrlModalRequestId, setVkvideoUrlModalRequestId] = useState<string | null>(null);
+  type VkvideoCandidate = { url: string; vkvideoChannelId?: string | null };
+  const [vkvideoCandidatesLoading, setVkvideoCandidatesLoading] = useState(false);
+  const [vkvideoCandidatesNotLinked, setVkvideoCandidatesNotLinked] = useState(false);
+  const [vkvideoCandidates, setVkvideoCandidates] = useState<VkvideoCandidate[] | null>(null);
+  const [vkvideoSelectedCandidateUrl, setVkvideoSelectedCandidateUrl] = useState<string>('');
 
   const [commands, setCommands] = useState<BotCommand[]>([]);
   const [commandsLoaded, setCommandsLoaded] = useState(false);
@@ -148,12 +158,16 @@ export function BotSettings() {
     status?: string;
     attempts?: number;
     lastError?: OutboxLastError;
+    timedOut?: boolean;
     processingAt?: string | null;
     sentAt?: string | null;
     failedAt?: string | null;
     createdAt?: string | null;
     updatedAt?: string | null;
   }>(null);
+  const [lastOutboxRequest, setLastOutboxRequest] = useState<null | { provider: 'twitch' | 'youtube' | 'vkvideo'; message: string }>(
+    null
+  );
 
   const outboxPollTimerRef = useRef<number | null>(null);
   const outboxPollStartedAtRef = useRef<number>(0);
@@ -260,6 +274,9 @@ export function BotSettings() {
       if (vk && typeof vk.vkvideoChannelId === 'string' && vk.vkvideoChannelId.trim()) {
         setVkvideoChannelId(vk.vkvideoChannelId.trim());
       }
+      if (vk && typeof vk.vkvideoChannelUrl === 'string' && vk.vkvideoChannelUrl.trim()) {
+        setVkvideoChannelUrl(vk.vkvideoChannelUrl.trim());
+      }
 
       setBotsLoaded(true);
     } catch (error: unknown) {
@@ -270,11 +287,50 @@ export function BotSettings() {
     }
   }, []);
 
+  const loadVkvideoCandidates = useCallback(async () => {
+    try {
+      setVkvideoCandidatesLoading(true);
+      setVkvideoCandidatesNotLinked(false);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<{ items?: Array<{ url?: unknown; vkvideoChannelId?: unknown }> }>('/streamer/bots/vkvideo/candidates', {
+        timeout: 8000,
+      });
+      const items = Array.isArray(res?.items) ? res.items : [];
+      const normalized: VkvideoCandidate[] = items
+        .map((it) => ({
+          url: typeof it?.url === 'string' ? it.url.trim() : '',
+          vkvideoChannelId: typeof it?.vkvideoChannelId === 'string' ? it.vkvideoChannelId : null,
+        }))
+        .filter((it) => !!it.url);
+      setVkvideoCandidates(normalized);
+      if (normalized.length > 0) {
+        setVkvideoSelectedCandidateUrl((prev) => prev || normalized[0]!.url);
+      }
+    } catch (error: unknown) {
+      const apiError = error as { response?: { status?: number; data?: any } };
+      if (apiError.response?.status === 400 && String(apiError.response?.data?.code || '') === 'VKVIDEO_NOT_LINKED') {
+        setVkvideoCandidatesNotLinked(true);
+        setVkvideoCandidates([]);
+        return;
+      }
+      // Best-effort: do not block if endpoint isn't available yet.
+      if (apiError.response?.status === 404) return;
+    } finally {
+      setVkvideoCandidatesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadSubscription();
     void loadBotIntegrations();
     void loadFollowGreetings();
   }, [loadBotIntegrations, loadFollowGreetings, loadSubscription]);
+
+  useEffect(() => {
+    if (botTab !== 'vk') return;
+    if (vkvideoCandidates !== null) return;
+    void loadVkvideoCandidates();
+  }, [botTab, loadVkvideoCandidates, vkvideoCandidates]);
 
   // UX: when the bot is enabled, auto-expand settings; when disabled, collapse.
   useEffect(() => {
@@ -556,88 +612,129 @@ export function BotSettings() {
     [saveStreamDuration]
   );
 
-  const sendTestMessage = useCallback(async () => {
-    const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
-    if (!msg) {
-      toast.error(t('admin.botTestMessageRequired', { defaultValue: 'Enter a message.' }));
-      return;
-    }
-    const startedAt = Date.now();
-    try {
-      setSendingTestMessage(true);
-      const { api } = await import('@/lib/api');
-      const res = await api.post<{
-        ok?: boolean;
-        provider?: string;
-        outbox?: { id?: string; status?: string; createdAt?: string };
-      }>('/streamer/bot/say', { provider: testMessageProvider, message: msg });
-
-      const usedProvider = typeof res?.provider === 'string' && res.provider.trim() ? res.provider.trim() : testMessageProvider;
-      const normalizedProvider =
-        usedProvider === 'twitch' || usedProvider === 'youtube' || usedProvider === 'vkvideo' ? usedProvider : testMessageProvider;
-      if (res?.outbox && typeof res.outbox === 'object') {
-        setLastOutbox({
-          provider: normalizedProvider,
-          id: res.outbox.id,
-          status: res.outbox.status,
-          createdAt: res.outbox.createdAt ?? null,
-          updatedAt: null,
-          attempts: 0,
-          lastError: null,
-          processingAt: null,
-          sentAt: null,
-          failedAt: null,
-        });
-      } else {
-        setLastOutbox(null);
-      }
-      toast.success(
-        t('admin.botTestMessageQueued', {
-          defaultValue: 'Сообщение поставлено в очередь ({{provider}}).',
-          provider: usedProvider,
-        })
-      );
-    } catch (error: unknown) {
-      const apiError = error as {
-        response?: {
-          status?: number;
-          data?: { error?: string; message?: string; enabledProviders?: string[] };
-        };
-      };
-      if (apiError.response?.status === 404) {
-        toast.error(t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' }));
+  const queueBotSay = useCallback(
+    async (provider: 'twitch' | 'youtube' | 'vkvideo', message: string) => {
+      const msg = String(message || '').trim();
+      if (!msg) {
+        toast.error(t('admin.botTestMessageRequired', { defaultValue: 'Enter a message.' }));
         return;
       }
-      if (
-        apiError.response?.status === 400 &&
-        Array.isArray(apiError.response?.data?.enabledProviders) &&
-        apiError.response.data.enabledProviders.length > 1
-      ) {
-        toast.error(
-          t('admin.botMultipleProvidersEnabled', {
-            defaultValue: 'Включено несколько чат-ботов. Выберите провайдера, куда отправлять сообщение.',
+
+      const startedAt = Date.now();
+      try {
+        setSendingTestMessage(true);
+        setLastOutboxRequest({ provider, message: msg });
+
+        const { api } = await import('@/lib/api');
+        const res = await api.post<{
+          ok?: boolean;
+          provider?: string;
+          outbox?: { id?: string; status?: string; createdAt?: string };
+        }>('/streamer/bot/say', { provider, message: msg });
+
+        const usedProvider = typeof res?.provider === 'string' && res.provider.trim() ? res.provider.trim() : provider;
+        const normalizedProvider =
+          usedProvider === 'twitch' || usedProvider === 'youtube' || usedProvider === 'vkvideo' ? usedProvider : provider;
+
+        if (res?.outbox && typeof res.outbox === 'object') {
+          setLastOutbox({
+            provider: normalizedProvider,
+            id: res.outbox.id,
+            status: res.outbox.status,
+            createdAt: res.outbox.createdAt ?? null,
+            updatedAt: null,
+            attempts: 0,
+            lastError: null,
+            timedOut: false,
+            processingAt: null,
+            sentAt: null,
+            failedAt: null,
+          });
+        } else {
+          setLastOutbox(null);
+        }
+
+        toast.success(
+          t('admin.botTestMessageQueued', {
+            defaultValue: 'Сообщение поставлено в очередь ({{provider}}).',
+            provider: usedProvider,
           })
         );
-        return;
-      }
-      if (apiError.response?.status === 400 && testMessageProvider === 'youtube') {
-        toast.error(t('admin.youtubeRelinkRequired', { defaultValue: 'Сначала привяжите YouTube заново (нужны новые разрешения).' }));
-        return;
-      }
-      if (apiError.response?.status === 400 && testMessageProvider === 'vkvideo') {
-        toast.error(t('admin.vkvideoEnableRequiredToSend', { defaultValue: 'Сначала включите VKVideo-бота для канала.' }));
-        return;
-      }
-      toast.error(
-        apiError.response?.data?.error ||
+      } catch (error: unknown) {
+        const apiError = error as {
+          response?: {
+            status?: number;
+            data?: { error?: string; message?: string; enabledProviders?: string[] };
+          };
+        };
+        const { getRequestIdFromError } = await import('@/lib/api');
+        const rid = getRequestIdFromError(error);
+
+        if (apiError.response?.status === 404) {
+          toast.error(
+            rid
+              ? `${t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
+              : t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' })
+          );
+          return;
+        }
+
+        if (
+          apiError.response?.status === 400 &&
+          Array.isArray(apiError.response?.data?.enabledProviders) &&
+          apiError.response.data.enabledProviders.length > 1
+        ) {
+          toast.error(
+            rid
+              ? `${t('admin.botMultipleProvidersEnabled', {
+                  defaultValue: 'Включено несколько чат-ботов. Выберите провайдера, куда отправлять сообщение.',
+                })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
+              : t('admin.botMultipleProvidersEnabled', {
+                  defaultValue: 'Включено несколько чат-ботов. Выберите провайдера, куда отправлять сообщение.',
+                })
+          );
+          return;
+        }
+
+        if (apiError.response?.status === 400 && provider === 'youtube') {
+          toast.error(
+            rid
+              ? `${t('admin.youtubeRelinkRequired', { defaultValue: 'Сначала привяжите YouTube заново (нужны новые разрешения).' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
+              : t('admin.youtubeRelinkRequired', { defaultValue: 'Сначала привяжите YouTube заново (нужны новые разрешения).' })
+          );
+          return;
+        }
+
+        if (apiError.response?.status === 400 && provider === 'vkvideo') {
+          toast.error(
+            rid
+              ? `${t('admin.vkvideoEnableRequiredToSend', { defaultValue: 'Сначала включите VKVideo-бота для канала.' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
+              : t('admin.vkvideoEnableRequiredToSend', { defaultValue: 'Сначала включите VKVideo-бота для канала.' })
+          );
+          return;
+        }
+
+        const rawMsg =
+          apiError.response?.data?.error ||
           apiError.response?.data?.message ||
-          t('admin.failedToSendBotTestMessage', { defaultValue: 'Failed to send message.' })
-      );
-    } finally {
-      await ensureMinDuration(startedAt, 450);
-      setSendingTestMessage(false);
-    }
-  }, [t, testMessage, testMessageProvider]);
+          t('admin.failedToSendBotTestMessage', { defaultValue: 'Failed to send message.' });
+        toast.error(rid ? `${rawMsg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : rawMsg);
+      } finally {
+        await ensureMinDuration(startedAt, 450);
+        setSendingTestMessage(false);
+      }
+    },
+    [t]
+  );
+
+  const sendTestMessage = useCallback(
+    async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
+      setTestMessageProvider(provider);
+      const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
+      await queueBotSay(provider, msg);
+    },
+    [queueBotSay, t, testMessage]
+  );
 
   const stopOutboxPolling = useCallback(() => {
     if (outboxPollTimerRef.current) {
@@ -664,8 +761,14 @@ export function BotSettings() {
     if (status === 'sent' || status === 'failed') return;
 
     const elapsedMs = outboxPollStartedAtRef.current ? Date.now() - outboxPollStartedAtRef.current : 0;
-    // Stop after 2 minutes to avoid infinite polling if backend/runner is down.
-    if (elapsedMs > 2 * 60 * 1000) return;
+    // UX: stop after ~30s to avoid infinite polling; user can still use Outbox ID for support.
+    if (elapsedMs > 30 * 1000) {
+      setLastOutbox((prev) => {
+        if (!prev || prev.provider !== provider || String(prev.id || '') !== id) return prev;
+        return { ...prev, timedOut: true };
+      });
+      return;
+    }
 
     if (outboxPollInFlightRef.current) return;
     outboxPollInFlightRef.current = true;
@@ -729,6 +832,16 @@ export function BotSettings() {
     }, 650);
     return () => stopOutboxPolling();
   }, [lastOutbox?.id, lastOutbox?.provider, stopOutboxPolling, pollOutboxOnce, lastOutbox?.status]);
+
+  const isVkvideoChannelUrlRequiredError = useCallback(async (error: unknown): Promise<{ requestId: string | null } | null> => {
+    const apiError = error as { response?: { status?: number; data?: any } };
+    if (apiError.response?.status !== 400) return null;
+    const data = apiError.response?.data || {};
+    const msg = String(data?.error || data?.message || '');
+    if (!msg.toLowerCase().includes('vkvideochannelurl')) return null;
+    const { getRequestIdFromError } = await import('@/lib/api');
+    return { requestId: getRequestIdFromError(error) };
+  }, []);
 
   const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
     const apiError = error as { response?: { status?: number; data?: any } };
@@ -1015,25 +1128,43 @@ export function BotSettings() {
           return;
         }
 
-        // enabling
-        setVkvideoChannels(null);
-        setVkvideoSelectedChannel('');
+        // enabling (recommended flow via candidates)
+        // Ensure candidates are loaded (best-effort).
+        if (vkvideoCandidates === null && !vkvideoCandidatesLoading) {
+          await loadVkvideoCandidates();
+        }
 
-        // optimistic
-        setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
+        if (vkvideoCandidatesNotLinked) {
+          void loadBotIntegrations();
+          toast.error(t('admin.vkvideoNotLinked', { defaultValue: "Сначала привяжите VKVideo в 'Accounts'." }));
+          return;
+        }
 
-        if (vkvideoEnableMode === 'manual') {
-          const channelId = vkvideoChannelId.trim();
-          if (!channelId) {
-            // revert optimistic update by refetching
-            void loadBotIntegrations();
-            toast.error(t('admin.vkvideoChannelIdRequired', { defaultValue: 'Enter VKVideo channel id.' }));
+        const candidates = Array.isArray(vkvideoCandidates) ? vkvideoCandidates : [];
+        if (candidates.length === 1) {
+          // optimistic
+          setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
+          await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelUrl: candidates[0]!.url });
+        } else if (candidates.length > 1) {
+          // Let user pick a URL in UI, then click Enable.
+          setVkvideoSelectedCandidateUrl((prev) => prev || candidates[0]!.url);
+          toast.error(
+            t('admin.vkvideoMultipleCandidates', {
+              defaultValue: 'Найдено несколько VKVideo-каналов. Выберите канал и нажмите “Включить”.',
+            })
+          );
+          return;
+        } else {
+          // No candidates => require manual URL input.
+          const url = vkvideoChannelUrl.trim();
+          if (!url) {
+            setVkvideoUrlModalRequestId(null);
+            setVkvideoUrlModalOpen(true);
             return;
           }
-          await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelId: channelId });
-        } else {
-          // auto-detect on backend (requires VKVideo account linking + valid token)
-          await api.patch('/streamer/bots/vkvideo', { enabled: true });
+          // optimistic
+          setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
+          await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelUrl: url });
         }
 
         setVkvideoNotAvailable(false);
@@ -1044,6 +1175,12 @@ export function BotSettings() {
         const apiError = error as {
           response?: { status?: number; data?: { error?: string; channels?: string[] } };
         };
+        const maybeUrlRequired = await isVkvideoChannelUrlRequiredError(error);
+        if (maybeUrlRequired) {
+          setVkvideoUrlModalRequestId(maybeUrlRequired.requestId);
+          setVkvideoUrlModalOpen(true);
+          return;
+        }
         if (apiError.response?.status === 404) {
           // Backend does not support this feature on this instance yet.
           setVkvideoNotAvailable(true);
@@ -1063,13 +1200,29 @@ export function BotSettings() {
           );
           return;
         }
-        toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+        try {
+          const { getRequestIdFromError } = await import('@/lib/api');
+          const rid = getRequestIdFromError(error);
+          const msg = apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+          toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+        } catch {
+          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+        }
       } finally {
         await ensureMinDuration(startedAt, 450);
         setBotIntegrationToggleLoading(null);
       }
     },
-    [loadBotIntegrations, t, vkvideoChannelId, vkvideoEnableMode]
+    [
+      isVkvideoChannelUrlRequiredError,
+      loadBotIntegrations,
+      loadVkvideoCandidates,
+      t,
+      vkvideoCandidates,
+      vkvideoCandidatesLoading,
+      vkvideoCandidatesNotLinked,
+      vkvideoChannelUrl,
+    ]
   );
 
   const enableVkvideoWithSelectedChannel = useCallback(async () => {
@@ -1079,18 +1232,93 @@ export function BotSettings() {
     try {
       setBotIntegrationToggleLoading('vkvideo');
       const { api } = await import('@/lib/api');
-      await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelId: channel });
+      const channelUrl = vkvideoChannelUrl.trim();
+      await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelId: channel, ...(channelUrl ? { vkvideoChannelUrl: channelUrl } : {}) });
       toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
       setVkvideoChannels(null);
       void loadBotIntegrations();
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { error?: string } } };
-      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
+      try {
+        const { getRequestIdFromError } = await import('@/lib/api');
+        const rid = getRequestIdFromError(error);
+        const msg = apiError.response?.data?.error || apiError.response?.data?.message || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+        toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+      } catch {
+        toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      }
     } finally {
       await ensureMinDuration(startedAt, 450);
       setBotIntegrationToggleLoading(null);
     }
-  }, [loadBotIntegrations, t, vkvideoSelectedChannel]);
+  }, [loadBotIntegrations, t, vkvideoChannelUrl, vkvideoSelectedChannel]);
+
+  const enableVkvideoWithSelectedCandidate = useCallback(async () => {
+    const url = vkvideoSelectedCandidateUrl.trim();
+    if (!url) return;
+    const startedAt = Date.now();
+    try {
+      setBotIntegrationToggleLoading('vkvideo');
+      // optimistic
+      setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
+      const { api } = await import('@/lib/api');
+      await api.patch('/streamer/bots/vkvideo', { enabled: true, vkvideoChannelUrl: url });
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      void loadBotIntegrations();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+      void loadBotIntegrations();
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setBotIntegrationToggleLoading(null);
+    }
+  }, [loadBotIntegrations, t, vkvideoSelectedCandidateUrl]);
+
+  const confirmEnableVkvideoWithUrl = useCallback(async () => {
+    const url = vkvideoChannelUrl.trim();
+    if (!url) {
+      toast.error(
+        t('admin.vkvideoChannelUrlRequired', {
+          defaultValue: 'Вставьте ссылку на канал VKVideo Live.',
+        })
+      );
+      return;
+    }
+    const startedAt = Date.now();
+    try {
+      setVkvideoUrlModalBusy(true);
+      setBotIntegrationToggleLoading('vkvideo');
+      const { api } = await import('@/lib/api');
+      const channelId = vkvideoEnableMode === 'manual' ? vkvideoChannelId.trim() : '';
+      await api.patch('/streamer/bots/vkvideo', {
+        enabled: true,
+        vkvideoChannelUrl: url,
+        ...(channelId ? { vkvideoChannelId: channelId } : {}),
+      });
+      setVkvideoUrlModalOpen(false);
+      setVkvideoUrlModalRequestId(null);
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      void loadBotIntegrations();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      const msg =
+        apiError.response?.data?.error || apiError.response?.data?.message || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setVkvideoUrlModalBusy(false);
+      setBotIntegrationToggleLoading(null);
+    }
+  }, [loadBotIntegrations, t, vkvideoChannelId, vkvideoChannelUrl, vkvideoEnableMode]);
 
   const callToggle = async (nextEnabled: boolean) => {
     const startedAt = Date.now();
@@ -1178,6 +1406,8 @@ export function BotSettings() {
       const status = String(lastOutbox.status || 'unknown');
       const lastError = (lastOutbox.lastError ?? null) as OutboxLastError;
       const attempts = typeof lastOutbox.attempts === 'number' ? lastOutbox.attempts : null;
+      const normalized = status.toLowerCase();
+      const canRetry = normalized === 'failed' && lastOutboxRequest?.provider === provider && !!lastOutboxRequest?.message;
 
       return (
         <div className="text-xs text-gray-600 dark:text-gray-300">
@@ -1211,6 +1441,14 @@ export function BotSettings() {
             </div>
           ) : null}
 
+          {lastOutbox.timedOut && normalized !== 'sent' && normalized !== 'failed' ? (
+            <div className="mt-1 text-amber-800 dark:text-amber-200">
+              {t('admin.botOutboxPendingLong', {
+                defaultValue: 'Ожидаем доставку ботом… Если долго не меняется — отправьте Outbox ID в поддержку.',
+              })}
+            </div>
+          ) : null}
+
           {lastError === 'bot_not_joined' ? (
             <div className="mt-1 text-amber-800 dark:text-amber-200">
               {t('admin.botOutboxBotNotJoined', {
@@ -1223,10 +1461,23 @@ export function BotSettings() {
               {t('admin.botOutboxLastError', { defaultValue: 'Last error: {{err}}', err: String(lastError) })}
             </div>
           ) : null}
+
+          {canRetry ? (
+            <div className="mt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void queueBotSay(provider, lastOutboxRequest!.message)}
+                disabled={sendingTestMessage}
+              >
+                {t('admin.botOutboxRetry', { defaultValue: 'Повторить' })}
+              </Button>
+            </div>
+          ) : null}
         </div>
       );
     },
-    [lastOutbox, t]
+    [lastOutbox, lastOutboxRequest, queueBotSay, sendingTestMessage, t]
   );
 
   // Debounced save of follow greeting template (while enabled).
@@ -1961,8 +2212,7 @@ export function BotSettings() {
                     type="button"
                     variant="primary"
                     onClick={() => {
-                      setTestMessageProvider('twitch');
-                      void sendTestMessage();
+                      void sendTestMessage('twitch');
                     }}
                     disabled={sendingTestMessage}
                   >
@@ -2096,8 +2346,7 @@ export function BotSettings() {
                 type="button"
                 variant="primary"
                 onClick={() => {
-                  setTestMessageProvider('youtube');
-                  void sendTestMessage();
+                  void sendTestMessage('youtube');
                 }}
                 disabled={sendingTestMessage}
               >
@@ -2114,6 +2363,52 @@ export function BotSettings() {
         </>
       ) : (
         <>
+          <ConfirmDialog
+            isOpen={vkvideoUrlModalOpen}
+            onClose={() => {
+              if (vkvideoUrlModalBusy) return;
+              setVkvideoUrlModalOpen(false);
+              setVkvideoUrlModalRequestId(null);
+            }}
+            onConfirm={() => void confirmEnableVkvideoWithUrl()}
+            title={t('admin.vkvideoChannelUrlModalTitle', { defaultValue: 'Нужна ссылка на канал VKVideo Live' })}
+            message={
+              <div className="space-y-3">
+                <div className="text-sm">
+                  {t('admin.vkvideoChannelUrlModalBody', {
+                    defaultValue:
+                      'Не удалось автоматически определить vkvideoChannelUrl. Вставьте ссылку на ваш канал VKVideo Live и нажмите “Сохранить”.',
+                  })}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.vkvideoChannelUrlLabel', { defaultValue: 'VKVideo channel URL' })}
+                  </label>
+                  <Input
+                    value={vkvideoChannelUrl}
+                    onChange={(e) => setVkvideoChannelUrl(e.target.value)}
+                    placeholder={t('admin.vkvideoChannelUrlPlaceholder', { defaultValue: 'https://vkvideo.ru/@your_channel' })}
+                    disabled={vkvideoUrlModalBusy}
+                  />
+                  <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                    {t('admin.vkvideoChannelUrlHelp', {
+                      defaultValue:
+                        'Требуется для VKVideo Live DevAPI. Если вы включали VKVideo раньше обновления — выключите и включите заново, чтобы URL сохранился на сервере.',
+                    })}
+                  </div>
+                </div>
+                {vkvideoUrlModalRequestId ? (
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{vkvideoUrlModalRequestId}</span>
+                  </div>
+                ) : null}
+              </div>
+            }
+            confirmText={t('common.save', { defaultValue: 'Save' })}
+            cancelText={t('common.close', { defaultValue: 'Закрыть' })}
+            confirmButtonClass="bg-primary hover:bg-primary/90"
+            isLoading={vkvideoUrlModalBusy}
+          />
           {/* VKVideo integration */}
           <div className="glass p-4 mb-4 relative">
             <div className="flex items-start justify-between gap-4">
@@ -2122,9 +2417,9 @@ export function BotSettings() {
                 <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                   {vkvideoNotAvailable
                     ? t('admin.featureNotAvailableShort', { defaultValue: 'Not available on this server.' })
-                    : t('admin.vkvideoBotIntegrationHintV2', {
+                    : t('admin.vkvideoBotIntegrationHint', {
                         defaultValue:
-                          "Сначала привяжите VKVideo в 'Accounts'. Включение может сработать автоматически; если каналов несколько — выберите один или укажите вручную.",
+                          "Сначала привяжите VKVideo в 'Accounts', затем включите бота. Если каналов несколько — выберите один; если не нашли — вставьте ссылку на канал.",
                       })}
                   <span className="ml-2">
                     <a
@@ -2151,6 +2446,93 @@ export function BotSettings() {
                 onChange={(next) => void toggleVkvideoIntegration(next)}
                 ariaLabel={t('admin.vkvideoBotIntegrationLabel', { defaultValue: 'VKVideo bot enabled' })}
               />
+            </div>
+
+            {!vkEnabled ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                <span className="opacity-80">
+                  {vkvideoCandidatesLoading
+                    ? t('common.loading', { defaultValue: 'Loading…' })
+                    : t('admin.vkvideoCandidatesHint', {
+                        defaultValue: 'Перед включением мы попробуем найти ваши VKVideo каналы.',
+                      })}
+                </span>
+                <button
+                  type="button"
+                  className="underline hover:no-underline"
+                  disabled={vkvideoCandidatesLoading}
+                  onClick={() => void loadVkvideoCandidates()}
+                >
+                  {t('admin.refresh', { defaultValue: 'Refresh' })}
+                </button>
+                {vkvideoCandidatesNotLinked ? (
+                  <span className="text-amber-800 dark:text-amber-200">
+                    {t('admin.vkvideoNotLinked', { defaultValue: "Сначала привяжите VKVideo в 'Accounts'." })}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {vkEnabled && typeof vk?.vkvideoChannelUrl === 'string' && !vk.vkvideoChannelUrl.trim() ? (
+              <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                {t('admin.vkvideoMigrationHint', {
+                  defaultValue:
+                    'VKVideo был включён до обновления и vkvideoChannelUrl мог не сохраниться. Выключите → включите VKVideo, чтобы сервер сохранил URL канала.',
+                })}
+              </div>
+            ) : null}
+
+            {Array.isArray(vkvideoCandidates) && vkvideoCandidates.length > 1 && !vkEnabled ? (
+              <div className="mt-3 rounded-lg bg-amber-50/70 dark:bg-amber-900/20 ring-1 ring-amber-200/60 dark:ring-amber-700/40 px-3 py-2">
+                <div className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                  {t('admin.vkvideoCandidatesTitle', { defaultValue: 'Выберите канал VKVideo' })}
+                </div>
+                <div className="mt-1 text-xs text-amber-900/90 dark:text-amber-100/90">
+                  {t('admin.vkvideoCandidatesPickHint', {
+                    defaultValue: 'Найдены кандидаты. Выберите URL канала и нажмите “Включить”.',
+                  })}
+                </div>
+                <div className="mt-2 flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <select
+                    className="flex-1 rounded-lg bg-white/80 dark:bg-white/5 ring-1 ring-black/10 dark:ring-white/10 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                    value={vkvideoSelectedCandidateUrl}
+                    onChange={(e) => setVkvideoSelectedCandidateUrl(e.target.value)}
+                    disabled={vkBusy}
+                  >
+                    {vkvideoCandidates.map((c) => (
+                      <option key={c.url} value={c.url}>
+                        {c.url}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => void enableVkvideoWithSelectedCandidate()}
+                    disabled={vkBusy || !vkvideoSelectedCandidateUrl.trim()}
+                  >
+                    {t('admin.enable', { defaultValue: 'Enable' })}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                {t('admin.vkvideoChannelUrlLabel', { defaultValue: 'VKVideo channel URL' })}
+              </label>
+              <Input
+                value={vkvideoChannelUrl}
+                onChange={(e) => setVkvideoChannelUrl(e.target.value)}
+                placeholder={t('admin.vkvideoChannelUrlPlaceholder', { defaultValue: 'https://vkvideo.ru/@your_channel' })}
+                disabled={!botsLoaded || botsLoading || vkvideoNotAvailable || vkBusy || vkEnabled}
+              />
+              <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                {t('admin.vkvideoChannelUrlHelp', {
+                  defaultValue:
+                    'URL канала нужен для VKVideo Live DevAPI. Бэкенд попробует определить его сам из привязанного VKVideo аккаунта, но если не получится — попросит вставить ссылку.',
+                })}
+              </div>
             </div>
 
             <div className="mt-3 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
@@ -2263,8 +2645,7 @@ export function BotSettings() {
                 type="button"
                 variant="primary"
                 onClick={() => {
-                  setTestMessageProvider('vkvideo');
-                  void sendTestMessage();
+                  void sendTestMessage('vkvideo');
                 }}
                 disabled={sendingTestMessage}
               >
