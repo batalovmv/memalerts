@@ -74,6 +74,7 @@ model Channel {
   youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
   youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
   youTubeBotIntegration        YouTubeBotIntegration?
+  vkVideoBotIntegration        VkVideoBotIntegration?
 }
 
 enum BotIntegrationProvider {
