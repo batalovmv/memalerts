@@ -12,6 +12,7 @@ import { BotSettings } from '@/features/settings/tabs/BotSettings';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
 import { ChannelStatistics } from '@/features/settings/tabs/ChannelStatistics';
 import { ObsLinksSettings } from '@/features/settings/tabs/ObsLinksSettings';
+import { OwnerEntitlements } from '@/features/settings/tabs/OwnerEntitlements';
 import { PromotionManagement } from '@/features/settings/tabs/PromotionManagement';
 import { RewardsSettings } from '@/features/settings/tabs/RewardsSettings';
 import { WalletManagement } from '@/features/settings/tabs/WalletManagement';
@@ -30,7 +31,8 @@ type TabType =
   | 'wallets'
   | 'promotions'
   | 'statistics'
-  | 'beta';
+  | 'beta'
+  | 'entitlements';
 
 function XIcon() {
   return (
@@ -91,7 +93,10 @@ export default function Admin() {
       navigate('/dashboard?panel=memes', { replace: true });
       return;
     }
-    if (tabParam && ['settings', 'rewards', 'obs', 'bot', 'accounts', 'wallets', 'promotions', 'statistics', 'beta'].includes(tabParam)) {
+    if (
+      tabParam &&
+      ['settings', 'rewards', 'obs', 'bot', 'accounts', 'wallets', 'entitlements', 'promotions', 'statistics', 'beta'].includes(tabParam)
+    ) {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams, navigate, location.pathname]);
@@ -385,6 +390,22 @@ export default function Admin() {
                       </button>
                     )}
 
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setActiveTab('entitlements');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          activeTab === 'entitlements'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {t('admin.entitlements', { defaultValue: 'Entitlements' })}
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         setActiveTab('beta');
@@ -630,6 +651,10 @@ export default function Admin() {
 
         {activeTab === 'wallets' && user?.role === 'admin' && (
           <WalletManagement />
+        )}
+
+        {activeTab === 'entitlements' && user?.role === 'admin' && (
+          <OwnerEntitlements />
         )}
 
         {activeTab === 'promotions' && (
