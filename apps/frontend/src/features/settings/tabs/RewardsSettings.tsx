@@ -1,11 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useAppSelector } from '@/store/hooks';
-import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { useTranslation } from 'react-i18next';
+
 import SecretCopyField from '@/components/SecretCopyField';
+import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
+import { useAppSelector } from '@/store/hooks';
+
+function toRecord(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== 'object') return null;
+  if (Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
+function getBoolean(obj: unknown, key: string): boolean | undefined {
+  const r = toRecord(obj);
+  if (!r) return undefined;
+  const v = r[key];
+  return typeof v === 'boolean' ? v : undefined;
+}
 
 // Rewards Settings Component
 export function RewardsSettings() {
@@ -54,10 +68,10 @@ export function RewardsSettings() {
           rewardTitle: cached.rewardTitle || '',
           rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
           rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
-          rewardOnlyWhenLive: typeof (cached as any).rewardOnlyWhenLive === 'boolean' ? (cached as any).rewardOnlyWhenLive : false,
+          rewardOnlyWhenLive: getBoolean(cached, 'rewardOnlyWhenLive') ?? false,
           submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
           submissionRewardOnlyWhenLive:
-            typeof (cached as any).submissionRewardOnlyWhenLive === 'boolean' ? (cached as any).submissionRewardOnlyWhenLive : false,
+            getBoolean(cached, 'submissionRewardOnlyWhenLive') ?? false,
         });
         settingsLoadedRef.current = user.channel.slug;
         lastSavedTwitchRef.current = JSON.stringify({
@@ -66,12 +80,12 @@ export function RewardsSettings() {
           rewardTitle: cached.rewardTitle || null,
           rewardCost: cached.rewardCost ?? null,
           rewardCoins: cached.rewardCoins ?? null,
-          rewardOnlyWhenLive: typeof (cached as any).rewardOnlyWhenLive === 'boolean' ? (cached as any).rewardOnlyWhenLive : false,
+          rewardOnlyWhenLive: getBoolean(cached, 'rewardOnlyWhenLive') ?? false,
         });
         lastSavedApprovedRef.current = JSON.stringify({
           submissionRewardCoins: cached.submissionRewardCoins !== undefined ? cached.submissionRewardCoins : 0,
           submissionRewardOnlyWhenLive:
-            typeof (cached as any).submissionRewardOnlyWhenLive === 'boolean' ? (cached as any).submissionRewardOnlyWhenLive : false,
+            getBoolean(cached, 'submissionRewardOnlyWhenLive') ?? false,
         });
         return;
       }
@@ -84,11 +98,10 @@ export function RewardsSettings() {
           rewardTitle: channelData.rewardTitle || '',
           rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
           rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
-          rewardOnlyWhenLive:
-            typeof (channelData as any).rewardOnlyWhenLive === 'boolean' ? (channelData as any).rewardOnlyWhenLive : false,
+          rewardOnlyWhenLive: getBoolean(channelData, 'rewardOnlyWhenLive') ?? false,
           submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
           submissionRewardOnlyWhenLive:
-            typeof (channelData as any).submissionRewardOnlyWhenLive === 'boolean' ? (channelData as any).submissionRewardOnlyWhenLive : false,
+            getBoolean(channelData, 'submissionRewardOnlyWhenLive') ?? false,
         });
         settingsLoadedRef.current = user.channel.slug;
         lastSavedTwitchRef.current = JSON.stringify({
@@ -97,13 +110,12 @@ export function RewardsSettings() {
           rewardTitle: channelData.rewardTitle || null,
           rewardCost: channelData.rewardCost ?? null,
           rewardCoins: channelData.rewardCoins ?? null,
-          rewardOnlyWhenLive:
-            typeof (channelData as any).rewardOnlyWhenLive === 'boolean' ? (channelData as any).rewardOnlyWhenLive : false,
+          rewardOnlyWhenLive: getBoolean(channelData, 'rewardOnlyWhenLive') ?? false,
         });
         lastSavedApprovedRef.current = JSON.stringify({
           submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? channelData.submissionRewardCoins : 0,
           submissionRewardOnlyWhenLive:
-            typeof (channelData as any).submissionRewardOnlyWhenLive === 'boolean' ? (channelData as any).submissionRewardOnlyWhenLive : false,
+            getBoolean(channelData, 'submissionRewardOnlyWhenLive') ?? false,
         });
       }
     } catch (error) {

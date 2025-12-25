@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+
+import type { MySubmission } from '../types';
+import { parseNeedsChangesPayload } from '../lib/parseNeedsChangesPayload';
+
 import TagInput from '@/components/TagInput';
 import { api } from '@/lib/api';
 import { AttemptsPill } from '@/shared/ui/AttemptsPill';
-import type { MySubmission } from '../types';
-import { parseNeedsChangesPayload } from '../lib/parseNeedsChangesPayload';
 
 export function NeedsChangesSubmissionCard(props: { submission: MySubmission; onUpdated: () => void }) {
   const { submission, onUpdated } = props;

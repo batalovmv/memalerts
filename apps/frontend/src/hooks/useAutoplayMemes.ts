@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAppSelector } from '@/store/hooks';
+
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
+import { useAppSelector } from '@/store/hooks';
 
 const KEY = 'autoplayMemes';
 
@@ -17,11 +18,12 @@ function readInitial(): boolean {
 
 export function useAutoplayMemes() {
   const { user } = useAppSelector((s) => s.auth);
+  const userId = user?.id;
   const [enabled, setEnabled] = useState<boolean>(() => readInitial());
 
   // Backend-first hydration (when logged in).
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let cancelled = false;
     (async () => {
       const prefs = await getUserPreferences();
@@ -31,7 +33,7 @@ export function useAutoplayMemes() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [userId]);
 
   const setAutoplayMemes = useCallback((next: boolean) => {
     setEnabled(next);

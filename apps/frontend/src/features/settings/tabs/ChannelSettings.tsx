@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useAppSelector } from '@/store/hooks';
-import { useChannelColors } from '@/contexts/ChannelColorsContext';
-import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
+import { useTranslation } from 'react-i18next';
+
+import { resolvePublicUrl } from '@/lib/urls';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
-import { resolvePublicUrl } from '@/lib/urls';
+import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
+import { useAppSelector } from '@/store/hooks';
 
 // Channel Settings Component (Colors only)
 export function ChannelSettings() {
@@ -83,7 +84,7 @@ export function ChannelSettings() {
     } catch (error) {
       settingsLoadedRef.current = null; // Reset on error to allow retry
     }
-  }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
+  }, [user?.channel?.slug, getChannelData, getCachedChannelData, autoplayMemesEnabled]);
 
   useEffect(() => {
     // Load current settings

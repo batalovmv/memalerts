@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAppSelector } from '@/store/hooks';
+
 import { api } from '@/lib/api';
 import Header from '@/components/Header';
+import { useAppSelector } from '@/store/hooks';
 
 export default function Stats() {
   const { user } = useAppSelector((state) => state.auth);

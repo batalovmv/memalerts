@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 
-import MemeCard from '@/components/MemeCard';
 import type { Meme } from '@/types';
+
+import MemeCard from '@/components/MemeCard';
 
 export type AllMemesGridProps = {
   memes: Meme[];

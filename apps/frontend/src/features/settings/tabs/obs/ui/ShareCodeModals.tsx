@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 
-type TFn = (key: string, opts?: any) => string;
+type TFn = (key: string, opts?: Record<string, unknown>) => string;
 
 export function ShareCodeModals(props: {
   t: TFn;

@@ -1,17 +1,23 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
-import Header from '@/components/Header';
-import { api } from '@/lib/api';
-import { useAppSelector } from '@/store/hooks';
 import type { Submission, SubmissionStatus } from '@/types';
 
 import type { MySubmission } from './types';
 import { MySubmissionsSection } from './components/MySubmissionsSection';
 import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
+
+import Header from '@/components/Header';
+import { api } from '@/lib/api';
+import { useAppSelector } from '@/store/hooks';
+
+function toRecord(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== 'object') return null;
+  if (Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
 
 export default function Submit() {
   const { t } = useTranslation();
@@ -44,25 +50,38 @@ export default function Submit() {
     if (!user) return;
     try {
       setLoadingMySubmissions(true);
-      const data = await api.get<any[]>('/submissions', { timeout: 10000 });
+      const data = await api.get<unknown>('/submissions', { timeout: 10000 });
       const normalized = Array.isArray(data)
-        ? data.map((s) => ({
-            id: String(s.id),
-            title: String(s.title || ''),
-            status: String(s.status || ''),
-            createdAt: String(s.createdAt || new Date().toISOString()),
-            notes: (s.notes ?? null) as string | null,
-            moderatorNotes: (s.moderatorNotes ?? null) as string | null,
-            revision: typeof s.revision === 'number' ? s.revision : 0,
-            tags: Array.isArray(s.tags) ? s.tags.map((x: any) => String(x?.tag?.name || '')).filter(Boolean) : [],
-            submitterId: typeof s?.submitter?.id === 'string' ? s.submitter.id : typeof s?.submitterId === 'string' ? s.submitterId : null,
-            submitterDisplayName:
-              typeof s?.submitter?.displayName === 'string'
-                ? s.submitter.displayName
-                : typeof s?.submitterDisplayName === 'string'
-                  ? s.submitterDisplayName
-                  : null,
-          }))
+        ? (data as unknown[]).map((raw) => {
+            const s = toRecord(raw);
+            const submitter = toRecord(s?.submitter);
+            const tags = Array.isArray(s?.tags) ? (s?.tags as unknown[]) : [];
+            const tagNames = tags
+              .map((x) => {
+                const xr = toRecord(x);
+                const tag = toRecord(xr?.tag);
+                return typeof tag?.name === 'string' ? tag.name : '';
+              })
+              .filter(Boolean);
+            return {
+              id: String(s?.id ?? ''),
+              title: String(s?.title ?? ''),
+              status: String(s?.status ?? ''),
+              createdAt: String(s?.createdAt ?? new Date().toISOString()),
+              notes: typeof s?.notes === 'string' ? s.notes : s?.notes === null ? null : null,
+              moderatorNotes: typeof s?.moderatorNotes === 'string' ? s.moderatorNotes : s?.moderatorNotes === null ? null : null,
+              revision: typeof s?.revision === 'number' ? s.revision : 0,
+              tags: tagNames,
+              submitterId:
+                typeof submitter?.id === 'string' ? submitter.id : typeof s?.submitterId === 'string' ? (s.submitterId as string) : null,
+              submitterDisplayName:
+                typeof submitter?.displayName === 'string'
+                  ? submitter.displayName
+                  : typeof s?.submitterDisplayName === 'string'
+                    ? (s.submitterDisplayName as string)
+                    : null,
+            };
+          })
         : [];
       // Extra safety: if backend returns submitter id, guarantee we show only the current user's submissions.
       const filtered =
@@ -85,11 +104,12 @@ export default function Submit() {
     if (!user || !canSeeChannelHistory) return;
     const effectiveStatus = statusOverride ?? channelStatusFilter;
 
-    const parsePage = (resp: any): { items: Submission[]; total: number | null } => {
-      if (Array.isArray(resp)) return { items: resp as Submission[], total: (resp as Submission[]).length };
-      if (resp && typeof resp === 'object' && Array.isArray(resp.items)) {
-        const total = typeof resp.total === 'number' ? (resp.total as number) : null;
-        return { items: (resp.items || []) as Submission[], total };
+    const parsePage = (resp: unknown): { items: Submission[]; total: number | null } => {
+      if (Array.isArray(resp)) return { items: resp as Submission[], total: resp.length };
+      const r = resp && typeof resp === 'object' ? (resp as { items?: unknown; total?: unknown }) : null;
+      if (Array.isArray(r?.items)) {
+        const total = typeof r?.total === 'number' ? r.total : null;
+        return { items: r.items as Submission[], total };
       }
       return { items: [], total: null };
     };
@@ -100,7 +120,7 @@ export default function Submit() {
       // We don't know if backend supports `status=all`, so for "all" we fetch per-status and merge.
       const limit = 50;
       const fetchOne = async (status: SubmissionStatus) => {
-        const resp = await api.get<any>('/streamer/submissions', {
+        const resp = await api.get<unknown>('/streamer/submissions', {
           params: { status, limit, offset: 0, includeTotal: 0, includeTags: 0 },
           timeout: 15000,
         });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+
 import { api } from '@/lib/api';
 import { Button, Card, Input } from '@/shared/ui';
 

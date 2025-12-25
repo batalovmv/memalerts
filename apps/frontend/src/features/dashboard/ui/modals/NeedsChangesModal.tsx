@@ -1,9 +1,9 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, IconButton, Modal, Textarea } from '@/shared/ui';
-
 import { XIcon } from './icons';
+
+import { Button, IconButton, Modal, Textarea } from '@/shared/ui';
 
 export type NeedsChangesPreset = {
   badTitle: boolean;

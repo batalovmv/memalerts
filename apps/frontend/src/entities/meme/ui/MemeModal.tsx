@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';
+
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';

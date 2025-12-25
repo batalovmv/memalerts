@@ -1,9 +1,9 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, IconButton, Input, Modal } from '@/shared/ui';
-
 import { XIcon } from './icons';
+
+import { Button, IconButton, Input, Modal } from '@/shared/ui';
 
 export type ApproveSubmissionModalProps = {
   isOpen: boolean;

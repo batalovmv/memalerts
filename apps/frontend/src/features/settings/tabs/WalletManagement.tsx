@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 // Wallet Management Component (Admin only)
 export function WalletManagement() {
@@ -40,12 +40,13 @@ export function WalletManagement() {
       setLoading(true);
       const { api } = await import('@/lib/api');
       walletsLoadedForUserRef.current = uid;
-      const resp = await api.get<any>('/owner/wallets', {
+      const resp = await api.get<unknown>('/owner/wallets', {
         params: { userId: uid, limit: 200, offset: 0, includeTotal: 0 },
         timeout: 15000,
       });
-      const items = Array.isArray(resp) ? resp : (resp?.items || []);
-      setWallets(items);
+      const maybeObj = resp && typeof resp === 'object' ? (resp as { items?: unknown }) : null;
+      const items = Array.isArray(resp) ? resp : Array.isArray(maybeObj?.items) ? maybeObj?.items : [];
+      setWallets(items as Array<Record<string, unknown>>);
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       walletsLoadedForUserRef.current = null; // Reset on error to allow retry

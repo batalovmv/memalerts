@@ -1,7 +1,8 @@
 ﻿import { Link } from 'react-router-dom';
+
+import Footer from '@/components/Footer';
 import UserMenu from '@/components/UserMenu';
 import { useAppSelector } from '@/store/hooks';
-import Footer from '@/components/Footer';
 
 export default function TermsOfService() {
   const { user } = useAppSelector((state) => state.auth);

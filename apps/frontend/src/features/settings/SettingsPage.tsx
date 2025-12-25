@@ -1,12 +1,10 @@
 ﻿import { useEffect, useState, useRef } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { store } from '@/store/index';
-import { fetchSubmissions, approveSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+
 import Header from '@/components/Header';
 import VideoPreview from '@/components/VideoPreview';
-import toast from 'react-hot-toast';
 import { BetaAccessSelf } from '@/features/settings/tabs/BetaAccessSelf';
 import { BetaAccessManagement } from '@/features/settings/tabs/BetaAccessManagement';
 import { PromotionManagement } from '@/features/settings/tabs/PromotionManagement';
@@ -18,6 +16,9 @@ import { ObsLinksSettings } from '@/features/settings/tabs/ObsLinksSettings';
 import { BotSettings } from '@/features/settings/tabs/BotSettings';
 import { AccountsSettings } from '@/features/settings/tabs/AccountsSettings';
 import { Button, Card, IconButton, Input, Modal, Textarea } from '@/shared/ui';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { store } from '@/store/index';
+import { approveSubmission, fetchSubmissions, rejectSubmission } from '@/store/slices/submissionsSlice';
 
 type TabType =
   | 'submissions'

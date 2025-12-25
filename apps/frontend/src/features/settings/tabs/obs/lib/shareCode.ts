@@ -66,9 +66,11 @@ export function decodeShareCode(raw: string): OverlaySharePayload {
   }
   const bytes = base64UrlDecode(b64);
   const json = new TextDecoder().decode(bytes);
-  const obj = JSON.parse(json) as OverlaySharePayload;
-  if (!obj || typeof obj !== 'object' || (obj as any).v !== 1) throw new Error('version');
-  return obj;
+  const obj: unknown = JSON.parse(json);
+  if (!obj || typeof obj !== 'object') throw new Error('version');
+  const rec = obj as Record<string, unknown>;
+  if (rec.v !== 1) throw new Error('version');
+  return rec as OverlaySharePayload;
 }
 
 

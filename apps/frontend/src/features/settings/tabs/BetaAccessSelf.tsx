@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '@/store/hooks';
+
 import { api } from '@/lib/api';
+import { useAppSelector } from '@/store/hooks';
 
 export function BetaAccessSelf() {
   const { t } = useTranslation();

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import type { Meme } from '@/types';
+
+import { api } from '@/lib/api';
 
 export type AllMemesSearchScope = 'content' | 'contentAndUploader';
 export type AllMemesSortBy = 'createdAt' | 'popularity';

@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { Submission, SubmissionStatus } from '@/types';
+
 import { cn } from '@/shared/lib/cn';
 import { IconButton } from '@/shared/ui';
-import type { Submission, SubmissionStatus } from '@/types';
 
 export type ChannelSubmissionsSectionProps = {
   submissions: Submission[];

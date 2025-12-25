@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
-
 import { useTranslation } from 'react-i18next';
-
-import { resolveMediaUrl } from '@/lib/urls';
-import { cn } from '@/shared/lib/cn';
-import type { Submission } from '@/types';
 
 import { PanelHeader } from '../../PanelHeader';
 import { PendingSubmissionCard } from './PendingSubmissionCard';
 import { useLoadMoreOnIntersect } from './model/useLoadMoreOnIntersect';
+
+import type { Submission } from '@/types';
+import { resolveMediaUrl } from '@/lib/urls';
+import { cn } from '@/shared/lib/cn';
 
 export type PendingSubmissionsPanelProps = {
   isOpen: boolean;

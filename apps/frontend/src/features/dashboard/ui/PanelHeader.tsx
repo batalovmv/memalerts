@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
-
 import { useTranslation } from 'react-i18next';
+
+import type { ReactNode } from 'react';
 
 export type DashboardPanelHeaderProps = {
   title: ReactNode;

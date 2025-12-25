@@ -1,12 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { linkExternalAccount } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { useAppSelector } from '@/store/hooks';
 import { Button, Input, Spinner, Textarea } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
-import { linkExternalAccount } from '@/shared/auth/login';
-import ConfirmDialog from '@/components/ConfirmDialog';
+import { useAppSelector } from '@/store/hooks';
+
+type ApiErrorData = {
+  code?: unknown;
+  error?: unknown;
+  message?: unknown;
+  needsRelink?: unknown;
+};
+
+type ApiErrorShape = {
+  response?: {
+    status?: number;
+    data?: ApiErrorData;
+  };
+};
 
 type BotCommand = {
   id: string;
@@ -306,7 +321,7 @@ export function BotSettings() {
         setVkvideoSelectedCandidateUrl((prev) => prev || normalized[0]!.url);
       }
     } catch (error: unknown) {
-      const apiError = error as { response?: { status?: number; data?: any } };
+      const apiError = error as ApiErrorShape;
       if (apiError.response?.status === 400 && String(apiError.response?.data?.code || '') === 'VKVIDEO_NOT_LINKED') {
         setVkvideoCandidatesNotLinked(true);
         setVkvideoCandidates([]);
@@ -832,7 +847,7 @@ export function BotSettings() {
   }, [lastOutbox?.id, lastOutbox?.provider, stopOutboxPolling, pollOutboxOnce, lastOutbox?.status]);
 
   const isVkvideoChannelUrlRequiredError = useCallback(async (error: unknown): Promise<{ requestId: string | null } | null> => {
-    const apiError = error as { response?: { status?: number; data?: any } };
+    const apiError = error as ApiErrorShape;
     if (apiError.response?.status !== 400) return null;
     const data = apiError.response?.data || {};
     const msg = String(data?.error || data?.message || '');
@@ -842,7 +857,7 @@ export function BotSettings() {
   }, []);
 
   const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
-    const apiError = error as { response?: { status?: number; data?: any } };
+    const apiError = error as ApiErrorShape;
     if (apiError.response?.status !== 412) return false;
     const data = apiError.response?.data || {};
     // Backend may send either code or needsRelink (or both).
@@ -851,7 +866,7 @@ export function BotSettings() {
 
   const getYoutubeEnableErrorMessage = useCallback(
     async (error: unknown): Promise<{ message: string; requestId: string | null } | null> => {
-      const apiError = error as { response?: { status?: number; data?: any } };
+      const apiError = error as ApiErrorShape;
       const status = apiError.response?.status ?? null;
       const data = apiError.response?.data || {};
       const code = typeof data?.code === 'string' ? data.code : null;
@@ -1105,7 +1120,7 @@ export function BotSettings() {
     } catch {
       // ignore (private mode, disabled storage, etc.)
     }
-  }, [enableYoutubeIntegration]);
+  }, [enableYoutubeIntegration, t]);
 
   const toggleVkvideoIntegration = useCallback(
     async (nextEnabled: boolean) => {

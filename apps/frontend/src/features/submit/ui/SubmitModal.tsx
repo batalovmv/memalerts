@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
+import TagInput from '@/components/TagInput';
 import { Button, Input, Modal } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMemes } from '@/store/slices/memesSlice';
 import { fetchSubmissions } from '@/store/slices/submissionsSlice';
-
-import TagInput from '@/components/TagInput';
 
 export interface SubmitModalProps {
   isOpen: boolean;

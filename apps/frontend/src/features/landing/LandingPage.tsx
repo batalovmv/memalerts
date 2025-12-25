@@ -1,10 +1,11 @@
 ﻿import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '@/store/hooks';
-import { login } from '@/lib/auth';
+import { useNavigate } from 'react-router-dom';
+
 import UserMenu from '@/components/UserMenu';
+import { login } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
+import { useAppSelector } from '@/store/hooks';
 
 export default function Landing() {
   const { user, loading } = useAppSelector((state) => state.auth);

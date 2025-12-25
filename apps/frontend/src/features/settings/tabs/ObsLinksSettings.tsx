@@ -1,10 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useAppSelector } from '@/store/hooks';
-import SecretCopyField from '@/components/SecretCopyField';
-import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
+import { useTranslation } from 'react-i18next';
+
 import { RotateIcon } from './obs/ui/RotateIcon';
 import {
   clampFloat,
@@ -12,6 +9,77 @@ import {
   isHexColor,
   type OverlaySharePayload,
 } from './obs/lib/shareCode';
+
+import SecretCopyField from '@/components/SecretCopyField';
+import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
+import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
+import { useAppSelector } from '@/store/hooks';
+
+type BorderPreset = 'custom' | 'glass' | 'glow' | 'frosted';
+type BorderMode = 'solid' | 'gradient';
+type GlassPreset = 'ios' | 'clear' | 'prism';
+type SenderFontFamily =
+  | 'system'
+  | 'inter'
+  | 'roboto'
+  | 'montserrat'
+  | 'poppins'
+  | 'oswald'
+  | 'raleway'
+  | 'nunito'
+  | 'playfair'
+  | 'jetbrains-mono'
+  | 'mono'
+  | 'serif';
+type UrlPosition =
+  | 'random'
+  | 'center'
+  | 'top'
+  | 'bottom'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
+type UrlAnim = 'fade' | 'zoom' | 'slide-up' | 'pop' | 'lift' | 'none';
+type AnimEasingPreset = 'ios' | 'smooth' | 'snappy' | 'linear' | 'custom';
+type ScaleMode = 'fixed' | 'range';
+type SenderStroke = 'none' | 'glass' | 'solid';
+type CreditsTextAlign = 'left' | 'center' | 'right';
+type CreditsBackgroundMode = 'transparent' | 'card' | 'full';
+type CreditsScrollDirection = 'up' | 'down';
+type CreditsAnchorX = 'left' | 'center' | 'right';
+type CreditsAnchorY = 'top' | 'center' | 'bottom';
+type CreditsTitleTransform = 'none' | 'uppercase' | 'lowercase';
+
+const SENDER_FONT_FAMILIES: ReadonlyArray<SenderFontFamily> = [
+  'system',
+  'inter',
+  'roboto',
+  'montserrat',
+  'poppins',
+  'oswald',
+  'raleway',
+  'nunito',
+  'playfair',
+  'jetbrains-mono',
+  'mono',
+  'serif',
+];
+
+function isSenderFontFamily(v: string): v is SenderFontFamily {
+  return (SENDER_FONT_FAMILIES as ReadonlyArray<string>).includes(v);
+}
+
+function toRecord(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== 'object') return null;
+  if (Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
+function getNumber(obj: Record<string, unknown> | null, key: string): number | undefined {
+  const v = obj?.[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
 export function ObsLinksSettings() {
   const { t, i18n } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
@@ -293,6 +361,7 @@ export function ObsLinksSettings() {
     scaleMax,
     scaleMin,
     scaleMode,
+    safePad,
     senderBgColor,
     senderBgOpacity,
     senderBgRadius,
@@ -333,14 +402,14 @@ export function ObsLinksSettings() {
 
       const s = (p.style && typeof p.style === 'object' ? p.style : {}) as Record<string, unknown>;
 
-      const nextBorderPreset =
+      const nextBorderPreset: BorderPreset =
         s.borderPreset === 'glass' ? 'glass' : s.borderPreset === 'glow' ? 'glow' : s.borderPreset === 'frosted' ? 'frosted' : 'custom';
-      setBorderPreset(nextBorderPreset as any);
+      setBorderPreset(nextBorderPreset);
       if (isHexColor(s.borderTintColor)) setBorderTintColor(String(s.borderTintColor).toLowerCase());
       setBorderTintStrength(clampFloatLocal(s.borderTintStrength, 0, 1, borderTintStrength));
 
-      const nextBorderMode = s.borderMode === 'gradient' ? 'gradient' : 'solid';
-      setBorderMode(nextBorderMode as any);
+      const nextBorderMode: BorderMode = s.borderMode === 'gradient' ? 'gradient' : 'solid';
+      setBorderMode(nextBorderMode);
       if (isHexColor(s.borderColor)) setUrlBorderColor(String(s.borderColor).toLowerCase());
       if (isHexColor(s.borderColor2)) setUrlBorderColor2(String(s.borderColor2).toLowerCase());
       setUrlBorderGradientAngle(clampIntLocal(s.borderGradientAngle, 0, 360, urlBorderGradientAngle));
@@ -390,7 +459,7 @@ export function ObsLinksSettings() {
 
       if (typeof s.glass === 'boolean') setGlassEnabled(s.glass);
       const gp = typeof s.glassPreset === 'string' ? s.glassPreset : glassPreset;
-      if (gp === 'ios' || gp === 'clear' || gp === 'prism') setGlassPreset(gp as any);
+      if (gp === 'ios' || gp === 'clear' || gp === 'prism') setGlassPreset(gp);
       if (isHexColor(s.glassTintColor)) setGlassTintColor(String(s.glassTintColor).toLowerCase());
       setGlassTintStrength(clampFloatLocal(s.glassTintStrength, 0, 1, glassTintStrength));
       setUrlBlur(clampIntLocal(s.blur, 0, 40, urlBlur));
@@ -410,10 +479,12 @@ export function ObsLinksSettings() {
       setSenderFontSize(clampIntLocal(s.senderFontSize, 10, 28, senderFontSize));
       setSenderFontWeight(clampIntLocal(s.senderFontWeight, 400, 800, senderFontWeight));
       const ff = typeof s.senderFontFamily === 'string' ? s.senderFontFamily : senderFontFamily;
-      setSenderFontFamily(ff as any);
+      if (isSenderFontFamily(ff)) setSenderFontFamily(ff);
       if (isHexColor(s.senderFontColor)) setSenderFontColor(String(s.senderFontColor).toLowerCase());
     },
     [
+      clampFloatLocal,
+      clampIntLocal,
       animEasingPreset,
       animEasingX1,
       animEasingX2,
@@ -449,6 +520,8 @@ export function ObsLinksSettings() {
       urlBlur,
       urlBorder,
       urlBorderGradientAngle,
+      urlEnterMs,
+      urlExitMs,
       urlPosition,
       urlRadius,
       urlVolume,
@@ -478,11 +551,11 @@ export function ObsLinksSettings() {
         setOverlayMaxConcurrent(nextMax);
 
         // Hydrate advanced style if present
-        let styleFromServer: any = null;
+        let styleFromServer: Record<string, unknown> | null = null;
         if (resp.overlayStyleJson) {
           try {
-            const j = JSON.parse(resp.overlayStyleJson) as any;
-            styleFromServer = j && typeof j === 'object' ? j : null;
+            const j: unknown = JSON.parse(resp.overlayStyleJson);
+            styleFromServer = toRecord(j);
           } catch {
             styleFromServer = null;
           }
@@ -494,8 +567,7 @@ export function ObsLinksSettings() {
         const nextScaleFixed = typeof styleFromServer?.scaleFixed === 'number' ? styleFromServer.scaleFixed : scaleFixed;
         const nextScaleMin = typeof styleFromServer?.scaleMin === 'number' ? styleFromServer.scaleMin : scaleMin;
         const nextScaleMax = typeof styleFromServer?.scaleMax === 'number' ? styleFromServer.scaleMax : scaleMax;
-        const nextSafePad =
-          typeof styleFromServer?.safePad === 'number' ? styleFromServer.safePad : typeof (styleFromServer as any)?.safePadPx === 'number' ? (styleFromServer as any).safePadPx : safePad;
+        const nextSafePad = getNumber(styleFromServer, 'safePad') ?? getNumber(styleFromServer, 'safePadPx') ?? safePad;
         const nextRadius = typeof styleFromServer?.radius === 'number' ? styleFromServer.radius : urlRadius;
         const nextShadowBlur = typeof styleFromServer?.shadowBlur === 'number'
           ? styleFromServer.shadowBlur
@@ -695,6 +767,7 @@ export function ObsLinksSettings() {
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelSlug]);
 
   useEffect(() => {
@@ -709,11 +782,11 @@ export function ObsLinksSettings() {
         if (!mounted) return;
         setCreditsToken(resp?.token || '');
 
-        let styleFromServer: any = null;
+        let styleFromServer: Record<string, unknown> | null = null;
         if (resp?.creditsStyleJson) {
           try {
-            const j = JSON.parse(resp.creditsStyleJson) as any;
-            styleFromServer = j && typeof j === 'object' ? j : null;
+            const j: unknown = JSON.parse(resp.creditsStyleJson);
+            styleFromServer = toRecord(j);
           } catch {
             styleFromServer = null;
           }
@@ -721,7 +794,7 @@ export function ObsLinksSettings() {
 
         const nextOrder: Array<'donors' | 'chatters'> = Array.isArray(styleFromServer?.sectionsOrder)
           ? styleFromServer.sectionsOrder
-              .map((v: any) => String(v || '').trim().toLowerCase())
+              .map((v: unknown) => String(v || '').trim().toLowerCase())
               .filter((v: string) => v === 'donors' || v === 'chatters')
           : creditsSectionsOrder;
         const nextShowDonors = typeof styleFromServer?.showDonors === 'boolean' ? styleFromServer.showDonors : creditsShowDonors;
@@ -1158,6 +1231,7 @@ export function ObsLinksSettings() {
     senderStrokeColor,
     overlayShowSender,
     senderFontFamily,
+    senderFontColor,
     senderFontSize,
     senderFontWeight,
     senderHoldMs,
@@ -1182,6 +1256,11 @@ export function ObsLinksSettings() {
     previewBg,
     previewLockPositions,
     previewShowSafeGuide,
+    animEasingPreset,
+    animEasingX1,
+    animEasingX2,
+    animEasingY1,
+    animEasingY2,
   ]);
 
   const creditsStyleJson = useMemo(() => {
@@ -1547,8 +1626,8 @@ export function ObsLinksSettings() {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.source !== previewIframeRef.current?.contentWindow) return;
-      const data = event.data as any;
-      if (!data || typeof data !== 'object') return;
+      const data = toRecord(event.data);
+      if (!data) return;
       if (data.type !== 'memalerts:overlayReady') return;
       overlayReadyRef.current = true;
       // Send current params immediately when overlay confirms readiness.
@@ -1709,13 +1788,19 @@ export function ObsLinksSettings() {
           return;
         }
         const cleaned = parsed
-          .map((p: any) => ({
-            id: String(p?.id || ''),
-            name: String(p?.name || '').trim(),
-            createdAt: Number(p?.createdAt || 0),
-            payload: p?.payload as OverlaySharePayload,
-          }))
-          .filter((p: any) => p.id && p.name && p.payload && typeof p.payload === 'object')
+          .map((p: unknown) => {
+            const r = toRecord(p);
+            const payload = r?.payload;
+            return {
+              id: String(r?.id || ''),
+              name: String(r?.name || '').trim(),
+              createdAt: Number(r?.createdAt || 0),
+              payload: payload && typeof payload === 'object' ? (payload as OverlaySharePayload) : null,
+            };
+          })
+          .filter((p): p is { id: string; name: string; createdAt: number; payload: OverlaySharePayload } => {
+            return Boolean(p.id && p.name && p.payload);
+          })
           .slice(0, 30);
         setCustomPresets(cleaned);
       } catch {
@@ -1733,13 +1818,15 @@ export function ObsLinksSettings() {
         if (cancelled) return;
         const list = Array.isArray(res?.presets) ? res.presets : [];
         const cleaned = list
-          .map((p: any) => ({
+          .map((p) => ({
             id: String(p?.id || ''),
             name: String(p?.name || '').trim(),
             createdAt: Number(p?.createdAt || 0),
-            payload: p?.payload as OverlaySharePayload,
+            payload: p?.payload && typeof p.payload === 'object' ? p.payload : null,
           }))
-          .filter((p: any) => p.id && p.name && p.payload && typeof p.payload === 'object')
+          .filter((p): p is { id: string; name: string; createdAt: number; payload: OverlaySharePayload } => {
+            return Boolean(p.id && p.name && p.payload);
+          })
           .slice(0, 30);
         setCustomPresets(cleaned);
         return;
@@ -2807,7 +2894,7 @@ export function ObsLinksSettings() {
                           </label>
                           <select
                             value={urlPosition}
-                            onChange={(e) => setUrlPosition(e.target.value as any)}
+                            onChange={(e) => setUrlPosition(e.target.value as UrlPosition)}
                             className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                           >
                             <option value="random">{t('admin.obsOverlayPositionRandom', { defaultValue: 'Random' })}</option>
@@ -2967,7 +3054,7 @@ export function ObsLinksSettings() {
                           </label>
                           <select
                             value={urlAnim}
-                            onChange={(e) => setUrlAnim(e.target.value as any)}
+                            onChange={(e) => setUrlAnim(e.target.value as UrlAnim)}
                             className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                           >
                             <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
@@ -3000,7 +3087,7 @@ export function ObsLinksSettings() {
                           </label>
                           <select
                             value={animEasingPreset === 'custom' ? 'ios' : animEasingPreset}
-                            onChange={(e) => setAnimEasingPreset(e.target.value as any)}
+                            onChange={(e) => setAnimEasingPreset(e.target.value as AnimEasingPreset)}
                             className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                           >
                             <option value="ios">{t('admin.obsOverlayEasingIos', { defaultValue: 'iOS (default)' })}</option>
@@ -3068,7 +3155,7 @@ export function ObsLinksSettings() {
                 </label>
                 <select
                   value={urlPosition}
-                  onChange={(e) => setUrlPosition(e.target.value as any)}
+                  onChange={(e) => setUrlPosition(e.target.value as UrlPosition)}
                   className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   <option value="random">{t('admin.obsOverlayPositionRandom')}</option>
@@ -3116,7 +3203,7 @@ export function ObsLinksSettings() {
                 <div className="flex items-center gap-3">
                   <select
                     value={scaleMode}
-                    onChange={(e) => setScaleMode(e.target.value as any)}
+                    onChange={(e) => setScaleMode(e.target.value as ScaleMode)}
                     className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   >
                     <option value="fixed">{t('admin.obsOverlayScaleFixed', { defaultValue: 'Fixed' })}</option>
@@ -3199,7 +3286,7 @@ export function ObsLinksSettings() {
                 </label>
                 <select
                   value={urlAnim}
-                  onChange={(e) => setUrlAnim(e.target.value as any)}
+                  onChange={(e) => setUrlAnim(e.target.value as UrlAnim)}
                   className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   <option value="fade">{t('admin.obsOverlayAnimFade', { defaultValue: 'Fade' })}</option>
@@ -3217,7 +3304,7 @@ export function ObsLinksSettings() {
                 </label>
                 <select
                   value={animEasingPreset}
-                  onChange={(e) => setAnimEasingPreset(e.target.value as any)}
+                  onChange={(e) => setAnimEasingPreset(e.target.value as AnimEasingPreset)}
                   className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   <option value="ios">{t('admin.obsOverlayAnimEasingIos', { defaultValue: 'iOS' })}</option>
@@ -3420,7 +3507,7 @@ export function ObsLinksSettings() {
                 </label>
                 <select
                   value={glassPreset}
-                  onChange={(e) => setGlassPreset(e.target.value as any)}
+                  onChange={(e) => setGlassPreset(e.target.value as GlassPreset)}
                   disabled={!glassEnabled}
                   className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
                 >
@@ -3493,7 +3580,7 @@ export function ObsLinksSettings() {
                 </label>
                 <select
                   value={borderPreset}
-                  onChange={(e) => setBorderPreset(e.target.value as any)}
+                  onChange={(e) => setBorderPreset(e.target.value as BorderPreset)}
                   className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   <option value="custom">{t('admin.obsOverlayBorderPresetCustom', { defaultValue: 'Custom' })}</option>
@@ -3581,7 +3668,7 @@ export function ObsLinksSettings() {
                 <div className="flex items-center justify-between gap-3">
                   <select
                     value={borderMode}
-                    onChange={(e) => setBorderMode(e.target.value as any)}
+                    onChange={(e) => setBorderMode(e.target.value as BorderMode)}
                     disabled={borderPreset !== 'custom'}
                     className="rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
                     aria-label={t('admin.obsOverlayBorderMode', { defaultValue: 'Border mode' })}
@@ -3714,7 +3801,10 @@ export function ObsLinksSettings() {
                     </label>
                     <select
                       value={senderFontFamily}
-                      onChange={(e) => setSenderFontFamily(e.target.value as any)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (isSenderFontFamily(v)) setSenderFontFamily(v);
+                      }}
                       className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       <option value="system">{t('admin.obsOverlaySenderFontSystem', { defaultValue: 'System' })}</option>
@@ -3813,7 +3903,7 @@ export function ObsLinksSettings() {
                         </label>
                         <select
                           value={senderStroke}
-                          onChange={(e) => setSenderStroke(e.target.value as any)}
+                          onChange={(e) => setSenderStroke(e.target.value as SenderStroke)}
                           className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
                           <option value="glass">{t('admin.obsOverlaySenderStrokeGlass', { defaultValue: 'Glass' })}</option>
@@ -4008,7 +4098,7 @@ export function ObsLinksSettings() {
                     <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTextAlign', { defaultValue: 'Выравнивание' })}</label>
                     <select
                       value={creditsTextAlign}
-                      onChange={(e) => setCreditsTextAlign(e.target.value as any)}
+                      onChange={(e) => setCreditsTextAlign(e.target.value as CreditsTextAlign)}
                       className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                       disabled={loadingCreditsSettings || savingCreditsSettings}
                     >
@@ -4032,7 +4122,7 @@ export function ObsLinksSettings() {
                       </label>
                       <select
                         value={creditsBackgroundMode}
-                        onChange={(e) => setCreditsBackgroundMode(e.target.value as any)}
+                        onChange={(e) => setCreditsBackgroundMode(e.target.value as CreditsBackgroundMode)}
                         className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                         disabled={loadingCreditsSettings || savingCreditsSettings}
                       >
@@ -4112,7 +4202,7 @@ export function ObsLinksSettings() {
                   <div className="mt-2">
                     <select
                       value={creditsScrollDirection}
-                      onChange={(e) => setCreditsScrollDirection(e.target.value as any)}
+                      onChange={(e) => setCreditsScrollDirection(e.target.value as CreditsScrollDirection)}
                       className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                       disabled={loadingCreditsSettings || savingCreditsSettings}
                     >
@@ -4159,7 +4249,7 @@ export function ObsLinksSettings() {
                           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsAnchorX', { defaultValue: 'Anchor X' })}</label>
                           <select
                             value={creditsAnchorX}
-                            onChange={(e) => setCreditsAnchorX(e.target.value as any)}
+                            onChange={(e) => setCreditsAnchorX(e.target.value as CreditsAnchorX)}
                             className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                           >
                             <option value="left">{t('admin.alignLeft', { defaultValue: 'Left' })}</option>
@@ -4171,7 +4261,7 @@ export function ObsLinksSettings() {
                           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsAnchorY', { defaultValue: 'Anchor Y' })}</label>
                           <select
                             value={creditsAnchorY}
-                            onChange={(e) => setCreditsAnchorY(e.target.value as any)}
+                            onChange={(e) => setCreditsAnchorY(e.target.value as CreditsAnchorY)}
                             className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
                           >
                             <option value="top">{t('admin.alignTop', { defaultValue: 'Top' })}</option>
@@ -4308,7 +4398,7 @@ export function ObsLinksSettings() {
                         </div>
                         <div>
                           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleTransform', { defaultValue: 'Регистр' })}</label>
-                          <select value={creditsTitleTransform} onChange={(e) => setCreditsTitleTransform(e.target.value as any)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsTitleEnabled}>
+                          <select value={creditsTitleTransform} onChange={(e) => setCreditsTitleTransform(e.target.value as CreditsTitleTransform)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white" disabled={!creditsTitleEnabled}>
                             <option value="none">{t('admin.none', { defaultValue: 'None' })}</option>
                             <option value="uppercase">{t('admin.uppercase', { defaultValue: 'UPPERCASE' })}</option>
                             <option value="lowercase">{t('admin.lowercase', { defaultValue: 'lowercase' })}</option>
@@ -4371,7 +4461,7 @@ export function ObsLinksSettings() {
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsBackgroundMode', { defaultValue: 'Режим фона' })}</label>
-                        <select value={creditsBackgroundMode} onChange={(e) => setCreditsBackgroundMode(e.target.value as any)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white">
+                        <select value={creditsBackgroundMode} onChange={(e) => setCreditsBackgroundMode(e.target.value as CreditsBackgroundMode)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white">
                           <option value="transparent">{t('admin.transparent', { defaultValue: 'Transparent' })}</option>
                           <option value="card">{t('admin.card', { defaultValue: 'Card' })}</option>
                           <option value="full">{t('admin.fullscreen', { defaultValue: 'Full' })}</option>
@@ -4438,7 +4528,7 @@ export function ObsLinksSettings() {
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsScrollDirection', { defaultValue: 'Направление' })}</label>
-                        <select value={creditsScrollDirection} onChange={(e) => setCreditsScrollDirection(e.target.value as any)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white">
+                        <select value={creditsScrollDirection} onChange={(e) => setCreditsScrollDirection(e.target.value as CreditsScrollDirection)} className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white">
                           <option value="up">{t('admin.up', { defaultValue: 'Up' })}</option>
                           <option value="down">{t('admin.down', { defaultValue: 'Down' })}</option>
                         </select>

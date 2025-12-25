@@ -4,10 +4,12 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { Wallet } from '@/types';
 
+import UserMenu from '@/components/UserMenu';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
+import { Button } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
 import { selectPendingSubmissionsCount } from '@/store/selectors';
@@ -20,8 +22,6 @@ import {
   submissionRejected,
   submissionResubmitted,
 } from '@/store/slices/submissionsSlice';
-import UserMenu from '@/components/UserMenu';
-import { Button } from '@/shared/ui';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const AuthRequiredModal = lazy(() => import('@/components/AuthRequiredModal'));
@@ -38,6 +38,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const userId = user?.id;
+  const userChannelId = user?.channelId;
+  const userChannelSlug = user?.channel?.slug;
+  const userWallets = user?.wallets;
   const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
   const pendingSubmissionsCount = useAppSelector(selectPendingSubmissionsCount);
   const dispatch = useAppDispatch();
@@ -129,9 +132,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Load wallet balance and auto-refresh
   // Skip wallet loading if we're on a channel page - wallet is loaded by StreamerProfile
   useEffect(() => {
-    const userId = user?.id;
-
-    if (!user || !userId) {
+    if (!userId) {
       setWallet(null);
       walletLoadedRef.current = null;
       return;
@@ -141,8 +142,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     const isChannelPage = location.pathname.startsWith('/channel/');
     if (isChannelPage) {
       // Use wallet from Redux store if available, or from user data
-      if (channelId && user.wallets) {
-        const userWallet = user.wallets.find((w) => w.channelId === channelId);
+      if (channelId && userWallets) {
+        const userWallet = userWallets.find((w) => w.channelId === channelId);
         if (userWallet) {
           setWallet(userWallet);
         }
@@ -152,12 +153,12 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     }
 
     // Determine which channel's wallet to load
-    const targetChannelSlug = currentChannelSlug || user.channel?.slug;
-    const targetChannelId = channelId || user.channelId;
+    const targetChannelSlug = currentChannelSlug || userChannelSlug;
+    const targetChannelId = channelId || userChannelId;
 
     // Check if wallet exists in user.wallets first - use Redux store as primary source
-    if (targetChannelId && user.wallets) {
-      const userWallet = user.wallets.find((w) => w.channelId === targetChannelId);
+    if (targetChannelId && userWallets) {
+      const userWallet = userWallets.find((w) => w.channelId === targetChannelId);
       if (userWallet) {
         setWallet(userWallet);
         walletLoadedRef.current = targetChannelSlug || null;
@@ -201,7 +202,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               if (targetChannelId) {
                 setWallet({
                   id: '',
-                  userId: user.id,
+                  userId,
                   channelId: targetChannelId,
                   balance: 0,
                 });
@@ -244,9 +245,10 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       window.removeEventListener('focus', handleFocus);
     };
   }, [
-    user?.id,
-    user?.channelId,
-    user?.channel?.slug,
+    userId,
+    userChannelId,
+    userChannelSlug,
+    userWallets,
     currentChannelSlug,
     channelId,
     dispatch,

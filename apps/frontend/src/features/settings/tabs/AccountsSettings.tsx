@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '@/store/hooks';
+
 import { Button, Card } from '@/shared/ui';
+import type { ExternalAccount } from '@/types';
 import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 import { api } from '@/lib/api';
-import { useAppDispatch } from '@/store/hooks';
-import { fetchUser } from '@/store/slices/authSlice';
 import { toApiError } from '@/shared/api/toApiError';
-import toast from 'react-hot-toast';
-import type { ExternalAccount } from '@/types';
+
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { fetchUser } from '@/store/slices/authSlice';
 
 function normalizeAccounts(input: unknown): ExternalAccount[] {
   if (Array.isArray(input)) return input as ExternalAccount[];

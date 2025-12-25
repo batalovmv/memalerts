@@ -5,17 +5,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import type { Meme } from '@/types';
 
-import { api } from '@/lib/api';
-import Header from '@/components/Header';
-import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
-import { PendingSubmissionsPanel } from '@/components/dashboard/PendingSubmissionsPanel';
 import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
+import { PendingSubmissionsPanel } from '@/components/dashboard/PendingSubmissionsPanel';
+import Header from '@/components/Header';
 import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
 import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesModal';
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
+import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
+import { api } from '@/lib/api';
 import { Button } from '@/shared/ui';
-import { store } from '@/store/index';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { store } from '@/store/index';
 import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
@@ -61,14 +61,14 @@ export default function DashboardPage() {
   const tab = (searchParams.get('tab') || '').toLowerCase();
   const isPanelOpen = panel === 'submissions' || panel === 'memes';
 
-  const setPanel = (next: 'submissions' | 'memes' | null, replace = false) => {
+  const setPanel = useCallback((next: 'submissions' | 'memes' | null, replace = false) => {
     const nextParams = new URLSearchParams(searchParams);
     // Back-compat: remove older tab param
     nextParams.delete('tab');
     if (next) nextParams.set('panel', next);
     else nextParams.delete('panel');
     setSearchParams(nextParams, { replace });
-  };
+  }, [searchParams, setSearchParams]);
 
   const scrollToPanelIfMobile = (next: 'submissions' | 'memes') => {
     const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
@@ -101,7 +101,7 @@ export default function DashboardPage() {
     if (tab === 'submissions' && panel !== 'submissions') {
       setPanel('submissions', true);
     }
-  }, [panel, searchParams]);
+  }, [panel, searchParams, setPanel]);
 
   useEffect(() => {
     // (debug logging removed)
@@ -152,7 +152,7 @@ export default function DashboardPage() {
       try {
         const slug = user.channel?.slug;
         if (!slug) return;
-        const data = await api.get<any>(`/channels/${slug}`, { params: { includeMemes: false } });
+        const data = await api.get<{ stats?: { memesCount?: number } }>(`/channels/${slug}`, { params: { includeMemes: false } });
         const count = data?.stats?.memesCount;
         if (typeof count === 'number') setMemesCount(count);
       } catch {
