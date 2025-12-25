@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { linkExternalAccount } from '@/shared/auth/login';
+import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, Input, Spinner, Textarea } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
@@ -114,13 +114,13 @@ export function BotSettings() {
   const [bots, setBots] = useState<StreamerBotIntegration[]>([]);
   const [botIntegrationToggleLoading, setBotIntegrationToggleLoading] = useState<string | null>(null);
   const [youtubeNeedsRelink, setYoutubeNeedsRelink] = useState(false);
-  const [youtubeEnableRetryQueued, setYoutubeEnableRetryQueued] = useState(false);
-  const [youtubeRelinkModalOpen, setYoutubeRelinkModalOpen] = useState(false);
-  const [youtubeForceRelinkLoading, setYoutubeForceRelinkLoading] = useState(false);
   const [youtubeLastRelinkErrorId, setYoutubeLastRelinkErrorId] = useState<string | null>(null);
   const [youtubeRelinkDetails, setYoutubeRelinkDetails] = useState<{ reason: string | null; requiredScopesMissing: string[] }>(
     { reason: null, requiredScopesMissing: [] }
   );
+  const [youtubeOverrideStatus, setYoutubeOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [youtubeOverrideLoading, setYoutubeOverrideLoading] = useState(false);
+  const [youtubeOverrideBusy, setYoutubeOverrideBusy] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoChannelUrl, setVkvideoChannelUrl] = useState('');
@@ -891,7 +891,7 @@ export function BotSettings() {
       const { getRequestIdFromError } = await import('@/lib/api');
       const requestId = getRequestIdFromError(error);
 
-      // 412 is handled by relink modal (special UX)
+      // 412 is handled by relink CTA in UI (special UX)
       if (status === 412 && code === 'YOUTUBE_RELINK_REQUIRED') return null;
 
       if (status === 409 && code === 'YOUTUBE_CHANNEL_REQUIRED') {
@@ -921,6 +921,16 @@ export function BotSettings() {
         };
       }
 
+      if (status === 503 && code === 'YOUTUBE_BOT_NOT_CONFIGURED') {
+        return {
+          message: t('admin.youtubeBotNotConfigured', {
+            defaultValue:
+              'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
+          }),
+          requestId,
+        };
+      }
+
       if (status === 412 && code) {
         // Unknown 412 precondition — still show a helpful message.
         const serverMessage = typeof data?.error === 'string' ? data.error : null;
@@ -943,52 +953,85 @@ export function BotSettings() {
     return `${window.location.pathname}${window.location.search}`;
   }, []);
 
-  const startYoutubeRelink = useCallback(() => {
-    // Mark intent to retry enabling after OAuth callback returns.
-    try {
-      window.localStorage.setItem('memalerts:youtubeRelink:retryEnable', String(Date.now()));
-      setYoutubeEnableRetryQueued(true);
-    } catch {
-      // ignore
-    }
+  useEffect(() => {
+    // Deep link support: /settings/bot/youtube (or /settings/bot/vk)
+    const sub = window.location.pathname.replace(/^\/settings\/?/, '');
+    const parts = sub.split('/').filter(Boolean);
+    if (parts[0] !== 'bot') return;
+    const provider = (parts[1] || '').toLowerCase();
+    if (provider === 'youtube') setBotTab('youtube');
+    else if (provider === 'vk') setBotTab('vk');
+    else if (provider === 'twitch') setBotTab('twitch');
+  }, []);
 
-    setYoutubeRelinkModalOpen(false);
-    linkExternalAccount('youtube', getCurrentRelativePath());
+  const startStreamerYoutubeAccountRelink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/auth/youtube/link`);
+    // UX path (must be in backend allowlist): return to YouTube bot section.
+    url.searchParams.set('redirect_to', '/settings/bot/youtube');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
   }, [getCurrentRelativePath]);
 
-  const forceResetYoutubeAndRelink = useCallback(async () => {
+  const loadYoutubeOverride = useCallback(async () => {
+    try {
+      setYoutubeOverrideLoading(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<unknown>('/streamer/bots/youtube/bot', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setYoutubeOverrideStatus({ enabled, updatedAt });
+    } catch {
+      setYoutubeOverrideStatus(null);
+    } finally {
+      setYoutubeOverrideLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (botTab !== 'youtube') return;
+    void loadYoutubeOverride();
+  }, [botTab, loadYoutubeOverride]);
+
+  const redirectToYoutubeOverrideLink = useCallback(
+    (redirectTo: string) => {
+      const apiOrigin = getApiOriginForRedirect();
+      const url = new URL(`${apiOrigin}/streamer/bots/youtube/bot/link`);
+      // UX path (must be in backend allowlist): return to YouTube bot section.
+      url.searchParams.set('redirect_to', '/settings/bot/youtube');
+      url.searchParams.set('origin', window.location.origin);
+      window.location.href = url.toString();
+    },
+    []
+  );
+
+  const disconnectYoutubeOverride = useCallback(async () => {
+    if (youtubeOverrideBusy) return;
+    const confirmed = window.confirm(
+      t('admin.youtubeOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего YouTube-бота (override)?' })
+    );
+    if (!confirmed) return;
+
     const startedAt = Date.now();
     try {
-      setYoutubeForceRelinkLoading(true);
-      setYoutubeLastRelinkErrorId(null);
-
+      setYoutubeOverrideBusy(true);
       const { api } = await import('@/lib/api');
-
-      // Best-effort: find YouTube external account and unlink it to force a clean OAuth.
-      const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
-      const accounts = Array.isArray(items) ? (items as Array<{ id?: unknown; provider?: unknown }>) : [];
-      const ytAcc = accounts.find((a) => String(a?.provider || '').toLowerCase() === 'youtube');
-
-      if (ytAcc?.id && typeof ytAcc.id === 'string') {
-        await api.delete(`/auth/accounts/${encodeURIComponent(ytAcc.id)}`);
-      }
-
-      // After unlink, start OAuth again.
-      startYoutubeRelink();
-    } catch (error: unknown) {
-      const { getRequestIdFromError } = await import('@/lib/api');
-      const rid = getRequestIdFromError(error);
-      setYoutubeLastRelinkErrorId(rid);
-      toast.error(
-        rid
-          ? `${t('admin.youtubeRelinkFailed', { defaultValue: 'Не удалось перелинковать YouTube.' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
-          : t('admin.youtubeRelinkFailed', { defaultValue: 'Не удалось перелинковать YouTube.' })
-      );
+      await api.delete('/streamer/bots/youtube/bot');
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      await loadYoutubeOverride();
+    } catch (e) {
+      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(msg);
     } finally {
-      await ensureMinDuration(startedAt, 450);
-      setYoutubeForceRelinkLoading(false);
+      await ensureMinDuration(startedAt, 350);
+      setYoutubeOverrideBusy(false);
     }
-  }, [startYoutubeRelink, t]);
+  }, [loadYoutubeOverride, t, youtubeOverrideBusy]);
 
   const enableYoutubeIntegration = useCallback(async () => {
     const startedAt = Date.now();
@@ -1014,8 +1057,7 @@ export function BotSettings() {
         } catch {
           setYoutubeLastRelinkErrorId(null);
         }
-        // Expected precondition — show guided relink UX, not a generic "server error".
-        setYoutubeRelinkModalOpen(true);
+        // Expected precondition — show relink CTA in-place (not a generic "server error").
         return;
       }
       const extra = await getYoutubeEnableErrorMessage(error);
@@ -1049,7 +1091,6 @@ export function BotSettings() {
         if (provider === 'youtube' && !nextEnabled) {
           // Clearing relink UI when user explicitly turns integration off.
           setYoutubeNeedsRelink(false);
-          setYoutubeEnableRetryQueued(false);
           setYoutubeLastRelinkErrorId(null);
           setYoutubeRelinkDetails({ reason: null, requiredScopesMissing: [] });
         }
@@ -1066,7 +1107,6 @@ export function BotSettings() {
         void loadBotIntegrations();
         if (provider === 'youtube' && nextEnabled && isYoutubeRelinkRequiredError(error)) {
           setYoutubeNeedsRelink(true);
-          setYoutubeEnableRetryQueued(false);
           setYoutubeRelinkDetails(getYoutubeRelinkDetailsFromError(error));
           try {
             const { getRequestIdFromError } = await import('@/lib/api');
@@ -1074,8 +1114,7 @@ export function BotSettings() {
           } catch {
             setYoutubeLastRelinkErrorId(null);
           }
-          // Don't treat as "server down" — expected precondition.
-          setYoutubeRelinkModalOpen(true);
+          // Don't treat as "server down" — expected precondition. Show relink CTA in-place.
           return;
         }
         if (provider === 'youtube' && nextEnabled) {
@@ -1104,46 +1143,6 @@ export function BotSettings() {
     },
     [getYoutubeEnableErrorMessage, getYoutubeRelinkDetailsFromError, isYoutubeRelinkRequiredError, loadBotIntegrations, t]
   );
-
-  useEffect(() => {
-    // Auto-retry enabling YouTube after successful OAuth re-link.
-    // We can't rely on URL params after redirect, so we use a one-time localStorage flag.
-    const key = 'memalerts:youtubeRelink:retryEnable';
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) return;
-      const ts = Number(raw);
-      // Expire after 10 minutes to avoid surprising retries later.
-      const isFresh = Number.isFinite(ts) && Date.now() - ts < 10 * 60 * 1000;
-      window.localStorage.removeItem(key);
-      if (!isFresh) return;
-
-      setBotTab('youtube');
-      setYoutubeEnableRetryQueued(false);
-      void (async () => {
-        // Refresh linked accounts best-effort (backend may rotate tokens/scopes).
-        try {
-          const { api } = await import('@/lib/api');
-          const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
-          const accounts = Array.isArray(items) ? (items as Array<{ provider?: unknown }>) : [];
-          const hasYouTube = accounts.some((a) => String(a?.provider || '').toLowerCase() === 'youtube');
-          if (hasYouTube) {
-            toast.success(
-              t('admin.youtubeRelinked', {
-                defaultValue: 'YouTube перелинкован, можно включать бота.',
-              })
-            );
-          }
-        } catch {
-          // ignore (best-effort)
-        }
-
-        void enableYoutubeIntegration();
-      })();
-    } catch {
-      // ignore (private mode, disabled storage, etc.)
-    }
-  }, [enableYoutubeIntegration, t]);
 
   const toggleVkvideoIntegration = useCallback(
     async (nextEnabled: boolean) => {
@@ -2267,56 +2266,60 @@ export function BotSettings() {
         </>
       ) : botTab === 'youtube' ? (
         <>
-          <ConfirmDialog
-            isOpen={youtubeRelinkModalOpen}
-            onClose={() => setYoutubeRelinkModalOpen(false)}
-            onConfirm={startYoutubeRelink}
-            title={t('admin.youtubeRelinkTitle', { defaultValue: 'Перелинковать YouTube' })}
-            message={
-              <div className="space-y-3">
-                <div>
-                  {t('admin.youtubeRelinkBody', {
-                    defaultValue:
-                      'Чтобы бот мог отправлять сообщения в чат, нужен дополнительный scope YouTube: https://www.googleapis.com/auth/youtube.force-ssl. Если YouTube был привязан раньше — потребуется перелинковка.',
-                  })}
+          {/* YouTube override bot */}
+          <div className="glass p-4 mb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.youtubeOverrideTitle', { defaultValue: 'Свой бот (override)' })}
                 </div>
-
-                {youtubeRelinkDetails.reason ? (
-                  <div className="text-sm">
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                      {t('admin.youtubeRelinkReasonTitle', { defaultValue: 'Причина от сервера' })}
-                    </div>
-                    <div className="mt-1 break-words">{youtubeRelinkDetails.reason}</div>
-                  </div>
-                ) : null}
-
-                {youtubeRelinkDetails.requiredScopesMissing.length ? (
-                  <div className="text-sm">
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                      {t('admin.youtubeRelinkMissingScopesTitle', { defaultValue: 'Не хватает разрешений (scopes)' })}
-                    </div>
-                    <ul className="mt-1 list-disc pl-5 space-y-1">
-                      {youtubeRelinkDetails.requiredScopesMissing.map((s) => (
-                        <li key={s} className="break-words">
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  {t('admin.youtubeRelinkExtraHint', {
-                    defaultValue:
-                      'Если после перелинковки ошибка повторяется — используйте “Сбросить привязку и перелинковать” в настройках YouTube-бота.',
-                  })}
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {youtubeOverrideLoading ? (
+                    t('common.loading', { defaultValue: 'Loading…' })
+                  ) : youtubeOverrideStatus?.enabled ? (
+                    <>
+                      {t('admin.youtubeOverrideOn', { defaultValue: 'Используется ваш бот' })}
+                      {youtubeOverrideStatus.updatedAt ? (
+                        <span className="ml-2 opacity-80">
+                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(youtubeOverrideStatus.updatedAt).toLocaleString()}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    t('admin.youtubeOverrideOff', {
+                      defaultValue: 'Используется дефолтный бот MemAlerts (если настроен админом)',
+                    })
+                  )}
                 </div>
               </div>
-            }
-            confirmText={t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
-            cancelText={t('common.close', { defaultValue: 'Закрыть' })}
-            confirmButtonClass="bg-primary hover:bg-primary/90"
-          />
+              <div className="flex items-center gap-2 shrink-0">
+                {youtubeOverrideStatus?.enabled ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => redirectToYoutubeOverrideLink(getCurrentRelativePath())}
+                      disabled={youtubeOverrideBusy}
+                    >
+                      {t('admin.youtubeOverrideRelink', { defaultValue: 'Перепривязать' })}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void disconnectYoutubeOverride()} disabled={youtubeOverrideBusy}>
+                      {t('admin.youtubeOverrideDisconnect', { defaultValue: 'Отключить' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => redirectToYoutubeOverrideLink(getCurrentRelativePath())}
+                    disabled={youtubeOverrideBusy}
+                  >
+                    {t('admin.youtubeOverrideConnect', { defaultValue: 'Подключить своего бота' })}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
           {/* YouTube integration */}
           <div className="glass p-4 mb-4 relative">
             <div className="flex items-start justify-between gap-4">
@@ -2362,35 +2365,12 @@ export function BotSettings() {
                     type="button"
                     variant="primary"
                     onClick={() => {
-                      startYoutubeRelink();
+                      startStreamerYoutubeAccountRelink();
                     }}
                   >
-                    {t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => void forceResetYoutubeAndRelink()}
-                    disabled={ytBusy || youtubeForceRelinkLoading}
-                  >
-                    {youtubeForceRelinkLoading
-                      ? t('common.loading', { defaultValue: 'Loading…' })
-                      : t('admin.youtubeForceRelink', { defaultValue: 'Сбросить привязку и перелинковать' })}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => void enableYoutubeIntegration()}
-                    disabled={ytBusy}
-                  >
-                    {t('admin.youtubeRetryEnableAction', { defaultValue: 'Повторить включение' })}
+                    {t('admin.youtubeRelinkStreamerCta', { defaultValue: 'Перепривязать YouTube (аккаунт стримера)' })}
                   </Button>
                 </div>
-                {youtubeEnableRetryQueued ? (
-                  <div className="mt-2 text-xs text-amber-900/80 dark:text-amber-100/80">
-                    {t('admin.youtubeRelinkWillRetry', { defaultValue: 'После привязки попробуем включить автоматически.' })}
-                  </div>
-                ) : null}
               </div>
             )}
           </div>

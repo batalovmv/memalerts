@@ -7,6 +7,7 @@ import type { ExternalAccount } from '@/types';
 import { api } from '@/lib/api';
 import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
 import { toApiError } from '@/shared/api/toApiError';
+import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 import { Button, Card } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -85,6 +86,9 @@ export function AccountsSettings() {
   const dispatch = useAppDispatch();
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
   const [accountsOverride, setAccountsOverride] = useState<ExternalAccount[] | null>(null);
+  const [defaultYoutubeBotStatus, setDefaultYoutubeBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [defaultYoutubeBotLoading, setDefaultYoutubeBotLoading] = useState(false);
+  const [defaultYoutubeBotBusy, setDefaultYoutubeBotBusy] = useState(false);
   const refreshedOnMountRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -140,6 +144,64 @@ export function AccountsSettings() {
       isMountedRef.current = false;
     };
   }, [dispatch]);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        setDefaultYoutubeBotLoading(true);
+        const res = await api.get<unknown>('/owner/bots/youtube/default/status', { timeout: 8000 });
+        const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+        const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+        const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+        if (!cancelled) setDefaultYoutubeBotStatus({ enabled, updatedAt });
+      } catch {
+        if (!cancelled) setDefaultYoutubeBotStatus(null);
+      } finally {
+        if (!cancelled) setDefaultYoutubeBotLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  const redirectToDefaultYoutubeBotLink = useCallback(
+    (redirectTo: string) => {
+      const apiOrigin = getApiOriginForRedirect();
+      const url = new URL(`${apiOrigin}/owner/bots/youtube/default/link`);
+      // Admin flow lives in Accounts; keep it on the allowlisted path.
+      url.searchParams.set('redirect_to', '/settings/accounts');
+      url.searchParams.set('origin', window.location.origin);
+      window.location.href = url.toString();
+    },
+    []
+  );
+
+  const disconnectDefaultYoutubeBot = useCallback(async () => {
+    if (defaultYoutubeBotBusy) return;
+    const confirmed = window.confirm(
+      t('settings.defaultYoutubeBotDisconnectConfirm', { defaultValue: 'Отключить дефолтного YouTube-бота?' })
+    );
+    if (!confirmed) return;
+
+    try {
+      setDefaultYoutubeBotBusy(true);
+      await api.delete('/owner/bots/youtube/default');
+      const res = await api.get<unknown>('/owner/bots/youtube/default/status', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setDefaultYoutubeBotStatus({ enabled, updatedAt });
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+    } catch (e) {
+      const err = toApiError(e, t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      toast.error(err.message);
+    } finally {
+      setDefaultYoutubeBotBusy(false);
+    }
+  }, [defaultYoutubeBotBusy, t]);
 
   const ensureSessionOrLogin = useCallback(async () => {
     try {
@@ -304,6 +366,59 @@ export function AccountsSettings() {
           </p>
         </div>
       </div>
+
+      {user?.role === 'admin' && (
+        <Card className="p-5 mb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.defaultYoutubeBotTitle', { defaultValue: 'Дефолтный YouTube бот' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {defaultYoutubeBotLoading ? (
+                  t('common.loading', { defaultValue: 'Loading…' })
+                ) : defaultYoutubeBotStatus?.enabled ? (
+                  <>
+                    {t('settings.defaultYoutubeBotConnected', { defaultValue: 'Подключён' })}
+                    {defaultYoutubeBotStatus.updatedAt ? (
+                      <span className="ml-2 opacity-80">
+                        {t('admin.updatedAt', { defaultValue: 'Updated' })}:{' '}
+                        {new Date(defaultYoutubeBotStatus.updatedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  t('settings.defaultYoutubeBotNotConnected', { defaultValue: 'Дефолтный YouTube бот не подключён' })
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {defaultYoutubeBotStatus?.enabled ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => redirectToDefaultYoutubeBotLink('/settings/accounts')}
+                    disabled={defaultYoutubeBotBusy}
+                  >
+                    {t('settings.defaultYoutubeBotRelink', { defaultValue: 'Перепривязать' })}
+                  </Button>
+                  <Button variant="secondary" onClick={() => void disconnectDefaultYoutubeBot()} disabled={defaultYoutubeBotBusy}>
+                    {t('settings.defaultYoutubeBotDisconnect', { defaultValue: 'Отключить' })}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={() => redirectToDefaultYoutubeBotLink('/settings/accounts')}
+                  disabled={defaultYoutubeBotBusy}
+                >
+                  {t('settings.defaultYoutubeBotConnect', { defaultValue: 'Подключить' })}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="space-y-3">
         {services.map((service) => {

@@ -75,6 +75,10 @@ export default function Admin() {
       setActiveTab('accounts');
       return;
     }
+    if (pathTab === 'bot') {
+      setActiveTab('bot');
+      return;
+    }
 
     const tabParam = searchParams.get('tab');
     if (tabParam === 'submissions') {
