@@ -98,6 +98,8 @@ export function BotSettings() {
   const [youtubeNeedsRelink, setYoutubeNeedsRelink] = useState(false);
   const [youtubeEnableRetryQueued, setYoutubeEnableRetryQueued] = useState(false);
   const [youtubeRelinkModalOpen, setYoutubeRelinkModalOpen] = useState(false);
+  const [youtubeForceRelinkLoading, setYoutubeForceRelinkLoading] = useState(false);
+  const [youtubeLastRelinkErrorId, setYoutubeLastRelinkErrorId] = useState<string | null>(null);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoEnableMode, setVkvideoEnableMode] = useState<'auto' | 'manual'>('auto');
@@ -620,6 +622,40 @@ export function BotSettings() {
     linkExternalAccount('youtube', getCurrentRelativePath());
   }, [getCurrentRelativePath]);
 
+  const forceResetYoutubeAndRelink = useCallback(async () => {
+    const startedAt = Date.now();
+    try {
+      setYoutubeForceRelinkLoading(true);
+      setYoutubeLastRelinkErrorId(null);
+
+      const { api, getRequestIdFromError } = await import('@/lib/api');
+
+      // Best-effort: find YouTube external account and unlink it to force a clean OAuth.
+      const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
+      const accounts = Array.isArray(items) ? (items as Array<{ id?: unknown; provider?: unknown }>) : [];
+      const ytAcc = accounts.find((a) => String(a?.provider || '').toLowerCase() === 'youtube');
+
+      if (ytAcc?.id && typeof ytAcc.id === 'string') {
+        await api.delete(`/auth/accounts/${encodeURIComponent(ytAcc.id)}`);
+      }
+
+      // After unlink, start OAuth again.
+      startYoutubeRelink();
+    } catch (error: unknown) {
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      setYoutubeLastRelinkErrorId(rid);
+      toast.error(
+        rid
+          ? `${t('admin.youtubeRelinkFailed', { defaultValue: 'Не удалось перелинковать YouTube.' })} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})`
+          : t('admin.youtubeRelinkFailed', { defaultValue: 'Не удалось перелинковать YouTube.' })
+      );
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setYoutubeForceRelinkLoading(false);
+    }
+  }, [startYoutubeRelink, t]);
+
   const enableYoutubeIntegration = useCallback(async () => {
     const startedAt = Date.now();
     try {
@@ -635,6 +671,12 @@ export function BotSettings() {
       void loadBotIntegrations();
       if (isYoutubeRelinkRequiredError(error)) {
         setYoutubeNeedsRelink(true);
+        try {
+          const { getRequestIdFromError } = await import('@/lib/api');
+          setYoutubeLastRelinkErrorId(getRequestIdFromError(error));
+        } catch {
+          setYoutubeLastRelinkErrorId(null);
+        }
         // Expected precondition — show guided relink UX, not a generic "server error".
         setYoutubeRelinkModalOpen(true);
         return;
@@ -656,6 +698,7 @@ export function BotSettings() {
           // Clearing relink UI when user explicitly turns integration off.
           setYoutubeNeedsRelink(false);
           setYoutubeEnableRetryQueued(false);
+          setYoutubeLastRelinkErrorId(null);
         }
         // optimistic
         setBots((prev) => prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b)));
@@ -671,6 +714,12 @@ export function BotSettings() {
         if (provider === 'youtube' && nextEnabled && isYoutubeRelinkRequiredError(error)) {
           setYoutubeNeedsRelink(true);
           setYoutubeEnableRetryQueued(false);
+          try {
+            const { getRequestIdFromError } = await import('@/lib/api');
+            setYoutubeLastRelinkErrorId(getRequestIdFromError(error));
+          } catch {
+            setYoutubeLastRelinkErrorId(null);
+          }
           // Don't treat as "server down" — expected precondition.
           setYoutubeRelinkModalOpen(true);
           return;
@@ -1660,7 +1709,8 @@ export function BotSettings() {
             onConfirm={startYoutubeRelink}
             title={t('admin.youtubeRelinkTitle', { defaultValue: 'Перелинковать YouTube' })}
             message={t('admin.youtubeRelinkBody', {
-              defaultValue: 'Нужно перелинковать YouTube (истёк токен или не хватает прав).',
+              defaultValue:
+                'Нужно перелинковать YouTube (истёк токен или не хватает прав). Если после перелинковки ошибка повторяется — нажмите “Сбросить привязку и перелинковать”.',
             })}
             confirmText={t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
             cancelText={t('common.close', { defaultValue: 'Закрыть' })}
@@ -1700,6 +1750,11 @@ export function BotSettings() {
                       "Нужно перелинковать YouTube (не хватает прав или токен устарел). Нажмите ‘Перелинковать’.",
                   })}
                 </div>
+                {youtubeLastRelinkErrorId ? (
+                  <div className="mt-1 text-xs text-amber-900/80 dark:text-amber-100/80">
+                    {t('common.errorId', { defaultValue: 'Error ID' })}: {youtubeLastRelinkErrorId}
+                  </div>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -1709,6 +1764,16 @@ export function BotSettings() {
                     }}
                   >
                     {t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void forceResetYoutubeAndRelink()}
+                    disabled={ytBusy || youtubeForceRelinkLoading}
+                  >
+                    {youtubeForceRelinkLoading
+                      ? t('common.loading', { defaultValue: 'Loading…' })
+                      : t('admin.youtubeForceRelink', { defaultValue: 'Сбросить привязку и перелинковать' })}
                   </Button>
                   <Button
                     type="button"
@@ -1930,6 +1995,34 @@ export function BotSettings() {
                     defaultValue: 'Outbox status: {{status}}',
                     status: lastOutbox.status || 'unknown',
                   })}
+                  {lastOutbox.id ? (
+                    <div className="mt-1">
+                      <span className="opacity-80">Outbox ID: </span>
+                      <span className="font-mono">{lastOutbox.id}</span>
+                      <button
+                        type="button"
+                        className="ml-2 underline hover:no-underline"
+                        onClick={() => {
+                          try {
+                            void navigator.clipboard.writeText(String(lastOutbox.id));
+                            toast.success(t('common.copied', { defaultValue: 'Copied.' }));
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                      >
+                        {t('common.copy', { defaultValue: 'Copy' })}
+                      </button>
+                    </div>
+                  ) : null}
+                  {(lastOutbox.status || '').toLowerCase() === 'pending' ? (
+                    <div className="mt-1">
+                      {t('admin.vkvideoOutboxPendingHint', {
+                        defaultValue:
+                          'pending = сообщение в очереди. Если раннер/консьюмер на сервере не запущен или не подключён к чату — сообщение не появится.',
+                      })}
+                    </div>
+                  ) : null}
                   {(() => {
                     if (!lastOutbox.createdAt) return null;
                     const createdAtMs = Date.parse(lastOutbox.createdAt);
