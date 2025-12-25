@@ -118,6 +118,23 @@ ENV (минимум для запуска):
     - **важно**: для работы DevAPI требуется `vkvideoChannelUrl` (URL канала). API пытается определить его из `current_user`, иначе нужно передать явно.
   - выключить: body `{ enabled: false }`
 
+### Автоподтягивание канала для фронтенда (рекомендуемый UX)
+
+Чтобы пользователь нажимал только “Вкл/Выкл”, фронтенд может заранее получить список каналов из VKVideo `current_user`:
+
+- `GET /streamer/bots/vkvideo/candidates`
+  - возвращает `{ items: [{ url, vkvideoChannelId }] }`
+  - если VKVideo не привязан: `400` с `code=VKVIDEO_NOT_LINKED`
+
+Рекомендуемый флоу:
+- после успешной линковки VKVideo (и/или при открытии настроек бота) вызвать `GET /streamer/bots/vkvideo/candidates`
+- если `items.length === 1` → при включении бота отправлять `PATCH /streamer/bots/vkvideo` с `vkvideoChannelUrl=items[0].url`
+- если `items.length > 1` → показать выбор канала (url) и затем включать с выбранным `vkvideoChannelUrl`
+- если `items.length === 0` или `VKVIDEO_CURRENT_USER_FAILED` → показать поле ввода ссылки на канал и включать с введённым `vkvideoChannelUrl`
+
+Важно:
+- старые подписки (включённые до обновления) могут не иметь `vkvideoChannelUrl` в БД → нужно один раз сделать “выкл → вкл”, чтобы пересохранить подписку корректно.
+
 ENV (минимум для запуска):
 - `VKVIDEO_CHAT_BOT_ENABLED=1`
 - `CHATBOT_BACKEND_BASE_URLS`
