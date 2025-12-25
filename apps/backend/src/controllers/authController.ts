@@ -338,6 +338,20 @@ export const authController = {
         const tokenInfoScopes = tokenInfo?.scope ? String(tokenInfo.scope) : null;
         if (tokenInfoScopes) scopes = tokenInfoScopes;
 
+        logger.info('oauth.youtube.callback.token_exchanged', {
+          requestId: (req as any)?.requestId,
+          flow: stateKind || 'unknown',
+          state: statePreview,
+          state_userId: stateUserId || null,
+          has_access_token: true,
+          has_refresh_token: Boolean(refreshToken),
+          token_scopes: scopes,
+          tokeninfo_has_sub: Boolean(sub),
+          tokeninfo_scopes: tokenInfoScopes,
+          tokeninfo_error: tokenInfo?.error ?? null,
+          tokeninfo_error_description: tokenInfo?.error_description ?? null,
+        });
+
         if (!sub) {
           // Back-compat fallback if older clients still requested OpenID scopes.
           const googleUser = await fetchYouTubeUser({ accessToken: tokenData.access_token });

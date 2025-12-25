@@ -64,12 +64,32 @@ export async function getYouTubeExternalAccount(userId: string): Promise<{
   tokenExpiresAt: Date | null;
   scopes: string | null;
 } | null> {
-  const row = await prisma.externalAccount.findFirst({
+  // IMPORTANT:
+  // Some users can end up with multiple YouTube external accounts over time
+  // (e.g. different Google accounts or historical providerAccountId differences).
+  // For YouTube bot operations we want the "best" usable account:
+  // - Prefer accounts that have a refresh token (so access can be refreshed)
+  // - Prefer accounts that have required YouTube Data API scopes
+  // - Otherwise, fall back to the most recently created row
+  const rows = await prisma.externalAccount.findMany({
     where: { userId, provider: 'youtube' },
     orderBy: { createdAt: 'desc' },
     select: { id: true, accessToken: true, refreshToken: true, tokenExpiresAt: true, scopes: true },
   });
-  if (!row) return null;
+  if (!rows.length) return null;
+
+  const pickable = rows.map((r) => ({
+    ...r,
+    hasRefresh: Boolean(r.refreshToken),
+    missingScopes: getMissingRequiredScopes(r.scopes ?? null),
+  }));
+
+  // Best: refresh token + all required scopes
+  const best = pickable.find((r) => r.hasRefresh && r.missingScopes.length === 0) ?? null;
+  // Next: has required scopes (even if refresh missing, might still work short-term)
+  const scoped = pickable.find((r) => r.missingScopes.length === 0) ?? null;
+  const row = best ?? scoped ?? rows[0]!;
+
   return {
     id: row.id,
     accessToken: row.accessToken ?? null,

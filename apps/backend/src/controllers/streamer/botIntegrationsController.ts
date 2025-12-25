@@ -164,11 +164,26 @@ export const botIntegrationsController = {
             tokeninfoError: tokenInfo?.error ?? null,
             tokeninfoErrorDescription: tokenInfo?.error_description ?? null,
           });
+          // Ensure frontend can show/copy the requestId.
+          if (req.requestId) res.setHeader('x-request-id', req.requestId);
+
+          const reason = diag.reason || 'failed_to_resolve_channel_id';
+          const msgByReason: Record<string, string> = {
+            missing_scopes: 'YouTube is linked without required permissions. Please re-link YouTube and grant the requested access.',
+            missing_refresh_token: 'YouTube link is missing refresh token. Please re-link YouTube and confirm the consent screen (offline access).',
+            invalid_grant: 'YouTube refresh token was revoked/invalid. Please re-link YouTube.',
+            api_insufficient_permissions: 'YouTube API rejected the token due to insufficient permissions. Please re-link YouTube and grant the requested access.',
+            api_unauthorized: 'YouTube token is not authorized. Please re-link YouTube.',
+          };
+
           return res.status(412).json({
             error: 'Precondition Failed',
             code: 'YOUTUBE_RELINK_REQUIRED',
             needsRelink: true,
-            message: 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
+            requestId: req.requestId,
+            reason,
+            requiredScopesMissing: diag.requiredScopesMissing,
+            message: msgByReason[reason] || 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
           });
         }
       }
@@ -220,10 +235,12 @@ export const botIntegrationsController = {
           if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
           if (!youtubeChannelId) {
             // Defensive: should not happen because precondition handles it.
+            if (req.requestId) res.setHeader('x-request-id', req.requestId);
             return res.status(412).json({
               error: 'Precondition Failed',
               code: 'YOUTUBE_RELINK_REQUIRED',
               needsRelink: true,
+              requestId: req.requestId,
               message: 'Failed to resolve YouTube channelId. Please re-link YouTube and try again.',
             });
           }
