@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
 
+import type { Meme } from '@/types';
+import { cn } from '@/shared/lib/cn';
+
 import { PanelHeader } from '../../PanelHeader';
 import { useAllMemesPanel } from './model/useAllMemesPanel';
 import { AllMemesControls } from './ui/AllMemesControls';
 import { AllMemesGrid } from './ui/AllMemesGrid';
-
-import { cn } from '@/shared/lib/cn';
-import type { Meme } from '@/types';
 
 export type AllMemesPanelProps = {
   isOpen: boolean;
