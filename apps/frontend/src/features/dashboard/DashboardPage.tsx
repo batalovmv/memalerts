@@ -1,13 +1,12 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { store } from '@/store/index';
-import { fetchSubmissions, approveSubmission, rejectSubmission, needsChangesSubmission } from '@/store/slices/submissionsSlice';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
+import type { Meme } from '@/types';
+
 import { api } from '@/lib/api';
 import Header from '@/components/Header';
-import toast from 'react-hot-toast';
-import type { Meme } from '@/types';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { PendingSubmissionsPanel } from '@/components/dashboard/PendingSubmissionsPanel';
 import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
@@ -15,6 +14,9 @@ import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSu
 import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesModal';
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { Button } from '@/shared/ui';
+import { store } from '@/store/index';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const MemeModal = lazy(() => import('@/components/MemeModal'));

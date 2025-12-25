@@ -4,12 +4,12 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { Wallet } from '@/types';
 
-import { api } from '@/lib/api';
-import { login } from '@/lib/auth';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { useSocket } from '@/contexts/SocketContext';
-import { store } from '@/store/index';
+import { api } from '@/lib/api';
+import { login } from '@/lib/auth';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { store } from '@/store/index';
 import { selectPendingSubmissionsCount } from '@/store/selectors';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import {

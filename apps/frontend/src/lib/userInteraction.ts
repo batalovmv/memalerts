@@ -19,11 +19,12 @@ function initOnce() {
   };
 
   const opts: AddEventListenerOptions = { capture: true, passive: true, once: true };
+  const removeOpts: EventListenerOptions = { capture: true };
 
   const remove = () => {
-    document.removeEventListener('click', mark as EventListener, opts as any);
-    document.removeEventListener('touchstart', mark as EventListener, opts as any);
-    document.removeEventListener('keydown', mark as EventListener, opts as any);
+    document.removeEventListener('click', mark as EventListener, removeOpts);
+    document.removeEventListener('touchstart', mark as EventListener, removeOpts);
+    document.removeEventListener('keydown', mark as EventListener, removeOpts);
   };
 
   // Any user gesture is enough to unlock autoplay-with-sound constraints in browsers.

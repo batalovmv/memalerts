@@ -1,7 +1,7 @@
+import type { Meme } from '@/types';
 import type { RefObject } from 'react';
 
 import { cn } from '@/shared/lib/cn';
-import type { Meme } from '@/types';
 
 export type MemeCardViewProps = {
   meme: Meme;

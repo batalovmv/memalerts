@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import { useAppSelector } from '@/store/hooks';

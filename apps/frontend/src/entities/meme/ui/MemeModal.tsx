@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import toast from 'react-hot-toast';
-
+import type { Meme } from '@/types';
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
-import { useAppSelector } from '@/store/hooks';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
-import type { Meme } from '@/types';
+import { useAppSelector } from '@/store/hooks';
 
 interface MemeModalProps {
   meme: Meme | null;
@@ -34,6 +33,7 @@ export default function MemeModal({
 }: MemeModalProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
+  const userId = user?.id;
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
@@ -73,7 +73,7 @@ export default function MemeModal({
 
   // Backend-first mute hydration (when logged in).
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let cancelled = false;
     (async () => {
       const prefs = await getUserPreferences();
@@ -83,7 +83,7 @@ export default function MemeModal({
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [userId]);
 
   // Auto-play video when modal opens
   useEffect(() => {

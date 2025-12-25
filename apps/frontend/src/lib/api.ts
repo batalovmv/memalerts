@@ -2,18 +2,23 @@ import axios, { AxiosError, AxiosResponse, AxiosInstance, AxiosRequestConfig } f
 
 export function getRequestIdFromError(error: unknown): string | null {
   const maybeAxios = error as AxiosError | null;
+  const headers = (maybeAxios?.response?.headers ?? null) as Record<string, unknown> | null;
   const headerReqId =
-    (maybeAxios?.response?.headers as any)?.['x-request-id'] ||
-    (maybeAxios?.response?.headers as any)?.['x-requestid'] ||
-    (maybeAxios?.response?.headers as any)?.['x-correlation-id'];
+    (headers?.['x-request-id'] as unknown) ||
+    (headers?.['x-requestid'] as unknown) ||
+    (headers?.['x-correlation-id'] as unknown);
 
   if (typeof headerReqId === 'string' && headerReqId.trim()) return headerReqId.trim();
 
-  const dataReqId = (maybeAxios?.response?.data as any)?.requestId;
+  const dataObj =
+    maybeAxios?.response?.data && typeof maybeAxios.response.data === 'object'
+      ? (maybeAxios.response.data as Record<string, unknown>)
+      : null;
+  const dataReqId = dataObj?.requestId;
   if (typeof dataReqId === 'string' && dataReqId.trim()) return dataReqId.trim();
 
-  const anyErr = error as any;
-  const attached = anyErr?.requestId;
+  const errObj = (error && typeof error === 'object' ? (error as Record<string, unknown>) : null) ?? null;
+  const attached = errObj?.requestId;
   if (typeof attached === 'string' && attached.trim()) return attached.trim();
 
   return null;
@@ -28,8 +33,10 @@ function emitGlobalApiError(error: AxiosError) {
   const path = (error.config?.url as string | undefined) || null;
   const method = (error.config?.method as string | undefined)?.toUpperCase?.() || null;
   const message =
-    (error.response?.data as any)?.error ||
-    (error.response?.data as any)?.message ||
+    (error.response?.data && typeof error.response.data === 'object'
+      ? ((error.response.data as Record<string, unknown>).error as unknown) ||
+        ((error.response.data as Record<string, unknown>).message as unknown)
+      : null) ||
     error.message ||
     'Request failed';
 
@@ -347,7 +354,7 @@ axiosInstance.interceptors.response.use(
     // Attach requestId for easier UI diagnostics (also available in headers).
     try {
       const requestId = getRequestIdFromError(error);
-      (error as any).requestId = requestId;
+      (error as AxiosError & { requestId?: string | null }).requestId = requestId;
     } catch {
       // ignore
     }
