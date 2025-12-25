@@ -558,6 +558,22 @@ export const authController = {
 
       // Upsert ExternalAccount (either login or link). For Twitch login, also refresh legacy User fields.
       await prisma.$transaction(async (tx) => {
+        // IMPORTANT (Google/YouTube):
+        // Google часто НЕ возвращает refresh_token при повторном consent, даже если access_type=offline.
+        // Нельзя затирать уже сохранённый refreshToken значением null, иначе последующие API-вызовы (channels.list mine=true)
+        // перестанут работать после истечения access token.
+        const externalUpdate: any = {
+          userId: user.id,
+          displayName,
+          login,
+          avatarUrl,
+          profileUrl,
+          accessToken,
+          tokenExpiresAt,
+          scopes,
+        };
+        if (refreshToken) externalUpdate.refreshToken = refreshToken;
+
         await tx.externalAccount.upsert({
           where: { provider_providerAccountId: { provider, providerAccountId } },
           create: {
@@ -573,17 +589,7 @@ export const authController = {
             tokenExpiresAt,
             scopes,
           },
-          update: {
-            userId: user.id,
-            displayName,
-            login,
-            avatarUrl,
-            profileUrl,
-            accessToken,
-            refreshToken,
-            tokenExpiresAt,
-            scopes,
-          },
+          update: externalUpdate,
         });
 
         if (provider === 'twitch') {

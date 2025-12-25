@@ -2,8 +2,9 @@ import type { Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
-import { fetchMyYouTubeChannelId } from '../../utils/youtubeApi.js';
+import { fetchMyYouTubeChannelId, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
+import { logger } from '../../utils/logger.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
 type BotProviderV2 = BotProvider | 'vkvideo';
@@ -99,6 +100,60 @@ export const botIntegrationsController = {
     if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
 
     try {
+      // Provider-specific preconditions MUST be checked before we persist enabled=true.
+      // Otherwise we can end up with enabled=true in DB and still return an error to client (broken contract).
+      let twitchLogin: string | null = null;
+      let twitchChannelId: string | null = null;
+      let youtubeChannelId: string | null = null;
+
+      if (provider === 'twitch' && enabled) {
+        const channel = await prisma.channel.findUnique({
+          where: { id: channelId },
+          select: { twitchChannelId: true },
+        });
+        if (!channel) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
+        if (!channel.twitchChannelId) {
+          return res.status(400).json({ error: 'Bad Request', message: 'This channel is not linked to Twitch' });
+        }
+
+        twitchChannelId = channel.twitchChannelId;
+        twitchLogin = await getTwitchLoginByUserId(twitchChannelId);
+        if (!twitchLogin) return res.status(400).json({ error: 'Bad Request', message: 'Failed to resolve twitch login' });
+      }
+
+      if (provider === 'youtube' && enabled) {
+        if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Diagnostics to quickly detect "needs relink" cases (missing refresh token / missing scopes).
+        const acc = await getYouTubeExternalAccount(req.userId);
+        logger.info('streamer.bots.youtube.enable_attempt', {
+          requestId: req.requestId,
+          channelId,
+          userId: req.userId,
+          hasExternalAccount: !!acc,
+          hasRefreshToken: Boolean(acc?.refreshToken),
+          hasAccessToken: Boolean(acc?.accessToken),
+          tokenExpiresAt: acc?.tokenExpiresAt ? new Date(acc.tokenExpiresAt).toISOString() : null,
+          scopes: acc?.scopes || null,
+        });
+
+        youtubeChannelId = await fetchMyYouTubeChannelId(req.userId);
+        if (!youtubeChannelId) {
+          logger.warn('streamer.bots.youtube.enable_failed', {
+            requestId: req.requestId,
+            channelId,
+            userId: req.userId,
+            reason: 'failed_to_resolve_channel_id',
+          });
+          return res.status(412).json({
+            error: 'Precondition Failed',
+            code: 'YOUTUBE_RELINK_REQUIRED',
+            needsRelink: true,
+            message: 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
+          });
+        }
+      }
+
       // Persist toggle (idempotent).
       await (prisma as any).botIntegrationSettings.upsert({
         where: { channelId_provider: { channelId, provider } },
@@ -109,17 +164,8 @@ export const botIntegrationsController = {
 
       // Provider-specific side effects.
       if (provider === 'twitch') {
-        const channel = await prisma.channel.findUnique({
-          where: { id: channelId },
-          select: { twitchChannelId: true },
-        });
-        if (!channel) return res.status(404).json({ error: 'Not Found', message: 'Channel not found' });
-        if (!channel.twitchChannelId) {
-          return res.status(400).json({ error: 'Bad Request', message: 'This channel is not linked to Twitch' });
-        }
-
         if (enabled) {
-          const login = await getTwitchLoginByUserId(channel.twitchChannelId);
+          const login = twitchLogin;
           if (!login) return res.status(400).json({ error: 'Bad Request', message: 'Failed to resolve twitch login' });
           await prisma.chatBotSubscription.upsert({
             where: { channelId },
@@ -129,7 +175,16 @@ export const botIntegrationsController = {
           });
         } else {
           // Keep record for future re-enable; create disabled record if missing.
-          const login = await getTwitchLoginByUserId(channel.twitchChannelId);
+          const effectiveTwitchChannelId =
+            twitchChannelId ||
+            (
+              await prisma.channel.findUnique({
+                where: { id: channelId },
+                select: { twitchChannelId: true },
+              })
+            )?.twitchChannelId ||
+            null;
+          const login = effectiveTwitchChannelId ? await getTwitchLoginByUserId(effectiveTwitchChannelId) : null;
           await prisma.chatBotSubscription.upsert({
             where: { channelId },
             create: { channelId, twitchLogin: login || '', enabled: false },
@@ -142,12 +197,15 @@ export const botIntegrationsController = {
       if (provider === 'youtube') {
         // Store subscription for youtubeChatbotRunner (uses the streamer's linked YouTube account).
         if (enabled) {
+          // NOTE: youtubeChannelId is resolved above as a precondition to keep this endpoint atomic.
           if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
-          const youtubeChannelId = await fetchMyYouTubeChannelId(req.userId);
           if (!youtubeChannelId) {
-            return res.status(400).json({
-              error: 'Bad Request',
-              message: 'Failed to resolve YouTube channelId. Please link YouTube with required scopes and try again.',
+            // Defensive: should not happen because precondition handles it.
+            return res.status(412).json({
+              error: 'Precondition Failed',
+              code: 'YOUTUBE_RELINK_REQUIRED',
+              needsRelink: true,
+              message: 'Failed to resolve YouTube channelId. Please re-link YouTube and try again.',
             });
           }
           await (prisma as any).youTubeChatBotSubscription.upsert({
