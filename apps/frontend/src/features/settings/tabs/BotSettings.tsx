@@ -118,9 +118,13 @@ export function BotSettings() {
   const [youtubeOverrideStatus, setYoutubeOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [youtubeOverrideLoading, setYoutubeOverrideLoading] = useState(false);
   const [youtubeOverrideBusy, setYoutubeOverrideBusy] = useState(false);
+  const [twitchOverrideStatus, setTwitchOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [twitchOverrideLoading, setTwitchOverrideLoading] = useState(false);
+  const [twitchOverrideBusy, setTwitchOverrideBusy] = useState(false);
   const [vkvideoOverrideStatus, setVkvideoOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [vkvideoOverrideLoading, setVkvideoOverrideLoading] = useState(false);
   const [vkvideoOverrideBusy, setVkvideoOverrideBusy] = useState(false);
+  const [twitchBotNotConfiguredHint, setTwitchBotNotConfiguredHint] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoChannelUrl, setVkvideoChannelUrl] = useState('');
@@ -981,6 +985,27 @@ export function BotSettings() {
     void loadYoutubeOverride();
   }, [botTab, loadYoutubeOverride]);
 
+  const loadTwitchOverride = useCallback(async () => {
+    try {
+      setTwitchOverrideLoading(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<unknown>('/streamer/bots/twitch/bot', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setTwitchOverrideStatus({ enabled, updatedAt });
+    } catch {
+      setTwitchOverrideStatus(null);
+    } finally {
+      setTwitchOverrideLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (botTab !== 'twitch') return;
+    void loadTwitchOverride();
+  }, [botTab, loadTwitchOverride]);
+
   const loadVkvideoOverride = useCallback(async () => {
     try {
       setVkvideoOverrideLoading(true);
@@ -1007,6 +1032,15 @@ export function BotSettings() {
     const url = new URL(`${apiOrigin}/streamer/bots/youtube/bot/link`);
     // UX path (must be in backend allowlist): return to YouTube bot section.
     url.searchParams.set('redirect_to', '/settings/bot/youtube');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
+
+  const redirectToTwitchOverrideLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/streamer/bots/twitch/bot/link`);
+    // Backend allowlist supports /settings/bot/twitch.
+    url.searchParams.set('redirect_to', '/settings/bot/twitch');
     url.searchParams.set('origin', window.location.origin);
     window.location.href = url.toString();
   }, []);
@@ -1046,6 +1080,31 @@ export function BotSettings() {
       setYoutubeOverrideBusy(false);
     }
   }, [loadYoutubeOverride, t, youtubeOverrideBusy]);
+
+  const disconnectTwitchOverride = useCallback(async () => {
+    if (twitchOverrideBusy) return;
+    const confirmed = window.confirm(t('admin.twitchOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего Twitch-бота (override)?' }));
+    if (!confirmed) return;
+
+    const startedAt = Date.now();
+    try {
+      setTwitchOverrideBusy(true);
+      const { api } = await import('@/lib/api');
+      await api.delete('/streamer/bots/twitch/bot');
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      await loadTwitchOverride();
+    } catch (e) {
+      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(msg);
+    } finally {
+      await ensureMinDuration(startedAt, 350);
+      setTwitchOverrideBusy(false);
+    }
+  }, [loadTwitchOverride, t, twitchOverrideBusy]);
 
   const disconnectVkvideoOverride = useCallback(async () => {
     if (vkvideoOverrideBusy) return;
@@ -1361,6 +1420,8 @@ export function BotSettings() {
         toast.error(t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' }));
         return;
       }
+      // Clear previous hint on any new attempt.
+      setTwitchBotNotConfiguredHint(false);
       setLoading('toggle');
       const { api } = await import('@/lib/api');
       await api.post(nextEnabled ? '/streamer/bot/enable' : '/streamer/bot/disable');
@@ -1377,6 +1438,15 @@ export function BotSettings() {
 
       const rawMsg = apiError.response?.data?.error || apiError.response?.data?.message || fallback;
       const errorCode = apiError.response?.data?.errorCode;
+      const code = String((apiError.response?.data as { code?: unknown } | undefined)?.code || '');
+      if (apiError.response?.status === 503 && code === 'TWITCH_BOT_NOT_CONFIGURED') {
+        setTwitchBotNotConfiguredHint(true);
+        const hint = t('admin.twitchBotNotConfiguredHint', {
+          defaultValue: 'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
+        });
+        toast.error(rid ? `${hint} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : hint);
+        return;
+      }
       const msg =
         apiError.response?.status === 400 &&
         (errorCode === 'TWITCH_CHANNEL_NOT_LINKED' || String(rawMsg).includes('not linked to Twitch'))
@@ -1591,6 +1661,51 @@ export function BotSettings() {
 
       {botTab === 'twitch' ? (
         <>
+          {/* Twitch override bot */}
+          <div className="glass p-4 mb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.twitchOverrideTitle', { defaultValue: 'Свой Twitch бот (override)' })}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {twitchOverrideLoading ? (
+                    t('common.loading', { defaultValue: 'Loading…' })
+                  ) : twitchOverrideStatus?.enabled ? (
+                    <>
+                      {t('admin.twitchOverrideOn', { defaultValue: 'Используется ваш бот' })}
+                      {twitchOverrideStatus.updatedAt ? (
+                        <span className="ml-2 opacity-80">
+                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(twitchOverrideStatus.updatedAt).toLocaleString()}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    t('admin.twitchOverrideOff', {
+                      defaultValue: 'Используется дефолтный бот MemAlerts (если настроен админом)',
+                    })
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {twitchOverrideStatus?.enabled ? (
+                  <>
+                    <Button type="button" variant="secondary" onClick={() => redirectToTwitchOverrideLink()} disabled={twitchOverrideBusy}>
+                      {t('admin.twitchOverrideRelink', { defaultValue: 'Перепривязать' })}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void disconnectTwitchOverride()} disabled={twitchOverrideBusy}>
+                      {t('admin.twitchOverrideDisconnect', { defaultValue: 'Отключить' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" variant="primary" onClick={() => redirectToTwitchOverrideLink()} disabled={twitchOverrideBusy}>
+                    {t('admin.twitchOverrideConnect', { defaultValue: 'Подключить своего бота' })}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className={`glass p-4 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
             {loading === 'toggle' ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
             <div className="flex items-start justify-between gap-4">
@@ -1614,6 +1729,14 @@ export function BotSettings() {
             {!twitchLinked && (
               <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
                 {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+              </div>
+            )}
+
+            {twitchBotNotConfiguredHint && (
+              <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                {t('admin.twitchBotNotConfiguredHint', {
+                  defaultValue: 'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
+                })}
               </div>
             )}
 
