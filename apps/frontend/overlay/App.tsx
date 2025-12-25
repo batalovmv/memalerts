@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 
-import OverlayView from './OverlayView';
 import CreditsOverlayView from './CreditsOverlayView';
+import OverlayView from './OverlayView';
 
 function App() {
   return (

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 
+import { ensureGoogleFontLoaded, GOOGLE_FONTS_CURATED } from './lib/fonts';
 import { clampInt } from './lib/math';
 import { useCreditsParams } from './model/useCreditsParams';
 import { getSocketBaseUrl } from './urls';
-import { ensureGoogleFontLoaded, GOOGLE_FONTS_CURATED } from './lib/fonts';
 
 type CreditsConfig = {
   creditsStyleJson?: string | null;
@@ -358,7 +358,7 @@ export default function CreditsOverlayView() {
       color: resolved.titleColor,
       opacity: 0.92,
       letterSpacing: '0.02em',
-      textTransform: transform as any,
+      textTransform: transform,
       textShadow: shadow,
       WebkitTextStrokeWidth: resolved.titleStrokeWidth > 0 ? `${resolved.titleStrokeWidth}px` : undefined,
       WebkitTextStrokeColor: strokeColor,

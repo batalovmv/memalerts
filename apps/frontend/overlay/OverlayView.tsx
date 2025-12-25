@@ -518,7 +518,7 @@ export default function OverlayView() {
 
       return changed ? next : prev;
     });
-  }, [active, border, config.overlayShowSender, radius, resolvedPosition, safeScale, senderFontSize]);
+  }, [active, border, config.overlayShowSender, demo, lockPos, radius, resolvedPosition, safePadPx, safeScale, senderFontSize]);
 
   // Ensure per-activation fallback timers exist while active (prevents "stuck" videos in OBS).
   useEffect(() => {
@@ -552,12 +552,15 @@ export default function OverlayView() {
 
   // Cleanup on unmount.
   useEffect(() => {
+    const timers = timersRef.current;
+    const fadeTimers = fadeTimersRef.current;
+    const ackSent = ackSentRef.current;
     return () => {
-      for (const timer of timersRef.current.values()) clearTimeout(timer);
-      timersRef.current.clear();
-      for (const timer of fadeTimersRef.current.values()) clearTimeout(timer);
-      fadeTimersRef.current.clear();
-      ackSentRef.current.clear();
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+      for (const timer of fadeTimers.values()) clearTimeout(timer);
+      fadeTimers.clear();
+      ackSent.clear();
     };
   }, []);
 
@@ -683,7 +686,7 @@ export default function OverlayView() {
           };
       }
     },
-    [resolvedPosition, safeScale]
+    [border, resolvedPosition, safeScale]
   );
 
   const borderWrapStyle = useMemo<React.CSSProperties>(() => {
@@ -831,8 +834,6 @@ export default function OverlayView() {
       background: 'rgba(0,0,0,0.10)',
     };
   }, [
-    anim,
-    blur,
     border,
     radius,
     shadowAngle,
