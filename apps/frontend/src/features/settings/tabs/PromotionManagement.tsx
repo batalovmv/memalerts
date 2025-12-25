@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import type React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button, Card, Input } from '@/shared/ui';
+
+import type React from 'react';
 
 export function PromotionManagement() {
   const { t } = useTranslation();

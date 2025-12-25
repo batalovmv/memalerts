@@ -3,15 +3,15 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
-import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
-import { MySubmissionsSection } from './components/MySubmissionsSection';
-import type { MySubmission } from './types';
-
-import type { Submission, SubmissionStatus } from '@/types';
-
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
 import { useAppSelector } from '@/store/hooks';
+
+import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
+import { MySubmissionsSection } from './components/MySubmissionsSection';
+
+import type { Submission, SubmissionStatus } from '@/types';
+import type { MySubmission } from './types';
 
 function toRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== 'object') return null;
