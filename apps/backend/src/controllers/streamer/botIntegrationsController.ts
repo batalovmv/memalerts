@@ -10,6 +10,7 @@ import { getTwitchAuthorizeUrl } from '../../auth/providers/twitch.js';
 import { generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../../auth/providers/vkvideo.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount, getValidVkVideoBotAccessToken } from '../../utils/vkvideoApi.js';
 import { logger } from '../../utils/logger.js';
+import { hasChannelEntitlement } from '../../utils/entitlements.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
 type BotProviderV2 = BotProvider | 'vkvideo';
@@ -80,11 +81,13 @@ export const botIntegrationsController = {
         where: { channelId },
         select: { enabled: true, externalAccountId: true, updatedAt: true },
       });
-      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null, lockedBySubscription: false });
+      const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
       return res.json({
         enabled: Boolean((row as any)?.enabled),
         externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
         updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        lockedBySubscription: !entitled,
       });
     } catch (e: any) {
       if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
@@ -98,6 +101,15 @@ export const botIntegrationsController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+    if (!entitled) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'Custom bot sender is available only with subscription.',
+      });
+    }
 
     const clientId = process.env.YOUTUBE_CLIENT_ID;
     const callbackUrl = process.env.YOUTUBE_CALLBACK_URL;
@@ -155,11 +167,13 @@ export const botIntegrationsController = {
         where: { channelId },
         select: { enabled: true, externalAccountId: true, updatedAt: true },
       });
-      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null, lockedBySubscription: false });
+      const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
       return res.json({
         enabled: Boolean((row as any)?.enabled),
         externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
         updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        lockedBySubscription: !entitled,
       });
     } catch (e: any) {
       if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
@@ -173,6 +187,15 @@ export const botIntegrationsController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+    if (!entitled) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'Custom bot sender is available only with subscription.',
+      });
+    }
 
     const clientId = process.env.VKVIDEO_CLIENT_ID;
     const callbackUrl = process.env.VKVIDEO_CALLBACK_URL;
@@ -239,11 +262,13 @@ export const botIntegrationsController = {
         where: { channelId },
         select: { enabled: true, externalAccountId: true, updatedAt: true },
       });
-      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null, lockedBySubscription: false });
+      const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
       return res.json({
         enabled: Boolean((row as any)?.enabled),
         externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
         updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        lockedBySubscription: !entitled,
       });
     } catch (e: any) {
       if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
@@ -257,6 +282,15 @@ export const botIntegrationsController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+    if (!entitled) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'Custom bot sender is available only with subscription.',
+      });
+    }
 
     const clientId = process.env.TWITCH_CLIENT_ID;
     const callbackUrl = process.env.TWITCH_CALLBACK_URL;
@@ -398,6 +432,8 @@ export const botIntegrationsController = {
     if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
 
     try {
+      const customBotEntitled = await hasChannelEntitlement(channelId, 'custom_bot');
+
       // Provider-specific preconditions MUST be checked before we persist enabled=true.
       // Otherwise we can end up with enabled=true in DB and still return an error to client (broken contract).
       let twitchLogin: string | null = null;
@@ -431,6 +467,8 @@ export const botIntegrationsController = {
           if (e?.code !== 'P2021') throw e;
           hasOverride = false;
         }
+        // Without entitlement, per-channel override MUST NOT be considered a valid sender.
+        if (hasOverride && !customBotEntitled) hasOverride = false;
         if (!hasGlobal && !hasOverride) {
           if (req.requestId) res.setHeader('x-request-id', req.requestId);
           return res.status(503).json({
@@ -583,6 +621,7 @@ export const botIntegrationsController = {
           if (e?.code !== 'P2021') throw e;
           hasOverride = false;
         }
+        if (hasOverride && !customBotEntitled) hasOverride = false;
 
         if (!botAccessToken && !hasOverride) {
           if (req.requestId) res.setHeader('x-request-id', req.requestId);
@@ -684,6 +723,7 @@ export const botIntegrationsController = {
             if (e?.code !== 'P2021') throw e;
             hasOverride = false;
           }
+          if (hasOverride && !customBotEntitled) hasOverride = false;
           if (!botAccessToken && !hasOverride) {
             if (req.requestId) res.setHeader('x-request-id', req.requestId);
             return res.status(503).json({

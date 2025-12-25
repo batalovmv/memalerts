@@ -3,6 +3,7 @@ import tmi from 'tmi.js';
 import { prisma } from '../lib/prisma.js';
 import { getValidAccessToken, getValidTwitchAccessTokenByExternalAccountId, getValidTwitchBotAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
 import { logger } from '../utils/logger.js';
+import { getEntitledChannelIds } from '../utils/entitlements.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 
 dotenv.config();
@@ -479,6 +480,12 @@ async function start() {
 
     const channelId = params.channelId ? String(params.channelId).trim() : null;
     const overrideExtId = channelId ? channelIdToOverrideExtId.get(channelId) || null : null;
+    logger.info('chatbot.say.sender', {
+      channelId,
+      login,
+      sender: overrideExtId ? 'override' : 'global',
+      overrideExternalAccountId: overrideExtId,
+    });
     if (overrideExtId) {
       const override = await ensureOverrideClient(overrideExtId);
       if (override) {
@@ -522,10 +529,11 @@ async function start() {
           where: { channelId: { in: channelIds }, enabled: true },
           select: { channelId: true, externalAccountId: true },
         });
+        const entitled = await getEntitledChannelIds(channelIds, 'custom_bot');
         for (const o of overrides) {
           const cid = String((o as any)?.channelId || '').trim();
           const extId = String((o as any)?.externalAccountId || '').trim();
-          if (cid && extId) channelIdToOverrideExtId.set(cid, extId);
+          if (cid && extId && entitled.has(cid)) channelIdToOverrideExtId.set(cid, extId);
         }
       } catch (e: any) {
         if (e?.code !== 'P2021') throw e;

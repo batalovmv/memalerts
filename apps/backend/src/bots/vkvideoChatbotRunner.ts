@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
+import { hasChannelEntitlement } from '../utils/entitlements.js';
 import {
   fetchVkVideoChannel,
   fetchVkVideoCurrentUser,
@@ -394,15 +395,18 @@ async function start() {
     let accessToken: string | null = null;
 
     if (channelId) {
-      try {
-        const override = await (prisma as any).vkVideoBotIntegration.findUnique({
-          where: { channelId },
-          select: { enabled: true, externalAccountId: true },
-        });
-        const extId = override?.enabled ? String(override.externalAccountId || '').trim() : '';
-        if (extId) accessToken = await getValidVkVideoAccessTokenByExternalAccountId(extId);
-      } catch (e: any) {
-        if (e?.code !== 'P2021') throw e;
+      const canUseOverride = await hasChannelEntitlement(channelId, 'custom_bot');
+      if (canUseOverride) {
+        try {
+          const override = await (prisma as any).vkVideoBotIntegration.findUnique({
+            where: { channelId },
+            select: { enabled: true, externalAccountId: true },
+          });
+          const extId = override?.enabled ? String(override.externalAccountId || '').trim() : '';
+          if (extId) accessToken = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+        }
       }
 
       if (!accessToken) {
@@ -510,15 +514,18 @@ async function start() {
                 const channelId = vkvideoIdToChannelId.get(vkvideoChannelId) || null;
 
                 if (channelId) {
-                  try {
-                    const override = await (prisma as any).vkVideoBotIntegration.findUnique({
-                      where: { channelId },
-                      select: { enabled: true, externalAccountId: true },
-                    });
-                    const extId = override?.enabled ? String(override.externalAccountId || '').trim() : '';
-                    if (extId) tokenForRoles = await getValidVkVideoAccessTokenByExternalAccountId(extId);
-                  } catch (e: any) {
-                    if (e?.code !== 'P2021') throw e;
+                  const canUseOverride = await hasChannelEntitlement(channelId, 'custom_bot');
+                  if (canUseOverride) {
+                    try {
+                      const override = await (prisma as any).vkVideoBotIntegration.findUnique({
+                        where: { channelId },
+                        select: { enabled: true, externalAccountId: true },
+                      });
+                      const extId = override?.enabled ? String(override.externalAccountId || '').trim() : '';
+                      if (extId) tokenForRoles = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+                    } catch (e: any) {
+                      if (e?.code !== 'P2021') throw e;
+                    }
                   }
 
                   if (!tokenForRoles) {

@@ -4,6 +4,7 @@ import { adminController } from '../controllers/adminController.js';
 import { youtubeDefaultBotController } from '../controllers/owner/youtubeDefaultBotController.js';
 import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefaultBotController.js';
 import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBotController.js';
+import { entitlementsController } from '../controllers/owner/entitlementsController.js';
 
 // Owner-only API (role: admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -30,5 +31,10 @@ ownerRoutes.delete('/bots/vkvideo/default', vkvideoDefaultBotController.unlink);
 ownerRoutes.get('/bots/twitch/default/status', twitchDefaultBotController.status);
 ownerRoutes.get('/bots/twitch/default/link', twitchDefaultBotController.linkStart);
 ownerRoutes.delete('/bots/twitch/default', twitchDefaultBotController.unlink);
+
+// Channel entitlements (admin-only; subscription gates / feature flags)
+ownerRoutes.get('/entitlements/custom-bot', entitlementsController.getCustomBot);
+ownerRoutes.post('/entitlements/custom-bot/grant', entitlementsController.grantCustomBot);
+ownerRoutes.post('/entitlements/custom-bot/revoke', entitlementsController.revokeCustomBot);
 
 

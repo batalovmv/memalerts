@@ -76,6 +76,28 @@ model Channel {
   youTubeBotIntegration        YouTubeBotIntegration?
   vkVideoBotIntegration        VkVideoBotIntegration?
   twitchBotIntegration         TwitchBotIntegration?
+  entitlements                 ChannelEntitlement[]
+}
+
+// Channel-scoped feature entitlements (subscription gates / feature flags).
+// Additive + safe for shared DB between prod/beta.
+// Example key: "custom_bot" (allows per-channel bot sender override).
+model ChannelEntitlement {
+  id        String   @id @default(uuid())
+  channelId String
+  key       String
+  enabled   Boolean  @default(true)
+  expiresAt DateTime?
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, key])
+  @@index([channelId])
+  @@index([key, enabled])
+  @@index([expiresAt])
 }
 
 enum BotIntegrationProvider {

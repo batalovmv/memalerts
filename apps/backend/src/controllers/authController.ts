@@ -12,6 +12,7 @@ import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, ge
 import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/providers/vk.js';
 import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
+import { hasChannelEntitlement } from '../utils/entitlements.js';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -601,6 +602,34 @@ export const authController = {
       }
 
       // Upsert ExternalAccount (either login or link). For Twitch login, also refresh legacy User fields.
+      const botLinkChannelId = stateKind === 'bot_link' ? String(stateChannelId || '').trim() : '';
+      const isBotLinkProvider = stateKind === 'bot_link' && (provider === 'youtube' || provider === 'vkvideo' || provider === 'twitch');
+
+      let botLinkSubscriptionDenied = false;
+      let botLinkSubscriptionDeniedProvider: string | null = null;
+      let allowPerChannelBotOverride = true;
+
+      if (isBotLinkProvider && botLinkChannelId) {
+        const isGlobalSentinel =
+          (provider === 'youtube' && botLinkChannelId === '__global_youtube_bot__') ||
+          (provider === 'vkvideo' && botLinkChannelId === '__global_vkvideo_bot__') ||
+          (provider === 'twitch' && botLinkChannelId === '__global_twitch_bot__');
+
+        if (!isGlobalSentinel) {
+          allowPerChannelBotOverride = await hasChannelEntitlement(botLinkChannelId, 'custom_bot');
+          if (!allowPerChannelBotOverride) {
+            botLinkSubscriptionDenied = true;
+            botLinkSubscriptionDeniedProvider = provider;
+            logger.info('entitlement.denied', {
+              channelId: botLinkChannelId,
+              provider,
+              action: 'bot_link_apply',
+              requestId: (req as any)?.requestId || null,
+            });
+          }
+        }
+      }
+
       await prisma.$transaction(async (tx) => {
         // IMPORTANT (Google/YouTube):
         // Google часто НЕ возвращает refresh_token при повторном consent, даже если access_type=offline.
@@ -672,12 +701,14 @@ export const authController = {
               });
             } else {
               // Default behavior: per-channel override (stored as mapping to this channel).
-              await (tx as any).youTubeBotIntegration.upsert({
-                where: { channelId },
-                create: { channelId, externalAccountId: upserted.id, enabled: true },
-                update: { externalAccountId: upserted.id, enabled: true },
-                select: { id: true },
-              });
+              if (allowPerChannelBotOverride) {
+                await (tx as any).youTubeBotIntegration.upsert({
+                  where: { channelId },
+                  create: { channelId, externalAccountId: upserted.id, enabled: true },
+                  update: { externalAccountId: upserted.id, enabled: true },
+                  select: { id: true },
+                });
+              }
             }
           }
 
@@ -691,12 +722,14 @@ export const authController = {
               });
             } else {
               // Default behavior: per-channel override.
-              await (tx as any).vkVideoBotIntegration.upsert({
-                where: { channelId },
-                create: { channelId, externalAccountId: upserted.id, enabled: true },
-                update: { externalAccountId: upserted.id, enabled: true },
-                select: { id: true },
-              });
+              if (allowPerChannelBotOverride) {
+                await (tx as any).vkVideoBotIntegration.upsert({
+                  where: { channelId },
+                  create: { channelId, externalAccountId: upserted.id, enabled: true },
+                  update: { externalAccountId: upserted.id, enabled: true },
+                  select: { id: true },
+                });
+              }
             }
           }
 
@@ -710,12 +743,14 @@ export const authController = {
               });
             } else {
               // Default behavior: per-channel override.
-              await (tx as any).twitchBotIntegration.upsert({
-                where: { channelId },
-                create: { channelId, externalAccountId: upserted.id, enabled: true },
-                update: { externalAccountId: upserted.id, enabled: true },
-                select: { id: true },
-              });
+              if (allowPerChannelBotOverride) {
+                await (tx as any).twitchBotIntegration.upsert({
+                  where: { channelId },
+                  create: { channelId, externalAccountId: upserted.id, enabled: true },
+                  update: { externalAccountId: upserted.id, enabled: true },
+                  select: { id: true },
+                });
+              }
             }
           }
         }
@@ -908,6 +943,19 @@ export const authController = {
       if (stateRedirectTo && stateRedirectTo !== redirectPath) {
         // redirectPath already contains stateRedirectTo, so just use it
         finalRedirectUrl = `${redirectUrl}${redirectPath}`;
+      }
+
+      // If bot_link override was denied by entitlement, surface it to frontend via query params.
+      if (botLinkSubscriptionDenied) {
+        try {
+          const u = new URL(finalRedirectUrl);
+          u.searchParams.set('error', 'auth_failed');
+          u.searchParams.set('reason', 'subscription_required');
+          u.searchParams.set('provider', botLinkSubscriptionDeniedProvider || provider);
+          finalRedirectUrl = u.toString();
+        } catch {
+          // ignore URL parsing errors
+        }
       }
       
       debugLog('Auth successful, redirecting to:', {

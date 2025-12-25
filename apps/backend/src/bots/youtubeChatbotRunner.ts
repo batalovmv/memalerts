@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
+import { getEntitledChannelIds } from '../utils/entitlements.js';
 import {
   fetchActiveLiveChatIdByVideoId,
   fetchLiveVideoIdByChannelId,
@@ -267,6 +268,10 @@ async function start() {
     try {
       const subs = await fetchEnabledYouTubeSubscriptions();
       const overrides = await fetchYouTubeBotOverrides(subs.map((s) => s.channelId));
+      const entitled = await getEntitledChannelIds(
+        subs.map((s) => s.channelId),
+        'custom_bot'
+      );
       const desired = new Set<string>(subs.map((s) => s.channelId));
 
       // Upsert/update states
@@ -292,7 +297,7 @@ async function start() {
             commands: [],
             botExternalAccountId: null,
           });
-          states.get(s.channelId)!.botExternalAccountId = overrides.get(s.channelId) ?? null;
+          states.get(s.channelId)!.botExternalAccountId = entitled.has(s.channelId) ? overrides.get(s.channelId) ?? null : null;
           logger.info('youtube_chatbot.sub.add', { channelId: s.channelId, youtubeChannelId: s.youtubeChannelId, slug: s.slug });
         } else {
           existing.userId = s.userId;
@@ -300,7 +305,7 @@ async function start() {
           existing.slug = s.slug;
           existing.creditsReconnectWindowMinutes = s.creditsReconnectWindowMinutes;
           existing.streamDurationCfg = streamDurationCfg;
-          existing.botExternalAccountId = overrides.get(s.channelId) ?? null;
+          existing.botExternalAccountId = entitled.has(s.channelId) ? overrides.get(s.channelId) ?? null : null;
         }
       }
 
