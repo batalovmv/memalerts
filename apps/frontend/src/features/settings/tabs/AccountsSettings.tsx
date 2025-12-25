@@ -89,6 +89,9 @@ export function AccountsSettings() {
   const [defaultYoutubeBotStatus, setDefaultYoutubeBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [defaultYoutubeBotLoading, setDefaultYoutubeBotLoading] = useState(false);
   const [defaultYoutubeBotBusy, setDefaultYoutubeBotBusy] = useState(false);
+  const [defaultVkvideoBotStatus, setDefaultVkvideoBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [defaultVkvideoBotLoading, setDefaultVkvideoBotLoading] = useState(false);
+  const [defaultVkvideoBotBusy, setDefaultVkvideoBotBusy] = useState(false);
   const refreshedOnMountRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -167,10 +170,40 @@ export function AccountsSettings() {
     };
   }, [user?.role]);
 
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        setDefaultVkvideoBotLoading(true);
+        const res = await api.get<unknown>('/owner/bots/vkvideo/default/status', { timeout: 8000 });
+        const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+        const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+        const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+        if (!cancelled) setDefaultVkvideoBotStatus({ enabled, updatedAt });
+      } catch {
+        if (!cancelled) setDefaultVkvideoBotStatus(null);
+      } finally {
+        if (!cancelled) setDefaultVkvideoBotLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
   const redirectToDefaultYoutubeBotLink = useCallback(() => {
     const apiOrigin = getApiOriginForRedirect();
     const url = new URL(`${apiOrigin}/owner/bots/youtube/default/link`);
     // Admin flow lives in Accounts; keep it on the allowlisted path.
+    url.searchParams.set('redirect_to', '/settings/accounts');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
+
+  const redirectToDefaultVkvideoBotLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/owner/bots/vkvideo/default/link`);
     url.searchParams.set('redirect_to', '/settings/accounts');
     url.searchParams.set('origin', window.location.origin);
     window.location.href = url.toString();
@@ -199,6 +232,30 @@ export function AccountsSettings() {
       setDefaultYoutubeBotBusy(false);
     }
   }, [defaultYoutubeBotBusy, t]);
+
+  const disconnectDefaultVkvideoBot = useCallback(async () => {
+    if (defaultVkvideoBotBusy) return;
+    const confirmed = window.confirm(
+      t('settings.defaultVkvideoBotDisconnectConfirm', { defaultValue: 'Отключить дефолтного VKVideo-бота?' })
+    );
+    if (!confirmed) return;
+
+    try {
+      setDefaultVkvideoBotBusy(true);
+      await api.delete('/owner/bots/vkvideo/default');
+      const res = await api.get<unknown>('/owner/bots/vkvideo/default/status', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setDefaultVkvideoBotStatus({ enabled, updatedAt });
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+    } catch (e) {
+      const err = toApiError(e, t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      toast.error(err.message);
+    } finally {
+      setDefaultVkvideoBotBusy(false);
+    }
+  }, [defaultVkvideoBotBusy, t]);
 
   const ensureSessionOrLogin = useCallback(async () => {
     try {
@@ -410,6 +467,51 @@ export function AccountsSettings() {
                   disabled={defaultYoutubeBotBusy}
                 >
                   {t('settings.defaultYoutubeBotConnect', { defaultValue: 'Подключить' })}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {user?.role === 'admin' && (
+        <Card className="p-5 mb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.defaultVkvideoBotTitle', { defaultValue: 'Дефолтный VKVideo бот' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {defaultVkvideoBotLoading ? (
+                  t('common.loading', { defaultValue: 'Loading…' })
+                ) : defaultVkvideoBotStatus?.enabled ? (
+                  <>
+                    {t('settings.defaultVkvideoBotConnected', { defaultValue: 'Подключён' })}
+                    {defaultVkvideoBotStatus.updatedAt ? (
+                      <span className="ml-2 opacity-80">
+                        {t('admin.updatedAt', { defaultValue: 'Updated' })}:{' '}
+                        {new Date(defaultVkvideoBotStatus.updatedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  t('settings.defaultVkvideoBotNotConnected', { defaultValue: 'Дефолтный VKVideo бот не подключён' })
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {defaultVkvideoBotStatus?.enabled ? (
+                <>
+                  <Button variant="secondary" onClick={() => redirectToDefaultVkvideoBotLink()} disabled={defaultVkvideoBotBusy}>
+                    {t('settings.defaultVkvideoBotRelink', { defaultValue: 'Перепривязать' })}
+                  </Button>
+                  <Button variant="secondary" onClick={() => void disconnectDefaultVkvideoBot()} disabled={defaultVkvideoBotBusy}>
+                    {t('settings.defaultVkvideoBotDisconnect', { defaultValue: 'Отключить' })}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => redirectToDefaultVkvideoBotLink()} disabled={defaultVkvideoBotBusy}>
+                  {t('settings.defaultVkvideoBotConnect', { defaultValue: 'Подключить' })}
                 </Button>
               )}
             </div>

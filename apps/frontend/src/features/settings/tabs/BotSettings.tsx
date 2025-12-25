@@ -118,6 +118,9 @@ export function BotSettings() {
   const [youtubeOverrideStatus, setYoutubeOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [youtubeOverrideLoading, setYoutubeOverrideLoading] = useState(false);
   const [youtubeOverrideBusy, setYoutubeOverrideBusy] = useState(false);
+  const [vkvideoOverrideStatus, setVkvideoOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [vkvideoOverrideLoading, setVkvideoOverrideLoading] = useState(false);
+  const [vkvideoOverrideBusy, setVkvideoOverrideBusy] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoChannelUrl, setVkvideoChannelUrl] = useState('');
@@ -978,11 +981,41 @@ export function BotSettings() {
     void loadYoutubeOverride();
   }, [botTab, loadYoutubeOverride]);
 
+  const loadVkvideoOverride = useCallback(async () => {
+    try {
+      setVkvideoOverrideLoading(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<unknown>('/streamer/bots/vkvideo/bot', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setVkvideoOverrideStatus({ enabled, updatedAt });
+    } catch {
+      setVkvideoOverrideStatus(null);
+    } finally {
+      setVkvideoOverrideLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (botTab !== 'vk') return;
+    void loadVkvideoOverride();
+  }, [botTab, loadVkvideoOverride]);
+
   const redirectToYoutubeOverrideLink = useCallback(() => {
     const apiOrigin = getApiOriginForRedirect();
     const url = new URL(`${apiOrigin}/streamer/bots/youtube/bot/link`);
     // UX path (must be in backend allowlist): return to YouTube bot section.
     url.searchParams.set('redirect_to', '/settings/bot/youtube');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
+
+  const redirectToVkvideoOverrideLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/streamer/bots/vkvideo/bot/link`);
+    // UX path (must be in backend allowlist): return to VK bot section.
+    url.searchParams.set('redirect_to', '/settings/bot/vk');
     url.searchParams.set('origin', window.location.origin);
     window.location.href = url.toString();
   }, []);
@@ -1013,6 +1046,33 @@ export function BotSettings() {
       setYoutubeOverrideBusy(false);
     }
   }, [loadYoutubeOverride, t, youtubeOverrideBusy]);
+
+  const disconnectVkvideoOverride = useCallback(async () => {
+    if (vkvideoOverrideBusy) return;
+    const confirmed = window.confirm(
+      t('admin.vkvideoOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего VKVideo-бота (override)?' })
+    );
+    if (!confirmed) return;
+
+    const startedAt = Date.now();
+    try {
+      setVkvideoOverrideBusy(true);
+      const { api } = await import('@/lib/api');
+      await api.delete('/streamer/bots/vkvideo/bot');
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      await loadVkvideoOverride();
+    } catch (e) {
+      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(msg);
+    } finally {
+      await ensureMinDuration(startedAt, 350);
+      setVkvideoOverrideBusy(false);
+    }
+  }, [loadVkvideoOverride, t, vkvideoOverrideBusy]);
 
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
@@ -1139,6 +1199,16 @@ export function BotSettings() {
         const apiError = error as {
           response?: { status?: number; data?: { error?: string; channels?: string[] } };
         };
+        const code = (apiError.response?.data as { code?: unknown } | undefined)?.code;
+        if (apiError.response?.status === 503 && code === 'VKVIDEO_BOT_NOT_CONFIGURED') {
+          toast.error(
+            t('admin.vkvideoBotNotConfigured', {
+              defaultValue:
+                'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
+            })
+          );
+          return;
+        }
         const maybeUrlRequired = await isVkvideoChannelUrlRequiredError(error);
         if (maybeUrlRequired) {
           setVkvideoUrlModalRequestId(maybeUrlRequired.requestId);
@@ -2389,6 +2459,50 @@ export function BotSettings() {
             confirmButtonClass="bg-primary hover:bg-primary/90"
             isLoading={vkvideoUrlModalBusy}
           />
+          {/* VKVideo override bot */}
+          <div className="glass p-4 mb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.vkvideoOverrideTitle', { defaultValue: 'Свой VKVideo бот (override)' })}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {vkvideoOverrideLoading ? (
+                    t('common.loading', { defaultValue: 'Loading…' })
+                  ) : vkvideoOverrideStatus?.enabled ? (
+                    <>
+                      {t('admin.vkvideoOverrideOn', { defaultValue: 'Используется ваш бот' })}
+                      {vkvideoOverrideStatus.updatedAt ? (
+                        <span className="ml-2 opacity-80">
+                          {t('admin.updatedAt', { defaultValue: 'Updated' })}: {new Date(vkvideoOverrideStatus.updatedAt).toLocaleString()}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    t('admin.vkvideoOverrideOff', {
+                      defaultValue: 'Используется дефолтный бот MemAlerts (если настроен админом)',
+                    })
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {vkvideoOverrideStatus?.enabled ? (
+                  <>
+                    <Button type="button" variant="secondary" onClick={() => redirectToVkvideoOverrideLink()} disabled={vkvideoOverrideBusy}>
+                      {t('admin.vkvideoOverrideRelink', { defaultValue: 'Перепривязать' })}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void disconnectVkvideoOverride()} disabled={vkvideoOverrideBusy}>
+                      {t('admin.vkvideoOverrideDisconnect', { defaultValue: 'Отключить' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" variant="primary" onClick={() => redirectToVkvideoOverrideLink()} disabled={vkvideoOverrideBusy}>
+                    {t('admin.vkvideoOverrideConnect', { defaultValue: 'Подключить своего бота' })}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
           {/* VKVideo integration */}
           <div className="glass p-4 mb-4 relative">
             <div className="flex items-start justify-between gap-4">
