@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   label: string;

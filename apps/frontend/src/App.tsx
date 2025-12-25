@@ -1,15 +1,15 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useAppDispatch } from './store/hooks';
-import { fetchUser } from './store/slices/authSlice';
-import { SocketProvider } from './contexts/SocketContext';
-import Footer from './components/Footer';
+import { Route, Routes } from 'react-router-dom';
+
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
-import { useAppSelector } from './store/hooks';
-import { api } from './lib/api';
 import GlobalErrorBanner from './components/GlobalErrorBanner';
+import Footer from './components/Footer';
+import { SocketProvider } from './contexts/SocketContext';
+import { api } from './lib/api';
+import { useAppDispatch, useAppSelector } from './store/hooks';
+import { fetchUser } from './store/slices/authSlice';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -33,12 +33,14 @@ function App() {
 
   // Check if we're on beta domain
   const isBetaDomain = window.location.hostname.includes('beta.');
+  const isLoggedIn = !!user;
+  const userId = user?.id ?? null;
 
   // On beta, block the entire app UI unless user has beta access.
   // Backend allows only /me and /beta/* without access; everything else is 403.
   useEffect(() => {
     if (!isBetaDomain) return;
-    if (!user) {
+    if (!isLoggedIn) {
       setBetaChecked(true);
       setBetaHasAccess(true); // not logged in -> landing page still usable
       return;
@@ -62,7 +64,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isBetaDomain, user?.id]);
+  }, [isBetaDomain, isLoggedIn, userId]);
 
   // Beta gating: only show access request screen (after login) until approved.
   if (isBetaDomain && user && betaChecked && !betaHasAccess) {

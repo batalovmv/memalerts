@@ -108,8 +108,10 @@ function parseJson(raw: string | null | undefined): unknown {
   }
 }
 
-function toBool(raw: string | null | undefined, fallback: boolean): boolean {
-  const v = String(raw ?? '').trim().toLowerCase();
+function toBool(raw: unknown, fallback: boolean): boolean {
+  if (typeof raw === 'boolean') return raw;
+  if (raw == null) return fallback;
+  const v = String(raw).trim().toLowerCase();
   if (!v) return fallback;
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }

@@ -1,5 +1,6 @@
-import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+
+import { useTheme } from '../contexts/ThemeContext';
 
 function SunIcon() {
   return (

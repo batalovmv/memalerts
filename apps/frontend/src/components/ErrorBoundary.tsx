@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import React from 'react';
+import React, { type ReactNode } from 'react';
 
 type Props = {
   children: ReactNode;
@@ -10,7 +9,10 @@ type State = {
 };
 
 function emitRenderError(message: string) {
-  const id = (crypto as any)?.randomUUID?.() ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const id =
+    typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   window.dispatchEvent(
     new CustomEvent('memalerts:globalError', {
       detail: {

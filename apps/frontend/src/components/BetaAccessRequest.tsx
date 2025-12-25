@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '../store/hooks';
-import { api } from '../lib/api';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+
+import { api } from '../lib/api';
+import { useAppSelector } from '../store/hooks';
 
 interface BetaAccessStatus {
   hasAccess: boolean;
