@@ -3,6 +3,7 @@ import { requireRole } from '../middleware/auth.js';
 import { adminController } from '../controllers/adminController.js';
 import { youtubeDefaultBotController } from '../controllers/owner/youtubeDefaultBotController.js';
 import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefaultBotController.js';
+import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBotController.js';
 
 // Owner-only API (role: admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -24,5 +25,10 @@ ownerRoutes.delete('/bots/youtube/default', youtubeDefaultBotController.unlink);
 ownerRoutes.get('/bots/vkvideo/default/status', vkvideoDefaultBotController.status);
 ownerRoutes.get('/bots/vkvideo/default/link', vkvideoDefaultBotController.linkStart);
 ownerRoutes.delete('/bots/vkvideo/default', vkvideoDefaultBotController.unlink);
+
+// Twitch default bot (global shared sender, admin-only)
+ownerRoutes.get('/bots/twitch/default/status', twitchDefaultBotController.status);
+ownerRoutes.get('/bots/twitch/default/link', twitchDefaultBotController.linkStart);
+ownerRoutes.delete('/bots/twitch/default', twitchDefaultBotController.unlink);
 
 

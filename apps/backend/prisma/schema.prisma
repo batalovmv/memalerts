@@ -75,6 +75,7 @@ model Channel {
   youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
   youTubeBotIntegration        YouTubeBotIntegration?
   vkVideoBotIntegration        VkVideoBotIntegration?
+  twitchBotIntegration         TwitchBotIntegration?
 }
 
 enum BotIntegrationProvider {
@@ -382,6 +383,8 @@ model ExternalAccount {
   globalYouTubeBotCredential GlobalYouTubeBotCredential?
   vkVideoBotIntegration VkVideoBotIntegration?
   globalVkVideoBotCredential GlobalVkVideoBotCredential?
+  twitchBotIntegration TwitchBotIntegration?
+  globalTwitchBotCredential GlobalTwitchBotCredential?
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -476,6 +479,40 @@ model VkVideoBotIntegration {
 // Global shared VKVideo bot credential (single default MemAlerts bot account).
 // Linked by admin once; used as sender for VKVideo chat messages when a channel has no override.
 model GlobalVkVideoBotCredential {
+  id               String   @id @default(uuid())
+  externalAccountId String  @unique
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel Twitch "bot account" override.
+// If present, Twitch chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global Twitch bot credential.
+model TwitchBotIntegration {
+  id               String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared Twitch bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for Twitch chat messages when a channel has no override.
+model GlobalTwitchBotCredential {
   id               String   @id @default(uuid())
   externalAccountId String  @unique
   enabled          Boolean  @default(true)

@@ -651,8 +651,8 @@ export const authController = {
         }
 
         // Bot linking: map this external account as the channel's bot sender.
-        // Supported providers: youtube, vkvideo.
-        if ((provider === 'youtube' || provider === 'vkvideo') && stateKind === 'bot_link') {
+        // Supported providers: youtube, vkvideo, twitch.
+        if ((provider === 'youtube' || provider === 'vkvideo' || provider === 'twitch') && stateKind === 'bot_link') {
           const channelId = String(stateChannelId || '').trim();
           if (!channelId) {
             throw new Error('missing_bot_link_channel');
@@ -688,6 +688,25 @@ export const authController = {
             } else {
               // Default behavior: per-channel override.
               await (tx as any).vkVideoBotIntegration.upsert({
+                where: { channelId },
+                create: { channelId, externalAccountId: upserted.id, enabled: true },
+                update: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            }
+          }
+
+          if (provider === 'twitch') {
+            // Special sentinel channelId: store the default/global Twitch bot credential.
+            if (channelId === '__global_twitch_bot__') {
+              await (tx as any).globalTwitchBotCredential.deleteMany({});
+              await (tx as any).globalTwitchBotCredential.create({
+                data: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            } else {
+              // Default behavior: per-channel override.
+              await (tx as any).twitchBotIntegration.upsert({
                 where: { channelId },
                 create: { channelId, externalAccountId: upserted.id, enabled: true },
                 update: { externalAccountId: upserted.id, enabled: true },

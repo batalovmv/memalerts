@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import tmi from 'tmi.js';
 import { prisma } from '../lib/prisma.js';
-import { getValidAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
+import { getValidAccessToken, getValidTwitchAccessTokenByExternalAccountId, getValidTwitchBotAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
 import { logger } from '../utils/logger.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 
@@ -105,6 +105,15 @@ async function resolveBotUserId(): Promise<string | null> {
   return null;
 }
 
+type BotClient = {
+  kind: 'default' | 'override';
+  login: string;
+  client: any;
+  joined: Set<string>;
+  // For override clients, we key them by externalAccountId.
+  externalAccountId?: string;
+};
+
 async function postInternalCreditsChatter(baseUrl: string, payload: { channelSlug: string; userId: string; displayName: string }) {
   const url = new URL('/internal/credits/chatter', baseUrl);
   const ctrl = new AbortController();
@@ -190,7 +199,20 @@ async function fetchEnabledSubscriptions(): Promise<Array<{ channelId: string; l
 }
 
 async function start() {
-  const botLogin = normalizeLogin(String(process.env.CHAT_BOT_LOGIN || ''));
+  // Default bot identity:
+  // Prefer DB-linked global Twitch bot credential; fall back to legacy env user-based bot.
+  let defaultBotLogin = normalizeLogin(String(process.env.CHAT_BOT_LOGIN || ''));
+  let defaultBotUserId: string | null = null;
+  let defaultBotExternalAccountId: string | null = null;
+  const dbDefault = await getValidTwitchBotAccessToken();
+  if (dbDefault?.login && dbDefault.accessToken) {
+    defaultBotLogin = normalizeLogin(dbDefault.login);
+    // We keep token separately below.
+    defaultBotExternalAccountId = null; // not needed; token is already fetched
+  } else {
+    defaultBotUserId = await resolveBotUserId();
+  }
+
   const syncSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_SYNC_SECONDS, 30));
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.CHATBOT_OUTBOX_POLL_MS, 1_000));
   const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
@@ -198,7 +220,7 @@ async function start() {
 
   // Hard requirements: avoid silently connecting to the wrong instance (prod vs beta)
   // and make misconfig obvious in deploy logs.
-  if (!botLogin) {
+  if (!defaultBotLogin) {
     logger.error('chatbot.missing_env', { key: 'CHAT_BOT_LOGIN' });
     process.exit(1);
   }
@@ -208,15 +230,18 @@ async function start() {
   }
 
   let stopped = false;
-  let client: any = null;
+  let defaultClient: BotClient | null = null;
+  const overrideClients = new Map<string, BotClient>(); // externalAccountId -> client
   let subscriptionsTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
   let commandsTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
 
-  const joined = new Set<string>(); // login
+  // For DEFAULT client, these track which channels it's currently in (to receive messages).
+  const joinedDefault = new Set<string>(); // login
   const loginToSlug = new Map<string, string>();
   const loginToChannelId = new Map<string, string>();
+  const channelIdToOverrideExtId = new Map<string, string>(); // channelId -> externalAccountId
   const commandsByChannelId = new Map<
     string,
     {
@@ -348,8 +373,8 @@ async function start() {
   const PROCESSING_STALE_MS = 60_000;
 
   const processOutboxOnce = async () => {
-    if (stopped || !client) return;
-    if (joined.size === 0) return;
+    if (stopped || !defaultClient) return;
+    if (joinedDefault.size === 0) return;
 
     // Only dispatch messages for currently-enabled subscriptions (avoid sending after disable).
     const channelIds = Array.from(loginToChannelId.values()).filter(Boolean);
@@ -369,11 +394,11 @@ async function start() {
     if (rows.length === 0) return;
 
     for (const r of rows) {
-      if (stopped || !client) return;
+      if (stopped || !defaultClient) return;
 
       const login = normalizeLogin(r.twitchLogin);
       if (!login) continue;
-      if (!joined.has(login)) continue; // wait until join completes
+      if (!joinedDefault.has(login)) continue; // wait until join completes (default listener)
 
       // Claim (best-effort safe if multiple runner processes ever happen).
       const claim = await (prisma as any).chatBotOutboxMessage.updateMany({
@@ -383,7 +408,8 @@ async function start() {
       if (claim.count !== 1) continue;
 
       try {
-        await client.say(login, r.message);
+        const channelId = loginToChannelId.get(login) || null;
+        await sayForChannel({ channelId, twitchLogin: login, message: r.message });
         await (prisma as any).chatBotOutboxMessage.update({
           where: { id: r.id },
           data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
@@ -403,28 +429,118 @@ async function start() {
     }
   };
 
+  async function ensureOverrideClient(externalAccountId: string): Promise<BotClient | null> {
+    const extId = String(externalAccountId || '').trim();
+    if (!extId) return null;
+    const existing = overrideClients.get(extId) || null;
+    if (existing) return existing;
+
+    // Load bot login for this external account
+    const ext = await prisma.externalAccount.findUnique({
+      where: { id: extId },
+      select: { id: true, provider: true, login: true },
+    });
+    const login = normalizeLogin(String(ext?.login || ''));
+    if (!ext || ext.provider !== 'twitch' || !login) return null;
+
+    const accessToken = await getValidTwitchAccessTokenByExternalAccountId(extId);
+    if (!accessToken) return null;
+
+    const client = new (tmi as any).Client({
+      options: { debug: false },
+      connection: { secure: true, reconnect: true },
+      identity: { username: login, password: `oauth:${accessToken}` },
+      channels: [],
+    });
+
+    const entry: BotClient = { kind: 'override', login, client, joined: new Set(), externalAccountId: extId };
+    overrideClients.set(extId, entry);
+
+    client.on('connected', () => {
+      logger.info('chatbot.override.connected', { botLogin: login, externalAccountId: extId });
+    });
+    client.on('disconnected', (reason: any) => {
+      logger.warn('chatbot.override.disconnected', { botLogin: login, externalAccountId: extId, reason: String(reason || '') });
+    });
+
+    try {
+      await client.connect();
+      return entry;
+    } catch (e: any) {
+      logger.warn('chatbot.override.connect_failed', { botLogin: login, externalAccountId: extId, errorMessage: e?.message || String(e) });
+      overrideClients.delete(extId);
+      return null;
+    }
+  }
+
+  async function sayForChannel(params: { channelId: string | null; twitchLogin: string; message: string }) {
+    const login = normalizeLogin(params.twitchLogin);
+    if (!login) throw new Error('invalid_login');
+
+    const channelId = params.channelId ? String(params.channelId).trim() : null;
+    const overrideExtId = channelId ? channelIdToOverrideExtId.get(channelId) || null : null;
+    if (overrideExtId) {
+      const override = await ensureOverrideClient(overrideExtId);
+      if (override) {
+        // Ensure override client joined channel to be able to say
+        if (!override.joined.has(login)) {
+          try {
+            await override.client.join(login);
+            override.joined.add(login);
+          } catch (e: any) {
+            logger.warn('chatbot.override.join_failed', { botLogin: override.login, login, errorMessage: e?.message || String(e) });
+          }
+        }
+        if (override.joined.has(login)) {
+          return await override.client.say(login, params.message);
+        }
+      }
+    }
+
+    if (!defaultClient) throw new Error('no_default_client');
+    return await defaultClient.client.say(login, params.message);
+  }
+
   const syncSubscriptions = async () => {
-    if (stopped || !client) return;
+    if (stopped || !defaultClient) return;
     try {
       const subs = await fetchEnabledSubscriptions();
       const desired = new Set<string>();
       loginToSlug.clear();
       loginToChannelId.clear();
+      channelIdToOverrideExtId.clear();
       for (const s of subs) {
         desired.add(s.login);
         loginToSlug.set(s.login, s.slug);
         loginToChannelId.set(s.login, s.channelId);
       }
+
+      // Load per-channel override mapping (best-effort; feature might not exist yet on some DBs).
+      try {
+        const channelIds = subs.map((s) => s.channelId);
+        const overrides = await (prisma as any).twitchBotIntegration.findMany({
+          where: { channelId: { in: channelIds }, enabled: true },
+          select: { channelId: true, externalAccountId: true },
+        });
+        for (const o of overrides) {
+          const cid = String((o as any)?.channelId || '').trim();
+          const extId = String((o as any)?.externalAccountId || '').trim();
+          if (cid && extId) channelIdToOverrideExtId.set(cid, extId);
+        }
+      } catch (e: any) {
+        if (e?.code !== 'P2021') throw e;
+      }
+
       // Keep commands cache in sync with current subscriptions (no DB writes here).
       void refreshCommands();
 
-      const toJoin = Array.from(desired).filter((l) => !joined.has(l));
-      const toPart = Array.from(joined).filter((l) => !desired.has(l));
+      const toJoin = Array.from(desired).filter((l) => !joinedDefault.has(l));
+      const toPart = Array.from(joinedDefault).filter((l) => !desired.has(l));
 
       for (const l of toJoin) {
         try {
-          await client.join(l);
-          joined.add(l);
+          await defaultClient.client.join(l);
+          joinedDefault.add(l);
           logger.info('chatbot.join', { login: l });
         } catch (e: any) {
           logger.warn('chatbot.join_failed', { login: l, errorMessage: e?.message || String(e) });
@@ -433,8 +549,8 @@ async function start() {
 
       for (const l of toPart) {
         try {
-          await client.part(l);
-          joined.delete(l);
+          await defaultClient.client.part(l);
+          joinedDefault.delete(l);
           logger.info('chatbot.part', { login: l });
         } catch (e: any) {
           logger.warn('chatbot.part_failed', { login: l, errorMessage: e?.message || String(e) });
@@ -448,29 +564,39 @@ async function start() {
   const connect = async () => {
     if (stopped) return;
 
-    const botUserId = await resolveBotUserId();
-    if (!botUserId) {
-      logger.warn('chatbot.no_bot_user', { botLogin });
-      reconnectTimer = setTimeout(connect, 30_000);
-      return;
+    let accessToken: string | null = null;
+    let botLogin = defaultBotLogin;
+
+    const dbDefault = await getValidTwitchBotAccessToken();
+    if (dbDefault?.accessToken && dbDefault.login) {
+      accessToken = dbDefault.accessToken;
+      botLogin = normalizeLogin(dbDefault.login);
+    } else {
+      const botUserId = defaultBotUserId || (await resolveBotUserId());
+      if (!botUserId) {
+        logger.warn('chatbot.no_bot_user', { botLogin });
+        reconnectTimer = setTimeout(connect, 30_000);
+        return;
+      }
+
+      accessToken = await getValidAccessToken(botUserId);
+      if (!accessToken) {
+        accessToken = await refreshAccessToken(botUserId);
+      }
+      if (!accessToken) {
+        logger.warn('chatbot.no_access_token', { botLogin, botUserId });
+        reconnectTimer = setTimeout(connect, 30_000);
+        return;
+      }
     }
 
-    let accessToken = await getValidAccessToken(botUserId);
-    if (!accessToken) {
-      accessToken = await refreshAccessToken(botUserId);
-    }
-    if (!accessToken) {
-      logger.warn('chatbot.no_access_token', { botLogin, botUserId });
-      reconnectTimer = setTimeout(connect, 30_000);
-      return;
-    }
-
-    client = new (tmi as any).Client({
+    const client = new (tmi as any).Client({
       options: { debug: false },
       connection: { secure: true, reconnect: true },
       identity: { username: botLogin, password: `oauth:${accessToken}` },
       channels: [],
     });
+    defaultClient = { kind: 'default', login: botLogin, client, joined: joinedDefault };
 
     client.on('connected', () => {
       logger.info('chatbot.connected', { botLogin });
@@ -518,7 +644,8 @@ async function start() {
                     .replace(/\{totalMinutes\}/g, String(totalMinutes))
                     .trim();
                   if (msg) {
-                    await client.say(login, msg);
+                    const channelId = loginToChannelId.get(login) || null;
+                    await sayForChannel({ channelId, twitchLogin: login, message: msg });
                     return;
                   }
                 }
@@ -589,10 +716,18 @@ async function start() {
     if (commandsTimer) clearInterval(commandsTimer);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     try {
-      if (client) await client.disconnect();
+      if (defaultClient?.client) await defaultClient.client.disconnect();
     } catch {
       // ignore
     }
+    for (const oc of Array.from(overrideClients.values())) {
+      try {
+        await oc.client.disconnect();
+      } catch {
+        // ignore
+      }
+    }
+    overrideClients.clear();
   };
 
   process.on('SIGINT', () => void shutdown().then(() => process.exit(0)));
@@ -606,6 +741,7 @@ void start().catch((e: any) => {
   logger.error('chatbot.fatal', { errorMessage: e?.message || String(e) });
   process.exit(1);
 });
+
 
 
 

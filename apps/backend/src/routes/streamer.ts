@@ -61,6 +61,9 @@ streamerRoutes.get('/bots/vkvideo/candidates', botIntegrationsController.vkvideo
 streamerRoutes.get('/bots/vkvideo/bot', botIntegrationsController.vkvideoBotStatus);
 streamerRoutes.get('/bots/vkvideo/bot/link', botIntegrationsController.vkvideoBotLinkStart);
 streamerRoutes.delete('/bots/vkvideo/bot', botIntegrationsController.vkvideoBotUnlink);
+streamerRoutes.get('/bots/twitch/bot', botIntegrationsController.twitchBotStatus);
+streamerRoutes.get('/bots/twitch/bot/link', botIntegrationsController.twitchBotLinkStart);
+streamerRoutes.delete('/bots/twitch/bot', botIntegrationsController.twitchBotUnlink);
 streamerRoutes.get('/bots/youtube/bot', botIntegrationsController.youtubeBotStatus);
 streamerRoutes.get('/bots/youtube/bot/link', botIntegrationsController.youtubeBotLinkStart);
 streamerRoutes.delete('/bots/youtube/bot', botIntegrationsController.youtubeBotUnlink);
