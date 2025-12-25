@@ -6,6 +6,7 @@ import { useAppSelector } from '@/store/hooks';
 import { Button, Input, Spinner, Textarea } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { linkExternalAccount } from '@/shared/auth/login';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 type BotCommand = {
   id: string;
@@ -96,6 +97,7 @@ export function BotSettings() {
   const [botIntegrationToggleLoading, setBotIntegrationToggleLoading] = useState<string | null>(null);
   const [youtubeNeedsRelink, setYoutubeNeedsRelink] = useState(false);
   const [youtubeEnableRetryQueued, setYoutubeEnableRetryQueued] = useState(false);
+  const [youtubeRelinkModalOpen, setYoutubeRelinkModalOpen] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoEnableMode, setVkvideoEnableMode] = useState<'auto' | 'manual'>('auto');
@@ -595,8 +597,28 @@ export function BotSettings() {
     const apiError = error as { response?: { status?: number; data?: any } };
     if (apiError.response?.status !== 412) return false;
     const data = apiError.response?.data || {};
-    return data?.code === 'YOUTUBE_RELINK_REQUIRED' && data?.needsRelink === true;
+    // Backend may send either code or needsRelink (or both).
+    return data?.code === 'YOUTUBE_RELINK_REQUIRED' || data?.needsRelink === true;
   }, []);
+
+  const getCurrentRelativePath = useCallback((): string => {
+    // Must be relative (no domain) per backend contract.
+    // Preserve current settings tab via querystring (?tab=bot).
+    return `${window.location.pathname}${window.location.search}`;
+  }, []);
+
+  const startYoutubeRelink = useCallback(() => {
+    // Mark intent to retry enabling after OAuth callback returns.
+    try {
+      window.localStorage.setItem('memalerts:youtubeRelink:retryEnable', String(Date.now()));
+      setYoutubeEnableRetryQueued(true);
+    } catch {
+      // ignore
+    }
+
+    setYoutubeRelinkModalOpen(false);
+    linkExternalAccount('youtube', getCurrentRelativePath());
+  }, [getCurrentRelativePath]);
 
   const enableYoutubeIntegration = useCallback(async () => {
     const startedAt = Date.now();
@@ -613,12 +635,8 @@ export function BotSettings() {
       void loadBotIntegrations();
       if (isYoutubeRelinkRequiredError(error)) {
         setYoutubeNeedsRelink(true);
-        toast.error(
-          t('admin.youtubeRelinkRequiredNotice', {
-            defaultValue:
-              "Нужно перелинковать YouTube (не хватает прав или токен устарел). Нажмите ‘Перелинковать’.",
-          })
-        );
+        // Expected precondition — show guided relink UX, not a generic "server error".
+        setYoutubeRelinkModalOpen(true);
         return;
       }
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -654,12 +672,7 @@ export function BotSettings() {
           setYoutubeNeedsRelink(true);
           setYoutubeEnableRetryQueued(false);
           // Don't treat as "server down" — expected precondition.
-          toast.error(
-            t('admin.youtubeRelinkRequiredNotice', {
-              defaultValue:
-                "Нужно перелинковать YouTube (не хватает прав или токен устарел). Нажмите ‘Перелинковать’.",
-            })
-          );
+          setYoutubeRelinkModalOpen(true);
           return;
         }
         const apiError = error as { response?: { status?: number; data?: { error?: string } } };
@@ -687,7 +700,26 @@ export function BotSettings() {
 
       setBotTab('youtube');
       setYoutubeEnableRetryQueued(false);
-      void enableYoutubeIntegration();
+      void (async () => {
+        // Refresh linked accounts best-effort (backend may rotate tokens/scopes).
+        try {
+          const { api } = await import('@/lib/api');
+          const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
+          const accounts = Array.isArray(items) ? (items as Array<{ provider?: unknown }>) : [];
+          const hasYouTube = accounts.some((a) => String(a?.provider || '').toLowerCase() === 'youtube');
+          if (hasYouTube) {
+            toast.success(
+              t('admin.youtubeRelinked', {
+                defaultValue: 'YouTube перелинкован, можно включать бота.',
+              })
+            );
+          }
+        } catch {
+          // ignore (best-effort)
+        }
+
+        void enableYoutubeIntegration();
+      })();
     } catch {
       // ignore (private mode, disabled storage, etc.)
     }
@@ -1622,6 +1654,18 @@ export function BotSettings() {
         </>
       ) : botTab === 'youtube' ? (
         <>
+          <ConfirmDialog
+            isOpen={youtubeRelinkModalOpen}
+            onClose={() => setYoutubeRelinkModalOpen(false)}
+            onConfirm={startYoutubeRelink}
+            title={t('admin.youtubeRelinkTitle', { defaultValue: 'Перелинковать YouTube' })}
+            message={t('admin.youtubeRelinkBody', {
+              defaultValue: 'Нужно перелинковать YouTube (истёк токен или не хватает прав).',
+            })}
+            confirmText={t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
+            cancelText={t('common.close', { defaultValue: 'Закрыть' })}
+            confirmButtonClass="bg-primary hover:bg-primary/90"
+          />
           {/* YouTube integration */}
           <div className="glass p-4 mb-4 relative">
             <div className="flex items-start justify-between gap-4">
@@ -1661,16 +1705,10 @@ export function BotSettings() {
                     type="button"
                     variant="primary"
                     onClick={() => {
-                      try {
-                        window.localStorage.setItem('memalerts:youtubeRelink:retryEnable', String(Date.now()));
-                        setYoutubeEnableRetryQueued(true);
-                      } catch {
-                        // ignore
-                      }
-                      linkExternalAccount('youtube', '/settings?tab=bot');
+                      startYoutubeRelink();
                     }}
                   >
-                    {t('admin.youtubeRelinkAction', { defaultValue: 'Перелинковать YouTube' })}
+                    {t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
                   </Button>
                   <Button
                     type="button"
