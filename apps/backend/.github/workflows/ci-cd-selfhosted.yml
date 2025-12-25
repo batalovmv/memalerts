@@ -77,8 +77,18 @@ jobs:
           pm2 start dist/index.js --name "$PM2_NAME" --update-env
           pm2 save
 
-          curl -fsS http://localhost:3001/health >/dev/null
-          echo "✅ Production deployed"
+          echo "Waiting for healthcheck on :3001 ..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3001/health >/dev/null; then
+              echo "✅ Production deployed"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "❌ Healthcheck failed (production). Recent logs:"
+          pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+          exit 1
 
   deploy-beta:
     name: Deploy beta on VPS (self-hosted)
@@ -137,7 +147,17 @@ jobs:
           pm2 start dist/index.js --name "$PM2_NAME" --update-env
           pm2 save
 
-          curl -fsS http://localhost:3002/health >/dev/null
-          echo "✅ Beta deployed"
+          echo "Waiting for healthcheck on :3002 ..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3002/health >/dev/null; then
+              echo "✅ Beta deployed"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "❌ Healthcheck failed (beta). Recent logs:"
+          pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+          exit 1
 
 
