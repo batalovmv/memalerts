@@ -4,12 +4,6 @@ on:
   push:
     branches: [main]
     tags: ['prod-*']
-    paths:
-      - 'src/**'
-      - 'prisma/**'
-      - 'package.json'
-      - 'tsconfig.json'
-      - '.github/**'
   workflow_dispatch:
 
 env:
@@ -99,13 +93,52 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Decide whether to deploy (force or relevant changes)
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Force deploy if commit message contains "deploy" or "[deploy]"
+          MSG="${{ github.event.head_commit.message }}"
+          if echo "$MSG" | grep -Eiq '(^|\\s)\\[?deploy\\]?($|\\s)'; then
+            echo "Force deploy requested by commit message."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          # If before is empty (first commit) just proceed.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No BEFORE SHA; proceeding with deploy."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Check if any relevant paths changed between BEFORE and AFTER.
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eiq '^(src/|prisma/|package\\.json$|tsconfig\\.json$|\\.github/)'; then
+            echo "Relevant changes detected; proceeding with deploy."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "No relevant changes; skipping deploy."
+          echo "deploy=false" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Setup pnpm
+        if: steps.decide.outputs.deploy == 'true'
         uses: pnpm/action-setup@v2
         with:
           version: 10
 
       - name: Setup Node.js
+        if: steps.decide.outputs.deploy == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -114,6 +147,7 @@ jobs:
 
       - name: Deploy beta (build + migrate + restart)
         shell: bash
+        if: steps.decide.outputs.deploy == 'true'
         run: |
           set -euo pipefail
 
