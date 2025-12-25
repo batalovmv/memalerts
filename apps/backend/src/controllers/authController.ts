@@ -332,10 +332,21 @@ export const authController = {
         scopes = tokenData.scope || null;
 
         // IMPORTANT:
-        // We deliberately avoid OpenID/userinfo scopes for YouTube linking (we only need YouTube Data API scopes),
-        // so we should not depend on the OpenID userinfo endpoint here.
+        // For streamer YouTube linking (readonly), we avoid OpenID/userinfo scopes to keep consent minimal.
+        // For bot_link flows (force-ssl), we DO request OIDC scopes to reliably get a stable account id.
+        //
+        // Therefore, try to resolve the Google account id ("sub") via:
+        // 1) tokeninfo (may include sub/user_id)
+        // 2) id_token (JWT) if present (requires openid scope)
+        // 3) userinfo endpoint as back-compat fallback (only works with openid scope)
         const tokenInfo = await fetchGoogleTokenInfo({ accessToken: tokenData.access_token });
-        const sub = String(tokenInfo?.sub || tokenInfo?.user_id || '').trim();
+        const idTokenSub = (() => {
+          const idToken = String(tokenData?.id_token || '').trim();
+          if (!idToken) return '';
+          const payload = decodeJwtPayloadNoVerify(idToken);
+          return String(payload?.sub || '').trim();
+        })();
+        const sub = String(tokenInfo?.sub || tokenInfo?.user_id || idTokenSub || '').trim();
         const tokenInfoScopes = tokenInfo?.scope ? String(tokenInfo.scope) : null;
         if (tokenInfoScopes) scopes = tokenInfoScopes;
 
@@ -354,9 +365,9 @@ export const authController = {
         });
 
         if (!sub) {
-          // Back-compat fallback if older clients still requested OpenID scopes.
+          // Back-compat fallback (works only if openid scope was requested).
           const googleUser = await fetchYouTubeUser({ accessToken: tokenData.access_token });
-          if (!googleUser) {
+          if (!googleUser?.sub) {
             const redirectUrl = getRedirectUrl(req, stateOrigin);
             return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
           }
@@ -367,7 +378,8 @@ export const authController = {
           profileUrl = null;
         } else {
           providerAccountId = sub;
-          // We don't request profile/email scopes for YouTube linking; keep these empty.
+          // We don't request profile/email scopes for streamer YouTube linking; keep these empty.
+          // For bot_link with OIDC scopes, we could fill some fields, but it's optional.
           displayName = null;
           login = null;
           avatarUrl = null;

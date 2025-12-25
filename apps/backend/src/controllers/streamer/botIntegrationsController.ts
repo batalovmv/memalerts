@@ -106,7 +106,9 @@ export const botIntegrationsController = {
       origin,
     });
 
-    const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl'];
+    // For bot sender linking we need a stable Google account id (sub).
+    // Google tokeninfo may omit sub/user_id unless OIDC scopes are requested, so include openid scopes too.
+    const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl', 'openid', 'email', 'profile'];
     const authUrl = getYouTubeAuthorizeUrl({
       clientId,
       redirectUri: callbackUrl,
