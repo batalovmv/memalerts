@@ -943,19 +943,14 @@ export const authController = {
         origin,
       });
 
-      // NOTE (official YouTube Data API):
-      // To send messages to a live chat we use `liveChatMessages.insert`, which requires
-      // `https://www.googleapis.com/auth/youtube.force-ssl`.
+      // YouTube linking is used to identify the streamer's YouTube channel and read live chat / live status.
       //
-      // Minimal scopes policy:
-      // - Request ONLY `youtube.force-ssl` to keep the consent screen as minimal as possible.
-      // - This scope also covers the read access we need for:
-      //   - search.list (find live video)
-      //   - videos.list (activeLiveChatId)
-      //   - liveChatMessages.list (read chat)
+      // Minimal-permissions policy:
+      // - Streamers should NOT have to grant "scary" write scopes.
+      // - Sending chat messages is done by a shared MemAlerts bot account (server-side token).
       //
-      // Users may need to re-consent if they previously linked YouTube with narrower scopes.
-      const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl'];
+      // Therefore for user linking we request ONLY read scope:
+      const scopes = ['https://www.googleapis.com/auth/youtube.readonly'];
       authUrl = getYouTubeAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,

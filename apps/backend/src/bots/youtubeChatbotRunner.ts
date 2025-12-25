@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import {
   fetchActiveLiveChatIdByVideoId,
   fetchLiveVideoIdByChannelId,
+  getValidYouTubeBotAccessToken,
   getValidYouTubeAccessToken,
   listLiveChatMessages,
   sendLiveChatMessage,
@@ -414,7 +415,9 @@ async function start() {
                   .replace(/\{totalMinutes\}/g, String(totalMinutes))
                   .trim();
                 if (reply) {
-                  await sendLiveChatMessage({ accessToken, liveChatId: st.liveChatId, messageText: reply });
+                  const botAccessToken = await getValidYouTubeBotAccessToken();
+                  if (!botAccessToken) throw new Error('YouTube bot token is not configured');
+                  await sendLiveChatMessage({ accessToken: botAccessToken, liveChatId: st.liveChatId, messageText: reply });
                   continue;
                 }
               }
@@ -428,7 +431,9 @@ async function start() {
           if (match.onlyWhenLive && !st.isLive) continue;
 
           try {
-            await sendLiveChatMessage({ accessToken, liveChatId: st.liveChatId, messageText: match.response });
+            const botAccessToken = await getValidYouTubeBotAccessToken();
+            if (!botAccessToken) throw new Error('YouTube bot token is not configured');
+            await sendLiveChatMessage({ accessToken: botAccessToken, liveChatId: st.liveChatId, messageText: match.response });
           } catch (e: any) {
             logger.warn('youtube_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
           }
@@ -492,10 +497,10 @@ async function start() {
       if (claim.count !== 1) continue;
 
       try {
-        const accessToken = await getValidYouTubeAccessToken(st.userId);
-        if (!accessToken) throw new Error('No YouTube access token');
+        const botAccessToken = await getValidYouTubeBotAccessToken();
+        if (!botAccessToken) throw new Error('YouTube bot token is not configured');
 
-        await sendLiveChatMessage({ accessToken, liveChatId: st.liveChatId, messageText: String(r.message || '') });
+        await sendLiveChatMessage({ accessToken: botAccessToken, liveChatId: st.liveChatId, messageText: String(r.message || '') });
         await (prisma as any).youTubeChatBotOutboxMessage.update({
           where: { id: r.id },
           data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },

@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
-import { fetchMyYouTubeChannelIdDetailed, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
+import { fetchMyYouTubeChannelIdDetailed, getValidYouTubeBotAccessToken, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
 import { fetchGoogleTokenInfo } from '../../auth/providers/youtube.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
 import { logger } from '../../utils/logger.js';
@@ -273,6 +273,19 @@ export const botIntegrationsController = {
             requestId: req.requestId,
             reason,
             message: 'Failed to enable YouTube bot. Please try again or contact support.',
+          });
+        }
+
+        // Ensure shared YouTube bot is configured (server-side token for sending messages).
+        // This keeps user linking read-only, while the bot account handles chat writes.
+        const botAccessToken = await getValidYouTubeBotAccessToken();
+        if (!botAccessToken) {
+          if (req.requestId) res.setHeader('x-request-id', req.requestId);
+          return res.status(503).json({
+            error: 'Service Unavailable',
+            code: 'YOUTUBE_BOT_NOT_CONFIGURED',
+            requestId: req.requestId,
+            message: 'YouTube bot is not configured on the server (missing/invalid YOUTUBE_BOT_REFRESH_TOKEN or OAuth env).',
           });
         }
       }

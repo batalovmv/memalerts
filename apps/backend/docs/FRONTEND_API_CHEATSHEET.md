@@ -194,9 +194,10 @@
   - В логах backend на 401 теперь есть событие `auth.no_token_cookie` (видно `host/origin` и список ключей cookies, без значений).
 
 #### YouTube linking (важно для отправки сообщений ботом)
-- Для того, чтобы YouTube‑бот мог **отправлять** сообщения в чат (YouTube Data API `liveChatMessages.insert`), линковка YouTube должна включать scope:
-  - `https://www.googleapis.com/auth/youtube.force-ssl`
-- Мы намеренно запрашиваем **минимальный набор**: только `youtube.force-ssl` (без `openid/email/profile`), чтобы уменьшить “страшные” права в consent‑экране.
+- Стримерская линковка YouTube запрашивает **только read-only** scope:
+  - `https://www.googleapis.com/auth/youtube.readonly`
+- Отправка сообщений в чат делается **не от имени стримера**, а от имени общего MemAlerts bot аккаунта (на сервере).
+  - На сервере должен быть настроен `YOUTUBE_BOT_REFRESH_TOKEN` (бот‑аккаунт с `youtube.force-ssl`).
 - Если пользователь привязал YouTube раньше и scope не был выдан — нужно **перелинковать YouTube** (через `GET /auth/youtube/link`).
 
 ### GET `/auth/:provider/link/callback`
@@ -406,6 +407,8 @@
     - `needsRelink: true`
     - `reason` и (опционально) `requiredScopesMissing: string[]`
   - UX: показать кнопку “Переподключить YouTube” → открыть `GET /auth/youtube/link` (с `redirect_to=/settings/accounts` или текущей страницей, если она в allowlist).
+  - если серверный YouTube bot не настроен — backend вернёт `503`:
+    - `code: "YOUTUBE_BOT_NOT_CONFIGURED"`
 - **GET `/streamer/bot/follow-greetings`** → `{ followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/enable`** body optional `{ followGreetingTemplate }` → `{ ok, followGreetingsEnabled, followGreetingTemplate }`
 - **POST `/streamer/bot/follow-greetings/disable`** → `{ ok, followGreetingsEnabled, followGreetingTemplate }`

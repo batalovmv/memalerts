@@ -52,15 +52,64 @@ function splitScopes(scopes: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-// YouTube Data API scopes required for our bot features.
+// User-linked YouTube scopes required for OUR user-level operations:
+// - resolve the streamer's channelId (channels.list mine=true)
+// - find live video + activeLiveChatId
+// - read live chat messages for commands/credits
 //
-// Official docs:
-// - liveChatMessages.insert (send message): requires `https://www.googleapis.com/auth/youtube.force-ssl`
-//
-// Minimal scopes policy:
-// - We require ONLY `youtube.force-ssl` to minimize the consent screen.
-// - This scope also covers the read access we use (search/videos/liveChatMessages.list).
-const REQUIRED_YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl'];
+// We intentionally keep this minimal and read-only to avoid scary consent prompts.
+const REQUIRED_YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.readonly'];
+
+type YouTubeBotAuthErrorReason = 'missing_bot_oauth_env' | 'missing_bot_refresh_token' | 'invalid_grant' | 'refresh_failed';
+
+let botTokenCache: { accessToken: string; expiresAt: number } | null = null;
+
+export async function getValidYouTubeBotAccessToken(): Promise<string | null> {
+  const clientId = process.env.YOUTUBE_CLIENT_ID;
+  const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
+  const refreshToken = process.env.YOUTUBE_BOT_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret) return null;
+  if (!refreshToken) return null;
+
+  const now = Date.now();
+  if (botTokenCache && botTokenCache.expiresAt - now > 60_000) {
+    return botTokenCache.accessToken;
+  }
+
+  try {
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+
+    const data = (await resp.json()) as GoogleRefreshTokenResponse;
+    if (!resp.ok || !data?.access_token) {
+      const reason: YouTubeBotAuthErrorReason = data?.error === 'invalid_grant' ? 'invalid_grant' : 'refresh_failed';
+      logger.warn('youtube.bot_token.refresh_failed', {
+        reason,
+        status: resp.status,
+        error: data?.error || null,
+        errorDescription: data?.error_description || null,
+      });
+      return null;
+    }
+
+    const expiresInSec = Number(data.expires_in || 0);
+    const expiresAt = now + (Number.isFinite(expiresInSec) && expiresInSec > 0 ? expiresInSec * 1000 : 3_000_000); // fallback ~50m
+    botTokenCache = { accessToken: data.access_token, expiresAt };
+    return data.access_token;
+  } catch (e: any) {
+    logger.warn('youtube.bot_token.refresh_failed', { errorMessage: e?.message || String(e) });
+    return null;
+  }
+}
 
 function getMissingRequiredScopes(scopes: string | null | undefined): string[] {
   const set = new Set(splitScopes(scopes));

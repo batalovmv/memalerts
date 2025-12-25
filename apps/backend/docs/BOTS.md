@@ -87,10 +87,11 @@ ENV (минимум для запуска):
 Запуск:
 - `pnpm build && pnpm start:youtube-chatbot`
 
-Важно:
-- Для отправки сообщений в чат YouTube (официальный метод **YouTube Data API** `liveChatMessages.insert`) нужен scope:
-  - `https://www.googleapis.com/auth/youtube.force-ssl`
-- Мы намеренно используем **минимальные scopes** для линковки: только `youtube.force-ssl` (без `openid/email/profile`).
+Важно (про права/безопасность):
+- Стример **не выдаёт write-доступ** нашему приложению. Линковка YouTube для стримера — **read-only**:
+  - `https://www.googleapis.com/auth/youtube.readonly`
+- Отправка сообщений в чат идёт **от имени общего MemAlerts bot аккаунта** (server-side), через YouTube Data API `liveChatMessages.insert`.
+  - Для этого на сервере должен быть настроен `YOUTUBE_BOT_REFRESH_TOKEN` (бот‑аккаунт с scope `youtube.force-ssl`).
 - YouTube может отправлять сообщения **только когда есть активный live chat**. Если стрим оффлайн — аутбокс будет ретраиться и затем помечаться `failed` (“No active live chat”).
 
 ## 3) VKVideo bot (runner)
