@@ -37,6 +37,47 @@ function normalizeLogin(v: any): string {
     .replace(/^@+/, '');
 }
 
+function parseVkVideoRoleStubs(): Map<string, string[]> {
+  // Optional dev/beta helper for role-gating until we know real VKVideo role IDs and/or have a stable roles endpoint.
+  // Format (JSON):
+  // {
+  //   "<vkvideoChannelId>": {
+  //     "login:<senderLogin>": ["role:moderator"],
+  //     "user:<vkvideoUserId>": ["role:vip","role:moderator"]
+  //   }
+  // }
+  //
+  // Notes:
+  // - keys are case-insensitive for logins; user ids are used as-is
+  // - values are arrays of arbitrary strings (your "fake role ids" for now)
+  const raw = String(process.env.VKVIDEO_ROLE_STUBS_JSON || '').trim();
+  if (!raw) return new Map();
+  try {
+    const parsed = JSON.parse(raw);
+    const out = new Map<string, string[]>();
+    if (!parsed || typeof parsed !== 'object') return out;
+
+    for (const [vkvideoChannelIdRaw, mapping] of Object.entries(parsed as Record<string, any>)) {
+      const vkvideoChannelId = String(vkvideoChannelIdRaw || '').trim();
+      if (!vkvideoChannelId || !mapping || typeof mapping !== 'object') continue;
+
+      for (const [kRaw, vRaw] of Object.entries(mapping as Record<string, any>)) {
+        const k = String(kRaw || '').trim();
+        if (!k) continue;
+
+        const list = Array.isArray(vRaw) ? vRaw.map((x) => String(x ?? '').trim()).filter(Boolean) : [];
+        if (list.length === 0) continue;
+
+        out.set(`${vkvideoChannelId}:${k.toLowerCase()}`, list);
+      }
+    }
+
+    return out;
+  } catch {
+    return new Map();
+  }
+}
+
 type ChatCommandRole = 'vip' | 'moderator' | 'subscriber' | 'follower';
 
 function normalizeAllowedUsersList(raw: any): string[] {
@@ -256,6 +297,8 @@ async function start() {
     return;
   }
 
+  const roleStubs = parseVkVideoRoleStubs();
+
   const backendBaseUrls = parseBaseUrls();
   const syncSeconds = Math.max(5, parseIntSafe(process.env.VKVIDEO_CHATBOT_SYNC_SECONDS, 30));
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.VKVIDEO_CHATBOT_OUTBOX_POLL_MS, 1_000));
@@ -407,7 +450,16 @@ async function start() {
         try {
           let senderRoleIds: string[] = [];
           if (match.vkvideoAllowedRoleIds?.length) {
-            if (ownerUserId) {
+            // Try role stubs first (dev/beta), then fallback to API role lookup (if configured).
+            const stubKeyByUser = `user:${String(incoming.userId || '').trim()}`.toLowerCase();
+            const stubKeyByLogin = `login:${String(senderLogin || '').trim().toLowerCase()}`.toLowerCase();
+            const stubUser = roleStubs.get(`${vkvideoChannelId}:${stubKeyByUser}`);
+            const stubLogin = senderLogin ? roleStubs.get(`${vkvideoChannelId}:${stubKeyByLogin}`) : undefined;
+            if (stubUser?.length) {
+              senderRoleIds = stubUser;
+            } else if (stubLogin?.length) {
+              senderRoleIds = stubLogin;
+            } else if (ownerUserId) {
               const cacheKey = `${vkvideoChannelId}:${incoming.userId}`;
               const cachedRoles = userRolesCache.get(cacheKey);
               const now = Date.now();

@@ -258,6 +258,8 @@ jobs:
             
             # VKVideo bot runner (optional)
             VKVIDEO_CHAT_BOT_ENABLED=${{ secrets.VKVIDEO_CHAT_BOT_ENABLED || '0' }}
+            # Optional role stubs (dev/beta helper; see src/bots/vkvideoChatbotRunner.ts)
+            VKVIDEO_ROLE_STUBS_JSON=${{ secrets.VKVIDEO_ROLE_STUBS_JSON || '' }}
             
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
@@ -707,6 +709,8 @@ jobs:
             
             # VKVideo bot runner (optional)
             VKVIDEO_CHAT_BOT_ENABLED=${{ secrets.VKVIDEO_CHAT_BOT_ENABLED || '0' }}
+            # Optional role stubs (dev/beta helper; see src/bots/vkvideoChatbotRunner.ts)
+            VKVIDEO_ROLE_STUBS_JSON=${{ secrets.VKVIDEO_ROLE_STUBS_JSON || '' }}
             
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
