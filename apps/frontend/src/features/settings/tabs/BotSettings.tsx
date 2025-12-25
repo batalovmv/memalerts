@@ -628,7 +628,7 @@ export function BotSettings() {
       setYoutubeForceRelinkLoading(true);
       setYoutubeLastRelinkErrorId(null);
 
-      const { api, getRequestIdFromError } = await import('@/lib/api');
+      const { api } = await import('@/lib/api');
 
       // Best-effort: find YouTube external account and unlink it to force a clean OAuth.
       const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
