@@ -637,7 +637,11 @@ export const authController = {
           select: { id: true },
         });
 
-        if (provider === 'twitch') {
+        // IMPORTANT:
+        // Only the Twitch *login* flow should update legacy User.twitch* fields.
+        // For link/bot_link (e.g. linking a separate bot account), updating User.twitchUserId can violate
+        // the unique constraint and also corrupt the "logged-in user" identity.
+        if (provider === 'twitch' && stateKind === 'login') {
           await tx.user.update({
             where: { id: user.id },
             data: {
