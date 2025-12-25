@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
+import { handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import {
   fetchVkVideoChannel,
   fetchVkVideoCurrentUser,
@@ -301,6 +302,7 @@ async function start() {
 
   // Subscription context per VKVideo channel
   const vkvideoIdToChannelUrl = new Map<string, string>();
+  const vkvideoIdToLastLiveStreamId = new Map<string, string | null>();
 
   // Pubsub connection per MemAlerts channelId (uses streamer's VKVideo OAuth token).
   const pubsubByChannelId = new Map<string, VkVideoPubSubClient>();
@@ -639,6 +641,31 @@ async function start() {
       if (!chInfo.ok) {
         logger.warn('vkvideo_chatbot.channel_info_failed', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId, error: chInfo.error });
         continue;
+      }
+
+      // Track VKVideo live status into streamDurationStore, so the "stream duration" smart command works for VKVideo too.
+      // We treat presence of streamId as "online".
+      try {
+        const prevStreamId = vkvideoIdToLastLiveStreamId.get(s.vkvideoChannelId) ?? null;
+        const nextStreamId = chInfo.streamId ?? null;
+        vkvideoIdToLastLiveStreamId.set(s.vkvideoChannelId, nextStreamId);
+
+        const wasOnline = Boolean(prevStreamId);
+        const isOnline = Boolean(nextStreamId);
+
+        if (!wasOnline && isOnline) {
+          const cfg = streamDurationCfgByChannelId.get(s.channelId)?.cfg;
+          const breakCreditMinutes = cfg?.breakCreditMinutes ?? 60;
+          await handleStreamOnline(s.slug, breakCreditMinutes);
+        } else if (wasOnline && !isOnline) {
+          await handleStreamOffline(s.slug);
+        }
+      } catch (e: any) {
+        logger.warn('vkvideo_chatbot.stream_duration_update_failed', {
+          channelId: s.channelId,
+          vkvideoChannelId: s.vkvideoChannelId,
+          errorMessage: e?.message || String(e),
+        });
       }
 
       const wsChannels: string[] = [];
