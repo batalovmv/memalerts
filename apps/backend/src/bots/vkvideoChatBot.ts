@@ -108,7 +108,24 @@ export class VkVideoChatBot {
         ? JSON.stringify({ type: 'message', text: msg })
         : msg;
 
-    ws.send(payload);
+    try {
+      // `ws` supports callback-style send: ws.send(data, cb).
+      // Native WebSocket may throw synchronously on send.
+      await new Promise<void>((resolve, reject) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        const ret = ws.send(payload, (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+        // If ws.send doesn't accept callback, it'll likely ignore it and return void.
+        // In that case, resolve immediately.
+        if (ret === undefined) resolve();
+      });
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e);
+      logger.warn('vkvideo_chatbot.ws_send_failed', { vkvideoChannelId, errorMessage });
+      throw new Error(`ws_send_failed:${errorMessage}`);
+    }
   }
 
   async stop(): Promise<void> {

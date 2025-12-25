@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
-import { fetchMyYouTubeChannelId, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
+import { fetchMyYouTubeChannelIdDetailed, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
 import { logger } from '../../utils/logger.js';
 
@@ -137,13 +137,21 @@ export const botIntegrationsController = {
           scopes: acc?.scopes || null,
         });
 
-        youtubeChannelId = await fetchMyYouTubeChannelId(req.userId);
+        const diag = await fetchMyYouTubeChannelIdDetailed(req.userId);
+        youtubeChannelId = diag.channelId;
         if (!youtubeChannelId) {
           logger.warn('streamer.bots.youtube.enable_failed', {
             requestId: req.requestId,
             channelId,
             userId: req.userId,
-            reason: 'failed_to_resolve_channel_id',
+            reason: diag.reason || 'failed_to_resolve_channel_id',
+            httpStatus: diag.httpStatus,
+            googleError: diag.googleError,
+            googleErrorDescription: diag.googleErrorDescription,
+            youtubeErrorReason: diag.youtubeErrorReason,
+            youtubeErrorMessage: diag.youtubeErrorMessage,
+            requiredScopesMissing: diag.requiredScopesMissing,
+            accountScopes: diag.accountScopes,
           });
           return res.status(412).json({
             error: 'Precondition Failed',

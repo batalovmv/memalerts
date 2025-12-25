@@ -533,10 +533,21 @@ async function start() {
 
       let lastError: string | null = null;
       try {
+        logger.info('vkvideo_chatbot.outbox_send', {
+          vkvideoChannelId,
+          outboxId: r.id,
+          attempts: Number(r.attempts || 0),
+          messageLen: msg.length,
+        });
         await bot.say(vkvideoChannelId, msg);
         await (prisma as any).vkVideoChatBotOutboxMessage.update({
           where: { id: r.id },
           data: { status: 'sent', sentAt: new Date(), lastError: null },
+        });
+        logger.info('vkvideo_chatbot.outbox_sent', {
+          vkvideoChannelId,
+          outboxId: r.id,
+          attempts: Number(r.attempts || 0),
         });
       } catch (e: any) {
         lastError = e?.message || String(e);
@@ -551,7 +562,13 @@ async function start() {
             failedAt: nextStatus === 'failed' ? new Date() : null,
           },
         });
-        logger.warn('vkvideo_chatbot.outbox_send_failed', { vkvideoChannelId, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+        logger.warn('vkvideo_chatbot.outbox_send_failed', {
+          vkvideoChannelId,
+          outboxId: r.id,
+          attempts: nextAttempts,
+          messageLen: msg.length,
+          errorMessage: lastError,
+        });
       }
     }
   };

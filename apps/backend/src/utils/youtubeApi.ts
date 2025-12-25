@@ -10,10 +10,51 @@ type GoogleRefreshTokenResponse = {
   error_description?: string;
 };
 
+type YouTubeApiErrorReason =
+  | 'missing_oauth_env'
+  | 'no_external_account'
+  | 'missing_refresh_token'
+  | 'missing_scopes'
+  | 'invalid_grant'
+  | 'refresh_failed'
+  | 'api_unauthorized'
+  | 'api_forbidden'
+  | 'api_quota'
+  | 'api_insufficient_permissions'
+  | 'api_error'
+  | 'unknown';
+
+export type FetchMyYouTubeChannelIdDiagnostics = {
+  ok: boolean;
+  channelId: string | null;
+  reason: YouTubeApiErrorReason | null;
+  httpStatus: number | null;
+  googleError: string | null;
+  googleErrorDescription: string | null;
+  youtubeErrorReason: string | null;
+  youtubeErrorMessage: string | null;
+  requiredScopesMissing: string[] | null;
+  accountScopes: string | null;
+};
+
 function isExpired(expiresAt: Date | null | undefined, skewSeconds: number): boolean {
   if (!expiresAt) return true;
   const msLeft = expiresAt.getTime() - Date.now();
   return msLeft <= skewSeconds * 1000;
+}
+
+function splitScopes(scopes: string | null | undefined): string[] {
+  return String(scopes || '')
+    .split(/[ ,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const REQUIRED_YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.readonly'];
+
+function getMissingRequiredScopes(scopes: string | null | undefined): string[] {
+  const set = new Set(splitScopes(scopes));
+  return REQUIRED_YOUTUBE_SCOPES.filter((s) => !set.has(s));
 }
 
 export async function getYouTubeExternalAccount(userId: string): Promise<{
@@ -38,13 +79,27 @@ export async function getYouTubeExternalAccount(userId: string): Promise<{
   };
 }
 
-export async function refreshYouTubeAccessToken(userId: string): Promise<string | null> {
+async function refreshYouTubeAccessTokenDetailed(userId: string): Promise<{
+  ok: boolean;
+  accessToken: string | null;
+  reason: YouTubeApiErrorReason | null;
+  httpStatus: number | null;
+  googleError: string | null;
+  googleErrorDescription: string | null;
+}> {
   const clientId = process.env.YOUTUBE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret) {
+    return { ok: false, accessToken: null, reason: 'missing_oauth_env', httpStatus: null, googleError: null, googleErrorDescription: null };
+  }
 
   const account = await getYouTubeExternalAccount(userId);
-  if (!account?.refreshToken) return null;
+  if (!account) {
+    return { ok: false, accessToken: null, reason: 'no_external_account', httpStatus: null, googleError: null, googleErrorDescription: null };
+  }
+  if (!account.refreshToken) {
+    return { ok: false, accessToken: null, reason: 'missing_refresh_token', httpStatus: null, googleError: null, googleErrorDescription: null };
+  }
 
   try {
     const resp = await fetch('https://oauth2.googleapis.com/token', {
@@ -60,12 +115,21 @@ export async function refreshYouTubeAccessToken(userId: string): Promise<string 
 
     const data = (await resp.json()) as GoogleRefreshTokenResponse;
     if (!resp.ok || !data?.access_token) {
+      const reason: YouTubeApiErrorReason = data?.error === 'invalid_grant' ? 'invalid_grant' : 'refresh_failed';
       logger.warn('youtube.token.refresh_failed', {
         userId,
         status: resp.status,
         error: data?.error || null,
+        errorDescription: data?.error_description || null,
       });
-      return null;
+      return {
+        ok: false,
+        accessToken: null,
+        reason,
+        httpStatus: resp.status,
+        googleError: data?.error || null,
+        googleErrorDescription: data?.error_description || null,
+      };
     }
 
     const tokenExpiresAt = data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null;
@@ -79,11 +143,16 @@ export async function refreshYouTubeAccessToken(userId: string): Promise<string 
       select: { id: true },
     });
 
-    return data.access_token;
+    return { ok: true, accessToken: data.access_token, reason: null, httpStatus: null, googleError: null, googleErrorDescription: null };
   } catch (e: any) {
     logger.warn('youtube.token.refresh_failed', { userId, errorMessage: e?.message || String(e) });
-    return null;
+    return { ok: false, accessToken: null, reason: 'refresh_failed', httpStatus: null, googleError: null, googleErrorDescription: null };
   }
+}
+
+export async function refreshYouTubeAccessToken(userId: string): Promise<string | null> {
+  const r = await refreshYouTubeAccessTokenDetailed(userId);
+  return r.ok ? r.accessToken : null;
 }
 
 export async function getValidYouTubeAccessToken(userId: string): Promise<string | null> {
@@ -95,6 +164,19 @@ export async function getValidYouTubeAccessToken(userId: string): Promise<string
     return await refreshYouTubeAccessToken(userId);
   }
   return account.accessToken;
+}
+
+class YouTubeHttpError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public bodyText: string | null,
+    public errorMessage: string | null,
+    public errorReason: string | null,
+  ) {
+    super(message);
+    this.name = 'YouTubeHttpError';
+  }
 }
 
 async function youtubeGetJson<T>(params: { accessToken: string; url: string }): Promise<T> {
@@ -112,15 +194,74 @@ async function youtubeGetJson<T>(params: { accessToken: string; url: string }): 
     json = null;
   }
   if (!resp.ok) {
-    const reason = json?.error?.message || json?.error_description || text || resp.statusText;
-    throw new Error(`YouTube API error: ${resp.status} ${reason}`);
+    const errorMessage = (json?.error?.message ? String(json.error.message) : null) || (json?.error_description ? String(json.error_description) : null);
+    const errorReason =
+      Array.isArray(json?.error?.errors) && json.error.errors[0]?.reason ? String(json.error.errors[0].reason) : null;
+    const reasonText = errorMessage || text || resp.statusText;
+    throw new YouTubeHttpError(`YouTube API error: ${resp.status} ${reasonText}`, resp.status, text || null, errorMessage, errorReason);
   }
   return json as T;
 }
 
 export async function fetchMyYouTubeChannelId(userId: string): Promise<string | null> {
-  const accessToken = await getValidYouTubeAccessToken(userId);
-  if (!accessToken) return null;
+  const detailed = await fetchMyYouTubeChannelIdDetailed(userId);
+  return detailed.channelId;
+}
+
+export async function fetchMyYouTubeChannelIdDetailed(userId: string): Promise<FetchMyYouTubeChannelIdDiagnostics> {
+  const account = await getYouTubeExternalAccount(userId);
+  if (!account) {
+    return {
+      ok: false,
+      channelId: null,
+      reason: 'no_external_account',
+      httpStatus: null,
+      googleError: null,
+      googleErrorDescription: null,
+      youtubeErrorReason: null,
+      youtubeErrorMessage: null,
+      requiredScopesMissing: null,
+      accountScopes: null,
+    };
+  }
+
+  const missingScopes = getMissingRequiredScopes(account.scopes);
+  if (missingScopes.length) {
+    return {
+      ok: false,
+      channelId: null,
+      reason: 'missing_scopes',
+      httpStatus: null,
+      googleError: null,
+      googleErrorDescription: null,
+      youtubeErrorReason: null,
+      youtubeErrorMessage: null,
+      requiredScopesMissing: missingScopes,
+      accountScopes: account.scopes ?? null,
+    };
+  }
+
+  let accessToken = account.accessToken;
+  let refreshDiag: Awaited<ReturnType<typeof refreshYouTubeAccessTokenDetailed>> | null = null;
+
+  if (!accessToken || isExpired(account.tokenExpiresAt, 60)) {
+    refreshDiag = await refreshYouTubeAccessTokenDetailed(userId);
+    if (!refreshDiag.ok || !refreshDiag.accessToken) {
+      return {
+        ok: false,
+        channelId: null,
+        reason: refreshDiag.reason || 'refresh_failed',
+        httpStatus: refreshDiag.httpStatus,
+        googleError: refreshDiag.googleError,
+        googleErrorDescription: refreshDiag.googleErrorDescription,
+        youtubeErrorReason: null,
+        youtubeErrorMessage: null,
+        requiredScopesMissing: null,
+        accountScopes: account.scopes ?? null,
+      };
+    }
+    accessToken = refreshDiag.accessToken;
+  }
 
   type Resp = { items?: Array<{ id?: string }> };
   const url = new URL('https://www.googleapis.com/youtube/v3/channels');
@@ -130,10 +271,53 @@ export async function fetchMyYouTubeChannelId(userId: string): Promise<string | 
   try {
     const data = await youtubeGetJson<Resp>({ accessToken, url: url.toString() });
     const id = String(data?.items?.[0]?.id || '').trim();
-    return id || null;
+    return {
+      ok: Boolean(id),
+      channelId: id || null,
+      reason: id ? null : 'api_error',
+      httpStatus: null,
+      googleError: null,
+      googleErrorDescription: null,
+      youtubeErrorReason: null,
+      youtubeErrorMessage: null,
+      requiredScopesMissing: null,
+      accountScopes: account.scopes ?? null,
+    };
   } catch (e: any) {
-    logger.warn('youtube.channels.mine_failed', { userId, errorMessage: e?.message || String(e) });
-    return null;
+    const err = e as any;
+    const status = typeof err?.status === 'number' ? (err.status as number) : null;
+    const youtubeErrorReason = typeof err?.errorReason === 'string' ? err.errorReason : null;
+    const youtubeErrorMessage = typeof err?.errorMessage === 'string' ? err.errorMessage : null;
+
+    let reason: YouTubeApiErrorReason = 'api_error';
+    if (status === 401) reason = 'api_unauthorized';
+    if (status === 403) {
+      reason = 'api_forbidden';
+      if (youtubeErrorReason === 'quotaExceeded' || youtubeErrorReason === 'dailyLimitExceeded') reason = 'api_quota';
+      if (youtubeErrorReason === 'insufficientPermissions') reason = 'api_insufficient_permissions';
+    }
+
+    logger.warn('youtube.channels.mine_failed', {
+      userId,
+      reason,
+      status,
+      youtubeErrorReason,
+      youtubeErrorMessage,
+      errorMessage: e?.message || String(e),
+    });
+
+    return {
+      ok: false,
+      channelId: null,
+      reason,
+      httpStatus: status,
+      googleError: refreshDiag?.googleError ?? null,
+      googleErrorDescription: refreshDiag?.googleErrorDescription ?? null,
+      youtubeErrorReason,
+      youtubeErrorMessage,
+      requiredScopesMissing: null,
+      accountScopes: account.scopes ?? null,
+    };
   }
 }
 
