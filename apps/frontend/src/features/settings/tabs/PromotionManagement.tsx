@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
+
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import type React from 'react';
 
 import { Button, Card, Input } from '@/shared/ui';
 

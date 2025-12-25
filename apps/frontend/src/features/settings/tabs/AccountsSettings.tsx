@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import type { ExternalAccount } from '@/types';
 import { api } from '@/lib/api';
 import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
 import { toApiError } from '@/shared/api/toApiError';
@@ -9,7 +10,6 @@ import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
 import { Button, Card } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchUser } from '@/store/slices/authSlice';
-import type { ExternalAccount } from '@/types';
 
 function normalizeAccounts(input: unknown): ExternalAccount[] {
   if (Array.isArray(input)) return input as ExternalAccount[];

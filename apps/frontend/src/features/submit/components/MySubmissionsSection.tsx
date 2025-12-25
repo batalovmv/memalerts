@@ -2,10 +2,10 @@ import { useTranslation } from 'react-i18next';
 
 import { NeedsChangesSubmissionCard } from './NeedsChangesSubmissionCard';
 
-import { IconButton } from '@/shared/ui';
-
 import type { RefCallback } from 'react';
 import type { MySubmission } from '../types';
+
+import { IconButton } from '@/shared/ui';
 
 export type MySubmissionsSectionMode = 'needs_changes' | 'history';
 

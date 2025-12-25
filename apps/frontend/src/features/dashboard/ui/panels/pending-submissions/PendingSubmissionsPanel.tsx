@@ -5,9 +5,9 @@ import { PanelHeader } from '../../PanelHeader';
 import { useLoadMoreOnIntersect } from './model/useLoadMoreOnIntersect';
 import { PendingSubmissionCard } from './PendingSubmissionCard';
 
+import type { Submission } from '@/types';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
-import type { Submission } from '@/types';
 
 export type PendingSubmissionsPanelProps = {
   isOpen: boolean;

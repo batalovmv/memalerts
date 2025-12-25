@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 
+import type { Meme, Wallet } from '@/types';
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import ChannelThemeProvider from '@/components/ChannelThemeProvider';
 import CoinsInfoModal from '@/components/CoinsInfoModal';
@@ -18,8 +19,6 @@ import { resolveMediaUrl } from '@/lib/urls';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
-
-import type { Meme, Wallet } from '@/types';
 
 interface ChannelInfo {
   id: string;
