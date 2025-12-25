@@ -1,15 +1,6 @@
 name: Backend CI/CD
 
 on:
-  push:
-    branches: [main]
-    tags: ['prod-*']
-    paths:
-      - 'src/**'
-      - 'prisma/**'
-      - 'package.json'
-      - 'tsconfig.json'
-      - '.github/**'
   workflow_dispatch: # Allow manual trigger
   pull_request:
     branches: [main]
@@ -19,6 +10,10 @@ on:
       - 'package.json'
       - 'tsconfig.json'
       - '.github/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: '20'
@@ -56,6 +51,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -97,22 +94,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build API
-        run: pnpm build
 
       - name: Create deployment directory
         uses: appleboy/ssh-action@v1.0.0
@@ -494,22 +475,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build API
-        run: pnpm build
 
       - name: Create deployment directory (Beta)
         uses: appleboy/ssh-action@v1.0.0

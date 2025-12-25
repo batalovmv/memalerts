@@ -8,18 +8,21 @@
 
 ## CI/CD (GitHub Actions)
 
-Workflow: `.github/workflows/ci-cd.yml`
+Workflows:
+
+- `.github/workflows/ci-cd.yml` — PR checks / ручной запуск (GitHub-hosted)
+- `.github/workflows/ci-cd-selfhosted.yml` — деплой на VPS через self-hosted runner (почти без GitHub minutes)
 
 - **push в `main`** → деплой в `/opt/memalerts-backend-beta` (порт 3002)
-- **push в `develop`** → деплой в `/opt/memalerts-backend` (порт 3001)
+- **tag `prod-*`** → деплой в `/opt/memalerts-backend` (порт 3001)
 
 Технически деплой делает:
 
-- копирование кода на VPS (SCP)
-- установка зависимостей (`pnpm install --frozen-lockfile`)
-- сборка (`pnpm build`)
-- Prisma (`prisma generate`, `prisma migrate deploy`)
-- перезапуск через PM2
+- синхронизацию кода в `/opt/...` (rsync на VPS)
+- `pnpm install --frozen-lockfile`
+- `pnpm build`
+- Prisma (`prisma migrate deploy`)
+- рестарт через PM2
 - (опционально) настройка nginx через `.github/scripts/setup-nginx-full.sh`
 
 Дополнительно:
