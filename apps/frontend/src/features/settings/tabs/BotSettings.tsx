@@ -136,7 +136,6 @@ export function BotSettings() {
 
   const [testMessage, setTestMessage] = useState('');
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
-  const [testMessageProvider, setTestMessageProvider] = useState<'twitch' | 'youtube' | 'vkvideo'>('twitch');
   type OutboxStatus = 'pending' | 'processing' | 'sent' | 'failed';
   type OutboxLastError = 'bot_not_joined' | string | null;
   type OutboxStatusResponse = {
@@ -729,7 +728,6 @@ export function BotSettings() {
 
   const sendTestMessage = useCallback(
     async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
-      setTestMessageProvider(provider);
       const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
       await queueBotSay(provider, msg);
     },
@@ -1517,7 +1515,6 @@ export function BotSettings() {
           type="button"
           onClick={() => {
             setBotTab('twitch');
-            setTestMessageProvider('twitch');
           }}
           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
             botTab === 'twitch'
@@ -1531,7 +1528,6 @@ export function BotSettings() {
           type="button"
           onClick={() => {
             setBotTab('youtube');
-            setTestMessageProvider('youtube');
           }}
           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
             botTab === 'youtube'
@@ -1545,7 +1541,6 @@ export function BotSettings() {
           type="button"
           onClick={() => {
             setBotTab('vk');
-            setTestMessageProvider('vkvideo');
           }}
           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
             botTab === 'vk'
