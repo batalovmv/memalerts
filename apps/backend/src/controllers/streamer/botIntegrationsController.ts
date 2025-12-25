@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
 import { fetchMyYouTubeChannelIdDetailed, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
+import { fetchGoogleTokenInfo } from '../../auth/providers/youtube.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
 import { logger } from '../../utils/logger.js';
 
@@ -140,6 +141,12 @@ export const botIntegrationsController = {
         const diag = await fetchMyYouTubeChannelIdDetailed(req.userId);
         youtubeChannelId = diag.channelId;
         if (!youtubeChannelId) {
+          // Best-effort tokeninfo to see actual scopes on the current access token.
+          // This helps distinguish "missing scopes" from "token revoked/expired".
+          let tokenInfo: any = null;
+          if (acc?.accessToken) {
+            tokenInfo = await fetchGoogleTokenInfo({ accessToken: acc.accessToken });
+          }
           logger.warn('streamer.bots.youtube.enable_failed', {
             requestId: req.requestId,
             channelId,
@@ -152,6 +159,10 @@ export const botIntegrationsController = {
             youtubeErrorMessage: diag.youtubeErrorMessage,
             requiredScopesMissing: diag.requiredScopesMissing,
             accountScopes: diag.accountScopes,
+            tokeninfoScopes: tokenInfo?.scope ?? null,
+            tokeninfoHasSub: Boolean(tokenInfo?.sub || tokenInfo?.user_id),
+            tokeninfoError: tokenInfo?.error ?? null,
+            tokeninfoErrorDescription: tokenInfo?.error_description ?? null,
           });
           return res.status(412).json({
             error: 'Precondition Failed',

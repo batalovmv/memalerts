@@ -8,7 +8,7 @@ import { debugLog, debugError } from '../utils/debug.js';
 import { logger } from '../utils/logger.js';
 import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
-import { exchangeYouTubeCodeForToken, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
+import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
 import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/providers/vk.js';
 import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
@@ -330,17 +330,34 @@ export const authController = {
         tokenExpiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
         scopes = tokenData.scope || null;
 
-        const googleUser = await fetchYouTubeUser({ accessToken: tokenData.access_token });
-        if (!googleUser) {
-          const redirectUrl = getRedirectUrl(req, stateOrigin);
-          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
-        }
+        // IMPORTANT:
+        // We deliberately avoid OpenID/userinfo scopes for YouTube linking (we only need YouTube Data API scopes),
+        // so we should not depend on the OpenID userinfo endpoint here.
+        const tokenInfo = await fetchGoogleTokenInfo({ accessToken: tokenData.access_token });
+        const sub = String(tokenInfo?.sub || tokenInfo?.user_id || '').trim();
+        const tokenInfoScopes = tokenInfo?.scope ? String(tokenInfo.scope) : null;
+        if (tokenInfoScopes) scopes = tokenInfoScopes;
 
-        providerAccountId = googleUser.sub;
-        displayName = googleUser.name || null;
-        login = googleUser.email || null;
-        avatarUrl = googleUser.picture || null;
-        profileUrl = null;
+        if (!sub) {
+          // Back-compat fallback if older clients still requested OpenID scopes.
+          const googleUser = await fetchYouTubeUser({ accessToken: tokenData.access_token });
+          if (!googleUser) {
+            const redirectUrl = getRedirectUrl(req, stateOrigin);
+            return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
+          }
+          providerAccountId = googleUser.sub;
+          displayName = googleUser.name || null;
+          login = googleUser.email || null;
+          avatarUrl = googleUser.picture || null;
+          profileUrl = null;
+        } else {
+          providerAccountId = sub;
+          // We don't request profile/email scopes for YouTube linking; keep these empty.
+          displayName = null;
+          login = null;
+          avatarUrl = null;
+          profileUrl = null;
+        }
       } else if (provider === 'vk') {
         const tokenData = await exchangeVkCodeForToken({
           clientId: process.env.VK_CLIENT_ID!,
@@ -916,17 +933,14 @@ export const authController = {
       // We also request YouTube Data API scopes to enable YouTube live chat integration (bot runner).
       // Users may need to re-consent if they previously linked YouTube with only OpenID scopes.
       const scopes = [
-        'openid',
-        'profile',
-        'email',
         'https://www.googleapis.com/auth/youtube.readonly',
-        'https://www.googleapis.com/auth/youtube.force-ssl',
       ];
       authUrl = getYouTubeAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,
         state,
         scopes,
+        includeGrantedScopes: true,
       });
     } else if (provider === 'vk' || provider === 'vkplay') {
       // NOTE: front expects provider "vk". We still accept "vkplay" for backward compatibility.

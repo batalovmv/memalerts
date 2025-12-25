@@ -11,6 +11,17 @@ export type GoogleTokenResponse = {
   error_description?: string;
 };
 
+export type GoogleTokenInfo = {
+  // "sub" is commonly present for Google-issued tokens; "user_id" appears in some responses.
+  sub?: string;
+  user_id?: string;
+  scope?: string;
+  expires_in?: string;
+  email?: string;
+  error?: string;
+  error_description?: string;
+};
+
 export type GoogleUserInfo = {
   sub: string;
   name?: string;
@@ -26,6 +37,7 @@ export function getYouTubeAuthorizeUrl(params: {
   redirectUri: string;
   state: string;
   scopes: string[];
+  includeGrantedScopes?: boolean;
 }): string {
   // We use Google OAuth (OpenID) as YouTube identity.
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -36,6 +48,9 @@ export function getYouTubeAuthorizeUrl(params: {
   url.searchParams.set('state', params.state);
   url.searchParams.set('access_type', 'offline'); // refresh_token on first consent
   url.searchParams.set('prompt', 'consent'); // ensure refresh_token for linking
+  if (params.includeGrantedScopes) {
+    url.searchParams.set('include_granted_scopes', 'true');
+  }
   return url.toString();
 }
 
@@ -72,6 +87,21 @@ export async function fetchYouTubeUser(params: {
   debugLog('youtube.user.fetch', { status: userResponse.status, hasUser: !!data?.sub });
   if (!data?.sub) return null;
   return data;
+}
+
+export async function fetchGoogleTokenInfo(params: { accessToken: string }): Promise<GoogleTokenInfo | null> {
+  try {
+    const url = new URL('https://oauth2.googleapis.com/tokeninfo');
+    url.searchParams.set('access_token', params.accessToken);
+    const resp = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    const data = (await resp.json()) as GoogleTokenInfo;
+    debugLog('google.tokeninfo.fetch', { status: resp.status, hasSub: !!(data?.sub || data?.user_id), hasScope: !!data?.scope });
+    if (!resp.ok) return null;
+    return data;
+  } catch (e: any) {
+    debugLog('google.tokeninfo.fetch_error', { errorMessage: e?.message || String(e) });
+    return null;
+  }
 }
 
 
