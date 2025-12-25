@@ -1,0 +1,143 @@
+name: Backend Deploy (Self-hosted)
+
+on:
+  push:
+    branches: [main]
+    tags: ['prod-*']
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - '.github/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-production:
+    name: Deploy production on VPS (self-hosted)
+    runs-on: [self-hosted, linux, x64, memalerts-vps]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-')
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Deploy production (build + migrate + restart)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_DIR="/opt/memalerts-backend"
+          PM2_NAME="memalerts-api"
+
+          if [ ! -d "$APP_DIR" ]; then
+            echo "❌ $APP_DIR not found. Create it on VPS first."
+            exit 1
+          fi
+
+          if [ ! -f "$APP_DIR/.env" ]; then
+            echo "❌ $APP_DIR/.env not found. Create it on VPS first (prod env)."
+            exit 1
+          fi
+
+          echo "Syncing repo -> $APP_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude uploads \
+            --exclude .env \
+            ./ "$APP_DIR/"
+
+          cd "$APP_DIR"
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm prisma migrate deploy
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+          pm2 start dist/index.js --name "$PM2_NAME" --update-env
+          pm2 save
+
+          curl -fsS http://localhost:3001/health >/dev/null
+          echo "✅ Production deployed"
+
+  deploy-beta:
+    name: Deploy beta on VPS (self-hosted)
+    runs-on: [self-hosted, linux, x64, memalerts-vps]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Deploy beta (build + migrate + restart)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_DIR="/opt/memalerts-backend-beta"
+          PM2_NAME="memalerts-api-beta"
+
+          if [ ! -d "$APP_DIR" ]; then
+            echo "❌ $APP_DIR not found. Create it on VPS first."
+            exit 1
+          fi
+
+          if [ ! -f "$APP_DIR/.env" ]; then
+            echo "❌ $APP_DIR/.env not found. Create it on VPS first (beta env, token_beta cookie + JWT_SECRET_BETA, etc)."
+            exit 1
+          fi
+
+          echo "Syncing repo -> $APP_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude uploads \
+            --exclude .env \
+            ./ "$APP_DIR/"
+
+          cd "$APP_DIR"
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm prisma migrate deploy
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+          pm2 start dist/index.js --name "$PM2_NAME" --update-env
+          pm2 save
+
+          curl -fsS http://localhost:3002/health >/dev/null
+          echo "✅ Beta deployed"
+
+
