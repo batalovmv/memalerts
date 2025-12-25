@@ -245,6 +245,68 @@ export async function getValidYouTubeAccessToken(userId: string): Promise<string
   return account.accessToken;
 }
 
+export async function getValidYouTubeAccessTokenByExternalAccountId(externalAccountId: string): Promise<string | null> {
+  const id = String(externalAccountId || '').trim();
+  if (!id) return null;
+
+  const row = await prisma.externalAccount.findUnique({
+    where: { id },
+    select: { id: true, provider: true, accessToken: true, refreshToken: true, tokenExpiresAt: true, scopes: true },
+  });
+  if (!row) return null;
+  if (row.provider !== 'youtube') return null;
+
+  // If missing or expired (with skew), refresh.
+  if (!row.accessToken || isExpired(row.tokenExpiresAt, 60)) {
+    const clientId = process.env.YOUTUBE_CLIENT_ID;
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return null;
+    if (!row.refreshToken) return null;
+
+    try {
+      const resp = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+          refresh_token: row.refreshToken,
+        }),
+      });
+
+      const data = (await resp.json()) as GoogleRefreshTokenResponse;
+      if (!resp.ok || !data?.access_token) {
+        logger.warn('youtube.token.refresh_failed', {
+          externalAccountId: id,
+          status: resp.status,
+          error: data?.error || null,
+          errorDescription: data?.error_description || null,
+        });
+        return null;
+      }
+
+      const tokenExpiresAt = data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null;
+      await prisma.externalAccount.update({
+        where: { id },
+        data: {
+          accessToken: data.access_token,
+          tokenExpiresAt,
+          scopes: data.scope ?? row.scopes ?? null,
+        },
+        select: { id: true },
+      });
+
+      return data.access_token;
+    } catch (e: any) {
+      logger.warn('youtube.token.refresh_failed', { externalAccountId: id, errorMessage: e?.message || String(e) });
+      return null;
+    }
+  }
+
+  return row.accessToken;
+}
+
 class YouTubeHttpError extends Error {
   constructor(
     message: string,

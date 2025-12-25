@@ -6,6 +6,7 @@ import {
   fetchLiveVideoIdByChannelId,
   getValidYouTubeBotAccessToken,
   getValidYouTubeAccessToken,
+  getValidYouTubeAccessTokenByExternalAccountId,
   listLiveChatMessages,
   sendLiveChatMessage,
 } from '../utils/youtubeApi.js';
@@ -154,6 +155,31 @@ async function fetchEnabledYouTubeSubscriptions(): Promise<SubRow[]> {
   return out;
 }
 
+async function fetchYouTubeBotOverrides(channelIds: string[]): Promise<Map<string, string>> {
+  // channelId -> externalAccountId
+  try {
+    const ids = Array.from(new Set(channelIds.map((c) => String(c || '').trim()).filter(Boolean)));
+    if (ids.length === 0) return new Map();
+    const rows = await (prisma as any).youTubeBotIntegration.findMany({
+      where: { channelId: { in: ids }, enabled: true },
+      select: { channelId: true, externalAccountId: true },
+    });
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      const channelId = String((r as any)?.channelId || '').trim();
+      const externalAccountId = String((r as any)?.externalAccountId || '').trim();
+      if (!channelId || !externalAccountId) continue;
+      map.set(channelId, externalAccountId);
+    }
+    return map;
+  } catch (e: any) {
+    // Feature not deployed / migrations not applied
+    if (e?.code === 'P2021') return new Map();
+    logger.warn('youtube_chatbot.bot_overrides_fetch_failed', { errorMessage: e?.message || String(e) });
+    return new Map();
+  }
+}
+
 type ChannelState = {
   channelId: string;
   userId: string;
@@ -178,6 +204,8 @@ type ChannelState = {
   // Command cache
   commandsTs: number;
   commands: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }>;
+  // Optional per-channel bot account override (ExternalAccount.id)
+  botExternalAccountId: string | null;
 };
 
 async function refreshCommandsForChannel(channelId: string): Promise<Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }>> {
@@ -238,6 +266,7 @@ async function start() {
     if (stopped) return;
     try {
       const subs = await fetchEnabledYouTubeSubscriptions();
+      const overrides = await fetchYouTubeBotOverrides(subs.map((s) => s.channelId));
       const desired = new Set<string>(subs.map((s) => s.channelId));
 
       // Upsert/update states
@@ -261,7 +290,9 @@ async function start() {
             pollInFlight: false,
             commandsTs: 0,
             commands: [],
+            botExternalAccountId: null,
           });
+          states.get(s.channelId)!.botExternalAccountId = overrides.get(s.channelId) ?? null;
           logger.info('youtube_chatbot.sub.add', { channelId: s.channelId, youtubeChannelId: s.youtubeChannelId, slug: s.slug });
         } else {
           existing.userId = s.userId;
@@ -269,6 +300,7 @@ async function start() {
           existing.slug = s.slug;
           existing.creditsReconnectWindowMinutes = s.creditsReconnectWindowMinutes;
           existing.streamDurationCfg = streamDurationCfg;
+          existing.botExternalAccountId = overrides.get(s.channelId) ?? null;
         }
       }
 
@@ -415,9 +447,11 @@ async function start() {
                   .replace(/\{totalMinutes\}/g, String(totalMinutes))
                   .trim();
                 if (reply) {
-                  const botAccessToken = await getValidYouTubeBotAccessToken();
-                  if (!botAccessToken) throw new Error('YouTube bot token is not configured');
-                  await sendLiveChatMessage({ accessToken: botAccessToken, liveChatId: st.liveChatId, messageText: reply });
+                  const token = st.botExternalAccountId
+                    ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+                    : await getValidYouTubeBotAccessToken();
+                  if (!token) throw new Error('YouTube bot token is not configured');
+                  await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: reply });
                   continue;
                 }
               }
@@ -431,9 +465,11 @@ async function start() {
           if (match.onlyWhenLive && !st.isLive) continue;
 
           try {
-            const botAccessToken = await getValidYouTubeBotAccessToken();
-            if (!botAccessToken) throw new Error('YouTube bot token is not configured');
-            await sendLiveChatMessage({ accessToken: botAccessToken, liveChatId: st.liveChatId, messageText: match.response });
+            const token = st.botExternalAccountId
+              ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+              : await getValidYouTubeBotAccessToken();
+            if (!token) throw new Error('YouTube bot token is not configured');
+            await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: match.response });
           } catch (e: any) {
             logger.warn('youtube_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
           }
@@ -497,10 +533,12 @@ async function start() {
       if (claim.count !== 1) continue;
 
       try {
-        const botAccessToken = await getValidYouTubeBotAccessToken();
-        if (!botAccessToken) throw new Error('YouTube bot token is not configured');
+        const token = st.botExternalAccountId
+          ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+          : await getValidYouTubeBotAccessToken();
+        if (!token) throw new Error('YouTube bot token is not configured');
 
-        await sendLiveChatMessage({ accessToken: botAccessToken, liveChatId: st.liveChatId, messageText: String(r.message || '') });
+        await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: String(r.message || '') });
         await (prisma as any).youTubeChatBotOutboxMessage.update({
           where: { id: r.id },
           data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },

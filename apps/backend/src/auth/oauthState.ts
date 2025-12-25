@@ -11,6 +11,7 @@ export async function createOAuthState(params: {
   provider: ExternalAccountProvider;
   kind: OAuthStateKind;
   userId?: string | null;
+  channelId?: string | null;
   redirectTo?: string | null;
   origin?: string | null;
   codeVerifier?: string | null;
@@ -26,6 +27,7 @@ export async function createOAuthState(params: {
       provider: params.provider,
       kind: params.kind,
       userId: params.userId ?? null,
+      channelId: params.channelId ?? null,
       redirectTo: params.redirectTo ?? null,
       origin: params.origin ?? null,
       codeVerifier: params.codeVerifier ?? null,

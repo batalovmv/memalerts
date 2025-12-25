@@ -4,6 +4,8 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { getTwitchLoginByUserId } from '../../utils/twitchApi.js';
 import { fetchMyYouTubeChannelIdDetailed, getValidYouTubeBotAccessToken, getYouTubeExternalAccount } from '../../utils/youtubeApi.js';
 import { fetchGoogleTokenInfo } from '../../auth/providers/youtube.js';
+import { createOAuthState } from '../../auth/oauthState.js';
+import { getYouTubeAuthorizeUrl } from '../../auth/providers/youtube.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
 import { logger } from '../../utils/logger.js';
 
@@ -11,6 +13,19 @@ type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
 type BotProviderV2 = BotProvider | 'vkvideo';
 const PROVIDERS: BotProviderV2[] = ['twitch', 'vkplaylive', 'vkvideo', 'youtube'];
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
+
+const DEFAULT_LINK_REDIRECT = '/settings/accounts';
+const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/dashboard', '/']);
+function sanitizeRedirectTo(input: unknown): string {
+  const redirectTo = typeof input === 'string' ? input.trim() : '';
+  if (!redirectTo) return DEFAULT_LINK_REDIRECT;
+  if (!redirectTo.startsWith('/')) return DEFAULT_LINK_REDIRECT;
+  if (redirectTo.startsWith('//')) return DEFAULT_LINK_REDIRECT;
+  if (redirectTo.includes('://')) return DEFAULT_LINK_REDIRECT;
+  if (redirectTo.includes('\\')) return DEFAULT_LINK_REDIRECT;
+  if (!REDIRECT_ALLOWLIST.has(redirectTo)) return DEFAULT_LINK_REDIRECT;
+  return redirectTo;
+}
 
 function requireChannelId(req: AuthRequest, res: Response): string | null {
   const channelId = String(req.channelId || '').trim();
@@ -44,6 +59,78 @@ async function getVkVideoEnabledFallback(channelId: string): Promise<boolean> {
 }
 
 export const botIntegrationsController = {
+  // GET /streamer/bots/youtube/bot
+  // Returns current per-channel bot override status (if configured).
+  youtubeBotStatus: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      const row = await (prisma as any).youTubeBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true, updatedAt: true },
+      });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null });
+      return res.json({
+        enabled: Boolean((row as any)?.enabled),
+        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
+        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/youtube/bot/link
+  // Starts OAuth linking for a per-channel YouTube bot account (force-ssl), stored as mapping to this channel.
+  youtubeBotLinkStart: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const clientId = process.env.YOUTUBE_CLIENT_ID;
+    const callbackUrl = process.env.YOUTUBE_CALLBACK_URL;
+    if (!clientId || !callbackUrl || !process.env.YOUTUBE_CLIENT_SECRET) {
+      return res.status(503).json({ error: 'Service Unavailable', message: 'YouTube OAuth is not configured' });
+    }
+
+    const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
+    const origin = (req.query.origin as string) || null;
+
+    const { state } = await createOAuthState({
+      provider: 'youtube',
+      kind: 'bot_link',
+      userId: req.userId,
+      channelId,
+      redirectTo,
+      origin,
+    });
+
+    const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl'];
+    const authUrl = getYouTubeAuthorizeUrl({
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+      includeGrantedScopes: true,
+    });
+
+    return res.redirect(authUrl);
+  },
+
+  // DELETE /streamer/bots/youtube/bot
+  // Removes per-channel bot override (falls back to global bot token).
+  youtubeBotUnlink: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      await (prisma as any).youTubeBotIntegration.deleteMany({ where: { channelId } });
+      return res.json({ ok: true });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
   // GET /streamer/bots/vkvideo/candidates
   // Returns VKVideo channel URLs for the authenticated user (from VKVideo Live DevAPI current_user),
   // so frontend can auto-fill vkvideoChannelUrl when enabling the bot.
@@ -276,16 +363,29 @@ export const botIntegrationsController = {
           });
         }
 
-        // Ensure shared YouTube bot is configured (server-side token for sending messages).
-        // This keeps user linking read-only, while the bot account handles chat writes.
+        // Ensure we have SOME sender identity configured for chat writes:
+        // - either global shared bot token (YOUTUBE_BOT_REFRESH_TOKEN)
+        // - or per-channel bot override (YouTubeBotIntegration row)
         const botAccessToken = await getValidYouTubeBotAccessToken();
-        if (!botAccessToken) {
+        let hasOverride = false;
+        try {
+          const override = await (prisma as any).youTubeBotIntegration.findUnique({
+            where: { channelId },
+            select: { enabled: true },
+          });
+          hasOverride = Boolean(override?.enabled);
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+          hasOverride = false;
+        }
+
+        if (!botAccessToken && !hasOverride) {
           if (req.requestId) res.setHeader('x-request-id', req.requestId);
           return res.status(503).json({
             error: 'Service Unavailable',
             code: 'YOUTUBE_BOT_NOT_CONFIGURED',
             requestId: req.requestId,
-            message: 'YouTube bot is not configured on the server (missing/invalid YOUTUBE_BOT_REFRESH_TOKEN or OAuth env).',
+            message: 'YouTube bot is not configured (missing global bot token and no per-channel bot override).',
           });
         }
       }

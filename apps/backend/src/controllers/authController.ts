@@ -180,8 +180,9 @@ export const authController = {
     const consumed = await loadAndConsumeOAuthState(stateId);
     const stateOrigin = consumed.ok ? (consumed.row.origin || undefined) : undefined;
     const stateRedirectTo = consumed.ok ? (consumed.row.redirectTo || undefined) : undefined;
-    const stateKind: OAuthStateKind | undefined = consumed.ok ? consumed.row.kind : undefined;
+      const stateKind: OAuthStateKind | undefined = consumed.ok ? consumed.row.kind : undefined;
     const stateUserId: string | undefined = consumed.ok ? (consumed.row.userId || undefined) : undefined;
+      const stateChannelId: string | undefined = consumed.ok ? ((consumed.row as any).channelId || undefined) : undefined;
     const stateCodeVerifier: string | undefined = consumed.ok ? ((consumed.row as any).codeVerifier || undefined) : undefined;
     const providerFromState: ExternalAccountProvider | undefined = consumed.ok ? consumed.row.provider : undefined;
 
@@ -242,13 +243,13 @@ export const authController = {
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${consumed.reason}`);
       }
 
-      // This callback handler serves both login and link flows.
-      if (stateKind !== 'login' && stateKind !== 'link') {
+      // This callback handler serves login, link and bot_link flows.
+      if (stateKind !== 'login' && stateKind !== 'link' && stateKind !== 'bot_link') {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=invalid_state_kind`);
       }
 
-      // We currently only support login via Twitch. Other providers are link-only.
+      // We currently only support login via Twitch. Other providers are link-only/bot_link-only.
       if (stateKind === 'login' && provider !== 'twitch') {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=login_not_supported&provider=${provider}`);
@@ -529,7 +530,7 @@ export const authController = {
 
       let user = null as any;
 
-      if (stateKind === 'link') {
+      if (stateKind === 'link' || stateKind === 'bot_link') {
         if (!stateUserId) {
           const redirectUrl = getRedirectUrl(req, stateOrigin);
           return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_link_user`);
@@ -605,7 +606,7 @@ export const authController = {
         };
         if (refreshToken) externalUpdate.refreshToken = refreshToken;
 
-        await tx.externalAccount.upsert({
+        const upserted = await tx.externalAccount.upsert({
           where: { provider_providerAccountId: { provider, providerAccountId } },
           create: {
             userId: user.id,
@@ -621,6 +622,7 @@ export const authController = {
             scopes,
           },
           update: externalUpdate,
+          select: { id: true },
         });
 
         if (provider === 'twitch') {
@@ -633,6 +635,20 @@ export const authController = {
               twitchAccessToken: accessToken,
               twitchRefreshToken: refreshToken,
             },
+          });
+        }
+
+        // YouTube bot linking: map this YouTube external account as the channel's bot sender.
+        if (provider === 'youtube' && stateKind === 'bot_link') {
+          const channelId = String(stateChannelId || '').trim();
+          if (!channelId) {
+            throw new Error('missing_bot_link_channel');
+          }
+          await (tx as any).youTubeBotIntegration.upsert({
+            where: { channelId },
+            create: { channelId, externalAccountId: upserted.id, enabled: true },
+            update: { externalAccountId: upserted.id, enabled: true },
+            select: { id: true },
           });
         }
       });
