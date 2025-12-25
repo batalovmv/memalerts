@@ -4,8 +4,8 @@ import { getResubmitsLeft } from './lib/resubmits';
 import { useSubmissionPreview } from './model/useSubmissionPreview';
 import { SubmissionPreview } from './ui/SubmissionPreview';
 
-import { AttemptsPill } from '@/shared/ui';
 import type { Submission } from '@/types';
+import { AttemptsPill } from '@/shared/ui';
 
 export function PendingSubmissionCard(props: {
   submission: Submission;
