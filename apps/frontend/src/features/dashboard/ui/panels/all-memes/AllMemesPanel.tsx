@@ -5,8 +5,8 @@ import { useAllMemesPanel } from './model/useAllMemesPanel';
 import { AllMemesControls } from './ui/AllMemesControls';
 import { AllMemesGrid } from './ui/AllMemesGrid';
 
-import { cn } from '@/shared/lib/cn';
 import type { Meme } from '@/types';
+import { cn } from '@/shared/lib/cn';
 
 export type AllMemesPanelProps = {
   isOpen: boolean;
