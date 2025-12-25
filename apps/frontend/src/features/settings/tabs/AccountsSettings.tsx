@@ -167,17 +167,14 @@ export function AccountsSettings() {
     };
   }, [user?.role]);
 
-  const redirectToDefaultYoutubeBotLink = useCallback(
-    (redirectTo: string) => {
-      const apiOrigin = getApiOriginForRedirect();
-      const url = new URL(`${apiOrigin}/owner/bots/youtube/default/link`);
-      // Admin flow lives in Accounts; keep it on the allowlisted path.
-      url.searchParams.set('redirect_to', '/settings/accounts');
-      url.searchParams.set('origin', window.location.origin);
-      window.location.href = url.toString();
-    },
-    []
-  );
+  const redirectToDefaultYoutubeBotLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/owner/bots/youtube/default/link`);
+    // Admin flow lives in Accounts; keep it on the allowlisted path.
+    url.searchParams.set('redirect_to', '/settings/accounts');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
 
   const disconnectDefaultYoutubeBot = useCallback(async () => {
     if (defaultYoutubeBotBusy) return;
@@ -397,7 +394,7 @@ export function AccountsSettings() {
                 <>
                   <Button
                     variant="secondary"
-                    onClick={() => redirectToDefaultYoutubeBotLink('/settings/accounts')}
+                    onClick={() => redirectToDefaultYoutubeBotLink()}
                     disabled={defaultYoutubeBotBusy}
                   >
                     {t('settings.defaultYoutubeBotRelink', { defaultValue: 'Перепривязать' })}
@@ -409,7 +406,7 @@ export function AccountsSettings() {
               ) : (
                 <Button
                   variant="primary"
-                  onClick={() => redirectToDefaultYoutubeBotLink('/settings/accounts')}
+                  onClick={() => redirectToDefaultYoutubeBotLink()}
                   disabled={defaultYoutubeBotBusy}
                 >
                   {t('settings.defaultYoutubeBotConnect', { defaultValue: 'Подключить' })}

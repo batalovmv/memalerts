@@ -115,9 +115,6 @@ export function BotSettings() {
   const [botIntegrationToggleLoading, setBotIntegrationToggleLoading] = useState<string | null>(null);
   const [youtubeNeedsRelink, setYoutubeNeedsRelink] = useState(false);
   const [youtubeLastRelinkErrorId, setYoutubeLastRelinkErrorId] = useState<string | null>(null);
-  const [youtubeRelinkDetails, setYoutubeRelinkDetails] = useState<{ reason: string | null; requiredScopesMissing: string[] }>(
-    { reason: null, requiredScopesMissing: [] }
-  );
   const [youtubeOverrideStatus, setYoutubeOverrideStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [youtubeOverrideLoading, setYoutubeOverrideLoading] = useState(false);
   const [youtubeOverrideBusy, setYoutubeOverrideBusy] = useState(false);
@@ -861,19 +858,6 @@ export function BotSettings() {
     return { requestId: getRequestIdFromError(error) };
   }, []);
 
-  const getYoutubeRelinkDetailsFromError = useCallback((error: unknown): { reason: string | null; requiredScopesMissing: string[] } => {
-    const apiError = error as ApiErrorShape;
-    const data = apiError.response?.data || {};
-    const reason = typeof data?.reason === 'string' && data.reason.trim() ? data.reason.trim() : null;
-    const requiredScopesMissing = Array.isArray(data?.requiredScopesMissing)
-      ? (data.requiredScopesMissing
-          .filter((s) => typeof s === 'string')
-          .map((s) => s.trim())
-          .filter(Boolean) as string[])
-      : [];
-    return { reason, requiredScopesMissing };
-  }, []);
-
   const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
     const apiError = error as ApiErrorShape;
     if (apiError.response?.status !== 412) return false;
@@ -994,17 +978,14 @@ export function BotSettings() {
     void loadYoutubeOverride();
   }, [botTab, loadYoutubeOverride]);
 
-  const redirectToYoutubeOverrideLink = useCallback(
-    (redirectTo: string) => {
-      const apiOrigin = getApiOriginForRedirect();
-      const url = new URL(`${apiOrigin}/streamer/bots/youtube/bot/link`);
-      // UX path (must be in backend allowlist): return to YouTube bot section.
-      url.searchParams.set('redirect_to', '/settings/bot/youtube');
-      url.searchParams.set('origin', window.location.origin);
-      window.location.href = url.toString();
-    },
-    []
-  );
+  const redirectToYoutubeOverrideLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/streamer/bots/youtube/bot/link`);
+    // UX path (must be in backend allowlist): return to YouTube bot section.
+    url.searchParams.set('redirect_to', '/settings/bot/youtube');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
 
   const disconnectYoutubeOverride = useCallback(async () => {
     if (youtubeOverrideBusy) return;
@@ -1033,56 +1014,6 @@ export function BotSettings() {
     }
   }, [loadYoutubeOverride, t, youtubeOverrideBusy]);
 
-  const enableYoutubeIntegration = useCallback(async () => {
-    const startedAt = Date.now();
-    try {
-      setBotIntegrationToggleLoading('youtube');
-      // optimistic
-      setBots((prev) => prev.map((b) => (b.provider === 'youtube' ? { ...b, enabled: true } : b)));
-      const { api } = await import('@/lib/api');
-      await api.patch('/streamer/bots/youtube', { enabled: true });
-      setYoutubeNeedsRelink(false);
-      setYoutubeLastRelinkErrorId(null);
-      setYoutubeRelinkDetails({ reason: null, requiredScopesMissing: [] });
-      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
-      void loadBotIntegrations();
-    } catch (error: unknown) {
-      void loadBotIntegrations();
-      if (isYoutubeRelinkRequiredError(error)) {
-        setYoutubeNeedsRelink(true);
-        setYoutubeRelinkDetails(getYoutubeRelinkDetailsFromError(error));
-        try {
-          const { getRequestIdFromError } = await import('@/lib/api');
-          setYoutubeLastRelinkErrorId(getRequestIdFromError(error));
-        } catch {
-          setYoutubeLastRelinkErrorId(null);
-        }
-        // Expected precondition — show relink CTA in-place (not a generic "server error").
-        return;
-      }
-      const extra = await getYoutubeEnableErrorMessage(error);
-      if (extra) {
-        toast.error(
-          extra.requestId
-            ? `${extra.message} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${extra.requestId})`
-            : extra.message
-        );
-        return;
-      }
-      const { getRequestIdFromError } = await import('@/lib/api');
-      const rid = getRequestIdFromError(error);
-      const apiError = error as { response?: { data?: { error?: string; message?: string } } };
-      const msg =
-        apiError.response?.data?.error ||
-        apiError.response?.data?.message ||
-        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
-      toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
-    } finally {
-      await ensureMinDuration(startedAt, 450);
-      setBotIntegrationToggleLoading(null);
-    }
-  }, [getYoutubeEnableErrorMessage, getYoutubeRelinkDetailsFromError, isYoutubeRelinkRequiredError, loadBotIntegrations, t]);
-
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
       const startedAt = Date.now();
@@ -1092,7 +1023,6 @@ export function BotSettings() {
           // Clearing relink UI when user explicitly turns integration off.
           setYoutubeNeedsRelink(false);
           setYoutubeLastRelinkErrorId(null);
-          setYoutubeRelinkDetails({ reason: null, requiredScopesMissing: [] });
         }
         // optimistic
         setBots((prev) => prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b)));
@@ -1107,7 +1037,6 @@ export function BotSettings() {
         void loadBotIntegrations();
         if (provider === 'youtube' && nextEnabled && isYoutubeRelinkRequiredError(error)) {
           setYoutubeNeedsRelink(true);
-          setYoutubeRelinkDetails(getYoutubeRelinkDetailsFromError(error));
           try {
             const { getRequestIdFromError } = await import('@/lib/api');
             setYoutubeLastRelinkErrorId(getRequestIdFromError(error));
@@ -1141,7 +1070,7 @@ export function BotSettings() {
         setBotIntegrationToggleLoading(null);
       }
     },
-    [getYoutubeEnableErrorMessage, getYoutubeRelinkDetailsFromError, isYoutubeRelinkRequiredError, loadBotIntegrations, t]
+    [getYoutubeEnableErrorMessage, isYoutubeRelinkRequiredError, loadBotIntegrations, t]
   );
 
   const toggleVkvideoIntegration = useCallback(
@@ -2298,7 +2227,7 @@ export function BotSettings() {
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => redirectToYoutubeOverrideLink(getCurrentRelativePath())}
+                      onClick={() => redirectToYoutubeOverrideLink()}
                       disabled={youtubeOverrideBusy}
                     >
                       {t('admin.youtubeOverrideRelink', { defaultValue: 'Перепривязать' })}
@@ -2311,7 +2240,7 @@ export function BotSettings() {
                   <Button
                     type="button"
                     variant="primary"
-                    onClick={() => redirectToYoutubeOverrideLink(getCurrentRelativePath())}
+                    onClick={() => redirectToYoutubeOverrideLink()}
                     disabled={youtubeOverrideBusy}
                   >
                     {t('admin.youtubeOverrideConnect', { defaultValue: 'Подключить своего бота' })}
