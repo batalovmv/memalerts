@@ -1,9 +1,16 @@
 import dotenv from 'dotenv';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
-import { VkVideoChatBot } from './vkvideoChatBot.js';
+import { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
-import { fetchVkVideoUserRolesOnChannel, getVkVideoExternalAccount } from '../utils/vkvideoApi.js';
+import {
+  fetchVkVideoChannel,
+  fetchVkVideoUserRolesOnChannel,
+  fetchVkVideoWebsocketSubscriptionTokens,
+  fetchVkVideoWebsocketToken,
+  getVkVideoExternalAccount,
+  sendVkVideoChatMessage,
+} from '../utils/vkvideoApi.js';
 
 dotenv.config();
 
@@ -126,21 +133,41 @@ type SubRow = {
   channelId: string;
   userId: string | null;
   vkvideoChannelId: string;
+  vkvideoChannelUrl: string | null;
   slug: string;
   creditsReconnectWindowMinutes: number;
   streamDurationCommandJson: string | null;
 };
 
 async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
-  const rows = await (prisma as any).vkVideoChatBotSubscription.findMany({
-    where: { enabled: true },
-    select: {
-      channelId: true,
-      userId: true,
-      vkvideoChannelId: true,
-      channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
-    },
-  });
+  let rows: any[] = [];
+  try {
+    rows = await (prisma as any).vkVideoChatBotSubscription.findMany({
+      where: { enabled: true },
+      select: {
+        channelId: true,
+        userId: true,
+        vkvideoChannelId: true,
+        vkvideoChannelUrl: true,
+        channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
+      },
+    });
+  } catch (e: any) {
+    // Older DB without vkvideoChannelUrl column.
+    if (e?.code === 'P2022') {
+      rows = await (prisma as any).vkVideoChatBotSubscription.findMany({
+        where: { enabled: true },
+        select: {
+          channelId: true,
+          userId: true,
+          vkvideoChannelId: true,
+          channel: { select: { slug: true, creditsReconnectWindowMinutes: true, streamDurationCommandJson: true } },
+        },
+      });
+    } else {
+      throw e;
+    }
+  }
 
   // Optional gating by BotIntegrationSettings(provider=vkvideo).
   let gate: Map<string, boolean> | null = null; // channelId -> enabled
@@ -168,6 +195,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
     const channelId = String((r as any)?.channelId || '').trim();
     const userId = String((r as any)?.userId || '').trim() || null;
     const vkvideoChannelId = String((r as any)?.vkvideoChannelId || '').trim();
+    const vkvideoChannelUrl = String((r as any)?.vkvideoChannelUrl || '').trim() || null;
     const slug = normalizeSlug(String(r?.channel?.slug || ''));
     const creditsReconnectWindowMinutes = Number.isFinite(Number((r as any)?.channel?.creditsReconnectWindowMinutes))
       ? Number((r as any)?.channel?.creditsReconnectWindowMinutes)
@@ -180,7 +208,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
       if (gated === false) continue;
     }
 
-    out.push({ channelId, userId, vkvideoChannelId, slug, creditsReconnectWindowMinutes, streamDurationCommandJson });
+    out.push({ channelId, userId, vkvideoChannelId, vkvideoChannelUrl, slug, creditsReconnectWindowMinutes, streamDurationCommandJson });
   }
   return out;
 }
@@ -230,21 +258,13 @@ async function start() {
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.VKVIDEO_CHATBOT_OUTBOX_POLL_MS, 1_000));
   const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.VKVIDEO_CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
 
-  const wsUrlTemplate = String(process.env.VKVIDEO_CHAT_WS_URL_TEMPLATE || '').trim();
-  const accessToken = String(process.env.VKVIDEO_CHAT_BOT_ACCESS_TOKEN || '').trim();
-  const authHeaderName = String(process.env.VKVIDEO_CHAT_BOT_AUTH_HEADER || 'Authorization').trim();
-  const sendMessageFormat = (String(process.env.VKVIDEO_CHAT_SEND_FORMAT || 'json').trim().toLowerCase() as 'plain' | 'json') || 'json';
-
-  if (!wsUrlTemplate) {
-    logger.error('vkvideo_chatbot.missing_env', { key: 'VKVIDEO_CHAT_WS_URL_TEMPLATE' });
-    process.exit(1);
-  }
+  // Pubsub endpoint (Centrifugo V4, protocol v2).
+  // Default points to dev pubsub, as documented in VK Video Live DevAPI pubsub docs.
+  const pubsubWsUrl =
+    String(process.env.VKVIDEO_PUBSUB_WS_URL || '').trim() ||
+    'wss://pubsub-dev.live.vkvideo.ru/connection/websocket?format=json&cf_protocol_version=v2';
   if (backendBaseUrls.length === 0) {
     logger.error('vkvideo_chatbot.missing_env', { key: 'CHATBOT_BACKEND_BASE_URLS' });
-    process.exit(1);
-  }
-  if (!accessToken) {
-    logger.error('vkvideo_chatbot.missing_env', { key: 'VKVIDEO_CHAT_BOT_ACCESS_TOKEN' });
     process.exit(1);
   }
 
@@ -277,121 +297,165 @@ async function start() {
   const userRolesCache = new Map<string, { ts: number; roleIds: string[] }>();
   const USER_ROLES_CACHE_TTL_MS = Math.max(5_000, parseIntSafe(process.env.VKVIDEO_USER_ROLES_CACHE_TTL_MS, 30_000));
 
-  const bot = new VkVideoChatBot(
-    {
-      wsUrlTemplate,
-      authHeaderName,
-      authHeaderValue: authHeaderName ? `Bearer ${accessToken}` : null,
-      sendMessageFormat,
-    },
-    async (msg) => {
-      if (stopped) return;
-      const slug = vkvideoIdToSlug.get(msg.vkvideoChannelId);
-      const channelId = vkvideoIdToChannelId.get(msg.vkvideoChannelId);
-      const ownerUserId = vkvideoIdToOwnerUserId.get(msg.vkvideoChannelId) || null;
-      if (!slug || !channelId) return;
+  // Subscription context per VKVideo channel
+  const vkvideoIdToChannelUrl = new Map<string, string>();
 
-      const msgNorm = normalizeMessage(msg.text).toLowerCase();
-      const senderLogin = normalizeLogin(msg.senderLogin || msg.displayName);
+  // Pubsub connection per MemAlerts channelId (uses streamer's VKVideo OAuth token).
+  const pubsubByChannelId = new Map<string, VkVideoPubSubClient>();
+  const wsChannelToVkvideoId = new Map<string, string>(); // pubsub channel name -> vkvideoChannelId
 
-      // Refresh commands if cache is stale
-      const now = Date.now();
-      const cached = commandsByChannelId.get(channelId);
-      if (!cached || now - cached.ts > commandsRefreshSeconds * 1000) {
+  function extractTextFromParts(parts: any): string {
+    if (!Array.isArray(parts)) return '';
+    const chunks: string[] = [];
+    for (const p of parts) {
+      const t = String(p?.text?.content || '').trim();
+      if (t) chunks.push(t);
+    }
+    return chunks.join(' ').trim();
+  }
+
+  function extractIncomingMessage(pubData: any): { text: string; userId: string; displayName: string; senderLogin: string | null } | null {
+    // pubData may be either {type,data} or directly some message-like object.
+    const root = pubData?.data ?? pubData ?? null;
+    const maybe = root?.message ?? root?.chat_message ?? root ?? null;
+
+    const author = maybe?.author ?? maybe?.user ?? root?.user ?? null;
+    const userId = String(author?.id ?? maybe?.user_id ?? root?.user_id ?? '').trim();
+    const displayName = String(author?.nick ?? author?.name ?? maybe?.display_name ?? root?.display_name ?? '').trim();
+
+    const parts = maybe?.parts ?? root?.parts ?? maybe?.data?.parts ?? null;
+    const text = extractTextFromParts(parts) || String(maybe?.text ?? root?.text ?? '').trim();
+
+    if (!userId || !displayName || !text) return null;
+
+    const senderLogin = author?.nick ? normalizeLogin(author.nick) : null;
+    return { text, userId, displayName, senderLogin: senderLogin || null };
+  }
+
+  async function sendToVkVideoChat(params: { vkvideoChannelId: string; text: string }): Promise<void> {
+    const vkvideoChannelId = params.vkvideoChannelId;
+    const channelUrl = vkvideoIdToChannelUrl.get(vkvideoChannelId) || null;
+    const ownerUserId = vkvideoIdToOwnerUserId.get(vkvideoChannelId) || null;
+    if (!channelUrl || !ownerUserId) throw new Error('missing_channel_context');
+
+    const account = await getVkVideoExternalAccount(ownerUserId);
+    if (!account?.accessToken) throw new Error('missing_owner_access_token');
+
+    const ch = await fetchVkVideoChannel({ accessToken: account.accessToken, channelUrl });
+    if (!ch.ok) throw new Error(ch.error || 'channel_fetch_failed');
+    if (!ch.streamId) throw new Error('no_active_stream');
+
+    const resp = await sendVkVideoChatMessage({ accessToken: account.accessToken, channelUrl, streamId: ch.streamId, text: params.text });
+    if (!resp.ok) throw new Error(resp.error || 'send_failed');
+  }
+
+  const handleIncoming = async (vkvideoChannelId: string, incoming: { text: string; userId: string; displayName: string; senderLogin: string | null }) => {
+    if (stopped) return;
+    const slug = vkvideoIdToSlug.get(vkvideoChannelId);
+    const channelId = vkvideoIdToChannelId.get(vkvideoChannelId);
+    const ownerUserId = vkvideoIdToOwnerUserId.get(vkvideoChannelId) || null;
+    if (!slug || !channelId) return;
+
+    const msgNorm = normalizeMessage(incoming.text).toLowerCase();
+    const senderLogin = normalizeLogin(incoming.senderLogin || incoming.displayName);
+
+    // Refresh commands if cache is stale
+    const now = Date.now();
+    const cached = commandsByChannelId.get(channelId);
+    if (!cached || now - cached.ts > commandsRefreshSeconds * 1000) {
+      void refreshCommands();
+    }
+
+    // Smart command: stream duration
+    const smart = streamDurationCfgByChannelId.get(channelId);
+    if (msgNorm && smart) {
+      if (now - smart.ts > commandsRefreshSeconds * 1000) {
         void refreshCommands();
-      }
-
-      // Smart command: stream duration
-      const smart = streamDurationCfgByChannelId.get(channelId);
-      if (msgNorm && smart) {
-        if (now - smart.ts > commandsRefreshSeconds * 1000) {
-          void refreshCommands();
-        } else if (smart.cfg?.enabled && smart.cfg.triggerNormalized === msgNorm) {
-          try {
-            const snap = await getStreamDurationSnapshot(slug);
-            if (!(smart.cfg.onlyWhenLive && snap.status !== 'online')) {
-              const totalMinutes = snap.totalMinutes;
-              const hours = Math.floor(totalMinutes / 60);
-              const minutes = totalMinutes % 60;
-              const template = smart.cfg.responseTemplate ?? 'Время стрима: {hours}ч {minutes}м ({totalMinutes}м)';
-              const reply = template
-                .replace(/\{hours\}/g, String(hours))
-                .replace(/\{minutes\}/g, String(minutes))
-                .replace(/\{totalMinutes\}/g, String(totalMinutes))
-                .trim();
-              if (reply) {
-                await bot.say(msg.vkvideoChannelId, reply);
-                return;
-              }
+      } else if (smart.cfg?.enabled && smart.cfg.triggerNormalized === msgNorm) {
+        try {
+          const snap = await getStreamDurationSnapshot(slug);
+          if (!(smart.cfg.onlyWhenLive && snap.status !== 'online')) {
+            const totalMinutes = snap.totalMinutes;
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            const template = smart.cfg.responseTemplate ?? 'Время стрима: {hours}ч {minutes}м ({totalMinutes}м)';
+            const reply = template
+              .replace(/\{hours\}/g, String(hours))
+              .replace(/\{minutes\}/g, String(minutes))
+              .replace(/\{totalMinutes\}/g, String(totalMinutes))
+              .trim();
+            if (reply) {
+              await sendToVkVideoChat({ vkvideoChannelId, text: reply });
+              return;
             }
-          } catch (e: any) {
-            logger.warn('vkvideo_chatbot.stream_duration_reply_failed', { vkvideoChannelId: msg.vkvideoChannelId, errorMessage: e?.message || String(e) });
           }
+        } catch (e: any) {
+          logger.warn('vkvideo_chatbot.stream_duration_reply_failed', { vkvideoChannelId, errorMessage: e?.message || String(e) });
         }
       }
+    }
 
-      // Static commands
-      if (msgNorm) {
-        const items = commandsByChannelId.get(channelId)?.items || [];
-        const match = items.find((c) => c.triggerNormalized === msgNorm);
-        if (match?.response) {
-          try {
-            let senderRoleIds: string[] = [];
-            if (match.vkvideoAllowedRoleIds?.length) {
-              if (ownerUserId) {
-                const cacheKey = `${msg.vkvideoChannelId}:${msg.userId}`;
-                const cachedRoles = userRolesCache.get(cacheKey);
-                const now = Date.now();
-                if (cachedRoles && now - cachedRoles.ts <= USER_ROLES_CACHE_TTL_MS) {
-                  senderRoleIds = cachedRoles.roleIds;
-                } else {
-                  const account = await getVkVideoExternalAccount(ownerUserId);
-                  if (account?.accessToken) {
-                    const rolesResp = await fetchVkVideoUserRolesOnChannel({
-                      accessToken: account.accessToken,
-                      vkvideoChannelId: msg.vkvideoChannelId,
-                      vkvideoUserId: msg.userId,
-                    });
-                    if (rolesResp.ok) {
-                      senderRoleIds = rolesResp.roleIds;
-                      userRolesCache.set(cacheKey, { ts: now, roleIds: senderRoleIds });
-                    } else {
-                      // If we can't resolve roles, be conservative: do not allow role-gated commands.
-                      senderRoleIds = [];
-                    }
+    // Static commands
+    if (msgNorm) {
+      const items = commandsByChannelId.get(channelId)?.items || [];
+      const match = items.find((c) => c.triggerNormalized === msgNorm);
+      if (match?.response) {
+        try {
+          let senderRoleIds: string[] = [];
+          if (match.vkvideoAllowedRoleIds?.length) {
+            if (ownerUserId) {
+              const cacheKey = `${vkvideoChannelId}:${incoming.userId}`;
+              const cachedRoles = userRolesCache.get(cacheKey);
+              const now = Date.now();
+              if (cachedRoles && now - cachedRoles.ts <= USER_ROLES_CACHE_TTL_MS) {
+                senderRoleIds = cachedRoles.roleIds;
+              } else {
+                const account = await getVkVideoExternalAccount(ownerUserId);
+                if (account?.accessToken) {
+                  const rolesResp = await fetchVkVideoUserRolesOnChannel({
+                    accessToken: account.accessToken,
+                    vkvideoChannelId,
+                    vkvideoUserId: incoming.userId,
+                  });
+                  if (rolesResp.ok) {
+                    senderRoleIds = rolesResp.roleIds;
+                    userRolesCache.set(cacheKey, { ts: now, roleIds: senderRoleIds });
+                  } else {
+                    // If we can't resolve roles, be conservative: do not allow role-gated commands.
+                    senderRoleIds = [];
                   }
                 }
               }
             }
-
-            if (
-              !canTriggerCommand({
-                senderLogin,
-                allowedUsers: match.allowedUsers || [],
-                allowedRoles: match.allowedRoles || [],
-                vkvideoAllowedRoleIds: match.vkvideoAllowedRoleIds || [],
-                senderVkVideoRoleIds: senderRoleIds,
-              })
-            ) {
-              return;
-            }
-            if (match.onlyWhenLive) {
-              const snap = await getStreamDurationSnapshot(slug);
-              if (snap.status !== 'online') return;
-            }
-            await bot.say(msg.vkvideoChannelId, match.response);
-          } catch (e: any) {
-            logger.warn('vkvideo_chatbot.command_reply_failed', { vkvideoChannelId: msg.vkvideoChannelId, errorMessage: e?.message || String(e) });
           }
+
+          if (
+            !canTriggerCommand({
+              senderLogin,
+              allowedUsers: match.allowedUsers || [],
+              allowedRoles: match.allowedRoles || [],
+              vkvideoAllowedRoleIds: match.vkvideoAllowedRoleIds || [],
+              senderVkVideoRoleIds: senderRoleIds,
+            })
+          ) {
+            return;
+          }
+          if (match.onlyWhenLive) {
+            const snap = await getStreamDurationSnapshot(slug);
+            if (snap.status !== 'online') return;
+          }
+          await sendToVkVideoChat({ vkvideoChannelId, text: match.response });
+        } catch (e: any) {
+          logger.warn('vkvideo_chatbot.command_reply_failed', { vkvideoChannelId, errorMessage: e?.message || String(e) });
         }
       }
+    }
 
-      // Credits: chatter event
-      for (const baseUrl of backendBaseUrls) {
-        void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId: msg.userId, displayName: msg.displayName });
-      }
-    },
-  );
+    // Credits: chatter event
+    for (const baseUrl of backendBaseUrls) {
+      void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId: incoming.userId, displayName: incoming.displayName });
+    }
+  };
 
   const refreshCommands = async () => {
     if (stopped) return;
@@ -471,30 +535,89 @@ async function start() {
   const syncSubscriptions = async () => {
     if (stopped) return;
     const subs = await fetchEnabledVkVideoSubscriptions();
-    const wanted = new Set(subs.map((s) => s.vkvideoChannelId));
 
-    // Part removed
-    for (const existing of Array.from(vkvideoIdToSlug.keys())) {
-      if (!wanted.has(existing)) {
-        vkvideoIdToSlug.delete(existing);
-        vkvideoIdToChannelId.delete(existing);
-        vkvideoIdToOwnerUserId.delete(existing);
-        await bot.part(existing);
+    const wantedChannelIds = new Set(subs.map((s) => s.channelId));
+
+    // Stop clients for removed channels
+    for (const existingChannelId of Array.from(pubsubByChannelId.keys())) {
+      if (!wantedChannelIds.has(existingChannelId)) {
+        pubsubByChannelId.get(existingChannelId)?.stop();
+        pubsubByChannelId.delete(existingChannelId);
       }
     }
 
-    // Join new
+    // Rebuild mapping from pubsub channel -> vkvideoChannelId
+    wsChannelToVkvideoId.clear();
+
+    // Start/restart pubsub clients for current subscriptions.
     for (const s of subs) {
       vkvideoIdToSlug.set(s.vkvideoChannelId, s.slug);
       vkvideoIdToChannelId.set(s.vkvideoChannelId, s.channelId);
       if (s.userId) vkvideoIdToOwnerUserId.set(s.vkvideoChannelId, s.userId);
-      if (!bot.isJoined(s.vkvideoChannelId)) {
-        try {
-          await bot.join(s.vkvideoChannelId);
-        } catch (e: any) {
-          logger.warn('vkvideo_chatbot.join_failed', { vkvideoChannelId: s.vkvideoChannelId, errorMessage: e?.message || String(e) });
-        }
+      if (s.vkvideoChannelUrl) vkvideoIdToChannelUrl.set(s.vkvideoChannelId, String(s.vkvideoChannelUrl));
+
+      // Require owner userId + channelUrl to access DevAPI and send messages.
+      if (!s.userId) {
+        logger.warn('vkvideo_chatbot.subscription_missing_user', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
+        continue;
       }
+      const channelUrl = String(s.vkvideoChannelUrl || '').trim();
+      if (!channelUrl) {
+        logger.warn('vkvideo_chatbot.subscription_missing_channel_url', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
+        continue;
+      }
+
+      const account = await getVkVideoExternalAccount(s.userId);
+      if (!account?.accessToken) {
+        logger.warn('vkvideo_chatbot.subscription_missing_access_token', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
+        continue;
+      }
+
+      const wsTokenResp = await fetchVkVideoWebsocketToken({ accessToken: account.accessToken });
+      if (!wsTokenResp.ok || !wsTokenResp.token) {
+        logger.warn('vkvideo_chatbot.websocket_token_failed', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId, error: wsTokenResp.error });
+        continue;
+      }
+
+      const chInfo = await fetchVkVideoChannel({ accessToken: account.accessToken, channelUrl });
+      if (!chInfo.ok) {
+        logger.warn('vkvideo_chatbot.channel_info_failed', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId, error: chInfo.error });
+        continue;
+      }
+
+      const wsChannels: string[] = [];
+      const chatCh = String(chInfo.webSocketChannels?.chat || '').trim();
+      const limitedChatCh = String(chInfo.webSocketChannels?.limited_chat || '').trim();
+      if (chatCh) wsChannels.push(chatCh);
+      if (limitedChatCh && limitedChatCh !== chatCh) wsChannels.push(limitedChatCh);
+
+      if (wsChannels.length === 0) {
+        logger.warn('vkvideo_chatbot.no_chat_ws_channels', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
+        continue;
+      }
+
+      const subTokens = await fetchVkVideoWebsocketSubscriptionTokens({ accessToken: account.accessToken, channels: wsChannels });
+      const specs = wsChannels.map((ch) => ({ channel: ch, token: subTokens.tokensByChannel.get(ch) || null }));
+
+      for (const ch of wsChannels) wsChannelToVkvideoId.set(ch, s.vkvideoChannelId);
+
+      // Restart client (token can rotate; simplest robust behavior).
+      pubsubByChannelId.get(s.channelId)?.stop();
+      const client = new VkVideoPubSubClient({
+        url: pubsubWsUrl,
+        token: wsTokenResp.token,
+        subscriptions: specs,
+        logContext: { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId },
+        onPush: (push) => {
+          const vkId = wsChannelToVkvideoId.get(push.channel) || null;
+          if (!vkId) return;
+          const incoming = extractIncomingMessage(push.data);
+          if (!incoming) return;
+          void handleIncoming(vkId, incoming);
+        },
+      });
+      pubsubByChannelId.set(s.channelId, client);
+      client.start();
     }
   };
 
@@ -520,32 +643,6 @@ async function start() {
       const vkvideoChannelId = String((r as any)?.vkvideoChannelId || '').trim();
       const msg = normalizeMessage((r as any)?.message || '');
       if (!vkvideoChannelId || !msg) continue;
-      if (!bot.isJoined(vkvideoChannelId)) {
-        // Do not silently leave outbox pending forever: surface a best-effort error for observability + frontend polling.
-        // We only write once (when lastError is null) to avoid spamming DB on each poll tick.
-        logger.warn('vkvideo_chatbot.outbox_skipped_not_joined', {
-          vkvideoChannelId,
-          outboxId: r.id,
-          status: String((r as any)?.status || ''),
-          attempts: Number((r as any)?.attempts || 0),
-        });
-        try {
-          if (String((r as any)?.status || '') === 'processing') {
-            await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
-              where: { id: r.id, status: 'processing', processingAt: { lt: staleBefore }, lastError: null },
-              data: { status: 'pending', processingAt: null, lastError: 'bot_not_joined' },
-            });
-          } else {
-            await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
-              where: { id: r.id, status: 'pending', lastError: null },
-              data: { lastError: 'bot_not_joined' },
-            });
-          }
-        } catch {
-          // ignore (best-effort)
-        }
-        continue;
-      }
 
       const claim = await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
         where: {
@@ -564,7 +661,7 @@ async function start() {
           attempts: Number(r.attempts || 0),
           messageLen: msg.length,
         });
-        await bot.say(vkvideoChannelId, msg);
+        await sendToVkVideoChat({ vkvideoChannelId, text: msg });
         await (prisma as any).vkVideoChatBotOutboxMessage.update({
           where: { id: r.id },
           data: { status: 'sent', sentAt: new Date(), lastError: null },
@@ -603,10 +700,12 @@ async function start() {
     if (subscriptionsTimer) clearInterval(subscriptionsTimer);
     if (outboxTimer) clearInterval(outboxTimer);
     if (commandsTimer) clearInterval(commandsTimer);
-    try {
-      await bot.stop();
-    } catch {
-      // ignore
+    for (const c of Array.from(pubsubByChannelId.values())) {
+      try {
+        c.stop();
+      } catch {
+        // ignore
+      }
     }
   };
 

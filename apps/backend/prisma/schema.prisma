@@ -120,6 +120,8 @@ model VkVideoChatBotSubscription {
   // Channel owner (used to access VKVideo API for roles; optional for backward compatibility).
   userId           String?
   vkvideoChannelId String // platform channel identifier (exact format depends on VKVideo chat API)
+  // Full channel URL on VK Video Live (required to resolve stream_id and websocket channel names via DevAPI).
+  vkvideoChannelUrl String?
   enabled          Boolean  @default(true)
   createdAt        DateTime @default(now())
 
@@ -129,6 +131,7 @@ model VkVideoChatBotSubscription {
   @@unique([channelId])
   @@index([enabled])
   @@index([vkvideoChannelId])
+  @@index([vkvideoChannelUrl])
   @@index([channelId])
   @@index([userId])
 }

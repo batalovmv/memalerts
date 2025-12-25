@@ -310,6 +310,7 @@ export const botIntegrationsController = {
       if (provider === 'vkvideo') {
         if (enabled) {
           let vkvideoChannelId = String((req.body as any)?.vkvideoChannelId || '').trim();
+          let vkvideoChannelUrl: string | null = String((req.body as any)?.vkvideoChannelUrl || '').trim() || null;
           if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
 
           // UX: if channelId is not provided, try to resolve it from VKVideo API using streamer's linked VKVideo account.
@@ -359,12 +360,49 @@ export const botIntegrationsController = {
               });
             }
             vkvideoChannelId = parsed;
+            vkvideoChannelUrl = unique[0];
+          } else if (!vkvideoChannelUrl) {
+            // If channelId is provided explicitly, try to resolve matching channel URL from current_user (best UX).
+            const account = await getVkVideoExternalAccount(req.userId);
+            if (account?.accessToken) {
+              const currentUser = await fetchVkVideoCurrentUser({ accessToken: account.accessToken });
+              if (currentUser.ok) {
+                const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
+                const urlPrimary = String(root?.channel?.url || '').trim();
+                const urls = Array.isArray(root?.channels) ? root.channels.map((c: any) => String(c?.url || '').trim()).filter(Boolean) : [];
+
+                const candidateUrls = [urlPrimary, ...urls].filter(Boolean);
+                const matched = candidateUrls.filter((u) => extractVkVideoChannelIdFromUrl(u) === vkvideoChannelId);
+                const uniqueMatched = Array.from(new Set(matched));
+                if (uniqueMatched.length === 1) {
+                  vkvideoChannelUrl = uniqueMatched[0];
+                }
+              }
+            }
+          }
+
+          if (vkvideoChannelUrl) {
+            const parsed = extractVkVideoChannelIdFromUrl(vkvideoChannelUrl);
+            if (parsed && parsed !== vkvideoChannelId) {
+              return res.status(400).json({
+                error: 'Bad Request',
+                message: 'vkvideoChannelUrl does not match vkvideoChannelId',
+                vkvideoChannelId,
+                vkvideoChannelUrl,
+              });
+            }
+          } else {
+            // Without channel URL we can't resolve stream_id and websocket channel names via DevAPI.
+            return res.status(400).json({
+              error: 'Bad Request',
+              message: 'Failed to resolve vkvideoChannelUrl. Please pass vkvideoChannelUrl explicitly (or link VKVideo and retry).',
+            });
           }
 
           await (prisma as any).vkVideoChatBotSubscription.upsert({
             where: { channelId },
-            create: { channelId, userId: req.userId, vkvideoChannelId, enabled: true },
-            update: { userId: req.userId, vkvideoChannelId, enabled: true },
+            create: { channelId, userId: req.userId, vkvideoChannelId, vkvideoChannelUrl, enabled: true },
+            update: { userId: req.userId, vkvideoChannelId, vkvideoChannelUrl, enabled: true },
             select: { id: true },
           });
         } else {

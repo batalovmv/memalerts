@@ -73,6 +73,151 @@ export async function fetchVkVideoCurrentUser(params: {
   }
 }
 
+async function vkvideoGetJson(params: {
+  accessToken: string;
+  url: string;
+}): Promise<{ ok: boolean; status: number; data: any; error: string | null }> {
+  try {
+    const resp = await fetch(params.url, {
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+    const text = await resp.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    if (!resp.ok) {
+      const reason = json?.error_description || json?.error || text || resp.statusText;
+      return { ok: false, status: resp.status, data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
+    }
+    return { ok: true, status: resp.status, data: json, error: null };
+  } catch (e: any) {
+    return { ok: false, status: 0, data: null, error: e?.message || String(e) };
+  }
+}
+
+async function vkvideoPostJson(params: {
+  accessToken: string;
+  url: string;
+  body: any;
+}): Promise<{ ok: boolean; status: number; data: any; error: string | null }> {
+  try {
+    const resp = await fetch(params.url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params.body ?? {}),
+    });
+    const text = await resp.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    if (!resp.ok) {
+      const reason = json?.error_description || json?.error || text || resp.statusText;
+      return { ok: false, status: resp.status, data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
+    }
+    return { ok: true, status: resp.status, data: json, error: null };
+  } catch (e: any) {
+    return { ok: false, status: 0, data: null, error: e?.message || String(e) };
+  }
+}
+
+export async function fetchVkVideoChannel(params: {
+  accessToken: string;
+  channelUrl: string;
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; streamId: string | null; webSocketChannels: any | null; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, streamId: null, webSocketChannels: null, data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+  const url = new URL(`${apiBaseUrl}/v1/channel`);
+  url.searchParams.set('channel_url', String(params.channelUrl));
+  const r = await vkvideoGetJson({ accessToken: params.accessToken, url: url.toString() });
+  if (!r.ok) return { ok: false, status: r.status, streamId: null, webSocketChannels: null, data: r.data, error: r.error };
+  const root = r.data?.data ?? r.data ?? null;
+  const streamId = String(root?.stream?.id || '').trim() || null;
+  const webSocketChannels = root?.channel?.web_socket_channels ?? null;
+  return { ok: true, status: r.status, streamId, webSocketChannels, data: r.data, error: null };
+}
+
+export async function fetchVkVideoWebsocketToken(params: {
+  accessToken: string;
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; token: string | null; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, token: null, data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+  const url = `${apiBaseUrl}/v1/websocket/token`;
+  const r = await vkvideoGetJson({ accessToken: params.accessToken, url });
+  if (!r.ok) return { ok: false, status: r.status, token: null, data: r.data, error: r.error };
+  const token = String(r.data?.data?.token || '').trim() || null;
+  return { ok: Boolean(token), status: r.status, token, data: r.data, error: token ? null : 'missing_token' };
+}
+
+export async function fetchVkVideoWebsocketSubscriptionTokens(params: {
+  accessToken: string;
+  channels: string[];
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; tokensByChannel: Map<string, string>; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, tokensByChannel: new Map(), data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+  const chans = Array.from(new Set((params.channels || []).map((c) => String(c || '').trim()).filter(Boolean)));
+  const url = new URL(`${apiBaseUrl}/v1/websocket/subscription_token`);
+  if (chans.length) url.searchParams.set('channels', chans.join(','));
+  const r = await vkvideoGetJson({ accessToken: params.accessToken, url: url.toString() });
+  if (!r.ok) return { ok: false, status: r.status, tokensByChannel: new Map(), data: r.data, error: r.error };
+  const list = Array.isArray(r.data?.data?.channel_tokens) ? r.data.data.channel_tokens : [];
+  const map = new Map<string, string>();
+  for (const item of list) {
+    const channel = String(item?.channel || '').trim();
+    const token = String(item?.token || '').trim();
+    if (channel && token) map.set(channel, token);
+  }
+  return { ok: true, status: r.status, tokensByChannel: map, data: r.data, error: null };
+}
+
+export async function sendVkVideoChatMessage(params: {
+  accessToken: string;
+  channelUrl: string;
+  streamId: string;
+  text: string;
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+
+  const url = new URL(`${apiBaseUrl}/v1/chat/message/send`);
+  url.searchParams.set('channel_url', String(params.channelUrl));
+  url.searchParams.set('stream_id', String(params.streamId));
+
+  const body = {
+    parts: [
+      {
+        text: { content: String(params.text || '').trim() },
+      },
+    ],
+  };
+
+  return await vkvideoPostJson({ accessToken: params.accessToken, url: url.toString(), body });
+}
+
 export function extractVkVideoChannelIdFromUrl(rawUrl: string): string | null {
   const s = String(rawUrl || '').trim();
   if (!s) return null;

@@ -29,3 +29,4 @@ CREATE UNIQUE INDEX "BotIntegrationSettings_channelId_provider_key" ON "BotInteg
 ALTER TABLE "BotIntegrationSettings" ADD CONSTRAINT "BotIntegrationSettings_channelId_fkey" FOREIGN KEY ("channelId") REFERENCES "Channel"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
+
