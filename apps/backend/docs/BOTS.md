@@ -143,6 +143,29 @@ ENV (минимум для запуска):
   - либо legacy-настройка через `VKVIDEO_USERINFO_URL` (baseUrl будет выведен из неё)
 - Опционально:
   - `VKVIDEO_PUBSUB_WS_URL` — переопределить pubsub websocket URL (по умолчанию используется dev pubsub)
+  - `VKVIDEO_ROLE_STUBS_JSON` — **заглушки ролей** (временный хак, пока не известны реальные VKVideo role IDs и/или нет стабильного endpoint для ролей)
+
+### VKVIDEO_ROLE_STUBS_JSON (заглушки ролей)
+
+Используется только для **role-gating команд** (поле `ChatBotCommand.vkvideoAllowedRoleIds`) до того, как мы подключим реальные роли.
+
+Формат: JSON-объект вида:
+- ключ верхнего уровня: `<vkvideoChannelId>`
+- внутри — mapping “кто” → список “roleId” строк, которые ты сам придумал
+  - `login:<senderLogin>` — по логину/нику (lowercase)
+  - `user:<vkvideoUserId>` — по VKVideo user id из входящих сообщений
+
+Пример:
+
+```json
+{
+  "lotasbro": {
+    "login:lotas": ["role:moderator", "role:vip"],
+    "login:friend1": ["role:vip"],
+    "user:123456": ["role:moderator"]
+  }
+}
+```
 
 Запуск:
 - `pnpm build && pnpm start:vkvideo-chatbot`
