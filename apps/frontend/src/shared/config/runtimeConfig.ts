@@ -24,6 +24,11 @@ export type RuntimeConfig = {
    */
   publicBaseUrl?: string;
   /**
+   * Optional URL to subscription/checkout page (used for paywall CTAs).
+   * If not provided, the UI will show the message without a direct payment link.
+   */
+  billingUrl?: string;
+  /**
    * Optional Socket.IO transports override.
    * Example: ["websocket"] to force WebSocket-only (recommended for production to avoid polling load).
    */

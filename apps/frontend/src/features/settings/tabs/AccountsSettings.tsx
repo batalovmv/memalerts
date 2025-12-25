@@ -100,6 +100,31 @@ export function AccountsSettings() {
 
   useAuthQueryErrorToast();
 
+  useEffect(() => {
+    // OAuth callback may redirect here with:
+    // error=auth_failed&reason=subscription_required&provider=twitch|youtube|vkvideo
+    try {
+      const url = new URL(window.location.href);
+      const reason = url.searchParams.get('reason');
+      const provider = (url.searchParams.get('provider') || '').toLowerCase();
+      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo';
+      if (reason === 'subscription_required' && isProvider) {
+        toast.error(
+          t('subscription.oauthSubscriptionRequiredBody', {
+            defaultValue:
+              'Аккаунт привязан, но использовать как bot sender для канала можно только по подписке.',
+          })
+        );
+        url.searchParams.delete('error');
+        url.searchParams.delete('reason');
+        url.searchParams.delete('provider');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch {
+      // ignore
+    }
+  }, [t]);
+
   const accounts = useMemo(
     () => (accountsOverride ? accountsOverride : normalizeAccounts(user?.externalAccounts)),
     [accountsOverride, user?.externalAccounts]
