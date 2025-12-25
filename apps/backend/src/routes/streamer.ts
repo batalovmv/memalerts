@@ -3,6 +3,7 @@ import { requireRole } from '../middleware/auth.js';
 import { adminController } from '../controllers/adminController.js';
 import { streamerBotController } from '../controllers/streamer/botController.js';
 import { botIntegrationsController } from '../controllers/streamer/botIntegrationsController.js';
+import { streamerEntitlementsController } from '../controllers/streamer/entitlementsController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -68,6 +69,9 @@ streamerRoutes.get('/bots/youtube/bot', botIntegrationsController.youtubeBotStat
 streamerRoutes.get('/bots/youtube/bot/link', botIntegrationsController.youtubeBotLinkStart);
 streamerRoutes.delete('/bots/youtube/bot', botIntegrationsController.youtubeBotUnlink);
 streamerRoutes.patch('/bots/:provider', botIntegrationsController.patch);
+
+// Entitlements / subscription gates
+streamerRoutes.get('/entitlements/custom-bot', streamerEntitlementsController.customBot);
 
 // Bot commands CRUD
 streamerRoutes.get('/bot/commands', streamerBotController.getCommands);
