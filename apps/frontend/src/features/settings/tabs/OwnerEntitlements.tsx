@@ -18,6 +18,37 @@ export function OwnerEntitlements() {
   const normalizedTwitchExternalId = useMemo(() => twitchExternalId.trim(), [twitchExternalId]);
   const normalizedChannelId = useMemo(() => channelId.trim(), [channelId]);
 
+  const copyText = useCallback(async (label: string, value: string) => {
+    const v = String(value || '').trim();
+    if (!v) return;
+    try {
+      await navigator.clipboard.writeText(v);
+      toast.success(t('admin.copied', { defaultValue: 'Copied.' }));
+    } catch {
+      try {
+        window.prompt(label, v);
+      } catch {
+        // ignore
+      }
+    }
+  }, [t]);
+
+  const resolvedFromStatus = useMemo(() => {
+    const s = status as
+      | {
+          channelId?: unknown;
+          displayHint?: { twitchChannelId?: unknown };
+        }
+      | null;
+    const resolvedChannelId = typeof s?.channelId === 'string' ? s.channelId : null;
+    const hintedTwitchIdRaw = s?.displayHint && typeof s.displayHint === 'object' ? (s.displayHint as { twitchChannelId?: unknown }).twitchChannelId : null;
+    const hintedTwitchId = typeof hintedTwitchIdRaw === 'string' ? hintedTwitchIdRaw : null;
+    return {
+      channelId: resolvedChannelId && resolvedChannelId.trim() ? resolvedChannelId.trim() : null,
+      twitchBroadcasterId: hintedTwitchId && hintedTwitchId.trim() ? hintedTwitchId.trim() : null,
+    };
+  }, [status]);
+
   const isValidTwitchExternalId = useCallback(
     (v: string): boolean => {
       const s = String(v || '').trim();
@@ -173,6 +204,8 @@ export function OwnerEntitlements() {
   }, [loadStatus, normalizedChannelId, t]);
 
   const isBusy = loading !== null;
+  const displayBroadcasterId = resolvedFromStatus.twitchBroadcasterId || (isValidTwitchExternalId(normalizedTwitchExternalId) ? normalizedTwitchExternalId : null);
+  const displayChannelId = normalizedChannelId || resolvedFromStatus.channelId;
 
   return (
     <div className="space-y-4">
@@ -213,6 +246,42 @@ export function OwnerEntitlements() {
             })}
           </div>
         </div>
+
+        {(displayBroadcasterId || displayChannelId) ? (
+          <div className="mt-4 rounded-xl bg-black/5 dark:bg-white/5 p-3 ring-1 ring-black/5 dark:ring-white/10">
+            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+              {t('admin.resolvedSummary', { defaultValue: 'Найдено' })}
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="text-xs text-gray-700 dark:text-gray-200">
+                <div className="opacity-70">{t('admin.twitchExternalId', { defaultValue: 'Twitch externalId (broadcaster_id)' })}</div>
+                <div className="mt-0.5 font-mono break-all">{displayBroadcasterId ?? '—'}</div>
+                {displayBroadcasterId ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-[11px] underline hover:no-underline"
+                    onClick={() => void copyText('Twitch broadcaster_id', displayBroadcasterId)}
+                  >
+                    {t('admin.copy', { defaultValue: 'Copy' })}
+                  </button>
+                ) : null}
+              </div>
+              <div className="text-xs text-gray-700 dark:text-gray-200">
+                <div className="opacity-70">{t('admin.channelId', { defaultValue: 'channelId' })}</div>
+                <div className="mt-0.5 font-mono break-all">{displayChannelId ?? '—'}</div>
+                {displayChannelId ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-[11px] underline hover:no-underline"
+                    onClick={() => void copyText('channelId', displayChannelId)}
+                  >
+                    {t('admin.copy', { defaultValue: 'Copy' })}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-6 border-t border-black/5 dark:border-white/10 pt-4">
           <div className="text-sm font-semibold text-gray-900 dark:text-white">
