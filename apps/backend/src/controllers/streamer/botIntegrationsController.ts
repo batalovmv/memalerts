@@ -44,6 +44,47 @@ async function getVkVideoEnabledFallback(channelId: string): Promise<boolean> {
 }
 
 export const botIntegrationsController = {
+  // GET /streamer/bots/vkvideo/candidates
+  // Returns VKVideo channel URLs for the authenticated user (from VKVideo Live DevAPI current_user),
+  // so frontend can auto-fill vkvideoChannelUrl when enabling the bot.
+  vkvideoCandidates: async (req: AuthRequest, res: Response) => {
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const account = await getVkVideoExternalAccount(req.userId);
+    if (!account?.accessToken) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        code: 'VKVIDEO_NOT_LINKED',
+        message: 'VKVideo account is not linked',
+      });
+    }
+
+    const currentUser = await fetchVkVideoCurrentUser({ accessToken: account.accessToken });
+    if (!currentUser.ok) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        code: 'VKVIDEO_CURRENT_USER_FAILED',
+        message: `Failed to load VKVideo current_user (${currentUser.error || 'unknown'})`,
+      });
+    }
+
+    const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
+    const urlPrimary = String(root?.channel?.url || '').trim();
+    const urls = Array.isArray(root?.channels) ? root.channels.map((c: any) => String(c?.url || '').trim()).filter(Boolean) : [];
+
+    const candidateUrls = [urlPrimary, ...urls].filter(Boolean);
+    const unique = Array.from(new Set(candidateUrls));
+
+    const items = unique
+      .map((url) => ({
+        url,
+        vkvideoChannelId: extractVkVideoChannelIdFromUrl(url),
+      }))
+      .filter((x) => Boolean(x.url));
+
+    return res.json({ items });
+  },
+
   // GET /streamer/bots
   get: async (req: AuthRequest, res: Response) => {
     const channelId = requireChannelId(req, res);

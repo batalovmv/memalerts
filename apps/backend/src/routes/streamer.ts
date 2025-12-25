@@ -57,6 +57,7 @@ streamerRoutes.get('/bot/outbox/:provider/:id', streamerBotController.outboxStat
 
 // Bot integrations (per-provider toggles; persisted in DB)
 streamerRoutes.get('/bots', botIntegrationsController.get);
+streamerRoutes.get('/bots/vkvideo/candidates', botIntegrationsController.vkvideoCandidates);
 streamerRoutes.patch('/bots/:provider', botIntegrationsController.patch);
 
 // Bot commands CRUD
