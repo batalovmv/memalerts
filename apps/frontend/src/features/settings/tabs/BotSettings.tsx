@@ -524,15 +524,40 @@ export function BotSettings() {
     try {
       setSendingTestMessage(true);
       const { api } = await import('@/lib/api');
-      await api.post(
-        '/streamer/bot/say',
-        testMessageProvider === 'twitch' ? { message: msg } : { provider: testMessageProvider, message: msg }
+      const res = await api.post<{
+        ok?: boolean;
+        provider?: string;
+        outbox?: { id?: string; status?: string; createdAt?: string };
+      }>('/streamer/bot/say', { provider: testMessageProvider, message: msg });
+
+      const usedProvider = typeof res?.provider === 'string' && res.provider.trim() ? res.provider.trim() : testMessageProvider;
+      toast.success(
+        t('admin.botTestMessageQueued', {
+          defaultValue: 'Сообщение поставлено в очередь ({{provider}}).',
+          provider: usedProvider,
+        })
       );
-      toast.success(t('admin.botTestMessageSent', { defaultValue: 'Message sent.' }));
     } catch (error: unknown) {
-      const apiError = error as { response?: { status?: number; data?: { error?: string } } };
+      const apiError = error as {
+        response?: {
+          status?: number;
+          data?: { error?: string; message?: string; enabledProviders?: string[] };
+        };
+      };
       if (apiError.response?.status === 404) {
         toast.error(t('admin.botCommandsNotAvailable', { defaultValue: 'This server does not support bot features yet.' }));
+        return;
+      }
+      if (
+        apiError.response?.status === 400 &&
+        Array.isArray(apiError.response?.data?.enabledProviders) &&
+        apiError.response.data.enabledProviders.length > 1
+      ) {
+        toast.error(
+          t('admin.botMultipleProvidersEnabled', {
+            defaultValue: 'Включено несколько чат-ботов. Выберите провайдера, куда отправлять сообщение.',
+          })
+        );
         return;
       }
       if (apiError.response?.status === 400 && testMessageProvider === 'youtube') {
@@ -543,7 +568,11 @@ export function BotSettings() {
         toast.error(t('admin.vkvideoEnableRequiredToSend', { defaultValue: 'Сначала включите VKVideo-бота для канала.' }));
         return;
       }
-      toast.error(apiError.response?.data?.error || t('admin.failedToSendBotTestMessage', { defaultValue: 'Failed to send message.' }));
+      toast.error(
+        apiError.response?.data?.error ||
+          apiError.response?.data?.message ||
+          t('admin.failedToSendBotTestMessage', { defaultValue: 'Failed to send message.' })
+      );
     } finally {
       await ensureMinDuration(startedAt, 450);
       setSendingTestMessage(false);
