@@ -94,35 +94,45 @@ ENV (минимум для запуска):
 
 Файлы:
 - runner: `src/bots/vkvideoChatbotRunner.ts`
-- транспорт: `src/bots/vkvideoChatBot.ts` (WebSocket клиент)
+- pubsub клиент (Centrifugo v4): `src/bots/vkvideoPubsubClient.ts`
 
 Что делает:
-- Синхронизирует подписки из БД `VkVideoChatBotSubscription` (enabled=true) и соединяется по WS для каждого `vkvideoChannelId`.
+- Синхронизирует подписки из БД `VkVideoChatBotSubscription` (enabled=true).
+- Получает JWT для pubsub (Centrifugo) через VKVideo Live DevAPI:
+  - `GET /v1/websocket/token` — токен подключения
+  - `GET /v1/websocket/subscription_token` — подписочные токены для limited-каналов (если нужны)
+- Подключается к pubsub WebSocket (Centrifugo v4, протокол v2):
+  - по умолчанию: `wss://pubsub-dev.live.vkvideo.ru/connection/websocket?format=json&cf_protocol_version=v2`
+- Для каждого канала получает имена ws-каналов через `GET /v1/channel` (из `channel.web_socket_channels`), подписывается на `chat`/`limited_chat` и обрабатывает входящие сообщения.
 - На входящие сообщения:
   - шлёт credits chatter события в `/internal/credits/chatter`
   - отвечает на `ChatBotCommand` и “время стрима” как и остальные (но **роли VKVideo пока не маппятся**, фактически работает whitelist по `allowedUsers`)
 - Доставляет outbox сообщения из `VkVideoChatBotOutboxMessage`.
+  - отправка сообщения в чат делается через VKVideo Live DevAPI: `POST /v1/chat/message/send`
+  - требуются `channel_url` и `stream_id` (stream_id берётся из `GET /v1/channel` → `data.stream.id`)
 
 Как включается на канале:
 - В панели: `PATCH /streamer/bots/vkvideo`
-  - включить: body `{ enabled: true, vkvideoChannelId?: string }`
-    - если `vkvideoChannelId` не передан, API попробует определить его автоматически через VKVideo `GET /v1/current_user` (нужна линковка VKVideo аккаунта)
+  - включить: body `{ enabled: true, vkvideoChannelId?: string, vkvideoChannelUrl?: string }`
+    - если `vkvideoChannelId` не передан, API попробует определить его автоматически через `GET /v1/current_user` (нужна линковка VKVideo аккаунта)
+    - **важно**: для работы DevAPI требуется `vkvideoChannelUrl` (URL канала). API пытается определить его из `current_user`, иначе нужно передать явно.
   - выключить: body `{ enabled: false }`
 
 ENV (минимум для запуска):
 - `VKVIDEO_CHAT_BOT_ENABLED=1`
 - `CHATBOT_BACKEND_BASE_URLS`
-- `VKVIDEO_CHAT_WS_URL_TEMPLATE` — WS URL, **обязан** содержать `{channelId}`
-- `VKVIDEO_CHAT_BOT_ACCESS_TOKEN` — токен доступа к чат‑WS (как именно выдается — зависит от внешней VKVideo chat API)
+- Должен быть настроен VKVideo DevAPI baseUrl (нужен для `GET /v1/*`):
+  - либо `VKVIDEO_API_BASE_URL`
+  - либо legacy-настройка через `VKVIDEO_USERINFO_URL` (baseUrl будет выведен из неё)
 - Опционально:
-  - `VKVIDEO_CHAT_BOT_AUTH_HEADER` (default `Authorization`)
-  - `VKVIDEO_CHAT_SEND_FORMAT=json|plain` (default `json`)
+  - `VKVIDEO_PUBSUB_WS_URL` — переопределить pubsub websocket URL (по умолчанию используется dev pubsub)
 
 Запуск:
 - `pnpm build && pnpm start:vkvideo-chatbot`
 
 Важно:
-- VKVideo runner использует WebSocket. На Node 20+ берётся встроенный `globalThis.WebSocket`, на Node 18 используется fallback через пакет `ws`.
+- VKVideo runner использует WebSocket (Centrifugo pubsub). На Node 20+ берётся встроенный `globalThis.WebSocket`, на Node 18 используется fallback через пакет `ws`.
+- Отправка сообщений в чат идёт **от имени того VKVideo аккаунта, чьи OAuth токены используются** (см. ниже “про глобального бота”).
 
 ## 4) Команды и “say” (API → outbox)
 
@@ -169,8 +179,11 @@ ENV (минимум для запуска):
   - канал реально в LIVE (иначе команды/аутбокс не сработают)
 - VKVideo:
   - включено: `GET /streamer/bots` → `vkvideo.enabled=true`
-  - ENV: `VKVIDEO_CHAT_WS_URL_TEMPLATE`, `VKVIDEO_CHAT_BOT_ACCESS_TOKEN`, `VKVIDEO_CHAT_BOT_ENABLED=1`
-  - Node 20+ (для WebSocket)
+  - ENV: `VKVIDEO_CHAT_BOT_ENABLED=1`, `CHATBOT_BACKEND_BASE_URLS`, `VKVIDEO_API_BASE_URL`/`VKVIDEO_USERINFO_URL`
+  - убедитесь, что в `VkVideoChatBotSubscription` заполнены:
+    - `userId` (владелец, чьи токены используются)
+    - `vkvideoChannelUrl` (URL канала)
+  - проверьте логи воркера на `websocket_token_failed`, `subscription_missing_channel_url`, `channel_info_failed`, `outbox_send_failed`.
 
 ### “/streamer/bots возвращает 404 Feature not available”
 
