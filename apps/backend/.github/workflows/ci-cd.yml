@@ -256,6 +256,9 @@ jobs:
             VKVIDEO_SCOPES=${{ secrets.VKVIDEO_SCOPES || '' }}
             VKVIDEO_USERINFO_URL=${{ secrets.VKVIDEO_USERINFO_URL || '' }}
             
+            # VKVideo bot runner (optional)
+            VKVIDEO_CHAT_BOT_ENABLED=${{ secrets.VKVIDEO_CHAT_BOT_ENABLED || '0' }}
+            
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
             
@@ -702,6 +705,9 @@ jobs:
             VKVIDEO_SCOPES=${{ secrets.VKVIDEO_SCOPES || '' }}
             VKVIDEO_USERINFO_URL=${{ secrets.VKVIDEO_USERINFO_URL || '' }}
             
+            # VKVideo bot runner (optional)
+            VKVIDEO_CHAT_BOT_ENABLED=${{ secrets.VKVIDEO_CHAT_BOT_ENABLED || '0' }}
+            
             # Twitch EventSub
             TWITCH_EVENTSUB_SECRET=${{ secrets.TWITCH_EVENTSUB_SECRET }}
             
@@ -912,7 +918,23 @@ jobs:
               }
               echo "✅ Beta backend health check passed"
 
-              # Bot runner is started on production deploy (single process posting to both instances).
+              # Start/update beta chat bot runners (best-effort)
+              echo ""
+              echo "Starting/updating beta bot runners with PM2 (best-effort)..."
+              pm2 stop memalerts-vkvideo-chatbot-beta 2>/dev/null || true
+              pm2 delete memalerts-vkvideo-chatbot-beta 2>/dev/null || true
+              pm2 start pnpm --name memalerts-vkvideo-chatbot-beta -- start:vkvideo-chatbot --update-env || true
+              
+              pm2 stop memalerts-youtube-chatbot-beta 2>/dev/null || true
+              pm2 delete memalerts-youtube-chatbot-beta 2>/dev/null || true
+              pm2 start pnpm --name memalerts-youtube-chatbot-beta -- start:youtube-chatbot --update-env || true
+              
+              pm2 save || true
+              
+              echo "Recent VKVideo bot logs:"
+              pm2 logs memalerts-vkvideo-chatbot-beta --lines 30 --nostream || true
+              echo "Recent YouTube bot logs:"
+              pm2 logs memalerts-youtube-chatbot-beta --lines 30 --nostream || true
             else
               echo "❌ Beta backend failed to start"
               pm2 logs memalerts-api-beta --lines 100 --nostream
