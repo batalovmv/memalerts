@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import type { Meme, Wallet } from '@/types';
+
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import ChannelThemeProvider from '@/components/ChannelThemeProvider';
 import CoinsInfoModal from '@/components/CoinsInfoModal';

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import type { ExternalAccount } from '@/types';
+
 import { api } from '@/lib/api';
 import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
 import { toApiError } from '@/shared/api/toApiError';
