@@ -14,6 +14,8 @@ type ApiErrorData = {
   error?: unknown;
   message?: unknown;
   needsRelink?: unknown;
+  reason?: unknown;
+  requiredScopesMissing?: unknown;
 };
 
 type ApiErrorShape = {
@@ -116,6 +118,9 @@ export function BotSettings() {
   const [youtubeRelinkModalOpen, setYoutubeRelinkModalOpen] = useState(false);
   const [youtubeForceRelinkLoading, setYoutubeForceRelinkLoading] = useState(false);
   const [youtubeLastRelinkErrorId, setYoutubeLastRelinkErrorId] = useState<string | null>(null);
+  const [youtubeRelinkDetails, setYoutubeRelinkDetails] = useState<{ reason: string | null; requiredScopesMissing: string[] }>(
+    { reason: null, requiredScopesMissing: [] }
+  );
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
   const [vkvideoChannelId, setVkvideoChannelId] = useState('');
   const [vkvideoChannelUrl, setVkvideoChannelUrl] = useState('');
@@ -856,6 +861,19 @@ export function BotSettings() {
     return { requestId: getRequestIdFromError(error) };
   }, []);
 
+  const getYoutubeRelinkDetailsFromError = useCallback((error: unknown): { reason: string | null; requiredScopesMissing: string[] } => {
+    const apiError = error as ApiErrorShape;
+    const data = apiError.response?.data || {};
+    const reason = typeof data?.reason === 'string' && data.reason.trim() ? data.reason.trim() : null;
+    const requiredScopesMissing = Array.isArray(data?.requiredScopesMissing)
+      ? (data.requiredScopesMissing
+          .filter((s) => typeof s === 'string')
+          .map((s) => s.trim())
+          .filter(Boolean) as string[])
+      : [];
+    return { reason, requiredScopesMissing };
+  }, []);
+
   const isYoutubeRelinkRequiredError = useCallback((error: unknown): boolean => {
     const apiError = error as ApiErrorShape;
     if (apiError.response?.status !== 412) return false;
@@ -982,12 +1000,14 @@ export function BotSettings() {
       await api.patch('/streamer/bots/youtube', { enabled: true });
       setYoutubeNeedsRelink(false);
       setYoutubeLastRelinkErrorId(null);
+      setYoutubeRelinkDetails({ reason: null, requiredScopesMissing: [] });
       toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
       void loadBotIntegrations();
     } catch (error: unknown) {
       void loadBotIntegrations();
       if (isYoutubeRelinkRequiredError(error)) {
         setYoutubeNeedsRelink(true);
+        setYoutubeRelinkDetails(getYoutubeRelinkDetailsFromError(error));
         try {
           const { getRequestIdFromError } = await import('@/lib/api');
           setYoutubeLastRelinkErrorId(getRequestIdFromError(error));
@@ -1019,7 +1039,7 @@ export function BotSettings() {
       await ensureMinDuration(startedAt, 450);
       setBotIntegrationToggleLoading(null);
     }
-  }, [getYoutubeEnableErrorMessage, isYoutubeRelinkRequiredError, loadBotIntegrations, t]);
+  }, [getYoutubeEnableErrorMessage, getYoutubeRelinkDetailsFromError, isYoutubeRelinkRequiredError, loadBotIntegrations, t]);
 
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
@@ -1031,6 +1051,7 @@ export function BotSettings() {
           setYoutubeNeedsRelink(false);
           setYoutubeEnableRetryQueued(false);
           setYoutubeLastRelinkErrorId(null);
+          setYoutubeRelinkDetails({ reason: null, requiredScopesMissing: [] });
         }
         // optimistic
         setBots((prev) => prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b)));
@@ -1046,6 +1067,7 @@ export function BotSettings() {
         if (provider === 'youtube' && nextEnabled && isYoutubeRelinkRequiredError(error)) {
           setYoutubeNeedsRelink(true);
           setYoutubeEnableRetryQueued(false);
+          setYoutubeRelinkDetails(getYoutubeRelinkDetailsFromError(error));
           try {
             const { getRequestIdFromError } = await import('@/lib/api');
             setYoutubeLastRelinkErrorId(getRequestIdFromError(error));
@@ -1080,7 +1102,7 @@ export function BotSettings() {
         setBotIntegrationToggleLoading(null);
       }
     },
-    [getYoutubeEnableErrorMessage, isYoutubeRelinkRequiredError, loadBotIntegrations, t]
+    [getYoutubeEnableErrorMessage, getYoutubeRelinkDetailsFromError, isYoutubeRelinkRequiredError, loadBotIntegrations, t]
   );
 
   useEffect(() => {
@@ -2250,10 +2272,47 @@ export function BotSettings() {
             onClose={() => setYoutubeRelinkModalOpen(false)}
             onConfirm={startYoutubeRelink}
             title={t('admin.youtubeRelinkTitle', { defaultValue: 'Перелинковать YouTube' })}
-            message={t('admin.youtubeRelinkBody', {
-              defaultValue:
-                'Нужно перелинковать YouTube (истёк токен или не хватает прав). Если после перелинковки ошибка повторяется — нажмите “Сбросить привязку и перелинковать”.',
-            })}
+            message={
+              <div className="space-y-3">
+                <div>
+                  {t('admin.youtubeRelinkBody', {
+                    defaultValue:
+                      'Чтобы бот мог отправлять сообщения в чат, нужен дополнительный scope YouTube: https://www.googleapis.com/auth/youtube.force-ssl. Если YouTube был привязан раньше — потребуется перелинковка.',
+                  })}
+                </div>
+
+                {youtubeRelinkDetails.reason ? (
+                  <div className="text-sm">
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      {t('admin.youtubeRelinkReasonTitle', { defaultValue: 'Причина от сервера' })}
+                    </div>
+                    <div className="mt-1 break-words">{youtubeRelinkDetails.reason}</div>
+                  </div>
+                ) : null}
+
+                {youtubeRelinkDetails.requiredScopesMissing.length ? (
+                  <div className="text-sm">
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      {t('admin.youtubeRelinkMissingScopesTitle', { defaultValue: 'Не хватает разрешений (scopes)' })}
+                    </div>
+                    <ul className="mt-1 list-disc pl-5 space-y-1">
+                      {youtubeRelinkDetails.requiredScopesMissing.map((s) => (
+                        <li key={s} className="break-words">
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  {t('admin.youtubeRelinkExtraHint', {
+                    defaultValue:
+                      'Если после перелинковки ошибка повторяется — используйте “Сбросить привязку и перелинковать” в настройках YouTube-бота.',
+                  })}
+                </div>
+              </div>
+            }
             confirmText={t('admin.youtubeRelinkConfirm', { defaultValue: 'Перелинковать' })}
             cancelText={t('common.close', { defaultValue: 'Закрыть' })}
             confirmButtonClass="bg-primary hover:bg-primary/90"
@@ -2265,7 +2324,8 @@ export function BotSettings() {
                 <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
                 <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                   {t('admin.youtubeBotIntegrationHint', {
-                    defaultValue: 'Requires YouTube re-link after scope update (YouTube Data API).',
+                    defaultValue:
+                      'Для отправки сообщений ботом нужен scope https://www.googleapis.com/auth/youtube.force-ssl. Если YouTube был привязан раньше — потребуется перелинковка.',
                   })}
                   {yt?.updatedAt ? (
                     <span className="ml-2 opacity-80">
