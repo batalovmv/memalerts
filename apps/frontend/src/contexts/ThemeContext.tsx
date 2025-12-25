@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { useAppSelector } from '@/store/hooks';
+
 import { getUserPreferences, patchUserPreferences, type ThemePreference } from '@/shared/lib/userPreferences';
+import { useAppSelector } from '@/store/hooks';
 
 type Theme = ThemePreference;
 
@@ -13,6 +14,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAppSelector((s) => s.auth);
+  const userId = user?.id;
   const hydratedFromBackendRef = useRef(false);
 
   const [theme, setTheme] = useState<Theme>(() => {
@@ -42,7 +44,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Backend-first hydration (when logged in). Keeps localStorage as a safe fallback until backend is deployed.
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       hydratedFromBackendRef.current = false;
       return;
     }
@@ -58,7 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [userId]);
 
   const toggleTheme = () => {
     setTheme((prev) => {

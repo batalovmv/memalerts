@@ -1,8 +1,7 @@
-import type { Meme } from '@/types';
-
 import { getMemeMediaUrl } from './lib/getMemeMediaUrl';
 import { useMemeCard, type MemeCardPreviewMode } from './model/useMemeCard';
 import { MemeCardView } from './ui/MemeCardView';
+import type { Meme } from '@/types';
 
 export interface MemeCardProps {
   meme: Meme;

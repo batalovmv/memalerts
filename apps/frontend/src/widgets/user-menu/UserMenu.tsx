@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-
 import toast from 'react-hot-toast';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';

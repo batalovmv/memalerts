@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { useAppSelector } from '../store/hooks';
+
 import { api } from '../lib/api';
+import { useAppSelector } from '../store/hooks';
 
 interface ChannelColors {
   primaryColor: string | null;

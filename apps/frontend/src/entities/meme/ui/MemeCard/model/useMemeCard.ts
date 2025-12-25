@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { useHasUserInteracted } from '@/lib/userInteraction';
 import type { Meme } from '@/types';
+import { useHasUserInteracted } from '@/lib/userInteraction';
 
 export type MemeCardPreviewMode = 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 

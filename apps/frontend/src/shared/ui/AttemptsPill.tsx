@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '@/shared/lib/cn';
 
 export function AttemptsPill(props: { left: number; max?: number; className?: string }) {

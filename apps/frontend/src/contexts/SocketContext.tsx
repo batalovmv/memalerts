@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
+
 import { getRuntimeConfig } from '../lib/runtimeConfig';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { updateWalletBalance } from '../store/slices/authSlice';
 
 interface SocketContextType {
@@ -23,6 +24,7 @@ interface SocketProviderProps {
 
 export function SocketProvider({ children }: SocketProviderProps) {
   const { user } = useAppSelector((state) => state.auth);
+  const userId = user?.id;
   const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -76,7 +78,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     }
 
     // Env override: VITE_SOCKET_TRANSPORTS="websocket" or "websocket,polling"
-    const envTransportsRaw = (import.meta as any)?.env?.VITE_SOCKET_TRANSPORTS as string | undefined;
+    const envTransportsRaw = import.meta.env.VITE_SOCKET_TRANSPORTS as string | undefined;
     if (typeof envTransportsRaw === 'string' && envTransportsRaw.trim()) {
       const parts = envTransportsRaw
         .split(',')
@@ -94,7 +96,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     const runtime = getRuntimeConfig();
     if (runtime?.socketAllowPollingFallback !== undefined) return !!runtime.socketAllowPollingFallback;
 
-    const env = (import.meta as any)?.env?.VITE_SOCKET_ALLOW_POLLING_FALLBACK;
+    const env = import.meta.env.VITE_SOCKET_ALLOW_POLLING_FALLBACK;
     const parsed = parseBool(env);
     if (parsed !== null) return parsed;
 
@@ -209,10 +211,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
   // Global wallet updates: keep Redux in sync everywhere (dashboard, settings, profile, etc.)
   useEffect(() => {
     const socket = socketRef.current;
-    if (!socket || !user || !isConnected) return;
+    if (!socket || !userId || !isConnected) return;
 
     const onWalletUpdated = (data: { userId: string; channelId: string; balance: number; delta?: number; reason?: string }) => {
-      if (!data?.userId || data.userId !== user.id) return;
+      if (!data?.userId || data.userId !== userId) return;
       if (!data?.channelId || typeof data.balance !== 'number') return;
       dispatch(updateWalletBalance({ channelId: data.channelId, balance: data.balance }));
     };
@@ -221,7 +223,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     return () => {
       socket.off('wallet:updated', onWalletUpdated);
     };
-  }, [dispatch, isConnected, user?.id]);
+  }, [dispatch, isConnected, userId]);
 
   return (
     <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>

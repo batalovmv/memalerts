@@ -4,8 +4,8 @@ import { Route, Routes } from 'react-router-dom';
 
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
-import GlobalErrorBanner from './components/GlobalErrorBanner';
 import Footer from './components/Footer';
+import GlobalErrorBanner from './components/GlobalErrorBanner';
 import { SocketProvider } from './contexts/SocketContext';
 import { api } from './lib/api';
 import { useAppDispatch, useAppSelector } from './store/hooks';

@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+
+import type { ApiError, User, Wallet } from '@/types';
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
 import { clearUserPreferencesCache } from '@/shared/lib/userPreferences';
-import type { ApiError, User, Wallet } from '@/types';
 
 export interface AuthState {
   user: User | null;

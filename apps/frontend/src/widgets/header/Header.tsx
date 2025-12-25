@@ -1,10 +1,15 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { Wallet } from '@/types';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
+
+import { api } from '@/lib/api';
+import { login } from '@/lib/auth';
+import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { useSocket } from '@/contexts/SocketContext';
 import { store } from '@/store/index';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectPendingSubmissionsCount } from '@/store/selectors';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import {
@@ -15,11 +20,6 @@ import {
   submissionRejected,
   submissionResubmitted,
 } from '@/store/slices/submissionsSlice';
-import { api } from '@/lib/api';
-import { login } from '@/lib/auth';
-import { useChannelColors } from '@/contexts/ChannelColorsContext';
-import { useSocket } from '@/contexts/SocketContext';
-
 import UserMenu from '@/components/UserMenu';
 import { Button } from '@/shared/ui';
 
@@ -37,6 +37,7 @@ export interface HeaderProps {
 export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
+  const userId = user?.id;
   const { submissions, loading: submissionsLoading } = useAppSelector((state) => state.submissions);
   const pendingSubmissionsCount = useAppSelector(selectPendingSubmissionsCount);
   const dispatch = useAppDispatch();
@@ -335,7 +336,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   // Setup Socket.IO listeners for real-time wallet updates
   // Socket connection is managed by SocketContext at app level
   useEffect(() => {
-    if (!socket || !user) {
+    if (!socket || !userId) {
       return;
     }
 
@@ -347,7 +348,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       reason?: string;
     }) => {
       // Only update if it's for the current user and channel
-      if (data.userId === user.id && (channelId ? data.channelId === channelId : true)) {
+      if (data.userId === userId && (channelId ? data.channelId === channelId : true)) {
         setWallet((prev) => {
           const prevBalance = prev?.channelId === data.channelId ? prev.balance : prev?.balance ?? 0;
           const delta = typeof data.delta === 'number' ? data.delta : data.balance - prevBalance;
@@ -372,7 +373,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           // If Header had no wallet yet (first-time wallet creation), set it
           return {
             id: '',
-            userId: user.id,
+            userId,
             channelId: data.channelId,
             balance: data.balance,
           };
@@ -383,15 +384,14 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     socket.on('wallet:updated', handleWalletUpdate);
 
     // Join user room if connected
-    if (socket.connected && user) {
-      socket.emit('join:user', user.id);
+    if (socket.connected) {
+      socket.emit('join:user', userId);
     }
 
     return () => {
       socket.off('wallet:updated', handleWalletUpdate);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socket, user?.id, channelId, dispatch]);
+  }, [socket, userId, channelId]);
 
   // Realtime pending submissions badge updates (no polling)
   useEffect(() => {

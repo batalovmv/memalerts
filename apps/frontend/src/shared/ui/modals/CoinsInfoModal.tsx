@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '@/store/hooks';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
-
 import { Modal } from '@/shared/ui/Modal/Modal';
+import { useAppSelector } from '@/store/hooks';
 
 interface CoinsInfoModalProps {
   rewardTitle?: string | null;
@@ -12,13 +11,14 @@ interface CoinsInfoModalProps {
 export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
+  const userId = user?.id;
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       // Logged in: backend-first.
-      if (user) {
+      if (userId) {
         const prefs = await getUserPreferences();
         if (cancelled) return;
         const seen = !!prefs?.coinsInfoSeen;
@@ -38,7 +38,7 @@ export default function CoinsInfoModal({ rewardTitle }: CoinsInfoModalProps) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [userId]);
 
   const handleClose = () => {
     setIsOpen(false);

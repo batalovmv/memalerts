@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+
+import type { ApiError, Meme } from '@/types';
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
-import type { ApiError, Meme } from '@/types';
 
 export interface MemesState {
   memes: Meme[];

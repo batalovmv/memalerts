@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+
+import type { ApiError, Submission } from '@/types';
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
-import type { ApiError, Submission } from '@/types';
 
 export interface SubmissionsState {
   submissions: Submission[];
@@ -26,8 +27,9 @@ const initialState: SubmissionsState = {
 type SubmissionsPage = { items: Submission[]; total: number | null };
 
 function isSubmissionsPage(v: unknown): v is SubmissionsPage {
-  const anyV = v as any;
-  return Boolean(anyV && typeof anyV === 'object' && Array.isArray(anyV.items));
+  if (!v || typeof v !== 'object') return false;
+  const obj = v as Record<string, unknown>;
+  return Array.isArray(obj.items);
 }
 
 export const fetchSubmissions = createAsyncThunk<
@@ -48,7 +50,7 @@ export const fetchSubmissions = createAsyncThunk<
       return { items: resp, total: resp.length };
     }
     if (isSubmissionsPage(resp)) {
-      const total = typeof (resp as any).total === 'number' ? ((resp as any).total as number) : null;
+      const total = typeof (resp as Record<string, unknown>).total === 'number' ? ((resp as Record<string, unknown>).total as number) : null;
       return { items: resp.items || [], total };
     }
     return { items: [], total: null };
