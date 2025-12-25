@@ -943,12 +943,13 @@ export const authController = {
         origin,
       });
 
-      // NOTE:
-      // We also request YouTube Data API scopes to enable YouTube live chat integration (bot runner).
-      // Users may need to re-consent if they previously linked YouTube with only OpenID scopes.
-      const scopes = [
-        'https://www.googleapis.com/auth/youtube.readonly',
-      ];
+      // NOTE (official YouTube Data API):
+      // To send messages to a live chat we use `liveChatMessages.insert`, which requires
+      // `https://www.googleapis.com/auth/youtube.force-ssl`.
+      // We also keep `youtube.readonly` explicitly for clarity and compatibility.
+      //
+      // Users may need to re-consent if they previously linked YouTube with narrower scopes.
+      const scopes = ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/youtube.force-ssl'];
       authUrl = getYouTubeAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,

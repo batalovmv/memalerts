@@ -88,6 +88,8 @@ ENV (минимум для запуска):
 - `pnpm build && pnpm start:youtube-chatbot`
 
 Важно:
+- Для отправки сообщений в чат YouTube (официальный метод **YouTube Data API** `liveChatMessages.insert`) нужен scope:
+  - `https://www.googleapis.com/auth/youtube.force-ssl`
 - YouTube может отправлять сообщения **только когда есть активный live chat**. Если стрим оффлайн — аутбокс будет ретраиться и затем помечаться `failed` (“No active live chat”).
 
 ## 3) VKVideo bot (runner)
