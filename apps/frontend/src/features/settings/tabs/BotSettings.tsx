@@ -1018,13 +1018,13 @@ export function BotSettings() {
   }, []);
 
   useEffect(() => {
-    // Deep link support: /settings/bot/youtube (or /settings/bot/vk)
+    // Deep link support: /settings/bot/youtube | /settings/bot/twitch | /settings/bot/vkvideo (legacy: /settings/bot/vk)
     const sub = window.location.pathname.replace(/^\/settings\/?/, '');
     const parts = sub.split('/').filter(Boolean);
     if (parts[0] !== 'bot') return;
     const provider = (parts[1] || '').toLowerCase();
     if (provider === 'youtube') setBotTab('youtube');
-    else if (provider === 'vk') setBotTab('vk');
+    else if (provider === 'vk' || provider === 'vkvideo') setBotTab('vk');
     else if (provider === 'twitch') setBotTab('twitch');
   }, []);
 
@@ -1114,14 +1114,13 @@ export function BotSettings() {
 
   const preflightAndRedirectToOverrideLink = useCallback(
     async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
-      if (customBotEntitlement === 'not_entitled') {
-        showSubscriptionRequiredModal(provider);
-        return;
-      }
-
       const apiOrigin = getApiOriginForRedirect();
       const redirectTo =
-        provider === 'youtube' ? '/settings/bot/youtube' : provider === 'twitch' ? '/settings/bot/twitch' : '/settings/bot/vk';
+        provider === 'youtube'
+          ? '/settings/bot/youtube'
+          : provider === 'twitch'
+            ? '/settings/bot/twitch'
+            : '/settings/bot/vkvideo';
       const url = new URL(`${apiOrigin}/streamer/bots/${provider}/bot/link`);
       url.searchParams.set('redirect_to', redirectTo);
       url.searchParams.set('origin', window.location.origin);
@@ -1153,12 +1152,13 @@ export function BotSettings() {
         window.location.href = url.toString();
       }
     },
-    [customBotEntitlement, showSubscriptionRequiredModal]
+    [showSubscriptionRequiredModal]
   );
 
   const isCustomBotConnectLocked = customBotEntitlement === 'not_entitled';
   const isOverrideConnectedButLocked = useCallback((s: OverrideStatus | null): boolean => {
-    return Boolean(s?.enabled && s?.externalAccountId && s?.lockedBySubscription);
+    // Backend contract: enabled=true means override exists & enabled; lockedBySubscription=true means no entitlement custom_bot.
+    return Boolean(s?.enabled && s?.lockedBySubscription);
   }, []);
 
   const disconnectYoutubeOverride = useCallback(async () => {
@@ -1851,7 +1851,11 @@ export function BotSettings() {
                     t('common.loading', { defaultValue: 'Loading…' })
                   ) : twitchOverrideStatus?.enabled ? (
                     <>
-                      {t('admin.twitchOverrideOn', { defaultValue: 'Используется ваш бот' })}
+                      {isOverrideConnectedButLocked(twitchOverrideStatus)
+                        ? t('subscription.overrideConnectedButLocked', {
+                            defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                          })
+                        : t('admin.twitchOverrideOn', { defaultValue: 'Используется ваш бот' })}
                       {isOverrideConnectedButLocked(twitchOverrideStatus) ? (
                         <span className="ml-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
                           {t('subscription.lockedBySubscription', { defaultValue: 'Заблокировано подпиской' })}
@@ -1877,7 +1881,7 @@ export function BotSettings() {
                       type="button"
                       variant="secondary"
                       onClick={() => void preflightAndRedirectToOverrideLink('twitch')}
-                      disabled={twitchOverrideBusy || isCustomBotConnectLocked}
+                      disabled={twitchOverrideBusy}
                     >
                       {t('admin.twitchOverrideRelink', { defaultValue: 'Перепривязать' })}
                     </Button>
@@ -1890,7 +1894,7 @@ export function BotSettings() {
                     type="button"
                     variant="primary"
                     onClick={() => void preflightAndRedirectToOverrideLink('twitch')}
-                    disabled={twitchOverrideBusy || isCustomBotConnectLocked}
+                    disabled={twitchOverrideBusy}
                   >
                     {t('admin.twitchOverrideConnect', { defaultValue: 'Подключить своего бота' })}
                   </Button>
@@ -2598,7 +2602,11 @@ export function BotSettings() {
                     t('common.loading', { defaultValue: 'Loading…' })
                   ) : youtubeOverrideStatus?.enabled ? (
                     <>
-                      {t('admin.youtubeOverrideOn', { defaultValue: 'Используется ваш бот' })}
+                      {isOverrideConnectedButLocked(youtubeOverrideStatus)
+                        ? t('subscription.overrideConnectedButLocked', {
+                            defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                          })
+                        : t('admin.youtubeOverrideOn', { defaultValue: 'Используется ваш бот' })}
                       {isOverrideConnectedButLocked(youtubeOverrideStatus) ? (
                         <span className="ml-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
                           {t('subscription.lockedBySubscription', { defaultValue: 'Заблокировано подпиской' })}
@@ -2624,7 +2632,7 @@ export function BotSettings() {
                       type="button"
                       variant="secondary"
                       onClick={() => void preflightAndRedirectToOverrideLink('youtube')}
-                      disabled={youtubeOverrideBusy || isCustomBotConnectLocked}
+                      disabled={youtubeOverrideBusy}
                     >
                       {t('admin.youtubeOverrideRelink', { defaultValue: 'Перепривязать' })}
                     </Button>
@@ -2637,7 +2645,7 @@ export function BotSettings() {
                     type="button"
                     variant="primary"
                     onClick={() => void preflightAndRedirectToOverrideLink('youtube')}
-                    disabled={youtubeOverrideBusy || isCustomBotConnectLocked}
+                    disabled={youtubeOverrideBusy}
                   >
                     {t('admin.youtubeOverrideConnect', { defaultValue: 'Подключить своего бота' })}
                   </Button>
@@ -2802,7 +2810,11 @@ export function BotSettings() {
                     t('common.loading', { defaultValue: 'Loading…' })
                   ) : vkvideoOverrideStatus?.enabled ? (
                     <>
-                      {t('admin.vkvideoOverrideOn', { defaultValue: 'Используется ваш бот' })}
+                      {isOverrideConnectedButLocked(vkvideoOverrideStatus)
+                        ? t('subscription.overrideConnectedButLocked', {
+                            defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                          })
+                        : t('admin.vkvideoOverrideOn', { defaultValue: 'Используется ваш бот' })}
                       {isOverrideConnectedButLocked(vkvideoOverrideStatus) ? (
                         <span className="ml-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
                           {t('subscription.lockedBySubscription', { defaultValue: 'Заблокировано подпиской' })}
@@ -2828,7 +2840,7 @@ export function BotSettings() {
                       type="button"
                       variant="secondary"
                       onClick={() => void preflightAndRedirectToOverrideLink('vkvideo')}
-                      disabled={vkvideoOverrideBusy || isCustomBotConnectLocked}
+                      disabled={vkvideoOverrideBusy}
                     >
                       {t('admin.vkvideoOverrideRelink', { defaultValue: 'Перепривязать' })}
                     </Button>
@@ -2841,7 +2853,7 @@ export function BotSettings() {
                     type="button"
                     variant="primary"
                     onClick={() => void preflightAndRedirectToOverrideLink('vkvideo')}
-                    disabled={vkvideoOverrideBusy || isCustomBotConnectLocked}
+                    disabled={vkvideoOverrideBusy}
                   >
                     {t('admin.vkvideoOverrideConnect', { defaultValue: 'Подключить своего бота' })}
                   </Button>
