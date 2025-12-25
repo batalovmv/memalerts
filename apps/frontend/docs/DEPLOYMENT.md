@@ -18,12 +18,14 @@
 - `publicBaseUrl`: базовый URL для share links (обычно `""`)
 
 ## GitHub Actions
-Workflow: `.github/workflows/ci-cd.yml`
+Workflows:
+- `.github/workflows/ci-cd.yml` — GitHub-hosted runner (PR checks: lint + build)
+- `.github/workflows/ci-cd-selfhosted.yml` — self-hosted runner на VPS (sync → build → deploy)
 
 Логика:
-- **build**: lint + build web/overlay, публикует артефакты (`web-dist`, `overlay-dist`)
-- **deploy-beta**: (push в `develop`) скачивает артефакты, пишет `dist/config.json`, деплоит в `/opt/memalerts-frontend-beta`
-- **deploy (prod)**: (push в `main`) скачивает артефакты, пишет `dist/config.json`, деплоит в `/opt/memalerts-frontend`
+- **build**: lint + build web/overlay, публикует артефакты (`web-dist`, `overlay-dist`) — только в `ci-cd.yml` (для PR/ручного запуска)
+- **deploy-beta**: (push в `main`) пишет `dist/config.json`, деплоит в `/opt/memalerts-frontend-beta`
+- **deploy (prod)**: (tag `prod-*`) пишет `dist/config.json`, деплоит в `/opt/memalerts-frontend`
 
 Дополнительно:
 - Используются GitHub **Environments**: `beta` и `production`
@@ -53,13 +55,14 @@ Deploy кладёт статику:
 - Если backend ещё не задеплоен/скрипта нет — deploy упадёт (это ожидаемо; порядок деплоя важен).
 
 ## Promotion strategy (рекомендовано)
-1) Работаете в `develop` → автоматически деплоится beta.
-2) Когда готово к релизу: делаете PR `develop → main`.
-3) После merge в `main` стартует workflow; job `deploy` можно защитить manual approval через GitHub Environments.
-4) Prod деплой использует артефакты из build job этого же workflow run (без пересборки на сервере).
+1) Работаете в `main` → автоматически деплоится beta (job `deploy-beta`).
+2) Когда готово к релизу: создаёте тег `prod-*` (например `prod-2025-12-25` или `prod-1.0.10`).
+3) Push тега запускает production deploy; job `deploy-production` можно защитить manual approval через GitHub Environments.
+4) В `ci-cd.yml` production deploy использует артефакты из build job этого же workflow run (без пересборки на сервере).
+5) В `ci-cd-selfhosted.yml` билд выполняется на VPS (self-hosted runner), без скачивания артефактов.
 
 ## Runbook: как безопасно перенести beta → основной домен (main)
-Цель: вы разрабатываете в `develop` (beta), тестируете beta, затем **одним действием** (merge в `main` + approve deploy) переносите ту же версию на основной домен.
+Цель: вы разрабатываете в `main` (beta), тестируете beta, затем **одним действием** (создание тега `prod-*` + approve deploy) переносите ту же версию на основной домен.
 
 ### 0) Предусловия (делается один раз)
 1) **GitHub Environments**
@@ -74,8 +77,8 @@ Deploy кладёт статику:
 3) **Backend уже задеплоен**
    - На сервере доступен `/opt/memalerts-backend/.github/scripts/setup-nginx-full.sh` (иначе frontend deploy упадёт по ожидаемой причине).
 
-### 1) Работа в beta (develop)
-1) Пушите изменения в `develop`.
+### 1) Работа в beta (main)
+1) Пушите изменения в `main`.
 2) CI запускается и деплоит beta (job `deploy-beta`).
 3) Вы тестируете beta на поддомене `beta.<domain>`.
 
@@ -87,10 +90,9 @@ Deploy кладёт статику:
 - Основные админ‑операции (если применимо): заявки, approve/reject, настройки.
 
 ### 2) Promotion в production (main) через CI/CD
-1) Создаёте PR: **`develop → main`**.
-2) Дожидаетесь зелёного CI (job `build`).
-3) Мержите PR в `main`.
-4) Запустится workflow и job **Deploy to VPS (Production)**.
+1) Убедитесь, что нужный коммит уже в `main` и beta проверена.
+2) Создаёте тег вида **`prod-*`** (например `prod-1.0.10`) на этот коммит и пушите тег.
+3) Запустится workflow и job **Deploy to VPS (Production)**.
    - Если включён manual approval в `production` environment — подтверждаете деплой.
 
 Почему это “не ломает”:

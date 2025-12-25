@@ -2,34 +2,39 @@ name: Frontend CI/CD
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    tags: ['prod-*']
   pull_request:
     branches: [main]
     paths:
       - 'src/**'
       - 'overlay/**'
-      - '.github/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+      - 'tailwind.config.js'
+      - 'postcss.config.js'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - 'vite.config.ts'
-      - 'tsconfig.json'
+      - 'pnpm-workspace.yaml'
+      - '.github/**'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: '20'
 
 jobs:
   build:
-    name: Lint and Build (Web + Overlay)
+    name: Build (lint + web/overlay)
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v2
         with:
           version: 10
 
@@ -37,271 +42,35 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint Web
+      - name: Lint
         run: pnpm lint
 
-      - name: Lint Overlay
-        run: cd overlay && pnpm lint
+      - name: Lint overlay
+        run: pnpm lint:overlay
 
-      - name: Typecheck Web
-        run: pnpm typecheck
-
-      - name: Typecheck Overlay
-        run: cd overlay && pnpm typecheck
-
-      - name: Build Web
+      - name: Build web
         run: pnpm build:web
 
-      - name: Build Overlay
+      - name: Build overlay
         run: pnpm build:overlay
 
-      - name: Upload Web artifact
+      - name: Upload web dist artifact
         uses: actions/upload-artifact@v4
         with:
           name: web-dist
           path: dist
           if-no-files-found: error
 
-      - name: Upload Overlay artifact
+      - name: Upload overlay dist artifact
         uses: actions/upload-artifact@v4
         with:
           name: overlay-dist
           path: overlay/dist
           if-no-files-found: error
-
-  deploy:
-    name: Deploy to VPS (Production)
-    needs: build
-    runs-on: ubuntu-latest
-    # Private repo friendly:
-    # - Manual run (workflow_dispatch) OR
-    # - Push a tag like "prod-2025-12-24" to release to production.
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-'))
-    environment: production
-    concurrency:
-      group: memalerts-frontend-prod
-      cancel-in-progress: true
-    
-    steps:
-      - name: Download Web artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: dist
-
-      # Runtime config served as a static file to avoid build-time env coupling (beta vs prod)
-      # "" means same-origin for both REST and Socket.IO.
-      - name: Generate runtime config (Web)
-        run: |
-          echo "{\"apiBaseUrl\":\"\",\"socketUrl\":\"\",\"uploadsBaseUrl\":\"${{ secrets.UPLOADS_BASE_URL || '' }}\",\"publicBaseUrl\":\"\"}" > dist/config.json
-
-      - name: Download Overlay artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: overlay-dist
-          path: overlay/dist
-
-      - name: Create deployment directory
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'deploy' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            # scp-action runs without sudo, so we must ensure permissions are correct *before* upload.
-            if ! sudo -n true 2>/dev/null; then
-              echo "ERROR: deploy user must have passwordless sudo (NOPASSWD) to deploy into /opt."
-              echo "Fix on server (as root):"
-              echo "  echo 'deploy ALL=(ALL) NOPASSWD: ALL' | tee /etc/sudoers.d/deploy"
-              echo "  chmod 0440 /etc/sudoers.d/deploy"
-              exit 1
-            fi
-            # Atomic deploy: remove previous build output so old hashed assets can't be served
-            # (scp doesn't delete removed files)
-            sudo rm -rf /opt/memalerts-frontend/dist /opt/memalerts-frontend/overlay/dist || true
-            sudo mkdir -p /opt/memalerts-frontend
-            sudo chown -R $USER:$USER /opt/memalerts-frontend
-            sudo chmod -R 755 /opt/memalerts-frontend
-
-      - name: Deploy to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'deploy' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          source: "dist,overlay/dist"
-          target: "/opt/memalerts-frontend"
-          strip_components: 0
-
-      - name: Setup and Restart Nginx
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'deploy' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            # Configure sudo for deploy user (one-time setup - requires root access)
-            if ! sudo -n true 2>/dev/null; then
-              echo "=========================================="
-              echo "SUDO CONFIGURATION REQUIRED"
-              echo "Please run on server as root:"
-              echo "echo 'deploy ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/deploy"
-              echo "sudo chmod 0440 /etc/sudoers.d/deploy"
-              echo "=========================================="
-              # Try to configure anyway (will fail if no root access)
-              echo "deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/deploy > /dev/null 2>&1 && sudo chmod 0440 /etc/sudoers.d/deploy || {
-                echo "Could not configure sudo automatically. Please configure manually."
-              }
-            fi
-            
-            # Always setup/update nginx configuration
-            echo "Setting up/updating nginx configuration..."
-            
-            # Debug: Check what's in /opt/memalerts-backend
-            echo "Checking /opt/memalerts-backend structure..."
-            ls -la /opt/memalerts-backend/ 2>/dev/null || echo "Directory /opt/memalerts-backend does not exist"
-            ls -la /opt/memalerts-backend/.github/ 2>/dev/null || echo "Directory /opt/memalerts-backend/.github does not exist"
-            ls -la /opt/memalerts-backend/.github/scripts/ 2>/dev/null || echo "Directory /opt/memalerts-backend/.github/scripts does not exist"
-            
-            # Wait for backend script to be available (in case frontend deploys before backend)
-            SCRIPT_PATH=""
-            for i in {1..10}; do
-              if [ -f /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh ]; then
-                SCRIPT_PATH="/opt/memalerts-backend/.github/scripts/setup-nginx-full.sh"
-                echo "Found script at expected location!"
-                break
-              fi
-              echo "Waiting for backend script... (attempt $i/10)"
-              sleep 2
-            done
-            
-            # If still not found, try to find it
-            if [ -z "$SCRIPT_PATH" ]; then
-              echo "Script not found at expected location, searching in /opt..."
-              FOUND_SCRIPT=$(find /opt -name "setup-nginx-full.sh" 2>/dev/null | head -1)
-              if [ -n "$FOUND_SCRIPT" ]; then
-                SCRIPT_PATH="$FOUND_SCRIPT"
-                echo "Found script at: $SCRIPT_PATH"
-              else
-                echo "Script not found anywhere in /opt"
-                echo "Listing all .sh files in /opt:"
-                find /opt -name "*.sh" 2>/dev/null || echo "No .sh files found"
-              fi
-            fi
-            
-            if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
-              echo "Using script: $SCRIPT_PATH"
-              chmod +x "$SCRIPT_PATH"
-              # Fix line endings if needed (convert CRLF to LF)
-              sed -i 's/\r$//' "$SCRIPT_PATH" || true
-              # Ensure script is executable
-              chmod +x "$SCRIPT_PATH"
-              export CLOUDFLARE_CERT="${{ secrets.CLOUDFLARE_ORIGIN_CERT }}"
-              export CLOUDFLARE_KEY="${{ secrets.CLOUDFLARE_ORIGIN_KEY }}"
-              # Use bash explicitly to avoid shebang issues
-              sudo -E bash "$SCRIPT_PATH" ${{ secrets.DOMAIN || 'twitchalerts.ru' }} 3001 3002 2>&1 || {
-                echo "Nginx setup failed. Check logs above."
-                exit 1
-              }
-            else
-              echo "ERROR: Nginx setup script not found!"
-              echo "Expected location: /opt/memalerts-backend/.github/scripts/setup-nginx-full.sh"
-              echo "Please ensure backend has been deployed first."
-              echo ""
-              echo "Current /opt structure:"
-              ls -la /opt/ 2>/dev/null || echo "Cannot list /opt"
-              exit 1
-            fi
-            
-            # Ensure frontend directory exists
-            mkdir -p /opt/memalerts-frontend/dist
-            
-            # Reload nginx (already configured above)
-            sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
-
-  deploy-beta:
-    name: Deploy to VPS (Beta)
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    environment: beta
-    concurrency:
-      group: memalerts-frontend-beta
-      cancel-in-progress: true
-    
-    steps:
-      - name: Download Web artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: dist
-
-      - name: Generate runtime config (Web, Beta)
-        run: |
-          echo "{\"apiBaseUrl\":\"\",\"socketUrl\":\"\",\"uploadsBaseUrl\":\"${{ secrets.UPLOADS_BASE_URL_BETA || secrets.UPLOADS_BASE_URL || '' }}\",\"publicBaseUrl\":\"\"}" > dist/config.json
-
-      - name: Download Overlay artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: overlay-dist
-          path: overlay/dist
-
-      - name: Create deployment directory (Beta)
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'deploy' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            # scp-action runs without sudo, so we must ensure permissions are correct *before* upload.
-            if ! sudo -n true 2>/dev/null; then
-              echo "ERROR: deploy user must have passwordless sudo (NOPASSWD) to deploy into /opt."
-              echo "Fix on server (as root):"
-              echo "  echo 'deploy ALL=(ALL) NOPASSWD: ALL' | tee /etc/sudoers.d/deploy"
-              echo "  chmod 0440 /etc/sudoers.d/deploy"
-              exit 1
-            fi
-            # Atomic deploy: remove previous build output so old hashed assets can't be served
-            # (scp doesn't delete removed files)
-            sudo rm -rf /opt/memalerts-frontend-beta/dist /opt/memalerts-frontend-beta/overlay/dist || true
-            sudo mkdir -p /opt/memalerts-frontend-beta
-            sudo chown -R $USER:$USER /opt/memalerts-frontend-beta
-            sudo chmod -R 755 /opt/memalerts-frontend-beta
-
-      - name: Deploy to VPS (Beta)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'deploy' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          source: "dist,overlay/dist"
-          target: "/opt/memalerts-frontend-beta"
-          strip_components: 0
-
-      - name: Setup Beta Nginx
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'deploy' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            # Ensure beta frontend directory exists
-            mkdir -p /opt/memalerts-frontend-beta/dist
-            
-            # Reload nginx (beta domain will be configured by backend script)
-            sudo -n nginx -t && sudo -n systemctl reload nginx || sudo -n systemctl restart nginx
 
