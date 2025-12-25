@@ -520,7 +520,32 @@ async function start() {
       const vkvideoChannelId = String((r as any)?.vkvideoChannelId || '').trim();
       const msg = normalizeMessage((r as any)?.message || '');
       if (!vkvideoChannelId || !msg) continue;
-      if (!bot.isJoined(vkvideoChannelId)) continue;
+      if (!bot.isJoined(vkvideoChannelId)) {
+        // Do not silently leave outbox pending forever: surface a best-effort error for observability + frontend polling.
+        // We only write once (when lastError is null) to avoid spamming DB on each poll tick.
+        logger.warn('vkvideo_chatbot.outbox_skipped_not_joined', {
+          vkvideoChannelId,
+          outboxId: r.id,
+          status: String((r as any)?.status || ''),
+          attempts: Number((r as any)?.attempts || 0),
+        });
+        try {
+          if (String((r as any)?.status || '') === 'processing') {
+            await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
+              where: { id: r.id, status: 'processing', processingAt: { lt: staleBefore }, lastError: null },
+              data: { status: 'pending', processingAt: null, lastError: 'bot_not_joined' },
+            });
+          } else {
+            await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
+              where: { id: r.id, status: 'pending', lastError: null },
+              data: { lastError: 'bot_not_joined' },
+            });
+          }
+        } catch {
+          // ignore (best-effort)
+        }
+        continue;
+      }
 
       const claim = await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
         where: {

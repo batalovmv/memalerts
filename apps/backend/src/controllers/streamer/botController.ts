@@ -131,6 +131,74 @@ export const streamerBotController = {
     return res.json({ ok: true });
   },
 
+  outboxStatus: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+
+    const provider = String((req.params as any)?.provider || '')
+      .trim()
+      .toLowerCase();
+    const id = String((req.params as any)?.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
+    if (provider !== 'twitch' && provider !== 'youtube' && provider !== 'vkvideo') {
+      return res.status(400).json({ error: 'Bad Request', message: 'provider must be one of: twitch, youtube, vkvideo' });
+    }
+
+    try {
+      let row: any = null;
+      const select = {
+        id: true,
+        status: true,
+        attempts: true,
+        lastError: true,
+        processingAt: true,
+        sentAt: true,
+        failedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      };
+
+      if (provider === 'twitch') {
+        row = await prismaAny.chatBotOutboxMessage.findFirst({
+          where: { id, channelId },
+          select,
+        });
+      } else if (provider === 'youtube') {
+        row = await (prisma as any).youTubeChatBotOutboxMessage.findFirst({
+          where: { id, channelId },
+          select,
+        });
+      } else if (provider === 'vkvideo') {
+        row = await (prisma as any).vkVideoChatBotOutboxMessage.findFirst({
+          where: { id, channelId },
+          select,
+        });
+      }
+
+      if (!row) return res.status(404).json({ error: 'Not Found', message: 'Outbox message not found' });
+
+      const iso = (d: any) => (d ? new Date(d).toISOString() : null);
+      return res.json({
+        provider,
+        id: String(row.id),
+        status: String(row.status),
+        attempts: Number(row.attempts || 0),
+        lastError: row.lastError ? String(row.lastError) : null,
+        processingAt: iso(row.processingAt),
+        sentAt: iso(row.sentAt),
+        failedAt: iso(row.failedAt),
+        createdAt: iso(row.createdAt),
+        updatedAt: iso(row.updatedAt),
+      });
+    } catch (e: any) {
+      // Prisma "table does not exist" (feature not deployed / migrations not applied)
+      if (e?.code === 'P2021') {
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      }
+      throw e;
+    }
+  },
+
   say: async (req: AuthRequest, res: Response) => {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;

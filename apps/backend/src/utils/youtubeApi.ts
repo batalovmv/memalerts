@@ -19,6 +19,8 @@ type YouTubeApiErrorReason =
   | 'refresh_failed'
   | 'api_unauthorized'
   | 'api_forbidden'
+  | 'api_youtube_signup_required'
+  | 'api_access_not_configured'
   | 'api_quota'
   | 'api_insufficient_permissions'
   | 'api_error'
@@ -315,6 +317,8 @@ export async function fetchMyYouTubeChannelIdDetailed(userId: string): Promise<F
       reason = 'api_forbidden';
       if (youtubeErrorReason === 'quotaExceeded' || youtubeErrorReason === 'dailyLimitExceeded') reason = 'api_quota';
       if (youtubeErrorReason === 'insufficientPermissions') reason = 'api_insufficient_permissions';
+      if (youtubeErrorReason === 'youtubeSignupRequired') reason = 'api_youtube_signup_required';
+      if (youtubeErrorReason === 'accessNotConfigured') reason = 'api_access_not_configured';
     }
 
     logger.warn('youtube.channels.mine_failed', {

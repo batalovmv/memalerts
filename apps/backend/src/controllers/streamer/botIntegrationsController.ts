@@ -176,14 +176,62 @@ export const botIntegrationsController = {
             api_unauthorized: 'YouTube token is not authorized. Please re-link YouTube.',
           };
 
-          return res.status(412).json({
-            error: 'Precondition Failed',
-            code: 'YOUTUBE_RELINK_REQUIRED',
-            needsRelink: true,
+          const relinkReasons = new Set([
+            'missing_scopes',
+            'missing_refresh_token',
+            'invalid_grant',
+            'api_insufficient_permissions',
+            'api_unauthorized',
+          ]);
+
+          if (relinkReasons.has(reason)) {
+            return res.status(412).json({
+              error: 'Precondition Failed',
+              code: 'YOUTUBE_RELINK_REQUIRED',
+              needsRelink: true,
+              requestId: req.requestId,
+              reason,
+              requiredScopesMissing: diag.requiredScopesMissing,
+              message: msgByReason[reason] || 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
+            });
+          }
+
+          if (reason === 'api_youtube_signup_required') {
+            return res.status(409).json({
+              error: 'Conflict',
+              code: 'YOUTUBE_CHANNEL_REQUIRED',
+              requestId: req.requestId,
+              reason,
+              message: 'Your Google account has no YouTube channel. Please create/activate a YouTube channel and try again.',
+            });
+          }
+
+          if (reason === 'api_access_not_configured') {
+            return res.status(503).json({
+              error: 'Service Unavailable',
+              code: 'YOUTUBE_API_NOT_CONFIGURED',
+              requestId: req.requestId,
+              reason,
+              message: 'YouTube Data API is not configured for this application. Please contact support.',
+            });
+          }
+
+          if (reason === 'api_quota') {
+            return res.status(503).json({
+              error: 'Service Unavailable',
+              code: 'YOUTUBE_API_QUOTA',
+              requestId: req.requestId,
+              reason,
+              message: 'YouTube API quota exceeded. Please try again later.',
+            });
+          }
+
+          return res.status(400).json({
+            error: 'Bad Request',
+            code: 'YOUTUBE_ENABLE_FAILED',
             requestId: req.requestId,
             reason,
-            requiredScopesMissing: diag.requiredScopesMissing,
-            message: msgByReason[reason] || 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
+            message: 'Failed to enable YouTube bot. Please try again or contact support.',
           });
         }
       }

@@ -53,6 +53,7 @@ streamerRoutes.post('/credits/reconnect-window', adminController.setCreditsRecon
 streamerRoutes.post('/bot/enable', streamerBotController.enable);
 streamerRoutes.post('/bot/disable', streamerBotController.disable);
 streamerRoutes.post('/bot/say', streamerBotController.say);
+streamerRoutes.get('/bot/outbox/:provider/:id', streamerBotController.outboxStatus);
 
 // Bot integrations (per-provider toggles; persisted in DB)
 streamerRoutes.get('/bots', botIntegrationsController.get);
