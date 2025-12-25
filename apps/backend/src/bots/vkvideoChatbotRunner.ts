@@ -5,9 +5,11 @@ import { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import {
   fetchVkVideoChannel,
+  fetchVkVideoCurrentUser,
   fetchVkVideoUserRolesOnChannel,
   fetchVkVideoWebsocketSubscriptionTokens,
   fetchVkVideoWebsocketToken,
+  extractVkVideoChannelIdFromUrl,
   getVkVideoExternalAccount,
   sendVkVideoChatMessage,
 } from '../utils/vkvideoApi.js';
@@ -561,15 +563,69 @@ async function start() {
         logger.warn('vkvideo_chatbot.subscription_missing_user', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
         continue;
       }
-      const channelUrl = String(s.vkvideoChannelUrl || '').trim();
-      if (!channelUrl) {
-        logger.warn('vkvideo_chatbot.subscription_missing_channel_url', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
-        continue;
-      }
-
       const account = await getVkVideoExternalAccount(s.userId);
       if (!account?.accessToken) {
         logger.warn('vkvideo_chatbot.subscription_missing_access_token', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
+        continue;
+      }
+
+      // Back-compat: older subscriptions may not have vkvideoChannelUrl persisted yet.
+      // Try to auto-resolve it from VKVideo current_user, so outbox/commands can work without requiring a manual "disable -> enable".
+      let channelUrl = String(s.vkvideoChannelUrl || '').trim();
+      if (!channelUrl) {
+        try {
+          const currentUser = await fetchVkVideoCurrentUser({ accessToken: account.accessToken });
+          if (currentUser.ok) {
+            const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
+            const urlPrimary = String(root?.channel?.url || '').trim();
+            const urls = Array.isArray(root?.channels)
+              ? root.channels.map((c: any) => String(c?.url || '').trim()).filter(Boolean)
+              : [];
+            const unique = Array.from(new Set([urlPrimary, ...urls].filter(Boolean)));
+
+            const matched = unique.filter((u) => extractVkVideoChannelIdFromUrl(u) === s.vkvideoChannelId);
+            const resolved = matched[0] || (unique.length === 1 ? unique[0] : null);
+            if (resolved) {
+              channelUrl = resolved;
+              vkvideoIdToChannelUrl.set(s.vkvideoChannelId, channelUrl);
+              try {
+                await (prisma as any).vkVideoChatBotSubscription.update({
+                  where: { channelId: s.channelId },
+                  data: { vkvideoChannelUrl: channelUrl },
+                });
+              } catch (e: any) {
+                // Ignore if DB schema is older (no column yet) or update fails transiently.
+                if (e?.code !== 'P2022') {
+                  logger.warn('vkvideo_chatbot.subscription_autofill_persist_failed', {
+                    channelId: s.channelId,
+                    vkvideoChannelId: s.vkvideoChannelId,
+                    errorMessage: e?.message || String(e),
+                  });
+                }
+              }
+              logger.info('vkvideo_chatbot.subscription_autofilled_channel_url', {
+                channelId: s.channelId,
+                vkvideoChannelId: s.vkvideoChannelId,
+              });
+            }
+          } else {
+            logger.warn('vkvideo_chatbot.current_user_failed', {
+              channelId: s.channelId,
+              vkvideoChannelId: s.vkvideoChannelId,
+              errorMessage: currentUser.error,
+            });
+          }
+        } catch (e: any) {
+          logger.warn('vkvideo_chatbot.subscription_autofill_failed', {
+            channelId: s.channelId,
+            vkvideoChannelId: s.vkvideoChannelId,
+            errorMessage: e?.message || String(e),
+          });
+        }
+      }
+
+      if (!channelUrl) {
+        logger.warn('vkvideo_chatbot.subscription_missing_channel_url', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
         continue;
       }
 
