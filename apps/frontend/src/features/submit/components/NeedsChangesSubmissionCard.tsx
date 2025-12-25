@@ -2,8 +2,8 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { MySubmission } from '../types';
 import { parseNeedsChangesPayload } from '../lib/parseNeedsChangesPayload';
+import type { MySubmission } from '../types';
 
 import TagInput from '@/components/TagInput';
 import { api } from '@/lib/api';

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { resolvePublicUrl } from '@/lib/urls';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
-import { useChannelColors } from '@/contexts/ChannelColorsContext';
-import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { useAppSelector } from '@/store/hooks';
 
 // Channel Settings Component (Colors only)

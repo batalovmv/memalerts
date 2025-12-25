@@ -1,9 +1,8 @@
+import type { RefCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { MySubmission } from '../types';
 import { NeedsChangesSubmissionCard } from './NeedsChangesSubmissionCard';
-
-import type { RefCallback } from 'react';
 
 import { IconButton } from '@/shared/ui';
 

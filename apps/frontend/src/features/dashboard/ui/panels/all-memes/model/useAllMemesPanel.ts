@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { useDebounce } from '@/hooks/useDebounce';
 import type { Meme } from '@/types';
+import { useDebounce } from '@/hooks/useDebounce';
 
 import { api } from '@/lib/api';
 

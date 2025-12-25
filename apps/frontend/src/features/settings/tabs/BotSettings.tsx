@@ -905,9 +905,10 @@ export function BotSettings() {
 
       if (status === 412 && code) {
         // Unknown 412 precondition — still show a helpful message.
+        const serverMessage = typeof data?.error === 'string' ? data.error : null;
         return {
           message:
-            data?.error ||
+            serverMessage ||
             t('admin.youtubeEnablePreconditionFailed', { defaultValue: 'Не удалось включить YouTube-бота (предусловие не выполнено).' }),
           requestId,
         };

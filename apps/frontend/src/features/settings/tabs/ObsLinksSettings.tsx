@@ -2,13 +2,13 @@
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { RotateIcon } from './obs/ui/RotateIcon';
 import {
   clampFloat,
   clampInt,
   isHexColor,
   type OverlaySharePayload,
 } from './obs/lib/shareCode';
+import { RotateIcon } from './obs/ui/RotateIcon';
 
 import SecretCopyField from '@/components/SecretCopyField';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
@@ -68,6 +68,27 @@ const SENDER_FONT_FAMILIES: ReadonlyArray<SenderFontFamily> = [
 
 function isSenderFontFamily(v: string): v is SenderFontFamily {
   return (SENDER_FONT_FAMILIES as ReadonlyArray<string>).includes(v);
+}
+
+const URL_POSITIONS: ReadonlyArray<UrlPosition> = [
+  'random',
+  'center',
+  'top',
+  'bottom',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+];
+
+function isUrlPosition(v: string): v is UrlPosition {
+  return (URL_POSITIONS as ReadonlyArray<string>).includes(v);
+}
+
+const URL_ANIMS: ReadonlyArray<UrlAnim> = ['fade', 'zoom', 'slide-up', 'pop', 'lift', 'none'];
+
+function isUrlAnim(v: string): v is UrlAnim {
+  return (URL_ANIMS as ReadonlyArray<string>).includes(v);
 }
 
 function toRecord(v: unknown): Record<string, unknown> | null {
@@ -493,9 +514,6 @@ export function ObsLinksSettings() {
       borderTintStrength,
       glassPreset,
       glassTintStrength,
-      overlayMaxConcurrent,
-      overlayMode,
-      overlayShowSender,
       scaleFixed,
       scaleMax,
       scaleMin,
@@ -507,7 +525,6 @@ export function ObsLinksSettings() {
       senderFontWeight,
       senderHoldMs,
       senderStroke,
-      senderStrokeColor,
       senderStrokeOpacity,
       senderStrokeWidth,
       shadowAngle,
@@ -561,7 +578,8 @@ export function ObsLinksSettings() {
           }
         }
 
-        const nextPosition = styleFromServer?.position ?? urlPosition;
+        const nextPosition: UrlPosition =
+          typeof styleFromServer?.position === 'string' && isUrlPosition(styleFromServer.position) ? styleFromServer.position : urlPosition;
         const nextVolume = typeof styleFromServer?.volume === 'number' ? styleFromServer.volume : urlVolume;
         const nextScaleMode: 'fixed' | 'range' = styleFromServer?.scaleMode === 'range' ? 'range' : 'fixed';
         const nextScaleFixed = typeof styleFromServer?.scaleFixed === 'number' ? styleFromServer.scaleFixed : scaleFixed;
@@ -599,7 +617,7 @@ export function ObsLinksSettings() {
           ? styleFromServer.borderGradientAngle
           : urlBorderGradientAngle;
         const nextBgOpacity = typeof styleFromServer?.bgOpacity === 'number' ? styleFromServer.bgOpacity : urlBgOpacity;
-        const nextAnim = styleFromServer?.anim ?? urlAnim;
+        const nextAnim: UrlAnim = typeof styleFromServer?.anim === 'string' && isUrlAnim(styleFromServer.anim) ? styleFromServer.anim : urlAnim;
         const nextEnterMs = typeof styleFromServer?.enterMs === 'number' ? styleFromServer.enterMs : urlEnterMs;
         const nextExitMs = typeof styleFromServer?.exitMs === 'number' ? styleFromServer.exitMs : urlExitMs;
         const nextEasingPreset: 'ios' | 'smooth' | 'snappy' | 'linear' | 'custom' =
@@ -618,7 +636,10 @@ export function ObsLinksSettings() {
         const nextEasingY2 = typeof styleFromServer?.easingY2 === 'number' ? styleFromServer.easingY2 : animEasingY2;
         const nextSenderFontSize = typeof styleFromServer?.senderFontSize === 'number' ? styleFromServer.senderFontSize : senderFontSize;
         const nextSenderFontWeight = typeof styleFromServer?.senderFontWeight === 'number' ? styleFromServer.senderFontWeight : senderFontWeight;
-        const nextSenderFontFamily = typeof styleFromServer?.senderFontFamily === 'string' ? styleFromServer.senderFontFamily : senderFontFamily;
+        const nextSenderFontFamily: SenderFontFamily =
+          typeof styleFromServer?.senderFontFamily === 'string' && isSenderFontFamily(styleFromServer.senderFontFamily)
+            ? styleFromServer.senderFontFamily
+            : senderFontFamily;
         const nextSenderFontColor = typeof styleFromServer?.senderFontColor === 'string' ? styleFromServer.senderFontColor : senderFontColor;
         const nextSenderHoldMs = typeof styleFromServer?.senderHoldMs === 'number' ? styleFromServer.senderHoldMs : senderHoldMs;
         const nextSenderBgColor = typeof styleFromServer?.senderBgColor === 'string' ? styleFromServer.senderBgColor : senderBgColor;

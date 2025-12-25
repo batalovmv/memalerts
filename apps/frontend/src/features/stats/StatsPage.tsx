@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 
-import { api } from '@/lib/api';
 import Header from '@/components/Header';
+import { api } from '@/lib/api';
 import { useAppSelector } from '@/store/hooks';
 
 export default function Stats() {
