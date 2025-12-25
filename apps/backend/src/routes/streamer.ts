@@ -58,6 +58,9 @@ streamerRoutes.get('/bot/outbox/:provider/:id', streamerBotController.outboxStat
 // Bot integrations (per-provider toggles; persisted in DB)
 streamerRoutes.get('/bots', botIntegrationsController.get);
 streamerRoutes.get('/bots/vkvideo/candidates', botIntegrationsController.vkvideoCandidates);
+streamerRoutes.get('/bots/vkvideo/bot', botIntegrationsController.vkvideoBotStatus);
+streamerRoutes.get('/bots/vkvideo/bot/link', botIntegrationsController.vkvideoBotLinkStart);
+streamerRoutes.delete('/bots/vkvideo/bot', botIntegrationsController.vkvideoBotUnlink);
 streamerRoutes.get('/bots/youtube/bot', botIntegrationsController.youtubeBotStatus);
 streamerRoutes.get('/bots/youtube/bot/link', botIntegrationsController.youtubeBotLinkStart);
 streamerRoutes.delete('/bots/youtube/bot', botIntegrationsController.youtubeBotUnlink);

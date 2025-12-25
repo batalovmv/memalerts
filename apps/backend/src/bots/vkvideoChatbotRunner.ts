@@ -12,6 +12,7 @@ import {
   fetchVkVideoWebsocketToken,
   extractVkVideoChannelIdFromUrl,
   getVkVideoExternalAccount,
+  getValidVkVideoAccessTokenByExternalAccountId,
   sendVkVideoChatMessage,
 } from '../utils/vkvideoApi.js';
 
@@ -383,16 +384,54 @@ async function start() {
     const vkvideoChannelId = params.vkvideoChannelId;
     const channelUrl = vkvideoIdToChannelUrl.get(vkvideoChannelId) || null;
     const ownerUserId = vkvideoIdToOwnerUserId.get(vkvideoChannelId) || null;
+    const channelId = vkvideoIdToChannelId.get(vkvideoChannelId) || null;
     if (!channelUrl || !ownerUserId) throw new Error('missing_channel_context');
 
-    const account = await getVkVideoExternalAccount(ownerUserId);
-    if (!account?.accessToken) throw new Error('missing_owner_access_token');
+    // Prefer sender identity:
+    // 1) per-channel override bot (VkVideoBotIntegration)
+    // 2) global default bot (GlobalVkVideoBotCredential)
+    // 3) fallback to owner's linked VKVideo token (back-compat; will be removed later)
+    let accessToken: string | null = null;
 
-    const ch = await fetchVkVideoChannel({ accessToken: account.accessToken, channelUrl });
+    if (channelId) {
+      try {
+        const override = await (prisma as any).vkVideoBotIntegration.findUnique({
+          where: { channelId },
+          select: { enabled: true, externalAccountId: true },
+        });
+        const extId = override?.enabled ? String(override.externalAccountId || '').trim() : '';
+        if (extId) accessToken = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+      } catch (e: any) {
+        if (e?.code !== 'P2021') throw e;
+      }
+
+      if (!accessToken) {
+        try {
+          const global = await (prisma as any).globalVkVideoBotCredential.findFirst({
+            where: { enabled: true },
+            orderBy: { updatedAt: 'desc' },
+            select: { externalAccountId: true },
+          });
+          const extId = String(global?.externalAccountId || '').trim();
+          if (extId) accessToken = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+        }
+      }
+    }
+
+    if (!accessToken) {
+      const account = await getVkVideoExternalAccount(ownerUserId);
+      accessToken = account?.accessToken || null;
+    }
+
+    if (!accessToken) throw new Error('missing_sender_access_token');
+
+    const ch = await fetchVkVideoChannel({ accessToken, channelUrl });
     if (!ch.ok) throw new Error(ch.error || 'channel_fetch_failed');
     if (!ch.streamId) throw new Error('no_active_stream');
 
-    const resp = await sendVkVideoChatMessage({ accessToken: account.accessToken, channelUrl, streamId: ch.streamId, text: params.text });
+    const resp = await sendVkVideoChatMessage({ accessToken, channelUrl, streamId: ch.streamId, text: params.text });
     if (!resp.ok) throw new Error(resp.error || 'send_failed');
   }
 
@@ -466,10 +505,45 @@ async function start() {
               if (cachedRoles && now - cachedRoles.ts <= USER_ROLES_CACHE_TTL_MS) {
                 senderRoleIds = cachedRoles.roleIds;
               } else {
-                const account = await getVkVideoExternalAccount(ownerUserId);
-                if (account?.accessToken) {
+                // Prefer querying roles with the same sender token used for writes; fallback to owner's token.
+                let tokenForRoles: string | null = null;
+                const channelId = vkvideoIdToChannelId.get(vkvideoChannelId) || null;
+
+                if (channelId) {
+                  try {
+                    const override = await (prisma as any).vkVideoBotIntegration.findUnique({
+                      where: { channelId },
+                      select: { enabled: true, externalAccountId: true },
+                    });
+                    const extId = override?.enabled ? String(override.externalAccountId || '').trim() : '';
+                    if (extId) tokenForRoles = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+                  } catch (e: any) {
+                    if (e?.code !== 'P2021') throw e;
+                  }
+
+                  if (!tokenForRoles) {
+                    try {
+                      const global = await (prisma as any).globalVkVideoBotCredential.findFirst({
+                        where: { enabled: true },
+                        orderBy: { updatedAt: 'desc' },
+                        select: { externalAccountId: true },
+                      });
+                      const extId = String(global?.externalAccountId || '').trim();
+                      if (extId) tokenForRoles = await getValidVkVideoAccessTokenByExternalAccountId(extId);
+                    } catch (e: any) {
+                      if (e?.code !== 'P2021') throw e;
+                    }
+                  }
+                }
+
+                if (!tokenForRoles) {
+                  const account = await getVkVideoExternalAccount(ownerUserId);
+                  tokenForRoles = account?.accessToken || null;
+                }
+
+                if (tokenForRoles) {
                   const rolesResp = await fetchVkVideoUserRolesOnChannel({
-                    accessToken: account.accessToken,
+                    accessToken: tokenForRoles,
                     vkvideoChannelId,
                     vkvideoUserId: incoming.userId,
                   });

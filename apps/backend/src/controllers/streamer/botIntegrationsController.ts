@@ -6,7 +6,8 @@ import { fetchMyYouTubeChannelIdDetailed, getValidYouTubeBotAccessToken, getYouT
 import { fetchGoogleTokenInfo } from '../../auth/providers/youtube.js';
 import { createOAuthState } from '../../auth/oauthState.js';
 import { getYouTubeAuthorizeUrl } from '../../auth/providers/youtube.js';
-import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount } from '../../utils/vkvideoApi.js';
+import { generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../../auth/providers/vkvideo.js';
+import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount, getValidVkVideoBotAccessToken } from '../../utils/vkvideoApi.js';
 import { logger } from '../../utils/logger.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
@@ -15,7 +16,15 @@ const PROVIDERS: BotProviderV2[] = ['twitch', 'vkplaylive', 'vkvideo', 'youtube'
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
-const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/youtube', '/dashboard', '/']);
+const REDIRECT_ALLOWLIST = new Set<string>([
+  '/settings/accounts',
+  '/settings/bot',
+  '/settings/bot/youtube',
+  '/settings/bot/vk',
+  '/settings/bot/vkvideo',
+  '/dashboard',
+  '/',
+]);
 function sanitizeRedirectTo(input: unknown): string {
   const redirectTo = typeof input === 'string' ? input.trim() : '';
   if (!redirectTo) return DEFAULT_LINK_REDIRECT;
@@ -127,6 +136,90 @@ export const botIntegrationsController = {
     if (!channelId) return;
     try {
       await (prisma as any).youTubeBotIntegration.deleteMany({ where: { channelId } });
+      return res.json({ ok: true });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/vkvideo/bot
+  // Returns current per-channel VKVideo bot override status (if configured).
+  vkvideoBotStatus: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      const row = await (prisma as any).vkVideoBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true, updatedAt: true },
+      });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null });
+      return res.json({
+        enabled: Boolean((row as any)?.enabled),
+        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
+        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/vkvideo/bot/link
+  // Starts OAuth linking for a per-channel VKVideo bot account (write scopes), stored as mapping to this channel.
+  vkvideoBotLinkStart: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const clientId = process.env.VKVIDEO_CLIENT_ID;
+    const callbackUrl = process.env.VKVIDEO_CALLBACK_URL;
+    const authorizeUrl = process.env.VKVIDEO_AUTHORIZE_URL;
+    const tokenUrl = process.env.VKVIDEO_TOKEN_URL;
+    if (!clientId || !callbackUrl || !authorizeUrl || !tokenUrl || !process.env.VKVIDEO_CLIENT_SECRET) {
+      return res.status(503).json({ error: 'Service Unavailable', message: 'VKVideo OAuth is not configured' });
+    }
+
+    const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
+    const origin = (req.query.origin as string) || null;
+
+    const codeVerifier = generatePkceVerifier();
+    const codeChallenge = pkceChallengeS256(codeVerifier);
+
+    const { state } = await createOAuthState({
+      provider: 'vkvideo',
+      kind: 'bot_link',
+      userId: req.userId,
+      channelId,
+      redirectTo,
+      origin,
+      codeVerifier,
+    });
+
+    const scopes = String(process.env.VKVIDEO_BOT_SCOPES || process.env.VKVIDEO_SCOPES || '')
+      .split(/[ ,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const authUrl = getVkVideoAuthorizeUrl({
+      authorizeUrl,
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+      codeChallenge,
+    });
+
+    return res.redirect(authUrl);
+  },
+
+  // DELETE /streamer/bots/vkvideo/bot
+  // Removes per-channel VKVideo bot override (falls back to global VKVideo bot credential).
+  vkvideoBotUnlink: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      await (prisma as any).vkVideoBotIntegration.deleteMany({ where: { channelId } });
       return res.json({ ok: true });
     } catch (e: any) {
       if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
@@ -465,6 +558,32 @@ export const botIntegrationsController = {
 
       if (provider === 'vkvideo') {
         if (enabled) {
+          // Ensure we have SOME sender identity configured for chat writes:
+          // - either global shared bot credential (admin-linked)
+          // - or per-channel bot override (VkVideoBotIntegration row)
+          // We keep this as a precondition to avoid enabling a "broken" integration where commands/outbox can't talk.
+          const botAccessToken = await getValidVkVideoBotAccessToken();
+          let hasOverride = false;
+          try {
+            const override = await (prisma as any).vkVideoBotIntegration.findUnique({
+              where: { channelId },
+              select: { enabled: true },
+            });
+            hasOverride = Boolean(override?.enabled);
+          } catch (e: any) {
+            if (e?.code !== 'P2021') throw e;
+            hasOverride = false;
+          }
+          if (!botAccessToken && !hasOverride) {
+            if (req.requestId) res.setHeader('x-request-id', req.requestId);
+            return res.status(503).json({
+              error: 'Service Unavailable',
+              code: 'VKVIDEO_BOT_NOT_CONFIGURED',
+              requestId: req.requestId,
+              message: 'VKVideo bot is not configured (missing global bot credential and no per-channel bot override).',
+            });
+          }
+
           let vkvideoChannelId = String((req.body as any)?.vkvideoChannelId || '').trim();
           let vkvideoChannelUrl: string | null = String((req.body as any)?.vkvideoChannelUrl || '').trim() || null;
           if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });

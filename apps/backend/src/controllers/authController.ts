@@ -650,28 +650,50 @@ export const authController = {
           });
         }
 
-        // YouTube bot linking: map this YouTube external account as the channel's bot sender.
-        if (provider === 'youtube' && stateKind === 'bot_link') {
+        // Bot linking: map this external account as the channel's bot sender.
+        // Supported providers: youtube, vkvideo.
+        if ((provider === 'youtube' || provider === 'vkvideo') && stateKind === 'bot_link') {
           const channelId = String(stateChannelId || '').trim();
           if (!channelId) {
             throw new Error('missing_bot_link_channel');
           }
 
-          // Special sentinel channelId: store the default/global YouTube bot credential.
-          if (channelId === '__global_youtube_bot__') {
-            await (tx as any).globalYouTubeBotCredential.deleteMany({});
-            await (tx as any).globalYouTubeBotCredential.create({
-              data: { externalAccountId: upserted.id, enabled: true },
-              select: { id: true },
-            });
-          } else {
-            // Default behavior: per-channel override (stored as mapping to this channel).
-            await (tx as any).youTubeBotIntegration.upsert({
-              where: { channelId },
-              create: { channelId, externalAccountId: upserted.id, enabled: true },
-              update: { externalAccountId: upserted.id, enabled: true },
-              select: { id: true },
-            });
+          if (provider === 'youtube') {
+            // Special sentinel channelId: store the default/global YouTube bot credential.
+            if (channelId === '__global_youtube_bot__') {
+              await (tx as any).globalYouTubeBotCredential.deleteMany({});
+              await (tx as any).globalYouTubeBotCredential.create({
+                data: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            } else {
+              // Default behavior: per-channel override (stored as mapping to this channel).
+              await (tx as any).youTubeBotIntegration.upsert({
+                where: { channelId },
+                create: { channelId, externalAccountId: upserted.id, enabled: true },
+                update: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            }
+          }
+
+          if (provider === 'vkvideo') {
+            // Special sentinel channelId: store the default/global VKVideo bot credential.
+            if (channelId === '__global_vkvideo_bot__') {
+              await (tx as any).globalVkVideoBotCredential.deleteMany({});
+              await (tx as any).globalVkVideoBotCredential.create({
+                data: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            } else {
+              // Default behavior: per-channel override.
+              await (tx as any).vkVideoBotIntegration.upsert({
+                where: { channelId },
+                create: { channelId, externalAccountId: upserted.id, enabled: true },
+                update: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            }
           }
         }
       });

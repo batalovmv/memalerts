@@ -104,6 +104,33 @@ export async function exchangeVkVideoCodeForToken(params: {
   return { status: post.status, data: tokenData, raw: post.json };
 }
 
+export async function refreshVkVideoToken(params: {
+  tokenUrl: string;
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  redirectUri: string;
+}): Promise<{ status: number; data: VkVideoTokenResponse; raw: any }> {
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: params.refreshToken,
+    redirect_uri: params.redirectUri,
+  });
+
+  const basic = Buffer.from(`${params.clientId}:${params.clientSecret}`, 'utf8').toString('base64');
+  const post = await fetchJsonSafe(params.tokenUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${basic}`,
+    },
+    body,
+  });
+  const tokenData = (post.json ?? {}) as VkVideoTokenResponse;
+  debugLog('vkvideo.token.refresh', { method: 'POST', status: post.status, hasAccessToken: !!tokenData?.access_token });
+  return { status: post.status, data: tokenData, raw: post.json };
+}
+
 export async function fetchVkVideoUser(params: {
   userInfoUrl?: string | null;
   accessToken: string;
