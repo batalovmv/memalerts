@@ -5,6 +5,8 @@ import { youtubeDefaultBotController } from '../controllers/owner/youtubeDefault
 import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefaultBotController.js';
 import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBotController.js';
 import { entitlementsController } from '../controllers/owner/entitlementsController.js';
+import { channelResolveController } from '../controllers/owner/channelResolveController.js';
+import { ownerResolveLimiter } from '../middleware/rateLimit.js';
 
 // Owner-only API (role: admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -36,5 +38,8 @@ ownerRoutes.delete('/bots/twitch/default', twitchDefaultBotController.unlink);
 ownerRoutes.get('/entitlements/custom-bot', entitlementsController.getCustomBot);
 ownerRoutes.post('/entitlements/custom-bot/grant', entitlementsController.grantCustomBot);
 ownerRoutes.post('/entitlements/custom-bot/revoke', entitlementsController.revokeCustomBot);
+// Safer UX: resolve by provider/externalId (no channelId exposure)
+ownerRoutes.get('/channels/resolve', ownerResolveLimiter, channelResolveController.resolve);
+ownerRoutes.post('/entitlements/custom-bot/grant-by-provider', ownerResolveLimiter, entitlementsController.grantCustomBotByProvider);
 
 

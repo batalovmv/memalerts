@@ -401,6 +401,35 @@
   - **Важно (про раннеры)**: включение через этот эндпоинт меняет состояние в БД, но **сообщения/команды начнут работать только если запущен соответствующий воркер** (см. `docs/BOTS.md`).
   - **Twitch-only guard**: при `provider="twitch"` и `Channel.twitchChannelId == null` вернёт `400` как и `/streamer/bot/enable`.
   - ⚠️ если фича ещё не задеплоена/не применены миграции — backend может вернуть `404` (фронт должен показать “недоступно”).
+
+#### Entitlements (subscription gates)
+- **GET `/streamer/entitlements/custom-bot`** → `{ entitled: boolean }`
+  - `entitled=true` означает, что каналу разрешён **per-channel override bot sender** (свой бот) для Twitch/YouTube/VKVideo.
+  - `entitled=false` означает, что override нельзя линковать/использовать; система всегда должна fallback’иться на глобального бота.
+
+#### Per-channel bot override linking (custom bot sender)
+Эти эндпоинты управляют **привязкой “своего бота”** (per-channel override), отдельной от включения интеграции через `PATCH /streamer/bots/:provider`.
+
+- **GET `/streamer/bots/twitch/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
+- **GET `/streamer/bots/youtube/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
+- **GET `/streamer/bots/vkvideo/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
+  - `externalAccountId`: привязанный sender account (если есть).
+  - `lockedBySubscription=true`: привязка существует, но **использование override запрещено** (нет entitlement `custom_bot`). UI должен показать “Заблокировано подпиской” и предлагать оплату/апгрейд.
+
+- **GET `/streamer/bots/twitch/bot/link`** → redirect на OAuth для привязки override
+- **GET `/streamer/bots/youtube/bot/link`** → redirect на OAuth для привязки override
+- **GET `/streamer/bots/vkvideo/bot/link`** → redirect на OAuth для привязки override
+  - **Если нет подписки/entitlement**: вернёт `403` JSON:
+    - `{ error: "Forbidden", code: "SUBSCRIPTION_REQUIRED", message }`
+  - UX: не делать “слепой” `window.location.href` без preflight — иначе пользователь увидит сырой JSON.
+
+- **DELETE `/streamer/bots/twitch/bot`** → `{ ok: true }` (unlink override)
+- **DELETE `/streamer/bots/youtube/bot`** → `{ ok: true }` (unlink override)
+- **DELETE `/streamer/bots/vkvideo/bot`** → `{ ok: true }` (unlink override)
+
+Примечание про OAuth callback (bot_link):
+- Если в процессе `bot_link` попытались применить per-channel override без entitlement, backend **не создаст/не обновит** `*BotIntegration` и вернёт редирект на фронт с:
+  - `?error=auth_failed&reason=subscription_required&provider=<twitch|youtube|vkvideo>`
 - **YouTube enable может требовать relink**:
   - если у пользователя привязан YouTube без нужных прав/refresh token — backend вернёт `412 Precondition Failed`:
     - `code: "YOUTUBE_RELINK_REQUIRED"`
@@ -454,6 +483,13 @@
 ### POST `/owner/wallets/:userId/:channelId/adjust`
 - **Body (JSON)**: `{ amount: number }` (может быть + или -; итоговый баланс не может стать < 0)
 - **Response**: обновлённый wallet (с `user`, `channel`)
+
+### Channel entitlements (admin-only)
+Назначение: вручную включать/выключать subscription-gated фичи для канала (пока нет платёжки/Stripe webhooks).
+
+- **GET `/owner/entitlements/custom-bot?channelId=...`** → `{ channelId, key, enabled, expiresAt, source, active, updatedAt, createdAt }`
+- **POST `/owner/entitlements/custom-bot/grant`** body: `{ channelId, expiresAt?, source? }` → `{ ok, channelId, key, active, expiresAt, source }`
+- **POST `/owner/entitlements/custom-bot/revoke`** body: `{ channelId }` → `{ ok, channelId, key, active }`
 
 ## Beta access (`/beta/*` и `/owner/beta/*`)
 

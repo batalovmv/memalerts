@@ -206,4 +206,41 @@ export const uploadLimiter = rateLimit({
   },
 });
 
+// Owner/admin-only resolver limiter (per-user): prevents brute forcing external IDs.
+// Intended for endpoints like GET /owner/channels/resolve and grant-by-provider helpers.
+export const ownerResolveLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60/min per user
+  message: 'Too many resolve requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: maybeCreateRateLimitStore('ownerResolve'),
+  keyGenerator: (req) => {
+    const anyReq = req as any;
+    const userId = typeof anyReq.userId === 'string' ? anyReq.userId : null;
+    if (userId) return `user:${userId}`;
+    return `ip:${getClientIP(req)}`;
+  },
+  skip: (req) => {
+    // Check if IP is whitelisted
+    const whitelistIPs = getWhitelistIPs();
+    if (whitelistIPs.length > 0) {
+      const clientIP = getClientIP(req);
+      return whitelistIPs.includes(clientIP);
+    }
+    return false;
+  },
+  handler: (req: Request, res: any, _next: any, options: any) => {
+    logRateLimitEvent('blocked', req, {
+      limiter: 'ownerResolve',
+      limit: options.max,
+      windowMs: options.windowMs,
+    });
+    res.status(options.statusCode).json({
+      error: 'Too Many Requests',
+      message: options.message,
+    });
+  },
+});
+
 
