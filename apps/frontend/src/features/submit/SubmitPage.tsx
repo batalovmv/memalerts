@@ -3,9 +3,9 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
-import type { MySubmission } from './types';
 import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
 import { MySubmissionsSection } from './components/MySubmissionsSection';
+import type { MySubmission } from './types';
 
 import type { Submission, SubmissionStatus } from '@/types';
 

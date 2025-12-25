@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
-import type { Submission } from '@/types';
-import { AttemptsPill } from '@/shared/ui';
-
 import { getResubmitsLeft } from './lib/resubmits';
 import { useSubmissionPreview } from './model/useSubmissionPreview';
 import { SubmissionPreview } from './ui/SubmissionPreview';
+
+import { AttemptsPill } from '@/shared/ui';
+import type { Submission } from '@/types';
 
 export function PendingSubmissionCard(props: {
   submission: Submission;
