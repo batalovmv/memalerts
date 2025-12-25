@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import WebSocketImpl from 'ws';
 
 export type VkVideoIncomingMessage = {
   vkvideoChannelId: string;
@@ -24,11 +25,9 @@ function normalizeLogin(v: any): string {
 }
 
 function ensureWebSocketCtor(): any {
+  // Prefer built-in WebSocket (Node 20+). Fall back to `ws` for Node 18/older runtimes.
   const WS: any = (globalThis as any).WebSocket;
-  if (!WS) {
-    throw new Error('WebSocket is not available in this Node runtime. Use Node 20+ or add a ws-based implementation.');
-  }
-  return WS;
+  return WS || (WebSocketImpl as any);
 }
 
 export class VkVideoChatBot {
@@ -60,7 +59,12 @@ export class VkVideoChatBot {
       headers[this.cfg.authHeaderName] = this.cfg.authHeaderValue;
     }
 
-    const ws = new WS(url, [], Object.keys(headers).length ? { headers } : undefined);
+    // Note: constructor signatures differ between native WebSocket and `ws`.
+    // Native WebSocket supports (url, protocols, options), while `ws` supports (url, options).
+    const ws =
+      WS === (WebSocketImpl as any)
+        ? new WS(url, Object.keys(headers).length ? { headers } : undefined)
+        : new WS(url, [], Object.keys(headers).length ? { headers } : undefined);
     this.wsByChannelId.set(vkvideoChannelId, ws);
 
     ws.addEventListener('open', () => {

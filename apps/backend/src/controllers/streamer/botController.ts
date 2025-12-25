@@ -136,12 +136,87 @@ export const streamerBotController = {
     if (!channelId) return;
 
     const providerRaw = (req.body as any)?.provider;
-    const provider = String(providerRaw ?? 'twitch').trim().toLowerCase();
+    let provider = String(providerRaw ?? '').trim().toLowerCase();
 
     const message = normalizeMessage((req.body as any)?.message);
     if (!message) return res.status(400).json({ error: 'Bad Request', message: 'Message is required' });
     if (message.length > TWITCH_MESSAGE_MAX_LEN) {
       return res.status(400).json({ error: 'Bad Request', message: `Message is too long (max ${TWITCH_MESSAGE_MAX_LEN})` });
+    }
+
+    // If provider is omitted, keep backwards compatibility (default to Twitch) BUT
+    // avoid silently sending to the wrong platform when multiple bots are enabled.
+    if (!provider) {
+      const enabled: string[] = [];
+
+      // Twitch enabled?
+      const twitchSub = await prisma.chatBotSubscription.findUnique({
+        where: { channelId },
+        select: { enabled: true, twitchLogin: true },
+      });
+      const twitchEnabled = Boolean(twitchSub?.enabled && twitchSub?.twitchLogin);
+      if (twitchEnabled) enabled.push('twitch');
+
+      // YouTube enabled?
+      try {
+        const ytSub = await (prisma as any).youTubeChatBotSubscription.findUnique({
+          where: { channelId },
+          select: { enabled: true, youtubeChannelId: true },
+        });
+        const ytEnabled = Boolean(ytSub?.enabled && ytSub?.youtubeChannelId);
+        if (ytEnabled) enabled.push('youtube');
+      } catch (e: any) {
+        // Feature not deployed / migrations not applied
+        if (e?.code !== 'P2021') throw e;
+      }
+
+      // VKVideo enabled?
+      try {
+        // Optional gating by BotIntegrationSettings(provider=vkvideo)
+        try {
+          const gate = await (prisma as any).botIntegrationSettings.findUnique({
+            where: { channelId_provider: { channelId, provider: 'vkvideo' } },
+            select: { enabled: true },
+          });
+          if (gate && gate.enabled === false) {
+            // explicitly disabled by gate => treat as disabled
+          } else {
+            const vvSub = await (prisma as any).vkVideoChatBotSubscription.findUnique({
+              where: { channelId },
+              select: { enabled: true, vkvideoChannelId: true },
+            });
+            const vvEnabled = Boolean(vvSub?.enabled && vvSub?.vkvideoChannelId);
+            if (vvEnabled) enabled.push('vkvideo');
+          }
+        } catch (e: any) {
+          // Older instances without botIntegrationSettings: ignore gate check
+          if (e?.code === 'P2021') {
+            const vvSub = await (prisma as any).vkVideoChatBotSubscription.findUnique({
+              where: { channelId },
+              select: { enabled: true, vkvideoChannelId: true },
+            });
+            const vvEnabled = Boolean(vvSub?.enabled && vvSub?.vkvideoChannelId);
+            if (vvEnabled) enabled.push('vkvideo');
+          } else {
+            throw e;
+          }
+        }
+      } catch (e: any) {
+        if (e?.code !== 'P2021') throw e;
+      }
+
+      if (enabled.length === 0) {
+        return res.status(400).json({ error: 'Bad Request', message: 'No chat bot is enabled for this channel' });
+      }
+      if (enabled.length > 1) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Multiple chat bots are enabled. Please specify provider explicitly.',
+          enabledProviders: enabled,
+        });
+      }
+
+      provider = enabled[0];
     }
 
     if (provider === 'youtube') {
@@ -163,7 +238,7 @@ export const streamerBotController = {
           },
           select: { id: true, status: true, createdAt: true },
         });
-        return res.json({ ok: true, outbox: row });
+        return res.json({ ok: true, provider: 'youtube', outbox: row });
       } catch (e: any) {
         // Feature not deployed / migrations not applied
         if (e?.code === 'P2021') {
@@ -206,7 +281,7 @@ export const streamerBotController = {
           },
           select: { id: true, status: true, createdAt: true },
         });
-        return res.json({ ok: true, outbox: row });
+        return res.json({ ok: true, provider: 'vkvideo', outbox: row });
       } catch (e: any) {
         // Feature not deployed / migrations not applied
         if (e?.code === 'P2021') {
@@ -234,7 +309,7 @@ export const streamerBotController = {
       select: { id: true, status: true, createdAt: true },
     });
 
-    return res.json({ ok: true, outbox: row });
+    return res.json({ ok: true, provider: 'twitch', outbox: row });
   },
 
   disable: async (req: AuthRequest, res: Response) => {

@@ -122,7 +122,7 @@ ENV (минимум для запуска):
 - `pnpm build && pnpm start:vkvideo-chatbot`
 
 Важно:
-- В текущей реализации используется `globalThis.WebSocket` — это гарантировано есть в Node 20+. На Node 18 может отсутствовать (тогда раннер упадёт с ошибкой “WebSocket is not available…”).
+- VKVideo runner использует WebSocket. На Node 20+ берётся встроенный `globalThis.WebSocket`, на Node 18 используется fallback через пакет `ws`.
 
 ## 4) Команды и “say” (API → outbox)
 
@@ -146,11 +146,12 @@ ENV (минимум для запуска):
 ### “Сказать сообщение в чат” (outbox)
 
 `POST /streamer/bot/say` body:
-- `{ message: string }` — по умолчанию отправит в Twitch (если Twitch бот включён)
+- `{ message: string }` — по умолчанию отправит в Twitch (если включён **только Twitch**)
 - `{ provider: "youtube", message: string }` — отправит в YouTube (если YouTube бот включён)
 - `{ provider: "vkvideo", message: string }` — отправит в VKVideo (если VKVideo бот включён)
 
 Важно:
+- Если включено **несколько** ботов (например `twitch` и `vkvideo`), то `provider` **нужно** передать явно — иначе API вернёт 400 с `enabledProviders`.
 - Для YouTube/VKVideo сообщение отправляется через outbox: если интеграция выключена — API вернёт 400.
 
 ## 5) Диагностика (быстрые чек‑листы)
