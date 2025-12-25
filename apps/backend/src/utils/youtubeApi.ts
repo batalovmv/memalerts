@@ -62,18 +62,52 @@ const REQUIRED_YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.readon
 
 type YouTubeBotAuthErrorReason = 'missing_bot_oauth_env' | 'missing_bot_refresh_token' | 'invalid_grant' | 'refresh_failed';
 
-let botTokenCache: { accessToken: string; expiresAt: number } | null = null;
+let botTokenCache: { key: string; accessToken: string; expiresAt: number } | null = null;
 
 export async function getValidYouTubeBotAccessToken(): Promise<string | null> {
   const clientId = process.env.YOUTUBE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-  const refreshToken = process.env.YOUTUBE_BOT_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret) return null;
-  if (!refreshToken) return null;
 
   const now = Date.now();
-  if (botTokenCache && botTokenCache.expiresAt - now > 60_000) {
+
+  // 1) Prefer DB-stored global credential (admin-linked default bot)
+  try {
+    const cred = await (prisma as any).globalYouTubeBotCredential.findFirst({
+      where: { enabled: true },
+      orderBy: { updatedAt: 'desc' },
+      select: { externalAccountId: true },
+    });
+
+    const externalAccountId = String((cred as any)?.externalAccountId || '').trim();
+    if (externalAccountId) {
+      const cacheKey = `db:${externalAccountId}`;
+      if (botTokenCache && botTokenCache.key === cacheKey && botTokenCache.expiresAt - now > 60_000) {
+        return botTokenCache.accessToken;
+      }
+
+      const token = await getValidYouTubeAccessTokenByExternalAccountId(externalAccountId);
+      if (token) {
+        // We don't know the precise expiry here (refresh endpoint returns expires_in, but we don't surface it).
+        // Use a conservative cache TTL to reduce refresh load without risking long-lived stale tokens.
+        botTokenCache = { key: cacheKey, accessToken: token, expiresAt: now + 45 * 60_000 };
+        return token;
+      }
+    }
+  } catch (e: any) {
+    // P2021: table does not exist (feature not deployed yet) -> fall back to ENV.
+    if (e?.code !== 'P2021') {
+      logger.warn('youtube.bot_token.db_credential_lookup_failed', { errorMessage: e?.message || String(e) });
+    }
+  }
+
+  // 2) Back-compat fallback: ENV refresh token
+  const refreshToken = process.env.YOUTUBE_BOT_REFRESH_TOKEN;
+  if (!refreshToken) return null;
+
+  const cacheKey = 'env';
+  if (botTokenCache && botTokenCache.key === cacheKey && botTokenCache.expiresAt - now > 60_000) {
     return botTokenCache.accessToken;
   }
 
@@ -103,7 +137,7 @@ export async function getValidYouTubeBotAccessToken(): Promise<string | null> {
 
     const expiresInSec = Number(data.expires_in || 0);
     const expiresAt = now + (Number.isFinite(expiresInSec) && expiresInSec > 0 ? expiresInSec * 1000 : 3_000_000); // fallback ~50m
-    botTokenCache = { accessToken: data.access_token, expiresAt };
+    botTokenCache = { key: cacheKey, accessToken: data.access_token, expiresAt };
     return data.access_token;
   } catch (e: any) {
     logger.warn('youtube.bot_token.refresh_failed', { errorMessage: e?.message || String(e) });

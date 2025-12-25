@@ -378,6 +378,7 @@ model ExternalAccount {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   youTubeBotIntegration YouTubeBotIntegration?
+  globalYouTubeBotCredential GlobalYouTubeBotCredential?
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -432,6 +433,21 @@ model YouTubeBotIntegration {
 
   @@index([enabled])
   @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared YouTube bot credential (single "default MemAlerts bot" account).
+// Linked by admin once; used as sender for YouTube chat messages when a channel has no override.
+model GlobalYouTubeBotCredential {
+  id               String   @id @default(uuid())
+  externalAccountId String  @unique
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
   @@index([externalAccountId])
 }
 

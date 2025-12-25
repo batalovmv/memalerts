@@ -49,7 +49,7 @@ const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
 
-const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/dashboard', '/']);
+const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/youtube', '/dashboard', '/']);
 
 function decodeJwtPayloadNoVerify(token: string): any | null {
   try {
@@ -644,12 +644,23 @@ export const authController = {
           if (!channelId) {
             throw new Error('missing_bot_link_channel');
           }
-          await (tx as any).youTubeBotIntegration.upsert({
-            where: { channelId },
-            create: { channelId, externalAccountId: upserted.id, enabled: true },
-            update: { externalAccountId: upserted.id, enabled: true },
-            select: { id: true },
-          });
+
+          // Special sentinel channelId: store the default/global YouTube bot credential.
+          if (channelId === '__global_youtube_bot__') {
+            await (tx as any).globalYouTubeBotCredential.deleteMany({});
+            await (tx as any).globalYouTubeBotCredential.create({
+              data: { externalAccountId: upserted.id, enabled: true },
+              select: { id: true },
+            });
+          } else {
+            // Default behavior: per-channel override (stored as mapping to this channel).
+            await (tx as any).youTubeBotIntegration.upsert({
+              where: { channelId },
+              create: { channelId, externalAccountId: upserted.id, enabled: true },
+              update: { externalAccountId: upserted.id, enabled: true },
+              select: { id: true },
+            });
+          }
         }
       });
 

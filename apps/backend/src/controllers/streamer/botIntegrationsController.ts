@@ -15,7 +15,7 @@ const PROVIDERS: BotProviderV2[] = ['twitch', 'vkplaylive', 'vkvideo', 'youtube'
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
-const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/dashboard', '/']);
+const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/youtube', '/dashboard', '/']);
 function sanitizeRedirectTo(input: unknown): string {
   const redirectTo = typeof input === 'string' ? input.trim() : '';
   if (!redirectTo) return DEFAULT_LINK_REDIRECT;
@@ -364,7 +364,7 @@ export const botIntegrationsController = {
         }
 
         // Ensure we have SOME sender identity configured for chat writes:
-        // - either global shared bot token (YOUTUBE_BOT_REFRESH_TOKEN)
+        // - either global shared bot (DB credential or ENV YOUTUBE_BOT_REFRESH_TOKEN)
         // - or per-channel bot override (YouTubeBotIntegration row)
         const botAccessToken = await getValidYouTubeBotAccessToken();
         let hasOverride = false;
@@ -385,7 +385,7 @@ export const botIntegrationsController = {
             error: 'Service Unavailable',
             code: 'YOUTUBE_BOT_NOT_CONFIGURED',
             requestId: req.requestId,
-            message: 'YouTube bot is not configured (missing global bot token and no per-channel bot override).',
+            message: 'YouTube bot is not configured (missing global bot credential/token and no per-channel bot override).',
           });
         }
       }
