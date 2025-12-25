@@ -946,10 +946,16 @@ export const authController = {
       // NOTE (official YouTube Data API):
       // To send messages to a live chat we use `liveChatMessages.insert`, which requires
       // `https://www.googleapis.com/auth/youtube.force-ssl`.
-      // We also keep `youtube.readonly` explicitly for clarity and compatibility.
+      //
+      // Minimal scopes policy:
+      // - Request ONLY `youtube.force-ssl` to keep the consent screen as minimal as possible.
+      // - This scope also covers the read access we need for:
+      //   - search.list (find live video)
+      //   - videos.list (activeLiveChatId)
+      //   - liveChatMessages.list (read chat)
       //
       // Users may need to re-consent if they previously linked YouTube with narrower scopes.
-      const scopes = ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/youtube.force-ssl'];
+      const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl'];
       authUrl = getYouTubeAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,

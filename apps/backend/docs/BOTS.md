@@ -90,6 +90,7 @@ ENV (минимум для запуска):
 Важно:
 - Для отправки сообщений в чат YouTube (официальный метод **YouTube Data API** `liveChatMessages.insert`) нужен scope:
   - `https://www.googleapis.com/auth/youtube.force-ssl`
+- Мы намеренно используем **минимальные scopes** для линковки: только `youtube.force-ssl` (без `openid/email/profile`).
 - YouTube может отправлять сообщения **только когда есть активный live chat**. Если стрим оффлайн — аутбокс будет ретраиться и затем помечаться `failed` (“No active live chat”).
 
 ## 3) VKVideo bot (runner)

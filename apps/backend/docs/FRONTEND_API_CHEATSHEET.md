@@ -196,6 +196,7 @@
 #### YouTube linking (важно для отправки сообщений ботом)
 - Для того, чтобы YouTube‑бот мог **отправлять** сообщения в чат (YouTube Data API `liveChatMessages.insert`), линковка YouTube должна включать scope:
   - `https://www.googleapis.com/auth/youtube.force-ssl`
+- Мы намеренно запрашиваем **минимальный набор**: только `youtube.force-ssl` (без `openid/email/profile`), чтобы уменьшить “страшные” права в consent‑экране.
 - Если пользователь привязал YouTube раньше и scope не был выдан — нужно **перелинковать YouTube** (через `GET /auth/youtube/link`).
 
 ### GET `/auth/:provider/link/callback`

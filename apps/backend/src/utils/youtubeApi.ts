@@ -56,12 +56,11 @@ function splitScopes(scopes: string | null | undefined): string[] {
 //
 // Official docs:
 // - liveChatMessages.insert (send message): requires `https://www.googleapis.com/auth/youtube.force-ssl`
-// - channels.list(mine=true), search.list, videos.list, liveChatMessages.list: work with readonly,
-//   but `youtube.force-ssl` also covers read access we use.
-const REQUIRED_YOUTUBE_SCOPES = [
-  'https://www.googleapis.com/auth/youtube.readonly',
-  'https://www.googleapis.com/auth/youtube.force-ssl',
-];
+//
+// Minimal scopes policy:
+// - We require ONLY `youtube.force-ssl` to minimize the consent screen.
+// - This scope also covers the read access we use (search/videos/liveChatMessages.list).
+const REQUIRED_YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl'];
 
 function getMissingRequiredScopes(scopes: string | null | undefined): string[] {
   const set = new Set(splitScopes(scopes));
