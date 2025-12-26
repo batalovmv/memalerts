@@ -8,6 +8,7 @@ import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
+import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 
 function toRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== 'object') return null;
@@ -339,9 +340,12 @@ export function RewardsSettings() {
   }, [rewardSettings.submissionRewardCoins, rewardSettings.submissionRewardOnlyWhenLive, user?.channel?.slug]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold dark:text-white">{t('admin.rewards', 'Награды')}</h2>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold dark:text-white">{t('admin.rewards', { defaultValue: 'Награды' })}</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+          {t('admin.rewardsDescription', { defaultValue: 'Настройка наград и начисления монет за действия зрителей.' })}
+        </p>
         {/* Future: Add new reward button - пока скрыто, так как только одна награда */}
         {/* <button
           className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors"
@@ -352,43 +356,17 @@ export function RewardsSettings() {
         </button> */}
       </div>
 
-      <div className="space-y-4">
-        {/* Card A: Twitch reward (Channel Points -> coins) */}
-        <div className="glass p-6 relative">
-          {savingTwitchReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
-          {twitchSavedPulse && !savingTwitchReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold dark:text-white mb-1">
-                {t('admin.twitchCoinsRewardTitle', 'Награда за монеты (Twitch)')}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('admin.twitchCoinsRewardDescription', 'Зритель тратит Channel Points на Twitch и получает монеты на сайте.')}
-              </p>
-              {twitchRewardEligible === null && (
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  {t('admin.twitchEligibilityUnknown', {
-                    defaultValue:
-                      "We couldn't verify Twitch eligibility right now. You can try enabling the reward; if it fails, log out and log in again.",
-                  })}
-                </p>
-              )}
-              {lastErrorRequestId && (
-                <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 select-text">
-                  {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{lastErrorRequestId}</span>
-                </p>
-              )}
-              {twitchRewardEligible === false && (
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  {t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' })}
-                </p>
-              )}
-              {!twitchLinked && (
-                <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
-                </p>
-              )}
-            </div>
+      <div className="space-y-6">
+        <SettingsSection
+          title={t('admin.twitchCoinsRewardTitle', { defaultValue: 'Награда за монеты (Twitch)' })}
+          description={t('admin.twitchCoinsRewardDescription', { defaultValue: 'Зритель тратит Channel Points на Twitch и получает монеты на сайте.' })}
+          overlay={
+            <>
+              {savingTwitchReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {twitchSavedPulse && !savingTwitchReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -400,7 +378,11 @@ export function RewardsSettings() {
                     return;
                   }
                   if (twitchRewardEligible === false) {
-                    toast.error(t('admin.twitchRewardNotAvailable', { defaultValue: 'This Twitch reward is available only for affiliate/partner channels.' }));
+                    toast.error(
+                      t('admin.twitchRewardNotAvailable', {
+                        defaultValue: 'This Twitch reward is available only for affiliate/partner channels.',
+                      })
+                    );
                     return;
                   }
                   const nextEnabled = e.target.checked;
@@ -423,10 +405,37 @@ export function RewardsSettings() {
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
             </label>
-          </div>
+          }
+          contentClassName={rewardSettings.rewardEnabled ? 'space-y-4' : undefined}
+        >
+          {twitchRewardEligible === null && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.twitchEligibilityUnknown', {
+                defaultValue:
+                  "We couldn't verify Twitch eligibility right now. You can try enabling the reward; if it fails, log out and log in again.",
+              })}
+            </p>
+          )}
+          {lastErrorRequestId && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 select-text">
+              {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{lastErrorRequestId}</span>
+            </p>
+          )}
+          {twitchRewardEligible === false && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.twitchRewardNotAvailable', {
+                defaultValue: 'This Twitch reward is available only for affiliate/partner channels.',
+              })}
+            </p>
+          )}
+          {!twitchLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+            </p>
+          )}
 
           {rewardSettings.rewardEnabled && (
-            <div className={`space-y-4 mt-4 ${savingTwitchReward ? 'pointer-events-none opacity-60' : ''}`}>
+            <div className={savingTwitchReward ? 'pointer-events-none opacity-60' : ''}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -526,22 +535,18 @@ export function RewardsSettings() {
           )}
 
           {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
-        </div>
+        </SettingsSection>
 
-        {/* Card B: Approved meme reward (coins) */}
-        <div className="glass p-6 relative">
-          {savingApprovedMemeReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
-          {approvedSavedPulse && !savingApprovedMemeReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="min-w-0">
-              <h3 className="text-lg font-semibold dark:text-white mb-1">
-                {t('admin.approvedMemeRewardTitle', 'Награда за одобренный мем (монеты)')}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('admin.approvedMemeRewardDescription', 'Начисляется автору заявки после одобрения.')}
-              </p>
-            </div>
-
+        <SettingsSection
+          title={t('admin.approvedMemeRewardTitle', { defaultValue: 'Награда за одобренный мем (монеты)' })}
+          description={t('admin.approvedMemeRewardDescription', { defaultValue: 'Начисляется автору заявки после одобрения.' })}
+          overlay={
+            <>
+              {savingApprovedMemeReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {approvedSavedPulse && !savingApprovedMemeReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
             <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
               <input
                 type="checkbox"
@@ -561,7 +566,8 @@ export function RewardsSettings() {
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
             </label>
-          </div>
+          }
+        >
 
           <div className={savingApprovedMemeReward ? 'pointer-events-none opacity-60' : ''}>
             <div className="flex items-start justify-between gap-4 mb-3">
@@ -628,7 +634,7 @@ export function RewardsSettings() {
           </div>
 
           {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
-        </div>
+        </SettingsSection>
       </div>
     </div>
   );

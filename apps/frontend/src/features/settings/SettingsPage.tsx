@@ -5,7 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '@/components/Header';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
-import { PageShell, Spinner } from '@/shared/ui';
+import { IconButton, PageShell, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 const RewardsSettingsTab = lazy(() =>
@@ -64,6 +64,54 @@ export default function SettingsPage() {
   const moreMenuOpenedByKeyboardRef = useRef(false);
   const moreMenuOpenFocusIntentRef = useRef<'first' | 'last'>('first');
   const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
+
+  const iconClass = 'w-5 h-5';
+  const MenuIcon = (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="19" cy="12" r="1.8" />
+    </svg>
+  );
+
+  const menuItemIconClass = 'w-4 h-4';
+  const StatsIcon = (
+    <svg className={menuItemIconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h16" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 15l3-3 3 3 6-6" />
+    </svg>
+  );
+  const PromoIcon = (
+    <svg className={menuItemIconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h10l1 5-1 5H7l1-5-1-5Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 7l1 10" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 7l1 10" />
+    </svg>
+  );
+  const WalletIcon = (
+    <svg className={menuItemIconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18v12H3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l2-3h14l2 3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 13h5" />
+    </svg>
+  );
+  const TicketIcon = (
+    <svg className={menuItemIconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12" />
+    </svg>
+  );
+  const BetaIcon = (
+    <svg className={menuItemIconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" />
+    </svg>
+  );
+  const AccountsIcon = (
+    <svg className={menuItemIconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 0 0-16 0" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 13a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" />
+    </svg>
+  );
 
   const primaryTabs = useMemo(() => {
     if (!isStreamerAdmin) return [] as TabType[];
@@ -268,8 +316,8 @@ export default function SettingsPage() {
             </div>
 
             {/* More menu (fixed on the right) */}
-            <div className="relative flex-shrink-0 ml-2">
-              <button
+            <div className="relative flex-shrink-0 ml-2 border-l border-black/5 dark:border-white/10 pl-3">
+              <IconButton
                 ref={moreMenuButtonRef}
                 onClick={() => {
                   moreMenuOpenedByKeyboardRef.current = false;
@@ -291,23 +339,19 @@ export default function SettingsPage() {
                     setIsMoreMenuOpen(true);
                   }
                 }}
-                className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium flex items-center justify-center ${
+                className={`${
                   ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab)
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'
+                    ? ''
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
+                variant={['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab) ? 'primary' : 'ghost'}
                 type="button"
                 aria-label={t('admin.more', { defaultValue: 'More' })}
                 aria-haspopup="menu"
                 aria-expanded={isMoreMenuOpen}
                 aria-controls={moreMenuId}
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <circle cx="5" cy="12" r="1.8" />
-                  <circle cx="12" cy="12" r="1.8" />
-                  <circle cx="19" cy="12" r="1.8" />
-                </svg>
-              </button>
+                icon={MenuIcon}
+              />
 
               {/* Dropdown меню */}
               {isMoreMenuOpen && (
@@ -319,7 +363,7 @@ export default function SettingsPage() {
                     ref={moreMenuPopupRef}
                     role="menu"
                     aria-label={t('admin.more', { defaultValue: 'More' })}
-                    className="absolute right-0 top-full mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-50"
+                    className="absolute right-0 top-full mt-2 w-60 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
                     onKeyDownCapture={(e) => {
                       if (e.key === 'Escape') {
                         e.preventDefault();
@@ -355,13 +399,13 @@ export default function SettingsPage() {
                       focusSafely(items[nextIndex] ?? items[0]);
                     }}
                   >
-                    <div className="p-1">
+                    <div className="px-1 py-1">
                       <button
                         onClick={() => {
                           setActiveTab('statistics');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
                           activeTab === 'statistics'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -369,14 +413,15 @@ export default function SettingsPage() {
                         type="button"
                         role="menuitem"
                       >
-                        {t('admin.statistics')}
+                        <span className={activeTab === 'statistics' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{StatsIcon}</span>
+                        <span className="min-w-0 truncate">{t('admin.statistics')}</span>
                       </button>
                       <button
                         onClick={() => {
                           setActiveTab('promotions');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
                           activeTab === 'promotions'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -384,19 +429,20 @@ export default function SettingsPage() {
                         type="button"
                         role="menuitem"
                       >
-                        {t('admin.promotions')}
+                        <span className={activeTab === 'promotions' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{PromoIcon}</span>
+                        <span className="min-w-0 truncate">{t('admin.promotions')}</span>
                       </button>
                     </div>
                     <div className="border-t border-black/5 dark:border-white/10 my-1" />
 
-                    <div className="p-1">
+                    <div className="px-1 py-1">
                       {(user?.role === 'admin' || isStreamerAdmin) && (
                         <button
                           onClick={() => {
                             setActiveTab('wallets');
                             setIsMoreMenuOpen(false);
                           }}
-                          className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                          className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
                             activeTab === 'wallets'
                               ? 'bg-primary/10 text-primary'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -404,7 +450,8 @@ export default function SettingsPage() {
                           type="button"
                           role="menuitem"
                         >
-                          {t('admin.walletManagement')}
+                          <span className={activeTab === 'wallets' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{WalletIcon}</span>
+                          <span className="min-w-0 truncate">{t('admin.walletManagement')}</span>
                         </button>
                       )}
 
@@ -414,7 +461,7 @@ export default function SettingsPage() {
                             setActiveTab('entitlements');
                             setIsMoreMenuOpen(false);
                           }}
-                          className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                          className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
                             activeTab === 'entitlements'
                               ? 'bg-primary/10 text-primary'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -422,7 +469,8 @@ export default function SettingsPage() {
                           type="button"
                           role="menuitem"
                         >
-                          {t('admin.entitlements', { defaultValue: 'Entitlements' })}
+                          <span className={activeTab === 'entitlements' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{TicketIcon}</span>
+                          <span className="min-w-0 truncate">{t('admin.entitlements', { defaultValue: 'Entitlements' })}</span>
                         </button>
                       )}
 
@@ -431,7 +479,7 @@ export default function SettingsPage() {
                           setActiveTab('beta');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
                           activeTab === 'beta'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -439,7 +487,8 @@ export default function SettingsPage() {
                         type="button"
                         role="menuitem"
                       >
-                        {t('admin.betaAccess')}
+                        <span className={activeTab === 'beta' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{BetaIcon}</span>
+                        <span className="min-w-0 truncate">{t('admin.betaAccess')}</span>
                       </button>
 
                       <button
@@ -447,7 +496,7 @@ export default function SettingsPage() {
                           setActiveTab('accounts');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
                           activeTab === 'accounts'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -455,7 +504,8 @@ export default function SettingsPage() {
                         type="button"
                         role="menuitem"
                       >
-                        {t('settings.accounts', { defaultValue: 'Accounts' })}
+                        <span className={activeTab === 'accounts' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{AccountsIcon}</span>
+                        <span className="min-w-0 truncate">{t('settings.accounts', { defaultValue: 'Accounts' })}</span>
                       </button>
                     </div>
 

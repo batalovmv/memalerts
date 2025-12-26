@@ -1622,7 +1622,7 @@ export function BotSettings() {
 
       {botTab === 'commands' ? (
         <>
-          <div className="glass p-4 mb-4">
+          <div className="glass p-5 sm:p-6 mb-4">
             <div className="font-semibold text-gray-900 dark:text-white">
               {t('admin.botMenusTitle', { defaultValue: 'Общие' })}
             </div>
@@ -1933,7 +1933,7 @@ export function BotSettings() {
       ) : botTab === 'twitch' ? (
         <>
           {!twitchLinked ? (
-            <div className="glass p-4 mb-4">
+            <div className="glass p-5 sm:p-6 mb-4">
               <div className="font-semibold text-gray-900 dark:text-white">
                 {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
               </div>
@@ -1946,7 +1946,7 @@ export function BotSettings() {
           ) : null}
           {/* Twitch override bot */}
           {twitchLinked ? (
-          <div className="glass p-4 mb-4">
+          <div className="glass p-5 sm:p-6 mb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 dark:text-white">
@@ -1981,7 +1981,7 @@ export function BotSettings() {
           </div>
           ) : null}
 
-          <div className={`glass p-4 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
+          <div className={`glass p-5 sm:p-6 relative ${isBusy ? 'pointer-events-none opacity-60' : ''}`}>
             {loading === 'toggle' ? <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} /> : null}
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -2666,7 +2666,7 @@ export function BotSettings() {
       ) : botTab === 'youtube' ? (
         <>
           {!youtubeLinked ? (
-            <div className="glass p-4 mb-4">
+            <div className="glass p-5 sm:p-6 mb-4">
               <div className="font-semibold text-gray-900 dark:text-white">
                 {t('settings.accountsServiceYouTubeHint', { defaultValue: 'Нужно привязать YouTube аккаунт в Accounts.' })}
               </div>
@@ -2680,7 +2680,7 @@ export function BotSettings() {
 
           {/* YouTube override bot */}
           {youtubeLinked ? (
-          <div className="glass p-4 mb-4">
+          <div className="glass p-5 sm:p-6 mb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 dark:text-white">
@@ -2715,7 +2715,7 @@ export function BotSettings() {
           </div>
           ) : null}
           {/* YouTube integration */}
-          {youtubeLinked ? <div className="glass p-4 mb-4 relative">
+          {youtubeLinked ? <div className="glass p-5 sm:p-6 mb-4 relative">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900 dark:text-white">YouTube</div>
@@ -2762,7 +2762,7 @@ export function BotSettings() {
           </div> : null}
 
           {/* YouTube test message */}
-          <div className="glass p-4">
+          <div className="glass p-5 sm:p-6">
             <div className="font-semibold text-gray-900 dark:text-white">
               {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
             </div>
@@ -2801,7 +2801,7 @@ export function BotSettings() {
       ) : (
         <>
           {!vkvideoLinked ? (
-            <div className="glass p-4 mb-4">
+            <div className="glass p-5 sm:p-6 mb-4">
               <div className="font-semibold text-gray-900 dark:text-white">
                 {t('settings.accountsServiceVkvideoHint', { defaultValue: 'Нужно привязать VKVideo аккаунт в Accounts.' })}
               </div>
@@ -2813,7 +2813,7 @@ export function BotSettings() {
             </div>
           ) : (
             <>
-              <div className="glass p-4 mb-4">
+              <div className="glass p-5 sm:p-6 mb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="font-semibold text-gray-900 dark:text-white">
@@ -2845,7 +2845,7 @@ export function BotSettings() {
                 ) : null}
               </div>
 
-              <div className="glass p-4 mb-4 relative">
+              <div className="glass p-5 sm:p-6 mb-4 relative">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="font-semibold text-gray-900 dark:text-white">VK Video Live</div>
@@ -2869,7 +2869,7 @@ export function BotSettings() {
           )}
 
           {/* VK test message */}
-          <div className="glass p-4">
+          <div className="glass p-5 sm:p-6">
             <div className="font-semibold text-gray-900 dark:text-white">
               {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
             </div>

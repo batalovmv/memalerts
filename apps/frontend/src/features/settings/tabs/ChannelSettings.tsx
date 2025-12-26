@@ -9,6 +9,7 @@ import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { IconButton, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
+import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 
 // Channel Settings Component (Colors only)
 export function ChannelSettings() {
@@ -153,54 +154,53 @@ export function ChannelSettings() {
     <div className="relative space-y-6">
       {loading && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
       {savedPulse && !loading && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
-      <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>
 
-      {/* Preferences */}
-      <div className={`mb-6 pb-6 ${loading ? 'pointer-events-none opacity-60' : ''}`}>
-        <h3 className="text-lg font-semibold mb-3 dark:text-white">
-          {t('admin.preferences', 'Предпочтения')}
-        </h3>
-        <div className="flex items-start justify-between gap-4 glass p-4">
-          <div className="min-w-0">
-            <div className="font-semibold text-gray-900 dark:text-white">
-              {t('admin.autoplayMemesTitle', { defaultValue: 'Autoplay memes' })}
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-              {t('admin.autoplayMemesDescription', { defaultValue: 'When enabled, meme previews autoplay (muted) on pages with many memes.' })}
-            </div>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer shrink-0">
-            <input
-              type="checkbox"
-              checked={autoplayMemesEnabled}
-              onChange={(e) => setAutoplayMemesEnabled(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-          </label>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold dark:text-white">{t('admin.channelDesign', { defaultValue: 'Оформление' })}</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+          {t('admin.channelDesignDescription', { defaultValue: 'Настройки внешнего вида и поведения интерфейса на сайте.' })}
+        </p>
       </div>
-      
-      {/* Profile Link Section */}
-      {profileUrl && (
-        <div className="mb-6 pb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {t('admin.profileLink')}
-          </label>
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              readOnly
-              value={profileUrl}
-              className="flex-1"
-            />
+
+      <div className={loading ? 'pointer-events-none opacity-60' : ''}>
+        <SettingsSection
+          title={t('admin.preferences', { defaultValue: 'Предпочтения' })}
+          description={t('admin.preferencesHint', { defaultValue: 'Небольшие настройки, которые влияют на UX внутри панели.' })}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 dark:text-white">
+                {t('admin.autoplayMemesTitle', { defaultValue: 'Autoplay memes' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                {t('admin.autoplayMemesDescription', { defaultValue: 'When enabled, meme previews autoplay (muted) on pages with many memes.' })}
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={autoplayMemesEnabled}
+                onChange={(e) => setAutoplayMemesEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
+          </div>
+        </SettingsSection>
+      </div>
+
+      {profileUrl ? (
+        <SettingsSection
+          title={t('admin.profileLink', { defaultValue: 'Profile link' })}
+          description={t('dashboard.shareLinkDescription')}
+          right={
             <IconButton
               type="button"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(profileUrl);
                   toast.success(t('toast.linkCopied'));
-                } catch (error) {
+                } catch {
                   toast.error(t('toast.failedToCopyLink'));
                 }
               }}
@@ -210,20 +210,27 @@ export function ChannelSettings() {
               title={t('dashboard.copyLink')}
               icon={
                 <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
                 </svg>
               }
             />
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {t('dashboard.shareLinkDescription')}
-          </p>
-        </div>
-      )}
+          }
+        >
+          <Input type="text" readOnly value={profileUrl} className="w-full" />
+        </SettingsSection>
+      ) : null}
 
-      <div className={`space-y-4 ${loading ? 'pointer-events-none opacity-60' : ''}`}>
-        <div>
-          <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('admin.colorCustomization')}</h3>
+      <div className={loading ? 'pointer-events-none opacity-60' : ''}>
+        <SettingsSection
+          title={t('admin.colorCustomization')}
+          description={t('admin.colorsVisibleToVisitors')}
+          contentClassName="space-y-4"
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -292,12 +299,8 @@ export function ChannelSettings() {
               </div>
             </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            {t('admin.colorsVisibleToVisitors')}
-          </p>
-        </div>
-
-        {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
+          {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
+        </SettingsSection>
       </div>
     </div>
   );

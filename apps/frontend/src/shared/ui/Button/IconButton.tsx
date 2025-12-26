@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 import { cn } from '@/shared/lib/cn';
@@ -7,7 +8,10 @@ export type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
   variant?: 'primary' | 'success' | 'warning' | 'danger' | 'secondary' | 'ghost';
 };
 
-export function IconButton({ icon, variant = 'ghost', className, disabled, ...props }: IconButtonProps) {
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  { icon, variant = 'ghost', className, disabled, ...props },
+  ref,
+) {
   const base =
     'inline-flex items-center justify-center gap-2 rounded-xl font-semibold leading-none transition-[transform,background-color,box-shadow,opacity] select-none [-webkit-tap-highlight-color:transparent] active:translate-y-[0.5px] disabled:opacity-60 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent';
   const iconOnly = 'p-2 w-9 h-9';
@@ -23,6 +27,7 @@ export function IconButton({ icon, variant = 'ghost', className, disabled, ...pr
 
   return (
     <button
+      ref={ref}
       {...props}
       disabled={disabled}
       className={cn(base, iconOnly, variantClass[variant], className)}
@@ -30,6 +35,6 @@ export function IconButton({ icon, variant = 'ghost', className, disabled, ...pr
       <span aria-hidden="true">{icon}</span>
     </button>
   );
-}
+});
 
 

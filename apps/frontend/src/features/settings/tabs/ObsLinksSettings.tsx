@@ -2771,7 +2771,7 @@ export function ObsLinksSettings() {
 
         {overlayKind === 'memes' ? (
           <>
-            <div className="glass p-4">
+            <div className="glass p-5 sm:p-6">
               <div className="flex items-start gap-3">
                 <input
                   id="overlayShowSender"
@@ -2790,11 +2790,14 @@ export function ObsLinksSettings() {
               </div>
             </div>
 
-            <details className="glass p-4">
-          <summary className="cursor-pointer font-semibold text-gray-900 dark:text-white">
-            {t('admin.obsAdvancedOverlayUrl', { defaultValue: 'Advanced overlay URL (customize)' })}
-          </summary>
-          <div className="mt-3 space-y-4">
+            <details className="glass p-5 sm:p-6">
+              <summary className="cursor-pointer font-semibold text-gray-900 dark:text-white flex items-center justify-between gap-3 [-webkit-details-marker]:hidden">
+                <span>{t('admin.obsAdvancedOverlayUrl', { defaultValue: 'Advanced overlay URL (customize)' })}</span>
+                <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="mt-3 space-y-4">
             <div className="text-xs text-gray-600 dark:text-gray-300">
               {t('admin.obsOverlayAdvancedHintShort', {
                 defaultValue: 'Change the look here вЂ” then copy the single overlay URL above into OBS.',
@@ -2842,7 +2845,7 @@ export function ObsLinksSettings() {
                   loadingOverlaySettings || savingOverlaySettings ? 'pointer-events-none opacity-60' : ''
                 }`}
               >
-                <div className="glass p-4">
+                <div className="rounded-xl bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
                   <div
                     className={`grid grid-cols-1 md:grid-cols-2 gap-4`}
                   >
