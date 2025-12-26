@@ -313,7 +313,11 @@ export default function DashboardPage() {
           submissionsEnabled?: boolean;
           submissionsOnlyWhenLive?: boolean;
           dashboardCardOrder?: string[] | null;
-        }>(`/channels/${slug}`, { params: { includeMemes: false } });
+        }>(`/channels/${slug}`, {
+          // Avoid stale cached channel settings after a recent PATCH (CDN/proxy/browser caches).
+          params: { includeMemes: false, _ts: Date.now() },
+          headers: { 'Cache-Control': 'no-store' },
+        });
         const count = data?.stats?.memesCount;
         if (typeof count === 'number') setMemesCount(count);
         if (typeof data?.submissionsEnabled === 'boolean') setSubmissionsEnabled(data.submissionsEnabled);
