@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '../contexts/ThemeContext';
+
 import { Button, IconButton } from '@/shared/ui';
 
 function SunIcon() {

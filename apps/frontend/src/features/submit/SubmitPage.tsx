@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom';
 
 import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
 import { MySubmissionsSection } from './components/MySubmissionsSection';
-import type { MySubmission } from './types';
 
+import type { MySubmission } from './types';
 import type { Submission, SubmissionStatus } from '@/types';
+
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
 import { focusSafely } from '@/shared/lib/a11y/focus';

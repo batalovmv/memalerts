@@ -7,9 +7,9 @@ import type { Meme } from '@/types';
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
+import { Button, Input, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
-import { Button, Input, Textarea } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 interface MemeModalProps {

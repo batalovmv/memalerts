@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { PanelHeader } from '../../PanelHeader';
+
 import { useLoadMoreOnIntersect } from './model/useLoadMoreOnIntersect';
 import { PendingSubmissionCard } from './PendingSubmissionCard';
 
 import type { Submission } from '@/types';
+
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
 import { Pill, Spinner } from '@/shared/ui';

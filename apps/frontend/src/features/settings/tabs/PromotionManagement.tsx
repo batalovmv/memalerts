@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type React from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+
+import type { FormEvent } from 'react';
 
 import { Button, Card, Input, Spinner } from '@/shared/ui';
 
@@ -44,7 +45,7 @@ export function PromotionManagement() {
     fetchPromotions();
   }, [fetchPromotions]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
     try {
       const { api } = await import('@/lib/api');

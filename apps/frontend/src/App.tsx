@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { Route, Routes, useLocation } from 'react-router-dom';
 
@@ -79,10 +79,8 @@ function App() {
     );
   }
 
-  const showGlobalBackground = useMemo(() => {
-    // Public channel pages already provide their own full-screen background.
-    return !location.pathname.startsWith('/channel/');
-  }, [location.pathname]);
+  // Public channel pages already provide their own full-screen background.
+  const showGlobalBackground = !location.pathname.startsWith('/channel/');
 
   return (
     <SocketProvider>

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../lib/api';
 import { useAppSelector } from '../store/hooks';
+
 import { Button, Spinner } from '@/shared/ui';
 
 interface BetaAccessStatus {

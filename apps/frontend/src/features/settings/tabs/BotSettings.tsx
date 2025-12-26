@@ -111,7 +111,7 @@ function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSw
 export function BotSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
-  const externalAccounts = Array.isArray(user?.externalAccounts) ? user!.externalAccounts! : [];
+  const externalAccounts = useMemo(() => (Array.isArray(user?.externalAccounts) ? user.externalAccounts : []), [user]);
   const linkedProviders = useMemo(
     () => new Set(externalAccounts.map((a) => String((a as { provider?: unknown })?.provider || '').toLowerCase()).filter(Boolean)),
     [externalAccounts]
@@ -889,12 +889,6 @@ export function BotSettings() {
     [t]
   );
 
-  const getCurrentRelativePath = useCallback((): string => {
-    // Must be relative (no domain) per backend contract.
-    // Preserve current settings tab via querystring (?tab=bot).
-    return `${window.location.pathname}${window.location.search}`;
-  }, []);
-
   const billingUrl = useMemo(() => {
     const v = getRuntimeConfig()?.billingUrl;
     return typeof v === 'string' && v.trim() ? v.trim() : null;
@@ -969,7 +963,7 @@ export function BotSettings() {
     url.searchParams.set('redirect_to', '/settings/bot/youtube');
     url.searchParams.set('origin', window.location.origin);
     window.location.href = url.toString();
-  }, [getCurrentRelativePath]);
+  }, []);
 
   const loadYoutubeOverride = useCallback(async () => {
     try {

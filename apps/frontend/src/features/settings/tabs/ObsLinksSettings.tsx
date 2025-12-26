@@ -1729,6 +1729,8 @@ export function ObsLinksSettings() {
       demoDonors: '12',
     } satisfies Record<string, string>;
   }, [
+    creditsAvatarRadius,
+    creditsAvatarSize,
     creditsAnchorX,
     creditsAnchorY,
     creditsBgOpacity,
@@ -1768,8 +1770,13 @@ export function ObsLinksSettings() {
     creditsSectionsOrder,
     creditsShadowBlur,
     creditsShadowOpacity,
+    creditsShowAvatars,
     creditsShowChatters,
     creditsShowDonors,
+    creditsShowNumbers,
+    creditsChattersTitleText,
+    creditsDonorsTitleText,
+    creditsTitleText,
     creditsTitleColor,
     creditsTitleEnabled,
     creditsTitleSize,

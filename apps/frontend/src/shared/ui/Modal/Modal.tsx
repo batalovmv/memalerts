@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-import { cn } from '@/shared/lib/cn';
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
+import { cn } from '@/shared/lib/cn';
 
 export type ModalProps = {
   isOpen: boolean;
