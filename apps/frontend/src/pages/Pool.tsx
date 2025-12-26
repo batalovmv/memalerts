@@ -25,6 +25,7 @@ export default function PoolPage() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
   const isAuthed = !!user;
+  const [authRequired, setAuthRequired] = useState(false);
 
   const [q, setQ] = useState('');
   const [items, setItems] = useState<PoolItem[]>([]);
@@ -38,14 +39,16 @@ export default function PoolPage() {
   const loadPage = useCallback(
     async (nextOffset: number, append: boolean) => {
       try {
+        setAuthRequired(false);
         const next = (await getMemesPool({ q, limit, offset: nextOffset })) as PoolItem[];
         setItems((prev) => (append ? [...prev, ...next] : next));
         setOffset(nextOffset);
       } catch (e: unknown) {
         const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
         if (err.response?.status === 401) {
-          toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
-          login('/pool');
+          // Do NOT hard-redirect automatically: user may appear logged in (stale UI) or be mid-flow.
+          setAuthRequired(true);
+          toast.error(t('pool.authRequired', { defaultValue: 'Authentication required to view the pool.' }));
           return;
         }
         if (err.response?.status === 403) {
@@ -87,8 +90,8 @@ export default function PoolPage() {
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
       if (err.response?.status === 401) {
-        toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
-        login('/pool');
+        setAuthRequired(true);
+        toast.error(t('pool.authRequired', { defaultValue: 'Authentication required to view the pool.' }));
         return;
       }
       if (err.response?.status === 409 && err.response?.data?.errorCode === 'ALREADY_IN_CHANNEL') {
@@ -143,7 +146,24 @@ export default function PoolPage() {
           </div>
         </div>
 
-        {loading ? (
+        {authRequired ? (
+          <div className="surface p-6">
+            <div className="text-base font-semibold text-gray-900 dark:text-white">
+              {t('pool.authRequiredTitle', { defaultValue: 'Sign in required' })}
+            </div>
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {t('pool.authRequiredHint', { defaultValue: 'Please sign in to view the pool.' })}
+            </div>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <Button type="button" variant="primary" onClick={() => login('/pool')}>
+                {t('pool.signIn', { defaultValue: 'Sign in with Twitch' })}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => void loadPage(0, false)}>
+                {t('common.retry', { defaultValue: 'Retry' })}
+              </Button>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center gap-3 py-8 text-gray-600 dark:text-gray-300">
             <Spinner className="h-5 w-5" />
             <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
