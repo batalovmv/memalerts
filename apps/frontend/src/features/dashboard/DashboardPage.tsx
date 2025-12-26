@@ -611,10 +611,7 @@ export default function DashboardPage() {
               {/* Submissions control card (same size, expandable) */}
               {(user.role === 'streamer' || user.role === 'admin') && (
                 <div
-                  className={[
-                    'surface surface-hover p-6 flex flex-col min-h-[210px] transition-all duration-300',
-                    expandedCard === 'submissionsControl' ? 'xl:col-span-3' : '',
-                  ].join(' ')}
+                  className="surface surface-hover p-6 flex flex-col min-h-[210px]"
                   role="button"
                   tabIndex={0}
                   aria-expanded={expandedCard === 'submissionsControl'}
@@ -642,132 +639,13 @@ export default function DashboardPage() {
                       </Pill>
                     </div>
                   </div>
-
-                  <div
-                    className={[
-                      'overflow-hidden transition-all duration-300',
-                      expandedCard === 'submissionsControl' ? 'max-h-[1200px] opacity-100 mt-5' : 'max-h-0 opacity-0 mt-0',
-                    ].join(' ')}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-900 dark:text-white">
-                            {t('dashboard.submissions.enabledTitle', { defaultValue: 'Разрешить отправку' })}
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {t('dashboard.submissions.enabledHint', { defaultValue: 'Если выключено — зритель увидит сообщение вместо формы.' })}
-                          </div>
-                        </div>
-                        <ToggleSwitch
-                          checked={submissionsEnabled ?? true}
-                          busy={savingSubmissionsSettings === 'enabled'}
-                          disabled={submissionsEnabled === null}
-                          ariaLabel={t('dashboard.submissions.enabledTitle', { defaultValue: 'Разрешить отправку' })}
-                          onChange={(next) => {
-                            setSubmissionsEnabled(next);
-                            void saveSubmissionSettings({ submissionsEnabled: next }, 'enabled');
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-900 dark:text-white">
-                            {t('dashboard.submissions.onlyWhenLiveTitle', { defaultValue: 'Только когда стрим онлайн' })}
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {t('dashboard.submissions.onlyWhenLiveHint', { defaultValue: 'Если включено — отправка недоступна когда стрим оффлайн.' })}
-                          </div>
-                        </div>
-                        <ToggleSwitch
-                          checked={submissionsOnlyWhenLive ?? false}
-                          busy={savingSubmissionsSettings === 'onlyWhenLive'}
-                          disabled={submissionsOnlyWhenLive === null || submissionsEnabled === false}
-                          ariaLabel={t('dashboard.submissions.onlyWhenLiveTitle', { defaultValue: 'Только когда стрим онлайн' })}
-                          onChange={(next) => {
-                            setSubmissionsOnlyWhenLive(next);
-                            void saveSubmissionSettings({ submissionsOnlyWhenLive: next }, 'onlyWhenLive');
-                          }}
-                        />
-                      </div>
-
-                      <div className="pt-4 border-t border-black/5 dark:border-white/10">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-medium text-gray-900 dark:text-white">
-                              {t('dashboard.submissionsControl.linkTitle', { defaultValue: 'Ссылки для StreamerBot / StreamDeck' })}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              {t('dashboard.submissionsControl.linkHint', {
-                                defaultValue:
-                                  'Нажмите «Сгенерировать» и сохраните ссылки. Посмотреть их повторно будет нельзя — только перегенерировать.',
-                              })}
-                            </div>
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            <Button
-                              type="button"
-                              variant="danger"
-                              size="sm"
-                              disabled={rotatingSubmissionsControl}
-                              onClick={() => void rotateSubmissionsControlLink()}
-                            >
-                              {rotatingSubmissionsControl
-                                ? t('common.loading', { defaultValue: 'Loading…' })
-                                : t('dashboard.submissionsControl.rotate', { defaultValue: 'Сгенерировать' })}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {submissionsControl?.revealable === true && submissionsControlStatus && (
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <Pill variant={submissionsControlStatus.enabled ? 'successSolid' : 'dangerSolid'} size="sm">
-                              {t('dashboard.submissionsControl.statusSubmits', { defaultValue: 'Submits' })}:{' '}
-                              {submissionsControlStatus.enabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
-                            </Pill>
-                            <Pill variant="neutral" size="sm">
-                              {t('dashboard.submissionsControl.statusOnlyWhenLive', { defaultValue: 'Only when live' })}:{' '}
-                              {submissionsControlStatus.onlyWhenLive ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
-                            </Pill>
-                          </div>
-                        )}
-
-                        {submissionsControl?.revealable === true && submissionsControl.links && (
-                          <div className="mt-4 space-y-3">
-                            <SecretCopyField
-                              label={t('dashboard.submissionsControl.enableLink', { defaultValue: 'Ссылка включения' })}
-                              value={submissionsControl.links.enable}
-                              masked={true}
-                            />
-                            <SecretCopyField
-                              label={t('dashboard.submissionsControl.disableLink', { defaultValue: 'Ссылка выключения' })}
-                              value={submissionsControl.links.disable}
-                              masked={true}
-                            />
-                            {submissionsControl.links.toggle ? (
-                              <SecretCopyField
-                                label={t('dashboard.submissionsControl.toggleLink', { defaultValue: 'Ссылка переключения (вкл/выкл)' })}
-                                value={submissionsControl.links.toggle}
-                                masked={true}
-                              />
-                            ) : null}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
 
               {/* Bots card (same size, expandable) */}
               {(user.role === 'streamer' || user.role === 'admin') && (
                 <div
-                  className={[
-                    'surface surface-hover p-6 flex flex-col min-h-[210px] transition-all duration-300',
-                    expandedCard === 'bots' ? 'xl:col-span-3' : '',
-                  ].join(' ')}
+                  className="surface surface-hover p-6 flex flex-col min-h-[210px]"
                   role="button"
                   tabIndex={0}
                   aria-expanded={expandedCard === 'bots'}
@@ -792,63 +670,203 @@ export default function DashboardPage() {
                       </Pill>
                     </div>
                   </div>
-
-                  <div
-                    className={[
-                      'overflow-hidden transition-all duration-300',
-                      expandedCard === 'bots' ? 'max-h-[1200px] opacity-100 mt-5' : 'max-h-0 opacity-0 mt-0',
-                    ].join(' ')}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="font-medium text-gray-900 dark:text-white">{t('dashboard.bots.allOn', { defaultValue: 'Все провайдеры' })}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {t('dashboard.bots.hint', { defaultValue: 'Список берётся с сервера. Если YouTube просит re-link — переподключите в Settings → Bot.' })}
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant={anyBotEnabled ? 'danger' : 'primary'}
-                        size="sm"
-                        disabled={botsLoading || !botsLoaded}
-                        onClick={() => void toggleAllBots(!anyBotEnabled)}
-                      >
-                        {botsLoading
-                          ? t('common.loading', { defaultValue: 'Loading…' })
-                          : anyBotEnabled
-                            ? t('dashboard.bots.disableAll', { defaultValue: 'Выключить всех' })
-                            : t('dashboard.bots.enableAll', { defaultValue: 'Включить всех' })}
-                      </Button>
-                    </div>
-
-                    <div className="mt-4">
-                      {!botsLoaded ? (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">{t('common.loading', { defaultValue: 'Loading…' })}</div>
-                      ) : visibleBots.length === 0 ? (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {t('dashboard.bots.none', { defaultValue: 'No bot integrations found.' })}
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {visibleBots.map((b) => (
-                            <Pill key={String(b.provider)} variant={b.enabled ? 'successSolid' : 'neutral'} size="sm">
-                              {String(b.provider)}: {b.enabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
-                            </Pill>
-                          ))}
-                          {allBotsEnabled ? (
-                            <Pill variant="success" size="sm">
-                              {t('dashboard.bots.allOn', { defaultValue: 'All on' })}
-                            </Pill>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
 
               </div>
+
+              {/* Expanded panel renders OUTSIDE the grid so the grid stays compact (cards 5/6 swap positions naturally). */}
+              {(user.role === 'streamer' || user.role === 'admin') && (
+                <div
+                  className={[
+                    'overflow-hidden transition-all duration-300',
+                    expandedCard ? 'max-h-[1400px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0',
+                  ].join(' ')}
+                >
+                  {expandedCard === 'submissionsControl' ? (
+                    <div className="surface p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <h2 className="text-xl font-bold dark:text-white">
+                            {t('dashboard.submissionsControl.title', { defaultValue: 'Отправка мемов' })}
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            {t('dashboard.submissionsControl.subtitle', { defaultValue: 'Быстро включайте/выключайте отправку и генерируйте ссылки для StreamerBot.' })}
+                          </p>
+                        </div>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setExpandedCard(null)}>
+                          {t('common.close', { defaultValue: 'Close' })}
+                        </Button>
+                      </div>
+
+                      <div className="mt-5 space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {t('dashboard.submissions.enabledTitle', { defaultValue: 'Разрешить отправку' })}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {t('dashboard.submissions.enabledHint', { defaultValue: 'Если выключено — зритель увидит сообщение вместо формы.' })}
+                            </div>
+                          </div>
+                          <ToggleSwitch
+                            checked={submissionsEnabled ?? true}
+                            busy={savingSubmissionsSettings === 'enabled'}
+                            disabled={submissionsEnabled === null}
+                            ariaLabel={t('dashboard.submissions.enabledTitle', { defaultValue: 'Разрешить отправку' })}
+                            onChange={(next) => {
+                              setSubmissionsEnabled(next);
+                              void saveSubmissionSettings({ submissionsEnabled: next }, 'enabled');
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {t('dashboard.submissions.onlyWhenLiveTitle', { defaultValue: 'Только когда стрим онлайн' })}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {t('dashboard.submissions.onlyWhenLiveHint', { defaultValue: 'Если включено — отправка недоступна когда стрим оффлайн.' })}
+                            </div>
+                          </div>
+                          <ToggleSwitch
+                            checked={submissionsOnlyWhenLive ?? false}
+                            busy={savingSubmissionsSettings === 'onlyWhenLive'}
+                            disabled={submissionsOnlyWhenLive === null || submissionsEnabled === false}
+                            ariaLabel={t('dashboard.submissions.onlyWhenLiveTitle', { defaultValue: 'Только когда стрим онлайн' })}
+                            onChange={(next) => {
+                              setSubmissionsOnlyWhenLive(next);
+                              void saveSubmissionSettings({ submissionsOnlyWhenLive: next }, 'onlyWhenLive');
+                            }}
+                          />
+                        </div>
+
+                        <div className="pt-4 border-t border-black/5 dark:border-white/10">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-medium text-gray-900 dark:text-white">
+                                {t('dashboard.submissionsControl.linkTitle', { defaultValue: 'Ссылки для StreamerBot / StreamDeck' })}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {t('dashboard.submissionsControl.linkHint', {
+                                  defaultValue:
+                                    'Нажмите «Сгенерировать» и сохраните ссылки. Посмотреть их повторно будет нельзя — только перегенерировать.',
+                                })}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              size="sm"
+                              disabled={rotatingSubmissionsControl}
+                              onClick={() => void rotateSubmissionsControlLink()}
+                            >
+                              {rotatingSubmissionsControl
+                                ? t('common.loading', { defaultValue: 'Loading…' })
+                                : t('dashboard.submissionsControl.rotate', { defaultValue: 'Сгенерировать' })}
+                            </Button>
+                          </div>
+
+                          {submissionsControl?.revealable === true && submissionsControlStatus && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <Pill variant={submissionsControlStatus.enabled ? 'successSolid' : 'dangerSolid'} size="sm">
+                                {t('dashboard.submissionsControl.statusSubmits', { defaultValue: 'Submits' })}:{' '}
+                                {submissionsControlStatus.enabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
+                              </Pill>
+                              <Pill variant="neutral" size="sm">
+                                {t('dashboard.submissionsControl.statusOnlyWhenLive', { defaultValue: 'Only when live' })}:{' '}
+                                {submissionsControlStatus.onlyWhenLive ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
+                              </Pill>
+                            </div>
+                          )}
+
+                          {submissionsControl?.revealable === true && submissionsControl.links && (
+                            <div className="mt-4 space-y-3">
+                              <SecretCopyField
+                                label={t('dashboard.submissionsControl.enableLink', { defaultValue: 'Ссылка включения' })}
+                                value={submissionsControl.links.enable}
+                                masked={true}
+                              />
+                              <SecretCopyField
+                                label={t('dashboard.submissionsControl.disableLink', { defaultValue: 'Ссылка выключения' })}
+                                value={submissionsControl.links.disable}
+                                masked={true}
+                              />
+                              {submissionsControl.links.toggle ? (
+                                <SecretCopyField
+                                  label={t('dashboard.submissionsControl.toggleLink', { defaultValue: 'Ссылка переключения (вкл/выкл)' })}
+                                  value={submissionsControl.links.toggle}
+                                  masked={true}
+                                />
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : expandedCard === 'bots' ? (
+                    <div className="surface p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <h2 className="text-xl font-bold dark:text-white">{t('dashboard.bots.title', { defaultValue: 'Боты' })}</h2>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            {t('dashboard.bots.subtitle', { defaultValue: 'Включайте или выключайте все интеграции одним действием.' })}
+                          </p>
+                        </div>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setExpandedCard(null)}>
+                          {t('common.close', { defaultValue: 'Close' })}
+                        </Button>
+                      </div>
+
+                      <div className="mt-5 flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white">{t('dashboard.bots.allOn', { defaultValue: 'Все провайдеры' })}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {t('dashboard.bots.hint', { defaultValue: 'Список берётся с сервера. Если YouTube просит re-link — переподключите в Settings → Bot.' })}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant={anyBotEnabled ? 'danger' : 'primary'}
+                          size="sm"
+                          disabled={botsLoading || !botsLoaded}
+                          onClick={() => void toggleAllBots(!anyBotEnabled)}
+                        >
+                          {botsLoading
+                            ? t('common.loading', { defaultValue: 'Loading…' })
+                            : anyBotEnabled
+                              ? t('dashboard.bots.disableAll', { defaultValue: 'Выключить всех' })
+                              : t('dashboard.bots.enableAll', { defaultValue: 'Включить всех' })}
+                        </Button>
+                      </div>
+
+                      <div className="mt-4">
+                        {!botsLoaded ? (
+                          <div className="text-sm text-gray-600 dark:text-gray-400">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+                        ) : visibleBots.length === 0 ? (
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {t('dashboard.bots.none', { defaultValue: 'No bot integrations found.' })}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {visibleBots.map((b) => (
+                              <Pill key={String(b.provider)} variant={b.enabled ? 'successSolid' : 'neutral'} size="sm">
+                                {String(b.provider)}: {b.enabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
+                              </Pill>
+                            ))}
+                            {allBotsEnabled ? (
+                              <Pill variant="success" size="sm">
+                                {t('dashboard.bots.allOn', { defaultValue: 'All on' })}
+                              </Pill>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Expandable panels */}
               <div className={`transition-all duration-300 ${isPanelOpen ? 'mb-8' : 'mb-2'}`}>
