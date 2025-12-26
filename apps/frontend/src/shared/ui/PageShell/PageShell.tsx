@@ -55,7 +55,7 @@ export function PageShell({
 
       {header}
 
-      <main className={cn('relative page-container py-8 flex-1', containerClassName, mainClassName)}>{children}</main>
+      <main className={cn('relative page-container py-8 flex-1 w-full', containerClassName, mainClassName)}>{children}</main>
     </div>
   );
 }

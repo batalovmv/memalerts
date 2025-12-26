@@ -159,7 +159,7 @@ body {
 @layer components {
   /* Layout helpers (use sparingly) */
   .page-container {
-    @apply max-w-7xl 2xl:max-w-[92rem] mx-auto px-4 sm:px-6 lg:px-8;
+    @apply w-full max-w-7xl 2xl:max-w-[92rem] mx-auto px-4 sm:px-6 lg:px-8;
   }
   .section-gap {
     @apply space-y-6 sm:space-y-8;
