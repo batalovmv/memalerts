@@ -73,6 +73,8 @@ type SubmissionsControlLinkResponse =
 type BotIntegration = { provider: string; enabled?: boolean | null };
 type PublicSubmissionsStatusResponse = { ok: true; submissions: { enabled: boolean; onlyWhenLive: boolean } };
 
+const KNOWN_BOT_PROVIDERS = new Set(['twitch', 'youtube', 'vkvideo']);
+
 export default function DashboardPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -373,8 +375,15 @@ export default function DashboardPage() {
     if (!botsLoaded) void loadBots();
   }, [botsLoaded, loadBots, user]);
 
-  const anyBotEnabled = bots.some((b) => b?.enabled === true);
-  const allBotsEnabled = bots.length > 0 && bots.every((b) => b?.enabled === true);
+  const visibleBots = bots.filter((b) => {
+    const provider = String(b?.provider || '').trim().toLowerCase();
+    if (!provider) return false;
+    // Avoid confusing users with future/unused providers (e.g. vkplaylive) unless explicitly enabled.
+    if (KNOWN_BOT_PROVIDERS.has(provider)) return true;
+    return b?.enabled === true;
+  });
+  const anyBotEnabled = visibleBots.some((b) => b?.enabled === true);
+  const allBotsEnabled = visibleBots.length > 0 && visibleBots.every((b) => b?.enabled === true);
 
   const toggleAllBots = useCallback(
     async (nextEnabled: boolean) => {
@@ -383,9 +392,16 @@ export default function DashboardPage() {
       setBots((prev) => prev.map((b) => ({ ...b, enabled: nextEnabled })));
       try {
         setBotsLoading(true);
+        const providersToToggle = bots.filter((b) => {
+          const provider = String(b?.provider || '').trim().toLowerCase();
+          if (!provider) return false;
+          if (KNOWN_BOT_PROVIDERS.has(provider)) return true;
+          // Only toggle unknown providers if they were already enabled (avoid toggling future/unused ones).
+          return b?.enabled === true;
+        });
         const uniqueProviders = Array.from(
           new Set(
-            bots
+            providersToToggle
               .map((b) => String(b?.provider || '').trim())
               .map((p) => p.toLowerCase())
               .filter(Boolean)
@@ -807,13 +823,13 @@ export default function DashboardPage() {
                     <div className="mt-5">
                       {!botsLoaded ? (
                         <div className="text-sm text-gray-600 dark:text-gray-400">{t('common.loading', { defaultValue: 'Loading…' })}</div>
-                      ) : bots.length === 0 ? (
+                      ) : visibleBots.length === 0 ? (
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                           {t('dashboard.bots.none', { defaultValue: 'No bot integrations found.' })}
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-2">
-                          {bots.map((b) => (
+                          {visibleBots.map((b) => (
                             <Pill key={String(b.provider)} variant={b.enabled ? 'successSolid' : 'neutral'} size="sm">
                               {String(b.provider)}: {b.enabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
                             </Pill>
