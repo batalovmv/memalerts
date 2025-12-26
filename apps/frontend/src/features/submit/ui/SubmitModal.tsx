@@ -38,6 +38,12 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
+  const isOwnerBypassTarget =
+    !!user &&
+    (user.role === 'streamer' || user.role === 'admin') &&
+    !!user.channelId &&
+    (!channelId || String(channelId) === String(user.channelId));
+
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
@@ -169,8 +175,13 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
 
         const d = respData as Record<string, unknown> | null;
         const respStatus = typeof d?.status === 'string' ? d.status : null;
+        const isDirectApproval = d?.isDirectApproval === true;
 
-        toast.success(t('submit.submitted'));
+        toast.success(
+          isDirectApproval
+            ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
+            : t('submit.submitted'),
+        );
         onClose();
 
         // Refresh relevant lists without forcing navigation.
@@ -231,18 +242,37 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
       setLoading(true);
       try {
         const { api } = await import('@/lib/api');
-        await api.post('/submissions/import', {
+        const respData = await api.post<Record<string, unknown>>('/submissions/import', {
           title: formData.title,
           sourceUrl: formData.sourceUrl,
           tags: formData.tags || [],
           ...(channelId && { channelId }), // Add channelId if provided
         });
-        toast.success(t('submit.importSubmitted'));
+        const d = respData as Record<string, unknown> | null;
+        const respStatus = typeof d?.status === 'string' ? d.status : null;
+        const isDirectApproval = d?.isDirectApproval === true;
+
+        toast.success(
+          isDirectApproval
+            ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
+            : t('submit.importSubmitted'),
+        );
         onClose();
+
+        // Refresh relevant lists without forcing navigation.
+        if (respStatus === 'pending') {
+          dispatch(fetchSubmissions({ status: 'pending' }));
+        } else if (respStatus === 'approved') {
+          const targetChannelId = channelId || user?.channelId || null;
+          if (targetChannelId) {
+            dispatch(fetchMemes({ channelId: targetChannelId }));
+          }
+        }
+
         if (channelSlug) {
           navigate(`/channel/${channelSlug}`);
-        } else {
-          // For viewers, the submissions list is on /submit; avoid sending them to /dashboard.
+        } else if (!isOwnerBypassTarget || (!isDirectApproval && respStatus !== 'approved')) {
+          // For viewers (and non-direct submissions), the submissions list is on /submit.
           navigate('/submit');
         }
       } catch (error: unknown) {
@@ -444,10 +474,14 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
           <div className="glass p-3 sm:p-4">
             <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
               <strong>{t('submitModal.whatHappensNext', { defaultValue: 'What happens next?' })}</strong>{' '}
-              {t('submitModal.approvalProcess', {
-                defaultValue:
-                  'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.',
-              })}
+              {isOwnerBypassTarget
+                ? t('submitModal.directApprovalProcess', {
+                    defaultValue: 'Since you are submitting to your own channel, the meme will be added immediately.',
+                  })
+                : t('submitModal.approvalProcess', {
+                    defaultValue:
+                      'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.',
+                  })}
             </p>
           </div>
 

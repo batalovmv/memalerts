@@ -8,18 +8,44 @@ import type { Meme } from '@/types';
 import Header from '@/components/Header';
 import MemeCard from '@/components/MemeCard';
 import { login } from '@/lib/auth';
+import type { MemePoolItem } from '@/shared/api/memesPool';
 import { getMemesPool } from '@/shared/api/memesPool';
 import { createPoolSubmission } from '@/shared/api/submissionsPool';
 import { PageShell, Button, Input, Spinner } from '@/shared/ui';
+import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
 
-type PoolItem = Meme & { memeAssetId?: string | null };
+type PoolItem = MemePoolItem & { _raw?: unknown };
 
 function getPoolMemeAssetId(m: PoolItem): string | null {
   // Backend may return `memeAssetId` explicitly. As a fallback, treat `id` as memeAssetId.
   if (typeof m.memeAssetId === 'string' && m.memeAssetId.trim()) return m.memeAssetId.trim();
   if (typeof m.id === 'string' && m.id.trim()) return m.id.trim();
   return null;
+}
+
+function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
+  // MemeCard expects Meme-like shape; pool items are MemeAsset-like (channel-independent).
+  // Best-effort mapping with sensible fallbacks.
+  const fileUrl =
+    (typeof (m as unknown as { fileUrl?: unknown }).fileUrl === 'string' && (m as unknown as { fileUrl: string }).fileUrl) ||
+    (typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string' && (m as unknown as { previewUrl: string }).previewUrl) ||
+    (typeof (m as unknown as { url?: unknown }).url === 'string' && (m as unknown as { url: string }).url) ||
+    '';
+
+  const title = (typeof m.sampleTitle === 'string' && m.sampleTitle.trim()) ? m.sampleTitle.trim() : fallbackTitle;
+  const priceCoins = typeof m.samplePriceCoins === 'number' && Number.isFinite(m.samplePriceCoins) ? m.samplePriceCoins : 0;
+  const durationMs = typeof m.durationMs === 'number' && Number.isFinite(m.durationMs) ? m.durationMs : 0;
+  const type = (m.type as Meme['type'] | undefined) || 'video';
+
+  return {
+    id: String(m.id ?? ''),
+    title,
+    type,
+    fileUrl,
+    priceCoins,
+    durationMs,
+  };
 }
 
 export default function PoolPage() {
@@ -46,6 +72,9 @@ export default function PoolPage() {
   const [offset, setOffset] = useState(0);
   const limit = 30;
 
+  const [pendingAdd, setPendingAdd] = useState<null | { memeAssetId: string; title: string }>(null);
+  const [pendingAddTitle, setPendingAddTitle] = useState('');
+
   const canLoadMore = useMemo(() => items.length === 0 || items.length % limit === 0, [items.length]);
 
   const loadPage = useCallback(
@@ -53,7 +82,9 @@ export default function PoolPage() {
       try {
         setAuthRequired(false);
         const next = (await getMemesPool({ q, limit, offset: nextOffset })) as PoolItem[];
-        setItems((prev) => (append ? [...prev, ...next] : next));
+        // Keep raw for debugging while being tolerant to backend changes.
+        const normalized: PoolItem[] = (Array.isArray(next) ? next : []).map((x) => ({ ...(x as PoolItem), _raw: x }));
+        setItems((prev) => (append ? [...prev, ...normalized] : normalized));
         setOffset(nextOffset);
       } catch (e: unknown) {
         const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
@@ -84,33 +115,18 @@ export default function PoolPage() {
     })();
   }, [loadPage]);
 
-  const onAdd = async (m: PoolItem) => {
-    if (!isAuthed) {
-      toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
-      return;
-    }
-
-    if (!submitChannelId) {
-      toast.error(
-        t('pool.openFromStreamer', {
-          defaultValue: 'Open the pool from a streamer profile to submit memes to them.',
-        }),
-      );
-      return;
-    }
-
-    const memeAssetId = getPoolMemeAssetId(m);
-    if (!memeAssetId) {
-      toast.error(t('pool.missingMemeAssetId', { defaultValue: 'This pool item has no memeAssetId.' }));
-      return;
-    }
-
+  const runAdd = async (memeAssetId: string, title: string) => {
     try {
       if (submittingAssetId) return;
       setSubmittingAssetId(memeAssetId);
-      const safeTitle = (m.title || '').trim() || t('pool.untitled', { defaultValue: 'Untitled' });
-      await createPoolSubmission({ memeAssetId, title: safeTitle, channelId: submitChannelId });
-      toast.success(t('pool.submissionCreated', { defaultValue: 'Submitted for approval.' }));
+      const resp = await createPoolSubmission({ memeAssetId, title, channelId: submitChannelId! });
+      const r = (resp && typeof resp === 'object' ? (resp as Record<string, unknown>) : null) || null;
+      const isDirect = r?.isDirectApproval === true;
+      toast.success(
+        isDirect
+          ? t('pool.addedDirect', { defaultValue: 'Added to your channel.' })
+          : t('pool.submissionCreated', { defaultValue: 'Submitted for approval.' }),
+      );
     } catch (e: unknown) {
       const maybeTimeout = e as { isTimeout?: boolean; message?: string };
       if (maybeTimeout?.isTimeout || String(maybeTimeout?.message || '').toLowerCase().includes('timeout')) {
@@ -141,6 +157,34 @@ export default function PoolPage() {
     } finally {
       setSubmittingAssetId(null);
     }
+  };
+
+  const onAdd = async (m: PoolItem) => {
+    if (!isAuthed) {
+      toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
+      return;
+    }
+
+    if (!submitChannelId) {
+      toast.error(
+        t('pool.openFromStreamer', {
+          defaultValue: 'Open the pool from a streamer profile to submit memes to them.',
+        }),
+      );
+      return;
+    }
+
+    const memeAssetId = getPoolMemeAssetId(m);
+    if (!memeAssetId) {
+      toast.error(t('pool.missingMemeAssetId', { defaultValue: 'This pool item has no memeAssetId.' }));
+      return;
+    }
+
+    // Channel title is channel-specific; ask for it (prefill sampleTitle if present).
+    const suggested = (typeof m.sampleTitle === 'string' && m.sampleTitle.trim()) ? m.sampleTitle.trim() : '';
+    const initial = suggested || t('pool.untitled', { defaultValue: 'Untitled' });
+    setPendingAdd({ memeAssetId, title: initial });
+    setPendingAddTitle(initial);
   };
 
   return (
@@ -234,7 +278,7 @@ export default function PoolPage() {
           <div className="meme-masonry">
             {items.map((m) => (
               <div key={m.id} className="relative break-inside-avoid mb-3">
-                <MemeCard meme={m} onClick={() => {}} isOwner={false} previewMode="autoplayMuted" />
+                <MemeCard meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))} onClick={() => {}} isOwner={false} previewMode="autoplayMuted" />
                 <div className="absolute left-3 right-3 bottom-3 z-10">
                   <Button
                     type="button"
@@ -276,6 +320,48 @@ export default function PoolPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingAdd}
+        onClose={() => setPendingAdd(null)}
+        onConfirm={() => {
+          if (!pendingAdd) return;
+          const title = pendingAddTitle.trim();
+          if (!title) {
+            toast.error(t('pool.addTitleRequired', { defaultValue: 'Please enter a title.' }));
+            return;
+          }
+          void runAdd(pendingAdd.memeAssetId, title);
+          setPendingAdd(null);
+        }}
+        title={t('pool.addTitleTitle', { defaultValue: 'Add meme to channel' })}
+        message={
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {t('pool.addTitleHint', {
+                defaultValue: 'Title is channel-specific. Enter how this meme should be named in your channel.',
+              })}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('pool.addTitleLabel', { defaultValue: 'Title' })}
+              </label>
+              <Input
+                value={pendingAddTitle}
+                onChange={(e) => setPendingAddTitle(e.target.value)}
+                placeholder={t('pool.addTitlePlaceholder', { defaultValue: 'Enter a title…' })}
+                autoFocus
+              />
+            </div>
+          </div>
+        }
+        confirmText={submitMode === 'viewerToStreamer'
+          ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })
+          : t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
+        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
+        confirmButtonClass="bg-primary hover:bg-primary/90"
+        isLoading={!!submittingAssetId}
+      />
     </PageShell>
   );
 }

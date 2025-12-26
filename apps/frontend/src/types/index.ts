@@ -56,7 +56,16 @@ export interface User {
 
 export type MemeType = 'image' | 'gif' | 'video' | 'audio';
 
-export type MemeStatus = 'active' | 'inactive' | 'pending';
+// Backends evolved from legacy active/inactive to channel-scoped moderation statuses.
+// Keep the union broad for back-compat across endpoints.
+export type MemeStatus =
+  | 'active'
+  | 'inactive'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'disabled'
+  | 'deleted';
 
 export interface Meme {
   id: string;
@@ -65,6 +74,10 @@ export interface Meme {
    * Backend may still return legacy `id` for compatibility, but will include this field.
    */
   channelMemeId?: string;
+  /**
+   * Back-compat identifier for legacy endpoints.
+   */
+  legacyMemeId?: string;
   title: string;
   type: MemeType;
   fileUrl: string;
@@ -72,6 +85,7 @@ export interface Meme {
   durationMs: number;
   status?: MemeStatus;
   channelId?: string;
+  deletedAt?: string | null;
   tags?: Array<{ tag: Tag }>;
   createdAt?: string;
   updatedAt?: string;

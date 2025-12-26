@@ -212,7 +212,10 @@ export default function MemeModal({
           new CustomEvent('memalerts:memeDeleted', {
             detail: {
               memeId: primaryId,
-              legacyMemeId: currentMeme.id !== primaryId ? currentMeme.id : undefined,
+              // Prefer explicit legacy id from backend DTO; otherwise fall back to "id differs from primary".
+              legacyMemeId:
+                (currentMeme as Meme).legacyMemeId ||
+                (currentMeme.id !== primaryId ? currentMeme.id : undefined),
               channelId: currentMeme.channelId,
             },
           }),
