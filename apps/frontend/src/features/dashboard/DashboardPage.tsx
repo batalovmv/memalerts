@@ -1,3 +1,6 @@
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -78,6 +81,60 @@ type BotIntegration = { provider: string; enabled?: boolean | null };
 type PublicSubmissionsStatusResponse = { ok: true; submissions: { enabled: boolean; onlyWhenLive: boolean } };
 
 type ExpandCard = null | 'submissionsControl' | 'bots';
+type DashboardCardId = 'submit' | 'pending' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
+
+const DEFAULT_DASHBOARD_ORDER: DashboardCardId[] = ['submit', 'pending', 'memes', 'settings', 'submissionsControl', 'bots'];
+
+function DragHandleIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="9" cy="7" r="1.4" />
+      <circle cx="15" cy="7" r="1.4" />
+      <circle cx="9" cy="12" r="1.4" />
+      <circle cx="15" cy="12" r="1.4" />
+      <circle cx="9" cy="17" r="1.4" />
+      <circle cx="15" cy="17" r="1.4" />
+    </svg>
+  );
+}
+
+function SortableCard({
+  id,
+  children,
+  disabled,
+}: {
+  id: DashboardCardId;
+  children: (opts: { dragHandle: React.ReactNode; isDragging: boolean }) => React.ReactNode;
+  disabled?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !!disabled });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.85 : undefined,
+  };
+
+  const dragHandle = (
+    <button
+      type="button"
+      className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      aria-label="Drag to reorder"
+      title="Drag to reorder"
+      {...attributes}
+      {...listeners}
+    >
+      <DragHandleIcon />
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ dragHandle, isDragging })}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -115,6 +172,8 @@ export default function DashboardPage() {
   const submissionsPanelRef = useRef<HTMLDivElement | null>(null);
   const memesPanelRef = useRef<HTMLDivElement | null>(null);
   const [expandedCard, setExpandedCard] = useState<ExpandCard>(null);
+  const [dashboardCardOrder, setDashboardCardOrder] = useState<DashboardCardId[]>(DEFAULT_DASHBOARD_ORDER);
+  const saveDashboardOrderTimerRef = useRef<number | null>(null);
 
   const [submissionsEnabled, setSubmissionsEnabled] = useState<boolean | null>(null);
   const [submissionsOnlyWhenLive, setSubmissionsOnlyWhenLive] = useState<boolean | null>(null);
@@ -129,6 +188,8 @@ export default function DashboardPage() {
   const [bots, setBots] = useState<BotIntegration[]>([]);
   const [botsLoaded, setBotsLoaded] = useState(false);
   const [botsLoading, setBotsLoading] = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const panel = (searchParams.get('panel') || '').toLowerCase();
   const tab = (searchParams.get('tab') || '').toLowerCase();
@@ -229,16 +290,47 @@ export default function DashboardPage() {
           stats?: { memesCount?: number };
           submissionsEnabled?: boolean;
           submissionsOnlyWhenLive?: boolean;
+          dashboardCardOrder?: DashboardCardId[] | null;
         }>(`/channels/${slug}`, { params: { includeMemes: false } });
         const count = data?.stats?.memesCount;
         if (typeof count === 'number') setMemesCount(count);
         if (typeof data?.submissionsEnabled === 'boolean') setSubmissionsEnabled(data.submissionsEnabled);
         if (typeof data?.submissionsOnlyWhenLive === 'boolean') setSubmissionsOnlyWhenLive(data.submissionsOnlyWhenLive);
+        if (Array.isArray(data?.dashboardCardOrder) && data.dashboardCardOrder.length > 0) {
+          setDashboardCardOrder(data.dashboardCardOrder);
+        } else if (data?.dashboardCardOrder === null) {
+          setDashboardCardOrder(DEFAULT_DASHBOARD_ORDER);
+        }
       } catch {
         // ignore
       }
     })();
   }, [user?.channel?.slug]);
+
+  const saveDashboardOrder = useCallback(
+    (nextOrder: DashboardCardId[]) => {
+      if (!user?.channelId) return;
+      if (saveDashboardOrderTimerRef.current) window.clearTimeout(saveDashboardOrderTimerRef.current);
+      saveDashboardOrderTimerRef.current = window.setTimeout(() => {
+        void (async () => {
+          try {
+            await api.patch('/streamer/channel/settings', { dashboardCardOrder: nextOrder });
+          } catch (error: unknown) {
+            const apiError = error as { response?: { data?: { error?: string } } };
+            toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+          }
+        })();
+      }, 450);
+    },
+    [t, user?.channelId]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (saveDashboardOrderTimerRef.current) window.clearTimeout(saveDashboardOrderTimerRef.current);
+      saveDashboardOrderTimerRef.current = null;
+    };
+  }, []);
 
   const saveSubmissionSettings = useCallback(
     async (patch: { submissionsEnabled?: boolean; submissionsOnlyWhenLive?: boolean }, kind: 'enabled' | 'onlyWhenLive') => {
@@ -434,6 +526,31 @@ export default function DashboardPage() {
       : submissions.filter(s => s.status === 'pending').length;
 
   const myChannelMemesCount = memesCount ?? 0;
+  const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
+  const effectiveCardOrder: DashboardCardId[] = isStreamerAdmin
+    ? dashboardCardOrder
+    : (['submit', 'pending', 'memes', 'settings'] as DashboardCardId[]);
+
+  const onDragEnd = useCallback(
+    (event: { active: { id: unknown }; over: { id: unknown } | null }) => {
+      if (!isStreamerAdmin) return;
+      const activeId = String(event.active?.id || '') as DashboardCardId;
+      const overId = String(event.over?.id || '') as DashboardCardId;
+      if (!event.over) return;
+      if (!activeId || !overId) return;
+      if (activeId === overId) return;
+      setExpandedCard(null);
+      setDashboardCardOrder((prev) => {
+        const oldIndex = prev.indexOf(activeId);
+        const newIndex = prev.indexOf(overId);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        const next = arrayMove(prev, oldIndex, newIndex) as DashboardCardId[];
+        saveDashboardOrder(next);
+        return next;
+      });
+    },
+    [isStreamerAdmin, saveDashboardOrder]
+  );
 
   const handleApprove = async () => {
     if (!approveModal.submissionId) return;
@@ -524,207 +641,280 @@ export default function DashboardPage() {
           {user.channelId ? (
             <>
               {/* Quick Actions Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {/* Submit Meme Card - Primary */}
-              <div
-                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
-                role="button"
-                tabIndex={0}
-                onClick={() => setIsSubmitModalOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsSubmitModalOpen(true);
-                  }
-                }}
-                aria-label={t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-lg font-semibold mb-2 dark:text-white">
-                    {t('dashboard.quickActions.submitMeme', 'Submit Meme')}
-                  </h2>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
-                </p>
-                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
-                  <span>{t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}</span>
-                  <ChevronRightIcon />
-                </div>
-              </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                <SortableContext items={effectiveCardOrder} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {effectiveCardOrder.map((cardId) => (
+                      <SortableCard key={cardId} id={cardId} disabled={!isStreamerAdmin}>
+                        {({ dragHandle }) => {
+                          const baseCardCls =
+                            'surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl';
 
-              {/* Pending Submissions Card - Secondary */}
-              <div
-                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  const next = panel === 'submissions' ? null : 'submissions';
-                  if (next) scrollToPanelIfMobile('submissions');
-                  setPanel(next);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    const next = panel === 'submissions' ? null : 'submissions';
-                    if (next) scrollToPanelIfMobile('submissions');
-                    setPanel(next);
-                  }
-                }}
-                aria-label={t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
-                  {pendingSubmissionsCount > 0 && (
-                    <Pill variant="danger" size="md" title={t('dashboard.pendingCount', { defaultValue: '{{count}} pending', count: pendingSubmissionsCount })}>
-                      {pendingSubmissionsCount}
-                    </Pill>
-                  )}
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
-                </p>
-                <div className={`mt-auto flex items-center justify-between font-semibold ${panel === 'submissions' || pendingSubmissionsCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-primary'}`}>
-                  <span>
-                    {pendingSubmissionsCount > 0
-                      ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, { count: pendingSubmissionsCount })
-                      : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')}
-                  </span>
-                  <ChevronRightIcon />
-                </div>
-              </div>
+                          if (cardId === 'submit') {
+                            return (
+                              <div
+                                className={baseCardCls}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setIsSubmitModalOpen(true)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setIsSubmitModalOpen(true);
+                                  }
+                                }}
+                                aria-label={t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <h2 className="text-lg font-semibold mb-2 dark:text-white">
+                                    {t('dashboard.quickActions.submitMeme', 'Submit Meme')}
+                                  </h2>
+                                  {isStreamerAdmin ? dragHandle : null}
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                                  {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
+                                </p>
+                                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                                  <span>{t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}</span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
 
-              {/* All Memes Card */}
-              <div
-                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  const next = panel === 'memes' ? null : 'memes';
-                  if (next) scrollToPanelIfMobile('memes');
-                  setPanel(next);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    const next = panel === 'memes' ? null : 'memes';
-                    if (next) scrollToPanelIfMobile('memes');
-                    setPanel(next);
-                  }
-                }}
-                aria-label={t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-semibold dark:text-white">
-                    {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
-                  </h2>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {memesCount === null ? '…' : myChannelMemesCount}
-                  </span>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
-                </p>
-                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
-                  <span>
-                    {panel === 'memes'
-                      ? t('common.close', { defaultValue: 'Close' })
-                      : t('dashboard.quickActions.openAllMemes', { defaultValue: 'Open' })}
-                  </span>
-                  <ChevronRightIcon />
-                </div>
-              </div>
+                          if (cardId === 'pending') {
+                            return (
+                              <div
+                                className={baseCardCls}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  const next = panel === 'submissions' ? null : 'submissions';
+                                  if (next) scrollToPanelIfMobile('submissions');
+                                  setPanel(next);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    const next = panel === 'submissions' ? null : 'submissions';
+                                    if (next) scrollToPanelIfMobile('submissions');
+                                    setPanel(next);
+                                  }
+                                }}
+                                aria-label={t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}
+                              >
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h2 className="text-lg font-semibold dark:text-white truncate">
+                                      {t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}
+                                    </h2>
+                                    {pendingSubmissionsCount > 0 && (
+                                      <Pill
+                                        variant="danger"
+                                        size="md"
+                                        title={t('dashboard.pendingCount', {
+                                          defaultValue: '{{count}} pending',
+                                          count: pendingSubmissionsCount,
+                                        })}
+                                      >
+                                        {pendingSubmissionsCount}
+                                      </Pill>
+                                    )}
+                                  </div>
+                                  {isStreamerAdmin ? dragHandle : null}
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                                  {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
+                                </p>
+                                <div
+                                  className={`mt-auto flex items-center justify-between font-semibold ${
+                                    panel === 'submissions' || pendingSubmissionsCount > 0
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : 'text-primary'
+                                  }`}
+                                >
+                                  <span>
+                                    {pendingSubmissionsCount > 0
+                                      ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, {
+                                          count: pendingSubmissionsCount,
+                                        })
+                                      : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')}
+                                  </span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
 
-              {/* Settings Card - Tertiary */}
-              <div
-                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate('/settings?tab=settings')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate('/settings?tab=settings');
-                  }
-                }}
-                aria-label={t('dashboard.quickActions.settingsButton', 'Open Settings')}
-              >
-                <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.settings', 'Settings')}</h2>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
-                </p>
-                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
-                  <span>{t('dashboard.quickActions.settingsButton', 'Open Settings')}</span>
-                  <ChevronRightIcon />
-                </div>
-              </div>
-              
-              {/* Submissions control card (same size, expandable) */}
-              {(user.role === 'streamer' || user.role === 'admin') && (
-                <div
-                  className="surface surface-hover p-6 flex flex-col min-h-[210px]"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expandedCard === 'submissionsControl'}
-                  onClick={() => setExpandedCard((v) => (v === 'submissionsControl' ? null : 'submissionsControl'))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setExpandedCard((v) => (v === 'submissionsControl' ? null : 'submissionsControl'));
-                    }
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h2 className="text-lg font-semibold dark:text-white">
-                        {t('dashboard.submissionsControl.title', { defaultValue: 'Отправка мемов' })}
-                      </h2>
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        {t('dashboard.submissionsControl.subtitle', { defaultValue: 'Быстро включайте/выключайте отправку и генерируйте ссылки для StreamerBot.' })}
-                      </p>
-                    </div>
-                    <div className="shrink-0">
-                      <Pill variant={submissionsEnabled === false ? 'dangerSolid' : 'successSolid'} size="sm">
-                        {t('dashboard.submissionsControl.statusSubmits', { defaultValue: 'Submits' })}:{' '}
-                        {submissionsEnabled === false ? t('common.off', { defaultValue: 'Off' }) : t('common.on', { defaultValue: 'On' })}
-                      </Pill>
-                    </div>
+                          if (cardId === 'memes') {
+                            return (
+                              <div
+                                className={baseCardCls}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  const next = panel === 'memes' ? null : 'memes';
+                                  if (next) scrollToPanelIfMobile('memes');
+                                  setPanel(next);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    const next = panel === 'memes' ? null : 'memes';
+                                    if (next) scrollToPanelIfMobile('memes');
+                                    setPanel(next);
+                                  }
+                                }}
+                                aria-label={t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
+                              >
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <div className="flex items-center justify-between w-full gap-3">
+                                    <h2 className="text-lg font-semibold dark:text-white">
+                                      {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
+                                    </h2>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {memesCount === null ? '…' : myChannelMemesCount}
+                                    </span>
+                                  </div>
+                                  {isStreamerAdmin ? dragHandle : null}
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                                  {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
+                                </p>
+                                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                                  <span>
+                                    {panel === 'memes'
+                                      ? t('common.close', { defaultValue: 'Close' })
+                                      : t('dashboard.quickActions.openAllMemes', { defaultValue: 'Open' })}
+                                  </span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (cardId === 'settings') {
+                            return (
+                              <div
+                                className={baseCardCls}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => navigate('/settings?tab=settings')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate('/settings?tab=settings');
+                                  }
+                                }}
+                                aria-label={t('dashboard.quickActions.settingsButton', 'Open Settings')}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <h2 className="text-lg font-semibold mb-2 dark:text-white">
+                                    {t('dashboard.quickActions.settings', 'Settings')}
+                                  </h2>
+                                  {isStreamerAdmin ? dragHandle : null}
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                                  {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
+                                </p>
+                                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                                  <span>{t('dashboard.quickActions.settingsButton', 'Open Settings')}</span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (cardId === 'submissionsControl' && isStreamerAdmin) {
+                            return (
+                              <div
+                                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={expandedCard === 'submissionsControl'}
+                                onClick={() => setExpandedCard((v) => (v === 'submissionsControl' ? null : 'submissionsControl'))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setExpandedCard((v) => (v === 'submissionsControl' ? null : 'submissionsControl'));
+                                  }
+                                }}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <h2 className="text-lg font-semibold dark:text-white">
+                                      {t('dashboard.submissionsControl.title', { defaultValue: 'Отправка мемов' })}
+                                    </h2>
+                                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                      {t('dashboard.submissionsControl.subtitle', {
+                                        defaultValue: 'Быстро включайте/выключайте отправку и генерируйте ссылки для StreamerBot.',
+                                      })}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-start gap-2 shrink-0">
+                                    <Pill variant={submissionsEnabled === false ? 'dangerSolid' : 'successSolid'} size="sm">
+                                      {t('dashboard.submissionsControl.statusSubmits', { defaultValue: 'Submits' })}:{' '}
+                                      {submissionsEnabled === false ? t('common.off', { defaultValue: 'Off' }) : t('common.on', { defaultValue: 'On' })}
+                                    </Pill>
+                                    {dragHandle}
+                                  </div>
+                                </div>
+                                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                                  <span>{expandedCard === 'submissionsControl' ? t('common.close', { defaultValue: 'Close' }) : t('common.open', { defaultValue: 'Open' })}</span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (cardId === 'bots' && isStreamerAdmin) {
+                            return (
+                              <div
+                                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={expandedCard === 'bots'}
+                                onClick={() => setExpandedCard((v) => (v === 'bots' ? null : 'bots'))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setExpandedCard((v) => (v === 'bots' ? null : 'bots'));
+                                  }
+                                }}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.bots.title', { defaultValue: 'Боты' })}</h2>
+                                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                      {t('dashboard.bots.subtitle', { defaultValue: 'Включайте или выключайте все интеграции одним действием.' })}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-start gap-2 shrink-0">
+                                    <Pill variant={anyBotEnabled ? 'successSolid' : 'neutral'} size="sm">
+                                      {anyBotEnabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
+                                    </Pill>
+                                    {dragHandle}
+                                  </div>
+                                </div>
+                                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                                  <span>{expandedCard === 'bots' ? t('common.close', { defaultValue: 'Close' }) : t('common.open', { defaultValue: 'Open' })}</span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="surface surface-hover p-6 flex flex-col min-h-[210px] rounded-2xl">
+                              <div className="text-sm text-gray-600 dark:text-gray-400">Unknown card</div>
+                            </div>
+                          );
+                        }}
+                      </SortableCard>
+                    ))}
                   </div>
-                </div>
-              )}
-
-              {/* Bots card (same size, expandable) */}
-              {(user.role === 'streamer' || user.role === 'admin') && (
-                <div
-                  className="surface surface-hover p-6 flex flex-col min-h-[210px]"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expandedCard === 'bots'}
-                  onClick={() => setExpandedCard((v) => (v === 'bots' ? null : 'bots'))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setExpandedCard((v) => (v === 'bots' ? null : 'bots'));
-                    }
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.bots.title', { defaultValue: 'Боты' })}</h2>
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        {t('dashboard.bots.subtitle', { defaultValue: 'Включайте или выключайте все интеграции одним действием.' })}
-                      </p>
-                    </div>
-                    <div className="shrink-0">
-                      <Pill variant={anyBotEnabled ? 'successSolid' : 'neutral'} size="sm">
-                        {anyBotEnabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
-                      </Pill>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              </div>
+                </SortableContext>
+              </DndContext>
 
               {/* Expanded panel renders OUTSIDE the grid so the grid stays compact (cards 5/6 swap positions naturally). */}
               {(user.role === 'streamer' || user.role === 'admin') && (
