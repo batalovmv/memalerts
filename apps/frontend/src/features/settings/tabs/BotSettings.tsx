@@ -1823,8 +1823,82 @@ export function BotSettings() {
 
             {commandsOpen && (
               <>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.botCommandTrigger', { defaultValue: 'Trigger' })}
+                    </label>
+                    <Input
+                      value={newTrigger}
+                      onChange={(e) => setNewTrigger(e.target.value)}
+                      placeholder="!hello"
+                      disabled={commandsLoading}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.botCommandResponse', { defaultValue: 'Response' })}
+                    </label>
+                    <Input
+                      value={newResponse}
+                      onChange={(e) => setNewResponse(e.target.value)}
+                      placeholder="Hi chat!"
+                      disabled={commandsLoading}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 px-3 py-2">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    {t('admin.botCommandAudienceTitle', { defaultValue: 'Who can trigger' })}
+                    <span className="ml-2 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                      {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.botCommandAudienceHint', {
+                      defaultValue: 'Выбор ролей и пользователей временно недоступен. Сейчас команда доступна всем.',
+                    })}
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-3 opacity-70 pointer-events-none">
+                    {(['vip', 'moderator', 'subscriber', 'follower'] as const).map((role) => {
+                      const checked = newAllowedRoles.includes(role);
+                      return (
+                        <label key={role} className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+                          <input type="checkbox" checked={checked} readOnly />
+                          <span>
+                            {t(`admin.botRole_${role}`, {
+                              defaultValue:
+                                role === 'vip'
+                                  ? 'VIP'
+                                  : role === 'moderator'
+                                    ? 'Moderators'
+                                    : role === 'subscriber'
+                                      ? 'Subscribers'
+                                      : 'Followers',
+                            })}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-2 opacity-70 pointer-events-none">
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                      {t('admin.botCommandAudienceUsersLabel', { defaultValue: 'Specific users (logins)' })}
+                    </label>
+                    <Input value={newAllowedUsers} onChange={() => {}} placeholder="e.g. lotas_bro" disabled />
+                  </div>
+                </div>
+
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <Button type="button" variant="primary" onClick={() => void addCommand()} disabled={commandsLoading}>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => void addCommand()}
+                    disabled={commandsLoading || !newTrigger.trim() || !newResponse.trim()}
+                  >
                     {t('admin.addBotCommand', { defaultValue: 'Add command' })}
                   </Button>
                 </div>
@@ -1906,7 +1980,7 @@ export function BotSettings() {
             </div>
             {isCustomBotConnectLocked ? (
               <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                {t('subscription.availableOnlyWithSubscription', { defaultValue: 'Доступно только по подписке' })}
+                {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
               </div>
             ) : null}
           </div>
@@ -1954,7 +2028,7 @@ export function BotSettings() {
               </div>
             )}
 
-            <div className="mt-4">
+            <div className="mt-4 hidden">
               <button
                 type="button"
                 className={`w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors ${
@@ -2584,7 +2658,7 @@ export function BotSettings() {
             </div>
           )}
 
-          {!showMenus && (
+          {false && (
             <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               {t('admin.botMenusDisabledHint', { defaultValue: 'Enable the bot to access its settings.' })}
             </div>
@@ -2638,7 +2712,7 @@ export function BotSettings() {
             </div>
             {isCustomBotConnectLocked ? (
               <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                {t('subscription.availableOnlyWithSubscription', { defaultValue: 'Доступно только по подписке' })}
+                {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
               </div>
             ) : null}
           </div>
@@ -2769,7 +2843,7 @@ export function BotSettings() {
                 </div>
                 {isCustomBotConnectLocked ? (
                   <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                    {t('subscription.availableOnlyWithSubscription', { defaultValue: 'Доступно только по подписке' })}
+                    {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
                   </div>
                 ) : null}
               </div>
