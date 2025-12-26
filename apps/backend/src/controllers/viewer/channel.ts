@@ -33,28 +33,36 @@ export const getChannelBySlug = async (req: any, res: Response) => {
   // Cache channel metadata (colors/icons/reward settings) when we are NOT returning memes.
   // Safe because response is not user-personalized.
   const cacheKey = String(slug || '').trim().toLowerCase();
+  const canCacheMeta = !req?.userId;
   if (!includeMemes) {
-    setChannelMetaCacheHeaders(req, res);
-    const cached = channelMetaCache.get(cacheKey);
-    const ttl = getChannelMetaCacheMs();
-    if (cached && Date.now() - cached.ts < ttl) {
-      if (cached.etag) res.setHeader('ETag', cached.etag);
-      if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
-      return res.json(cached.data);
-    }
-
-    // Redis shared cache (optional): reduce DB hits across instances.
-    try {
-      const rkey = nsKey('channel_meta', cacheKey);
-      const body = await redisGetString(rkey);
-      if (body) {
-        const etag = makeEtagFromString(body);
-        res.setHeader('ETag', etag);
-        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
-        return res.type('application/json').send(body);
+    if (canCacheMeta) {
+      setChannelMetaCacheHeaders(req, res);
+      const cached = channelMetaCache.get(cacheKey);
+      const ttl = getChannelMetaCacheMs();
+      if (cached && Date.now() - cached.ts < ttl) {
+        if (cached.etag) res.setHeader('ETag', cached.etag);
+        if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
+        return res.json(cached.data);
       }
-    } catch {
-      // ignore
+
+      // Redis shared cache (optional): reduce DB hits across instances.
+      try {
+        const rkey = nsKey('channel_meta', cacheKey);
+        const body = await redisGetString(rkey);
+        if (body) {
+          const etag = makeEtagFromString(body);
+          res.setHeader('ETag', etag);
+          if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+          return res.type('application/json').send(body);
+        }
+      } catch {
+        // ignore
+      }
+    } else {
+      // For authenticated dashboard/panel requests we need read-your-writes semantics.
+      // Avoid returning stale cached channel settings (e.g., dashboardCardOrder).
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
     }
   }
 
@@ -157,7 +165,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       };
     }
 
-    if (!includeMemes) {
+    if (!includeMemes && canCacheMeta) {
       const body = JSON.stringify(response);
       const etag = makeEtagFromString(body);
       res.setHeader('ETag', etag);
@@ -248,7 +256,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
         };
       }
 
-      if (!includeMemes) {
+      if (!includeMemes && canCacheMeta) {
         setChannelMetaCacheHeaders(req, res);
         const body = JSON.stringify(response);
         const etag = makeEtagFromString(body);

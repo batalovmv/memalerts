@@ -21,6 +21,16 @@ export async function redisSetStringEx(key: string, ttlSeconds: number, value: s
   }
 }
 
+export async function redisDel(key: string): Promise<void> {
+  const client = await getRedisClient();
+  if (!client) return;
+  try {
+    await client.del(key);
+  } catch {
+    // ignore
+  }
+}
+
 export function nsKey(kind: string, key: string): string {
   return `memalerts:${getRedisNamespace()}:${kind}:${key}`;
 }

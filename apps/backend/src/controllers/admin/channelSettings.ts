@@ -18,6 +18,8 @@ import {
 import { logger } from '../../utils/logger.js';
 import { isBetaBackend } from '../../utils/envMode.js';
 import { normalizeDashboardCardOrder } from '../../utils/dashboardCardOrder.js';
+import { channelMetaCache } from '../viewer/cache.js';
+import { nsKey, redisDel } from '../../utils/redisCache.js';
 
 export const updateChannelSettings = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
@@ -497,6 +499,18 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       where: { id: channelId },
       data: updateData,
     });
+
+    // Invalidate cached public channel metadata (used by /channels/:slug?includeMemes=false).
+    // This prevents stale dashboardCardOrder/branding settings after updates.
+    try {
+      const slugLower = String((updatedChannel as any).slug || (channel as any).slug || '').toLowerCase();
+      if (slugLower) {
+        channelMetaCache.delete(slugLower);
+        void redisDel(nsKey('channel_meta', slugLower));
+      }
+    } catch {
+      // ignore best-effort cache invalidation
+    }
 
     // Push submissions gate state to connected clients in the channel room (dashboard/overlay/etc).
     try {
