@@ -160,6 +160,7 @@
       "disableAll": "Disable all",
       "enabledAll": "All bots enabled.",
       "disabledAll": "All bots disabled.",
+      "youtubeRelinkRequired": "YouTube needs re-linking (missing permissions). Open Settings → Bot to reconnect.",
       "failedAll": "Failed to update bots",
       "failedPartial": "Some bots failed to update. Please retry.",
       "none": "No bot integrations found.",

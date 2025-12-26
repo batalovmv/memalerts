@@ -73,8 +73,6 @@ type SubmissionsControlLinkResponse =
 type BotIntegration = { provider: string; enabled?: boolean | null };
 type PublicSubmissionsStatusResponse = { ok: true; submissions: { enabled: boolean; onlyWhenLive: boolean } };
 
-const KNOWN_BOT_PROVIDERS = new Set(['twitch', 'youtube', 'vkvideo']);
-
 export default function DashboardPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -378,9 +376,7 @@ export default function DashboardPage() {
   const visibleBots = bots.filter((b) => {
     const provider = String(b?.provider || '').trim().toLowerCase();
     if (!provider) return false;
-    // Avoid confusing users with future/unused providers (e.g. vkplaylive) unless explicitly enabled.
-    if (KNOWN_BOT_PROVIDERS.has(provider)) return true;
-    return b?.enabled === true;
+    return true;
   });
   const anyBotEnabled = visibleBots.some((b) => b?.enabled === true);
   const allBotsEnabled = visibleBots.length > 0 && visibleBots.every((b) => b?.enabled === true);
@@ -392,13 +388,7 @@ export default function DashboardPage() {
       setBots((prev) => prev.map((b) => ({ ...b, enabled: nextEnabled })));
       try {
         setBotsLoading(true);
-        const providersToToggle = bots.filter((b) => {
-          const provider = String(b?.provider || '').trim().toLowerCase();
-          if (!provider) return false;
-          if (KNOWN_BOT_PROVIDERS.has(provider)) return true;
-          // Only toggle unknown providers if they were already enabled (avoid toggling future/unused ones).
-          return b?.enabled === true;
-        });
+        const providersToToggle = visibleBots;
         const uniqueProviders = Array.from(
           new Set(
             providersToToggle
@@ -410,8 +400,22 @@ export default function DashboardPage() {
         const results = await Promise.allSettled(
           uniqueProviders.map((provider) => api.patch(`/streamer/bots/${encodeURIComponent(provider)}`, { enabled: nextEnabled }))
         );
-        const failed = results.filter((r) => r.status === 'rejected').length;
+        const rejected = results
+          .map((r, idx) => ({ r, provider: uniqueProviders[idx] || 'unknown' }))
+          .filter((x) => x.r.status === 'rejected') as Array<{ r: PromiseRejectedResult; provider: string }>;
+        const failed = rejected.length;
         if (failed > 0) {
+          const hasYouTubeRelink = rejected.some((x) => {
+            const e = x.r.reason as { response?: { status?: number; data?: { code?: unknown; needsRelink?: unknown } } };
+            return e?.response?.status === 412 && e?.response?.data?.code === 'YOUTUBE_RELINK_REQUIRED';
+          });
+          if (hasYouTubeRelink) {
+            toast.error(
+              t('dashboard.bots.youtubeRelinkRequired', {
+                defaultValue: 'YouTube needs re-linking (missing permissions). Open Settings → Bot to reconnect.',
+              })
+            );
+          }
           toast.error(
             t('dashboard.bots.failedPartial', {
               defaultValue: 'Some bots failed to update. Please retry.',
@@ -433,7 +437,7 @@ export default function DashboardPage() {
         setBotsLoading(false);
       }
     },
-    [bots, botsLoading, loadBots, t]
+    [botsLoading, loadBots, t, visibleBots]
   );
 
   const pendingSubmissionsCount =
