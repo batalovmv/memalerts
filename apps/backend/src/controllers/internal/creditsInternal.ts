@@ -30,6 +30,7 @@ export const creditsInternalController = {
     const slug = toSlug((req.body as any)?.channelSlug);
     const userId = String((req.body as any)?.userId || '').trim();
     const displayName = String((req.body as any)?.displayName || '').trim();
+    const avatarUrl = (req.body as any)?.avatarUrl ?? null;
     if (!slug || !userId || !displayName) return res.status(400).json({ error: 'Bad Request' });
 
     const channel = await prisma.channel.findUnique({
@@ -46,7 +47,7 @@ export const creditsInternalController = {
       if (ignore) return res.json({ ok: true, ignored: true });
     }
 
-    await addCreditsChatter(slug, userId, displayName, windowMin);
+    await addCreditsChatter(slug, userId, displayName, avatarUrl, windowMin);
 
     // Best-effort: push fresh state to connected overlays immediately.
     try {
@@ -67,6 +68,7 @@ export const creditsInternalController = {
     const name = String((req.body as any)?.name || '').trim();
     const amount = Number((req.body as any)?.amount);
     const currency = String((req.body as any)?.currency || 'RUB').trim();
+    const avatarUrl = (req.body as any)?.avatarUrl ?? null;
     if (!slug || !name || !Number.isFinite(amount)) return res.status(400).json({ error: 'Bad Request' });
 
     const channel = await prisma.channel.findUnique({
@@ -77,7 +79,7 @@ export const creditsInternalController = {
       ? Number((channel as any).creditsReconnectWindowMinutes)
       : 60;
 
-    await addCreditsDonor(slug, name, amount, currency, windowMin);
+    await addCreditsDonor(slug, name, amount, currency, avatarUrl, windowMin);
 
     // Best-effort: push fresh state to connected overlays immediately.
     try {

@@ -200,7 +200,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
         if (ignore) return;
       }
 
-      await addCreditsChatter(slug, creditsUserId, displayName, windowMin);
+      await addCreditsChatter(slug, creditsUserId, displayName, null, windowMin);
       void emitCreditsState(io, slug);
     });
 

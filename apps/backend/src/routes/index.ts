@@ -63,19 +63,23 @@ export function setupRoutes(app: Express) {
       .section { margin-top: 12px; }
       .section h3 { margin: 0 0 8px 0; font-size: 18px; opacity: 0.8; font-weight: 700; }
       .muted { opacity: 0.7; font-size: 14px; font-weight: 600; }
+      .item { display: flex; align-items: center; gap: 10px; }
+      .num { min-width: 2.2em; opacity: 0.9; }
+      .avatar { width: 28px; height: 28px; border-radius: 999px; object-fit: cover; flex: 0 0 auto; }
+      .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="panel" id="panel">
-        <div class="title">Credits</div>
+        <div class="title" id="title">Credits</div>
         <div class="muted" id="status">Connecting...</div>
         <div class="section" id="donorsSection" style="display:none;">
-          <h3>Donors</h3>
+          <h3 id="donorsTitle">Donors</h3>
           <div class="list" id="donors"></div>
         </div>
         <div class="section" id="chattersSection" style="display:none;">
-          <h3>Chatters</h3>
+          <h3 id="chattersTitle">Chatters</h3>
           <div class="list" id="chatters"></div>
         </div>
       </div>
@@ -89,8 +93,20 @@ export function setupRoutes(app: Express) {
       const chattersSection = document.getElementById('chattersSection');
       const donorsEl = document.getElementById('donors');
       const chattersEl = document.getElementById('chatters');
+      const titleEl = document.getElementById('title');
+      const donorsTitleEl = document.getElementById('donorsTitle');
+      const chattersTitleEl = document.getElementById('chattersTitle');
 
       let cfg = { creditsStyleJson: null };
+      let renderCfg = {
+        titleText: 'Credits',
+        donorsTitleText: 'Donors',
+        chattersTitleText: 'Chatters',
+        showNumbers: false,
+        showAvatars: false,
+        avatarSize: 28,
+        avatarRadius: 999,
+      };
 
       function safeParseJson(s) {
         try { return JSON.parse(s); } catch { return null; }
@@ -102,18 +118,38 @@ export function setupRoutes(app: Express) {
         if (!obj || typeof obj !== 'object') return;
 
         const panel = document.getElementById('panel');
-        if (obj.fontFamily) document.body.style.fontFamily = String(obj.fontFamily);
+        if (obj.fontFamily) {
+          const ff = String(obj.fontFamily);
+          document.body.style.fontFamily = ff;
+          // Apply to headings too (some browsers/styles may override).
+          titleEl.style.fontFamily = ff;
+          donorsTitleEl.style.fontFamily = ff;
+          chattersTitleEl.style.fontFamily = ff;
+        }
         const fontSize = Number(obj.fontSize);
         if (Number.isFinite(fontSize)) {
           donorsEl.style.fontSize = fontSize + 'px';
           chattersEl.style.fontSize = fontSize + 'px';
-          document.querySelector('.title').style.fontSize = Math.max(14, Math.round(fontSize * 1.0)) + 'px';
+          titleEl.style.fontSize = Math.max(14, Math.round(fontSize * 1.0)) + 'px';
+          // Apply the same sizing to section headers as well (user requested same settings as list).
+          donorsTitleEl.style.fontSize = fontSize + 'px';
+          chattersTitleEl.style.fontSize = fontSize + 'px';
         }
         if (obj.fontWeight) {
-          donorsEl.style.fontWeight = String(obj.fontWeight);
-          chattersEl.style.fontWeight = String(obj.fontWeight);
+          const fw = String(obj.fontWeight);
+          donorsEl.style.fontWeight = fw;
+          chattersEl.style.fontWeight = fw;
+          titleEl.style.fontWeight = fw;
+          donorsTitleEl.style.fontWeight = fw;
+          chattersTitleEl.style.fontWeight = fw;
         }
-        if (obj.fontColor) document.body.style.color = String(obj.fontColor);
+        if (obj.fontColor) {
+          const fc = String(obj.fontColor);
+          document.body.style.color = fc;
+          titleEl.style.color = fc;
+          donorsTitleEl.style.color = fc;
+          chattersTitleEl.style.color = fc;
+        }
         const bgOpacity = Number(obj.bgOpacity);
         if (Number.isFinite(bgOpacity)) panel.style.background = 'rgba(0,0,0,' + bgOpacity + ')';
         const blur = Number(obj.blur);
@@ -125,6 +161,52 @@ export function setupRoutes(app: Express) {
         if (Number.isFinite(shadowBlur) && Number.isFinite(shadowOpacity)) {
           panel.style.boxShadow = '0 0 ' + shadowBlur + 'px rgba(0,0,0,' + shadowOpacity + ')';
         }
+
+        // Text labels
+        if (typeof obj.titleText === 'string') renderCfg.titleText = obj.titleText.trim() || 'Credits';
+        if (typeof obj.donorsTitleText === 'string') renderCfg.donorsTitleText = obj.donorsTitleText.trim() || 'Donors';
+        if (typeof obj.chattersTitleText === 'string') renderCfg.chattersTitleText = obj.chattersTitleText.trim() || 'Chatters';
+        titleEl.textContent = renderCfg.titleText;
+        donorsTitleEl.textContent = renderCfg.donorsTitleText;
+        chattersTitleEl.textContent = renderCfg.chattersTitleText;
+
+        // Render options
+        renderCfg.showNumbers = Boolean(obj.showNumbers);
+        renderCfg.showAvatars = Boolean(obj.showAvatars);
+        const avatarSize = Number(obj.avatarSize);
+        if (Number.isFinite(avatarSize)) renderCfg.avatarSize = Math.max(12, Math.min(96, Math.round(avatarSize)));
+        const avatarRadius = Number(obj.avatarRadius);
+        if (Number.isFinite(avatarRadius)) renderCfg.avatarRadius = Math.max(0, Math.min(999, Math.round(avatarRadius)));
+      }
+
+      function makeLineItem(index, text, avatarUrl) {
+        const wrap = document.createElement('div');
+        wrap.className = 'item';
+
+        if (renderCfg.showNumbers) {
+          const num = document.createElement('span');
+          num.className = 'num';
+          num.textContent = String(index + 1) + '.';
+          wrap.appendChild(num);
+        }
+
+        if (renderCfg.showAvatars && avatarUrl) {
+          const img = document.createElement('img');
+          img.className = 'avatar';
+          img.src = String(avatarUrl);
+          img.referrerPolicy = 'no-referrer';
+          img.loading = 'lazy';
+          img.style.width = renderCfg.avatarSize + 'px';
+          img.style.height = renderCfg.avatarSize + 'px';
+          img.style.borderRadius = renderCfg.avatarRadius + 'px';
+          wrap.appendChild(img);
+        }
+
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = text || '';
+        wrap.appendChild(name);
+        return wrap;
       }
 
       function renderState(state) {
@@ -136,10 +218,14 @@ export function setupRoutes(app: Express) {
 
         if (donors.length) {
           donorsSection.style.display = '';
-          for (const d of donors.slice(0, 200)) {
-            const line = document.createElement('div');
-            line.textContent = d && d.name ? (d.name + (d.amount ? (' — ' + d.amount + ' ' + (d.currency || '')) : '')) : '';
-            donorsEl.appendChild(line);
+          const sliced = donors.slice(0, 200);
+          for (let i = 0; i < sliced.length; i++) {
+            const d = sliced[i];
+            const name = d && d.name ? String(d.name) : '';
+            const amount = d && typeof d.amount === 'number' && d.amount ? d.amount : 0;
+            const currency = d && d.currency ? String(d.currency) : '';
+            const text = name ? (name + (amount ? (' — ' + amount + ' ' + currency) : '')) : '';
+            donorsEl.appendChild(makeLineItem(i, text, d && d.avatarUrl ? String(d.avatarUrl) : null));
           }
         } else {
           donorsSection.style.display = 'none';
@@ -147,10 +233,11 @@ export function setupRoutes(app: Express) {
 
         if (chatters.length) {
           chattersSection.style.display = '';
-          for (const c of chatters.slice(0, 500)) {
-            const line = document.createElement('div');
-            line.textContent = c && c.name ? c.name : '';
-            chattersEl.appendChild(line);
+          const sliced = chatters.slice(0, 500);
+          for (let i = 0; i < sliced.length; i++) {
+            const c = sliced[i];
+            const text = c && c.name ? String(c.name) : '';
+            chattersEl.appendChild(makeLineItem(i, text, c && c.avatarUrl ? String(c.avatarUrl) : null));
           }
         } else {
           chattersSection.style.display = 'none';

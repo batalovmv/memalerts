@@ -3,8 +3,8 @@ import { getRedisClient } from '../utils/redisClient.js';
 import { nsKey } from '../utils/redisCache.js';
 
 export type CreditsState = {
-  chatters: Array<{ name: string }>;
-  donors: Array<{ name: string; amount: number; currency: string }>;
+  chatters: Array<{ name: string; avatarUrl?: string | null }>;
+  donors: Array<{ name: string; amount: number; currency: string; avatarUrl?: string | null }>;
 };
 
 type SessionMeta = {
@@ -16,7 +16,8 @@ type SessionMeta = {
   expiresAt: number | null;
 };
 
-type Donor = { name: string; amount: number; currency: string; ts: number };
+type Chatter = { name: string; avatarUrl?: string | null; ts: number };
+type Donor = { name: string; amount: number; currency: string; avatarUrl?: string | null; ts: number };
 
 function clampInt(n: number, min: number, max: number): number {
   const x = Number.isFinite(n) ? Math.floor(n) : min;
@@ -29,6 +30,16 @@ function normalizeSlug(slug: string): string {
 
 function normalizeName(name: string): string {
   return String(name || '').trim();
+}
+
+function normalizeAvatarUrl(url: unknown): string | null {
+  const s = String(url ?? '').trim();
+  if (!s) return null;
+  // Minimal safety: allow only http(s) to avoid javascript: etc.
+  if (!/^https?:\/\//i.test(s)) return null;
+  // Cap length to avoid abuse; overlay only needs a small URL.
+  if (s.length > 500) return null;
+  return s;
 }
 
 function donorKey(name: string): string {
@@ -210,6 +221,7 @@ export async function addCreditsChatter(
   channelSlug: string,
   userId: string,
   displayName: string,
+  avatarUrl: string | null | undefined,
   reconnectWindowMinutes: number
 ): Promise<void> {
   const slug = normalizeSlug(channelSlug);
@@ -224,6 +236,7 @@ export async function addCreditsChatter(
 
   const now = Date.now();
   const windowMin = clampInt(reconnectWindowMinutes, 1, 24 * 60);
+  const avatar = normalizeAvatarUrl(avatarUrl);
 
   // Ensure session exists (do not reset here).
   const meta = (await readMeta(slug)) ?? {
@@ -239,7 +252,8 @@ export async function addCreditsChatter(
   meta.offlineAt = null;
   meta.expiresAt = null;
 
-  await client.hSet(kChatters(slug), uid, name);
+  const chatter: Chatter = { name, avatarUrl: avatar, ts: now };
+  await client.hSet(kChatters(slug), uid, JSON.stringify(chatter));
   // firstSeen only if not exists
   await client.zAdd(kChattersOrder(slug), [{ score: now, value: uid }], { NX: true });
   await writeMeta(slug, meta, onlineTtlSeconds(windowMin));
@@ -250,6 +264,7 @@ export async function addCreditsDonor(
   name: string,
   amount: number,
   currency: string,
+  avatarUrl: string | null | undefined,
   reconnectWindowMinutes: number
 ): Promise<void> {
   const slug = normalizeSlug(channelSlug);
@@ -265,6 +280,7 @@ export async function addCreditsDonor(
   const now = Date.now();
   const windowMin = clampInt(reconnectWindowMinutes, 1, 24 * 60);
   const key = donorKey(donorName);
+  const avatar = normalizeAvatarUrl(avatarUrl);
 
   const meta = (await readMeta(slug)) ?? {
     sessionId: randomUUID(),
@@ -279,7 +295,7 @@ export async function addCreditsDonor(
   meta.offlineAt = null;
   meta.expiresAt = null;
 
-  const donor: Donor = { name: donorName, amount: Math.max(0, Number(amount)), currency: cur, ts: now };
+  const donor: Donor = { name: donorName, amount: Math.max(0, Number(amount)), currency: cur, avatarUrl: avatar, ts: now };
   await client.hSet(kDonors(slug), key, JSON.stringify(donor));
   await client.zAdd(kDonorsOrder(slug), [{ score: now, value: key }], { NX: true });
   await writeMeta(slug, meta, onlineTtlSeconds(windowMin));
@@ -298,16 +314,31 @@ export async function getCreditsStateFromStore(channelSlug: string): Promise<Cre
     client.zRange(kDonorsOrder(slug), 0, 199),
   ]);
 
-  const chatters: Array<{ name: string }> = [];
+  const chatters: Array<{ name: string; avatarUrl?: string | null }> = [];
   if (chatterIds.length) {
     const names = await client.hmGet(kChatters(slug), chatterIds);
     for (const n of names) {
-      const name = normalizeName(n || '');
-      if (name) chatters.push({ name });
+      const raw = String(n || '').trim();
+      if (!raw) continue;
+      // Back-compat: previously stored plain displayName; now stored JSON {name, avatarUrl, ts}.
+      if (raw.startsWith('{')) {
+        try {
+          const c = JSON.parse(raw) as Partial<Chatter>;
+          const name = normalizeName((c as any)?.name || '');
+          if (!name) continue;
+          const avatarUrl = normalizeAvatarUrl((c as any)?.avatarUrl);
+          chatters.push({ name, avatarUrl });
+          continue;
+        } catch {
+          // fall through
+        }
+      }
+      const name = normalizeName(raw);
+      if (name) chatters.push({ name, avatarUrl: null });
     }
   }
 
-  const donors: Array<{ name: string; amount: number; currency: string }> = [];
+  const donors: Array<{ name: string; amount: number; currency: string; avatarUrl?: string | null }> = [];
   if (donorKeys.length) {
     const raw = await client.hmGet(kDonors(slug), donorKeys);
     for (const s of raw) {
@@ -315,7 +346,12 @@ export async function getCreditsStateFromStore(channelSlug: string): Promise<Cre
       try {
         const d = JSON.parse(s) as Donor;
         if (!d?.name) continue;
-        donors.push({ name: String(d.name), amount: Number(d.amount) || 0, currency: String(d.currency || 'RUB') });
+        donors.push({
+          name: String(d.name),
+          amount: Number(d.amount) || 0,
+          currency: String(d.currency || 'RUB'),
+          avatarUrl: normalizeAvatarUrl((d as any)?.avatarUrl),
+        });
       } catch {
         // ignore
       }
