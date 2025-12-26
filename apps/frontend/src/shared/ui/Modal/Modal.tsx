@@ -82,7 +82,8 @@ export function Modal({
         ref={dialogRef}
         className={cn(
           'w-full rounded-t-3xl sm:rounded-2xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 modal-pop-in focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-          useGlass && 'glass',
+          // Use glass blur, but make the modal panel less see-through than raw `.glass`.
+          useGlass && 'glass bg-white/80 dark:bg-gray-900/70',
           contentClassName,
         )}
         onMouseDown={(e) => e.stopPropagation()}

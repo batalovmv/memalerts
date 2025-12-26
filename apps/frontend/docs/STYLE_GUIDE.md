@@ -140,7 +140,8 @@ import { Input, Select, Textarea } from '@/shared/ui';
 
 Цель: модалки выглядят в **том же glass стиле**, что и dropdown меню (например меню аватара в Header).
 
-- **Glass панель**: `Modal` по умолчанию использует `glass` (проп `useGlass=true`).
+- **Glass панель (меньше просвечивает)**: `Modal` по умолчанию использует `glass` + усиливаем фон:
+  - `glass bg-white/80 dark:bg-gray-900/70`
 - **Тень/обводка**: используем `shadow-xl ring-1 ring-black/5 dark:ring-white/10` (как у dropdown).
 - **Backdrop (оверлей)**: мягкий, “стеклянный”, а не тёмная шторка:
   - по умолчанию: `bg-black/25 backdrop-blur-sm`
