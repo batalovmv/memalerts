@@ -179,7 +179,7 @@ export default function SettingsPage() {
   return (
     <PageShell header={<Header />}>
       <div className="section-gap">
-        <div className="surface overflow-hidden">
+        <div className="surface">
           <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 sm:px-6">
             {/* Tabs scroller (mobile) */}
             <div className="flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] no-scrollbar">
@@ -471,7 +471,7 @@ export default function SettingsPage() {
             </div>
           }
         >
-          <div className="p-4 sm:p-6">
+          <div className="p-4 sm:p-6 overflow-hidden">
             <div
               role="tabpanel"
               id={getTabPanelId('settings')}
