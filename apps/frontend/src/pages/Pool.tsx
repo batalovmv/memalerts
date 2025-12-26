@@ -27,6 +27,7 @@ export default function PoolPage() {
   const { user } = useAppSelector((s) => s.auth);
   const isAuthed = !!user;
   const [authRequired, setAuthRequired] = useState(false);
+  const [submittingAssetId, setSubmittingAssetId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
   // When opened from a streamer public profile, SubmitModal can pass a target channel via query params.
@@ -105,9 +106,20 @@ export default function PoolPage() {
     }
 
     try {
+      if (submittingAssetId) return;
+      setSubmittingAssetId(memeAssetId);
       await createPoolSubmission({ memeAssetId, title: m.title, channelId: submitChannelId });
       toast.success(t('pool.submissionCreated', { defaultValue: 'Submitted for approval.' }));
     } catch (e: unknown) {
+      const maybeTimeout = e as { isTimeout?: boolean; message?: string };
+      if (maybeTimeout?.isTimeout || String(maybeTimeout?.message || '').toLowerCase().includes('timeout')) {
+        toast.error(
+          t('pool.submitTimeout', {
+            defaultValue: 'Request timed out. The submission may still have been created — check your submissions.',
+          }),
+        );
+        return;
+      }
       const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
       if (err.response?.status === 401) {
         setAuthRequired(true);
@@ -125,6 +137,8 @@ export default function PoolPage() {
           (codeStr ? `${t('pool.failedToSubmit', { defaultValue: 'Failed to submit.' })} (${codeStr})` : null) ||
           t('pool.failedToSubmit', { defaultValue: 'Failed to submit.' }),
       );
+    } finally {
+      setSubmittingAssetId(null);
     }
   };
 
@@ -226,7 +240,7 @@ export default function PoolPage() {
                     variant="primary"
                     className="w-full"
                     onClick={() => void onAdd(m)}
-                    disabled={!isAuthed || !submitChannelId}
+                    disabled={!isAuthed || !submitChannelId || (!!submittingAssetId && submittingAssetId !== getPoolMemeAssetId(m))}
                   >
                     {submitMode === 'viewerToStreamer'
                       ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })

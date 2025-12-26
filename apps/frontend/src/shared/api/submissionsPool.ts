@@ -7,7 +7,8 @@ export type CreatePoolSubmissionInput = {
 };
 
 export async function createPoolSubmission(input: CreatePoolSubmissionInput): Promise<void> {
-  await api.post('/submissions/pool', input);
+  // Protect UX: if backend hangs, don't keep the request pending forever.
+  await api.post('/submissions/pool', input, { timeout: 15000 });
 }
 
 

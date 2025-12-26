@@ -833,6 +833,8 @@
     "submissionCreated": "Submitted for approval.",
     "alreadyInChannel": "This meme is already in your channel.",
     "failedToSubmit": "Failed to submit."
+    ,
+    "submitTimeout": "Request timed out. The submission may still have been created — check your submissions."
   },
   "footer": {
     "madeBy": "Made by",
