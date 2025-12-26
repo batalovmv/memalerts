@@ -3,12 +3,12 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
+import type { MemePoolItem } from '@/shared/api/memesPool';
 import type { Meme } from '@/types';
 
 import Header from '@/components/Header';
 import MemeCard from '@/components/MemeCard';
 import { login } from '@/lib/auth';
-import type { MemePoolItem } from '@/shared/api/memesPool';
 import { getMemesPool } from '@/shared/api/memesPool';
 import { createPoolSubmission } from '@/shared/api/submissionsPool';
 import { PageShell, Button, Input, Spinner } from '@/shared/ui';

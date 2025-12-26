@@ -14,6 +14,7 @@ export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode:
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const hasUserInteracted = useHasUserInteracted();
   const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
+  const memePrimaryId = getMemePrimaryId(meme);
 
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -92,7 +93,7 @@ export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode:
     return () => {
       cancelled = true;
     };
-  }, [getMemePrimaryId(meme), meme.type, mediaUrl, shouldLoadMedia]);
+  }, [memePrimaryId, meme.type, mediaUrl, shouldLoadMedia]);
 
   // Handle video playback on hover (unified logic)
   useEffect(() => {
