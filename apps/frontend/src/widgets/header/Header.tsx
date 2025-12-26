@@ -527,7 +527,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-sm channel-theme-nav" style={navStyle}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="page-container">
           <div className="flex justify-between h-16 items-center gap-2 min-w-0">
             <h1
               className="text-lg sm:text-xl font-bold dark:text-white cursor-pointer channel-theme-logo truncate min-w-0"
