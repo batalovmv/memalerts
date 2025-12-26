@@ -23,7 +23,9 @@ export const importMemeSchema = z.object({
 export const createPoolSubmissionSchema = z.object({
   channelId: z.string().uuid(),
   memeAssetId: z.string().uuid(),
-  title: z.string().min(1).max(200),
+  // Back-compat: older frontend sent only memeAssetId + channelId.
+  // We still require a non-empty title in DB, so provide a safe default.
+  title: z.string().min(1).max(200).optional().default('Untitled'),
   notes: z.string().max(500).optional().nullable(),
   tags: z.array(z.string().min(1).max(50)).optional().default([]),
 });
