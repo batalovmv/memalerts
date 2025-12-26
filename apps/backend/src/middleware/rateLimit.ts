@@ -206,6 +206,37 @@ export const uploadLimiter = rateLimit({
   },
 });
 
+// Public (token-based) submissions control endpoints for StreamDeck/StreamerBot.
+// Keep it strict: this should be triggered rarely (button press), not spammed.
+export const publicSubmissionsControlLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 15, // 15/min per IP
+  message: 'Too many control requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: maybeCreateRateLimitStore('publicSubmissionsControl'),
+  keyGenerator: (req) => `ip:${getClientIP(req)}`,
+  skip: (req) => {
+    const whitelistIPs = getWhitelistIPs();
+    if (whitelistIPs.length > 0) {
+      const clientIP = getClientIP(req);
+      return whitelistIPs.includes(clientIP);
+    }
+    return false;
+  },
+  handler: (req: Request, res: any, _next: any, options: any) => {
+    logRateLimitEvent('blocked', req, {
+      limiter: 'publicSubmissionsControl',
+      limit: options.max,
+      windowMs: options.windowMs,
+    });
+    res.status(options.statusCode).json({
+      error: 'Too Many Requests',
+      message: options.message,
+    });
+  },
+});
+
 // Owner/admin-only resolver limiter (per-user): prevents brute forcing external IDs.
 // Intended for endpoints like GET /owner/channels/resolve and grant-by-provider helpers.
 export const ownerResolveLimiter = rateLimit({

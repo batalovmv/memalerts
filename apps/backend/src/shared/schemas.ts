@@ -56,6 +56,10 @@ export const updateChannelSettingsSchema = z.object({
   rewardOnlyWhenLive: z.boolean().optional(),
   submissionRewardCoins: z.number().int().min(0).optional(),
   submissionRewardOnlyWhenLive: z.boolean().optional(),
+  // Viewer submissions gate (global per-channel).
+  submissionsEnabled: z.boolean().optional(),
+  // Allow submissions only while stream is online (uses best-effort stream status store).
+  submissionsOnlyWhenLive: z.boolean().optional(),
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),

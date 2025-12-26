@@ -12,6 +12,7 @@ import path from 'path';
 import fs from 'fs';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
 import { debugLog } from '../../utils/debug.js';
+import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
 
 async function safeUnlink(filePath: string): Promise<void> {
   try {
@@ -43,12 +44,36 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
     where: { id: channelId as string },
     select: {
       id: true,
+      slug: true,
       defaultPriceCoins: true,
+      submissionsEnabled: true,
+      submissionsOnlyWhenLive: true,
     },
   });
 
   if (!channel) {
     return res.status(404).json({ error: 'Channel not found' });
+  }
+
+  // Block viewer submissions when disabled (global per-channel gate).
+  // IMPORTANT: enforce server-side before heavy file processing.
+  if (!(channel as any).submissionsEnabled) {
+    return res.status(403).json({
+      error: 'Submissions are disabled for this channel',
+      errorCode: 'SUBMISSIONS_DISABLED',
+    });
+  }
+
+  // Optional: allow submissions only while stream is online (best-effort).
+  if ((channel as any).submissionsOnlyWhenLive) {
+    const slug = String((channel as any).slug || '').toLowerCase();
+    const snap = await getStreamDurationSnapshot(slug);
+    if (snap.status !== 'online') {
+      return res.status(403).json({
+        error: 'Submissions are allowed only while the stream is live',
+        errorCode: 'SUBMISSIONS_OFFLINE',
+      });
+    }
   }
 
   // Owner bypass must be based on JWT channelId to avoid mismatches.

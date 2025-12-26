@@ -44,7 +44,10 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   //   the prod cookie can be sent to beta and break auth with 401.
   // - Therefore beta uses a dedicated cookie name: token_beta.
   const isBeta = isBetaDomain(req);
-  const token = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
+  const cookieToken = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
+  const authHeader = String(req.get('authorization') || '').trim();
+  const bearerToken = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice('bearer '.length).trim() : '';
+  const token = cookieToken || bearerToken;
 
   if (!token) {
     // Avoid logging secrets: only log presence of cookie keys.
@@ -61,7 +64,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     });
     return res.status(401).json({
       error: 'Unauthorized',
-      message: 'No token cookie found',
+      message: 'No auth token found',
       requestId: req.requestId,
     });
   }
@@ -100,7 +103,10 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 // If missing/invalid, continue as anonymous (used for public endpoints with user-specific enhancements).
 export function optionalAuthenticate(req: AuthRequest, _res: Response, next: NextFunction) {
   const isBeta = isBetaDomain(req);
-  const token = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
+  const cookieToken = isBeta ? (req.cookies?.token_beta ?? req.cookies?.token) : req.cookies?.token;
+  const authHeader = String(req.get('authorization') || '').trim();
+  const bearerToken = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice('bearer '.length).trim() : '';
+  const token = cookieToken || bearerToken;
   if (!token) return next();
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {

@@ -29,6 +29,14 @@ model Channel {
   submissionRewardCoins         Int      @default(0) // Coins granted to submitter when their submission is approved
   // If true, submission approval coins are granted only when stream is online.
   submissionRewardOnlyWhenLive  Boolean  @default(false)
+  // Viewer submissions gate (global per-channel).
+  // - submissionsEnabled=false => viewers cannot create new submissions.
+  // - submissionsOnlyWhenLive=true => viewers can submit only while stream is online (best-effort per stream status store).
+  submissionsEnabled            Boolean  @default(true)
+  submissionsOnlyWhenLive       Boolean  @default(false)
+  // Public control token for StreamDeck/StreamerBot-like integrations.
+  // Stored as SHA-256 hex hash (never store raw token).
+  submissionsControlTokenHash   String?  @unique
   // OBS overlay settings (server-side defaults for tokenized overlay URLs)
   overlayMode                   String   @default("queue") // queue | simultaneous
   overlayShowSender             Boolean  @default(false)

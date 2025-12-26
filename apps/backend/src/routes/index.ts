@@ -17,11 +17,20 @@ import { emitWalletUpdated, isInternalWalletRelayRequest, WalletUpdatedEvent } f
 import { emitSubmissionEvent, isInternalSubmissionRelayRequest, SubmissionEvent } from '../realtime/submissionBridge.js';
 import { debugLog, isDebugLogsEnabled } from '../utils/debug.js';
 import { creditsInternalController } from '../controllers/internal/creditsInternal.js';
+import { submissionsPublicControlController } from '../controllers/public/submissionsPublicControlController.js';
+import { publicSubmissionsControlLimiter } from '../middleware/rateLimit.js';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
   });
+
+  // Public (token-based) control endpoints for StreamDeck/StreamerBot.
+  // These are intentionally NOT authenticated; protected by a per-channel secret token.
+  app.get('/public/submissions/status', publicSubmissionsControlLimiter, submissionsPublicControlController.status);
+  app.post('/public/submissions/enable', publicSubmissionsControlLimiter, submissionsPublicControlController.enable);
+  app.post('/public/submissions/disable', publicSubmissionsControlLimiter, submissionsPublicControlController.disable);
+  app.post('/public/submissions/toggle', publicSubmissionsControlLimiter, submissionsPublicControlController.toggle);
 
   // Public OBS Browser Source: Credits overlay (titres).
   // Served by backend so OBS can point to backend domain directly.
@@ -348,6 +357,7 @@ export function setupRoutes(app: Express) {
     const isSkipped = req.path.startsWith('/beta/request') ||
         req.path.startsWith('/beta/status') ||
         req.path === '/health' ||
+        req.path.startsWith('/public/submissions/') ||
         /^\/overlay\/credits\/t\/[^\/]+$/.test(req.path) ||
         req.path.startsWith('/auth/twitch') ||
         req.path === '/auth/logout' || // Logout doesn't require authentication

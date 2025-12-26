@@ -469,6 +469,9 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         (body as any).submissionRewardOnlyWhenLive !== undefined
           ? (body as any).submissionRewardOnlyWhenLive
           : (channel as any).submissionRewardOnlyWhenLive,
+      submissionsEnabled: (body as any).submissionsEnabled !== undefined ? (body as any).submissionsEnabled : (channel as any).submissionsEnabled,
+      submissionsOnlyWhenLive:
+        (body as any).submissionsOnlyWhenLive !== undefined ? (body as any).submissionsOnlyWhenLive : (channel as any).submissionsOnlyWhenLive,
       primaryColor: body.primaryColor !== undefined ? body.primaryColor : (channel as any).primaryColor,
       secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : (channel as any).secondaryColor,
       accentColor: body.accentColor !== undefined ? body.accentColor : (channel as any).accentColor,
@@ -487,6 +490,20 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       where: { id: channelId },
       data: updateData,
     });
+
+    // Push submissions gate state to connected clients in the channel room (dashboard/overlay/etc).
+    try {
+      const io: Server = req.app.get('io');
+      const slug = String((updatedChannel as any).slug || (channel as any).slug || '').toLowerCase();
+      if (slug) {
+        io.to(`channel:${slug}`).emit('submissions:status', {
+          enabled: (updatedChannel as any).submissionsEnabled ?? true,
+          onlyWhenLive: (updatedChannel as any).submissionsOnlyWhenLive ?? false,
+        });
+      }
+    } catch (emitErr) {
+      console.error('Error emitting submissions:status after settings update:', emitErr);
+    }
 
     // Push overlay config to connected overlay clients (OBS) in real-time.
     // Overlay listens to overlay:config, so settings apply without requiring OBS reload.

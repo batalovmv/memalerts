@@ -4,6 +4,7 @@ import { adminController } from '../controllers/adminController.js';
 import { streamerBotController } from '../controllers/streamer/botController.js';
 import { botIntegrationsController } from '../controllers/streamer/botIntegrationsController.js';
 import { streamerEntitlementsController } from '../controllers/streamer/entitlementsController.js';
+import { submissionsControlController } from '../controllers/streamer/submissionsControlController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -25,6 +26,10 @@ streamerRoutes.delete('/memes/:id', adminController.deleteMeme);
 // Channel settings + rewards
 streamerRoutes.patch('/channel/settings', adminController.updateChannelSettings);
 streamerRoutes.get('/twitch/reward/eligibility', adminController.getTwitchRewardEligibility);
+
+// Public control links (StreamDeck / StreamerBot integrations)
+streamerRoutes.get('/submissions-control/link', submissionsControlController.getLink);
+streamerRoutes.post('/submissions-control/link/rotate', submissionsControlController.rotate);
 
 // Promotions (streamer-owned)
 streamerRoutes.get('/promotions', adminController.getPromotions);

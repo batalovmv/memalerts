@@ -91,7 +91,7 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   }
   
   // Skip CSRF check for health checks and public endpoints
-  if (req.path === '/health' || req.path.startsWith('/auth/twitch')) {
+  if (req.path === '/health' || req.path.startsWith('/auth/twitch') || req.path.startsWith('/public/')) {
     return next();
   }
   
