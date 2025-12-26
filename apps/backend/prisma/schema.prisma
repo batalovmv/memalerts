@@ -651,6 +651,7 @@ model MemeAsset {
   fileHashRef FileHash? @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
 
   channelMemes ChannelMeme[]
+  submissions  MemeSubmission[]
 
   @@index([fileHash])
   @@index([createdByUserId])
