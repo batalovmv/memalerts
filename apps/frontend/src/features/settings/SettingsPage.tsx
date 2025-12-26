@@ -113,6 +113,14 @@ export default function SettingsPage() {
     </svg>
   );
 
+  const isMoreTabActive = ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab);
+
+  const tabBase =
+    'relative px-3 py-2 text-sm font-semibold whitespace-nowrap rounded-lg transition-colors focus-visible:outline-none';
+  const tabInactive = 'text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10';
+  const tabActive =
+    "text-gray-900 dark:text-white after:content-[''] after:absolute after:left-2 after:right-2 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-primary";
+
   const primaryTabs = useMemo(() => {
     if (!isStreamerAdmin) return [] as TabType[];
     return ['settings', 'rewards', 'obs', 'bot'] as TabType[];
@@ -228,11 +236,11 @@ export default function SettingsPage() {
     <PageShell header={<Header />}>
       <div className="section-gap">
         <div className="surface">
-          <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 sm:px-6 py-2 sm:py-3 gap-2">
+          <div className="flex items-center px-3 sm:px-6 pt-3 pb-2 gap-2">
             {/* Tabs scroller (mobile) */}
             <div className="flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] no-scrollbar">
               <div
-                className="flex gap-2 sm:gap-3 items-center"
+                className="flex gap-1 sm:gap-2 items-center"
                 role="tablist"
                 aria-label={t('settings.tabs', { defaultValue: 'Settings tabs' })}
               >
@@ -240,11 +248,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('settings')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'settings')}
-                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'settings'
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`${tabBase} ${activeTab === 'settings' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('settings')}
                     role="tab"
@@ -259,11 +263,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('rewards')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'rewards')}
-                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'rewards'
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`${tabBase} ${activeTab === 'rewards' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('rewards')}
                     role="tab"
@@ -278,11 +278,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('obs')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'obs')}
-                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'obs'
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`${tabBase} ${activeTab === 'obs' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('obs')}
                     role="tab"
@@ -297,11 +293,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('bot')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'bot')}
-                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'bot'
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                    }`}
+                    className={`${tabBase} ${activeTab === 'bot' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('bot')}
                     role="tab"
@@ -316,7 +308,7 @@ export default function SettingsPage() {
             </div>
 
             {/* More menu (fixed on the right) */}
-            <div className="relative flex-shrink-0 ml-2 border-l border-black/5 dark:border-white/10 pl-3">
+            <div className="relative flex-shrink-0 ml-1">
               <IconButton
                 ref={moreMenuButtonRef}
                 onClick={() => {
@@ -339,12 +331,10 @@ export default function SettingsPage() {
                     setIsMoreMenuOpen(true);
                   }
                 }}
-                className={`${
-                  ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab)
-                    ? ''
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                className={`rounded-lg ${
+                  isMoreTabActive || isMoreMenuOpen ? 'bg-black/5 dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'
                 }`}
-                variant={['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab) ? 'primary' : 'ghost'}
+                variant="ghost"
                 type="button"
                 aria-label={t('admin.more', { defaultValue: 'More' })}
                 aria-haspopup="menu"
@@ -363,7 +353,7 @@ export default function SettingsPage() {
                     ref={moreMenuPopupRef}
                     role="menu"
                     aria-label={t('admin.more', { defaultValue: 'More' })}
-                    className="absolute right-0 top-full mt-2 w-60 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
+                    className="absolute right-0 top-full mt-1 w-60 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
                     onKeyDownCapture={(e) => {
                       if (e.key === 'Escape') {
                         e.preventDefault();
@@ -515,77 +505,76 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+          <Suspense
+            fallback={
+              <div className="py-10 flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
+                <Spinner className="h-5 w-5" />
+                <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
+              </div>
+            }
+          >
+            <div className="p-4 sm:p-6">
+              <div
+                role="tabpanel"
+                id={getTabPanelId('settings')}
+                aria-labelledby={getTabButtonId('settings')}
+                hidden={activeTab !== 'settings'}
+              >
+                {activeTab === 'settings' && isStreamerAdmin && <ChannelSettings />}
+              </div>
+
+              <div
+                role="tabpanel"
+                id={getTabPanelId('rewards')}
+                aria-labelledby={getTabButtonId('rewards')}
+                hidden={activeTab !== 'rewards'}
+              >
+                {activeTab === 'rewards' && isStreamerAdmin && <RewardsSettingsTab />}
+              </div>
+
+              <div
+                role="tabpanel"
+                id={getTabPanelId('obs')}
+                aria-labelledby={getTabButtonId('obs')}
+                hidden={activeTab !== 'obs'}
+              >
+                {activeTab === 'obs' && isStreamerAdmin && <ObsLinksSettingsTab />}
+              </div>
+
+              <div role="tabpanel" id={getTabPanelId('bot')} aria-labelledby={getTabButtonId('bot')} hidden={activeTab !== 'bot'}>
+                {activeTab === 'bot' && isStreamerAdmin && <BotSettingsTab />}
+              </div>
+
+              <div role="tabpanel" aria-label={t('settings.accounts', { defaultValue: 'Accounts' })} hidden={activeTab !== 'accounts'}>
+                {activeTab === 'accounts' && <AccountsSettingsTab />}
+              </div>
+
+              <div
+                role="tabpanel"
+                aria-label={t('admin.walletManagement', { defaultValue: 'Wallet management' })}
+                hidden={activeTab !== 'wallets'}
+              >
+                {activeTab === 'wallets' && user?.role === 'admin' && <WalletManagementTab />}
+              </div>
+
+              <div role="tabpanel" aria-label={t('admin.entitlements', { defaultValue: 'Entitlements' })} hidden={activeTab !== 'entitlements'}>
+                {activeTab === 'entitlements' && user?.role === 'admin' && <OwnerEntitlementsTab />}
+              </div>
+
+              <div role="tabpanel" aria-label={t('admin.promotions', { defaultValue: 'Promotions' })} hidden={activeTab !== 'promotions'}>
+                {activeTab === 'promotions' && <PromotionManagementTab />}
+              </div>
+
+              <div role="tabpanel" aria-label={t('admin.statistics', { defaultValue: 'Statistics' })} hidden={activeTab !== 'statistics'}>
+                {activeTab === 'statistics' && <ChannelStatisticsTab />}
+              </div>
+
+              <div role="tabpanel" aria-label={t('admin.betaAccess', { defaultValue: 'Beta access' })} hidden={activeTab !== 'beta'}>
+                {activeTab === 'beta' && (user?.role === 'admin' ? <BetaAccessManagementTab /> : <BetaAccessSelfTab />)}
+              </div>
+            </div>
+          </Suspense>
         </div>
-
-        <Suspense
-          fallback={
-            <div className="py-10 flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
-              <Spinner className="h-5 w-5" />
-              <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
-            </div>
-          }
-        >
-          <div className="p-4 sm:p-6 overflow-hidden">
-            <div
-              role="tabpanel"
-              id={getTabPanelId('settings')}
-              aria-labelledby={getTabButtonId('settings')}
-              hidden={activeTab !== 'settings'}
-            >
-              {activeTab === 'settings' && isStreamerAdmin && <ChannelSettings />}
-            </div>
-
-            <div
-              role="tabpanel"
-              id={getTabPanelId('rewards')}
-              aria-labelledby={getTabButtonId('rewards')}
-              hidden={activeTab !== 'rewards'}
-            >
-              {activeTab === 'rewards' && isStreamerAdmin && <RewardsSettingsTab />}
-            </div>
-
-            <div
-              role="tabpanel"
-              id={getTabPanelId('obs')}
-              aria-labelledby={getTabButtonId('obs')}
-              hidden={activeTab !== 'obs'}
-            >
-              {activeTab === 'obs' && isStreamerAdmin && <ObsLinksSettingsTab />}
-            </div>
-
-            <div role="tabpanel" id={getTabPanelId('bot')} aria-labelledby={getTabButtonId('bot')} hidden={activeTab !== 'bot'}>
-              {activeTab === 'bot' && isStreamerAdmin && <BotSettingsTab />}
-            </div>
-
-            <div role="tabpanel" aria-label={t('settings.accounts', { defaultValue: 'Accounts' })} hidden={activeTab !== 'accounts'}>
-              {activeTab === 'accounts' && <AccountsSettingsTab />}
-            </div>
-
-            <div
-              role="tabpanel"
-              aria-label={t('admin.walletManagement', { defaultValue: 'Wallet management' })}
-              hidden={activeTab !== 'wallets'}
-            >
-              {activeTab === 'wallets' && user?.role === 'admin' && <WalletManagementTab />}
-            </div>
-
-            <div role="tabpanel" aria-label={t('admin.entitlements', { defaultValue: 'Entitlements' })} hidden={activeTab !== 'entitlements'}>
-              {activeTab === 'entitlements' && user?.role === 'admin' && <OwnerEntitlementsTab />}
-            </div>
-
-            <div role="tabpanel" aria-label={t('admin.promotions', { defaultValue: 'Promotions' })} hidden={activeTab !== 'promotions'}>
-              {activeTab === 'promotions' && <PromotionManagementTab />}
-            </div>
-
-            <div role="tabpanel" aria-label={t('admin.statistics', { defaultValue: 'Statistics' })} hidden={activeTab !== 'statistics'}>
-              {activeTab === 'statistics' && <ChannelStatisticsTab />}
-            </div>
-
-            <div role="tabpanel" aria-label={t('admin.betaAccess', { defaultValue: 'Beta access' })} hidden={activeTab !== 'beta'}>
-              {activeTab === 'beta' && (user?.role === 'admin' ? <BetaAccessManagementTab /> : <BetaAccessSelfTab />)}
-            </div>
-          </div>
-        </Suspense>
       </div>
     </PageShell>
   );
