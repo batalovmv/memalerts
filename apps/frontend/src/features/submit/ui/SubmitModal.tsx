@@ -348,7 +348,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
                   className="glass-btn bg-white/40 dark:bg-white/5"
                   onClick={() => {
                     onClose();
-                    navigate('/pool');
+                    const qs = new URLSearchParams();
+                    if (channelId) qs.set('channelId', channelId);
+                    if (channelSlug) qs.set('channelSlug', channelSlug);
+                    navigate(`/pool${qs.toString() ? `?${qs.toString()}` : ''}`);
                   }}
                 >
                   {t('submitModal.openPool', { defaultValue: 'Open pool' })}

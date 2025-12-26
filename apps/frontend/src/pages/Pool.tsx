@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 
 import type { Meme } from '@/types';
 
@@ -26,7 +27,16 @@ export default function PoolPage() {
   const { user } = useAppSelector((s) => s.auth);
   const isAuthed = !!user;
   const [authRequired, setAuthRequired] = useState(false);
-  const canSubmitToMyChannel = !!user && (user.role === 'streamer' || user.role === 'admin') && !!user.channelId;
+  const [searchParams] = useSearchParams();
+
+  // When opened from a streamer public profile, SubmitModal can pass a target channel via query params.
+  const targetChannelId = (searchParams.get('channelId') || '').trim() || null;
+  const targetChannelSlug = (searchParams.get('channelSlug') || '').trim() || null;
+
+  const isStreamer = !!user && (user.role === 'streamer' || user.role === 'admin') && !!user.channelId;
+  const submitChannelId = targetChannelId || (isStreamer ? user?.channelId || null : null);
+  const submitMode: 'viewerToStreamer' | 'streamerToOwn' | 'browseOnly' =
+    targetChannelId ? 'viewerToStreamer' : isStreamer ? 'streamerToOwn' : 'browseOnly';
 
   const [q, setQ] = useState('');
   const [items, setItems] = useState<PoolItem[]>([]);
@@ -73,14 +83,18 @@ export default function PoolPage() {
     })();
   }, [loadPage]);
 
-  const onAddToMyChannel = async (m: PoolItem) => {
+  const onAdd = async (m: PoolItem) => {
     if (!isAuthed) {
       toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
       return;
     }
 
-    if (!canSubmitToMyChannel) {
-      toast.error(t('pool.streamerRequired', { defaultValue: 'Only streamers can add memes to a channel.' }));
+    if (!submitChannelId) {
+      toast.error(
+        t('pool.openFromStreamer', {
+          defaultValue: 'Open the pool from a streamer profile to submit memes to them.',
+        }),
+      );
       return;
     }
 
@@ -91,7 +105,7 @@ export default function PoolPage() {
     }
 
     try {
-      await createPoolSubmission({ memeAssetId, title: m.title });
+      await createPoolSubmission({ memeAssetId, title: m.title, channelId: submitChannelId });
       toast.success(t('pool.submissionCreated', { defaultValue: 'Submitted for approval.' }));
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
@@ -124,7 +138,24 @@ export default function PoolPage() {
                 {t('pool.title', { defaultValue: 'Meme pool' })}
               </div>
               <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                {t('pool.subtitle', { defaultValue: 'Browse memes approved in other channels and add them via a submission.' })}
+                {submitMode === 'viewerToStreamer' ? (
+                  <>
+                    {t('pool.subtitleToStreamer', {
+                      defaultValue: 'Pick memes to submit to this streamer as submissions.',
+                    })}
+                    {targetChannelSlug ? (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({targetChannelSlug})</span>
+                    ) : null}
+                  </>
+                ) : submitMode === 'streamerToOwn' ? (
+                  t('pool.subtitleToMyChannel', {
+                    defaultValue: 'Browse memes and add them to your channel via a submission.',
+                  })
+                ) : (
+                  t('pool.subtitleBrowseOnly', {
+                    defaultValue: 'Browse the pool. To submit memes to a streamer, open this page from their profile.',
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -190,8 +221,16 @@ export default function PoolPage() {
               <div key={m.id} className="relative break-inside-avoid mb-3">
                 <MemeCard meme={m} onClick={() => {}} isOwner={false} previewMode="autoplayMuted" />
                 <div className="absolute left-3 right-3 bottom-3 z-10">
-                  <Button type="button" variant="primary" className="w-full" onClick={() => void onAddToMyChannel(m)}>
-                    {t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="w-full"
+                    onClick={() => void onAdd(m)}
+                    disabled={!isAuthed || !submitChannelId}
+                  >
+                    {submitMode === 'viewerToStreamer'
+                      ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })
+                      : t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
                   </Button>
                 </div>
               </div>
