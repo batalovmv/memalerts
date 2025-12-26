@@ -22,8 +22,17 @@ ALTER TABLE "MemeSubmission"
 CREATE INDEX IF NOT EXISTS "MemeSubmission_memeAssetId_idx" ON "MemeSubmission"("memeAssetId");
 CREATE INDEX IF NOT EXISTS "MemeSubmission_sourceKind_idx" ON "MemeSubmission"("sourceKind");
 
-ALTER TABLE "MemeSubmission"
-  ADD CONSTRAINT IF NOT EXISTS "MemeSubmission_memeAssetId_fkey"
-  FOREIGN KEY ("memeAssetId") REFERENCES "MemeAsset"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'MemeSubmission_memeAssetId_fkey'
+  ) THEN
+    ALTER TABLE "MemeSubmission"
+      ADD CONSTRAINT "MemeSubmission_memeAssetId_fkey"
+      FOREIGN KEY ("memeAssetId") REFERENCES "MemeAsset"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 
