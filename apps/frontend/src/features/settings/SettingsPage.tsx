@@ -273,7 +273,7 @@ export default function SettingsPage() {
                 ref={moreMenuButtonRef}
                 onClick={() => {
                   moreMenuOpenedByKeyboardRef.current = false;
-                  setIsMoreMenuOpen(!isMoreMenuOpen);
+                  setIsMoreMenuOpen((v) => !v);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
@@ -296,6 +296,7 @@ export default function SettingsPage() {
                     ? 'bg-primary text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
+                type="button"
                 aria-label={t('admin.more', { defaultValue: 'More' })}
                 aria-haspopup="menu"
                 aria-expanded={isMoreMenuOpen}
@@ -312,13 +313,13 @@ export default function SettingsPage() {
               {isMoreMenuOpen && (
                 <>
                   {/* Backdrop: prevents "invisible layer" click issues and makes outside click behavior consistent. */}
-                  <div className="fixed inset-0 z-10" onClick={() => setIsMoreMenuOpen(false)} aria-hidden="true" />
+                  <div className="fixed inset-0 z-40" onClick={() => setIsMoreMenuOpen(false)} aria-hidden="true" />
                   <div
                     id={moreMenuId}
                     ref={moreMenuPopupRef}
                     role="menu"
                     aria-label={t('admin.more', { defaultValue: 'More' })}
-                    className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 z-20"
+                    className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 z-50"
                     onKeyDownCapture={(e) => {
                       if (e.key === 'Escape') {
                         e.preventDefault();

@@ -151,22 +151,20 @@ import { Input, Select, Textarea } from '@/shared/ui';
 Все выпадающие меню/попапы должны использовать **единый стиль с размытием фона**:
 
 ```tsx
-// Пример для page-level меню (Settings, Dashboard и т.д.)
+// Пример (как в меню аватара в Header)
 {isOpen && (
   <>
     {/* Backdrop: предотвращает проблемы с кликами и делает поведение предсказуемым */}
-    <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} aria-hidden="true" />
+    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} aria-hidden="true" />
 
     <div
       role="menu"
-      className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-20"
+      className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
     >
       {/* Содержимое меню */}
     </div>
   </>
 )}
-
-// Для header/глобальных меню используй z-40 для backdrop, z-50 для popup
 ```
 
 **Ключевые правила:**
@@ -174,10 +172,7 @@ import { Input, Select, Textarea } from '@/shared/ui';
 1. **Backdrop обязателен**: `<div className="fixed inset-0 z-[N]" onClick={...} aria-hidden="true" />`
    - Предотвращает проблемы с "невидимыми слоями"
    - Делает клик вне меню предсказуемым
-   - **Z-index зависит от контекста**:
-     - Header/глобальные меню: backdrop `z-40`, popup `z-50`
-     - Page-level меню: backdrop `z-10`, popup `z-20`
-     - Popup всегда на 10 единиц выше backdrop
+   - **Z-index фиксированный (как в меню аватара)**: backdrop `z-40`, popup `z-50`
 
 2. **Размытие фона**: просто `glass`
    - ✨ Используй ТОЛЬКО `glass` для красивого размытия
