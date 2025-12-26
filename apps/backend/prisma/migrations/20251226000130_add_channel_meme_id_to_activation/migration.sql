@@ -6,8 +6,17 @@ ALTER TABLE "MemeActivation"
 
 CREATE INDEX IF NOT EXISTS "MemeActivation_channelMemeId_idx" ON "MemeActivation"("channelMemeId");
 
-ALTER TABLE "MemeActivation"
-  ADD CONSTRAINT IF NOT EXISTS "MemeActivation_channelMemeId_fkey"
-  FOREIGN KEY ("channelMemeId") REFERENCES "ChannelMeme"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'MemeActivation_channelMemeId_fkey'
+  ) THEN
+    ALTER TABLE "MemeActivation"
+      ADD CONSTRAINT "MemeActivation_channelMemeId_fkey"
+      FOREIGN KEY ("channelMemeId") REFERENCES "ChannelMeme"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 
