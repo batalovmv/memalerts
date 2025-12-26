@@ -830,6 +830,7 @@
     "signIn": "Sign in with Twitch",
     "openFromStreamer": "Open the pool from a streamer profile to submit memes to them.",
     "missingMemeAssetId": "This pool item has no memeAssetId.",
+    "untitled": "Untitled",
     "submissionCreated": "Submitted for approval.",
     "alreadyInChannel": "This meme is already in your channel.",
     "failedToSubmit": "Failed to submit."

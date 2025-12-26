@@ -108,7 +108,8 @@ export default function PoolPage() {
     try {
       if (submittingAssetId) return;
       setSubmittingAssetId(memeAssetId);
-      await createPoolSubmission({ memeAssetId, title: m.title, channelId: submitChannelId });
+      const safeTitle = (m.title || '').trim() || t('pool.untitled', { defaultValue: 'Untitled' });
+      await createPoolSubmission({ memeAssetId, title: safeTitle, channelId: submitChannelId });
       toast.success(t('pool.submissionCreated', { defaultValue: 'Submitted for approval.' }));
     } catch (e: unknown) {
       const maybeTimeout = e as { isTimeout?: boolean; message?: string };

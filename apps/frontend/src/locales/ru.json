@@ -844,6 +844,7 @@
     "signIn": "Войти через Twitch",
     "openFromStreamer": "Откройте пул из профиля стримера, чтобы отправлять ему заявки.",
     "missingMemeAssetId": "У этого элемента пула нет memeAssetId.",
+    "untitled": "Без названия",
     "submissionCreated": "Заявка отправлена на одобрение.",
     "alreadyInChannel": "Этот мем уже есть в вашем канале.",
     "failedToSubmit": "Не удалось отправить заявку."
