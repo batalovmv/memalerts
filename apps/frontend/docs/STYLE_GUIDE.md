@@ -142,6 +142,8 @@ import { Input, Select, Textarea } from '@/shared/ui';
 
 - **Glass панель**: `Modal` по умолчанию использует `glass` (проп `useGlass=true`).
 - **Тень/обводка**: используем `shadow-xl ring-1 ring-black/5 dark:ring-white/10` (как у dropdown).
+- **Backdrop (оверлей)**: мягкий, “стеклянный”, а не тёмная шторка:
+  - по умолчанию: `bg-black/25 backdrop-blur-sm`
 - **Не добавляй второй “glass слой” поверх**:
   - избегай `bg-white/40 ... backdrop-blur ...` на sticky header внутри модалки
   - вместо этого делай просто `border-b border-black/5 dark:border-white/10` — фон уже даёт контейнер модалки (`glass`)

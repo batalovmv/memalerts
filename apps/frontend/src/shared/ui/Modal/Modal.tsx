@@ -63,7 +63,7 @@ export function Modal({
   return (
     <div
       className={cn(
-        'fixed inset-0 flex items-end sm:items-center justify-center p-4 pb-safe bg-black/50 modal-backdrop-in',
+        'fixed inset-0 flex items-end sm:items-center justify-center p-4 pb-safe bg-black/25 backdrop-blur-sm modal-backdrop-in',
         zIndexClassName,
         overlayClassName,
       )}
