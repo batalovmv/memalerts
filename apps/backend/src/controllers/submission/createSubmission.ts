@@ -358,6 +358,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       fileUrlTemp: finalFilePath, // Use deduplicated file path
       notes: body.notes || null,
       status: 'pending',
+      sourceKind: 'upload',
     };
 
     // Only add tags if we have tagIds (and table exists)
@@ -403,6 +404,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             fileUrlTemp: `/uploads/${req.file.filename}`,
             notes: body.notes || null,
             status: 'pending',
+            sourceKind: 'upload',
           },
         });
       } else {

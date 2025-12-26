@@ -123,6 +123,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       type: 'video', // Imported memes are treated as video
       fileUrlTemp: finalFilePath, // Local path (deduped)
       sourceUrl: body.sourceUrl,
+      sourceKind: 'url',
       notes: body.notes || null,
       status: 'pending',
     };
@@ -169,6 +170,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             type: 'video',
             fileUrlTemp: body.sourceUrl,
             sourceUrl: body.sourceUrl,
+            sourceKind: 'url',
             notes: body.notes || null,
             status: 'pending',
           },

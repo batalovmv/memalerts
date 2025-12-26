@@ -20,6 +20,14 @@ export const importMemeSchema = z.object({
   tags: z.array(z.string().min(1).max(50)).optional().default([]), // Array of tag names
 });
 
+export const createPoolSubmissionSchema = z.object({
+  channelId: z.string().uuid(),
+  memeAssetId: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  notes: z.string().max(500).optional().nullable(),
+  tags: z.array(z.string().min(1).max(50)).optional().default([]),
+});
+
 export const approveSubmissionSchema = z.object({
   priceCoins: z.number().int().positive().optional().default(100), // Standard price: 100 coins
   durationMs: z.number().int().positive().optional().default(15000), // Standard duration: 15 seconds (15000ms)
@@ -54,7 +62,12 @@ export const updateChannelSettingsSchema = z.object({
   rewardCost: z.number().int().positive().optional().nullable(),
   rewardCoins: z.number().int().positive().optional().nullable(),
   rewardOnlyWhenLive: z.boolean().optional(),
+  // Legacy single reward field (kept for back-compat).
   submissionRewardCoins: z.number().int().min(0).optional(),
+  // New split fields.
+  submissionRewardCoinsUpload: z.number().int().min(0).optional(),
+  submissionRewardCoinsPool: z.number().int().min(0).optional(),
+  // Legacy: ignored for pool-import rewards (we always reward).
   submissionRewardOnlyWhenLive: z.boolean().optional(),
   // Viewer submissions gate (global per-channel).
   submissionsEnabled: z.boolean().optional(),

@@ -468,6 +468,12 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       rewardOnlyWhenLive:
         (body as any).rewardOnlyWhenLive !== undefined ? (body as any).rewardOnlyWhenLive : (channel as any).rewardOnlyWhenLive,
       submissionRewardCoins: body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : (channel as any).submissionRewardCoins,
+      submissionRewardCoinsUpload:
+        (body as any).submissionRewardCoinsUpload !== undefined
+          ? (body as any).submissionRewardCoinsUpload
+          : (channel as any).submissionRewardCoinsUpload,
+      submissionRewardCoinsPool:
+        (body as any).submissionRewardCoinsPool !== undefined ? (body as any).submissionRewardCoinsPool : (channel as any).submissionRewardCoinsPool,
       submissionRewardOnlyWhenLive:
         (body as any).submissionRewardOnlyWhenLive !== undefined
           ? (body as any).submissionRewardOnlyWhenLive

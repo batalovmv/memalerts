@@ -26,8 +26,13 @@ model Channel {
   secondaryColor                String? // Hex color for secondary theme
   accentColor                   String? // Hex color for accent
   defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
-  submissionRewardCoins         Int      @default(0) // Coins granted to submitter when their submission is approved
-  // If true, submission approval coins are granted only when stream is online.
+  // Legacy: Coins granted to submitter when their submission is approved (kept for back-compat).
+  submissionRewardCoins         Int      @default(0)
+  // New: Separate rewards (upload/url vs pool import).
+  submissionRewardCoinsUpload   Int      @default(0)
+  submissionRewardCoinsPool     Int      @default(100)
+  // Legacy: If true, submission approval coins are granted only when stream is online.
+  // NOTE: For pool-import rollout we decided to ALWAYS reward (ignore this flag).
   submissionRewardOnlyWhenLive  Boolean  @default(false)
   // Viewer submissions gate (global per-channel).
   // - submissionsEnabled=false => viewers cannot create new submissions.
@@ -65,26 +70,26 @@ model Channel {
   dashboardCardOrder            Json?    @db.JsonB
   createdAt                     DateTime @default(now())
 
-  users                 User[]
-  wallets               Wallet[]
-  memes                 Meme[]
-  channelMemes          ChannelMeme[]
-  submissions           MemeSubmission[]
-  redemptions           Redemption[]
-  activations           MemeActivation[]
-  auditLogs             AuditLog[]
-  promotions            Promotion[]
-  dailyStats            ChannelDailyStats[]
-  userStats30d          ChannelUserStats30d[]
-  memeStats30d          ChannelMemeStats30d[]
-  memeDailyStats        ChannelMemeDailyStats[]
-  chatBotSubscriptions  ChatBotSubscription[]
-  chatBotOutboxMessages ChatBotOutboxMessage[]
-  chatBotCommands       ChatBotCommand[]
-  chatBotEventDedups    ChatBotEventDedup[]
+  users                        User[]
+  wallets                      Wallet[]
+  memes                        Meme[]
+  channelMemes                 ChannelMeme[]
+  submissions                  MemeSubmission[]
+  redemptions                  Redemption[]
+  activations                  MemeActivation[]
+  auditLogs                    AuditLog[]
+  promotions                   Promotion[]
+  dailyStats                   ChannelDailyStats[]
+  userStats30d                 ChannelUserStats30d[]
+  memeStats30d                 ChannelMemeStats30d[]
+  memeDailyStats               ChannelMemeDailyStats[]
+  chatBotSubscriptions         ChatBotSubscription[]
+  chatBotOutboxMessages        ChatBotOutboxMessage[]
+  chatBotCommands              ChatBotCommand[]
+  chatBotEventDedups           ChatBotEventDedup[]
   vkVideoChatBotSubscriptions  VkVideoChatBotSubscription[]
   vkVideoChatBotOutboxMessages VkVideoChatBotOutboxMessage[]
-  botIntegrations       BotIntegrationSettings[]
+  botIntegrations              BotIntegrationSettings[]
   youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
   youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
   youTubeBotIntegration        YouTubeBotIntegration?
@@ -97,14 +102,14 @@ model Channel {
 // Additive + safe for shared DB between prod/beta.
 // Example key: "custom_bot" (allows per-channel bot sender override).
 model ChannelEntitlement {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   channelId String
   key       String
-  enabled   Boolean  @default(true)
+  enabled   Boolean   @default(true)
   expiresAt DateTime?
   source    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -154,15 +159,15 @@ enum ExternalAccountProvider {
 // VK Video Live chat bot subscriptions (global bot account joins many channels).
 // Each MemAlerts Channel maps to a single VK Video Live channel identifier used by the chat connection.
 model VkVideoChatBotSubscription {
-  id              String   @id @default(uuid())
-  channelId        String
+  id                String   @id @default(uuid())
+  channelId         String
   // Channel owner (used to access VKVideo API for roles; optional for backward compatibility).
-  userId           String?
-  vkvideoChannelId String // platform channel identifier (exact format depends on VKVideo chat API)
+  userId            String?
+  vkvideoChannelId  String // platform channel identifier (exact format depends on VKVideo chat API)
   // Full channel URL on VK Video Live (required to resolve stream_id and websocket channel names via DevAPI).
   vkvideoChannelUrl String?
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -177,10 +182,10 @@ model VkVideoChatBotSubscription {
 
 // VK Video Live chat bot outbox for sending messages via the separate vkvideo chatbot runner process.
 model VkVideoChatBotOutboxMessage {
-  id              String @id @default(uuid())
+  id               String @id @default(uuid())
   channelId        String
   vkvideoChannelId String
-  message         String @db.Text
+  message          String @db.Text
 
   status    String  @default("pending") // pending | processing | sent | failed
   attempts  Int     @default(0)
@@ -225,7 +230,7 @@ model ChatBotSubscription {
 // YouTube chat bot subscriptions (per-channel, uses the streamer's linked YouTube account).
 // Each MemAlerts Channel maps to a single YouTube channelId (owner's channel).
 model YouTubeChatBotSubscription {
-  id              String   @id @default(uuid())
+  id               String   @id @default(uuid())
   channelId        String
   userId           String
   youtubeChannelId String
@@ -245,10 +250,10 @@ model YouTubeChatBotSubscription {
 // YouTube chat bot outbox for sending messages via the separate youtubeChatbotRunner process.
 // API enqueues messages here; runner polls, delivers to YouTube Live Chat, then marks sent/failed.
 model YouTubeChatBotOutboxMessage {
-  id              String @id @default(uuid())
+  id               String @id @default(uuid())
   channelId        String
   youtubeChannelId String
-  message         String @db.Text
+  message          String @db.Text
 
   status    String  @default("pending") // pending | processing | sent | failed
   attempts  Int     @default(0)
@@ -296,26 +301,26 @@ model ChatBotOutboxMessage {
 
 // Per-channel chat bot commands (trigger -> response).
 model ChatBotCommand {
-  id                String   @id @default(uuid())
-  channelId         String
-  trigger           String
-  triggerNormalized String
-  response          String   @db.Text
-  enabled           Boolean  @default(true)
+  id                    String   @id @default(uuid())
+  channelId             String
+  trigger               String
+  triggerNormalized     String
+  response              String   @db.Text
+  enabled               Boolean  @default(true)
   // If true, bot replies only when stream is online.
-  onlyWhenLive      Boolean  @default(false)
+  onlyWhenLive          Boolean  @default(false)
   // Command audience:
   // - if both arrays are empty => everyone can trigger the command
   // - if allowedUsers contains sender login => allowed
   // - else if allowedRoles contains sender role => allowed
   // NOTE: "follower" role is currently not resolvable from IRC tags; see chatbotRunner.ts.
-  allowedRoles      Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
-  allowedUsers      Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  allowedRoles          Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  allowedUsers          Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
   // VKVideo-specific role ids (from VKVideo Channel Roles API).
   // Stored separately because Twitch allowedRoles are a fixed enum.
-  vkvideoAllowedRoleIds Json  @default(dbgenerated("'[]'::jsonb")) @db.JsonB
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  vkvideoAllowedRoleIds Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -372,26 +377,26 @@ model User {
   hasBetaAccess      Boolean  @default(false) // Beta access flag
   createdAt          DateTime @default(now())
 
-  channel          Channel?              @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  preference       UserPreference?
-  externalAccounts ExternalAccount[]
-  oauthStates      OAuthState[]
+  channel                     Channel?                     @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  preference                  UserPreference?
+  externalAccounts            ExternalAccount[]
+  oauthStates                 OAuthState[]
   youTubeChatBotSubscriptions YouTubeChatBotSubscription[]
   vkVideoChatBotSubscriptions VkVideoChatBotSubscription[]
-  wallets          Wallet[]
-  memesCreated     Meme[]                @relation("CreatedBy")
-  memesApproved    Meme[]                @relation("ApprovedBy")
-  memeAssetsCreated MemeAsset[]          @relation("MemeAssetCreatedBy")
-  memeAssetsHidden  MemeAsset[]          @relation("MemeAssetHiddenBy")
-  memeAssetsPurged  MemeAsset[]          @relation("MemeAssetPurgedBy")
-  channelMemesAdded ChannelMeme[]        @relation("ChannelMemeAddedBy")
-  channelMemesApproved ChannelMeme[]     @relation("ChannelMemeApprovedBy")
-  submissions      MemeSubmission[]
-  redemptions      Redemption[]
-  activations      MemeActivation[]
-  channelStats30d  ChannelUserStats30d[]
-  auditLogs        AuditLog[]
-  betaAccess       BetaAccess?
+  wallets                     Wallet[]
+  memesCreated                Meme[]                       @relation("CreatedBy")
+  memesApproved               Meme[]                       @relation("ApprovedBy")
+  memeAssetsCreated           MemeAsset[]                  @relation("MemeAssetCreatedBy")
+  memeAssetsHidden            MemeAsset[]                  @relation("MemeAssetHiddenBy")
+  memeAssetsPurged            MemeAsset[]                  @relation("MemeAssetPurgedBy")
+  channelMemesAdded           ChannelMeme[]                @relation("ChannelMemeAddedBy")
+  channelMemesApproved        ChannelMeme[]                @relation("ChannelMemeApprovedBy")
+  submissions                 MemeSubmission[]
+  redemptions                 Redemption[]
+  activations                 MemeActivation[]
+  channelStats30d             ChannelUserStats30d[]
+  auditLogs                   AuditLog[]
+  betaAccess                  BetaAccess?
 
   @@index([twitchUserId])
   @@index([channelId])
@@ -419,13 +424,13 @@ model ExternalAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  youTubeBotIntegration YouTubeBotIntegration?
+  user                       User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  youTubeBotIntegration      YouTubeBotIntegration?
   globalYouTubeBotCredential GlobalYouTubeBotCredential?
-  vkVideoBotIntegration VkVideoBotIntegration?
+  vkVideoBotIntegration      VkVideoBotIntegration?
   globalVkVideoBotCredential GlobalVkVideoBotCredential?
-  twitchBotIntegration TwitchBotIntegration?
-  globalTwitchBotCredential GlobalTwitchBotCredential?
+  twitchBotIntegration       TwitchBotIntegration?
+  globalTwitchBotCredential  GlobalTwitchBotCredential?
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -440,7 +445,7 @@ model OAuthState {
   kind     OAuthStateKind
 
   // For link flows: the authenticated user that initiated linking.
-  userId String?
+  userId    String?
   // For bot_link flows: channelId of the streamer who initiated linking.
   channelId String?
 
@@ -469,13 +474,13 @@ model OAuthState {
 // If absent, backend falls back to the global YouTube bot token (YOUTUBE_BOT_REFRESH_TOKEN).
 model YouTubeBotIntegration {
   id                String   @id @default(uuid())
-  channelId          String   @unique
-  externalAccountId  String   @unique
+  channelId         String   @unique
+  externalAccountId String   @unique
   enabled           Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  channel         Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
 
   @@index([enabled])
@@ -486,11 +491,11 @@ model YouTubeBotIntegration {
 // Global shared YouTube bot credential (single "default MemAlerts bot" account).
 // Linked by admin once; used as sender for YouTube chat messages when a channel has no override.
 model GlobalYouTubeBotCredential {
-  id               String   @id @default(uuid())
-  externalAccountId String  @unique
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
 
@@ -502,12 +507,12 @@ model GlobalYouTubeBotCredential {
 // If present, VKVideo chat messages for the channel are sent using this ExternalAccount tokens.
 // If absent, backend falls back to the global VKVideo bot credential.
 model VkVideoBotIntegration {
-  id               String   @id @default(uuid())
+  id                String   @id @default(uuid())
   channelId         String   @unique
   externalAccountId String   @unique
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
@@ -520,11 +525,11 @@ model VkVideoBotIntegration {
 // Global shared VKVideo bot credential (single default MemAlerts bot account).
 // Linked by admin once; used as sender for VKVideo chat messages when a channel has no override.
 model GlobalVkVideoBotCredential {
-  id               String   @id @default(uuid())
-  externalAccountId String  @unique
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
 
@@ -536,12 +541,12 @@ model GlobalVkVideoBotCredential {
 // If present, Twitch chat messages for the channel are sent using this ExternalAccount tokens.
 // If absent, backend falls back to the global Twitch bot credential.
 model TwitchBotIntegration {
-  id               String   @id @default(uuid())
+  id                String   @id @default(uuid())
   channelId         String   @unique
   externalAccountId String   @unique
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
@@ -554,11 +559,11 @@ model TwitchBotIntegration {
 // Global shared Twitch bot credential (single default MemAlerts bot account).
 // Linked by admin once; used as sender for Twitch chat messages when a channel has no override.
 model GlobalTwitchBotCredential {
-  id               String   @id @default(uuid())
-  externalAccountId String  @unique
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
 
@@ -618,19 +623,19 @@ model Meme {
 
 // Global meme object (shared pool). Appears in pool once at least one ChannelMeme is approved.
 model MemeAsset {
-  id         String   @id @default(uuid())
-  type       String   // image, gif, video, audio (currently video-only for submissions)
+  id         String  @id @default(uuid())
+  type       String // image, gif, video, audio (currently video-only for submissions)
   fileUrl    String?
-  fileHash   String?  // SHA-256 hash for deduplication (preferred)
+  fileHash   String? // SHA-256 hash for deduplication (preferred)
   durationMs Int
 
   createdByUserId String?
   createdAt       DateTime @default(now())
 
   // Pool moderation (does not affect already-added channel memes; only hides from pool listing)
-  poolVisibility   String   @default("visible") // visible | hidden
-  poolHiddenAt     DateTime?
-  poolHiddenReason String?
+  poolVisibility     String    @default("visible") // visible | hidden
+  poolHiddenAt       DateTime?
+  poolHiddenReason   String?
   poolHiddenByUserId String?
 
   // Safe deletion (quarantine)
@@ -658,14 +663,14 @@ model MemeAsset {
 
 // Channel-scoped adoption of a MemeAsset (what streamer actually uses).
 model ChannelMeme {
-  id          String   @id @default(uuid())
-  channelId   String
-  memeAssetId String
+  id           String  @id @default(uuid())
+  channelId    String
+  memeAssetId  String
   // Back-compat bridge during migration: points to legacy Meme.id (optional).
   legacyMemeId String?
 
-  status     String   @default("approved") // pending | approved | rejected | disabled
-  deletedAt  DateTime?
+  status    String    @default("approved") // pending | approved | rejected | disabled
+  deletedAt DateTime?
 
   // Channel-specific fields
   title      String
@@ -674,13 +679,17 @@ model ChannelMeme {
   addedByUserId    String?
   approvedByUserId String?
   approvedAt       DateTime?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
   channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
   memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
 
-  addedBy   User? @relation("ChannelMemeAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  addedBy    User? @relation("ChannelMemeAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
   approvedBy User? @relation("ChannelMemeApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  // Activations that referenced this ChannelMeme at the time of activation.
+  // (Opposite side of MemeActivation.channelMeme)
+  activations MemeActivation[]
 
   @@unique([channelId, memeAssetId])
   @@index([channelId])
@@ -699,6 +708,8 @@ model MemeSubmission {
   type            String // image, gif, video, audio
   fileUrlTemp     String
   sourceUrl       String? // URL of imported meme from memalerts.com
+  memeAssetId     String? // Pool import: references MemeAsset
+  sourceKind      String   @default("upload") // upload | url | pool
   notes           String?
   status          String // pending, approved, rejected
   moderatorNotes  String?
@@ -709,11 +720,14 @@ model MemeSubmission {
 
   channel   Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
   submitter User                @relation(fields: [submitterUserId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset?          @relation(fields: [memeAssetId], references: [id], onDelete: SetNull)
   tags      MemeSubmissionTag[]
 
   @@index([channelId])
   @@index([status])
   @@index([submitterUserId])
+  @@index([memeAssetId])
+  @@index([sourceKind])
 }
 
 model Redemption {
@@ -735,18 +749,18 @@ model Redemption {
 }
 
 model MemeActivation {
-  id         String   @id @default(uuid())
-  channelId  String
-  userId     String
-  memeId     String
+  id            String   @id @default(uuid())
+  channelId     String
+  userId        String
+  memeId        String
   channelMemeId String?
-  coinsSpent Int
-  status     String // queued, playing, done, failed
-  createdAt  DateTime @default(now())
+  coinsSpent    Int
+  status        String // queued, playing, done, failed
+  createdAt     DateTime @default(now())
 
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  channel     Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meme        Meme         @relation(fields: [memeId], references: [id], onDelete: Cascade)
   channelMeme ChannelMeme? @relation(fields: [channelMemeId], references: [id], onDelete: SetNull)
 
   @@index([channelId])

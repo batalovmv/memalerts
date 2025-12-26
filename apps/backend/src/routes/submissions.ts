@@ -18,6 +18,7 @@ submissionRoutes.use(logRequest);
 
 submissionRoutes.post('/', uploadLimiter, uploadWithLogging, submissionController.createSubmission);
 submissionRoutes.post('/import', uploadLimiter, submissionController.importMeme);
+submissionRoutes.post('/pool', submissionController.createPoolSubmission);
 submissionRoutes.get('/mine', submissionController.getMySubmissions);
 submissionRoutes.post('/:id/resubmit', submissionController.resubmitSubmission);
 // Add GET /submissions endpoint to prevent hanging requests

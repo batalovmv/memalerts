@@ -213,13 +213,89 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
 
           const channel = await tx.channel.findUnique({
             where: { id: channelId },
-            select: { defaultPriceCoins: true, slug: true, submissionRewardCoins: true, submissionRewardOnlyWhenLive: true },
+            select: {
+              defaultPriceCoins: true,
+              slug: true,
+              submissionRewardCoins: true, // legacy
+              submissionRewardCoinsUpload: true,
+              submissionRewardCoinsPool: true,
+              submissionRewardOnlyWhenLive: true, // legacy (ignored for rewards in this rollout)
+            },
           });
 
           debugLog('[DEBUG] Channel fetched', { channelId, found: !!channel, defaultPriceCoins: channel?.defaultPriceCoins });
 
           const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
-          const rewardForApproval = channel?.submissionRewardCoins ?? 0;
+          const sourceKind = String((submission as any)?.sourceKind || '').toLowerCase();
+          const rewardForApproval =
+            sourceKind === 'pool'
+              ? (channel as any)?.submissionRewardCoinsPool ?? 0
+              : (channel as any)?.submissionRewardCoinsUpload ?? (channel as any)?.submissionRewardCoins ?? 0;
+
+          // Pool submission: no file processing. Just create ChannelMeme + legacy Meme from MemeAsset.
+          if (sourceKind === 'pool' && (submission as any).memeAssetId) {
+            const asset = await tx.memeAsset.findUnique({
+              where: { id: String((submission as any).memeAssetId) },
+              select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgedAt: true },
+            });
+            if (!asset || asset.purgedAt) throw new Error('Meme asset not found');
+            if (!asset.fileUrl) throw new Error('Meme asset has no file');
+
+            // Upsert ChannelMeme
+            const cm = await tx.channelMeme.upsert({
+              where: { channelId_memeAssetId: { channelId: submission.channelId, memeAssetId: asset.id } },
+              create: {
+                channelId: submission.channelId,
+                memeAssetId: asset.id,
+                status: 'approved',
+                title: submission.title,
+                priceCoins: body.priceCoins || defaultPrice,
+                addedByUserId: submission.submitterUserId,
+                approvedByUserId: req.userId!,
+                approvedAt: new Date(),
+              },
+              update: {
+                status: 'approved',
+                deletedAt: null,
+                title: submission.title,
+                priceCoins: body.priceCoins || defaultPrice,
+                approvedByUserId: req.userId!,
+                approvedAt: new Date(),
+              },
+            });
+
+            // Create legacy Meme if needed (for back-compat, rollups and existing overlay flows).
+            const legacy =
+              cm.legacyMemeId
+                ? await tx.meme.findUnique({ where: { id: cm.legacyMemeId } })
+                : await tx.meme.create({
+                    data: {
+                      channelId: submission.channelId,
+                      title: submission.title,
+                      type: asset.type,
+                      fileUrl: asset.fileUrl,
+                      fileHash: asset.fileHash,
+                      durationMs: asset.durationMs,
+                      priceCoins: body.priceCoins || defaultPrice,
+                      status: 'approved',
+                      createdByUserId: submission.submitterUserId,
+                      approvedByUserId: req.userId!,
+                    },
+                  });
+
+            if (!cm.legacyMemeId && legacy?.id) {
+              await tx.channelMeme.update({
+                where: { id: cm.id },
+                data: { legacyMemeId: legacy.id },
+              });
+            }
+
+            // Mark submission approved
+            await tx.memeSubmission.update({ where: { id }, data: { status: 'approved' } });
+
+            // Return legacy-shaped meme for current response compatibility
+            return legacy as any;
+          }
 
           // Determine fileUrl: handle deduplication for both uploaded and imported files
           let finalFileUrl: string;
@@ -460,18 +536,8 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
 
             // Reward submitter for approved submission (per-channel setting)
             // Only if enabled (>0) and submitter is not the moderator approving.
+            // Policy: reward is granted ALWAYS (no online check) for both upload/url and pool.
             if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
-              if (channel?.submissionRewardOnlyWhenLive) {
-                const snap = await getStreamDurationSnapshot(String(channel?.slug || '').toLowerCase());
-                if (snap.status !== 'online') {
-                  debugLog('[DEBUG] Submission approval reward skipped (offline)', {
-                    submissionId: id,
-                    channelId,
-                    channelSlug: channel?.slug,
-                  });
-                  return meme;
-                }
-              }
               const updatedWallet = await tx.wallet.upsert({
                 where: {
                   userId_channelId: {
