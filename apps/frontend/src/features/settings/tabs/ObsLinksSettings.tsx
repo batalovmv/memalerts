@@ -11,6 +11,8 @@ import {
 import { RotateIcon } from './obs/ui/RotateIcon';
 
 import SecretCopyField from '@/components/SecretCopyField';
+import { useSocket } from '@/contexts/SocketContext';
+import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
@@ -104,9 +106,11 @@ function getNumber(obj: Record<string, unknown> | null, key: string): number | u
 export function ObsLinksSettings() {
   const { t, i18n } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
+  const { socket, isConnected } = useSocket();
 
   const channelSlug = user?.channel?.slug || '';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const apiOrigin = typeof window !== 'undefined' ? getApiOriginForRedirect() : '';
 
   const [overlayKind, setOverlayKind] = useState<'memes' | 'credits'>('memes');
 
@@ -219,6 +223,21 @@ export function ObsLinksSettings() {
   const [creditsTitleStrokeWidth, setCreditsTitleStrokeWidth] = useState<number>(0);
   const [creditsTitleStrokeOpacity, setCreditsTitleStrokeOpacity] = useState<number>(0.9);
   const [creditsTitleStrokeColor, setCreditsTitleStrokeColor] = useState<string>('#000000');
+
+  // Credits session state (viewers/chatters, reconnect window, ignore list)
+  const [creditsChannelSlug, setCreditsChannelSlug] = useState<string>('');
+  const [creditsChatters, setCreditsChatters] = useState<Array<{ name: string }>>([]);
+  const [loadingCreditsState, setLoadingCreditsState] = useState(false);
+  const [resettingCredits, setResettingCredits] = useState(false);
+
+  const [creditsReconnectWindowMinutes, setCreditsReconnectWindowMinutes] = useState<number | null>(null);
+  const [creditsReconnectWindowInput, setCreditsReconnectWindowInput] = useState<string>('');
+  const [savingReconnectWindow, setSavingReconnectWindow] = useState(false);
+
+  const [creditsIgnoredChatters, setCreditsIgnoredChatters] = useState<string[]>([]);
+  const [creditsIgnoredChattersText, setCreditsIgnoredChattersText] = useState<string>('');
+  const [loadingIgnoredChatters, setLoadingIgnoredChatters] = useState(false);
+  const [savingIgnoredChatters, setSavingIgnoredChatters] = useState(false);
 
   const [creditsScrollSpeed, setCreditsScrollSpeed] = useState<number>(48);
   const [creditsSectionGapPx, setCreditsSectionGapPx] = useState<number>(24);
@@ -1062,6 +1081,184 @@ export function ObsLinksSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelSlug]);
 
+  const loadCreditsState = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!channelSlug) return;
+      if (!opts?.silent) setLoadingCreditsState(true);
+      try {
+        const { api } = await import('@/lib/api');
+        const resp = await api.get<{
+          channelSlug?: string;
+          chatters?: Array<{ name: string }>;
+          donors?: Array<{ name: string; amount?: number; currency?: string }>;
+          creditsReconnectWindowMinutes?: number;
+        }>('/streamer/credits/state', { headers: { 'Cache-Control': 'no-store' } });
+        const slug = String(resp?.channelSlug || channelSlug || '').trim();
+        if (slug) setCreditsChannelSlug(slug);
+        setCreditsChatters(Array.isArray(resp?.chatters) ? resp.chatters : []);
+
+        // Back-compat: if backend also includes reconnect window in state, use it.
+        if (typeof resp?.creditsReconnectWindowMinutes === 'number' && Number.isFinite(resp.creditsReconnectWindowMinutes)) {
+          setCreditsReconnectWindowMinutes(resp.creditsReconnectWindowMinutes);
+          setCreditsReconnectWindowInput(String(resp.creditsReconnectWindowMinutes));
+        }
+      } catch (error: unknown) {
+        if (!opts?.silent) {
+          const apiError = error as { response?: { data?: { error?: string } } };
+          toast.error(apiError.response?.data?.error || t('admin.failedToLoad', { defaultValue: 'Failed to load' }));
+        }
+      } finally {
+        if (!opts?.silent) setLoadingCreditsState(false);
+      }
+    },
+    [channelSlug, t]
+  );
+
+  const loadCreditsIgnoredChatters = useCallback(async () => {
+    if (!channelSlug) return;
+    setLoadingIgnoredChatters(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const resp = await api.get<{ creditsIgnoredChatters?: string[] }>('/streamer/credits/ignored-chatters', {
+        headers: { 'Cache-Control': 'no-store' },
+      });
+      const list = Array.isArray(resp?.creditsIgnoredChatters) ? resp.creditsIgnoredChatters : [];
+      const cleaned = list.map((v) => String(v || '').trim()).filter(Boolean);
+      setCreditsIgnoredChatters(cleaned);
+      setCreditsIgnoredChattersText(cleaned.join('\n'));
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { error?: string } } };
+      if (err?.response?.status !== 404) {
+        toast.error(err.response?.data?.error || t('admin.failedToLoad', { defaultValue: 'Failed to load' }));
+      }
+    } finally {
+      setLoadingIgnoredChatters(false);
+    }
+  }, [channelSlug, t]);
+
+  const loadCreditsReconnectWindow = useCallback(async () => {
+    if (!channelSlug) return;
+    try {
+      const { api } = await import('@/lib/api');
+      // Not in the minimal contract, but supported by newer backends; ignore if missing.
+      const resp = await api.get<{ creditsReconnectWindowMinutes?: number }>('/streamer/credits/reconnect-window', {
+        headers: { 'Cache-Control': 'no-store' },
+      });
+      if (typeof resp?.creditsReconnectWindowMinutes === 'number' && Number.isFinite(resp.creditsReconnectWindowMinutes)) {
+        setCreditsReconnectWindowMinutes(resp.creditsReconnectWindowMinutes);
+        setCreditsReconnectWindowInput(String(resp.creditsReconnectWindowMinutes));
+      }
+    } catch {
+      // ignore (back-compat)
+    }
+  }, [channelSlug]);
+
+  const saveCreditsReconnectWindow = useCallback(async () => {
+    const raw = String(creditsReconnectWindowInput || '').trim();
+    const minutes = Number(raw);
+    if (!Number.isFinite(minutes) || minutes < 0) {
+      toast.error(t('admin.invalidValue', { defaultValue: 'Invalid value' }));
+      return;
+    }
+
+    const startedAt = Date.now();
+    setSavingReconnectWindow(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const resp = await api.post<{ creditsReconnectWindowMinutes?: number }>('/streamer/credits/reconnect-window', { minutes });
+      const next = typeof resp?.creditsReconnectWindowMinutes === 'number' ? resp.creditsReconnectWindowMinutes : minutes;
+      setCreditsReconnectWindowMinutes(next);
+      setCreditsReconnectWindowInput(String(next));
+      toast.success(t('admin.settingsSaved', { defaultValue: 'Saved' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setSavingReconnectWindow(false);
+    }
+  }, [creditsReconnectWindowInput, t]);
+
+  const resetCreditsSession = useCallback(async () => {
+    const confirmed = window.confirm(
+      t('admin.creditsResetConfirm', {
+        defaultValue: 'Сбросить список зрителей? После этого начнётся новый список для следующей трансляции.',
+      })
+    );
+    if (!confirmed) return;
+
+    const startedAt = Date.now();
+    setResettingCredits(true);
+    try {
+      const { api } = await import('@/lib/api');
+      await api.post('/streamer/credits/reset', {});
+      await loadCreditsState({ silent: true });
+      toast.success(t('admin.done', { defaultValue: 'Done' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setResettingCredits(false);
+    }
+  }, [loadCreditsState, t]);
+
+  const saveCreditsIgnoredChatters = useCallback(async () => {
+    const lines = String(creditsIgnoredChattersText || '')
+      .split('\n')
+      .map((v) => v.trim())
+      .filter(Boolean);
+
+    const startedAt = Date.now();
+    setSavingIgnoredChatters(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const resp = await api.post<{ creditsIgnoredChatters?: string[] }>('/streamer/credits/ignored-chatters', {
+        creditsIgnoredChatters: lines,
+      });
+      const list = Array.isArray(resp?.creditsIgnoredChatters) ? resp.creditsIgnoredChatters : lines;
+      const cleaned = list.map((v) => String(v || '').trim()).filter(Boolean);
+      setCreditsIgnoredChatters(cleaned);
+      setCreditsIgnoredChattersText(cleaned.join('\n'));
+      toast.success(t('admin.settingsSaved', { defaultValue: 'Saved' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save' }));
+    } finally {
+      await ensureMinDuration(startedAt, 450);
+      setSavingIgnoredChatters(false);
+    }
+  }, [creditsIgnoredChattersText, t]);
+
+  // Initial credits loads when switching to "Credits" tab.
+  useEffect(() => {
+    if (!channelSlug) return;
+    if (overlayKind !== 'credits') return;
+    void loadCreditsState();
+    void loadCreditsIgnoredChatters();
+    void loadCreditsReconnectWindow();
+  }, [channelSlug, loadCreditsIgnoredChatters, loadCreditsReconnectWindow, loadCreditsState, overlayKind]);
+
+  // Live updates via Socket.IO (uses auth cookie).
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+    if (overlayKind !== 'credits') return;
+    const slug = String(creditsChannelSlug || channelSlug || '').trim();
+    if (!slug) return;
+
+    socket.emit('join:channel', slug);
+
+    const onCreditsState = (incoming: { chatters?: Array<{ name: string }> } | null | undefined) => {
+      const next = Array.isArray(incoming?.chatters) ? incoming!.chatters! : [];
+      setCreditsChatters(next);
+    };
+
+    socket.on('credits:state', onCreditsState);
+    return () => {
+      socket.off('credits:state', onCreditsState);
+    };
+  }, [channelSlug, creditsChannelSlug, isConnected, overlayKind, socket]);
+
   const previewCount = useMemo(
     () => (overlayMode === 'queue' ? 1 : Math.min(5, Math.max(1, overlayMaxConcurrent))),
     [overlayMaxConcurrent, overlayMode]
@@ -1122,7 +1319,7 @@ export function ObsLinksSettings() {
 
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
-  const creditsUrl = creditsToken ? `${origin}/overlay/credits/t/${creditsToken}` : '';
+  const creditsUrl = creditsToken ? `${apiOrigin || origin}/overlay/credits/t/${creditsToken}` : '';
 
   // OBS URL should stay constant.
   const overlayUrlWithDefaults = overlayUrl;
@@ -3996,6 +4193,159 @@ export function ObsLinksSettings() {
           <div className="glass p-4 space-y-4">
             {(loadingCreditsSettings || savingCreditsSettings) && <SavingOverlay label={t('admin.saving')} />}
             {creditsSettingsSavedPulse && !savingCreditsSettings && !loadingCreditsSettings && <SavedOverlay label={t('admin.saved')} />}
+
+            {/* Viewers (chatters) */}
+            <div className="glass p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {t('admin.creditsViewersTitle', { defaultValue: 'Зрители трансляции' })}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.creditsViewersHint', {
+                      defaultValue:
+                        'Список формируется по сообщениям в чате во время стрима. Аккаунты между платформами склеиваются на бэке; боты MemAlerts игнорируются автоматически.',
+                    })}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.count', { defaultValue: 'count' })}: <span className="font-mono">{creditsChatters.length}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white disabled:opacity-60"
+                    onClick={() => void loadCreditsState()}
+                    disabled={loadingCreditsState}
+                  >
+                    {loadingCreditsState ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Обновить' })}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 max-h-40 overflow-auto rounded-lg bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-2">
+                {creditsChatters.length === 0 ? (
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.creditsNoViewers', { defaultValue: 'Пока пусто. Зрители появятся, когда кто-то напишет в чат во время стрима.' })}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {creditsChatters.map((c, idx) => (
+                      <span
+                        key={`${String(c?.name || '').toLowerCase()}_${idx}`}
+                        className="px-2 py-1 text-xs rounded-md bg-accent/15 text-accent ring-1 ring-accent/20"
+                      >
+                        {String(c?.name || '').trim()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Reconnect window */}
+            <div className="glass p-3">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                {t('admin.creditsReconnectWindowTitle', { defaultValue: 'Мёртвая зона (окно переподключения)' })}
+              </div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                {t('admin.creditsReconnectWindowHint', {
+                  defaultValue:
+                    'Сессия зрителей сохраняется X минут после офлайна, чтобы стрим можно было перезапустить без потери списка.',
+                })}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={creditsReconnectWindowInput}
+                  onChange={(e) => setCreditsReconnectWindowInput(e.target.value)}
+                  placeholder={creditsReconnectWindowMinutes === null ? 'min' : String(creditsReconnectWindowMinutes)}
+                  className="w-32 px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                  disabled={savingReconnectWindow}
+                />
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-lg text-sm font-semibold bg-primary text-white disabled:opacity-60"
+                  onClick={() => void saveCreditsReconnectWindow()}
+                  disabled={savingReconnectWindow}
+                >
+                  {savingReconnectWindow ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.save', { defaultValue: 'Сохранить' })}
+                </button>
+              </div>
+            </div>
+
+            {/* Reset viewers list */}
+            <div className="glass p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {t('admin.creditsResetTitle', { defaultValue: 'Сбросить список зрителей' })}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.creditsResetHint', {
+                      defaultValue: 'Начать новую сессию зрителей (новая трансляция → новый список).',
+                    })}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-lg text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white disabled:opacity-60"
+                  onClick={() => void resetCreditsSession()}
+                  disabled={resettingCredits}
+                >
+                  {resettingCredits ? t('common.loading', { defaultValue: 'Loading…' }) : t('admin.reset', { defaultValue: 'Сбросить' })}
+                </button>
+              </div>
+            </div>
+
+            {/* Ignore list */}
+            <div className="glass p-3">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                {t('admin.creditsIgnoredChattersTitle', { defaultValue: 'Игнорируемые имена (боты)' })}
+              </div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                {t('admin.creditsIgnoredChattersHint', {
+                  defaultValue:
+                    'По одному нику на строку. Сравнение без учёта регистра. Авто-боты MemAlerts игнорируются сами.',
+                })}
+              </div>
+              <div className="mt-3 space-y-2">
+                <textarea
+                  value={creditsIgnoredChattersText}
+                  onChange={(e) => setCreditsIgnoredChattersText(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white font-mono text-xs"
+                  placeholder="nightbot\nstreamelements\n..."
+                  disabled={loadingIgnoredChatters || savingIgnoredChatters}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    {t('admin.count', { defaultValue: 'count' })}:{' '}
+                    <span className="font-mono">{creditsIgnoredChatters.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white disabled:opacity-60"
+                      onClick={() => void loadCreditsIgnoredChatters()}
+                      disabled={loadingIgnoredChatters}
+                    >
+                      {loadingIgnoredChatters ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Обновить' })}
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg text-sm font-semibold bg-primary text-white disabled:opacity-60"
+                      onClick={() => void saveCreditsIgnoredChatters()}
+                      disabled={savingIgnoredChatters}
+                    >
+                      {savingIgnoredChatters ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.save', { defaultValue: 'Сохранить' })}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex rounded-xl overflow-hidden border border-white/20 dark:border-white/10">

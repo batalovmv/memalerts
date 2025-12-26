@@ -374,7 +374,7 @@ export default function Admin() {
                     </button>
                     <div className="border-t border-black/5 dark:border-white/10 my-1" />
 
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || isStreamerAdmin) && (
                       <button
                         onClick={() => {
                           setActiveTab('wallets');
@@ -434,21 +434,7 @@ export default function Admin() {
                       {t('settings.accounts', { defaultValue: 'Accounts' })}
                     </button>
 
-                    {isStreamerAdmin && (
-                      <button
-                        onClick={() => {
-                          setActiveTab('wallets');
-                          setIsMoreMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          activeTab === 'wallets'
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {t('admin.walletManagement')}
-                      </button>
-                    )}
+                    {/* walletManagement entry is rendered above once (admin OR streamer admin) */}
                   </div>
                 </>
               )}
