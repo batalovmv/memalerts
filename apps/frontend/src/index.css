@@ -24,7 +24,7 @@
   }
 
   :where(a, button, input, select, textarea, [role="button"], [role="menuitem"], [role="tab"]):focus-visible {
-    @apply outline-none ring-2 ring-primary/60 ring-offset-2 ring-offset-white dark:ring-offset-dark-bg;
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-dark-bg;
   }
 }
 

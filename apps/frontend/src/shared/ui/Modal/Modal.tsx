@@ -81,7 +81,7 @@ export function Modal({
         tabIndex={-1}
         ref={dialogRef}
         className={cn(
-          'w-full rounded-t-3xl sm:rounded-2xl shadow-2xl modal-pop-in focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+          'w-full rounded-t-3xl sm:rounded-2xl shadow-2xl modal-pop-in focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
           useGlass && 'glass',
           contentClassName,
         )}
