@@ -305,20 +305,43 @@ export const getCreditsState = async (req: AuthRequest, res: Response) => {
   try {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
-      select: { slug: true },
+      select: { slug: true, creditsReconnectWindowMinutes: true },
     });
     const slug = String((channel as any)?.slug || '').toLowerCase();
     if (!slug) return res.status(404).json({ error: 'Channel not found' });
 
     const state = await getCreditsStateFromStore(slug);
+    const windowMin = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
+      ? Number((channel as any).creditsReconnectWindowMinutes)
+      : 60;
     return res.json({
       channelSlug: slug,
+      creditsReconnectWindowMinutes: windowMin,
       chatters: state.chatters || [],
       donors: state.donors || [],
     });
   } catch (e: any) {
     console.error('Error getting credits state:', e);
     return res.status(500).json({ error: 'Failed to get credits state' });
+  }
+};
+
+export const getCreditsReconnectWindow = async (req: AuthRequest, res: Response) => {
+  const channelId = req.channelId;
+  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+
+  try {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { creditsReconnectWindowMinutes: true },
+    });
+    const minutes = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
+      ? Number((channel as any).creditsReconnectWindowMinutes)
+      : 60;
+    return res.json({ creditsReconnectWindowMinutes: minutes });
+  } catch (e: any) {
+    console.error('Error getting creditsReconnectWindowMinutes:', e);
+    return res.status(500).json({ error: 'Failed to get reconnect window' });
   }
 };
 

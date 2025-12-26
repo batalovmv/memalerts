@@ -46,6 +46,7 @@ streamerRoutes.put('/overlay/presets', adminController.putOverlayPresets);
 // OBS credits overlay (titres)
 streamerRoutes.get('/credits/token', adminController.getCreditsToken);
 streamerRoutes.get('/credits/state', adminController.getCreditsState);
+streamerRoutes.get('/credits/reconnect-window', adminController.getCreditsReconnectWindow);
 streamerRoutes.get('/credits/ignored-chatters', adminController.getCreditsIgnoredChatters);
 streamerRoutes.post('/credits/ignored-chatters', adminController.setCreditsIgnoredChatters);
 streamerRoutes.post('/credits/settings', adminController.saveCreditsSettings);
