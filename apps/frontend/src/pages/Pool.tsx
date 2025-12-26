@@ -26,6 +26,7 @@ export default function PoolPage() {
   const { user } = useAppSelector((s) => s.auth);
   const isAuthed = !!user;
   const [authRequired, setAuthRequired] = useState(false);
+  const canSubmitToMyChannel = !!user && (user.role === 'streamer' || user.role === 'admin') && !!user.channelId;
 
   const [q, setQ] = useState('');
   const [items, setItems] = useState<PoolItem[]>([]);
@@ -78,6 +79,11 @@ export default function PoolPage() {
       return;
     }
 
+    if (!canSubmitToMyChannel) {
+      toast.error(t('pool.streamerRequired', { defaultValue: 'Only streamers can add memes to a channel.' }));
+      return;
+    }
+
     const memeAssetId = getPoolMemeAssetId(m);
     if (!memeAssetId) {
       toast.error(t('pool.missingMemeAssetId', { defaultValue: 'This pool item has no memeAssetId.' }));
@@ -98,7 +104,13 @@ export default function PoolPage() {
         toast.error(t('pool.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
         return;
       }
-      toast.error(err.response?.data?.error || t('pool.failedToSubmit', { defaultValue: 'Failed to submit.' }));
+      const code = err.response?.data?.errorCode;
+      const codeStr = typeof code === 'string' ? code : null;
+      toast.error(
+        (err.response?.data?.error as string | undefined) ||
+          (codeStr ? `${t('pool.failedToSubmit', { defaultValue: 'Failed to submit.' })} (${codeStr})` : null) ||
+          t('pool.failedToSubmit', { defaultValue: 'Failed to submit.' }),
+      );
     }
   };
 

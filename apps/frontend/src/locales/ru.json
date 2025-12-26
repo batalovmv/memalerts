@@ -838,6 +838,7 @@
     "authRequiredTitle": "Нужен вход",
     "authRequiredHint": "Пожалуйста, войдите, чтобы просматривать пул.",
     "signIn": "Войти через Twitch",
+    "streamerRequired": "Добавлять мемы в канал могут только стримеры.",
     "missingMemeAssetId": "У этого элемента пула нет memeAssetId.",
     "submissionCreated": "Заявка отправлена на одобрение.",
     "alreadyInChannel": "Этот мем уже есть в вашем канале.",

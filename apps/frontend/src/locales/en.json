@@ -824,6 +824,7 @@
     "authRequiredTitle": "Sign in required",
     "authRequiredHint": "Please sign in to view the pool.",
     "signIn": "Sign in with Twitch",
+    "streamerRequired": "Only streamers can add memes to a channel.",
     "missingMemeAssetId": "This pool item has no memeAssetId.",
     "submissionCreated": "Submitted for approval.",
     "alreadyInChannel": "This meme is already in your channel.",
