@@ -369,6 +369,7 @@ export function setupRoutes(app: Express) {
         req.path === '/me' ||
         req.path === '/wallet' ||
         req.path === '/memes' ||
+        req.path === '/memes/pool' ||
         req.path.startsWith('/streamer') ||
         req.path.startsWith('/owner') ||
         req.path.startsWith('/submissions') ||
