@@ -147,6 +147,7 @@ ENV (минимум для запуска):
   - либо legacy-настройка через `VKVIDEO_USERINFO_URL` (baseUrl будет выведен из неё)
 - Опционально:
   - `VKVIDEO_PUBSUB_WS_URL` — переопределить pubsub websocket URL (по умолчанию используется dev pubsub)
+  - `VKVIDEO_PUBSUB_REFRESH_SECONDS` — как часто обновлять pubsub connect/subscription токены (и при необходимости переподключаться). Рекомендуется **600+** чтобы не создавать reconnect churn.
   - `VKVIDEO_ROLE_STUBS_JSON` — **заглушки ролей** (временный хак, пока не известны реальные VKVideo role IDs и/или нет стабильного endpoint для ролей)
 
 ### VKVIDEO_ROLE_STUBS_JSON (заглушки ролей)

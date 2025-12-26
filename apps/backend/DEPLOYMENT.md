@@ -142,6 +142,14 @@ pnpm migrate:beta-to-production
     - логи: `pm2 logs memalerts-chatbot --lines 200`
     - рестарт: `pm2 restart memalerts-chatbot`
 
+- (опционально) YouTube runner: `memalerts-youtube-chatbot`
+  - запускается отдельным процессом: `pnpm build && pnpm start:youtube-chatbot`
+  - пишет credits chatter события и доставляет outbox для YouTube
+
+- (опционально) VKVideo runner: `memalerts-vkvideo-chatbot`
+  - запускается отдельным процессом: `pnpm build && pnpm start:vkvideo-chatbot`
+  - слушает VKVideo pubsub и доставляет outbox/команды
+
 ## Nginx / домены
 
 Nginx конфиг на сервере ожидает:

@@ -306,6 +306,8 @@ async function start() {
   const syncSeconds = Math.max(5, parseIntSafe(process.env.VKVIDEO_CHATBOT_SYNC_SECONDS, 30));
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.VKVIDEO_CHATBOT_OUTBOX_POLL_MS, 1_000));
   const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.VKVIDEO_CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
+  // Avoid pubsub reconnect churn: refresh connect/subscription tokens at most once per N seconds per channel.
+  const pubsubRefreshSeconds = Math.max(30, parseIntSafe(process.env.VKVIDEO_PUBSUB_REFRESH_SECONDS, 600));
 
   // Pubsub endpoint (Centrifugo V4, protocol v2).
   // Default points to dev pubsub, as documented in VK Video Live DevAPI pubsub docs.
@@ -321,6 +323,10 @@ async function start() {
   let subscriptionsTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
   let commandsTimer: NodeJS.Timeout | null = null;
+
+  let subscriptionsSyncing = false;
+  let outboxProcessing = false;
+  let commandsRefreshing = false;
 
   // Live state per VKVideo channel
   const vkvideoIdToSlug = new Map<string, string>();
@@ -352,6 +358,13 @@ async function start() {
 
   // Pubsub connection per MemAlerts channelId (uses streamer's VKVideo OAuth token).
   const pubsubByChannelId = new Map<string, VkVideoPubSubClient>();
+  const pubsubCtxByChannelId = new Map<
+    string,
+    {
+      tokenFetchedAt: number;
+      wsChannelsKey: string;
+    }
+  >();
   const wsChannelToVkvideoId = new Map<string, string>(); // pubsub channel name -> vkvideoChannelId
 
   function extractTextFromParts(parts: any): string {
@@ -590,18 +603,20 @@ async function start() {
     }
 
     // Credits: chatter event
+    const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'vkvideo', platformUserId: incoming.userId });
+    const creditsUserId = memalertsUserId || `vkvideo:${incoming.userId}`;
     for (const baseUrl of backendBaseUrls) {
-      const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'vkvideo', platformUserId: incoming.userId });
-      const creditsUserId = memalertsUserId || `vkvideo:${incoming.userId}`;
       void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId: creditsUserId, displayName: incoming.displayName });
     }
   };
 
   const refreshCommands = async () => {
     if (stopped) return;
+    if (commandsRefreshing) return;
     const channelIds = Array.from(new Set(Array.from(vkvideoIdToChannelId.values()).filter(Boolean)));
     if (channelIds.length === 0) return;
 
+    commandsRefreshing = true;
     try {
       let rows: any[] = [];
       try {
@@ -669,28 +684,34 @@ async function start() {
       }
     } catch (e: any) {
       logger.warn('vkvideo_chatbot.commands_refresh_failed', { errorMessage: e?.message || String(e) });
+    } finally {
+      commandsRefreshing = false;
     }
   };
 
   const syncSubscriptions = async () => {
     if (stopped) return;
-    const subs = await fetchEnabledVkVideoSubscriptions();
+    if (subscriptionsSyncing) return;
+    subscriptionsSyncing = true;
+    try {
+      const subs = await fetchEnabledVkVideoSubscriptions();
 
-    const wantedChannelIds = new Set(subs.map((s) => s.channelId));
+      const wantedChannelIds = new Set(subs.map((s) => s.channelId));
 
-    // Stop clients for removed channels
-    for (const existingChannelId of Array.from(pubsubByChannelId.keys())) {
-      if (!wantedChannelIds.has(existingChannelId)) {
-        pubsubByChannelId.get(existingChannelId)?.stop();
-        pubsubByChannelId.delete(existingChannelId);
+      // Stop clients for removed channels
+      for (const existingChannelId of Array.from(pubsubByChannelId.keys())) {
+        if (!wantedChannelIds.has(existingChannelId)) {
+          pubsubByChannelId.get(existingChannelId)?.stop();
+          pubsubByChannelId.delete(existingChannelId);
+          pubsubCtxByChannelId.delete(existingChannelId);
+        }
       }
-    }
 
-    // Rebuild mapping from pubsub channel -> vkvideoChannelId
-    wsChannelToVkvideoId.clear();
+      // Rebuild mapping from pubsub channel -> vkvideoChannelId
+      wsChannelToVkvideoId.clear();
 
-    // Start/restart pubsub clients for current subscriptions.
-    for (const s of subs) {
+      // Start/restart pubsub clients for current subscriptions.
+      for (const s of subs) {
       vkvideoIdToSlug.set(s.vkvideoChannelId, s.slug);
       vkvideoIdToChannelId.set(s.vkvideoChannelId, s.channelId);
       if (s.userId) vkvideoIdToOwnerUserId.set(s.vkvideoChannelId, s.userId);
@@ -767,12 +788,6 @@ async function start() {
         continue;
       }
 
-      const wsTokenResp = await fetchVkVideoWebsocketToken({ accessToken: account.accessToken });
-      if (!wsTokenResp.ok || !wsTokenResp.token) {
-        logger.warn('vkvideo_chatbot.websocket_token_failed', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId, error: wsTokenResp.error });
-        continue;
-      }
-
       const chInfo = await fetchVkVideoChannel({ accessToken: account.accessToken, channelUrl });
       if (!chInfo.ok) {
         logger.warn('vkvideo_chatbot.channel_info_failed', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId, error: chInfo.error });
@@ -815,13 +830,32 @@ async function start() {
         continue;
       }
 
+      for (const ch of wsChannels) wsChannelToVkvideoId.set(ch, s.vkvideoChannelId);
+
+      const wsChannelsKey = wsChannels.slice().sort().join('|');
+      const existingClient = pubsubByChannelId.get(s.channelId) || null;
+      const existingCtx = pubsubCtxByChannelId.get(s.channelId) || null;
+      const now = Date.now();
+      const shouldRefreshTokens =
+        !existingClient ||
+        !existingCtx ||
+        !existingClient.isOpen() ||
+        now - existingCtx.tokenFetchedAt >= pubsubRefreshSeconds * 1000 ||
+        existingCtx.wsChannelsKey !== wsChannelsKey;
+
+      if (!shouldRefreshTokens) continue;
+
+      const wsTokenResp = await fetchVkVideoWebsocketToken({ accessToken: account.accessToken });
+      if (!wsTokenResp.ok || !wsTokenResp.token) {
+        logger.warn('vkvideo_chatbot.websocket_token_failed', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId, error: wsTokenResp.error });
+        continue;
+      }
+
       const subTokens = await fetchVkVideoWebsocketSubscriptionTokens({ accessToken: account.accessToken, channels: wsChannels });
       const specs = wsChannels.map((ch) => ({ channel: ch, token: subTokens.tokensByChannel.get(ch) || null }));
 
-      for (const ch of wsChannels) wsChannelToVkvideoId.set(ch, s.vkvideoChannelId);
-
-      // Restart client (token can rotate; simplest robust behavior).
-      pubsubByChannelId.get(s.channelId)?.stop();
+      // (Re)start client on demand (periodic resync handles reconnection).
+      existingClient?.stop();
       const client = new VkVideoPubSubClient({
         url: pubsubWsUrl,
         token: wsTokenResp.token,
@@ -836,81 +870,94 @@ async function start() {
         },
       });
       pubsubByChannelId.set(s.channelId, client);
+      pubsubCtxByChannelId.set(s.channelId, { tokenFetchedAt: now, wsChannelsKey });
       client.start();
+    }
+    } finally {
+      subscriptionsSyncing = false;
     }
   };
 
   const processOutboxOnce = async () => {
     if (stopped) return;
+    if (outboxProcessing) return;
+    outboxProcessing = true;
     const channelIds = Array.from(new Set(Array.from(vkvideoIdToChannelId.values()).filter(Boolean)));
-    if (channelIds.length === 0) return;
+    if (channelIds.length === 0) {
+      outboxProcessing = false;
+      return;
+    }
 
-    const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
-    const rows = await (prisma as any).vkVideoChatBotOutboxMessage.findMany({
-      where: {
-        channelId: { in: channelIds },
-        OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
-      },
-      orderBy: { createdAt: 'asc' },
-      take: MAX_OUTBOX_BATCH,
-      select: { id: true, vkvideoChannelId: true, message: true, status: true, attempts: true },
-    });
-    if (rows.length === 0) return;
-
-    for (const r of rows) {
-      if (stopped) return;
-      const vkvideoChannelId = String((r as any)?.vkvideoChannelId || '').trim();
-      const msg = normalizeMessage((r as any)?.message || '');
-      if (!vkvideoChannelId || !msg) continue;
-
-      const claim = await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
+    try {
+      const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
+      const rows = await (prisma as any).vkVideoChatBotOutboxMessage.findMany({
         where: {
-          id: r.id,
+          channelId: { in: channelIds },
           OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
         },
-        data: { status: 'processing', processingAt: new Date() },
+        orderBy: { createdAt: 'asc' },
+        take: MAX_OUTBOX_BATCH,
+        select: { id: true, vkvideoChannelId: true, message: true, status: true, attempts: true },
       });
-      if (claim.count === 0) continue;
+      if (rows.length === 0) return;
 
-      let lastError: string | null = null;
-      try {
-        logger.info('vkvideo_chatbot.outbox_send', {
-          vkvideoChannelId,
-          outboxId: r.id,
-          attempts: Number(r.attempts || 0),
-          messageLen: msg.length,
-        });
-        await sendToVkVideoChat({ vkvideoChannelId, text: msg });
-        await (prisma as any).vkVideoChatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: { status: 'sent', sentAt: new Date(), lastError: null },
-        });
-        logger.info('vkvideo_chatbot.outbox_sent', {
-          vkvideoChannelId,
-          outboxId: r.id,
-          attempts: Number(r.attempts || 0),
-        });
-      } catch (e: any) {
-        lastError = e?.message || String(e);
-        const nextAttempts = Math.min(999, Math.max(0, Number(r.attempts || 0)) + 1);
-        const nextStatus = nextAttempts >= MAX_SEND_ATTEMPTS ? 'failed' : 'pending';
-        await (prisma as any).vkVideoChatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: {
-            status: nextStatus,
-            attempts: nextAttempts,
-            lastError,
-            failedAt: nextStatus === 'failed' ? new Date() : null,
+      for (const r of rows) {
+        if (stopped) return;
+        const vkvideoChannelId = String((r as any)?.vkvideoChannelId || '').trim();
+        const msg = normalizeMessage((r as any)?.message || '');
+        if (!vkvideoChannelId || !msg) continue;
+
+        const claim = await (prisma as any).vkVideoChatBotOutboxMessage.updateMany({
+          where: {
+            id: r.id,
+            OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
           },
+          data: { status: 'processing', processingAt: new Date() },
         });
-        logger.warn('vkvideo_chatbot.outbox_send_failed', {
-          vkvideoChannelId,
-          outboxId: r.id,
-          attempts: nextAttempts,
-          messageLen: msg.length,
-          errorMessage: lastError,
-        });
+        if (claim.count === 0) continue;
+
+        let lastError: string | null = null;
+        try {
+          logger.info('vkvideo_chatbot.outbox_send', {
+            vkvideoChannelId,
+            outboxId: r.id,
+            attempts: Number(r.attempts || 0),
+            messageLen: msg.length,
+          });
+          await sendToVkVideoChat({ vkvideoChannelId, text: msg });
+          await (prisma as any).vkVideoChatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: { status: 'sent', sentAt: new Date(), lastError: null },
+          });
+          logger.info('vkvideo_chatbot.outbox_sent', {
+            vkvideoChannelId,
+            outboxId: r.id,
+            attempts: Number(r.attempts || 0),
+          });
+        } catch (e: any) {
+          lastError = e?.message || String(e);
+          const nextAttempts = Math.min(999, Math.max(0, Number(r.attempts || 0)) + 1);
+          const nextStatus = nextAttempts >= MAX_SEND_ATTEMPTS ? 'failed' : 'pending';
+          await (prisma as any).vkVideoChatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: {
+              status: nextStatus,
+              attempts: nextAttempts,
+              lastError,
+              failedAt: nextStatus === 'failed' ? new Date() : null,
+            },
+          });
+          logger.warn('vkvideo_chatbot.outbox_send_failed', {
+            vkvideoChannelId,
+            outboxId: r.id,
+            attempts: nextAttempts,
+            messageLen: msg.length,
+            errorMessage: lastError,
+          });
+        }
       }
+    } finally {
+      outboxProcessing = false;
     }
   };
 

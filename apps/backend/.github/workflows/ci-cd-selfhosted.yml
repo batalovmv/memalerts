@@ -62,6 +62,21 @@ jobs:
             ./ "$APP_DIR/"
 
           cd "$APP_DIR"
+
+          # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
+          # NOTE: The workflow intentionally excludes .env from rsync, so values must exist on VPS.
+          # If you manage some envs via GitHub Secrets, add them here explicitly.
+          if [ -n "${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}" ]; then
+            KEY="VKVIDEO_PUBSUB_REFRESH_SECONDS"
+            VAL="${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
+              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
+            else
+              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+            fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
           pnpm install --frozen-lockfile
           pnpm build
           pnpm prisma migrate deploy
@@ -172,6 +187,19 @@ jobs:
             ./ "$APP_DIR/"
 
           cd "$APP_DIR"
+
+          # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
+          if [ -n "${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}" ]; then
+            KEY="VKVIDEO_PUBSUB_REFRESH_SECONDS"
+            VAL="${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
+              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
+            else
+              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+            fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
           pnpm install --frozen-lockfile
           pnpm build
           pnpm prisma migrate deploy

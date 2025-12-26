@@ -71,6 +71,14 @@ export class VkVideoPubSubClient {
     });
   }
 
+  isOpen(): boolean {
+    return !!this.ws;
+  }
+
+  isConnected(): boolean {
+    return this.connected;
+  }
+
   stop(): void {
     this.stopped = true;
     const ws = this.ws;

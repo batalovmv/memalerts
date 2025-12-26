@@ -238,6 +238,9 @@ async function start() {
   let commandsTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
 
+  let subscriptionsSyncing = false;
+  let outboxProcessing = false;
+
   // For DEFAULT client, these track which channels it's currently in (to receive messages).
   const joinedDefault = new Set<string>(); // login
   const loginToSlug = new Map<string, string>();
@@ -375,58 +378,64 @@ async function start() {
 
   const processOutboxOnce = async () => {
     if (stopped || !defaultClient) return;
+    if (outboxProcessing) return;
     if (joinedDefault.size === 0) return;
 
     // Only dispatch messages for currently-enabled subscriptions (avoid sending after disable).
     const channelIds = Array.from(loginToChannelId.values()).filter(Boolean);
     if (channelIds.length === 0) return;
 
-    const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
+    outboxProcessing = true;
+    try {
+      const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
 
-    const rows = await (prisma as any).chatBotOutboxMessage.findMany({
-      where: {
-        channelId: { in: channelIds },
-        OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
-      },
-      orderBy: { createdAt: 'asc' },
-      take: MAX_OUTBOX_BATCH,
-      select: { id: true, twitchLogin: true, message: true, status: true, attempts: true },
-    });
-    if (rows.length === 0) return;
-
-    for (const r of rows) {
-      if (stopped || !defaultClient) return;
-
-      const login = normalizeLogin(r.twitchLogin);
-      if (!login) continue;
-      if (!joinedDefault.has(login)) continue; // wait until join completes (default listener)
-
-      // Claim (best-effort safe if multiple runner processes ever happen).
-      const claim = await (prisma as any).chatBotOutboxMessage.updateMany({
-        where: { id: r.id, status: r.status },
-        data: { status: 'processing', processingAt: new Date(), lastError: null },
+      const rows = await (prisma as any).chatBotOutboxMessage.findMany({
+        where: {
+          channelId: { in: channelIds },
+          OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
+        },
+        orderBy: { createdAt: 'asc' },
+        take: MAX_OUTBOX_BATCH,
+        select: { id: true, twitchLogin: true, message: true, status: true, attempts: true },
       });
-      if (claim.count !== 1) continue;
+      if (rows.length === 0) return;
 
-      try {
-        const channelId = loginToChannelId.get(login) || null;
-        await sayForChannel({ channelId, twitchLogin: login, message: r.message });
-        await (prisma as any).chatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
+      for (const r of rows) {
+        if (stopped || !defaultClient) return;
+
+        const login = normalizeLogin(r.twitchLogin);
+        if (!login) continue;
+        if (!joinedDefault.has(login)) continue; // wait until join completes (default listener)
+
+        // Claim (best-effort safe if multiple runner processes ever happen).
+        const claim = await (prisma as any).chatBotOutboxMessage.updateMany({
+          where: { id: r.id, status: r.status },
+          data: { status: 'processing', processingAt: new Date(), lastError: null },
         });
-      } catch (e: any) {
-        const nextAttempts = (r.attempts || 0) + 1;
-        const lastError = e?.message || String(e);
-        const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
-        await (prisma as any).chatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: shouldFail
-            ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError }
-            : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError },
-        });
-        logger.warn('chatbot.outbox_send_failed', { login, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+        if (claim.count !== 1) continue;
+
+        try {
+          const channelId = loginToChannelId.get(login) || null;
+          await sayForChannel({ channelId, twitchLogin: login, message: r.message });
+          await (prisma as any).chatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
+          });
+        } catch (e: any) {
+          const nextAttempts = (r.attempts || 0) + 1;
+          const lastError = e?.message || String(e);
+          const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
+          await (prisma as any).chatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: shouldFail
+              ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError }
+              : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError },
+          });
+          logger.warn('chatbot.outbox_send_failed', { login, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+        }
       }
+    } finally {
+      outboxProcessing = false;
     }
   };
 
@@ -510,6 +519,8 @@ async function start() {
 
   const syncSubscriptions = async () => {
     if (stopped || !defaultClient) return;
+    if (subscriptionsSyncing) return;
+    subscriptionsSyncing = true;
     try {
       const subs = await fetchEnabledSubscriptions();
       const desired = new Set<string>();
@@ -566,6 +577,8 @@ async function start() {
       }
     } catch (e: any) {
       logger.warn('chatbot.sync_failed', { errorMessage: e?.message || String(e) });
+    } finally {
+      subscriptionsSyncing = false;
     }
   };
 

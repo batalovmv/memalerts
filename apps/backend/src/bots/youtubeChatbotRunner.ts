@@ -262,10 +262,16 @@ async function start() {
   let pollTimer: NodeJS.Timeout | null = null;
   let outboxTimer: NodeJS.Timeout | null = null;
 
+  let syncInFlight = false;
+  let pollLoopInFlight = false;
+  let outboxInFlight = false;
+
   const states = new Map<string, ChannelState>(); // channelId -> state
 
   const syncSubscriptions = async () => {
     if (stopped) return;
+    if (syncInFlight) return;
+    syncInFlight = true;
     try {
       const subs = await fetchEnabledYouTubeSubscriptions();
       const overrides = await fetchYouTubeBotOverrides(subs.map((s) => s.channelId));
@@ -319,6 +325,8 @@ async function start() {
       }
     } catch (e: any) {
       logger.warn('youtube_chatbot.sync_failed', { errorMessage: e?.message || String(e) });
+    } finally {
+      syncInFlight = false;
     }
   };
 
@@ -374,25 +382,28 @@ async function start() {
 
   const pollChatsOnce = async () => {
     if (stopped) return;
+    if (pollLoopInFlight) return;
+    pollLoopInFlight = true;
     const now = Date.now();
 
-    for (const st of states.values()) {
-      if (stopped) return;
-      if (st.pollInFlight) continue;
+    try {
+      for (const st of states.values()) {
+        if (stopped) return;
+        if (st.pollInFlight) continue;
 
-      // Keep live status fresh
-      await ensureLiveChatId(st);
+        // Keep live status fresh
+        await ensureLiveChatId(st);
 
-      if (!st.liveChatId) continue;
+        if (!st.liveChatId) continue;
 
-      // Poll at most once per second per channel (liveChatMessages returns preferred interval).
-      if (now - st.lastPollAt < 1_000) continue;
-      st.lastPollAt = now;
+        // Poll at most once per second per channel (liveChatMessages returns preferred interval).
+        if (now - st.lastPollAt < 1_000) continue;
+        st.lastPollAt = now;
 
-      st.pollInFlight = true;
-      try {
-        const accessToken = await getValidYouTubeAccessToken(st.userId);
-        if (!accessToken) continue;
+        st.pollInFlight = true;
+        try {
+          const accessToken = await getValidYouTubeAccessToken(st.userId);
+          if (!accessToken) continue;
 
         const resp = await listLiveChatMessages({
           accessToken,
@@ -481,11 +492,14 @@ async function start() {
             logger.warn('youtube_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
           }
         }
-      } catch (e: any) {
-        logger.warn('youtube_chatbot.poll_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
-      } finally {
-        st.pollInFlight = false;
+        } catch (e: any) {
+          logger.warn('youtube_chatbot.poll_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+        } finally {
+          st.pollInFlight = false;
+        }
       }
+    } finally {
+      pollLoopInFlight = false;
     }
   };
 
@@ -495,73 +509,79 @@ async function start() {
 
   const processOutboxOnce = async () => {
     if (stopped) return;
-    if (states.size === 0) return;
+    if (outboxInFlight) return;
+    outboxInFlight = true;
+    try {
+      if (states.size === 0) return;
 
-    const channelIds = Array.from(states.keys());
-    if (channelIds.length === 0) return;
-    const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
+      const channelIds = Array.from(states.keys());
+      if (channelIds.length === 0) return;
+      const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
 
-    const rows = await (prisma as any).youTubeChatBotOutboxMessage.findMany({
-      where: {
-        channelId: { in: channelIds },
-        OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
-      },
-      orderBy: { createdAt: 'asc' },
-      take: MAX_OUTBOX_BATCH,
-      select: { id: true, channelId: true, youtubeChannelId: true, message: true, status: true, attempts: true },
-    });
-    if (!rows.length) return;
-
-    for (const r of rows) {
-      if (stopped) return;
-
-      const st = states.get(String((r as any)?.channelId || '').trim());
-      if (!st) continue;
-
-      // YouTube can only send when live chat exists.
-      if (!st.liveChatId) {
-        // keep pending, but bump attempts so it won't hang forever
-        const nextAttempts = (r.attempts || 0) + 1;
-        const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
-        await (prisma as any).youTubeChatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: shouldFail
-            ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError: 'No active live chat' }
-            : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError: 'No active live chat' },
-        });
-        continue;
-      }
-
-      // Claim
-      const claim = await (prisma as any).youTubeChatBotOutboxMessage.updateMany({
-        where: { id: r.id, status: r.status },
-        data: { status: 'processing', processingAt: new Date(), lastError: null },
+      const rows = await (prisma as any).youTubeChatBotOutboxMessage.findMany({
+        where: {
+          channelId: { in: channelIds },
+          OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }],
+        },
+        orderBy: { createdAt: 'asc' },
+        take: MAX_OUTBOX_BATCH,
+        select: { id: true, channelId: true, youtubeChannelId: true, message: true, status: true, attempts: true },
       });
-      if (claim.count !== 1) continue;
+      if (!rows.length) return;
 
-      try {
-        const token = st.botExternalAccountId
-          ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
-          : await getValidYouTubeBotAccessToken();
-        if (!token) throw new Error('YouTube bot token is not configured');
+      for (const r of rows) {
+        if (stopped) return;
 
-        await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: String(r.message || '') });
-        await (prisma as any).youTubeChatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
+        const st = states.get(String((r as any)?.channelId || '').trim());
+        if (!st) continue;
+
+        // YouTube can only send when live chat exists.
+        if (!st.liveChatId) {
+          // keep pending, but bump attempts so it won't hang forever
+          const nextAttempts = (r.attempts || 0) + 1;
+          const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
+          await (prisma as any).youTubeChatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: shouldFail
+              ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError: 'No active live chat' }
+              : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError: 'No active live chat' },
+          });
+          continue;
+        }
+
+        // Claim
+        const claim = await (prisma as any).youTubeChatBotOutboxMessage.updateMany({
+          where: { id: r.id, status: r.status },
+          data: { status: 'processing', processingAt: new Date(), lastError: null },
         });
-      } catch (e: any) {
-        const nextAttempts = (r.attempts || 0) + 1;
-        const lastError = e?.message || String(e);
-        const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
-        await (prisma as any).youTubeChatBotOutboxMessage.update({
-          where: { id: r.id },
-          data: shouldFail
-            ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError }
-            : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError },
-        });
-        logger.warn('youtube_chatbot.outbox_send_failed', { channelId: st.channelId, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+        if (claim.count !== 1) continue;
+
+        try {
+          const token = st.botExternalAccountId
+            ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+            : await getValidYouTubeBotAccessToken();
+          if (!token) throw new Error('YouTube bot token is not configured');
+
+          await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: String(r.message || '') });
+          await (prisma as any).youTubeChatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
+          });
+        } catch (e: any) {
+          const nextAttempts = (r.attempts || 0) + 1;
+          const lastError = e?.message || String(e);
+          const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
+          await (prisma as any).youTubeChatBotOutboxMessage.update({
+            where: { id: r.id },
+            data: shouldFail
+              ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError }
+              : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError },
+          });
+          logger.warn('youtube_chatbot.outbox_send_failed', { channelId: st.channelId, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+        }
       }
+    } finally {
+      outboxInFlight = false;
     }
   };
 
