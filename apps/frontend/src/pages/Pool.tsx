@@ -6,6 +6,7 @@ import type { Meme } from '@/types';
 
 import Header from '@/components/Header';
 import MemeCard from '@/components/MemeCard';
+import { login } from '@/lib/auth';
 import { getMemesPool } from '@/shared/api/memesPool';
 import { createPoolSubmission } from '@/shared/api/submissionsPool';
 import { PageShell, Button, Input, Spinner } from '@/shared/ui';
@@ -42,6 +43,11 @@ export default function PoolPage() {
         setOffset(nextOffset);
       } catch (e: unknown) {
         const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
+        if (err.response?.status === 401) {
+          toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
+          login('/pool');
+          return;
+        }
         if (err.response?.status === 403) {
           toast.error(t('pool.noAccess', { defaultValue: 'Pool is available only for beta users.' }));
         } else {
@@ -80,6 +86,11 @@ export default function PoolPage() {
       toast.success(t('pool.submissionCreated', { defaultValue: 'Submitted for approval.' }));
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
+      if (err.response?.status === 401) {
+        toast.error(t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' }));
+        login('/pool');
+        return;
+      }
       if (err.response?.status === 409 && err.response?.data?.errorCode === 'ALREADY_IN_CHANNEL') {
         toast.error(t('pool.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
         return;
