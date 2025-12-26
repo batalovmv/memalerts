@@ -11,6 +11,7 @@ import {
   listLiveChatMessages,
   sendLiveChatMessage,
 } from '../utils/youtubeApi.js';
+import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { getStreamDurationSnapshot, handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import { markCreditsSessionOffline } from '../realtime/creditsSessionStore.js';
 
@@ -424,7 +425,8 @@ async function start() {
           if (!authorName || !authorChannelId) continue;
 
           // Credits chatter (best-effort).
-          const creditsUserId = `youtube:${authorChannelId}`;
+          const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'youtube', platformUserId: authorChannelId });
+          const creditsUserId = memalertsUserId || `youtube:${authorChannelId}`;
           for (const baseUrl of backendBaseUrls) {
             void postInternalCreditsChatter(baseUrl, { channelSlug: st.slug, userId: creditsUserId, displayName: authorName });
           }

@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { logAuthEvent } from '../utils/auditLogger.js';
 import { debugLog, debugError } from '../utils/debug.js';
 import { logger } from '../utils/logger.js';
+import { fetchMyYouTubeChannelIdByAccessToken } from '../utils/youtubeApi.js';
 import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
 import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
@@ -665,6 +666,26 @@ export const authController = {
           update: externalUpdate,
           select: { id: true },
         });
+
+        // Best-effort: for YouTube accounts, store the YouTube channelId in `login`
+        // so we can later resolve chat authors by `authorChannelId` (YouTube chat does not expose Google "sub").
+        // This is safe for streamer linking because we don't use email login for YouTube anyway.
+        if (provider === 'youtube' && accessToken) {
+          try {
+            const channelId = await fetchMyYouTubeChannelIdByAccessToken(accessToken);
+            if (channelId) {
+              await tx.externalAccount.update({
+                where: { id: upserted.id },
+                data: {
+                  login: channelId,
+                  profileUrl: `https://www.youtube.com/channel/${channelId}`,
+                },
+              });
+            }
+          } catch {
+            // ignore
+          }
+        }
 
         // IMPORTANT:
         // Only the Twitch *login* flow should update legacy User.twitch* fields.

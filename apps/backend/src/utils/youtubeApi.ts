@@ -378,6 +378,26 @@ async function youtubeGetJson<T>(params: { accessToken: string; url: string }): 
   return json as T;
 }
 
+// Used during OAuth callback to attach the YouTube channelId to the ExternalAccount row
+// (so chat authors can be resolved by authorChannelId).
+export async function fetchMyYouTubeChannelIdByAccessToken(accessToken: string): Promise<string | null> {
+  const token = String(accessToken || '').trim();
+  if (!token) return null;
+
+  type Resp = { items?: Array<{ id?: string }> };
+  const url = new URL('https://www.googleapis.com/youtube/v3/channels');
+  url.searchParams.set('part', 'id');
+  url.searchParams.set('mine', 'true');
+
+  try {
+    const data = await youtubeGetJson<Resp>({ accessToken: token, url: url.toString() });
+    const id = String(data?.items?.[0]?.id || '').trim();
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMyYouTubeChannelId(userId: string): Promise<string | null> {
   const detailed = await fetchMyYouTubeChannelIdDetailed(userId);
   return detailed.channelId;

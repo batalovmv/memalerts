@@ -5,6 +5,7 @@ import { VkVideoPubSubClient } from './vkvideoPubsubClient.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
+import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import {
   fetchVkVideoChannel,
   fetchVkVideoCurrentUser,
@@ -590,7 +591,9 @@ async function start() {
 
     // Credits: chatter event
     for (const baseUrl of backendBaseUrls) {
-      void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId: incoming.userId, displayName: incoming.displayName });
+      const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'vkvideo', platformUserId: incoming.userId });
+      const creditsUserId = memalertsUserId || `vkvideo:${incoming.userId}`;
+      void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId: creditsUserId, displayName: incoming.displayName });
     }
   };
 

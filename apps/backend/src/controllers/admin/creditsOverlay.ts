@@ -5,6 +5,7 @@ import type { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { createStreamOfflineEventSubSubscription, createStreamOnlineEventSubSubscription, deleteEventSubSubscription, getEventSubSubscriptions } from '../../utils/twitchApi.js';
 import { resetCreditsSession } from '../../realtime/creditsSessionStore.js';
+import { getCreditsStateFromStore } from '../../realtime/creditsSessionStore.js';
 
 const MAX_STYLE_JSON_LEN = 50_000;
 
@@ -294,6 +295,76 @@ export const resetCredits = async (req: AuthRequest, res: Response) => {
   } catch (e: any) {
     console.error('Error resetting credits:', e);
     return res.status(500).json({ error: 'Failed to reset credits' });
+  }
+};
+
+export const getCreditsState = async (req: AuthRequest, res: Response) => {
+  const channelId = req.channelId;
+  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+
+  try {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { slug: true },
+    });
+    const slug = String((channel as any)?.slug || '').toLowerCase();
+    if (!slug) return res.status(404).json({ error: 'Channel not found' });
+
+    const state = await getCreditsStateFromStore(slug);
+    return res.json({
+      channelSlug: slug,
+      chatters: state.chatters || [],
+      donors: state.donors || [],
+    });
+  } catch (e: any) {
+    console.error('Error getting credits state:', e);
+    return res.status(500).json({ error: 'Failed to get credits state' });
+  }
+};
+
+export const getCreditsIgnoredChatters = async (req: AuthRequest, res: Response) => {
+  const channelId = req.channelId;
+  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+
+  try {
+    const ch = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { creditsIgnoredChattersJson: true },
+    });
+    const list = Array.isArray((ch as any)?.creditsIgnoredChattersJson) ? (ch as any).creditsIgnoredChattersJson : [];
+    return res.json({ creditsIgnoredChatters: list });
+  } catch (e: any) {
+    console.error('Error getting credits ignored chatters:', e);
+    return res.status(500).json({ error: 'Failed to get ignored chatters' });
+  }
+};
+
+export const setCreditsIgnoredChatters = async (req: AuthRequest, res: Response) => {
+  const channelId = req.channelId;
+  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+
+  const raw = (req.body as any)?.creditsIgnoredChatters;
+  const arr = Array.isArray(raw) ? raw : [];
+  const cleaned: string[] = [];
+  for (const v of arr) {
+    const s = String(v ?? '').trim();
+    if (!s) continue;
+    if (s.length > 64) continue;
+    if (!cleaned.includes(s)) cleaned.push(s);
+  }
+  // cap to keep payload small
+  const capped = cleaned.slice(0, 200);
+
+  try {
+    const updated = await prisma.channel.update({
+      where: { id: channelId },
+      data: { creditsIgnoredChattersJson: capped as any },
+      select: { creditsIgnoredChattersJson: true },
+    });
+    return res.json({ creditsIgnoredChatters: (updated as any)?.creditsIgnoredChattersJson ?? capped });
+  } catch (e: any) {
+    console.error('Error setting credits ignored chatters:', e);
+    return res.status(500).json({ error: 'Failed to set ignored chatters' });
   }
 };
 

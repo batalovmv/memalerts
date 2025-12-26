@@ -5,6 +5,8 @@ import { getValidAccessToken } from '../utils/twitchApi.js';
 import { addCreditsChatter } from '../realtime/creditsSessionStore.js';
 import { emitCreditsState } from '../realtime/creditsState.js';
 import { logger } from '../utils/logger.js';
+import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
+import { shouldIgnoreCreditsChatter } from '../utils/creditsIgnore.js';
 
 type ChannelMapEntry = {
   login: string; // twitch channel login (lowercase)
@@ -86,6 +88,9 @@ async function resolveBotUserId(): Promise<string | null> {
 const windowMinCache = new Map<string, { v: number; ts: number }>(); // slug -> minutes
 const WINDOW_CACHE_MS = 60_000;
 
+const channelIdCache = new Map<string, { v: string; ts: number }>(); // slug -> channelId
+const CHANNEL_ID_CACHE_MS = 60_000;
+
 async function getReconnectWindowMinutes(slug: string): Promise<number> {
   const now = Date.now();
   const cached = windowMinCache.get(slug);
@@ -102,6 +107,23 @@ async function getReconnectWindowMinutes(slug: string): Promise<number> {
     return clamped;
   } catch {
     return 60;
+  }
+}
+
+async function getChannelIdBySlug(slug: string): Promise<string | null> {
+  const s = normalizeSlug(slug);
+  if (!s) return null;
+  const now = Date.now();
+  const cached = channelIdCache.get(s);
+  if (cached && now - cached.ts < CHANNEL_ID_CACHE_MS) return cached.v;
+  try {
+    const ch = await prisma.channel.findUnique({ where: { slug: s }, select: { id: true } });
+    const id = String((ch as any)?.id || '').trim();
+    if (!id) return null;
+    channelIdCache.set(s, { v: id, ts: now });
+    return id;
+  } catch {
+    return null;
   }
 }
 
@@ -163,13 +185,22 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
       const entry = map.find((m) => m.login === login);
       if (!entry) return;
 
-      const userId = String(tags?.['user-id'] || '').trim();
+      const twitchUserId = String(tags?.['user-id'] || '').trim();
       const displayName = String(tags?.['display-name'] || tags?.username || '').trim();
-      if (!userId || !displayName) return;
+      if (!twitchUserId || !displayName) return;
 
       const slug = entry.slug;
       const windowMin = await getReconnectWindowMinutes(slug);
-      await addCreditsChatter(slug, userId, displayName, windowMin);
+      const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'twitch', platformUserId: twitchUserId });
+      const creditsUserId = memalertsUserId || `twitch:${twitchUserId}`;
+
+      const channelId = await getChannelIdBySlug(slug);
+      if (channelId) {
+        const ignore = await shouldIgnoreCreditsChatter({ channelId, creditsUserId, displayName });
+        if (ignore) return;
+      }
+
+      await addCreditsChatter(slug, creditsUserId, displayName, windowMin);
       void emitCreditsState(io, slug);
     });
 

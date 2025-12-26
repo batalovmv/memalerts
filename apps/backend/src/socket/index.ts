@@ -84,7 +84,7 @@ export function setupSocketIO(io: Server) {
         const { prisma } = await import('../lib/prisma.js');
         const channel = await prisma.channel.findUnique({
           where: { id: auth.channelId },
-          select: { slug: true },
+          select: { slug: true, creditsStyleJson: true },
         });
         allowedSlug = String(channel?.slug || '').toLowerCase();
         allowedChannelSlugCache = allowedSlug ? { slug: allowedSlug, ts: now } : null;
@@ -97,8 +97,29 @@ export function setupSocketIO(io: Server) {
 
       socket.join(`channel:${allowedSlug}`);
       socket.data.isOverlay = false;
+      // Allow streamer dashboard to subscribe to credits updates without requiring OBS overlay to be open.
+      // We keep this separate from "isCreditsOverlay" to avoid affecting token-rotation kick logic.
+      (socket.data as any).isCreditsSubscriber = true;
       socket.data.channelSlug = allowedSlug;
       debugLog(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
+
+      // Best-effort: also send credits config/state and start ticker for this channel.
+      try {
+        // Reuse cached lookup if present; otherwise, fetch fresh (we may not have config in cache).
+        const { prisma } = await import('../lib/prisma.js');
+        const ch = await prisma.channel.findUnique({
+          where: { id: auth.channelId },
+          select: { slug: true, creditsStyleJson: true },
+        });
+        const slug = String(ch?.slug || '').toLowerCase();
+        if (slug) {
+          socket.emit('credits:config', { creditsStyleJson: (ch as any)?.creditsStyleJson ?? null });
+          socket.emit('credits:state', await getCreditsStateFromStore(slug));
+          startCreditsTicker(io, slug, 5000);
+        }
+      } catch {
+        // ignore
+      }
     });
 
     socket.on('join:overlay', async (data: { token?: string }) => {
@@ -203,7 +224,7 @@ export function setupSocketIO(io: Server) {
 
     socket.on('disconnect', () => {
       try {
-        if ((socket.data as any)?.isCreditsOverlay && (socket.data as any)?.channelSlug) {
+        if (((socket.data as any)?.isCreditsOverlay || (socket.data as any)?.isCreditsSubscriber) && (socket.data as any)?.channelSlug) {
           stopCreditsTicker(String((socket.data as any).channelSlug));
         }
       } catch {

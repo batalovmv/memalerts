@@ -41,6 +41,8 @@ model Channel {
   overlayTokenVersion           Int      @default(1)
   // OBS credits overlay (titres) settings (stored as JSON string)
   creditsStyleJson              String?  @db.Text
+  // Credits overlay: ignore chatters by name (case-insensitive). Stored as JSON array of strings.
+  creditsIgnoredChattersJson    Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
   // Increment to invalidate previously issued credits tokens.
   creditsTokenVersion           Int      @default(1)
   // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).

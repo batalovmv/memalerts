@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma.js';
 import { addCreditsChatter, addCreditsDonor } from '../../realtime/creditsSessionStore.js';
 import type { Server } from 'socket.io';
 import { emitCreditsState } from '../../realtime/creditsState.js';
+import { shouldIgnoreCreditsChatter } from '../../utils/creditsIgnore.js';
 
 // Reuse the same internal header name pattern as other relays.
 const INTERNAL_HEADER = 'x-memalerts-internal';
@@ -33,11 +34,17 @@ export const creditsInternalController = {
 
     const channel = await prisma.channel.findUnique({
       where: { slug },
-      select: { creditsReconnectWindowMinutes: true },
+      select: { id: true, creditsReconnectWindowMinutes: true },
     });
+    const channelId = String((channel as any)?.id || '').trim();
     const windowMin = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
       ? Number((channel as any).creditsReconnectWindowMinutes)
       : 60;
+
+    if (channelId) {
+      const ignore = await shouldIgnoreCreditsChatter({ channelId, creditsUserId: userId, displayName });
+      if (ignore) return res.json({ ok: true, ignored: true });
+    }
 
     await addCreditsChatter(slug, userId, displayName, windowMin);
 
