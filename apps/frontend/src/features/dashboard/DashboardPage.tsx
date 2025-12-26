@@ -784,14 +784,6 @@ export default function DashboardPage() {
                                 masked={true}
                               />
                             ) : null}
-                            {/* token is shown only for debugging / verification if needed */}
-                            {submissionsControl.token ? (
-                              <SecretCopyField
-                                label={t('dashboard.submissionsControl.token', { defaultValue: 'Token (one-time)' })}
-                                value={submissionsControl.token}
-                                masked={false}
-                              />
-                            ) : null}
                           </div>
                         )}
                       </div>
