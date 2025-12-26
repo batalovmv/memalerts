@@ -526,10 +526,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
   return (
     <>
-      <nav
-        className="glass rounded-none border-b border-black/5 dark:border-white/10 channel-theme-nav"
-        style={navStyle}
-      >
+      <nav className="bg-white dark:bg-gray-800 shadow-sm channel-theme-nav" style={navStyle}>
         <div className="page-container">
           <div className="flex justify-between h-16 items-center gap-2 min-w-0">
             <h1
@@ -548,7 +545,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                   <button
                     type="button"
                     onClick={handlePendingSubmissionsClick}
-                    className={`relative p-2 rounded-xl transition-colors ${
+                    className={`relative p-2 rounded-lg transition-colors ${
                       hasPendingSubmissions
                         ? 'hover:bg-gray-100 dark:hover:bg-gray-700'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800 opacity-60'
