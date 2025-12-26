@@ -14,6 +14,7 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { useSocket } from '@/contexts/SocketContext';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
+import { Button, IconButton, Input, Textarea } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -2681,7 +2682,7 @@ export function ObsLinksSettings() {
   );
 
   return (
-    <div className="surface p-6">
+    <div className="space-y-6">
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.obsLinksTitle', { defaultValue: 'OBS links' })}</h2>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
         {t('admin.obsLinksDescription', { defaultValue: 'Copy the overlay link and paste it into OBS as a Browser Source. The overlay will show activated memes in real time.' })}
@@ -2689,28 +2690,24 @@ export function ObsLinksSettings() {
 
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant={overlayKind === 'memes' ? 'primary' : 'secondary'}
+            className={overlayKind === 'memes' ? '' : 'glass-btn'}
             onClick={() => setOverlayKind('memes')}
-            className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-              overlayKind === 'memes'
-                ? 'bg-primary text-white border-primary'
-                : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
           >
             {t('admin.obsOverlayKindMemes', { defaultValue: 'Мемы' })}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            size="sm"
+            variant={overlayKind === 'credits' ? 'primary' : 'secondary'}
+            className={overlayKind === 'credits' ? '' : 'glass-btn'}
             onClick={() => setOverlayKind('credits')}
-            className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-              overlayKind === 'credits'
-                ? 'bg-primary text-white border-primary'
-                : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
           >
             {t('admin.obsOverlayKindCredits', { defaultValue: 'Титры' })}
-          </button>
+          </Button>
         </div>
 
         {overlayKind === 'memes' ? (
@@ -2719,11 +2716,12 @@ export function ObsLinksSettings() {
             value={overlayUrlWithDefaults}
             masked={true}
             emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
-            description={loadingToken ? t('common.loading', { defaultValue: 'Loading...' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
+            description={loadingToken ? t('common.loading', { defaultValue: 'Loading…' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
             rightActions={
-              <button
+              <IconButton
                 type="button"
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-gray-700 dark:text-gray-200 disabled:opacity-60"
+                variant="ghost"
+                className="rounded-xl text-gray-700 dark:text-gray-200"
                 onClick={(e) => {
                   e.stopPropagation();
                   void handleRotateOverlayToken();
@@ -2731,9 +2729,8 @@ export function ObsLinksSettings() {
                 disabled={rotatingOverlayToken || loadingToken || !overlayToken}
                 title={t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
                 aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
-              >
-                <RotateIcon />
-              </button>
+                icon={<RotateIcon />}
+              />
             }
           />
         ) : (
@@ -2744,13 +2741,14 @@ export function ObsLinksSettings() {
             emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
             description={
               loadingCreditsToken
-                ? t('common.loading', { defaultValue: 'Loading...' })
+                ? t('common.loading', { defaultValue: 'Loading…' })
                 : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })
             }
             rightActions={
-              <button
+              <IconButton
                 type="button"
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-gray-700 dark:text-gray-200 disabled:opacity-60"
+                variant="ghost"
+                className="rounded-xl text-gray-700 dark:text-gray-200"
                 onClick={(e) => {
                   e.stopPropagation();
                   void handleRotateCreditsToken();
@@ -2758,9 +2756,8 @@ export function ObsLinksSettings() {
                 disabled={rotatingCreditsToken || loadingCreditsToken || !creditsToken}
                 title={t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
                 aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
-              >
-                <RotateIcon />
-              </button>
+                icon={<RotateIcon />}
+              />
             }
           />
         )}
@@ -3069,19 +3066,23 @@ export function ObsLinksSettings() {
                           {t('admin.unsavedChanges', { defaultValue: 'Р•СЃС‚СЊ РЅРµСЃРѕС…СЂР°РЅС‘РЅРЅС‹Рµ РёР·РјРµРЅРµРЅРёСЏ' })}
                         </div>
                       )}
-                      <button
+                      <Button
                         type="button"
-                        className="glass-btn px-3 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10 flex items-center gap-2"
+                        size="sm"
+                        variant="secondary"
+                        className="glass-btn"
                         onClick={resetOverlayToDefaults}
                         disabled={savingOverlaySettings || loadingOverlaySettings}
                         title={t('admin.overlayResetDefaults')}
+                        leftIcon={
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
+                          </svg>
+                        }
                       >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
-                        </svg>
                         <span className="hidden sm:inline">{t('admin.overlayResetDefaults')}</span>
-                      </button>
+                      </Button>
                       {/* Import/Export removed: users can save custom presets locally instead */}
                       <button
                         type="button"
@@ -3102,15 +3103,15 @@ export function ObsLinksSettings() {
                         {t('admin.obsPresets', { defaultValue: 'Presets' })}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => applyPreset('default')}>
+                        <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyPreset('default')}>
                           {t('admin.obsPresetDefault', { defaultValue: 'Default' })}
-                        </button>
-                        <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => applyPreset('minimal')}>
+                        </Button>
+                        <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyPreset('minimal')}>
                           {t('admin.obsPresetMinimal', { defaultValue: 'Minimal' })}
-                        </button>
-                        <button type="button" className="glass-btn px-3 py-2 text-sm font-semibold" onClick={() => applyPreset('neon')}>
+                        </Button>
+                        <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyPreset('neon')}>
                           {t('admin.obsPresetNeon', { defaultValue: 'Neon' })}
-                        </button>
+                        </Button>
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-300">
                         {t('admin.obsPresetsHint', { defaultValue: 'Start from a preset, then tweak below.' })}
@@ -3121,41 +3122,41 @@ export function ObsLinksSettings() {
                           {t('admin.obsCustomPresets', { defaultValue: 'Your presets' })}
                         </div>
                         <div className="flex items-center gap-2">
-                          <input
+                          <Input
                             value={presetName}
                             onChange={(e) => setPresetName(e.target.value)}
                             placeholder={t('admin.obsPresetNamePlaceholder', { defaultValue: 'Preset name…' })}
-                            className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            className="flex-1"
                           />
-                          <button
-                            type="button"
-                            className="glass-btn px-3 py-2 text-sm font-semibold"
-                            onClick={saveCurrentAsCustomPreset}
-                          >
+                          <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={saveCurrentAsCustomPreset}>
                             {t('admin.obsPresetSave', { defaultValue: 'Save' })}
-                          </button>
+                          </Button>
                         </div>
 
                         {customPresets.length > 0 ? (
                           <div className="mt-2 space-y-2">
                             {customPresets.map((p) => (
                               <div key={p.id} className="flex items-center gap-2">
-                                <button
+                                <Button
                                   type="button"
-                                  className="glass-btn px-3 py-2 text-sm font-semibold flex-1 text-left"
+                                  size="sm"
+                                  variant="secondary"
+                                  className="glass-btn flex-1 justify-start"
                                   onClick={() => applySharePayload(p.payload)}
                                   title={t('admin.obsPresetApply', { defaultValue: 'Apply preset' })}
                                 >
                                   {p.name}
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                   type="button"
-                                  className="glass-btn px-3 py-2 text-sm font-semibold"
+                                  size="sm"
+                                  variant="secondary"
+                                  className="glass-btn"
                                   onClick={() => deleteCustomPreset(p.id)}
                                   title={t('admin.obsPresetDelete', { defaultValue: 'Delete' })}
                                 >
                                   {t('common.delete', { defaultValue: 'Delete' })}
-                                </button>
+                                </Button>
                               </div>
                             ))}
                           </div>
@@ -4160,13 +4161,15 @@ export function ObsLinksSettings() {
                         onChange={(e) => setSenderBgRadius(parseInt(e.target.value, 10))}
                         className="w-full"
                       />
-                      <button
+                      <Button
                         type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="glass-btn shrink-0"
                         onClick={() => setSenderBgRadius(999)}
-                        className="glass-btn px-3 py-2 text-sm font-semibold shrink-0"
                       >
                         {t('admin.obsOverlaySenderBgPill', { defaultValue: 'Pill' })}
-                      </button>
+                      </Button>
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                       {t('admin.obsOverlaySenderBgRadiusHint', { defaultValue: 'Tip: try 8вЂ“16 for a modern rounded rectangle.' })}
@@ -4426,11 +4429,11 @@ export function ObsLinksSettings() {
                       })}
                     </div>
                     <div className="mt-3 space-y-2">
-                      <textarea
+                      <Textarea
                         value={creditsIgnoredChattersText}
                         onChange={(e) => setCreditsIgnoredChattersText(e.target.value)}
                         rows={4}
-                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white font-mono text-xs"
+                        className="font-mono text-xs"
                         placeholder="nightbot\nstreamelements\n..."
                         disabled={loadingIgnoredChatters || savingIgnoredChatters}
                       />
@@ -4493,18 +4496,18 @@ export function ObsLinksSettings() {
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('minimal')}>
+                <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyCreditsPreset('minimal')}>
                   {t('admin.creditsPresetMinimal', { defaultValue: 'Minimal' })}
-                </button>
-                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('classic')}>
+                </Button>
+                <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyCreditsPreset('classic')}>
                   {t('admin.creditsPresetClassic', { defaultValue: 'Classic' })}
-                </button>
-                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('neon')}>
+                </Button>
+                <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyCreditsPreset('neon')}>
                   {t('admin.creditsPresetNeon', { defaultValue: 'Neon' })}
-                </button>
-                <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => applyCreditsPreset('fullscreen')}>
+                </Button>
+                <Button type="button" size="sm" variant="secondary" className="glass-btn" onClick={() => applyCreditsPreset('fullscreen')}>
                   {t('admin.creditsPresetFullscreen', { defaultValue: 'Fullscreen' })}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -4909,12 +4912,24 @@ export function ObsLinksSettings() {
                       {t('admin.creditsShowChatters', { defaultValue: 'Чат (Twitch)' })}
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => setCreditsSectionsOrder(['donors', 'chatters'])}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="glass-btn"
+                        onClick={() => setCreditsSectionsOrder(['donors', 'chatters'])}
+                      >
                         {t('admin.creditsOrderDonorsFirst', { defaultValue: 'Донаты → Чат' })}
-                      </button>
-                      <button type="button" className="px-3 py-1.5 rounded-lg text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white" onClick={() => setCreditsSectionsOrder(['chatters', 'donors'])}>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="glass-btn"
+                        onClick={() => setCreditsSectionsOrder(['chatters', 'donors'])}
+                      >
                         {t('admin.creditsOrderChattersFirst', { defaultValue: 'Чат → Донаты' })}
-                      </button>
+                      </Button>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>

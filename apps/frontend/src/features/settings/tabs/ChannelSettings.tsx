@@ -150,7 +150,7 @@ export function ChannelSettings() {
   const profileUrl = user?.channel?.slug ? resolvePublicUrl(`/channel/${user.channel.slug}`) : '';
 
   return (
-    <div className="surface p-6 relative">
+    <div className="relative space-y-6">
       {loading && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
       {savedPulse && !loading && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
       <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('admin.channelDesign', 'Оформление')}</h2>

@@ -121,7 +121,7 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
             {saving ? (
               <span className="inline-flex items-center gap-2">
                 <Spinner className="h-4 w-4 border-white/40 border-t-white" />
-                {t('common.loading', { defaultValue: 'Loading...' })}
+                {t('common.loading', { defaultValue: 'Loading…' })}
               </span>
             ) : (
               t('submissions.fixAndResubmit', { defaultValue: 'Fix & resubmit' })

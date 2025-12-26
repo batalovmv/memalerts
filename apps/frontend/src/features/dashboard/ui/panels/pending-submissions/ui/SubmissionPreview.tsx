@@ -35,7 +35,7 @@ export function SubmissionPreview({
         <div className="w-full h-full flex items-center justify-center text-white/80 text-sm">
           <div className="flex items-center gap-2">
             <Spinner className="h-4 w-4 border-gray-200/40 border-t-white/90" />
-            <span>{t('common.loading', { defaultValue: 'Loading...' })}</span>
+            <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
           </div>
         </div>
       ) : (

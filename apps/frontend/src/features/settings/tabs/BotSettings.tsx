@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
@@ -1489,7 +1490,7 @@ export function BotSettings() {
   }, [followGreetingTemplate, followGreetingsEnabled, saveFollowGreetingTemplate, showMenus]);
 
   return (
-    <div className="surface p-6">
+    <div className="space-y-6">
       <ConfirmDialog
         isOpen={subscriptionRequiredModalOpen}
         onClose={() => {
@@ -1943,9 +1944,9 @@ export function BotSettings() {
                 {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
               </div>
               <div className="mt-2">
-                <a href="/settings/accounts" className="underline hover:no-underline text-sm">
+                <Link to="/settings/accounts" className="underline hover:no-underline text-sm">
                   {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
-                </a>
+                </Link>
               </div>
             </div>
           ) : null}
@@ -2375,6 +2376,7 @@ export function BotSettings() {
                                   setNewAllowedRoles((prev) => (next ? [...prev, role] : prev.filter((r) => r !== role)));
                                 }}
                                 disabled={commandsLoading}
+                                className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
                               />
                               <span>
                                 {t(`admin.botRole_${role}`, {
@@ -2523,6 +2525,7 @@ export function BotSettings() {
                                                 );
                                               }}
                                               disabled={commandToggleLoadingId === cmd.id}
+                                              className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
                                             />
                                             <span>
                                               {t(`admin.botRole_${role}`, {
@@ -2674,9 +2677,9 @@ export function BotSettings() {
                 {t('settings.accountsServiceYouTubeHint', { defaultValue: 'Нужно привязать YouTube аккаунт в Accounts.' })}
               </div>
               <div className="mt-2">
-                <a href="/settings/accounts" className="underline hover:no-underline text-sm">
+                <Link to="/settings/accounts" className="underline hover:no-underline text-sm">
                   {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
-                </a>
+                </Link>
               </div>
             </div>
           ) : null}
@@ -2809,9 +2812,9 @@ export function BotSettings() {
                 {t('settings.accountsServiceVkvideoHint', { defaultValue: 'Нужно привязать VKVideo аккаунт в Accounts.' })}
               </div>
               <div className="mt-2">
-                <a href="/settings/accounts" className="underline hover:no-underline text-sm">
+                <Link to="/settings/accounts" className="underline hover:no-underline text-sm">
                   {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
-                </a>
+                </Link>
               </div>
             </div>
           ) : (

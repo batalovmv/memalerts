@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
+import { Button, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -338,7 +339,7 @@ export function RewardsSettings() {
   }, [rewardSettings.submissionRewardCoins, rewardSettings.submissionRewardOnlyWhenLive, user?.channel?.slug]);
 
   return (
-    <div className="surface p-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold dark:text-white">{t('admin.rewards', 'Награды')}</h2>
         {/* Future: Add new reward button - пока скрыто, так как только одна награда */}
@@ -453,11 +454,10 @@ export function RewardsSettings() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('admin.rewardTitle')}
                 </label>
-                <input
+                <Input
                   type="text"
                   value={rewardSettings.rewardTitle}
                   onChange={(e) => setRewardSettings({ ...rewardSettings, rewardTitle: e.target.value })}
-                  className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   placeholder={t('admin.rewardTitlePlaceholder')}
                 />
               </div>
@@ -466,7 +466,7 @@ export function RewardsSettings() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {t('admin.rewardCost')}
                   </label>
-                  <input
+                  <Input
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -480,7 +480,6 @@ export function RewardsSettings() {
                         e.preventDefault();
                       }
                     }}
-                    className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
@@ -492,7 +491,7 @@ export function RewardsSettings() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {t('admin.rewardCoins')}
                   </label>
-                  <input
+                  <Input
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -506,7 +505,6 @@ export function RewardsSettings() {
                         e.preventDefault();
                       }
                     }}
-                    className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder="100"
                     required={rewardSettings.rewardEnabled}
                   />
@@ -593,7 +591,7 @@ export function RewardsSettings() {
               {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
             </label>
             <div className="flex items-center gap-2">
-              <input
+              <Input
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -607,12 +605,13 @@ export function RewardsSettings() {
                     e.preventDefault();
                   }
                 }}
-                className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 placeholder="0"
               />
-              <button
+              <Button
                 type="button"
-                className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold glass-btn bg-white/40 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+                size="sm"
+                variant="secondary"
+                className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
                 onClick={() => {
                   const current = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
                   const next = (Number.isFinite(current) ? current : 0) + 100;
@@ -621,7 +620,7 @@ export function RewardsSettings() {
                 disabled={savingApprovedMemeReward}
               >
                 {t('admin.quickAdd100', { defaultValue: '+100' })}
-              </button>
+              </Button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}

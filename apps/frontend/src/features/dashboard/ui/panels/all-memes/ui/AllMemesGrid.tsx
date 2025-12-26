@@ -28,7 +28,7 @@ export function AllMemesGrid({
 
   if (loading && memes.length === 0) {
     return (
-      <div className="meme-masonry" aria-label={t('common.loading', { defaultValue: 'Loading...' })}>
+      <div className="meme-masonry" aria-label={t('common.loading', { defaultValue: 'Loading…' })}>
         {Array.from({ length: 10 }).map((_, i) => {
           const aspectRatio = skeletonAspectRatios[i % skeletonAspectRatios.length];
 
@@ -78,7 +78,7 @@ export function AllMemesGrid({
       {loadingMore && (
         <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-2">
           <Spinner className="h-4 w-4" />
-          {t('common.loading', { defaultValue: 'Loading...' })}
+          {t('common.loading', { defaultValue: 'Loading…' })}
         </div>
       )}
     </div>

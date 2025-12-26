@@ -330,7 +330,7 @@ export default function MemeModal({
 
       {/* Info Section - Right */}
       <aside
-        className="w-full md:w-80 border-t md:border-t-0 border-secondary/30 dark:border-secondary/30 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative"
+        className="w-full md:w-80 border-t md:border-t-0 border-black/5 dark:border-white/10 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative"
         aria-label="Meme information"
       >
         {/* Action buttons in top right corner */}
@@ -442,7 +442,7 @@ export default function MemeModal({
               </div>
               <div className="flex gap-2 pt-2">
                 <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
-                  {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('common.save', { defaultValue: 'Save' })}
+                  {loading ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.save', { defaultValue: 'Save' })}
                 </Button>
                 <Button type="button" variant="secondary" className="flex-1" onClick={handleCancel} disabled={loading}>
                   {t('common.cancel', { defaultValue: 'Cancel' })}
@@ -502,7 +502,7 @@ export default function MemeModal({
 
               {/* Activate button for viewer mode */}
               {mode === 'viewer' && (
-                <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
+                <div className="pt-4 border-t border-black/5 dark:border-white/10">
                   <Button
                     type="button"
                     onClick={handleActivate}
@@ -513,7 +513,7 @@ export default function MemeModal({
                     {isGuestViewer
                       ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
                       : walletBalance === undefined
-                        ? t('common.loading', { defaultValue: 'Loading...' })
+                        ? t('common.loading', { defaultValue: 'Loading…' })
                         : walletBalance < (currentMeme.priceCoins || 0)
                           ? t('memeModal.insufficientCoins', {
                               defaultValue: 'Insufficient coins (need {{price}})',
@@ -531,9 +531,9 @@ export default function MemeModal({
 
               {/* Delete button for admin mode */}
               {mode === 'admin' && isOwner && !isEditing && (
-                <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
+                <div className="pt-4 border-t border-black/5 dark:border-white/10">
                   <Button type="button" variant="danger" className="w-full" onClick={handleDelete} disabled={loading}>
-                    {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
+                    {loading ? t('common.loading', { defaultValue: 'Loading…' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
                   </Button>
                 </div>
               )}

@@ -40,7 +40,7 @@ export function BetaAccessSelf() {
   const requestStatus = status?.request?.status;
 
   return (
-    <section className="surface p-6">
+    <section className="space-y-4">
       <h2 className="text-2xl font-bold dark:text-white">{t('admin.betaAccess')}</h2>
       <p className="mt-2 text-gray-700 dark:text-gray-200">
         {t('betaAccess.pageDescription', { defaultValue: 'Beta is for testing new features. You can request access below.' })}

@@ -491,7 +491,7 @@ export function AccountsSettings() {
   );
 
   return (
-    <div className="surface p-6">
+    <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold dark:text-white">{t('settings.accountsTitle', { defaultValue: 'Linked accounts' })}</h2>

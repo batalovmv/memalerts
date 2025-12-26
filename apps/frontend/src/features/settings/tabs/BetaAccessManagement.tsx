@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/lib/api';
-import { Button, Card, Input } from '@/shared/ui';
+import { Button, Card, Input, Spinner } from '@/shared/ui';
 
 export function BetaAccessManagement() {
   const { t } = useTranslation();
@@ -157,7 +157,12 @@ export function BetaAccessManagement() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">{t('common.loading')}</div>;
+    return (
+      <div className="py-10 flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
+        <Spinner className="h-5 w-5" />
+        <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
+      </div>
+    );
   }
 
   const filteredGrantedUsers = grantedUsers.filter((u: Record<string, unknown>) => {

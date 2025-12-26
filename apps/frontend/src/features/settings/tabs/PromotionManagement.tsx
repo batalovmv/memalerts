@@ -3,7 +3,7 @@ import type React from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Card, Input } from '@/shared/ui';
+import { Button, Card, Input, Spinner } from '@/shared/ui';
 
 export function PromotionManagement() {
   const { t } = useTranslation();
@@ -93,7 +93,12 @@ export function PromotionManagement() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">{t('admin.loadingPromotions')}</div>;
+    return (
+      <div className="py-10 flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
+        <Spinner className="h-5 w-5" />
+        <span>{t('admin.loadingPromotions', { defaultValue: 'Loading…' })}</span>
+      </div>
+    );
   }
 
   if (error) {
@@ -117,7 +122,7 @@ export function PromotionManagement() {
 
   return (
     <div className="space-y-4">
-      <div className="surface p-6">
+      <div className="space-y-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.promotions')}</h2>
           <Button

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import { Spinner } from '@/shared/ui';
+
 export function ChannelStatistics() {
   const { t } = useTranslation();
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
@@ -31,7 +33,12 @@ export function ChannelStatistics() {
   }, [fetchStats]);
 
   if (loading) {
-    return <div className="text-center py-8">{t('admin.loadingStatistics')}</div>;
+    return (
+      <div className="py-10 flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
+        <Spinner className="h-5 w-5" />
+        <span>{t('admin.loadingStatistics', { defaultValue: 'Loading…' })}</span>
+      </div>
+    );
   }
 
   if (!stats) {

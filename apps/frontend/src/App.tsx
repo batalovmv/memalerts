@@ -1,6 +1,6 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import GlobalErrorBanner from './components/GlobalErrorBanner';
 import { SocketProvider } from './contexts/SocketContext';
 import { api } from './lib/api';
+import { Spinner } from './shared/ui';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchUser } from './store/slices/authSlice';
 
@@ -26,6 +27,7 @@ function App() {
   const { user } = useAppSelector((state) => state.auth);
   const [betaChecked, setBetaChecked] = useState(false);
   const [betaHasAccess, setBetaHasAccess] = useState<boolean>(true);
+  const location = useLocation();
 
   useEffect(() => {
     dispatch(fetchUser());
@@ -77,16 +79,36 @@ function App() {
     );
   }
 
+  const showGlobalBackground = useMemo(() => {
+    // Public channel pages already provide their own full-screen background.
+    return !location.pathname.startsWith('/channel/');
+  }, [location.pathname]);
+
   return (
     <SocketProvider>
       <Toaster position="top-right" />
       <GlobalErrorBanner />
-      <div className="flex flex-col min-h-screen overflow-x-hidden">
+      <div className="relative flex flex-col min-h-screen overflow-x-hidden">
+        {showGlobalBackground ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: [
+                `radial-gradient(70% 60% at 14% 12%, color-mix(in srgb, var(--primary-color) 14%, transparent) 0%, transparent 62%)`,
+                `radial-gradient(60% 55% at 88% 16%, color-mix(in srgb, var(--secondary-color) 12%, transparent) 0%, transparent 64%)`,
+                `radial-gradient(70% 60% at 55% 90%, color-mix(in srgb, var(--accent-color) 10%, transparent) 0%, transparent 64%)`,
+                `linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 8%, transparent) 0%, transparent 45%, color-mix(in srgb, var(--secondary-color) 8%, transparent) 100%)`,
+              ].join(', '),
+            }}
+          />
+        ) : null}
         <div className="flex-1 flex flex-col">
           <Suspense
             fallback={
-              <div className="min-h-[50vh] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                Loading…
+              <div className="min-h-[50vh] flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
+                <Spinner className="h-5 w-5" />
+                <span>Loading…</span>
               </div>
             }
           >

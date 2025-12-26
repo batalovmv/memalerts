@@ -94,8 +94,8 @@ export default function SecretCopyField({ label, value, description, masked = tr
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
       <div
-        className={`flex items-center gap-2 rounded-lg border border-secondary/20 bg-gray-50 dark:bg-gray-700 px-3 py-2 ${
-          canCopy ? 'cursor-pointer hover:border-secondary/40' : 'cursor-not-allowed opacity-70'
+        className={`flex items-center gap-2 rounded-xl bg-white/65 dark:bg-white/10 shadow-sm ring-1 ring-black/5 dark:ring-white/10 px-3 py-2 ${
+          canCopy ? 'cursor-pointer hover:bg-white/75 dark:hover:bg-white/15' : 'cursor-not-allowed opacity-70'
         }`}
         role="button"
         tabIndex={canCopy ? 0 : -1}

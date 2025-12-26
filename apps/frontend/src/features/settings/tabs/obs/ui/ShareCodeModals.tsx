@@ -1,5 +1,7 @@
 import toast from 'react-hot-toast';
 
+import { Button, Textarea } from '@/shared/ui';
+
 type TFn = (key: string, opts?: Record<string, unknown>) => string;
 
 export function ShareCodeModals(props: {
@@ -58,15 +60,11 @@ export function ShareCodeModals(props: {
               <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
                 {t('admin.overlayShareCode', { defaultValue: 'Code' })}
               </div>
-              <textarea
-                value={exportCode}
-                readOnly
-                className="w-full h-28 rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
-              />
+              <Textarea value={exportCode} readOnly className="h-28 font-mono text-xs bg-white/70 dark:bg-white/10" />
               <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                <button
+                <Button
                   type="button"
-                  className="glass-btn px-4 py-2 text-sm font-semibold bg-primary text-white border border-primary/30"
+                  variant="primary"
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(exportCode);
@@ -77,14 +75,10 @@ export function ShareCodeModals(props: {
                   }}
                 >
                   {t('admin.copyCode', { defaultValue: 'Copy code' })}
-                </button>
-                <button
-                  type="button"
-                  className="glass-btn px-4 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10"
-                  onClick={onCloseExport}
-                >
+                </Button>
+                <Button type="button" variant="secondary" className="glass-btn" onClick={onCloseExport}>
                   {t('common.close', { defaultValue: 'Close' })}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -127,29 +121,20 @@ export function ShareCodeModals(props: {
               </button>
             </div>
             <div className="mt-4">
-              <textarea
+              <Textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder={t('admin.overlayShareImportPlaceholder', { defaultValue: 'MA1....' })}
-                className="w-full h-28 rounded-xl px-3 py-2 bg-white/70 dark:bg-white/10 text-gray-900 dark:text-white font-mono text-xs focus:outline-none"
+                className="h-28 font-mono text-xs bg-white/70 dark:bg-white/10"
               />
             </div>
             <div className="mt-3 flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                className="glass-btn px-4 py-2 text-sm font-semibold bg-primary text-white border border-primary/30 disabled:opacity-50"
-                onClick={onApplyImport}
-                disabled={!importText.trim()}
-              >
+              <Button type="button" variant="primary" onClick={onApplyImport} disabled={!importText.trim()}>
                 {t('admin.overlayShareApply', { defaultValue: 'Apply' })}
-              </button>
-              <button
-                type="button"
-                className="glass-btn px-4 py-2 text-sm font-semibold bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white border border-white/20 dark:border-white/10"
-                onClick={onClearImportAndClose}
-              >
+              </Button>
+              <Button type="button" variant="secondary" className="glass-btn" onClick={onClearImportAndClose}>
                 {t('common.cancel', { defaultValue: 'Cancel' })}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
