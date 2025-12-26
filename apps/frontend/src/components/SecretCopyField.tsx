@@ -72,6 +72,13 @@ export default function SecretCopyField({ label, value, description, masked = tr
         const suffix = token.length > 8 ? token.slice(-8) : token;
         return `****************${suffix}`;
       }
+      // Generic: if this is a URL with ?token=..., show token suffix.
+      const url = new URL(v);
+      const token = (url.searchParams.get('token') || '').trim();
+      if (token) {
+        const suffix = token.length > 8 ? token.slice(-8) : token;
+        return `****************${suffix}`;
+      }
     } catch {
       // ignore and fall back
     }

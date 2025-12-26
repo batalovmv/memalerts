@@ -124,6 +124,46 @@
       "settings": "Settings",
       "settingsDescription": "Configure your channel and preferences",
       "settingsButton": "Open Settings"
+    },
+    "submissions": {
+      "saved": "Saved",
+      "enabledTitle": "Allow submissions",
+      "enabledHint": "If disabled, viewers will see a message instead of the submit form.",
+      "onlyWhenLiveTitle": "Only while stream is live",
+      "onlyWhenLiveHint": "If enabled, submissions will be rejected when the stream is offline."
+    },
+    "submissionsControl": {
+      "title": "Submissions",
+      "subtitle": "Control whether viewers can submit memes.",
+      "linkTitle": "StreamerBot / StreamDeck link",
+      "linkHint": "Use these links in automation tools to enable/disable submissions instantly.",
+      "reveal": "Show link",
+      "refresh": "Refresh",
+      "rotate": "Rotate",
+      "revealOnce": "Link is hidden. Rotate to reveal a new one.",
+      "failedToLoad": "Failed to load link",
+      "failedToLoadStatus": "Failed to load status",
+      "invalidToken": "Token is invalid. Rotate the link to generate a new one.",
+      "failedToRotate": "Failed to rotate link",
+      "rotated": "Link updated. Paste the new URL into StreamerBot.",
+      "enableLink": "Enable (idempotent)",
+      "disableLink": "Disable (idempotent)",
+      "toggleLink": "Toggle (non-idempotent)",
+      "token": "Token (one-time)",
+      "statusSubmits": "Submits",
+      "statusOnlyWhenLive": "Only when live"
+    },
+    "bots": {
+      "title": "Bots",
+      "subtitle": "Enable or disable all bot integrations at once.",
+      "enableAll": "Enable all",
+      "disableAll": "Disable all",
+      "enabledAll": "All bots enabled.",
+      "disabledAll": "All bots disabled.",
+      "failedAll": "Failed to update bots",
+      "failedPartial": "Some bots failed to update. Please retry.",
+      "none": "No bot integrations found.",
+      "allOn": "All on"
     }
   },
   "submit": {
@@ -813,7 +853,10 @@
     "urlMustBeFromMemalerts": "URL must be from memalerts.com or cdns.memealerts.com",
     "uploadTimeout": "Upload timeout. The file may have been uploaded successfully. Please check your submissions.",
     "failedToSubmit": "Failed to submit meme",
-    "failedToImport": "Failed to import meme"
+    "failedToImport": "Failed to import meme",
+    "unavailableTitle": "Submission unavailable",
+    "submissionsDisabled": "Submissions are disabled by the streamer",
+    "submissionsOffline": "Submissions are allowed only while the stream is live"
   },
   "profile": {
     "balanceFor": "Your Balance for",

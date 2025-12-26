@@ -14,14 +14,16 @@ export interface SubmitModalProps {
   onClose: () => void;
   channelSlug?: string;
   channelId?: string;
+  initialBlockedReason?: null | 'disabled' | 'offline';
 }
 
-export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }: SubmitModalProps) {
+export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, initialBlockedReason = null }: SubmitModalProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState<boolean>(false);
+  const [blockedReason, setBlockedReason] = useState<null | 'disabled' | 'offline'>(null);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
     title: string;
@@ -48,8 +50,22 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
       setFilePreview(null);
       setUploadProgress(0);
       setMode('upload');
+      setBlockedReason(null);
     }
   }, [isOpen]);
+
+  // Allow parent to block the modal without making a submission request first
+  // (e.g. when channel says submissionsEnabled=false).
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!initialBlockedReason) return;
+    setBlockedReason(initialBlockedReason);
+  }, [initialBlockedReason, isOpen]);
+
+  const getBlockedCopy = (r: 'disabled' | 'offline') => {
+    if (r === 'disabled') return t('submitModal.submissionsDisabled', { defaultValue: 'Отправка мемов запрещена стримером' });
+    return t('submitModal.submissionsOffline', { defaultValue: 'Отправка доступна только во время стрима' });
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0] || null;
@@ -172,6 +188,18 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           code?: string;
           message?: string;
         };
+        const maybeErrorCode =
+          apiError.response?.data && typeof apiError.response.data === 'object'
+            ? ((apiError.response.data as unknown as { errorCode?: unknown })?.errorCode ?? null)
+            : null;
+        if (apiError.response?.status === 403 && maybeErrorCode === 'SUBMISSIONS_DISABLED') {
+          setBlockedReason('disabled');
+          return;
+        }
+        if (apiError.response?.status === 403 && maybeErrorCode === 'SUBMISSIONS_OFFLINE') {
+          setBlockedReason('offline');
+          return;
+        }
         // Handle 524 Cloudflare timeout specifically
         if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
           toast.error(t('submitModal.uploadTimeout'));
@@ -218,7 +246,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           navigate('/submit');
         }
       } catch (error: unknown) {
-        const apiError = error as { response?: { data?: { error?: string } } };
+        const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: unknown } } };
+        if (apiError.response?.status === 403 && apiError.response?.data?.errorCode === 'SUBMISSIONS_DISABLED') {
+          setBlockedReason('disabled');
+          return;
+        }
+        if (apiError.response?.status === 403 && apiError.response?.data?.errorCode === 'SUBMISSIONS_OFFLINE') {
+          setBlockedReason('offline');
+          return;
+        }
         toast.error(apiError.response?.data?.error || t('submitModal.failedToImport'));
       } finally {
         setLoading(false);
@@ -252,6 +288,21 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
 
       {/* Content */}
       <div className="p-4 sm:p-6">
+        {blockedReason ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-danger/10 ring-1 ring-danger/20 p-4">
+              <div className="text-base font-semibold text-gray-900 dark:text-white">
+                {t('submitModal.unavailableTitle', { defaultValue: 'Отправка недоступна' })}
+              </div>
+              <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">{getBlockedCopy(blockedReason)}</div>
+            </div>
+            <div className="flex justify-end">
+              <Button type="button" variant="secondary" onClick={onClose}>
+                {t('common.close', { defaultValue: 'Close' })}
+              </Button>
+            </div>
+          </div>
+        ) : (
         {/* Mode selector */}
         <div className="mb-6 glass p-3 sm:p-4">
           <div className="flex gap-3" role="tablist" aria-label={t('submitModal.mode', { defaultValue: 'Submit mode' })}>
@@ -395,6 +446,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
             </Button>
           </div>
         </form>
+        )}
       </div>
     </Modal>
   );

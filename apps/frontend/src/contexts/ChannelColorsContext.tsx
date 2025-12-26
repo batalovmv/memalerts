@@ -27,6 +27,8 @@ interface ChannelData {
   rewardCost?: number | null;
   rewardCoins?: number | null;
   submissionRewardCoins?: number;
+  submissionsEnabled?: boolean;
+  submissionsOnlyWhenLive?: boolean;
   createdAt?: string;
   owner?: {
     id: string;

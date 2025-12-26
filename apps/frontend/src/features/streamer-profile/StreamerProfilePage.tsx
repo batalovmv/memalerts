@@ -12,6 +12,7 @@ import Header from '@/components/Header';
 import MemeCard from '@/components/MemeCard';
 import MemeModal from '@/components/MemeModal';
 import SubmitModal from '@/components/SubmitModal';
+import { useSocket } from '@/contexts/SocketContext';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
@@ -32,6 +33,8 @@ interface ChannelInfo {
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
+  submissionsEnabled?: boolean;
+  submissionsOnlyWhenLive?: boolean;
   createdAt: string;
   memes: Meme[];
   owner?: {
@@ -51,6 +54,7 @@ export default function StreamerProfile() {
   const { user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { socket, isConnected } = useSocket();
   
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -182,6 +186,39 @@ export default function StreamerProfile() {
 
     loadChannelData();
   }, [slug, normalizedSlug, user, navigate, t, dispatch]);
+
+  // Realtime: submissions status updates (Socket.IO)
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+    const roomSlug = String(channelInfo?.slug || normalizedSlug || '').trim();
+    if (!roomSlug) return;
+
+    socket.emit('join:channel', roomSlug);
+
+    const onStatus = (payload: { enabled?: boolean; onlyWhenLive?: boolean } | null | undefined) => {
+      const enabled = typeof payload?.enabled === 'boolean' ? payload.enabled : null;
+      const onlyWhenLive = typeof payload?.onlyWhenLive === 'boolean' ? payload.onlyWhenLive : null;
+      if (enabled === null && onlyWhenLive === null) return;
+
+      setChannelInfo((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ...(enabled !== null ? { submissionsEnabled: enabled } : null),
+          ...(onlyWhenLive !== null ? { submissionsOnlyWhenLive: onlyWhenLive } : null),
+        };
+      });
+
+      if (enabled === false) {
+        setIsSubmitModalOpen(false);
+      }
+    };
+
+    socket.on('submissions:status', onStatus);
+    return () => {
+      socket.off('submissions:status', onStatus);
+    };
+  }, [channelInfo?.slug, isConnected, normalizedSlug, socket]);
 
   // Sync wallet from user.wallets when Redux store updates (e.g., via Socket.IO)
   useEffect(() => {
@@ -647,6 +684,7 @@ export default function StreamerProfile() {
         onClose={() => setIsSubmitModalOpen(false)}
         channelSlug={slug}
         channelId={channelInfo?.id}
+        initialBlockedReason={channelInfo?.submissionsEnabled === false ? 'disabled' : null}
       />
 
       {/* Coins Info Modal */}
