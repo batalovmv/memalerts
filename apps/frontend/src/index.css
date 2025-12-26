@@ -145,10 +145,10 @@ body {
   }
 }
 
-/* Meme masonry grid (reference: memealerts.com cards) */
+/* Meme masonry grid */
 .meme-masonry {
   column-width: 249px; /* fixed card width target */
-  column-gap: 5px;     /* horizontal spacing between columns (match reference) */
+  column-gap: 12px;    /* breathing room for modern paddings */
 }
 
 /* Mobile: force exactly 2 columns so cards don't become "full screen" wide */
@@ -156,7 +156,7 @@ body {
   .meme-masonry {
     column-count: 2;
     column-width: auto;
-    column-gap: 8px;
+    column-gap: 10px;
   }
 }
 

@@ -42,8 +42,11 @@ export function MemeCardView({
     <article
       ref={setCardEl}
       className={cn(
-        'block w-full bg-transparent overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-[5px]',
-        'will-change-transform transition-transform duration-200 ease-out hover:scale-[1.02]',
+        'block w-full overflow-hidden rounded-xl cursor-pointer break-inside-avoid mb-3',
+        'bg-white/60 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 shadow-sm',
+        'will-change-transform transition-[transform,box-shadow] duration-200 ease-out',
+        'hover:-translate-y-[1px] hover:shadow-[0_10px_25px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_10px_25px_rgba(0,0,0,0.45)]',
+        'focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -75,7 +78,7 @@ export function MemeCardView({
         )}
         {isHovered && (
           <div
-            className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-0"
+            className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-10"
             aria-label={`Meme title: ${meme.title}`}
           >
             <p className="text-sm font-medium truncate px-2">{meme.title}</p>

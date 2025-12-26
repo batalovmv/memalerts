@@ -4,6 +4,8 @@ import type { Meme } from '@/types';
 
 import MemeCard from '@/components/MemeCard';
 
+const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
+
 export type AllMemesGridProps = {
   memes: Meme[];
   loading: boolean;
@@ -24,12 +26,35 @@ export function AllMemesGrid({
   const { t } = useTranslation();
 
   if (loading && memes.length === 0) {
-    return <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('common.loading')}</div>;
+    return (
+      <div className="meme-masonry" aria-label={t('common.loading', { defaultValue: 'Loading...' })}>
+        {Array.from({ length: 10 }).map((_, i) => {
+          const aspectRatio = skeletonAspectRatios[i % skeletonAspectRatios.length];
+
+          return (
+            <div
+              // eslint-disable-next-line react/no-array-index-key
+              key={i}
+              className="surface overflow-hidden rounded-xl break-inside-avoid mb-3 animate-pulse"
+            >
+              <div
+                className="w-full bg-gray-200/70 dark:bg-white/10"
+                style={{ aspectRatio }}
+                aria-hidden="true"
+              />
+              <div className="px-3 py-3">
+                <div className="h-3 w-3/4 rounded bg-gray-200/70 dark:bg-white/10" aria-hidden="true" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   if (memes.length === 0) {
     return (
-      <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
+      <div className="glass p-6 text-gray-800 dark:text-gray-200">
         <div className="font-semibold mb-1">{t('dashboard.noMemes', { defaultValue: 'No memes yet' })}</div>
         <div className="text-sm text-gray-600 dark:text-gray-400">
           {t('dashboard.noMemesHint', { defaultValue: 'Submit your first meme to build your library.' })}
