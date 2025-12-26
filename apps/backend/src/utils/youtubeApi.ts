@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { logger } from './logger.js';
+import { fetchGoogleTokenInfo } from '../auth/providers/youtube.js';
 
 type GoogleRefreshTokenResponse = {
   access_token?: string;
@@ -58,7 +59,11 @@ function splitScopes(scopes: string | null | undefined): string[] {
 // - read live chat messages for commands/credits
 //
 // We intentionally keep this minimal and read-only to avoid scary consent prompts.
-const REQUIRED_YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.readonly'];
+const YOUTUBE_SCOPE_READONLY = 'https://www.googleapis.com/auth/youtube.readonly';
+// Some users may already have a stronger scope from "custom bot sender" linking.
+// Treat it as sufficient for read operations to avoid unnecessary re-link prompts.
+const YOUTUBE_SCOPE_FORCE_SSL = 'https://www.googleapis.com/auth/youtube.force-ssl';
+const REQUIRED_YOUTUBE_SCOPES = [YOUTUBE_SCOPE_READONLY];
 
 type YouTubeBotAuthErrorReason = 'missing_bot_oauth_env' | 'missing_bot_refresh_token' | 'invalid_grant' | 'refresh_failed';
 
@@ -147,6 +152,7 @@ export async function getValidYouTubeBotAccessToken(): Promise<string | null> {
 
 function getMissingRequiredScopes(scopes: string | null | undefined): string[] {
   const set = new Set(splitScopes(scopes));
+  if (set.has(YOUTUBE_SCOPE_READONLY) || set.has(YOUTUBE_SCOPE_FORCE_SSL)) return [];
   return REQUIRED_YOUTUBE_SCOPES.filter((s) => !set.has(s));
 }
 
@@ -420,7 +426,29 @@ export async function fetchMyYouTubeChannelIdDetailed(userId: string): Promise<F
     };
   }
 
-  const missingScopes = getMissingRequiredScopes(account.scopes);
+  // Scope sanity check (best-effort self-heal):
+  // - Old rows may have null/empty `scopes`
+  // - Bot-link flows may have different but sufficient scopes
+  // If tokeninfo shows sufficient scopes, we update DB and proceed.
+  let missingScopes = getMissingRequiredScopes(account.scopes);
+  if (missingScopes.length && account.accessToken) {
+    const tokenInfo = await fetchGoogleTokenInfo({ accessToken: account.accessToken });
+    const tokenInfoMissing = getMissingRequiredScopes(tokenInfo?.scope ?? null);
+    if (!tokenInfoMissing.length && tokenInfo?.scope) {
+      try {
+        await prisma.externalAccount.update({
+          where: { id: account.id },
+          data: { scopes: tokenInfo.scope },
+          select: { id: true },
+        });
+      } catch (e: any) {
+        // Non-fatal: proceed even if scope update fails.
+        logger.warn('youtube.scopes.update_failed', { userId, externalAccountId: account.id, errorMessage: e?.message || String(e) });
+      }
+      missingScopes = [];
+    }
+  }
+
   if (missingScopes.length) {
     return {
       ok: false,
