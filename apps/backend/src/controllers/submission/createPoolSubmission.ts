@@ -74,6 +74,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         slug: true,
+        defaultPriceCoins: true,
         users: { where: { role: 'streamer' }, take: 1, select: { id: true } },
       },
     });
@@ -87,7 +88,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
 
     const asset = await prisma.memeAsset.findUnique({
       where: { id: body.memeAssetId },
-      select: { id: true, purgedAt: true },
+      select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgedAt: true },
     });
     stageLog('submission.pool.after_asset_lookup', {
       requestId,
@@ -97,6 +98,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       durationMs: Date.now() - startedAt,
     });
     if (!asset || asset.purgedAt) return res.status(404).json({ error: 'Meme asset not found', requestId });
+    if (!asset.fileUrl) return res.status(404).json({ error: 'Meme asset not found', requestId });
 
     // If already adopted in this channel -> error for frontend handling.
     const existing = await prisma.channelMeme.findUnique({
@@ -113,6 +115,70 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
     });
     if (existing && !existing.deletedAt) {
       return res.status(409).json({ error: 'ALREADY_IN_CHANNEL', requestId });
+    }
+
+    // Owner bypass: if the authenticated user is the streamer/admin for this channel, adopt immediately (no submission).
+    // IMPORTANT: based on JWT channelId to prevent cross-channel bypass.
+    const isOwner =
+      !!req.userId && !!req.channelId && (req.userRole === 'streamer' || req.userRole === 'admin') && String(req.channelId) === String(body.channelId);
+    if (isOwner) {
+      const defaultPrice = (channel as any).defaultPriceCoins ?? 100;
+      const now = new Date();
+
+      const cm = await prisma.channelMeme.upsert({
+        where: { channelId_memeAssetId: { channelId: body.channelId, memeAssetId: asset.id } },
+        create: {
+          channelId: body.channelId,
+          memeAssetId: asset.id,
+          status: 'approved',
+          title: body.title,
+          priceCoins: defaultPrice,
+          addedByUserId: userId,
+          approvedByUserId: userId,
+          approvedAt: now,
+        },
+        update: {
+          status: 'approved',
+          deletedAt: null,
+          title: body.title,
+          priceCoins: defaultPrice,
+          approvedByUserId: userId,
+          approvedAt: now,
+        },
+      });
+
+      const legacy =
+        cm.legacyMemeId
+          ? await prisma.meme.findUnique({ where: { id: cm.legacyMemeId } })
+          : await prisma.meme.create({
+              data: {
+                channelId: body.channelId,
+                title: body.title,
+                type: asset.type,
+                fileUrl: asset.fileUrl,
+                fileHash: asset.fileHash,
+                durationMs: asset.durationMs,
+                priceCoins: defaultPrice,
+                status: 'approved',
+                createdByUserId: userId,
+                approvedByUserId: userId,
+              },
+            });
+
+      if (!cm.legacyMemeId && legacy?.id) {
+        await prisma.channelMeme.update({
+          where: { id: cm.id },
+          data: { legacyMemeId: legacy.id },
+        });
+      }
+
+      return res.status(201).json({
+        ...(legacy as any),
+        isDirectApproval: true,
+        channelMemeId: cm.id,
+        memeAssetId: asset.id,
+        sourceKind: 'pool',
+      });
     }
 
     stageLog('submission.pool.before_db_write', { requestId, userId, durationMs: Date.now() - startedAt });

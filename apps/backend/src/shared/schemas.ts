@@ -7,14 +7,20 @@ export const activationStatusSchema = z.enum(['queued', 'playing', 'done', 'fail
 export const userRoleSchema = z.enum(['viewer', 'streamer', 'admin']);
 
 export const createSubmissionSchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim() : v),
+    z.string().min(1).max(200)
+  ),
   type: z.literal('video'), // Only video allowed
   notes: z.string().max(500).optional().nullable(),
   tags: z.array(z.string().min(1).max(50)).optional().default([]), // Array of tag names
 });
 
 export const importMemeSchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim() : v),
+    z.string().min(1).max(200)
+  ),
   sourceUrl: z.string().url(), // URL from memalerts.com
   notes: z.string().max(500).optional().nullable(),
   tags: z.array(z.string().min(1).max(50)).optional().default([]), // Array of tag names
@@ -25,7 +31,10 @@ export const createPoolSubmissionSchema = z.object({
   memeAssetId: z.string().uuid(),
   // Back-compat: older frontend sent only memeAssetId + channelId.
   // We still require a non-empty title in DB, so provide a safe default.
-  title: z.string().min(1).max(200).optional().default('Untitled'),
+  title: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim() : v),
+    z.string().min(1).max(200).optional().default('Untitled')
+  ),
   notes: z.string().max(500).optional().nullable(),
   tags: z.array(z.string().min(1).max(50)).optional().default([]),
 });

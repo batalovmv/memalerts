@@ -75,23 +75,6 @@ export const getChannelBySlug = async (req: any, res: Response) => {
         },
       },
       include: {
-        memes: includeMemes
-          ? {
-              where: { status: 'approved' },
-              orderBy: { createdAt: 'desc' },
-              take: memesLimit,
-              skip: memesOffset,
-              select: {
-                id: true,
-                title: true,
-                type: true,
-                fileUrl: true,
-                durationMs: true,
-                priceCoins: true,
-                createdAt: true,
-              },
-            }
-          : false,
         users: {
           where: { role: 'streamer' },
           take: 1,
@@ -103,6 +86,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
         },
         _count: {
           select: {
+            // Back-compat: legacy Meme count. Channel-scoped visibility is enforced via ChannelMeme elsewhere.
             memes: { where: { status: 'approved' } },
             users: true,
           },
@@ -156,7 +140,44 @@ export const getChannelBySlug = async (req: any, res: Response) => {
 
     // Only include memes if includeMemes is true
     if (includeMemes) {
-      response.memes = (channel as any).memes || [];
+      // IMPORTANT: Channel-scoped visibility source of truth is ChannelMeme (status=approved, deletedAt=null).
+      // This prevents "resurrection" if legacy Meme rows exist for back-compat.
+      const rows = await prisma.channelMeme.findMany({
+        where: { channelId: channel.id, status: 'approved', deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: memesLimit,
+        skip: memesOffset,
+        select: {
+          id: true,
+          legacyMemeId: true,
+          memeAssetId: true,
+          title: true,
+          priceCoins: true,
+          status: true,
+          createdAt: true,
+          memeAsset: {
+            select: {
+              type: true,
+              fileUrl: true,
+              durationMs: true,
+            },
+          },
+        },
+      });
+
+      response.memes = rows.map((r) => ({
+        // Back-compat: keep legacy id when present.
+        id: r.legacyMemeId ?? r.id,
+        channelMemeId: r.id,
+        memeAssetId: r.memeAssetId,
+        title: r.title,
+        type: r.memeAsset.type,
+        fileUrl: r.memeAsset.fileUrl,
+        durationMs: r.memeAsset.durationMs,
+        priceCoins: r.priceCoins,
+        status: r.status,
+        createdAt: r.createdAt,
+      }));
       response.memesPage = {
         limit: memesLimit,
         offset: memesOffset,
@@ -247,6 +268,8 @@ export const getChannelBySlug = async (req: any, res: Response) => {
 
       // Only include memes if includeMemes is true
       if (includeMemes) {
+        // Fallback path (legacy schema): keep legacy behavior.
+        // Note: this branch is only used on older DBs missing columns; ChannelMeme may also be missing there.
         response.memes = memes;
         response.memesPage = {
           limit: memesLimit,
@@ -301,16 +324,23 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
     return res.status(404).json({ error: 'Channel not found' });
   }
 
-  const memes = await prisma.meme.findMany({
+  // IMPORTANT: channel-scoped visibility must follow ChannelMeme, not legacy Meme.
+  // This prevents deleted/disabled channel memes from "resurrecting" via legacy reads.
+  const rows = await prisma.channelMeme.findMany({
     where: {
       channelId: channel.id,
       status: 'approved',
+      deletedAt: null,
     },
     include: {
-      createdBy: {
-        select: {
-          id: true,
-          displayName: true,
+      memeAsset: {
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              displayName: true,
+            },
+          },
         },
       },
     },
@@ -318,6 +348,21 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
     take: limit,
     skip: offset,
   });
+
+  // Keep legacy-compatible shape, but include new ids for clients that can use them.
+  const memes = rows.map((r) => ({
+    id: r.legacyMemeId ?? r.id,
+    channelMemeId: r.id,
+    memeAssetId: r.memeAssetId,
+    title: r.title,
+    type: r.memeAsset.type,
+    fileUrl: r.memeAsset.fileUrl,
+    durationMs: r.memeAsset.durationMs,
+    priceCoins: r.priceCoins,
+    status: r.status,
+    createdAt: r.createdAt,
+    createdBy: r.memeAsset.createdBy,
+  }));
 
   try {
     const body = JSON.stringify(memes);

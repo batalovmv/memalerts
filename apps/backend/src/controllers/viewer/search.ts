@@ -47,6 +47,7 @@ export const searchMemes = async (req: any, res: Response) => {
   // Build where clause
   const where: any = {
     status: 'approved',
+    deletedAt: null,
   };
 
   if (targetChannelId) {
@@ -201,7 +202,7 @@ export const searchMemes = async (req: any, res: Response) => {
     if (ids.length === 0) return res.json([]);
 
     const memesById = await prisma.meme.findMany({
-      where: { id: { in: ids }, status: 'approved' },
+      where: { id: { in: ids }, status: 'approved', deletedAt: null },
       include: {
         createdBy: { select: { id: true, displayName: true } },
         tags: { include: { tag: true } },
@@ -225,7 +226,7 @@ export const searchMemes = async (req: any, res: Response) => {
     const qStr = q ? String(q).trim() : '';
     const includeUploaderEnabled = String(includeUploader || '') === '1';
 
-    const conditions: Prisma.Sql[] = [Prisma.sql`m.status = 'approved'`];
+    const conditions: Prisma.Sql[] = [Prisma.sql`m.status = 'approved'`, Prisma.sql`m."deletedAt" IS NULL`];
     if (targetChannelId) {
       conditions.push(Prisma.sql`m."channelId" = ${targetChannelId}`);
     }

@@ -6,6 +6,7 @@ import { getVideoMetadata } from '../../utils/videoValidator.js';
 import { getOrCreateTags } from '../../utils/tags.js';
 import { calculateFileHash, downloadFileFromUrl, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
 import { validateFileContent } from '../../utils/fileTypeValidator.js';
+import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
 import fs from 'fs';
 
 async function safeUnlink(filePath: string): Promise<void> {
@@ -30,10 +31,44 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
   // Validate that the channel exists
   const channel = await prisma.channel.findUnique({
     where: { id: channelId as string },
+    select: {
+      id: true,
+      slug: true,
+      defaultPriceCoins: true,
+      submissionsEnabled: true,
+      submissionsOnlyWhenLive: true,
+    },
   });
 
   if (!channel) {
     return res.status(404).json({ error: 'Channel not found' });
+  }
+
+  // Owner bypass must be based on JWT channelId to avoid mismatches.
+  // If the authenticated user is the streamer/admin for this channel (req.channelId === target channelId),
+  // then import should be auto-approved (no pending request).
+  const isOwner =
+    !!req.userId && !!req.channelId && (req.userRole === 'streamer' || req.userRole === 'admin') && String(req.channelId) === String(channelId);
+
+  // Block viewer submissions when disabled (global per-channel gate).
+  // IMPORTANT: enforce server-side before heavy work (download/hash).
+  if (!isOwner && !(channel as any).submissionsEnabled) {
+    return res.status(403).json({
+      error: 'Submissions are disabled for this channel',
+      errorCode: 'SUBMISSIONS_DISABLED',
+    });
+  }
+
+  // Optional: allow submissions only while stream is online (best-effort).
+  if (!isOwner && (channel as any).submissionsOnlyWhenLive) {
+    const slug = String((channel as any).slug || '').toLowerCase();
+    const snap = await getStreamDurationSnapshot(slug);
+    if (snap.status !== 'online') {
+      return res.status(403).json({
+        error: 'Submissions are allowed only while the stream is live',
+        errorCode: 'SUBMISSIONS_OFFLINE',
+      });
+    }
   }
 
   try {
@@ -50,6 +85,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
     let tempFilePath: string | null = null;
     let finalFilePath: string | null = null;
     let fileHash: string | null = null;
+    let detectedDurationMs: number | null = null;
     try {
       tempFilePath = await downloadFileFromUrl(body.sourceUrl);
 
@@ -77,6 +113,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       const metadata = await getVideoMetadata(tempFilePath);
       const durationSec = metadata?.duration && metadata.duration > 0 ? metadata.duration : null;
       const durationMs = durationSec !== null ? Math.round(durationSec * 1000) : null;
+      detectedDurationMs = durationMs;
       if (durationMs !== null && durationMs > 15000) {
         await safeUnlink(tempFilePath);
         return res.status(400).json({
@@ -113,6 +150,131 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
     } catch (error: any) {
       console.warn('Error creating tags, proceeding without tags:', error.message);
       tagIds = []; // Proceed without tags on error
+    }
+
+    // Owner bypass: create meme directly (approved) and dual-write to MemeAsset + ChannelMeme.
+    if (isOwner) {
+      const defaultPrice = (channel as any).defaultPriceCoins ?? 100;
+      const durationMsSafe = Math.max(0, Math.min(detectedDurationMs ?? 0, 15000));
+
+      const memeCreateData: any = {
+        channelId,
+        title: body.title,
+        type: 'video',
+        fileUrl: finalFilePath,
+        fileHash,
+        durationMs: durationMsSafe,
+        priceCoins: defaultPrice,
+        status: 'approved',
+        createdByUserId: req.userId!,
+        approvedByUserId: req.userId!,
+      };
+
+      if (tagIds.length > 0) {
+        memeCreateData.tags = {
+          create: tagIds.map((tagId) => ({ tagId })),
+        };
+      }
+
+      let meme: any;
+      try {
+        meme = await prisma.meme.create({
+          data: memeCreateData,
+          include:
+            tagIds.length > 0
+              ? {
+                  tags: {
+                    include: {
+                      tag: true,
+                    },
+                  },
+                }
+              : undefined,
+        });
+      } catch (dbError: any) {
+        // Back-compat: MemeTag table might be missing on older DBs.
+        if (dbError?.code === 'P2021' && dbError?.meta?.table === 'public.MemeTag') {
+          meme = await prisma.meme.create({
+            data: {
+              channelId,
+              title: body.title,
+              type: 'video',
+              fileUrl: finalFilePath,
+              fileHash,
+              durationMs: durationMsSafe,
+              priceCoins: defaultPrice,
+              status: 'approved',
+              createdByUserId: req.userId!,
+              approvedByUserId: req.userId!,
+            },
+          });
+        } else {
+          throw dbError;
+        }
+      }
+
+      // Dual-write (best-effort): create/find asset and upsert channel adoption.
+      let memeAssetId: string | null = null;
+      let channelMemeId: string | null = null;
+      try {
+        const existingAsset =
+          fileHash
+            ? await prisma.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
+            : await prisma.memeAsset.findFirst({
+                where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs: durationMsSafe },
+                select: { id: true },
+              });
+
+        memeAssetId =
+          existingAsset?.id ??
+          (
+            await prisma.memeAsset.create({
+              data: {
+                type: 'video',
+                fileUrl: finalFilePath,
+                fileHash,
+                durationMs: durationMsSafe,
+                createdByUserId: req.userId!,
+              },
+              select: { id: true },
+            })
+          ).id;
+
+        const cm = await prisma.channelMeme.upsert({
+          where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId } },
+          create: {
+            channelId: String(channelId),
+            memeAssetId,
+            legacyMemeId: meme?.id || null,
+            status: 'approved',
+            title: body.title,
+            priceCoins: defaultPrice,
+            addedByUserId: req.userId!,
+            approvedByUserId: req.userId!,
+            approvedAt: new Date(),
+          },
+          update: {
+            legacyMemeId: meme?.id || null,
+            status: 'approved',
+            title: body.title,
+            priceCoins: defaultPrice,
+            approvedByUserId: req.userId!,
+            approvedAt: new Date(),
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        channelMemeId = cm.id;
+      } catch (e) {
+        // ignore (backfill can reconcile later)
+      }
+
+      return res.status(201).json({
+        ...meme,
+        isDirectApproval: true,
+        channelMemeId,
+        memeAssetId,
+      });
     }
 
     // Create submission with local fileUrlTemp (not external URL)

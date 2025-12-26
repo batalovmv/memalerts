@@ -220,6 +220,23 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Back-compat: keep legacy Meme in sync so older read paths (public lists/search) reflect streamer edits.
+    // Best-effort: do not fail the request if legacy row is missing.
+    if (updated.legacyMemeId) {
+      try {
+        await prisma.meme.update({
+          where: { id: updated.legacyMemeId },
+          data: {
+            ...(body.title !== undefined ? { title: body.title } : {}),
+            ...(body.priceCoins !== undefined ? { priceCoins: body.priceCoins } : {}),
+            // durationMs/fileUrl are asset-scoped; do not mutate here
+          },
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+
     res.json({
       id: updated.id,
       legacyMemeId: updated.legacyMemeId,
@@ -256,9 +273,10 @@ export const deleteMeme = async (req: AuthRequest, res: Response) => {
     if (!cm || cm.channelId !== channelId) return res.status(404).json({ error: 'Meme not found' });
 
     // Soft delete: disable channel adoption
+    const now = new Date();
     const deleted = await prisma.channelMeme.update({
       where: { id: cm.id },
-      data: { status: 'disabled', deletedAt: new Date() },
+      data: { status: 'disabled', deletedAt: now },
       include: {
         memeAsset: {
           include: {
@@ -272,6 +290,21 @@ export const deleteMeme = async (req: AuthRequest, res: Response) => {
         },
       },
     });
+
+    // Back-compat: also soft-delete legacy Meme row if present, otherwise old endpoints keep returning the meme.
+    if (deleted.legacyMemeId) {
+      try {
+        await prisma.meme.update({
+          where: { id: deleted.legacyMemeId },
+          data: {
+            status: 'deleted',
+            deletedAt: now,
+          },
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
 
     // Log admin action
     await logAdminAction(
