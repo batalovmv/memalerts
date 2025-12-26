@@ -22,6 +22,14 @@ import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubm
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const MemeModal = lazy(() => import('@/components/MemeModal'));
 
+function ChevronRightIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
 type ToggleSwitchProps = {
   checked: boolean;
   disabled?: boolean;
@@ -518,23 +526,53 @@ export default function DashboardPage() {
               {/* Quick Actions Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {/* Submit Meme Card - Primary */}
-              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
-                <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
+              <div
+                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                role="button"
+                tabIndex={0}
+                onClick={() => setIsSubmitModalOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setIsSubmitModalOpen(true);
+                  }
+                }}
+                aria-label={t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="text-lg font-semibold mb-2 dark:text-white">
+                    {t('dashboard.quickActions.submitMeme', 'Submit Meme')}
+                  </h2>
+                </div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
                 </p>
-                <Button
-                  onClick={() => setIsSubmitModalOpen(true)}
-                  variant="primary"
-                  size="lg"
-                  className="mt-auto w-full"
-                >
-                  {t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}
-                </Button>
+                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                  <span>{t('dashboard.quickActions.submitMemeButton', 'Submit Meme')}</span>
+                  <ChevronRightIcon />
+                </div>
               </div>
 
               {/* Pending Submissions Card - Secondary */}
-              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
+              <div
+                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  const next = panel === 'submissions' ? null : 'submissions';
+                  if (next) scrollToPanelIfMobile('submissions');
+                  setPanel(next);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    const next = panel === 'submissions' ? null : 'submissions';
+                    if (next) scrollToPanelIfMobile('submissions');
+                    setPanel(next);
+                  }
+                }}
+                aria-label={t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
                   {pendingSubmissionsCount > 0 && (
@@ -546,25 +584,36 @@ export default function DashboardPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
                 </p>
-                <Button
-                  onClick={() => {
-                    const next = panel === 'submissions' ? null : 'submissions';
-                    if (next) scrollToPanelIfMobile('submissions');
-                    setPanel(next);
-                  }}
-                  variant={panel === 'submissions' || pendingSubmissionsCount > 0 ? 'danger' : 'secondary'}
-                  size="lg"
-                  className="mt-auto w-full"
-                >
-                  {pendingSubmissionsCount > 0 
-                    ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, { count: pendingSubmissionsCount })
-                    : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')
-                  }
-                </Button>
+                <div className={`mt-auto flex items-center justify-between font-semibold ${panel === 'submissions' || pendingSubmissionsCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-primary'}`}>
+                  <span>
+                    {pendingSubmissionsCount > 0
+                      ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, { count: pendingSubmissionsCount })
+                      : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')}
+                  </span>
+                  <ChevronRightIcon />
+                </div>
               </div>
 
               {/* All Memes Card */}
-              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
+              <div
+                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  const next = panel === 'memes' ? null : 'memes';
+                  if (next) scrollToPanelIfMobile('memes');
+                  setPanel(next);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    const next = panel === 'memes' ? null : 'memes';
+                    if (next) scrollToPanelIfMobile('memes');
+                    setPanel(next);
+                  }
+                }}
+                aria-label={t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">
                     {t('dashboard.quickActions.allMemes', { defaultValue: 'All memes' })}
@@ -576,36 +625,38 @@ export default function DashboardPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
                 </p>
-                <Button
-                  onClick={() => {
-                    const next = panel === 'memes' ? null : 'memes';
-                    if (next) scrollToPanelIfMobile('memes');
-                    setPanel(next);
-                  }}
-                  variant={panel === 'memes' ? 'primary' : 'secondary'}
-                  size="lg"
-                  className="mt-auto w-full"
-                >
-                  {panel === 'memes'
-                    ? t('common.close', { defaultValue: 'Close' })
-                    : t('dashboard.quickActions.openAllMemes', { defaultValue: 'Open' })}
-                </Button>
+                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                  <span>
+                    {panel === 'memes'
+                      ? t('common.close', { defaultValue: 'Close' })
+                      : t('dashboard.quickActions.openAllMemes', { defaultValue: 'Open' })}
+                  </span>
+                  <ChevronRightIcon />
+                </div>
               </div>
 
               {/* Settings Card - Tertiary */}
-              <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
+              <div
+                className="surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/settings?tab=settings')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate('/settings?tab=settings');
+                  }
+                }}
+                aria-label={t('dashboard.quickActions.settingsButton', 'Open Settings')}
+              >
                 <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.settings', 'Settings')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
                 </p>
-                <Button
-                  onClick={() => navigate('/settings?tab=settings')}
-                  variant="secondary"
-                  size="lg"
-                  className="mt-auto w-full"
-                >
-                  {t('dashboard.quickActions.settingsButton', 'Open Settings')}
-                </Button>
+                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                  <span>{t('dashboard.quickActions.settingsButton', 'Open Settings')}</span>
+                  <ChevronRightIcon />
+                </div>
               </div>
               
               {/* Submissions control card (same size, expandable) */}
