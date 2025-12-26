@@ -1502,12 +1502,12 @@ export function BotSettings() {
           setSubscriptionRequiredModalProvider(null);
           if (url) window.open(url, '_blank', 'noopener,noreferrer');
         }}
-        title={t('subscription.requiredTitle', { defaultValue: 'Нужна подписка' })}
+        title={t('subscription.requiredTitle', { defaultValue: 'Доступно по заявкам' })}
         message={
           <div className="space-y-2">
             <div className="text-sm">
               {t('subscription.requiredBody', {
-                defaultValue: 'Подключение “своего бота” доступно только по подписке.',
+                defaultValue: 'Подключение “своего бота” доступно по заявкам.',
               })}
             </div>
             {subscriptionRequiredModalProvider ? (
@@ -1522,11 +1522,11 @@ export function BotSettings() {
         confirmButtonClass="bg-primary hover:bg-primary/90"
       />
 
-      <h2 className="text-2xl font-bold mb-2 dark:text-white">{t('admin.botTitle', { defaultValue: 'Bot' })}</h2>
+      <h2 className="text-2xl font-bold mb-2 dark:text-white">{t('admin.botTitle', { defaultValue: 'Бот' })}</h2>
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
         {t('admin.botDescription', {
           defaultValue:
-            'Enable/disable the chat bot subscription for your channel. The bot joins/leaves chats automatically based on this setting.',
+            'Здесь — общие команды/шаблоны и подключение ботов для платформ.',
         })}
       </p>
 
@@ -1581,7 +1581,7 @@ export function BotSettings() {
               : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
           }`}
         >
-          {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
+          {t('admin.botCommandsTitle', { defaultValue: 'Общие' })}
         </button>
         <button
           type="button"
@@ -1629,11 +1629,11 @@ export function BotSettings() {
         <>
           <div className="glass p-4 mb-4">
             <div className="font-semibold text-gray-900 dark:text-white">
-              {t('admin.botMenusTitle', { defaultValue: 'Bot settings' })}
+              {t('admin.botMenusTitle', { defaultValue: 'Общие' })}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               {t('admin.botCommandsHint', {
-                defaultValue: 'Команды и шаблоны работают для всех ботов (Twitch/YouTube/VKVideo).',
+                defaultValue: 'Команды и шаблоны работают для всех платформ (Twitch/YouTube/VKVideo).',
               })}
             </div>
           </div>
@@ -1767,7 +1767,7 @@ export function BotSettings() {
                 className="min-w-0 text-left rounded-lg -m-1 p-1 transition-colors hover:bg-white/40 dark:hover:bg-white/5"
                 onClick={() => setCommandsOpen((v) => !v)}
               >
-                <div className="font-semibold text-gray-900 dark:text-white">{t('admin.botCommandsTitle', { defaultValue: 'Commands' })}</div>
+                <div className="font-semibold text-gray-900 dark:text-white">{t('admin.botCommandsTitle', { defaultValue: 'Команды' })}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                   {t('admin.botCommandsHint', {
                     defaultValue: 'Create a trigger word and the bot reply.',
@@ -1852,7 +1852,7 @@ export function BotSettings() {
                   <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                     {t('admin.botCommandAudienceTitle', { defaultValue: 'Who can trigger' })}
                     <span className="ml-2 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                      {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
+                      {t('subscription.availableOnlyWithSubscription', { defaultValue: 'в разработке' })}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
@@ -2028,6 +2028,45 @@ export function BotSettings() {
               </div>
             )}
 
+            {/* Twitch test message (kept visible; commands live in the shared Commands tab) */}
+            <div className="mt-4">
+              <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {t('admin.botTestMessageHint', {
+                    defaultValue: 'Send a message from the bot into your chat. This helps confirm the bot is connected and visible.',
+                  })}
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  <Textarea
+                    rows={2}
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    placeholder={t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })}
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => {
+                      void sendTestMessage('twitch');
+                    }}
+                    disabled={sendingTestMessage}
+                  >
+                    {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
+                  </Button>
+                  {renderOutboxStatus('twitch')}
+                  {botEnabled !== true ? (
+                    <div className="text-xs text-amber-800 dark:text-amber-200">
+                      {t('admin.botMenusDisabledHint', { defaultValue: 'Enable the bot to access its settings.' })}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 hidden">
               <button
                 type="button"
@@ -2038,7 +2077,7 @@ export function BotSettings() {
                 onClick={() => setMenusOpen((v) => !v)}
               >
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {t('admin.botMenusTitle', { defaultValue: 'Bot settings' })}
+                  {t('admin.botMenusTitle', { defaultValue: 'Настройки' })}
                 </span>
                 <svg
                   className={`w-4 h-4 text-gray-600 dark:text-gray-300 transition-transform ${menusOpen ? 'rotate-180' : ''}`}
@@ -2212,7 +2251,7 @@ export function BotSettings() {
                     onClick={() => setCommandsOpen((v) => !v)}
                   >
                     <div className="font-semibold text-gray-900 dark:text-white">
-                      {t('admin.botCommandsTitle', { defaultValue: 'Commands' })}
+                      {t('admin.botCommandsTitle', { defaultValue: 'Команды' })}
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                       {t('admin.botCommandsHint', {
