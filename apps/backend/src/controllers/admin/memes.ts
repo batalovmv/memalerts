@@ -70,25 +70,65 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
   // If all=1, preserve legacy behavior (no cap). Use with care.
   const usePaging = all !== '1' && all !== 'true' && all !== 'yes';
 
-  const memes = await prisma.meme.findMany({
-    where,
+  const whereChannelMeme: any = {
+    channelId,
+    ...(q
+      ? {
+          title: {
+            contains: q,
+            mode: 'insensitive',
+          },
+        }
+      : {}),
+  };
+
+  // Default behavior: exclude deleted (but allow explicit status=deleted or status=all).
+  if (statusRaw === 'all') {
+    // no status filter
+  } else if (allowedStatuses.has(statusRaw)) {
+    // Map legacy 'deleted' to channelMeme 'disabled' + deletedAt!=null semantics.
+    if (statusRaw === 'deleted') {
+      whereChannelMeme.status = 'disabled';
+    } else {
+      whereChannelMeme.status = statusRaw;
+    }
+  } else {
+    whereChannelMeme.status = { not: 'disabled' };
+  }
+
+  // Default behavior: exclude soft-deleted rows. If explicitly querying deleted status, include them.
+  if (statusRaw === 'deleted') {
+    // include deletedAt
+  } else {
+    whereChannelMeme.deletedAt = null;
+  }
+
+  const rows = await prisma.channelMeme.findMany({
+    where: whereChannelMeme,
     ...(usePaging ? { take: limit + 1, skip: offset } : {}),
     orderBy: { createdAt: sortOrder },
     select: {
       id: true,
+      legacyMemeId: true,
       channelId: true,
       title: true,
-      type: true,
-      fileUrl: true,
-      durationMs: true,
       priceCoins: true,
       status: true,
+      deletedAt: true,
       createdAt: true,
-      createdBy: {
+      memeAsset: {
         select: {
           id: true,
-          displayName: true,
-          channel: { select: { slug: true } },
+          type: true,
+          fileUrl: true,
+          durationMs: true,
+          createdBy: {
+            select: {
+              id: true,
+              displayName: true,
+              channel: { select: { slug: true } },
+            },
+          },
         },
       },
       approvedBy: {
@@ -99,6 +139,22 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
       },
     },
   });
+
+  const memes = rows.map((r) => ({
+    id: r.id, // channelMemeId (new)
+    legacyMemeId: r.legacyMemeId,
+    channelId: r.channelId,
+    title: r.title,
+    type: r.memeAsset.type,
+    fileUrl: r.memeAsset.fileUrl,
+    durationMs: r.memeAsset.durationMs,
+    priceCoins: r.priceCoins,
+    status: r.status,
+    deletedAt: r.deletedAt,
+    createdAt: r.createdAt,
+    createdBy: r.memeAsset.createdBy,
+    approvedBy: r.approvedBy,
+  }));
 
   let hasMore = false;
   let items = memes;
@@ -115,7 +171,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
 
   if (includeTotal) {
     // Perf: counting can be expensive; opt-in only.
-    const total = await prisma.meme.count({ where });
+    const total = await prisma.channelMeme.count({ where: whereChannelMeme });
     res.setHeader('X-Total-Count', String(total));
   }
 
@@ -133,39 +189,52 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
   try {
     const body = updateMemeSchema.parse(req.body);
 
-    const meme = await prisma.meme.findUnique({
+    // Primary: treat :id as ChannelMeme.id
+    const cm = await prisma.channelMeme.findUnique({
       where: { id },
+      include: { memeAsset: { include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } } }, approvedBy: { select: { id: true, displayName: true } } },
     });
 
-    if (!meme || meme.channelId !== channelId) {
-      return res.status(404).json({ error: 'Meme not found' });
-    }
+    // Back-compat: allow legacy Meme.id (streamer panel not yet migrated)
+    const cmByLegacy =
+      !cm
+        ? await prisma.channelMeme.findFirst({
+            where: { legacyMemeId: id, channelId },
+            include: { memeAsset: { include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } } }, approvedBy: { select: { id: true, displayName: true } } },
+          })
+        : null;
 
-    const updated = await prisma.meme.update({
-      where: { id },
-      data: body,
+    const target = cm ?? cmByLegacy;
+    if (!target || target.channelId !== channelId) return res.status(404).json({ error: 'Meme not found' });
+
+    const updated = await prisma.channelMeme.update({
+      where: { id: target.id },
+      data: {
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.priceCoins !== undefined ? { priceCoins: body.priceCoins } : {}),
+        // durationMs intentionally ignored (asset is shared; channel edit should not mutate global asset)
+      },
       include: {
-        createdBy: {
-          select: {
-            id: true,
-            displayName: true,
-            channel: {
-              select: {
-                slug: true,
-              },
-            },
-          },
-        },
-        approvedBy: {
-          select: {
-            id: true,
-            displayName: true,
-          },
-        },
+        memeAsset: { include: { createdBy: { select: { id: true, displayName: true, channel: { select: { slug: true } } } } } },
+        approvedBy: { select: { id: true, displayName: true } },
       },
     });
 
-    res.json(updated);
+    res.json({
+      id: updated.id,
+      legacyMemeId: updated.legacyMemeId,
+      channelId: updated.channelId,
+      title: updated.title,
+      type: updated.memeAsset.type,
+      fileUrl: updated.memeAsset.fileUrl,
+      durationMs: updated.memeAsset.durationMs,
+      priceCoins: updated.priceCoins,
+      status: updated.status,
+      deletedAt: updated.deletedAt,
+      createdAt: updated.createdAt,
+      createdBy: updated.memeAsset.createdBy,
+      approvedBy: updated.approvedBy,
+    });
   } catch (error) {
     throw error;
   }
@@ -180,23 +249,25 @@ export const deleteMeme = async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    const meme = await prisma.meme.findUnique({
-      where: { id },
-    });
+    const cm =
+      (await prisma.channelMeme.findUnique({ where: { id } })) ??
+      (await prisma.channelMeme.findFirst({ where: { legacyMemeId: id, channelId } }));
 
-    if (!meme || meme.channelId !== channelId) {
-      return res.status(404).json({ error: 'Meme not found' });
-    }
+    if (!cm || cm.channelId !== channelId) return res.status(404).json({ error: 'Meme not found' });
 
-    // Soft delete: mark as deleted (keep row for shared DB safety / auditability)
-    const deleted = await prisma.meme.update({
-      where: { id },
-      data: { status: 'deleted', deletedAt: new Date() },
+    // Soft delete: disable channel adoption
+    const deleted = await prisma.channelMeme.update({
+      where: { id: cm.id },
+      data: { status: 'disabled', deletedAt: new Date() },
       include: {
-        createdBy: {
-          select: {
-            id: true,
-            displayName: true,
+        memeAsset: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                displayName: true,
+              },
+            },
           },
         },
       },
@@ -207,15 +278,28 @@ export const deleteMeme = async (req: AuthRequest, res: Response) => {
       'delete_meme',
       req.userId!,
       channelId,
-      id,
+      cm.id,
       {
-        memeTitle: meme.title,
+        memeTitle: deleted.title,
       },
       true,
       req
     );
 
-    res.json(deleted);
+    res.json({
+      id: deleted.id,
+      legacyMemeId: deleted.legacyMemeId,
+      channelId: deleted.channelId,
+      title: deleted.title,
+      type: deleted.memeAsset.type,
+      fileUrl: deleted.memeAsset.fileUrl,
+      durationMs: deleted.memeAsset.durationMs,
+      priceCoins: deleted.priceCoins,
+      status: deleted.status,
+      deletedAt: deleted.deletedAt,
+      createdAt: deleted.createdAt,
+      createdBy: deleted.memeAsset.createdBy,
+    });
   } catch (error: any) {
     console.error('Error in deleteMeme:', error);
     if (!res.headersSent) {

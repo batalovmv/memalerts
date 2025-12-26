@@ -3,6 +3,7 @@ import * as me from './viewer/me.js';
 import * as wallet from './viewer/wallet.js';
 import * as memes from './viewer/memes.js';
 import * as search from './viewer/search.js';
+import * as pool from './viewer/pool.js';
 import * as stats from './viewer/stats.js';
 import * as activation from './viewer/activation.js';
 import * as preferences from './viewer/preferences.js';
@@ -14,6 +15,7 @@ export const viewerController = {
   ...wallet,
   ...memes,
   ...search,
+  ...pool,
   ...stats,
   ...activation,
   ...preferences,

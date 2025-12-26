@@ -6,6 +6,7 @@ import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefault
 import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBotController.js';
 import { entitlementsController } from '../controllers/owner/entitlementsController.js';
 import { channelResolveController } from '../controllers/owner/channelResolveController.js';
+import { memeAssetModerationController } from '../controllers/owner/memeAssetModerationController.js';
 import { ownerResolveLimiter } from '../middleware/rateLimit.js';
 
 // Owner-only API (role: admin).
@@ -41,5 +42,10 @@ ownerRoutes.post('/entitlements/custom-bot/revoke', entitlementsController.revok
 // Safer UX: resolve by provider/externalId (no channelId exposure)
 ownerRoutes.get('/channels/resolve', ownerResolveLimiter, channelResolveController.resolve);
 ownerRoutes.post('/entitlements/custom-bot/grant-by-provider', ownerResolveLimiter, entitlementsController.grantCustomBotByProvider);
+
+// Meme pool moderation (admin-only): affects only pool visibility (does not retroactively remove from channels).
+ownerRoutes.post('/meme-assets/:id/hide', memeAssetModerationController.hide);
+ownerRoutes.post('/meme-assets/:id/unhide', memeAssetModerationController.unhide);
+ownerRoutes.post('/meme-assets/:id/purge', memeAssetModerationController.purge);
 
 

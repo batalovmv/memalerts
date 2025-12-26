@@ -285,6 +285,58 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
         }
       }
 
+      // Dual-write: create global MemeAsset + ChannelMeme (best-effort; do not fail owner bypass if this fails).
+      try {
+        const existingAsset =
+          fileHash
+            ? await prisma.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
+            : await prisma.memeAsset.findFirst({
+                where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs },
+                select: { id: true },
+              });
+
+        const assetId =
+          existingAsset?.id ??
+          (
+            await prisma.memeAsset.create({
+              data: {
+                type: 'video',
+                fileUrl: finalFilePath,
+                fileHash,
+                durationMs,
+                createdByUserId: req.userId!,
+              },
+              select: { id: true },
+            })
+          ).id;
+
+        await prisma.channelMeme.upsert({
+          where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId: assetId } },
+          create: {
+            channelId: String(channelId),
+            memeAssetId: assetId,
+            legacyMemeId: meme?.id || null,
+            status: 'approved',
+            title: body.title,
+            priceCoins: defaultPrice,
+            addedByUserId: req.userId!,
+            approvedByUserId: req.userId!,
+            approvedAt: new Date(),
+          },
+          update: {
+            legacyMemeId: meme?.id || null,
+            status: 'approved',
+            title: body.title,
+            priceCoins: defaultPrice,
+            approvedByUserId: req.userId!,
+            approvedAt: new Date(),
+            deletedAt: null,
+          },
+        });
+      } catch (e) {
+        console.warn('[createSubmission] Dual-write to MemeAsset/ChannelMeme failed (ignored):', (e as any)?.message);
+      }
+
       // Log file upload
       await logFileUpload(req.userId!, channelId as string, finalFilePath, req.file.size, true, req);
 

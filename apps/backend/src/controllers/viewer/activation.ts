@@ -13,23 +13,45 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
   try {
     const parsed = activateMemeSchema.parse({ memeId });
 
-    // Fetch meme once (outside transaction) to keep the transaction short and avoid nested DB clients.
-    const meme = await prisma.meme.findUnique({
+    // Back-compat + migration:
+    // - Prefer ChannelMeme.id (new world)
+    // - Fallback to legacy Meme.id (old world)
+    const channelMeme = await prisma.channelMeme.findUnique({
       where: { id: parsed.memeId },
-      include: { channel: true },
+      include: {
+        channel: true,
+        memeAsset: true,
+      },
     });
 
-    if (!meme) {
-      throw new Error('Meme not found');
-    }
+    const legacyMeme =
+      !channelMeme
+        ? await prisma.meme.findUnique({
+            where: { id: parsed.memeId },
+            include: { channel: true },
+          })
+        : null;
 
-    if (meme.status !== 'approved') {
-      throw new Error('Meme is not approved');
+    if (!channelMeme && !legacyMeme) throw new Error('Meme not found');
+
+    // Normalize into a single activation context
+    const channelId = channelMeme?.channelId ?? legacyMeme!.channelId;
+    const channel = channelMeme?.channel ?? legacyMeme!.channel;
+    const effectiveLegacyMemeId = channelMeme?.legacyMemeId ?? legacyMeme?.id ?? null;
+
+    if (channelMeme) {
+      if (channelMeme.status !== 'approved' || channelMeme.deletedAt) throw new Error('Meme is not approved');
+      if (!effectiveLegacyMemeId) {
+        // During migration, activations still require legacy Meme.id for rollups and existing overlay behavior.
+        throw new Error('Meme is not available');
+      }
+    } else {
+      if (legacyMeme!.status !== 'approved' || legacyMeme!.deletedAt) throw new Error('Meme is not approved');
     }
 
     // Promotion lookup (outside transaction): best-effort cache exists in utils/promotions.ts.
-    const promotion = await getActivePromotion(meme.channelId);
-    const originalPrice = meme.priceCoins;
+    const promotion = await getActivePromotion(channelId);
+    const originalPrice = channelMeme ? channelMeme.priceCoins : legacyMeme!.priceCoins;
     const finalPrice = promotion ? calculatePriceWithDiscount(originalPrice, promotion.discountPercent) : originalPrice;
 
     // Get user wallet + create activation in transaction
@@ -39,7 +61,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         where: {
           userId_channelId: {
             userId: req.userId!,
-            channelId: meme.channelId,
+            channelId,
           },
         },
       });
@@ -48,14 +70,14 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         wallet = await tx.wallet.create({
           data: {
             userId: req.userId!,
-            channelId: meme.channelId,
+            channelId,
             balance: 0,
           },
         });
       }
 
       // Channel owner gets free activation.
-      const isChannelOwner = req.channelId === meme.channelId;
+      const isChannelOwner = req.channelId === channelId;
 
       let updatedWallet = wallet;
       let coinsSpent = 0;
@@ -69,7 +91,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           where: {
             userId_channelId: {
               userId: req.userId!,
-              channelId: meme.channelId,
+              channelId,
             },
           },
           data: {
@@ -83,9 +105,10 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
 
       const activation = await tx.memeActivation.create({
         data: {
-          channelId: meme.channelId,
+          channelId,
           userId: req.userId!,
-          memeId: meme.id,
+          memeId: effectiveLegacyMemeId!,
+          ...(channelMeme ? { channelMemeId: channelMeme.id } : {}),
           coinsSpent,
           status: 'queued',
         },
@@ -102,14 +125,18 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     // Emit to overlay.
     // IMPORTANT: Always emit to a normalized room name to avoid case mismatches
     // between stored slugs, older clients, and token-based overlay joins.
-    const channelSlug = String(meme.channel.slug || '').toLowerCase();
+    const channelSlug = String(channel.slug || '').toLowerCase();
+    const overlayType = channelMeme ? channelMeme.memeAsset.type : legacyMeme!.type;
+    const overlayFileUrl = channelMeme ? channelMeme.memeAsset.fileUrl : legacyMeme!.fileUrl;
+    const overlayDurationMs = channelMeme ? channelMeme.memeAsset.durationMs : legacyMeme!.durationMs;
+    const overlayTitle = channelMeme ? channelMeme.title : legacyMeme!.title;
     io.to(`channel:${channelSlug}`).emit('activation:new', {
       id: result.activation.id,
       memeId: result.activation.memeId,
-      type: meme.type,
-      fileUrl: meme.fileUrl,
-      durationMs: meme.durationMs,
-      title: meme.title,
+      type: overlayType,
+      fileUrl: overlayFileUrl,
+      durationMs: overlayDurationMs,
+      title: overlayTitle,
       senderDisplayName: result.senderDisplayName,
     });
 
@@ -122,7 +149,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         balance: result.wallet.balance,
         delta: -result.activation.coinsSpent,
         reason: 'meme_activation',
-        channelSlug: meme.channel.slug,
+        channelSlug: channel.slug,
       };
       emitWalletUpdated(io, walletUpdateData as any);
       void relayWalletUpdatedToPeer(walletUpdateData as any);
@@ -134,13 +161,13 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
       originalPrice,
       finalPrice,
       discountApplied: promotion ? promotion.discountPercent : 0,
-      isFree: req.channelId === meme.channelId, // Indicate if activation was free for channel owner
+      isFree: req.channelId === channelId, // Indicate if activation was free for channel owner
     });
   } catch (error: any) {
     if (error.message === 'Wallet not found' || error.message === 'Meme not found') {
       return res.status(404).json({ error: error.message });
     }
-    if (error.message === 'Insufficient balance' || error.message === 'Meme is not approved') {
+    if (error.message === 'Insufficient balance' || error.message === 'Meme is not approved' || error.message === 'Meme is not available') {
       return res.status(400).json({ error: error.message });
     }
     throw error;

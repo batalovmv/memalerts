@@ -439,6 +439,16 @@ export function setupRoutes(app: Express) {
     }
     return optionalAuthenticate(req as AuthRequest, res, () => viewerController.getMemeStats(req as any, res));
   });
+
+  // Global meme pool (public in production; beta gated).
+  app.get('/memes/pool', (req, res) => {
+    if (isBetaDomain(req)) {
+      return authenticate(req as AuthRequest, res, () =>
+        requireBetaAccess(req as AuthRequest, res, () => viewerController.getMemePool(req as any, res))
+      );
+    }
+    return viewerController.getMemePool(req as any, res);
+  });
   // Activation is a user-paid action (wallet) and must be authenticated everywhere.
   // On beta, it is additionally gated by requireBetaAccess.
   app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);

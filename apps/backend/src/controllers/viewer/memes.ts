@@ -25,28 +25,45 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'Channel ID or slug required' });
   }
 
-  const memes = await prisma.meme.findMany({
+  const rows = await prisma.channelMeme.findMany({
     where: {
       channelId: targetChannelId,
       status: 'approved',
       deletedAt: null,
     },
     include: {
-      createdBy: {
-        select: {
-          id: true,
-          displayName: true,
+      memeAsset: {
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              displayName: true,
+            },
+          },
         },
       },
     },
-    orderBy: {
-      createdAt: 'desc',
-    },
+    orderBy: { createdAt: 'desc' },
     ...(limit !== undefined && { take: limit }),
     ...(offset !== undefined && { skip: offset }),
   });
 
-  res.json(memes);
+  // Back-compat: keep legacy `id` when available so existing activation paths using Meme.id continue to work.
+  const items = rows.map((r) => ({
+    id: r.legacyMemeId ?? r.id,
+    channelMemeId: r.id,
+    memeAssetId: r.memeAssetId,
+    title: r.title,
+    type: r.memeAsset.type,
+    fileUrl: r.memeAsset.fileUrl,
+    durationMs: r.memeAsset.durationMs,
+    priceCoins: r.priceCoins,
+    status: r.status,
+    createdAt: r.createdAt,
+    createdBy: r.memeAsset.createdBy,
+  }));
+
+  res.json(items);
 };
 
 

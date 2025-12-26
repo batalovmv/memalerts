@@ -17,6 +17,7 @@ import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejected
 import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsRollup.js';
 import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
 import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
+import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
@@ -418,6 +419,8 @@ async function startServer() {
     startTopStats30dRollupScheduler();
     // Performance: meme daily rollups for viewer stats (day/week/month via 1/7/30).
     startMemeDailyStatsRollupScheduler();
+    // Safety: delayed purge of globally hidden MemeAssets (quarantine-based).
+    startMemeAssetPurgeScheduler();
 
     // Optional: Twitch chat bot (collects chatters for credits overlay).
     // Enabled via env (see CHAT_BOT_* vars).

@@ -404,6 +404,60 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
 
             debugLog('[DEBUG] Meme created successfully', { submissionId: id, memeId: meme.id });
 
+            // Dual-write: create global MemeAsset + ChannelMeme for the shared pool.
+            // Important: pool visibility moderation is handled on MemeAsset level; creating it here is safe.
+            try {
+              const existingAsset =
+                fileHash
+                  ? await tx.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
+                  : await tx.memeAsset.findFirst({
+                      where: { fileHash: null, fileUrl: finalFileUrl, type: submission.type, durationMs },
+                      select: { id: true },
+                    });
+
+              const assetId =
+                existingAsset?.id ??
+                (
+                  await tx.memeAsset.create({
+                    data: {
+                      type: submission.type,
+                      fileUrl: finalFileUrl,
+                      fileHash,
+                      durationMs,
+                      createdByUserId: submission.submitterUserId || null,
+                    },
+                    select: { id: true },
+                  })
+                ).id;
+
+              await tx.channelMeme.upsert({
+                where: { channelId_memeAssetId: { channelId: submission.channelId, memeAssetId: assetId } },
+                create: {
+                  channelId: submission.channelId,
+                  memeAssetId: assetId,
+                  legacyMemeId: meme.id,
+                  status: 'approved',
+                  title: submission.title,
+                  priceCoins,
+                  addedByUserId: submission.submitterUserId || null,
+                  approvedByUserId: req.userId!,
+                  approvedAt: new Date(),
+                },
+                update: {
+                  legacyMemeId: meme.id,
+                  status: 'approved',
+                  title: submission.title,
+                  priceCoins,
+                  approvedByUserId: req.userId!,
+                  approvedAt: new Date(),
+                  deletedAt: null,
+                },
+              });
+            } catch (e) {
+              // Do not fail approval if pool dual-write fails (backfill can reconcile later).
+              console.warn('[approveSubmission] Dual-write to MemeAsset/ChannelMeme failed (ignored):', (e as any)?.message);
+            }
+
             // Reward submitter for approved submission (per-channel setting)
             // Only if enabled (>0) and submitter is not the moderator approving.
             if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
