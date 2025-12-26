@@ -4,6 +4,7 @@ import type { Meme } from '@/types';
 
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
+import { getMemePrimaryId } from '@/shared/lib/memeIds';
 
 export type AllMemesSearchScope = 'content' | 'contentAndUploader';
 export type AllMemesSortBy = 'createdAt' | 'popularity';
@@ -31,12 +32,20 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string })
   // Remove deleted memes immediately (no refresh) when MemeModal deletes one.
   useEffect(() => {
     const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ memeId?: string; channelId?: string }>;
+      const ce = e as CustomEvent<{ memeId?: string; legacyMemeId?: string; channelId?: string }>;
       const memeId = ce.detail?.memeId;
+      const legacyMemeId = ce.detail?.legacyMemeId;
       const deletedChannelId = ce.detail?.channelId;
-      if (!memeId) return;
+      if (!memeId && !legacyMemeId) return;
       if (deletedChannelId && deletedChannelId !== channelId) return;
-      setMemes((prev) => prev.filter((m) => m.id !== memeId));
+      setMemes((prev) =>
+        prev.filter((m) => {
+          const pid = getMemePrimaryId(m);
+          if (memeId && pid === memeId) return false;
+          if (legacyMemeId && m.id === legacyMemeId) return false;
+          return true;
+        }),
+      );
     };
     window.addEventListener('memalerts:memeDeleted', handler as EventListener);
     return () => window.removeEventListener('memalerts:memeDeleted', handler as EventListener);

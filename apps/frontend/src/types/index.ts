@@ -17,6 +17,13 @@ export interface Channel {
    * When null/undefined, Twitch-only features must be disabled in UI.
    */
   twitchChannelId?: string | null;
+  /**
+   * Reward coins for approved submissions, split by source kind (upload/url vs pool).
+   * Back-compat: older backend may only provide `submissionRewardCoins`.
+   */
+  submissionRewardCoinsUpload?: number;
+  submissionRewardCoinsPool?: number;
+  submissionRewardCoins?: number;
 }
 
 export type ExternalAccountProvider = 'twitch' | string;
@@ -53,6 +60,11 @@ export type MemeStatus = 'active' | 'inactive' | 'pending';
 
 export interface Meme {
   id: string;
+  /**
+   * New canonical identifier for channel listings.
+   * Backend may still return legacy `id` for compatibility, but will include this field.
+   */
+  channelMemeId?: string;
   title: string;
   type: MemeType;
   fileUrl: string;
@@ -86,6 +98,8 @@ export interface Submission {
   fileUrlTemp: string;
   notes: string | null;
   status: SubmissionStatus;
+  sourceKind?: 'upload' | 'url' | 'pool';
+  memeAssetId?: string | null;
   moderatorNotes?: string | null;
   revision?: number; // number of resubmits after "needs_changes" (0..2)
   tags?: Array<{ tag: Tag }>;

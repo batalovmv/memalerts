@@ -782,6 +782,9 @@
     "submissionRewardCoins": "Reward for approved submission (coins)",
     "submissionRewardCoinsDescription": "Coins granted to the viewer when you approve their submission. Set 0 to disable."
     ,
+    "submissionRewardCoinsUpload": "Reward (upload / URL) (coins)",
+    "submissionRewardCoinsPool": "Reward (pool) (coins)",
+    "submissionRewardCoinsDescriptionSplit": "Coins granted to the viewer when you approve their submission. Pool and upload/URL can have different rewards. Set 0 to disable.",
     "quickAdd100": "+100"
   },
   "search": {
@@ -807,6 +810,20 @@
     "filterByTags": "Filter by Tags",
     "noResults": "No memes found matching your criteria",
     "enterQuery": "Enter a search query or select tags to find memes"
+  },
+  "pool": {
+    "title": "Meme pool",
+    "subtitle": "Browse memes approved in other channels and add them via a submission.",
+    "searchPlaceholder": "Search…",
+    "failedToLoad": "Failed to load pool.",
+    "noAccess": "Pool is available only for beta users.",
+    "empty": "No memes found.",
+    "addToMyChannel": "Add to my channel",
+    "loginRequired": "Please log in to add memes.",
+    "missingMemeAssetId": "This pool item has no memeAssetId.",
+    "submissionCreated": "Submitted for approval.",
+    "alreadyInChannel": "This meme is already in your channel.",
+    "failedToSubmit": "Failed to submit."
   },
   "footer": {
     "madeBy": "Made by",
@@ -838,6 +855,7 @@
     "settings": "Settings",
     "betaAccess": "Beta access",
     "mySubmissions": "My submissions",
+    "pool": "Meme pool",
     "logout": "Logout",
     "loggedOutSuccessfully": "Logged out successfully",
     "failedToLogout": "Failed to logout",
@@ -860,6 +878,8 @@
     "unavailableTitle": "Submission unavailable",
     "submissionsDisabled": "Submissions are disabled by the streamer",
     "submissionsOffline": "Submissions are allowed only while the stream is live"
+    ,
+    "openPool": "Open pool"
   },
   "profile": {
     "balanceFor": "Your Balance for",

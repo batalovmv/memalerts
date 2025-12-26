@@ -18,6 +18,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
+import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button, IconButton, Input, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
@@ -75,10 +76,18 @@ export default function StreamerProfile() {
   // Remove deleted memes immediately (no refresh) when streamer deletes from dashboard.
   useEffect(() => {
     const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ memeId?: string }>;
+      const ce = e as CustomEvent<{ memeId?: string; legacyMemeId?: string }>;
       const memeId = ce.detail?.memeId;
-      if (!memeId) return;
-      setMemes((prev) => prev.filter((m) => m.id !== memeId));
+      const legacyMemeId = ce.detail?.legacyMemeId;
+      if (!memeId && !legacyMemeId) return;
+      setMemes((prev) =>
+        prev.filter((m) => {
+          const pid = getMemePrimaryId(m);
+          if (memeId && pid === memeId) return false;
+          if (legacyMemeId && m.id === legacyMemeId) return false;
+          return true;
+        }),
+      );
     };
     window.addEventListener('memalerts:memeDeleted', handler as EventListener);
     return () => window.removeEventListener('memalerts:memeDeleted', handler as EventListener);
@@ -619,7 +628,7 @@ export default function StreamerProfile() {
               >
                 {memesToDisplay.map((meme: Meme) => (
                   <MemeCard
-                    key={meme.id}
+                    key={getMemePrimaryId(meme)}
                     meme={meme}
                     onClick={() => {
                       setSelectedMeme(meme);

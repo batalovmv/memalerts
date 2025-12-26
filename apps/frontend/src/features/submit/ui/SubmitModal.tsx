@@ -340,6 +340,20 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
                   {t('submit.import')}
                 </button>
               </div>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="glass-btn bg-white/40 dark:bg-white/5"
+                  onClick={() => {
+                    onClose();
+                    navigate('/pool');
+                  }}
+                >
+                  {t('submitModal.openPool', { defaultValue: 'Open pool' })}
+                </Button>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

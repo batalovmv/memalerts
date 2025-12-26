@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Meme } from '@/types';
 
 import MemeCard from '@/components/MemeCard';
+import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Spinner } from '@/shared/ui';
 
 const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
@@ -67,7 +68,7 @@ export function AllMemesGrid({
     <div className="meme-masonry">
       {memes.map((meme) => (
         <MemeCard
-          key={meme.id}
+          key={getMemePrimaryId(meme)}
           meme={meme}
           onClick={() => onSelectMeme(meme)}
           isOwner={true}

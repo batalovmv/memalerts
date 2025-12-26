@@ -18,6 +18,7 @@ const StreamerProfile = lazy(() => import('./pages/StreamerProfile'));
 const Submit = lazy(() => import('./pages/Submit'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Search = lazy(() => import('./pages/Search'));
+const Pool = lazy(() => import('./pages/Pool'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const BetaAccess = lazy(() => import('./pages/BetaAccess'));
@@ -118,6 +119,7 @@ function App() {
               <Route path="/settings/*" element={<Admin />} />
               <Route path="/admin" element={<AdminRedirect />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/pool" element={<Pool />} />
               <Route path="/beta-access" element={<BetaAccess />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />

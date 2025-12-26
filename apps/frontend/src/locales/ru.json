@@ -802,6 +802,9 @@
     "submissionRewardCoins": "Награда за одобренный мем (монет)",
     "submissionRewardCoinsDescription": "Монеты, которые получит зритель, если вы одобрите его заявку. Поставьте 0 чтобы отключить."
     ,
+    "submissionRewardCoinsUpload": "Награда (загрузка / URL) (монет)",
+    "submissionRewardCoinsPool": "Награда (пул) (монет)",
+    "submissionRewardCoinsDescriptionSplit": "Монеты, которые получит зритель, если вы одобрите его заявку. Для пула и загрузки/URL можно задать разные награды. Поставьте 0 чтобы отключить.",
     "quickAdd100": "+100"
   },
   "search": {
@@ -821,6 +824,20 @@
     "filterByTags": "Фильтр по тегам",
     "noResults": "Мемы не найдены",
     "enterQuery": "Введите поисковый запрос или выберите теги для поиска мемов"
+  },
+  "pool": {
+    "title": "Пул мемов",
+    "subtitle": "Просматривайте мемы, одобренные в других каналах, и добавляйте их через заявку.",
+    "searchPlaceholder": "Поиск…",
+    "failedToLoad": "Не удалось загрузить пул.",
+    "noAccess": "Пул доступен только пользователям beta.",
+    "empty": "Ничего не найдено.",
+    "addToMyChannel": "Добавить в мой канал",
+    "loginRequired": "Пожалуйста, войдите, чтобы добавлять мемы.",
+    "missingMemeAssetId": "У этого элемента пула нет memeAssetId.",
+    "submissionCreated": "Заявка отправлена на одобрение.",
+    "alreadyInChannel": "Этот мем уже есть в вашем канале.",
+    "failedToSubmit": "Не удалось отправить заявку."
   },
   "footer": {
     "madeBy": "Сделано",
@@ -852,6 +869,7 @@
     "settings": "Настройки",
     "betaAccess": "Доступ к Beta",
     "mySubmissions": "Мои заявки",
+    "pool": "Пул мемов",
     "logout": "Выйти",
     "loggedOutSuccessfully": "Выход выполнен успешно",
     "failedToLogout": "Не удалось выйти",
@@ -871,6 +889,8 @@
     "uploadTimeout": "Таймаут загрузки. Файл мог быть успешно загружен. Пожалуйста, проверьте ваши заявки.",
     "failedToSubmit": "Не удалось отправить мем",
     "failedToImport": "Не удалось импортировать мем"
+    ,
+    "openPool": "Открыть пул"
   },
   "profile": {
     "balanceFor": "Ваш баланс для",

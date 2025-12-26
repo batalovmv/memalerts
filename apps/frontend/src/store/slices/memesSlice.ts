@@ -35,9 +35,10 @@ export const activateMeme = createAsyncThunk<
   void,
   string,
   { rejectValue: ApiError }
->('memes/activateMeme', async (memeId, { rejectWithValue }) => {
+>('memes/activateMeme', async (memeOrChannelMemeId, { rejectWithValue }) => {
   try {
-    await api.post(`/memes/${memeId}/activate`);
+    // Backend accepts both legacy Meme.id and ChannelMeme.id.
+    await api.post(`/memes/${memeOrChannelMemeId}/activate`);
   } catch (error: unknown) {
     return rejectWithValue(toApiError(error, 'Failed to activate meme'));
   }

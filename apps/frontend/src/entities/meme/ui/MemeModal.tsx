@@ -6,6 +6,7 @@ import type { Meme } from '@/types';
 
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
+import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Button, Input, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
@@ -206,9 +207,14 @@ export default function MemeModal({
       toast.success(t('memeModal.deleted', { defaultValue: 'Meme deleted successfully!' }));
       // Optimistically remove from any open lists (dashboard/public) without a full refresh.
       try {
+        const primaryId = getMemePrimaryId(currentMeme);
         window.dispatchEvent(
           new CustomEvent('memalerts:memeDeleted', {
-            detail: { memeId: currentMeme.id, channelId: currentMeme.channelId },
+            detail: {
+              memeId: primaryId,
+              legacyMemeId: currentMeme.id !== primaryId ? currentMeme.id : undefined,
+              channelId: currentMeme.channelId,
+            },
           }),
         );
       } catch {
@@ -227,7 +233,7 @@ export default function MemeModal({
 
   const handleActivate = async () => {
     if (onActivate && currentMeme) {
-      await onActivate(currentMeme.id);
+      await onActivate(getMemeIdForActivation(currentMeme));
       onClose();
     }
   };

@@ -40,7 +40,8 @@ export function RewardsSettings() {
     rewardCost: '',
     rewardCoins: '',
     rewardOnlyWhenLive: false,
-    submissionRewardCoins: '0',
+    submissionRewardCoinsUpload: '0',
+    submissionRewardCoinsPool: '0',
     submissionRewardOnlyWhenLive: false,
   });
   const [savingTwitchReward, setSavingTwitchReward] = useState(false);
@@ -48,6 +49,7 @@ export function RewardsSettings() {
   const [twitchSavedPulse, setTwitchSavedPulse] = useState(false);
   const [approvedSavedPulse, setApprovedSavedPulse] = useState(false);
   const lastApprovedNonZeroRef = useRef<number>(100);
+  const lastApprovedNonZeroPoolRef = useRef<number>(100);
   const saveTwitchTimerRef = useRef<number | null>(null);
   const saveApprovedTimerRef = useRef<number | null>(null);
   const lastSavedTwitchRef = useRef<string | null>(null);
@@ -64,6 +66,12 @@ export function RewardsSettings() {
     try {
       const cached = getCachedChannelData(user.channel.slug);
       if (cached) {
+        const legacyCoins =
+          typeof cached.submissionRewardCoins === 'number' ? cached.submissionRewardCoins : 0;
+        const uploadCoins =
+          typeof cached.submissionRewardCoinsUpload === 'number' ? cached.submissionRewardCoinsUpload : legacyCoins;
+        const poolCoins =
+          typeof cached.submissionRewardCoinsPool === 'number' ? cached.submissionRewardCoinsPool : legacyCoins;
         setRewardSettings({
           rewardIdForCoins: cached.rewardIdForCoins || '',
           rewardEnabled: cached.rewardEnabled || false,
@@ -71,7 +79,8 @@ export function RewardsSettings() {
           rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
           rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
           rewardOnlyWhenLive: getBoolean(cached, 'rewardOnlyWhenLive') ?? false,
-          submissionRewardCoins: cached.submissionRewardCoins !== undefined ? String(cached.submissionRewardCoins) : '0',
+          submissionRewardCoinsUpload: String(uploadCoins ?? 0),
+          submissionRewardCoinsPool: String(poolCoins ?? 0),
           submissionRewardOnlyWhenLive:
             getBoolean(cached, 'submissionRewardOnlyWhenLive') ?? false,
         });
@@ -85,7 +94,8 @@ export function RewardsSettings() {
           rewardOnlyWhenLive: getBoolean(cached, 'rewardOnlyWhenLive') ?? false,
         });
         lastSavedApprovedRef.current = JSON.stringify({
-          submissionRewardCoins: cached.submissionRewardCoins !== undefined ? cached.submissionRewardCoins : 0,
+          submissionRewardCoinsUpload: uploadCoins ?? 0,
+          submissionRewardCoinsPool: poolCoins ?? 0,
           submissionRewardOnlyWhenLive:
             getBoolean(cached, 'submissionRewardOnlyWhenLive') ?? false,
         });
@@ -94,6 +104,12 @@ export function RewardsSettings() {
 
       const channelData = await getChannelData(user.channel.slug);
       if (channelData) {
+        const legacyCoins =
+          typeof channelData.submissionRewardCoins === 'number' ? channelData.submissionRewardCoins : 0;
+        const uploadCoins =
+          typeof channelData.submissionRewardCoinsUpload === 'number' ? channelData.submissionRewardCoinsUpload : legacyCoins;
+        const poolCoins =
+          typeof channelData.submissionRewardCoinsPool === 'number' ? channelData.submissionRewardCoinsPool : legacyCoins;
         setRewardSettings({
           rewardIdForCoins: channelData.rewardIdForCoins || '',
           rewardEnabled: channelData.rewardEnabled || false,
@@ -101,7 +117,8 @@ export function RewardsSettings() {
           rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
           rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
           rewardOnlyWhenLive: getBoolean(channelData, 'rewardOnlyWhenLive') ?? false,
-          submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? String(channelData.submissionRewardCoins) : '0',
+          submissionRewardCoinsUpload: String(uploadCoins ?? 0),
+          submissionRewardCoinsPool: String(poolCoins ?? 0),
           submissionRewardOnlyWhenLive:
             getBoolean(channelData, 'submissionRewardOnlyWhenLive') ?? false,
         });
@@ -115,7 +132,8 @@ export function RewardsSettings() {
           rewardOnlyWhenLive: getBoolean(channelData, 'rewardOnlyWhenLive') ?? false,
         });
         lastSavedApprovedRef.current = JSON.stringify({
-          submissionRewardCoins: channelData.submissionRewardCoins !== undefined ? channelData.submissionRewardCoins : 0,
+          submissionRewardCoinsUpload: uploadCoins ?? 0,
+          submissionRewardCoinsPool: poolCoins ?? 0,
           submissionRewardOnlyWhenLive:
             getBoolean(channelData, 'submissionRewardOnlyWhenLive') ?? false,
         });
@@ -135,11 +153,15 @@ export function RewardsSettings() {
 
   // Track last non-zero value for the approved meme reward toggle.
   useEffect(() => {
-    const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
-    if (Number.isFinite(coins) && coins > 0) {
-      lastApprovedNonZeroRef.current = coins;
+    const uploadCoins = rewardSettings.submissionRewardCoinsUpload ? parseInt(rewardSettings.submissionRewardCoinsUpload, 10) : 0;
+    if (Number.isFinite(uploadCoins) && uploadCoins > 0) {
+      lastApprovedNonZeroRef.current = uploadCoins;
     }
-  }, [rewardSettings.submissionRewardCoins]);
+    const poolCoins = rewardSettings.submissionRewardCoinsPool ? parseInt(rewardSettings.submissionRewardCoinsPool, 10) : 0;
+    if (Number.isFinite(poolCoins) && poolCoins > 0) {
+      lastApprovedNonZeroPoolRef.current = poolCoins;
+    }
+  }, [rewardSettings.submissionRewardCoinsUpload, rewardSettings.submissionRewardCoinsPool]);
 
   // Check Twitch reward eligibility (affiliate/partner) to hide/disable reward UI.
   useEffect(() => {
@@ -253,19 +275,25 @@ export function RewardsSettings() {
     const startedAt = Date.now();
     setSavingApprovedMemeReward(true);
     try {
-      const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
-      if (Number.isNaN(coins) || coins < 0) {
+      const uploadCoins = rewardSettings.submissionRewardCoinsUpload
+        ? parseInt(rewardSettings.submissionRewardCoinsUpload, 10)
+        : 0;
+      const poolCoins = rewardSettings.submissionRewardCoinsPool ? parseInt(rewardSettings.submissionRewardCoinsPool, 10) : 0;
+
+      if (Number.isNaN(uploadCoins) || uploadCoins < 0 || Number.isNaN(poolCoins) || poolCoins < 0) {
         toast.error(t('admin.invalidSubmissionRewardCoins', 'Введите корректное число (0 или больше)'));
         return;
       }
       const { api } = await import('@/lib/api');
       await api.patch('/streamer/channel/settings', {
         // Approved meme reward only (do NOT include Twitch reward fields here)
-        submissionRewardCoins: coins,
+        submissionRewardCoinsUpload: uploadCoins,
+        submissionRewardCoinsPool: poolCoins,
         submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
       });
       lastSavedApprovedRef.current = JSON.stringify({
-        submissionRewardCoins: coins,
+        submissionRewardCoinsUpload: uploadCoins,
+        submissionRewardCoinsPool: poolCoins,
         submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
       });
     } catch (error: unknown) {
@@ -320,9 +348,13 @@ export function RewardsSettings() {
     if (!user?.channel?.slug) return;
     if (!settingsLoadedRef.current) return;
 
-    const coins = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
+    const uploadCoins = rewardSettings.submissionRewardCoinsUpload
+      ? parseInt(rewardSettings.submissionRewardCoinsUpload, 10)
+      : 0;
+    const poolCoins = rewardSettings.submissionRewardCoinsPool ? parseInt(rewardSettings.submissionRewardCoinsPool, 10) : 0;
     const payload = JSON.stringify({
-      submissionRewardCoins: Number.isFinite(coins) ? coins : 0,
+      submissionRewardCoinsUpload: Number.isFinite(uploadCoins) ? uploadCoins : 0,
+      submissionRewardCoinsPool: Number.isFinite(poolCoins) ? poolCoins : 0,
       submissionRewardOnlyWhenLive: !!rewardSettings.submissionRewardOnlyWhenLive,
     });
 
@@ -337,7 +369,12 @@ export function RewardsSettings() {
       saveApprovedTimerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rewardSettings.submissionRewardCoins, rewardSettings.submissionRewardOnlyWhenLive, user?.channel?.slug]);
+  }, [
+    rewardSettings.submissionRewardCoinsUpload,
+    rewardSettings.submissionRewardCoinsPool,
+    rewardSettings.submissionRewardOnlyWhenLive,
+    user?.channel?.slug,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -550,17 +587,25 @@ export function RewardsSettings() {
             <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
               <input
                 type="checkbox"
-                checked={(parseInt(rewardSettings.submissionRewardCoins || '0', 10) || 0) > 0}
+                checked={
+                  (parseInt(rewardSettings.submissionRewardCoinsUpload || '0', 10) || 0) > 0 ||
+                  (parseInt(rewardSettings.submissionRewardCoinsPool || '0', 10) || 0) > 0
+                }
                 disabled={savingApprovedMemeReward}
                 onChange={(e) => {
                   if (savingApprovedMemeReward) return;
                   const enabled = e.target.checked;
                   if (!enabled) {
-                    setRewardSettings({ ...rewardSettings, submissionRewardCoins: '0' });
+                    setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: '0', submissionRewardCoinsPool: '0' });
                     return;
                   }
-                  const restore = lastApprovedNonZeroRef.current > 0 ? lastApprovedNonZeroRef.current : 100;
-                  setRewardSettings({ ...rewardSettings, submissionRewardCoins: String(restore) });
+                  const restoreUpload = lastApprovedNonZeroRef.current > 0 ? lastApprovedNonZeroRef.current : 100;
+                  const restorePool = lastApprovedNonZeroPoolRef.current > 0 ? lastApprovedNonZeroPoolRef.current : 100;
+                  setRewardSettings({
+                    ...rewardSettings,
+                    submissionRewardCoinsUpload: String(restoreUpload),
+                    submissionRewardCoinsPool: String(restorePool),
+                  });
                 }}
                 className="sr-only peer"
               />
@@ -593,43 +638,92 @@ export function RewardsSettings() {
               </label>
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('admin.submissionRewardCoins', { defaultValue: 'Reward for approved submission (coins)' })}
-            </label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={rewardSettings.submissionRewardCoins}
-                onChange={(e) => {
-                  const next = e.target.value.replace(/[^\d]/g, '');
-                  setRewardSettings({ ...rewardSettings, submissionRewardCoins: next });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
-                    e.preventDefault();
-                  }
-                }}
-                placeholder="0"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
-                onClick={() => {
-                  const current = rewardSettings.submissionRewardCoins ? parseInt(rewardSettings.submissionRewardCoins, 10) : 0;
-                  const next = (Number.isFinite(current) ? current : 0) + 100;
-                  setRewardSettings({ ...rewardSettings, submissionRewardCoins: String(next) });
-                }}
-                disabled={savingApprovedMemeReward}
-              >
-                {t('admin.quickAdd100', { defaultValue: '+100' })}
-              </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.submissionRewardCoinsUpload', { defaultValue: 'Reward (upload / URL) (coins)' })}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.submissionRewardCoinsUpload}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: next });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="0"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
+                    onClick={() => {
+                      const current = rewardSettings.submissionRewardCoinsUpload
+                        ? parseInt(rewardSettings.submissionRewardCoinsUpload, 10)
+                        : 0;
+                      const next = (Number.isFinite(current) ? current : 0) + 100;
+                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: String(next) });
+                    }}
+                    disabled={savingApprovedMemeReward}
+                  >
+                    {t('admin.quickAdd100', { defaultValue: '+100' })}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.submissionRewardCoinsPool', { defaultValue: 'Reward (pool) (coins)' })}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.submissionRewardCoinsPool}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsPool: next });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="0"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
+                    onClick={() => {
+                      const current = rewardSettings.submissionRewardCoinsPool
+                        ? parseInt(rewardSettings.submissionRewardCoinsPool, 10)
+                        : 0;
+                      const next = (Number.isFinite(current) ? current : 0) + 100;
+                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsPool: String(next) });
+                    }}
+                    disabled={savingApprovedMemeReward}
+                  >
+                    {t('admin.quickAdd100', { defaultValue: '+100' })}
+                  </Button>
+                </div>
+              </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {t('admin.submissionRewardCoinsDescription', { defaultValue: 'Coins granted to the viewer when you approve their submission. Set 0 to disable.' })}
+              {t('admin.submissionRewardCoinsDescriptionSplit', {
+                defaultValue:
+                  'Coins granted to the viewer when you approve their submission. Pool and upload/URL can have different rewards. Set 0 to disable.',
+              })}
             </p>
           </div>
 

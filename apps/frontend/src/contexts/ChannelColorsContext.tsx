@@ -26,6 +26,10 @@ interface ChannelData {
   rewardTitle?: string | null;
   rewardCost?: number | null;
   rewardCoins?: number | null;
+  // Reward coins for approved submissions (split by source kind).
+  // Back-compat: older backend returns only `submissionRewardCoins`.
+  submissionRewardCoinsUpload?: number;
+  submissionRewardCoinsPool?: number;
   submissionRewardCoins?: number;
   submissionsEnabled?: boolean;
   submissionsOnlyWhenLive?: boolean;

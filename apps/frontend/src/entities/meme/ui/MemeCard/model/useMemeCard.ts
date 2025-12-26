@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Meme } from '@/types';
 
 import { useHasUserInteracted } from '@/lib/userInteraction';
+import { getMemePrimaryId } from '@/shared/lib/memeIds';
 
 export type MemeCardPreviewMode = 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 
@@ -91,7 +92,7 @@ export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode:
     return () => {
       cancelled = true;
     };
-  }, [meme.id, meme.type, mediaUrl, shouldLoadMedia]);
+  }, [getMemePrimaryId(meme), meme.type, mediaUrl, shouldLoadMedia]);
 
   // Handle video playback on hover (unified logic)
   useEffect(() => {

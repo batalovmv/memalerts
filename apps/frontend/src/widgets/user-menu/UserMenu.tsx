@@ -94,6 +94,11 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
+  const handlePool = () => {
+    navigate('/pool');
+    setIsOpen(false);
+  };
+
   // Determine displayed role based on context
   // Show "streamer" only when viewing own profile, "viewer" when viewing someone else's profile
   const getDisplayRole = (): string => {
@@ -247,6 +252,15 @@ export default function UserMenu() {
                 role="menuitem"
               >
                 {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
+              </button>
+
+              <button
+                onClick={handlePool}
+                className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                type="button"
+                role="menuitem"
+              >
+                {t('userMenu.pool', { defaultValue: 'Meme pool' })}
               </button>
 
               {user.role === 'streamer' || user.role === 'admin' ? (

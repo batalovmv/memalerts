@@ -72,6 +72,11 @@ export default function Submit() {
               id: String(s?.id ?? ''),
               title: String(s?.title ?? ''),
               status: String(s?.status ?? ''),
+              sourceKind:
+                s?.sourceKind === 'upload' || s?.sourceKind === 'url' || s?.sourceKind === 'pool'
+                  ? (s.sourceKind as 'upload' | 'url' | 'pool')
+                  : undefined,
+              memeAssetId: typeof s?.memeAssetId === 'string' ? (s.memeAssetId as string) : s?.memeAssetId === null ? null : undefined,
               createdAt: String(s?.createdAt ?? new Date().toISOString()),
               notes: typeof s?.notes === 'string' ? s.notes : s?.notes === null ? null : null,
               moderatorNotes: typeof s?.moderatorNotes === 'string' ? s.moderatorNotes : s?.moderatorNotes === null ? null : null,

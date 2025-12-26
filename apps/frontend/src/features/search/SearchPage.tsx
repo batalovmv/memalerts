@@ -7,6 +7,7 @@ import type { Meme, Tag } from '@/types';
 import Header from '@/components/Header';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
+import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Card, Input, PageShell, Select, Spinner } from '@/shared/ui';
 
 function XSmallIcon() {
@@ -208,7 +209,7 @@ export default function Search() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {memes.map((meme) => (
               <Card
-                key={meme.id}
+                key={getMemePrimaryId(meme)}
                 hoverable
                 className="cursor-pointer overflow-hidden"
                 onClick={() => navigate(`/channel/${meme.channelId}`)}
