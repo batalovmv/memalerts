@@ -49,13 +49,13 @@ export function PageShell({
   const showDefaultBackground = variant !== 'channel' && !background;
 
   return (
-    <div className={cn('relative overflow-hidden', className)}>
+    <div className={cn('relative overflow-hidden flex-1 min-h-full flex flex-col', className)}>
       {background}
       {showDefaultBackground ? defaultBackground() : null}
 
       {header}
 
-      <main className={cn('relative page-container py-8', containerClassName, mainClassName)}>{children}</main>
+      <main className={cn('relative page-container py-8 flex-1', containerClassName, mainClassName)}>{children}</main>
     </div>
   );
 }

@@ -82,7 +82,7 @@ function App() {
       <Toaster position="top-right" />
       <GlobalErrorBanner />
       <div className="flex flex-col min-h-screen overflow-x-hidden">
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           <Suspense
             fallback={
               <div className="min-h-[50vh] flex items-center justify-center text-gray-500 dark:text-gray-400">

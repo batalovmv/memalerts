@@ -43,9 +43,9 @@ export default function Footer() {
   const currentLang = i18n.language === 'ru' ? 'RU' : 'EN';
 
   return (
-    <footer className="mt-auto">
-      <div className="page-container py-6">
-        <div className="glass px-4 sm:px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+    <footer className="mt-auto glass rounded-none border-t border-black/5 dark:border-white/10">
+      <div className="page-container py-5">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <p className="text-sm text-gray-800 dark:text-gray-100">
               {t('footer.madeBy')} <span className="font-semibold">{t('footer.author')}</span>
