@@ -318,7 +318,7 @@ export default function SettingsPage() {
                     ref={moreMenuPopupRef}
                     role="menu"
                     aria-label={t('admin.more', { defaultValue: 'More' })}
-                    className="absolute right-0 mt-2 w-56 glass bg-white/80 dark:bg-gray-900/70 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-1 z-20"
+                    className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 z-20"
                     onKeyDownCapture={(e) => {
                       if (e.key === 'Escape') {
                         e.preventDefault();

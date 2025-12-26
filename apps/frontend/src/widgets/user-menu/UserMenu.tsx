@@ -176,7 +176,7 @@ export default function UserMenu() {
             ref={menuPopupRef}
             role="menu"
             aria-label={t('userMenu.menu', { defaultValue: 'User menu' })}
-            className="absolute right-0 mt-2 w-56 glass bg-white/80 dark:bg-gray-900/70 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
+            className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
             onKeyDownCapture={(e) => {
               if (e.key === 'Escape') {
                 e.preventDefault();

@@ -25,7 +25,7 @@
 - **`.section-gap`**: единый вертикальный ритм
 - **`.surface` / `.surface-hover`**: "карточная" поверхность приложения
 - **`.glass` / `.glass-btn`**: стекло/контролы в glass стиле (использовать умеренно)
-  - ⚠️ **Важно для попапов/меню**: `.glass` один даёт слишком большую прозрачность. Всегда добавляй `bg-white/80 dark:bg-gray-900/70` для читаемости (см. раздел "Меню / Dropdown")
+  - ✨ **Для попапов/меню**: используй просто `.glass` для красивого размытия фона (см. раздел "Меню / Dropdown")
 
 Рекомендация:
 - **Page-level**: `PageShell` + `Header` (**`PageShell` уже содержит `page-container` и `py-8`**)
@@ -148,7 +148,7 @@ import { Input, Select, Textarea } from '@/shared/ui';
 
 #### Визуальный стиль popup меню (фиксированный стандарт)
 
-Все выпадающие меню/попапы должны использовать **единый стиль прозрачности**:
+Все выпадающие меню/попапы должны использовать **единый стиль с размытием фона**:
 
 ```tsx
 // Пример для page-level меню (Settings, Dashboard и т.д.)
@@ -159,7 +159,7 @@ import { Input, Select, Textarea } from '@/shared/ui';
 
     <div
       role="menu"
-      className="absolute right-0 mt-2 w-56 glass bg-white/80 dark:bg-gray-900/70 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-20"
+      className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-20"
     >
       {/* Содержимое меню */}
     </div>
@@ -179,14 +179,13 @@ import { Input, Select, Textarea } from '@/shared/ui';
      - Page-level меню: backdrop `z-10`, popup `z-20`
      - Popup всегда на 10 единиц выше backdrop
 
-2. **Прозрачность фиксированная**: `glass bg-white/80 dark:bg-gray-900/70`
-   - НЕ используй просто `glass` без дополнительных `bg-*` классов
-   - Light theme: `bg-white/80` (80% непрозрачность)
-   - Dark theme: `bg-gray-900/70` (70% непрозрачность)
-   - Это обеспечивает читаемость и красивый эффект
+2. **Размытие фона**: просто `glass`
+   - ✨ Используй ТОЛЬКО `glass` для красивого размытия
+   - НЕ добавляй дополнительные `bg-*` классы - они уменьшают размытие
+   - `glass` обеспечивает идеальный баланс прозрачности и читаемости
 
-3. **Тень и обводка**: `shadow-2xl ring-1 ring-black/5 dark:ring-white/10`
-   - Тень глубокая для отделения от контента
+3. **Тень и обводка**: `shadow-xl ring-1 ring-black/5 dark:ring-white/10`
+   - Тень для отделения от контента
    - Тонкая обводка для чёткости границ
 
 4. **Скругление**: `rounded-xl` (единообразно с другими поверхностями)
@@ -321,8 +320,8 @@ import { AttemptsPill } from '@/shared/ui';
 - **Навигация**: внутренние ссылки через `Link`
 - **Попапы/Dropdown меню**:
   - есть backdrop (`fixed inset-0` с правильным z-index для контекста)
-  - прозрачность: `glass bg-white/80 dark:bg-gray-900/70` (не просто `glass`)
-  - тень и обводка: `shadow-2xl ring-1 ring-black/5 dark:ring-white/10`
+  - размытие: просто `glass` (БЕЗ дополнительных `bg-*` классов)
+  - тень и обводка: `shadow-xl ring-1 ring-black/5 dark:ring-white/10`
   - popup на 10 единиц z-index выше backdrop
 
 ---
