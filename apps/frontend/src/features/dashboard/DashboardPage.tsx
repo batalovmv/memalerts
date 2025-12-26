@@ -84,6 +84,28 @@ type ExpandCard = null | 'submissionsControl' | 'bots';
 type DashboardCardId = 'submit' | 'pending' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
 
 const DEFAULT_DASHBOARD_ORDER: DashboardCardId[] = ['submit', 'pending', 'memes', 'settings', 'submissionsControl', 'bots'];
+const DASHBOARD_CARD_IDS: readonly DashboardCardId[] = DEFAULT_DASHBOARD_ORDER;
+const DASHBOARD_CARD_ID_SET = new Set<string>(DASHBOARD_CARD_IDS as unknown as string[]);
+
+function isDashboardCardId(v: unknown): v is DashboardCardId {
+  return typeof v === 'string' && DASHBOARD_CARD_ID_SET.has(v);
+}
+
+function normalizeDashboardCardOrder(input: unknown): DashboardCardId[] {
+  const out: DashboardCardId[] = [];
+  const seen = new Set<DashboardCardId>();
+  const list = Array.isArray(input) ? input : [];
+  for (const x of list) {
+    if (!isDashboardCardId(x)) continue; // ignore unknown ids (forward-compat)
+    if (seen.has(x)) continue;
+    seen.add(x);
+    out.push(x);
+  }
+  for (const id of DASHBOARD_CARD_IDS) {
+    if (!seen.has(id)) out.push(id);
+  }
+  return out;
+}
 
 function DragHandleIcon() {
   return (
@@ -290,16 +312,16 @@ export default function DashboardPage() {
           stats?: { memesCount?: number };
           submissionsEnabled?: boolean;
           submissionsOnlyWhenLive?: boolean;
-          dashboardCardOrder?: DashboardCardId[] | null;
+          dashboardCardOrder?: string[] | null;
         }>(`/channels/${slug}`, { params: { includeMemes: false } });
         const count = data?.stats?.memesCount;
         if (typeof count === 'number') setMemesCount(count);
         if (typeof data?.submissionsEnabled === 'boolean') setSubmissionsEnabled(data.submissionsEnabled);
         if (typeof data?.submissionsOnlyWhenLive === 'boolean') setSubmissionsOnlyWhenLive(data.submissionsOnlyWhenLive);
-        if (Array.isArray(data?.dashboardCardOrder) && data.dashboardCardOrder.length > 0) {
-          setDashboardCardOrder(data.dashboardCardOrder);
-        } else if (data?.dashboardCardOrder === null) {
+        if (data?.dashboardCardOrder === null) {
           setDashboardCardOrder(DEFAULT_DASHBOARD_ORDER);
+        } else if (Array.isArray(data?.dashboardCardOrder)) {
+          setDashboardCardOrder(normalizeDashboardCardOrder(data.dashboardCardOrder));
         }
       } catch {
         // ignore
@@ -549,9 +571,12 @@ export default function DashboardPage() {
   const onDragEnd = useCallback(
     (event: { active: { id: unknown }; over: { id: unknown } | null }) => {
       if (!isStreamerAdmin) return;
-      const activeId = String(event.active?.id || '') as DashboardCardId;
-      const overId = String(event.over?.id || '') as DashboardCardId;
       if (!event.over) return;
+      const activeRaw = event.active?.id;
+      const overRaw = event.over?.id;
+      if (!isDashboardCardId(activeRaw) || !isDashboardCardId(overRaw)) return; // forward-compat
+      const activeId = activeRaw;
+      const overId = overRaw;
       if (!activeId || !overId) return;
       if (activeId === overId) return;
       setExpandedCard(null);
