@@ -12,8 +12,8 @@ type CreditsConfig = {
 };
 
 type CreditsState = {
-  chatters?: Array<{ name: string }>;
-  donors?: Array<{ name: string; amount?: number; currency?: string }>;
+  chatters?: Array<{ name: string; avatarUrl?: string | null }>;
+  donors?: Array<{ name: string; amount?: number; currency?: string; avatarUrl?: string | null }>;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -154,28 +154,50 @@ export default function CreditsOverlayView() {
 
   const sections = useMemo(() => {
     const order = resolved.sectionsOrder;
-    const result: Array<{ key: string; title: string; lines: string[] }> = [];
+    const result: Array<{
+      key: 'donors' | 'chatters';
+      title: string;
+      items: Array<{ text: string; avatarUrl?: string | null }>;
+    }> = [];
 
     for (const k of order) {
       if (k === 'donors' && resolved.showDonors) {
-        const lines = (state.donors || []).map((d) => {
+        const items = (state.donors || [])
+          .slice(0, 200)
+          .map((d) => {
           const name = String(d.name || '').trim();
           const amount = typeof d.amount === 'number' && Number.isFinite(d.amount) ? d.amount : null;
           const cur = String(d.currency || '').trim();
-          if (amount !== null) return cur ? `${name} — ${amount} ${cur}` : `${name} — ${amount}`;
-          return name;
-        });
-        if (lines.length) result.push({ key: 'donors', title: lang === 'ru' ? 'Донаты' : 'Donations', lines });
+          let text = name;
+          if (amount !== null) text = cur ? `${name} — ${amount} ${cur}` : `${name} — ${amount}`;
+          return { text, avatarUrl: d.avatarUrl };
+        })
+          .filter((x) => Boolean(String(x.text || '').trim()));
+        const title = String(resolved.donorsTitleText || '').trim() || (lang === 'ru' ? 'Донаты' : 'Donors');
+        if (items.length) result.push({ key: 'donors', title, items });
       }
 
       if (k === 'chatters' && resolved.showChatters) {
-        const lines = (state.chatters || []).map((c) => String(c.name || '').trim()).filter(Boolean);
-        if (lines.length) result.push({ key: 'chatters', title: lang === 'ru' ? 'Чат' : 'Chat', lines });
+        const items = (state.chatters || [])
+          .slice(0, 500)
+          .map((c) => ({ text: String(c.name || '').trim(), avatarUrl: c.avatarUrl }))
+          .filter((x) => Boolean(String(x.text || '').trim()));
+        const title = String(resolved.chattersTitleText || '').trim() || (lang === 'ru' ? 'Чат' : 'Chatters');
+        if (items.length) result.push({ key: 'chatters', title, items });
       }
     }
 
     return result;
-  }, [lang, resolved.sectionsOrder, resolved.showChatters, resolved.showDonors, state.chatters, state.donors]);
+  }, [
+    lang,
+    resolved.chattersTitleText,
+    resolved.donorsTitleText,
+    resolved.sectionsOrder,
+    resolved.showChatters,
+    resolved.showDonors,
+    state.chatters,
+    state.donors,
+  ]);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollDurationSec, setScrollDurationSec] = useState<number>(30);
@@ -240,6 +262,8 @@ export default function CreditsOverlayView() {
         : resolved.backgroundMode === 'full'
           ? `rgba(${hexToRgb(resolved.bgColor).join(',')}, ${resolved.bgOpacity})`
           : `rgba(${hexToRgb(resolved.bgColor).join(',')}, ${resolved.bgOpacity})`;
+    const shadow =
+      resolved.shadowBlur > 0 && resolved.shadowOpacity > 0 ? `0 18px ${resolved.shadowBlur}px rgba(0,0,0,${resolved.shadowOpacity})` : undefined;
     return {
       marginLeft: resolved.bgInsetLeft,
       marginRight: resolved.bgInsetRight,
@@ -253,6 +277,7 @@ export default function CreditsOverlayView() {
       backdropFilter: resolved.blur > 0 ? `blur(${resolved.blur}px)` : undefined,
       WebkitBackdropFilter: resolved.blur > 0 ? `blur(${resolved.blur}px)` : undefined,
       border: resolved.borderEnabled ? `${resolved.borderWidth}px solid ${resolved.borderColor}` : undefined,
+      boxShadow: shadow,
     };
   }, [
     resolved.bgColor,
@@ -269,6 +294,8 @@ export default function CreditsOverlayView() {
     resolved.maxHeightVh,
     resolved.maxWidthPx,
     resolved.radius,
+    resolved.shadowBlur,
+    resolved.shadowOpacity,
   ]);
 
   const listStyle = useMemo((): React.CSSProperties => {
@@ -377,6 +404,33 @@ export default function CreditsOverlayView() {
     resolved.titleWeight,
   ]);
 
+  const topTitleStyle = useMemo((): React.CSSProperties => {
+    return {
+      ...titleStyle,
+      display: String(resolved.titleText || '').trim() ? 'block' : 'none',
+      marginBottom: 12,
+      textAlign: resolved.textAlign,
+    };
+  }, [resolved.textAlign, resolved.titleText, titleStyle]);
+
+  const rowWrapStyle = useMemo((): React.CSSProperties => {
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+    };
+  }, []);
+
+  const avatarStyle = useMemo((): React.CSSProperties => {
+    return {
+      width: resolved.avatarSize,
+      height: resolved.avatarSize,
+      borderRadius: resolved.avatarRadius,
+      objectFit: 'cover',
+      flex: '0 0 auto',
+    };
+  }, [resolved.avatarRadius, resolved.avatarSize]);
+
   const rootCss = useMemo(() => {
     return `
       ${demo ? demoBgCss : ''}
@@ -393,7 +447,7 @@ export default function CreditsOverlayView() {
   }, [demo, demoBgCss, resolved.scrollDirection]);
 
   // If there is no data yet, keep overlay empty (transparent) to avoid blocking scene.
-  const hasAny = sections.some((s) => s.lines.length > 0);
+  const hasAny = sections.some((s) => s.items.length > 0);
   if (!hasAny) return <style>{rootCss}</style>;
 
   return (
@@ -402,13 +456,20 @@ export default function CreditsOverlayView() {
       <div style={wrapperStyle}>
         <div style={{ ...cardStyle, ...fadeOutStyle }}>
           <div ref={listRef} style={listStyle}>
+            <div style={topTitleStyle}>{resolved.titleText}</div>
             {sections.map((s) => (
               <div key={s.key}>
                 <div style={titleStyle}>{s.title}</div>
                 <div style={listBlockStyle}>
-                  {s.lines.map((line, idx) => (
+                  {s.items.map((it, idx) => (
                     <div key={`${s.key}_${idx}`} style={idx === 0 ? undefined : lineStyle}>
-                      {line}
+                      <div style={rowWrapStyle}>
+                        {resolved.showAvatars && it.avatarUrl ? <img src={it.avatarUrl} alt="" style={avatarStyle} /> : null}
+                        <div>
+                          {resolved.showNumbers ? `${idx + 1}. ` : ''}
+                          {it.text}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -419,9 +480,15 @@ export default function CreditsOverlayView() {
               <div key={`${s.key}__dup`}>
                 <div style={titleStyle}>{s.title}</div>
                 <div style={listBlockStyle}>
-                  {s.lines.map((line, idx) => (
+                  {s.items.map((it, idx) => (
                     <div key={`${s.key}__dup_${idx}`} style={idx === 0 ? undefined : lineStyle}>
-                      {line}
+                      <div style={rowWrapStyle}>
+                        {resolved.showAvatars && it.avatarUrl ? <img src={it.avatarUrl} alt="" style={avatarStyle} /> : null}
+                        <div>
+                          {resolved.showNumbers ? `${idx + 1}. ` : ''}
+                          {it.text}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

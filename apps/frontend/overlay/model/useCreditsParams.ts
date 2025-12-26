@@ -5,6 +5,11 @@ import { clampFloat, clampInt } from '../lib/math';
 export type CreditsSectionKey = 'donors' | 'chatters';
 
 export type CreditsStyle = {
+  // Texts / labels
+  titleText: string;
+  donorsTitleText: string;
+  chattersTitleText: string;
+
   // Layout
   anchorX: 'left' | 'center' | 'right';
   anchorY: 'top' | 'center' | 'bottom';
@@ -26,6 +31,12 @@ export type CreditsStyle = {
   sectionsOrder: CreditsSectionKey[];
   showDonors: boolean;
   showChatters: boolean;
+
+  // List rendering
+  showNumbers: boolean;
+  showAvatars: boolean;
+  avatarSize: number; // px
+  avatarRadius: number; // px (999 = circle)
 
   // Typography
   fontFamily: string;
@@ -172,6 +183,11 @@ export function useCreditsParams(args: {
     return j as ParsedCreditsStyle;
   }, [creditsStyleJson]);
 
+  // Texts / labels
+  const titleText = String(getParam('titleText') || parsedStyle?.titleText || 'Credits').trim() || 'Credits';
+  const donorsTitleText = String(getParam('donorsTitleText') || parsedStyle?.donorsTitleText || 'Donors').trim() || 'Donors';
+  const chattersTitleText = String(getParam('chattersTitleText') || parsedStyle?.chattersTitleText || 'Chatters').trim() || 'Chatters';
+
   // Layout
   const anchorX = toEnum(getParam('anchorX') ?? parsedStyle?.anchorX, ['left', 'center', 'right'] as const, 'center');
   const anchorY = toEnum(getParam('anchorY') ?? parsedStyle?.anchorY, ['top', 'center', 'bottom'] as const, 'center');
@@ -203,6 +219,12 @@ export function useCreditsParams(args: {
 
   const showDonors = toBool(getParam('showDonors') ?? parsedStyle?.showDonors, true);
   const showChatters = toBool(getParam('showChatters') ?? parsedStyle?.showChatters, true);
+
+  // List rendering
+  const showNumbers = toBool(getParam('showNumbers') ?? parsedStyle?.showNumbers, true);
+  const showAvatars = toBool(getParam('showAvatars') ?? parsedStyle?.showAvatars, true);
+  const avatarSize = clampInt(parseInt(String(getParam('avatarSize') || parsedStyle?.avatarSize || '32'), 10), 12, 96);
+  const avatarRadius = clampInt(parseInt(String(getParam('avatarRadius') || parsedStyle?.avatarRadius || '10'), 10), 0, 999);
 
   // Typography
   const fontFamily = String(getParam('fontFamily') || parsedStyle?.fontFamily || 'system').trim();
@@ -281,6 +303,9 @@ export function useCreditsParams(args: {
 
   const resolved: CreditsStyle = useMemo(
     () => ({
+      titleText,
+      donorsTitleText,
+      chattersTitleText,
       anchorX,
       anchorY,
       bgInsetLeft,
@@ -297,6 +322,10 @@ export function useCreditsParams(args: {
       sectionsOrder,
       showDonors,
       showChatters,
+      showNumbers,
+      showAvatars,
+      avatarSize,
+      avatarRadius,
       fontFamily,
       fontSize,
       fontWeight,
@@ -341,12 +370,15 @@ export function useCreditsParams(args: {
       fadeInMs,
     }),
     [
+      avatarRadius,
+      avatarSize,
       anchorX,
       anchorY,
       bgInsetLeft,
       bgInsetRight,
       bgInsetTop,
       bgInsetBottom,
+      chattersTitleText,
       bgColor,
       backgroundMode,
       bgOpacity,
@@ -358,6 +390,7 @@ export function useCreditsParams(args: {
       contentPadRight,
       contentPadTop,
       contentPadBottom,
+      donorsTitleText,
       fadeInMs,
       fontColor,
       fontFamily,
@@ -380,6 +413,8 @@ export function useCreditsParams(args: {
       shadowOpacity,
       showChatters,
       showDonors,
+      showAvatars,
+      showNumbers,
       startDelayMs,
       textAlign,
       textShadowBlur,
@@ -397,6 +432,7 @@ export function useCreditsParams(args: {
       titleColor,
       titleEnabled,
       titleSize,
+      titleText,
       titleTransform,
       titleWeight,
     ],

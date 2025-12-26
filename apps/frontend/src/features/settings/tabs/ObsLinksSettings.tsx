@@ -167,6 +167,15 @@ export function ObsLinksSettings() {
   const [creditsShowChatters, setCreditsShowChatters] = useState(true);
   const [creditsSectionsOrder, setCreditsSectionsOrder] = useState<Array<'donors' | 'chatters'>>(['donors', 'chatters']);
 
+  const [creditsTitleText, setCreditsTitleText] = useState<string>('Credits');
+  const [creditsDonorsTitleText, setCreditsDonorsTitleText] = useState<string>('Donors');
+  const [creditsChattersTitleText, setCreditsChattersTitleText] = useState<string>('Chatters');
+
+  const [creditsShowNumbers, setCreditsShowNumbers] = useState<boolean>(true);
+  const [creditsShowAvatars, setCreditsShowAvatars] = useState<boolean>(true);
+  const [creditsAvatarSize, setCreditsAvatarSize] = useState<number>(32);
+  const [creditsAvatarRadius, setCreditsAvatarRadius] = useState<number>(10);
+
   const [creditsFontFamily, setCreditsFontFamily] = useState<string>('system');
   const [creditsFontSize, setCreditsFontSize] = useState<number>(26);
   const [creditsFontWeight, setCreditsFontWeight] = useState<number>(800);
@@ -840,6 +849,16 @@ export function ObsLinksSettings() {
         const nextShowDonors = typeof styleFromServer?.showDonors === 'boolean' ? styleFromServer.showDonors : creditsShowDonors;
         const nextShowChatters = typeof styleFromServer?.showChatters === 'boolean' ? styleFromServer.showChatters : creditsShowChatters;
 
+        const nextTitleText = typeof styleFromServer?.titleText === 'string' ? styleFromServer.titleText : creditsTitleText;
+        const nextDonorsTitleText = typeof styleFromServer?.donorsTitleText === 'string' ? styleFromServer.donorsTitleText : creditsDonorsTitleText;
+        const nextChattersTitleText =
+          typeof styleFromServer?.chattersTitleText === 'string' ? styleFromServer.chattersTitleText : creditsChattersTitleText;
+
+        const nextShowNumbers = typeof styleFromServer?.showNumbers === 'boolean' ? styleFromServer.showNumbers : creditsShowNumbers;
+        const nextShowAvatars = typeof styleFromServer?.showAvatars === 'boolean' ? styleFromServer.showAvatars : creditsShowAvatars;
+        const nextAvatarSize = typeof styleFromServer?.avatarSize === 'number' ? styleFromServer.avatarSize : creditsAvatarSize;
+        const nextAvatarRadius = typeof styleFromServer?.avatarRadius === 'number' ? styleFromServer.avatarRadius : creditsAvatarRadius;
+
         const nextFontFamily = typeof styleFromServer?.fontFamily === 'string' ? styleFromServer.fontFamily : creditsFontFamily;
         const nextFontSize = typeof styleFromServer?.fontSize === 'number' ? styleFromServer.fontSize : creditsFontSize;
         const nextFontWeight = typeof styleFromServer?.fontWeight === 'number' ? styleFromServer.fontWeight : creditsFontWeight;
@@ -943,6 +962,15 @@ export function ObsLinksSettings() {
         setCreditsShowDonors(Boolean(nextShowDonors));
         setCreditsShowChatters(Boolean(nextShowChatters));
 
+        setCreditsTitleText(String(nextTitleText || 'Credits'));
+        setCreditsDonorsTitleText(String(nextDonorsTitleText || 'Donors'));
+        setCreditsChattersTitleText(String(nextChattersTitleText || 'Chatters'));
+
+        setCreditsShowNumbers(Boolean(nextShowNumbers));
+        setCreditsShowAvatars(Boolean(nextShowAvatars));
+        setCreditsAvatarSize(Math.max(12, Math.min(96, Math.round(nextAvatarSize))));
+        setCreditsAvatarRadius(Math.max(0, Math.min(999, Math.round(nextAvatarRadius))));
+
         setCreditsFontFamily(String(nextFontFamily || 'system'));
         setCreditsFontSize(Math.max(10, Math.min(64, Math.round(nextFontSize))));
         setCreditsFontWeight(Math.max(300, Math.min(900, Math.round(nextFontWeight))));
@@ -1023,6 +1051,13 @@ export function ObsLinksSettings() {
           sectionsOrder: nextOrder.length ? nextOrder : ['donors', 'chatters'],
           showDonors: Boolean(nextShowDonors),
           showChatters: Boolean(nextShowChatters),
+          titleText: nextTitleText,
+          donorsTitleText: nextDonorsTitleText,
+          chattersTitleText: nextChattersTitleText,
+          showNumbers: Boolean(nextShowNumbers),
+          showAvatars: Boolean(nextShowAvatars),
+          avatarSize: nextAvatarSize,
+          avatarRadius: nextAvatarRadius,
           fontFamily: nextFontFamily,
           fontSize: nextFontSize,
           fontWeight: nextFontWeight,
@@ -1499,6 +1534,13 @@ export function ObsLinksSettings() {
       sectionsOrder: creditsSectionsOrder,
       showDonors: creditsShowDonors,
       showChatters: creditsShowChatters,
+      titleText: creditsTitleText,
+      donorsTitleText: creditsDonorsTitleText,
+      chattersTitleText: creditsChattersTitleText,
+      showNumbers: creditsShowNumbers,
+      showAvatars: creditsShowAvatars,
+      avatarSize: creditsAvatarSize,
+      avatarRadius: creditsAvatarRadius,
       fontFamily: creditsFontFamily,
       fontSize: creditsFontSize,
       fontWeight: creditsFontWeight,
@@ -1584,6 +1626,13 @@ export function ObsLinksSettings() {
     creditsShadowOpacity,
     creditsShowChatters,
     creditsShowDonors,
+    creditsTitleText,
+    creditsDonorsTitleText,
+    creditsChattersTitleText,
+    creditsShowNumbers,
+    creditsShowAvatars,
+    creditsAvatarSize,
+    creditsAvatarRadius,
     creditsTitleColor,
     creditsTitleEnabled,
     creditsTitleSize,
@@ -1625,6 +1674,13 @@ export function ObsLinksSettings() {
       sectionsOrder: JSON.stringify(creditsSectionsOrder),
       showDonors: creditsShowDonors ? '1' : '0',
       showChatters: creditsShowChatters ? '1' : '0',
+      titleText: String(creditsTitleText),
+      donorsTitleText: String(creditsDonorsTitleText),
+      chattersTitleText: String(creditsChattersTitleText),
+      showNumbers: creditsShowNumbers ? '1' : '0',
+      showAvatars: creditsShowAvatars ? '1' : '0',
+      avatarSize: String(creditsAvatarSize),
+      avatarRadius: String(creditsAvatarRadius),
       fontFamily: String(creditsFontFamily),
       fontSize: String(creditsFontSize),
       fontWeight: String(creditsFontWeight),
@@ -2370,6 +2426,13 @@ export function ObsLinksSettings() {
         setCreditsShowDonors(true);
         setCreditsShowChatters(true);
         setCreditsSectionsOrder(['donors', 'chatters']);
+        setCreditsTitleText('Credits');
+        setCreditsDonorsTitleText('Donors');
+        setCreditsChattersTitleText('Chatters');
+        setCreditsShowNumbers(true);
+        setCreditsShowAvatars(true);
+        setCreditsAvatarSize(32);
+        setCreditsAvatarRadius(10);
         setCreditsFontFamily('Inter');
         setCreditsFontSize(28);
         setCreditsFontWeight(800);
@@ -4448,6 +4511,105 @@ export function ObsLinksSettings() {
             {/* Quick controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
+                <div className="glass p-3">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                    {t('admin.creditsQuickTitles', { defaultValue: 'Заголовки' })}
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsTitleText', { defaultValue: 'Верхний заголовок' })}</label>
+                      <input
+                        value={creditsTitleText}
+                        onChange={(e) => setCreditsTitleText(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                        placeholder="Credits"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsDonorsTitleText', { defaultValue: 'Заголовок донатов' })}</label>
+                        <input
+                          value={creditsDonorsTitleText}
+                          onChange={(e) => setCreditsDonorsTitleText(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                          placeholder="Donors"
+                          disabled={loadingCreditsSettings || savingCreditsSettings}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsChattersTitleText', { defaultValue: 'Заголовок чата' })}</label>
+                        <input
+                          value={creditsChattersTitleText}
+                          onChange={(e) => setCreditsChattersTitleText(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                          placeholder="Chatters"
+                          disabled={loadingCreditsSettings || savingCreditsSettings}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass p-3">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                    {t('admin.creditsQuickList', { defaultValue: 'Список' })}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={creditsShowNumbers}
+                        onChange={(e) => setCreditsShowNumbers(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      />
+                      {t('admin.creditsShowNumbers', { defaultValue: 'Нумерация (1. 2. 3.)' })}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <input
+                        type="checkbox"
+                        checked={creditsShowAvatars}
+                        onChange={(e) => setCreditsShowAvatars(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/10"
+                        disabled={loadingCreditsSettings || savingCreditsSettings}
+                      />
+                      {t('admin.creditsShowAvatars', { defaultValue: 'Аватары (если есть)' })}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsAvatarSize', { defaultValue: 'Размер аватара' })}</label>
+                        <input
+                          type="number"
+                          min={12}
+                          max={96}
+                          step={1}
+                          value={creditsAvatarSize}
+                          onChange={(e) => setCreditsAvatarSize(Number(e.target.value) || 12)}
+                          className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                          disabled={loadingCreditsSettings || savingCreditsSettings || !creditsShowAvatars}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">{t('admin.creditsAvatarRadius', { defaultValue: 'Скругление' })}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={999}
+                          step={1}
+                          value={creditsAvatarRadius}
+                          onChange={(e) => setCreditsAvatarRadius(Number(e.target.value) || 0)}
+                          className="w-full px-3 py-2 rounded-lg bg-white/60 dark:bg-white/10 border border-white/20 dark:border-white/10 text-gray-900 dark:text-white"
+                          disabled={loadingCreditsSettings || savingCreditsSettings || !creditsShowAvatars}
+                        />
+                        <div className="text-[11px] text-gray-600 dark:text-gray-300 mt-1">
+                          {t('admin.creditsAvatarRadiusHint', { defaultValue: '999 = круг' })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="glass p-3">
                   <div className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">
                     {t('admin.creditsQuickSections', { defaultValue: 'Секции' })}
