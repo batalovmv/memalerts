@@ -115,6 +115,20 @@ export default function SettingsPage() {
 
   const isMoreTabActive = ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab);
 
+  const getTabLabel = (tab: TabType): string => {
+    if (tab === 'settings') return t('admin.channelDesign', { defaultValue: 'Оформление' });
+    if (tab === 'rewards') return t('admin.rewards', { defaultValue: 'Награды' });
+    if (tab === 'obs') return t('admin.obsLinks', { defaultValue: 'OBS' });
+    if (tab === 'bot') return t('admin.bot', { defaultValue: 'Bot' });
+    if (tab === 'statistics') return t('admin.statistics', { defaultValue: 'Statistics' });
+    if (tab === 'promotions') return t('admin.promotions', { defaultValue: 'Promotions' });
+    if (tab === 'wallets') return t('admin.walletManagement', { defaultValue: 'Wallet management' });
+    if (tab === 'entitlements') return t('admin.entitlements', { defaultValue: 'Entitlements' });
+    if (tab === 'beta') return t('admin.betaAccess', { defaultValue: 'Beta access' });
+    if (tab === 'accounts') return t('settings.accounts', { defaultValue: 'Accounts' });
+    return tab;
+  };
+
   const tabBase =
     'relative px-3 py-2 text-sm font-semibold whitespace-nowrap rounded-lg transition-colors focus-visible:outline-none';
   const tabInactive = 'text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10';
@@ -126,6 +140,14 @@ export default function SettingsPage() {
     return ['settings', 'rewards', 'obs', 'bot'] as TabType[];
   }, [isStreamerAdmin]);
 
+  const visibleTabs = useMemo(() => {
+    // Primary tabs are always visible. If an item from the "more" menu is active,
+    // render it as a real tab as well (same level navigation), not as "separate page".
+    const base = [...primaryTabs];
+    if (isMoreTabActive) base.push(activeTab);
+    return base;
+  }, [primaryTabs, isMoreTabActive, activeTab]);
+
   const getTabButtonId = (tab: TabType) => `${tabsIdBase}-tab-${tab}`;
   const getTabPanelId = (tab: TabType) => `${tabsIdBase}-panel-${tab}`;
 
@@ -134,20 +156,20 @@ export default function SettingsPage() {
     if (el instanceof HTMLElement) focusSafely(el);
   };
 
-  const handlePrimaryTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, tab: TabType) => {
-    if (primaryTabs.length === 0) return;
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, tab: TabType) => {
+    if (visibleTabs.length === 0) return;
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
     e.preventDefault();
     e.stopPropagation();
 
-    const idx = primaryTabs.indexOf(tab);
+    const idx = visibleTabs.indexOf(tab);
     if (idx === -1) return;
 
     let next: TabType = tab;
-    if (e.key === 'Home') next = primaryTabs[0]!;
-    if (e.key === 'End') next = primaryTabs[primaryTabs.length - 1]!;
-    if (e.key === 'ArrowRight') next = primaryTabs[(idx + 1) % primaryTabs.length]!;
-    if (e.key === 'ArrowLeft') next = primaryTabs[(idx - 1 + primaryTabs.length) % primaryTabs.length]!;
+    if (e.key === 'Home') next = visibleTabs[0]!;
+    if (e.key === 'End') next = visibleTabs[visibleTabs.length - 1]!;
+    if (e.key === 'ArrowRight') next = visibleTabs[(idx + 1) % visibleTabs.length]!;
+    if (e.key === 'ArrowLeft') next = visibleTabs[(idx - 1 + visibleTabs.length) % visibleTabs.length]!;
 
     setActiveTab(next);
     // Ensure focus follows the selection (roving tabindex).
@@ -247,7 +269,7 @@ export default function SettingsPage() {
                 {isStreamerAdmin && (
                   <button
                     onClick={() => setActiveTab('settings')}
-                    onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'settings')}
+                    onKeyDown={(e) => handleTabKeyDown(e, 'settings')}
                     className={`${tabBase} ${activeTab === 'settings' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('settings')}
@@ -256,13 +278,13 @@ export default function SettingsPage() {
                     aria-controls={getTabPanelId('settings')}
                     tabIndex={activeTab === 'settings' ? 0 : -1}
                   >
-                    {t('admin.channelDesign', { defaultValue: 'Оформление' })}
+                    {getTabLabel('settings')}
                   </button>
                 )}
                 {isStreamerAdmin && (
                   <button
                     onClick={() => setActiveTab('rewards')}
-                    onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'rewards')}
+                    onKeyDown={(e) => handleTabKeyDown(e, 'rewards')}
                     className={`${tabBase} ${activeTab === 'rewards' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('rewards')}
@@ -271,13 +293,13 @@ export default function SettingsPage() {
                     aria-controls={getTabPanelId('rewards')}
                     tabIndex={activeTab === 'rewards' ? 0 : -1}
                   >
-                    {t('admin.rewards', { defaultValue: 'Награды' })}
+                    {getTabLabel('rewards')}
                   </button>
                 )}
                 {isStreamerAdmin && (
                   <button
                     onClick={() => setActiveTab('obs')}
-                    onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'obs')}
+                    onKeyDown={(e) => handleTabKeyDown(e, 'obs')}
                     className={`${tabBase} ${activeTab === 'obs' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('obs')}
@@ -286,13 +308,13 @@ export default function SettingsPage() {
                     aria-controls={getTabPanelId('obs')}
                     tabIndex={activeTab === 'obs' ? 0 : -1}
                   >
-                    {t('admin.obsLinks', { defaultValue: 'OBS' })}
+                    {getTabLabel('obs')}
                   </button>
                 )}
                 {isStreamerAdmin && (
                   <button
                     onClick={() => setActiveTab('bot')}
-                    onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'bot')}
+                    onKeyDown={(e) => handleTabKeyDown(e, 'bot')}
                     className={`${tabBase} ${activeTab === 'bot' ? tabActive : tabInactive}`}
                     type="button"
                     id={getTabButtonId('bot')}
@@ -301,9 +323,30 @@ export default function SettingsPage() {
                     aria-controls={getTabPanelId('bot')}
                     tabIndex={activeTab === 'bot' ? 0 : -1}
                   >
-                    {t('admin.bot', { defaultValue: 'Bot' })}
+                    {getTabLabel('bot')}
                   </button>
                 )}
+
+                {/* When a "more menu" page is active, show it as a real tab as well (same level as primary tabs). */}
+                {isMoreTabActive ? (
+                  <>
+                    <span className="mx-1 h-5 w-px bg-black/10 dark:bg-white/10" aria-hidden="true" />
+                    <button
+                      onClick={() => setActiveTab(activeTab)}
+                      onKeyDown={(e) => handleTabKeyDown(e, activeTab)}
+                      className={`${tabBase} ${tabActive}`}
+                      type="button"
+                      id={getTabButtonId(activeTab)}
+                      role="tab"
+                      aria-selected={true}
+                      aria-controls={getTabPanelId(activeTab)}
+                      tabIndex={0}
+                      title={getTabLabel(activeTab)}
+                    >
+                      {getTabLabel(activeTab)}
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
 
