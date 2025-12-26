@@ -33,7 +33,6 @@ export function AllMemesGrid({
 
           return (
             <div
-              // eslint-disable-next-line react/no-array-index-key
               key={i}
               className="surface overflow-hidden rounded-xl break-inside-avoid mb-3 animate-pulse"
             >
