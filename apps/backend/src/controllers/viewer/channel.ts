@@ -10,6 +10,7 @@ import {
   pruneOldestEntries,
 } from './cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
+import { normalizeDashboardCardOrder } from '../../utils/dashboardCardOrder.js';
 
 export const getChannelBySlug = async (req: any, res: Response) => {
   const slug = String(req.params.slug || '').trim();
@@ -106,6 +107,8 @@ export const getChannelBySlug = async (req: any, res: Response) => {
     }
 
     const owner = (channel as any).users?.[0] || null;
+    const rawDashboardCardOrder = (channel as any).dashboardCardOrder ?? null;
+    const dashboardCardOrder = rawDashboardCardOrder === null ? null : normalizeDashboardCardOrder(rawDashboardCardOrder);
     const response: any = {
       id: channel.id,
       slug: channel.slug,
@@ -128,6 +131,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       primaryColor: (channel as any).primaryColor ?? null,
       secondaryColor: (channel as any).secondaryColor ?? null,
       accentColor: (channel as any).accentColor ?? null,
+      dashboardCardOrder,
       createdAt: channel.createdAt,
       owner: owner
         ? {
@@ -225,6 +229,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
         primaryColor: null,
         secondaryColor: null,
         accentColor: null,
+        dashboardCardOrder: null,
         createdAt: channel[0].createdAt,
         stats: {
           memesCount,

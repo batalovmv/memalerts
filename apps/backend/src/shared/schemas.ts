@@ -68,6 +68,8 @@ export const updateChannelSettingsSchema = z.object({
   overlayShowSender: z.boolean().optional(),
   overlayMaxConcurrent: z.number().int().min(1).max(5).optional(),
   overlayStyleJson: z.string().max(50_000).optional().nullable(),
+  // Streamer dashboard layout (card order). Null => reset to default (unset in DB).
+  dashboardCardOrder: z.array(z.string()).max(50).optional().nullable(),
 });
 
 export const createPromotionSchema = z.object({

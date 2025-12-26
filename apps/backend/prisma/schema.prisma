@@ -60,6 +60,9 @@ model Channel {
   // Chat bot follow greeting settings
   followGreetingsEnabled        Boolean  @default(false)
   followGreetingTemplate        String?  @db.Text
+  // Streamer dashboard layout (cross-device). Null => use frontend default order.
+  // Stored as JSON array of card ids (strings). Normalized/validated by API.
+  dashboardCardOrder            Json?    @db.JsonB
   createdAt                     DateTime @default(now())
 
   users                 User[]

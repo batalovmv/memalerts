@@ -17,6 +17,7 @@ import {
 } from '../../utils/twitchApi.js';
 import { logger } from '../../utils/logger.js';
 import { isBetaBackend } from '../../utils/envMode.js';
+import { normalizeDashboardCardOrder } from '../../utils/dashboardCardOrder.js';
 
 export const updateChannelSettings = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
@@ -480,6 +481,12 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
       overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : (channel as any).overlayStyleJson,
     };
+
+    // Streamer dashboard layout (cross-device): accept array or null (reset).
+    if ((body as any).dashboardCardOrder !== undefined) {
+      const v = (body as any).dashboardCardOrder;
+      updateData.dashboardCardOrder = v === null ? null : normalizeDashboardCardOrder(v);
+    }
 
     // Only update coinIconUrl if we have a value or if reward is being disabled
     if (coinIconUrl !== null || body.rewardEnabled === false) {
