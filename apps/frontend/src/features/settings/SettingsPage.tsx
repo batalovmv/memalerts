@@ -180,11 +180,11 @@ export default function SettingsPage() {
     <PageShell header={<Header />}>
       <div className="section-gap">
         <div className="surface overflow-hidden">
-          <div className="flex items-center border-b border-black/5 dark:border-white/10">
+          <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 sm:px-6">
             {/* Tabs scroller (mobile) */}
             <div className="flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] no-scrollbar">
               <div
-                className="flex gap-1 sm:gap-2 items-center pr-2 px-2"
+                className="flex gap-2 sm:gap-3 items-center"
                 role="tablist"
                 aria-label={t('settings.tabs', { defaultValue: 'Settings tabs' })}
               >
@@ -192,10 +192,10 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('settings')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'settings')}
-                    className={`px-3 py-3 rounded-xl transition-colors ${
+                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
                       activeTab === 'settings'
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                     }`}
                     type="button"
                     id={getTabButtonId('settings')}
@@ -211,10 +211,10 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('rewards')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'rewards')}
-                    className={`px-3 py-3 rounded-xl transition-colors ${
+                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
                       activeTab === 'rewards'
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                     }`}
                     type="button"
                     id={getTabButtonId('rewards')}
@@ -230,10 +230,10 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('obs')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'obs')}
-                    className={`px-3 py-3 rounded-xl transition-colors ${
+                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
                       activeTab === 'obs'
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                     }`}
                     type="button"
                     id={getTabButtonId('obs')}
@@ -249,10 +249,10 @@ export default function SettingsPage() {
                   <button
                     onClick={() => setActiveTab('bot')}
                     onKeyDown={(e) => handlePrimaryTabKeyDown(e, 'bot')}
-                    className={`px-3 py-3 rounded-xl transition-colors ${
+                    className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap ${
                       activeTab === 'bot'
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                     }`}
                     type="button"
                     id={getTabButtonId('bot')}
@@ -268,7 +268,7 @@ export default function SettingsPage() {
             </div>
 
             {/* More menu (fixed on the right) */}
-            <div className="relative flex-shrink-0 pl-2 pr-2">
+            <div className="relative flex-shrink-0 ml-2 border-l border-black/5 dark:border-white/10 pl-3">
               <button
                 ref={moreMenuButtonRef}
                 onClick={() => {
@@ -291,10 +291,10 @@ export default function SettingsPage() {
                     setIsMoreMenuOpen(true);
                   }
                 }}
-                className={`px-3 py-3 rounded-xl transition-colors flex items-center gap-1 ${
+                className={`p-2.5 rounded-lg transition-all flex items-center gap-1 ${
                   ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
                 aria-label={t('admin.more', { defaultValue: 'More' })}
                 aria-haspopup="menu"
@@ -311,13 +311,14 @@ export default function SettingsPage() {
               {/* Dropdown меню */}
               {isMoreMenuOpen && (
                 <>
+                  {/* Backdrop: prevents "invisible layer" click issues and makes outside click behavior consistent. */}
                   <div className="fixed inset-0 z-10" onClick={() => setIsMoreMenuOpen(false)} aria-hidden="true" />
                   <div
                     id={moreMenuId}
                     ref={moreMenuPopupRef}
                     role="menu"
                     aria-label={t('admin.more', { defaultValue: 'More' })}
-                    className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-20 py-1"
+                    className="absolute right-0 mt-2 w-56 glass bg-white/80 dark:bg-gray-900/70 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-1 z-20"
                     onKeyDownCapture={(e) => {
                       if (e.key === 'Escape') {
                         e.preventDefault();
@@ -358,7 +359,7 @@ export default function SettingsPage() {
                         setActiveTab('statistics');
                         setIsMoreMenuOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
                         activeTab === 'statistics'
                           ? 'bg-primary/10 text-primary'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -373,7 +374,7 @@ export default function SettingsPage() {
                         setActiveTab('promotions');
                         setIsMoreMenuOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
                         activeTab === 'promotions'
                           ? 'bg-primary/10 text-primary'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -391,7 +392,7 @@ export default function SettingsPage() {
                           setActiveTab('wallets');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
                           activeTab === 'wallets'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -409,7 +410,7 @@ export default function SettingsPage() {
                           setActiveTab('entitlements');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
                           activeTab === 'entitlements'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -426,7 +427,7 @@ export default function SettingsPage() {
                         setActiveTab('beta');
                         setIsMoreMenuOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
                         activeTab === 'beta'
                           ? 'bg-primary/10 text-primary'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
@@ -442,7 +443,7 @@ export default function SettingsPage() {
                         setActiveTab('accounts');
                         setIsMoreMenuOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
                         activeTab === 'accounts'
                           ? 'bg-primary/10 text-primary'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'

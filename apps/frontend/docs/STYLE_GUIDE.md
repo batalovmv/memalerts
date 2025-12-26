@@ -23,8 +23,9 @@
 
 - **`.page-container`**: единая ширина/паддинги контейнера
 - **`.section-gap`**: единый вертикальный ритм
-- **`.surface` / `.surface-hover`**: “карточная” поверхность приложения
+- **`.surface` / `.surface-hover`**: "карточная" поверхность приложения
 - **`.glass` / `.glass-btn`**: стекло/контролы в glass стиле (использовать умеренно)
+  - ⚠️ **Важно для попапов/меню**: `.glass` один даёт слишком большую прозрачность. Всегда добавляй `bg-white/80 dark:bg-gray-900/70` для читаемости (см. раздел "Меню / Dropdown")
 
 Рекомендация:
 - **Page-level**: `PageShell` + `Header` (**`PageShell` уже содержит `page-container` и `py-8`**)
@@ -137,13 +138,60 @@ import { Input, Select, Textarea } from '@/shared/ui';
 
 ### Меню / Dropdown
 
-Минимальный стандарт:
+Минимальный стандарт ARIA:
 
 - Кнопка-триггер: `aria-haspopup="menu"`, `aria-expanded`, `aria-controls`
 - Попап: `role="menu"`
 - Элементы: `role="menuitem"`
 - **Esc закрывает** и возвращает фокус на триггер
 - **ArrowUp/ArrowDown/Home/End** перемещают фокус внутри меню (если это меню, а не просто список)
+
+#### Визуальный стиль popup меню (фиксированный стандарт)
+
+Все выпадающие меню/попапы должны использовать **единый стиль прозрачности**:
+
+```tsx
+// Пример для page-level меню (Settings, Dashboard и т.д.)
+{isOpen && (
+  <>
+    {/* Backdrop: предотвращает проблемы с кликами и делает поведение предсказуемым */}
+    <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} aria-hidden="true" />
+
+    <div
+      role="menu"
+      className="absolute right-0 mt-2 w-56 glass bg-white/80 dark:bg-gray-900/70 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-20"
+    >
+      {/* Содержимое меню */}
+    </div>
+  </>
+)}
+
+// Для header/глобальных меню используй z-40 для backdrop, z-50 для popup
+```
+
+**Ключевые правила:**
+
+1. **Backdrop обязателен**: `<div className="fixed inset-0 z-[N]" onClick={...} aria-hidden="true" />`
+   - Предотвращает проблемы с "невидимыми слоями"
+   - Делает клик вне меню предсказуемым
+   - **Z-index зависит от контекста**:
+     - Header/глобальные меню: backdrop `z-40`, popup `z-50`
+     - Page-level меню: backdrop `z-10`, popup `z-20`
+     - Popup всегда на 10 единиц выше backdrop
+
+2. **Прозрачность фиксированная**: `glass bg-white/80 dark:bg-gray-900/70`
+   - НЕ используй просто `glass` без дополнительных `bg-*` классов
+   - Light theme: `bg-white/80` (80% непрозрачность)
+   - Dark theme: `bg-gray-900/70` (70% непрозрачность)
+   - Это обеспечивает читаемость и красивый эффект
+
+3. **Тень и обводка**: `shadow-2xl ring-1 ring-black/5 dark:ring-white/10`
+   - Тень глубокая для отделения от контента
+   - Тонкая обводка для чёткости границ
+
+4. **Скругление**: `rounded-xl` (единообразно с другими поверхностями)
+
+См. эталонную реализацию: `src/widgets/user-menu/UserMenu.tsx`
 
 ### Tabs
 
@@ -271,12 +319,17 @@ import { AttemptsPill } from '@/shared/ui';
   - табы работают стрелками
 - **States**: есть нормальные loading/empty блоки (Spinner + surface/glass)
 - **Навигация**: внутренние ссылки через `Link`
+- **Попапы/Dropdown меню**:
+  - есть backdrop (`fixed inset-0` с правильным z-index для контекста)
+  - прозрачность: `glass bg-white/80 dark:bg-gray-900/70` (не просто `glass`)
+  - тень и обводка: `shadow-2xl ring-1 ring-black/5 dark:ring-white/10`
+  - popup на 10 единиц z-index выше backdrop
 
 ---
 
 ## Settings: единый дизайн большого блока
 
-Цель: настройки выглядят как **единый “большой блок”**, без вложенных “карточек внутри карточек”.
+Цель: настройки выглядят как **единый "большой блок"**, без вложенных "карточек внутри карточек".
 
 - **Page-level**: `SettingsPage` уже оборачивает содержимое в **один общий `surface` контейнер** и даёт паддинги.
 - **Табы (`src/features/settings/tabs/*`)**:
@@ -284,9 +337,75 @@ import { AttemptsPill } from '@/shared/ui';
   - Внутри таба используй:
     - `glass` для секций/панелей/настроек
     - `Card`/`surface` — только для отдельных карточек внутри таба, когда это реально отдельный блок (например список элементов)
-- **Таб-бар**:
-  - Стили табов держим в одном стиле (rounded, активный `bg-primary/10 text-primary`, hover через нейтральные заливки)
-  - Не используем `border-secondary/30` и подобные opacity-модификаторы на CSS vars (см. раздел “Темизация”)
+
+### Таб-бар (фиксированный стиль)
+
+**Структура:**
+```tsx
+<div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 sm:px-6">
+  {/* Tabs scroller */}
+  <div className="flex-1 overflow-x-auto whitespace-nowrap no-scrollbar">
+    <div className="flex gap-2 sm:gap-3 items-center" role="tablist">
+      {/* Основные табы */}
+    </div>
+  </div>
+  
+  {/* More menu с визуальным разделителем */}
+  <div className="relative flex-shrink-0 ml-2 border-l border-black/5 dark:border-white/10 pl-3">
+    {/* Кнопка "More" */}
+  </div>
+</div>
+```
+
+**Стили кнопок табов:**
+
+1. **Активный таб:**
+   ```tsx
+   className="px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap bg-primary text-white shadow-sm"
+   ```
+   - ✨ Яркий акцент: белый текст на цветном фоне
+   - Легкая тень для глубины
+   - font-medium для читаемости
+
+2. **Неактивный таб:**
+   ```tsx
+   className="px-4 py-2.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+   ```
+   - Заметный hover эффект
+   - Полупрозрачный фон на dark theme
+
+3. **Кнопка "More" (три точки):**
+   ```tsx
+   // Активная (если выбран таб из меню)
+   className="p-2.5 rounded-lg transition-all bg-primary text-white shadow-sm"
+   
+   // Неактивная
+   className="p-2.5 rounded-lg transition-all text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200"
+   ```
+   - Компактнее основных табов (p-2.5 вместо px-4 py-2.5)
+   - Отделена border-l разделителем
+
+4. **Элементы dropdown меню "More":**
+   ```tsx
+   className="w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 bg-primary/10 text-primary" // активный
+   className="w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10" // неактивный
+   ```
+   - rounded-md для элементов внутри меню
+   - mx-1 для отступов от краёв
+
+**Spacing:**
+- Gap между табами: `gap-2 sm:gap-3`
+- Padding контейнера: `px-3 sm:px-6`
+- Разделитель перед "More": `ml-2 border-l pl-3`
+
+**Правила:**
+- НЕ используй `border-secondary/30` и подобные opacity-модификаторы на CSS vars (см. раздел "Темизация")
+- Активный таб = `bg-primary text-white` (не `bg-primary/10`)
+- Всегда `font-medium` для читаемости
+- `whitespace-nowrap` на табах для предотвращения переноса
+- `transition-all` для плавных анимаций
+
+См. эталонную реализацию: `src/features/settings/SettingsPage.tsx`
 
 
 
