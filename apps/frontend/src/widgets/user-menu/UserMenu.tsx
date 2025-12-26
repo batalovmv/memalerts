@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
+import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';
 
@@ -13,8 +14,14 @@ export default function UserMenu() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ slug: string }>();
+  const reactId = useId();
+  const menuId = `user-menu-${reactId.replace(/:/g, '')}`;
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuPopupRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const openedByKeyboardRef = useRef(false);
+  const openFocusIntentRef = useRef<'first' | 'last'>('first');
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -30,6 +37,21 @@ export default function UserMenu() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!openedByKeyboardRef.current) return;
+    const popup = menuPopupRef.current;
+    if (!popup) return;
+
+    const raf = window.requestAnimationFrame(() => {
+      const items = getFocusableElements(popup);
+      if (items.length === 0) return;
+      focusSafely(openFocusIntentRef.current === 'last' ? items[items.length - 1] : items[0]);
+    });
+
+    return () => window.cancelAnimationFrame(raf);
   }, [isOpen]);
 
   if (!user) {
@@ -99,8 +121,31 @@ export default function UserMenu() {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        ref={triggerRef}
+        onClick={() => {
+          openedByKeyboardRef.current = false;
+          setIsOpen(!isOpen);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            if (!isOpen) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setIsOpen(false);
+            focusSafely(triggerRef.current);
+            return;
+          }
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openedByKeyboardRef.current = true;
+            openFocusIntentRef.current = e.key === 'ArrowUp' ? 'last' : 'first';
+            setIsOpen(true);
+          }
+        }}
+        className="glass-btn bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 ring-1 ring-black/5 dark:ring-white/10 flex items-center gap-2 px-3 py-2 rounded-xl transition-colors"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
       >
         {/* Avatar */}
         {user.profileImageUrl ? (
@@ -110,9 +155,9 @@ export default function UserMenu() {
             {user.displayName.charAt(0).toUpperCase()}
           </div>
         )}
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.displayName}</span>
+        <span className="text-sm font-medium text-gray-900 dark:text-white">{user.displayName}</span>
         <svg
-          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-gray-600 dark:text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -122,9 +167,49 @@ export default function UserMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50">
+        <div
+          id={menuId}
+          ref={menuPopupRef}
+          role="menu"
+          aria-label={t('userMenu.menu', { defaultValue: 'User menu' })}
+          className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
+          onKeyDownCapture={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen(false);
+              focusSafely(triggerRef.current);
+              return;
+            }
+
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+            const popup = menuPopupRef.current;
+            if (!popup) return;
+            const items = getFocusableElements(popup);
+            if (items.length === 0) return;
+
+            const active = document.activeElement;
+            const currentIndex = active instanceof HTMLElement ? items.indexOf(active) : -1;
+
+            e.preventDefault();
+            if (e.key === 'Home') {
+              focusSafely(items[0]);
+              return;
+            }
+            if (e.key === 'End') {
+              focusSafely(items[items.length - 1]);
+              return;
+            }
+
+            const nextIndex =
+              e.key === 'ArrowDown'
+                ? (currentIndex + 1 + items.length) % items.length
+                : (currentIndex - 1 + items.length) % items.length;
+            focusSafely(items[nextIndex] ?? items[0]);
+          }}
+        >
           {/* User info header */}
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-3 border-b border-black/5 dark:border-white/10">
             <div className="flex items-center gap-3">
               {user.profileImageUrl ? (
                 <img
@@ -139,7 +224,7 @@ export default function UserMenu() {
               )}
               <div>
                 <div className="font-medium text-gray-900 dark:text-white">{user.displayName}</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">{displayRole}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">{displayRole}</div>
               </div>
             </div>
           </div>
@@ -148,14 +233,18 @@ export default function UserMenu() {
           <div className="py-1">
             <button
               onClick={handleSettings}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              type="button"
+              role="menuitem"
             >
               {t('userMenu.settings')}
             </button>
 
             <button
               onClick={handleMySubmissions}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              type="button"
+              role="menuitem"
             >
               {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
             </button>
@@ -164,13 +253,17 @@ export default function UserMenu() {
               <>
                 <button
                   onClick={handleMyProfile}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                  type="button"
+                  role="menuitem"
                 >
                   {t('userMenu.myProfile')}
                 </button>
                 <button
                   onClick={handleDashboard}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                  type="button"
+                  role="menuitem"
                 >
                   {t('userMenu.dashboard')}
                 </button>
@@ -179,12 +272,14 @@ export default function UserMenu() {
           </div>
 
           {/* Divider */}
-          <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+          <div className="border-t border-black/5 dark:border-white/10 my-1" />
 
           {/* Logout */}
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="w-full text-left px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+            type="button"
+            role="menuitem"
           >
             {t('userMenu.logout')}
           </button>

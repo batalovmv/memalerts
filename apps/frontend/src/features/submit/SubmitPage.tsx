@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,8 @@ import type { MySubmission } from './types';
 import type { Submission, SubmissionStatus } from '@/types';
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
+import { focusSafely } from '@/shared/lib/a11y/focus';
+import { PageShell, Pill } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 function toRecord(v: unknown): Record<string, unknown> | null {
@@ -22,11 +24,14 @@ export default function Submit() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
+  const tabsReactId = useId();
+  const tabsIdBase = `submit-tabs-${tabsReactId.replace(/:/g, '')}`;
+  type SubmitTab = 'needs_changes' | 'history' | 'channel';
 
   const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
   const [loadingMySubmissions, setLoadingMySubmissions] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'needs_changes' | 'history' | 'channel'>('history');
+  const [activeTab, setActiveTab] = useState<SubmitTab>('history');
   const mySubmissionsRef = useRef<HTMLElement | null>(null);
   const defaultTabSetRef = useRef(false);
 
@@ -181,11 +186,38 @@ export default function Submit() {
     return null;
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Header />
+  const tabs: readonly SubmitTab[] = canSeeChannelHistory ? ['needs_changes', 'history', 'channel'] : ['needs_changes', 'history'];
+  const getTabId = (tab: SubmitTab) => `${tabsIdBase}-tab-${tab}`;
+  const getPanelId = (tab: SubmitTab) => `${tabsIdBase}-panel-${tab}`;
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  const focusTabButton = (tab: SubmitTab) => {
+    const el = document.getElementById(getTabId(tab));
+    if (el instanceof HTMLElement) focusSafely(el);
+  };
+
+  const handleTabsKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    tab: SubmitTab,
+  ) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const idx = tabs.indexOf(tab);
+    if (idx === -1) return;
+
+    let next: (typeof tabs)[number] = tab;
+    if (e.key === 'Home') next = tabs[0]!;
+    if (e.key === 'End') next = tabs[tabs.length - 1]!;
+    if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length]!;
+    if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length]!;
+
+    setActiveTab(next);
+    window.requestAnimationFrame(() => focusTabButton(next));
+  };
+
+  return (
+    <PageShell header={<Header />} containerClassName="max-w-4xl">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold mb-2 dark:text-white">
@@ -200,41 +232,77 @@ export default function Submit() {
         </div>
 
         <div className="mt-6 surface p-2">
-          <div className="flex flex-wrap gap-2">
+          <div
+            className="flex flex-wrap gap-2"
+            role="tablist"
+            aria-label={t('submit.tabs', { defaultValue: 'Submissions tabs' })}
+          >
             <button
               type="button"
               onClick={() => setActiveTab('needs_changes')}
+              onKeyDown={(e) => handleTabsKeyDown(e, 'needs_changes')}
               className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 activeTab === 'needs_changes'
                   ? 'bg-primary text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
+              id={getTabId('needs_changes')}
+              role="tab"
+              aria-selected={activeTab === 'needs_changes'}
+              aria-controls={getPanelId('needs_changes')}
+              tabIndex={activeTab === 'needs_changes' ? 0 : -1}
             >
-              {t('submit.needsChangesTab', { defaultValue: 'Needs changes' })}{' '}
-              <span className="ml-1 opacity-80">({needsChanges.length})</span>
+              <span className="inline-flex items-center gap-2">
+                {t('submit.needsChangesTab', { defaultValue: 'Needs changes' })}
+                <Pill
+                  variant={needsChanges.length > 0 ? 'warning' : 'neutral'}
+                  title={t('submit.needsChangesCount', { defaultValue: '{{count}} items', count: needsChanges.length })}
+                >
+                  {needsChanges.length}
+                </Pill>
+              </span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('history')}
+              onKeyDown={(e) => handleTabsKeyDown(e, 'history')}
               className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 activeTab === 'history'
                   ? 'bg-primary text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
+              id={getTabId('history')}
+              role="tab"
+              aria-selected={activeTab === 'history'}
+              aria-controls={getPanelId('history')}
+              tabIndex={activeTab === 'history' ? 0 : -1}
             >
-              {t('submit.historyTab', { defaultValue: 'History' })}{' '}
-              <span className="ml-1 opacity-80">({history.length})</span>
+              <span className="inline-flex items-center gap-2">
+                {t('submit.historyTab', { defaultValue: 'History' })}
+                <Pill
+                  variant="neutral"
+                  title={t('submit.historyCount', { defaultValue: '{{count}} items', count: history.length })}
+                >
+                  {history.length}
+                </Pill>
+              </span>
             </button>
 
             {canSeeChannelHistory && (
               <button
                 type="button"
                 onClick={() => setActiveTab('channel')}
+                onKeyDown={(e) => handleTabsKeyDown(e, 'channel')}
                 className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                   activeTab === 'channel'
                     ? 'bg-primary text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
+                id={getTabId('channel')}
+                role="tab"
+                aria-selected={activeTab === 'channel'}
+                aria-controls={getPanelId('channel')}
+                tabIndex={activeTab === 'channel' ? 0 : -1}
               >
                 {t('submit.channelHistoryTab', { defaultValue: 'Channel submissions' })}
               </button>
@@ -242,58 +310,70 @@ export default function Submit() {
           </div>
         </div>
 
-        {activeTab === 'needs_changes' && (
-          <MySubmissionsSection
-            containerRef={(el) => {
-              mySubmissionsRef.current = el;
-            }}
-            title={t('submit.needsChangesTab', { defaultValue: 'Needs changes' })}
-            mode="needs_changes"
-            submissions={needsChanges}
-            loading={loadingMySubmissions}
-            onRefresh={loadMySubmissions}
-          />
-        )}
+        <div
+          role="tabpanel"
+          id={getPanelId('needs_changes')}
+          aria-labelledby={getTabId('needs_changes')}
+          hidden={activeTab !== 'needs_changes'}
+        >
+          {activeTab === 'needs_changes' && (
+            <MySubmissionsSection
+              containerRef={(el) => {
+                mySubmissionsRef.current = el;
+              }}
+              title={t('submit.needsChangesTab', { defaultValue: 'Needs changes' })}
+              mode="needs_changes"
+              submissions={needsChanges}
+              loading={loadingMySubmissions}
+              onRefresh={loadMySubmissions}
+            />
+          )}
+        </div>
 
-        {activeTab === 'history' && (
-          <MySubmissionsSection
-            containerRef={(el) => {
-              mySubmissionsRef.current = el;
-            }}
-            title={t('submit.historyTab', { defaultValue: 'History' })}
-            mode="history"
-            submissions={history}
-            loading={loadingMySubmissions}
-            onRefresh={loadMySubmissions}
-          />
-        )}
+        <div role="tabpanel" id={getPanelId('history')} aria-labelledby={getTabId('history')} hidden={activeTab !== 'history'}>
+          {activeTab === 'history' && (
+            <MySubmissionsSection
+              containerRef={(el) => {
+                mySubmissionsRef.current = el;
+              }}
+              title={t('submit.historyTab', { defaultValue: 'History' })}
+              mode="history"
+              submissions={history}
+              loading={loadingMySubmissions}
+              onRefresh={loadMySubmissions}
+            />
+          )}
+        </div>
 
-        {activeTab === 'channel' && canSeeChannelHistory && (
-          <ChannelSubmissionsSection
-            submissions={channelSubmissions}
-            loading={loadingChannelSubmissions}
-            statusFilter={channelStatusFilter}
-            query={channelQuery}
-            selectedSubmitterId={selectedSubmitterId}
-            selectedSubmitterName={selectedSubmitterName}
-            onQueryChange={setChannelQuery}
-            onStatusFilterChange={(s) => {
-              setChannelStatusFilter(s);
-              setChannelSubmissions([]);
-              void loadChannelHistory(s);
-            }}
-            onSelectSubmitter={(id, name) => {
-              setSelectedSubmitterId(id);
-              setSelectedSubmitterName(name);
-            }}
-            onClearSubmitter={() => {
-              setSelectedSubmitterId(null);
-              setSelectedSubmitterName(null);
-            }}
-            onRefresh={() => void loadChannelHistory()}
-          />
+        {canSeeChannelHistory && (
+          <div role="tabpanel" id={getPanelId('channel')} aria-labelledby={getTabId('channel')} hidden={activeTab !== 'channel'}>
+            {activeTab === 'channel' && (
+              <ChannelSubmissionsSection
+                submissions={channelSubmissions}
+                loading={loadingChannelSubmissions}
+                statusFilter={channelStatusFilter}
+                query={channelQuery}
+                selectedSubmitterId={selectedSubmitterId}
+                selectedSubmitterName={selectedSubmitterName}
+                onQueryChange={setChannelQuery}
+                onStatusFilterChange={(s) => {
+                  setChannelStatusFilter(s);
+                  setChannelSubmissions([]);
+                  void loadChannelHistory(s);
+                }}
+                onSelectSubmitter={(id, name) => {
+                  setSelectedSubmitterId(id);
+                  setSelectedSubmitterName(name);
+                }}
+                onClearSubmitter={() => {
+                  setSelectedSubmitterId(null);
+                  setSelectedSubmitterName(null);
+                }}
+                onRefresh={() => void loadChannelHistory()}
+              />
+            )}
+          </div>
         )}
-      </main>
-    </div>
+    </PageShell>
   );
 }

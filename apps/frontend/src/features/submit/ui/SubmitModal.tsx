@@ -239,6 +239,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
       <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-black/5 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
         <h2 className="text-xl sm:text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
         <button
+          type="button"
           onClick={onClose}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           aria-label={t('submitModal.closeModal')}
@@ -253,7 +254,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
       <div className="p-4 sm:p-6">
         {/* Mode selector */}
         <div className="mb-6 glass p-3 sm:p-4">
-          <div className="flex gap-3">
+          <div className="flex gap-3" role="tablist" aria-label={t('submitModal.mode', { defaultValue: 'Submit mode' })}>
             <button
               type="button"
               onClick={() => setMode('upload')}
@@ -262,6 +263,11 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                   ? 'bg-primary text-white'
                   : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
               }`}
+              role="tab"
+              id="submit-modal-tab-upload"
+              aria-controls="submit-modal-panel-upload"
+              aria-selected={mode === 'upload'}
+              tabIndex={mode === 'upload' ? 0 : -1}
             >
               {t('submit.uploadVideo')}
             </button>
@@ -273,6 +279,11 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
                   ? 'bg-primary text-white'
                   : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10'
               }`}
+              role="tab"
+              id="submit-modal-tab-import"
+              aria-controls="submit-modal-panel-import"
+              aria-selected={mode === 'import'}
+              tabIndex={mode === 'import' ? 0 : -1}
             >
               {t('submit.import')}
             </button>
@@ -293,16 +304,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
           </div>
 
           {mode === 'upload' ? (
-            <div>
+            <div role="tabpanel" id="submit-modal-panel-upload" aria-labelledby="submit-modal-tab-upload">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('submit.videoFile')}
               </label>
-              <input
+              <Input
                 type="file"
                 onChange={handleFileChange}
                 required
                 accept="video/*"
-                className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
               {filePreview && (
@@ -317,7 +327,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
               )}
             </div>
           ) : (
-            <div>
+            <div role="tabpanel" id="submit-modal-panel-import" aria-labelledby="submit-modal-tab-import">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('submit.memalertsUrl')}
               </label>

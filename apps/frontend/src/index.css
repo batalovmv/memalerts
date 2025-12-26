@@ -23,12 +23,8 @@
     text-underline-offset: 0.18em;
   }
 
-  a:focus-visible,
-  button:focus-visible,
-  input:focus-visible,
-  select:focus-visible,
-  textarea:focus-visible {
-    outline: none;
+  :where(a, button, input, select, textarea, [role="button"], [role="menuitem"], [role="tab"]):focus-visible {
+    @apply outline-none ring-2 ring-primary/60 ring-offset-2 ring-offset-white dark:ring-offset-dark-bg;
   }
 }
 

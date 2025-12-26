@@ -5,7 +5,7 @@ import { NeedsChangesSubmissionCard } from './NeedsChangesSubmissionCard';
 import type { MySubmission } from '../types';
 import type { RefCallback } from 'react';
 
-import { IconButton } from '@/shared/ui';
+import { IconButton, Pill } from '@/shared/ui';
 
 export type MySubmissionsSectionMode = 'needs_changes' | 'history';
 
@@ -78,13 +78,6 @@ export function MySubmissionsSection(props: {
                 );
               }
 
-              const statusColor =
-                s.status === 'approved'
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  : s.status === 'rejected'
-                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-
               return (
                 <li key={s.id}>
                   <article className="glass p-4">
@@ -95,13 +88,15 @@ export function MySubmissionsSection(props: {
                           {new Date(s.createdAt).toLocaleString()}
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColor}`}>
+                      <Pill
+                        variant={s.status === 'approved' ? 'success' : s.status === 'rejected' ? 'danger' : 'neutral'}
+                      >
                         {s.status === 'approved'
                           ? t('submissions.statusApproved', { defaultValue: 'approved' })
                           : s.status === 'rejected'
                             ? t('submissions.statusRejected', { defaultValue: 'rejected' })
                             : t('submissions.statusPending', { defaultValue: 'pending' })}
-                      </span>
+                      </Pill>
                     </header>
 
                     {s.status === 'rejected' && (

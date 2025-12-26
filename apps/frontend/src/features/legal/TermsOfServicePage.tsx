@@ -1,38 +1,24 @@
-﻿import { Link } from 'react-router-dom';
-
-import Footer from '@/components/Footer';
-import UserMenu from '@/components/UserMenu';
+﻿import Header from '@/components/Header';
+import { PageShell } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 export default function TermsOfService() {
-  const { user } = useAppSelector((state) => state.auth);
+  void useAppSelector((state) => state.auth);
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex flex-col">
-      <nav className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <Link to="/" className="text-xl font-bold">
-              Mem Alerts
-            </Link>
-            {user && <UserMenu />}
-          </div>
-        </div>
-      </nav>
+    <PageShell header={<Header />}>
+      <div className="surface p-8">
+        <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Terms of Service</h1>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
-        <div className="surface p-8">
-          <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Terms of Service</h1>
-          
-          <div className="prose max-w-none">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">Last updated: {new Date().toLocaleDateString()}</p>
-            
-            <section className="mb-6">
-              <h2 className="text-2xl font-semibold mb-3">1. Acceptance of Terms</h2>
-              <p className="text-gray-800 dark:text-gray-200">
-                By accessing and using Mem Alerts, you accept and agree to be bound by the terms and provision of this agreement.
-              </p>
-            </section>
+        <div className="prose max-w-none">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">Last updated: {new Date().toLocaleDateString()}</p>
+
+          <section className="mb-6">
+            <h2 className="text-2xl font-semibold mb-3">1. Acceptance of Terms</h2>
+            <p className="text-gray-800 dark:text-gray-200">
+              By accessing and using Mem Alerts, you accept and agree to be bound by the terms and provision of this agreement.
+            </p>
+          </section>
 
             <section className="mb-6">
               <h2 className="text-2xl font-semibold mb-3">2. Use License</h2>
@@ -82,12 +68,9 @@ export default function TermsOfService() {
                 bound by the then current version of these terms of service.
               </p>
             </section>
-          </div>
         </div>
-      </main>
-
-      <Footer />
-    </div>
+      </div>
+    </PageShell>
   );
 }
 

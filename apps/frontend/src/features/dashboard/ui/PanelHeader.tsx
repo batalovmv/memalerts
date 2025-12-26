@@ -19,6 +19,7 @@ export function PanelHeader({ title, meta, onClose, closeAriaLabel }: DashboardP
         {meta ? <div className="shrink-0">{meta}</div> : null}
       </div>
       <button
+        type="button"
         onClick={onClose}
         className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         aria-label={closeAriaLabel || t('common.close', { defaultValue: 'Close' })}

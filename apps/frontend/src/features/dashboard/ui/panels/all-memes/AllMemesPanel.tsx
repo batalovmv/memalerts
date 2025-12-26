@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';
 import { cn } from '@/shared/lib/cn';
+import { Spinner } from '@/shared/ui';
 
 import { PanelHeader } from '../../PanelHeader';
 import { useAllMemesPanel } from './model/useAllMemesPanel';
@@ -29,7 +30,14 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
         title={t('dashboard.allMemesTitle', { defaultValue: 'All memes' })}
         meta={
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {vm.loading ? t('common.loading') : `${vm.memes.length}`}
+            {vm.loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="h-4 w-4" />
+                {t('common.loading')}
+              </span>
+            ) : (
+              `${vm.memes.length}`
+            )}
           </span>
         }
         onClose={onClose}

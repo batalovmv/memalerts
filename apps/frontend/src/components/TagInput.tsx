@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent, ClipboardEvent } from 'react';
+import { useId, useState, KeyboardEvent, ClipboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 function XSmallIcon() {
@@ -17,6 +17,7 @@ interface TagInputProps {
 
 export default function TagInput({ tags, onChange, placeholder }: TagInputProps) {
   const { t } = useTranslation();
+  const hintId = useId();
   const [inputValue, setInputValue] = useState('');
   const defaultPlaceholder = placeholder || t('submit.addTags');
 
@@ -102,11 +103,13 @@ export default function TagInput({ tags, onChange, placeholder }: TagInputProps)
           onBlur={handleBlur}
           onPaste={handlePaste}
           placeholder={tags.length === 0 ? defaultPlaceholder : ''}
+          aria-label={t('tagInput.label', { defaultValue: 'Tags' })}
+          aria-describedby={hintId}
           className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
           maxLength={50}
         />
       </div>
-      <p className="text-xs text-gray-500">
+      <p id={hintId} className="text-xs text-gray-500">
         {t('tagInput.pressEnterToAdd')}
       </p>
     </div>

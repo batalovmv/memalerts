@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/lib/api';
+import { Button, Pill, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 export function BetaAccessSelf() {
@@ -46,14 +47,17 @@ export function BetaAccessSelf() {
       </p>
 
       {loading ? (
-        <div className="mt-6 text-gray-600 dark:text-gray-300">{t('common.loading')}</div>
+        <div className="mt-6 flex items-center gap-3 text-gray-600 dark:text-gray-300">
+          <Spinner className="h-5 w-5" />
+          <span className="text-sm font-semibold">{t('common.loading', { defaultValue: 'Loading…' })}</span>
+        </div>
       ) : status?.hasAccess ? (
         <div className="mt-6 glass p-4 flex items-center gap-3 text-gray-900 dark:text-white">
-          <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center">
+          <Pill variant="successSolid" className="w-6 h-6 p-0 shadow" title={t('betaAccess.statusApproved', { defaultValue: 'approved' })}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
-          </div>
+          </Pill>
           <div className="font-semibold">{t('betaAccess.hasAccess', { defaultValue: 'You already have beta access.' })}</div>
         </div>
       ) : requestStatus === 'pending' ? (
@@ -69,14 +73,16 @@ export function BetaAccessSelf() {
         </div>
       ) : (
         <div className="mt-6 glass p-4">
-          <button
-            type="button"
-            onClick={request}
-            disabled={requesting}
-            className="glass-btn px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white disabled:opacity-60"
-          >
-            {requesting ? t('common.loading') : t('betaAccess.requestButton')}
-          </button>
+          <Button type="button" variant="secondary" onClick={request} disabled={requesting}>
+            {requesting ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="h-4 w-4" />
+                {t('common.loading', { defaultValue: 'Loading…' })}
+              </span>
+            ) : (
+              t('betaAccess.requestButton')
+            )}
+          </Button>
         </div>
       )}
     </section>

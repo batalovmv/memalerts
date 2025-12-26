@@ -8,6 +8,7 @@ import { PendingSubmissionCard } from './PendingSubmissionCard';
 import type { Submission } from '@/types';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
+import { Pill, Spinner } from '@/shared/ui';
 
 export type PendingSubmissionsPanelProps = {
   isOpen: boolean;
@@ -64,10 +65,15 @@ export function PendingSubmissionsPanel({
         meta={
           <div className="flex items-center gap-2">
             {pendingCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2.5 py-1">{pendingCount}</span>
+              <Pill variant="danger" title={t('dashboard.pendingCount', { defaultValue: '{{count}} pending', count: pendingCount })}>
+                {pendingCount}
+              </Pill>
             )}
             {submissionsLoading && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">{t('common.loading')}</span>
+              <span className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <Spinner className="h-4 w-4" />
+                {t('common.loading')}
+              </span>
             )}
           </div>
         }
@@ -99,7 +105,8 @@ export function PendingSubmissionsPanel({
             {/* Infinite-scroll sentinel */}
             <li ref={loadMoreRef} className="h-8" aria-hidden="true" />
             {submissionsLoadingMore && (
-              <li className="text-center text-xs text-gray-500 dark:text-gray-400">
+              <li className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-2">
+                <Spinner className="h-4 w-4" />
                 {t('common.loading', { defaultValue: 'Loading...' })}
               </li>
             )}

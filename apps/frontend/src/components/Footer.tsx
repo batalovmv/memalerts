@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { Button, IconButton } from '@/shared/ui';
 
 function SunIcon() {
   return (
@@ -42,40 +43,39 @@ export default function Footer() {
   const currentLang = i18n.language === 'ru' ? 'RU' : 'EN';
 
   return (
-    <footer className="bg-gray-800 dark:bg-gray-900 text-white mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="mb-4 md:mb-0">
-            <p className="text-sm">
+    <footer className="mt-auto">
+      <div className="page-container py-6">
+        <div className="glass px-4 sm:px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <p className="text-sm text-gray-800 dark:text-gray-100">
               {t('footer.madeBy')} <span className="font-semibold">{t('footer.author')}</span>
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Language Toggle */}
-            <button
+          <div className="flex items-center gap-3">
+            <Button
               onClick={toggleLanguage}
-              className="text-sm font-semibold transition-colors px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 ring-1 ring-white/10 hover:ring-white/15 text-white/90 hover:text-white"
+              size="sm"
+              variant="secondary"
+              className="min-w-[52px] justify-center"
               title={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
               aria-label={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
             >
               {currentLang}
-            </button>
-            
-            {/* Theme Toggle */}
-            <button
+            </Button>
+
+            <IconButton
               onClick={toggleTheme}
-              className="transition-colors p-2 rounded-xl bg-white/10 hover:bg-white/15 ring-1 ring-white/10 hover:ring-white/15 text-white/90 hover:text-white"
+              variant="secondary"
               title={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
               aria-label={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
-            >
-              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-            </button>
-            
+              icon={theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            />
+
             <a
               href="https://twitch.tv/LOTAS_bro"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm hover:text-accent transition-colors"
+              className="text-sm text-gray-800 dark:text-gray-100 hover:text-accent transition-colors underline decoration-black/10 dark:decoration-white/15 hover:decoration-accent/40"
             >
               twitch.tv/LOTAS_bro
             </a>

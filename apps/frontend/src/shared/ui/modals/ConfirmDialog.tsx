@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 import { Modal } from '@/shared/ui/Modal/Modal';
 
@@ -25,14 +25,15 @@ export default function ConfirmDialog({
   confirmButtonClass = 'bg-red-600 hover:bg-red-700',
   isLoading = false,
 }: ConfirmDialogProps) {
-  const titleId = 'confirm-dialog-title';
+  const titleId = useId();
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       ariaLabelledBy={titleId}
-      closeOnEsc={false}
+      closeOnEsc={!isLoading}
+      closeOnBackdrop={!isLoading}
       contentClassName="max-w-md p-4 sm:p-6"
     >
       <h2 id={titleId} className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">

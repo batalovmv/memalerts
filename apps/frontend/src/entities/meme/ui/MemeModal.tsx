@@ -9,6 +9,7 @@ import { resolveMediaUrl } from '@/lib/urls';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
+import { Button, Input, Textarea } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 interface MemeModalProps {
@@ -244,7 +245,7 @@ export default function MemeModal({
       isOpen={isOpen}
       onClose={onClose}
       ariaLabelledBy="meme-modal-title"
-      closeOnEsc={false}
+      closeOnEsc
       useGlass={false}
       overlayClassName="items-center bg-black/75"
       contentClassName="bg-white dark:bg-gray-800 rounded-xl max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row"
@@ -285,6 +286,7 @@ export default function MemeModal({
         {/* Custom Video Controls */}
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2">
           <button
+            type="button"
             onClick={handlePlayPause}
             className="text-white hover:text-gray-300 transition-colors"
             aria-label={
@@ -292,6 +294,7 @@ export default function MemeModal({
                 ? t('common.pause', { defaultValue: 'Пауза' })
                 : t('common.play', { defaultValue: 'Воспроизвести' })
             }
+            aria-pressed={isPlaying}
           >
             {isPlaying ? (
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -304,11 +307,13 @@ export default function MemeModal({
             )}
           </button>
           <button
+            type="button"
             onClick={handleMute}
             className="text-white hover:text-gray-300 transition-colors"
             aria-label={
               isMuted ? t('common.soundOn', { defaultValue: 'Со звуком' }) : t('common.mute', { defaultValue: 'Без звука' })
             }
+            aria-pressed={isMuted}
           >
             {isMuted ? (
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -333,9 +338,11 @@ export default function MemeModal({
           {mode === 'admin' && isOwner && (
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={isEditing ? handleCancel : handleEdit}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors group"
                 title={isEditing ? 'Cancel editing' : 'Edit meme'}
+                aria-label={isEditing ? t('common.cancel', { defaultValue: 'Cancel' }) : t('common.edit', { defaultValue: 'Edit' })}
                 disabled={loading}
               >
                 <svg
@@ -362,9 +369,11 @@ export default function MemeModal({
               </button>
               {!isEditing && (
                 <button
+                  type="button"
                   onClick={handleDelete}
                   className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-full transition-colors group"
                   title="Delete meme"
+                  aria-label={t('common.delete', { defaultValue: 'Delete' })}
                   disabled={loading}
                 >
                   <svg
@@ -385,9 +394,11 @@ export default function MemeModal({
             </div>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
             title="Close"
+            aria-label={t('common.close', { defaultValue: 'Close' })}
           >
             <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -399,11 +410,11 @@ export default function MemeModal({
           {/* Title */}
           <div>
             {isEditing && mode === 'admin' ? (
-              <input
+              <Input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded px-3 py-2 text-2xl font-bold"
+                className="text-2xl font-bold px-3 py-2"
                 disabled={!isEditing}
               />
             ) : (
@@ -419,32 +430,23 @@ export default function MemeModal({
                 <label htmlFor="meme-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t('memeModal.priceCoins', { defaultValue: 'Price (coins)' })}
                 </label>
-                <input
+                <Input
                   id="meme-price"
                   type="number"
                   value={formData.priceCoins}
                   onChange={(e) => setFormData({ ...formData, priceCoins: parseInt(e.target.value) || 0 })}
-                  className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
                   min="1"
                   required
                   aria-required="true"
                 />
               </div>
               <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-primary hover:bg-secondary disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors font-medium border border-secondary/30"
-                >
+                <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
                   {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('common.save', { defaultValue: 'Save' })}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-secondary/20 dark:hover:bg-secondary/20 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg transition-colors font-medium border border-secondary/30"
-                >
+                </Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={handleCancel} disabled={loading}>
                   {t('common.cancel', { defaultValue: 'Cancel' })}
-                </button>
+                </Button>
               </div>
             </form>
           ) : (
@@ -501,10 +503,12 @@ export default function MemeModal({
               {/* Activate button for viewer mode */}
               {mode === 'viewer' && (
                 <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
-                  <button
+                  <Button
+                    type="button"
                     onClick={handleActivate}
                     disabled={!canActivate && !isGuestViewer}
-                    className="w-full bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-secondary/30"
+                    variant="primary"
+                    className="w-full"
                   >
                     {isGuestViewer
                       ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
@@ -516,7 +520,7 @@ export default function MemeModal({
                               price: currentMeme.priceCoins,
                             })
                           : t('dashboard.activate', { defaultValue: 'Activate' })}
-                  </button>
+                  </Button>
                   {walletBalance !== undefined && (
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
                       {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
@@ -528,13 +532,9 @@ export default function MemeModal({
               {/* Delete button for admin mode */}
               {mode === 'admin' && isOwner && !isEditing && (
                 <div className="pt-4 border-t border-secondary/30 dark:border-secondary/30">
-                  <button
-                    onClick={handleDelete}
-                    disabled={loading}
-                    className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors border border-red-500/30"
-                  >
+                  <Button type="button" variant="danger" className="w-full" onClick={handleDelete} disabled={loading}>
                     {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
@@ -565,11 +565,11 @@ export default function MemeModal({
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
                 {t('memeModal.deleteReasonLabel', { defaultValue: 'Reason (optional)' })}
               </label>
-              <textarea
+              <Textarea
                 value={deleteReason}
                 onChange={(e) => setDeleteReason(e.target.value)}
                 rows={3}
-                className="w-full rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full"
                 placeholder={t('memeModal.deleteReasonPlaceholder', { defaultValue: 'Write a short note… (optional)' })}
               />
             </div>

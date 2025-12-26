@@ -7,6 +7,7 @@ import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { resolvePublicUrl } from '@/lib/urls';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
+import { IconButton, Input } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 // Channel Settings Component (Colors only)
@@ -187,13 +188,13 @@ export function ChannelSettings() {
             {t('admin.profileLink')}
           </label>
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="text"
               readOnly
               value={profileUrl}
-              className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm text-sm"
+              className="flex-1"
             />
-            <button
+            <IconButton
               type="button"
               onClick={async () => {
                 try {
@@ -203,13 +204,16 @@ export function ChannelSettings() {
                   toast.error(t('toast.failedToCopyLink'));
                 }
               }}
-              className="p-2 rounded-lg hover:bg-white/70 dark:hover:bg-white/10 transition-colors glass-btn bg-white/40 dark:bg-white/5"
+              variant="secondary"
+              className="glass-btn bg-white/40 dark:bg-white/5"
+              aria-label={t('dashboard.copyLink')}
               title={t('dashboard.copyLink')}
-            >
-              <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </button>
+              icon={
+                <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              }
+            />
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {t('dashboard.shareLinkDescription')}
@@ -231,14 +235,15 @@ export function ChannelSettings() {
                   value={settings.primaryColor || '#9333ea'}
                   onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
                   className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
+                  aria-label={t('admin.primaryColor', { defaultValue: 'Primary color' })}
                 />
-                <input
+                <Input
                   type="text"
                   value={settings.primaryColor}
                   onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
                   placeholder="#9333ea"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                  className="flex-1"
                 />
               </div>
             </div>
@@ -252,14 +257,15 @@ export function ChannelSettings() {
                   value={settings.secondaryColor || '#4f46e5'}
                   onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
                   className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
+                  aria-label={t('admin.secondaryColor', { defaultValue: 'Secondary color' })}
                 />
-                <input
+                <Input
                   type="text"
                   value={settings.secondaryColor}
                   onChange={(e) => setSettings({ ...settings, secondaryColor: e.target.value })}
                   placeholder="#4f46e5"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                  className="flex-1"
                 />
               </div>
             </div>
@@ -273,14 +279,15 @@ export function ChannelSettings() {
                   value={settings.accentColor || '#ec4899'}
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
                   className="w-16 h-10 rounded glass-btn bg-white/40 dark:bg-white/5"
+                  aria-label={t('admin.accentColor', { defaultValue: 'Accent color' })}
                 />
-                <input
+                <Input
                   type="text"
                   value={settings.accentColor}
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
                   placeholder="#ec4899"
                   pattern="^#[0-9A-Fa-f]{6}$"
-                  className="flex-1 rounded-lg px-3 py-2 bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                  className="flex-1"
                 />
               </div>
             </div>

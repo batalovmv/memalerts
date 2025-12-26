@@ -1,10 +1,14 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
+import { PageShell, Select, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 export default function Stats() {
+  const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const [period, setPeriod] = useState('month');
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
@@ -33,39 +37,51 @@ export default function Stats() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Header />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6 surface p-6">
+    <PageShell header={<Header />}>
+      <div className="section-gap">
+        <div className="surface p-6">
           <div className="flex items-center gap-4 mb-4">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period:</label>
-            <select
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('stats.period', { defaultValue: 'Period' })}:
+            </label>
+            <Select
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className="rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
             >
-              <option value="day">Last 24 hours</option>
-              <option value="week">Last week</option>
-              <option value="month">Last month</option>
-              <option value="year">Last year</option>
-              <option value="all">All time</option>
-            </select>
+              <option value="day">{t('stats.periodDay', { defaultValue: 'Last 24 hours' })}</option>
+              <option value="week">{t('stats.periodWeek', { defaultValue: 'Last week' })}</option>
+              <option value="month">{t('stats.periodMonth', { defaultValue: 'Last month' })}</option>
+              <option value="year">{t('stats.periodYear', { defaultValue: 'Last year' })}</option>
+              <option value="all">{t('stats.periodAll', { defaultValue: 'All time' })}</option>
+            </Select>
           </div>
 
           {loading ? (
-            <div className="text-center py-8 text-gray-600 dark:text-gray-300">Loading statistics...</div>
+            <div className="flex items-center justify-center gap-3 py-10 text-gray-600 dark:text-gray-300">
+              <Spinner className="h-5 w-5" />
+              <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
+            </div>
           ) : stats && (stats.stats as Array<unknown>)?.length > 0 ? (
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Top Memes</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {t('stats.topMemes', { defaultValue: 'Top memes' })}
+              </h2>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-black/5 dark:border-white/10">
-                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Rank</th>
-                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Meme</th>
-                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Activations</th>
-                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">Total Coins</th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">
+                        {t('stats.rank', { defaultValue: 'Rank' })}
+                      </th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">
+                        {t('stats.meme', { defaultValue: 'Meme' })}
+                      </th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">
+                        {t('stats.activations', { defaultValue: 'Activations' })}
+                      </th>
+                      <th className="text-left p-2 text-gray-700 dark:text-gray-300">
+                        {t('stats.totalCoins', { defaultValue: 'Total coins' })}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -74,7 +90,9 @@ export default function Stats() {
                       return (
                         <tr key={s.meme?.id || index} className="border-b border-black/5 dark:border-white/10">
                           <td className="p-2 font-bold text-gray-900 dark:text-gray-100">#{index + 1}</td>
-                          <td className="p-2 text-gray-900 dark:text-gray-100">{s.meme?.title || 'Unknown'}</td>
+                          <td className="p-2 text-gray-900 dark:text-gray-100">
+                            {s.meme?.title || t('common.unknown', { defaultValue: 'Unknown' })}
+                          </td>
                           <td className="p-2 text-gray-900 dark:text-gray-100">{s.activationsCount}</td>
                           <td className="p-2 font-bold text-accent">{s.totalCoinsSpent}</td>
                         </tr>
@@ -85,11 +103,18 @@ export default function Stats() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">No statistics available</div>
+            <div className="surface p-6 text-center">
+              <div className="text-base font-semibold text-gray-900 dark:text-white">
+                {t('stats.noData', { defaultValue: 'No statistics available' })}
+              </div>
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                {t('stats.noDataHint', { defaultValue: 'Try selecting a different period.' })}
+              </div>
+            </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </PageShell>
   );
 }
 

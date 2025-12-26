@@ -17,6 +17,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
+import { Button, IconButton, Input, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
@@ -300,12 +301,23 @@ export default function StreamerProfile() {
   // Show error state if channel not found
   if (!loading && !channelInfo) {
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-        <Header />
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-xl text-red-600">Channel not found</div>
+      <PageShell header={<Header />}>
+        <div className="min-h-[50vh] flex items-center justify-center px-4">
+          <div className="surface p-6 max-w-md w-full text-center">
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t('profile.channelNotFoundTitle', { defaultValue: 'Channel not found' })}
+            </div>
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {t('profile.channelNotFoundHint', { defaultValue: 'The link may be wrong, or the channel was removed.' })}
+            </div>
+            <div className="mt-5 flex justify-center">
+              <Button type="button" variant="secondary" onClick={() => navigate('/')}>
+                {t('common.goHome', { defaultValue: 'Go home' })}
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -320,28 +332,33 @@ export default function StreamerProfile() {
       secondaryColor={channelInfo?.secondaryColor}
       accentColor={channelInfo?.accentColor}
     >
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 relative overflow-hidden">
-        {/* Apple-ish theme background using all 3 channel colors */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: [
-              `radial-gradient(70% 60% at 18% 14%, ${mix('--primary-color', 18)} 0%, transparent 60%)`,
-              `radial-gradient(60% 55% at 82% 18%, ${mix('--secondary-color', 16)} 0%, transparent 62%)`,
-              `radial-gradient(70% 60% at 55% 88%, ${mix('--accent-color', 14)} 0%, transparent 62%)`,
-              `linear-gradient(135deg, ${mix('--primary-color', 10)} 0%, transparent 45%, ${mix('--secondary-color', 10)} 100%)`,
-            ].join(', '),
-          }}
-        />
-        <Header
-          coinIconUrl={channelInfo?.coinIconUrl} 
-          channelSlug={slug}
-          channelId={channelInfo?.id}
-          primaryColor={channelInfo?.primaryColor}
-          rewardTitle={channelInfo?.rewardTitle || null}
-        />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <PageShell
+        variant="channel"
+        className="overflow-hidden"
+        background={
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: [
+                `radial-gradient(70% 60% at 18% 14%, ${mix('--primary-color', 18)} 0%, transparent 60%)`,
+                `radial-gradient(60% 55% at 82% 18%, ${mix('--secondary-color', 16)} 0%, transparent 62%)`,
+                `radial-gradient(70% 60% at 55% 88%, ${mix('--accent-color', 14)} 0%, transparent 62%)`,
+                `linear-gradient(135deg, ${mix('--primary-color', 10)} 0%, transparent 45%, ${mix('--secondary-color', 10)} 100%)`,
+              ].join(', '),
+            }}
+          />
+        }
+        header={
+          <Header
+            coinIconUrl={channelInfo?.coinIconUrl}
+            channelSlug={slug}
+            channelId={channelInfo?.id}
+            primaryColor={channelInfo?.primaryColor}
+            rewardTitle={channelInfo?.rewardTitle || null}
+          />
+        }
+      >
         {/* Channel Header */}
         {loading ? (
           <div
@@ -388,44 +405,53 @@ export default function StreamerProfile() {
                     <h1 className="text-4xl font-bold mb-2 dark:text-white">{channelInfo.name}</h1>
                   </div>
                   <div className="mt-4 flex gap-4 text-sm">
-                    <span
-                      className="inline-flex items-center rounded-full px-3 py-1 text-accent font-semibold"
+                    <Pill
+                      variant="neutral"
+                      size="sm"
+                      className="ring-0 px-3 py-1 text-accent"
                       style={{ backgroundColor: mix('--accent-color', 14) }}
                     >
                       {channelInfo.stats.memesCount} {t('profile.memes')}
-                    </span>
-                    <span
-                      className="inline-flex items-center rounded-full px-3 py-1 text-secondary font-semibold"
+                    </Pill>
+                    <Pill
+                      variant="neutral"
+                      size="sm"
+                      className="ring-0 px-3 py-1 text-secondary"
                       style={{ backgroundColor: mix('--secondary-color', 14) }}
                     >
                       {channelInfo.stats.usersCount} {t('profile.users', { defaultValue: 'users' })}
-                    </span>
+                    </Pill>
                   </div>
                 </div>
               </div>
               {/* Submit Meme Button - only show when logged in and not owner */}
               {user && !isOwner && (
-                <button
+                <Button
+                  type="button"
+                  variant="primary"
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-sm"
                   title={t('profile.submitMeme')}
+                  leftIcon={
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  }
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>{t('profile.submitMeme')}</span>
-                </button>
+                  {t('profile.submitMeme')}
+                </Button>
               )}
 
               {/* Guest CTA */}
               {!user && (
-                <button
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="glass-btn"
                   onClick={() => setAuthModalOpen(true)}
-                  className="flex items-center gap-2 glass-btn px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white"
                   title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                 >
                   {t('auth.login', 'Log in with Twitch')}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -434,12 +460,12 @@ export default function StreamerProfile() {
         {/* Search Bar */}
         <div className="mb-6">
           <div className="relative">
-            <input
+            <Input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder') || 'Search memes...'}
-              className="w-full rounded-lg px-4 py-2 pl-10 bg-white/70 dark:bg-gray-900/60 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border"
+              className="w-full px-4 py-2 pl-10 pr-12 bg-white/70 dark:bg-gray-900/60 border"
               style={{ borderColor: mix('--secondary-color', 28) }}
             />
             <svg
@@ -447,19 +473,23 @@ export default function StreamerProfile() {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             {searchQuery && (
-              <button
+              <IconButton
+                type="button"
+                variant="ghost"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                aria-label="Clear search"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                aria-label={t('common.clear', { defaultValue: 'Clear' })}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                }
+              />
             )}
           </div>
 
@@ -530,8 +560,17 @@ export default function StreamerProfile() {
           
           if (memesToDisplay.length === 0 && !memesLoading) {
             return (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                {searchQuery.trim() ? (t('search.noResults') || 'No memes found') : t('profile.noMemes')}
+              <div className="surface p-6 text-center">
+                <div className="text-base font-semibold text-gray-900 dark:text-white">
+                  {searchQuery.trim()
+                    ? t('search.noResults', { defaultValue: 'No memes found matching your criteria' })
+                    : t('profile.noMemes', { defaultValue: 'No memes yet' })}
+                </div>
+                {searchQuery.trim() && (
+                  <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    {t('search.tryAdjusting', { defaultValue: 'Try changing filters or removing some tags.' })}
+                  </div>
+                )}
               </div>
             );
           }
@@ -558,8 +597,9 @@ export default function StreamerProfile() {
               {!searchQuery.trim() && (
                 <div ref={loadMoreRef} className="mt-4">
                   {loadingMore && (
-                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                      {t('common.loading') || 'Loading more memes...'}
+                    <div className="flex items-center justify-center gap-3 py-4 text-gray-600 dark:text-gray-300">
+                      <Spinner className="h-5 w-5" />
+                      <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
                     </div>
                   )}
                   {!hasMore && memes.length > 0 && (
@@ -572,7 +612,8 @@ export default function StreamerProfile() {
             </>
           );
         })()}
-      </main>
+
+      </PageShell>
 
       {/* Meme Modal */}
       {isModalOpen && selectedMeme && (
@@ -619,7 +660,6 @@ export default function StreamerProfile() {
           login(`/channel/${normalizedSlug || slug || ''}`);
         }}
       />
-      </div>
     </ChannelThemeProvider>
   );
 }

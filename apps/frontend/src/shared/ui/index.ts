@@ -15,6 +15,8 @@ export type { InputProps } from './Input/Input';
 export { Select } from './Select/Select';
 export type { SelectProps } from './Select/Select';
 
+export { Pill } from './Pill/Pill';
+
 export { Textarea } from './Textarea/Textarea';
 export type { TextareaProps } from './Textarea/Textarea';
 
@@ -23,5 +25,8 @@ export type { SpinnerProps } from './Spinner/Spinner';
 
 export { Modal } from './Modal/Modal';
 export type { ModalProps } from './Modal/Modal';
+
+export { PageShell } from './PageShell';
+export type { PageShellProps, PageShellVariant } from './PageShell';
 
 

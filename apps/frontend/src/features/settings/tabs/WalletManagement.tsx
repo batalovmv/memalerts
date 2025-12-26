@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import { Button, Input, Select, Spinner } from '@/shared/ui';
+
 // Wallet Management Component (Admin only)
 export function WalletManagement() {
   const { t } = useTranslation();
@@ -153,7 +155,12 @@ export function WalletManagement() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">{t('admin.loadingWallets')}</div>;
+    return (
+      <div className="flex items-center justify-center gap-3 py-10 text-gray-600 dark:text-gray-300">
+        <Spinner className="h-5 w-5" />
+        <span>{t('admin.loadingWallets', { defaultValue: 'Loading wallets…' })}</span>
+      </div>
+    );
   }
 
   return (
@@ -165,33 +172,33 @@ export function WalletManagement() {
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
               {t('admin.user')}
             </div>
-            <select
+            <Select
               value={selectedUserId}
               onChange={(e) => {
                 setSelectedUserId(e.target.value);
                 setAdjustAmount('');
               }}
-              className="w-full rounded-xl px-3 py-2 bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="bg-gray-50 dark:bg-gray-900/40"
             >
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.displayName}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
               {t('admin.channel') || 'Channel'}
             </div>
-            <select
+            <Select
               value={selectedChannelId}
               onChange={(e) => {
                 setSelectedChannelId(e.target.value);
                 setAdjustAmount('');
               }}
-              className="w-full rounded-xl px-3 py-2 bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="bg-gray-50 dark:bg-gray-900/40"
               disabled={!selectedUserId || candidatePairsForUser.length === 0}
             >
               {candidatePairsForUser.length === 0 ? (
@@ -207,7 +214,7 @@ export function WalletManagement() {
                   </option>
                 ))
               )}
-            </select>
+            </Select>
           </div>
         </div>
 
@@ -232,7 +239,7 @@ export function WalletManagement() {
             </div>
 
             <div className="flex gap-2 items-center">
-              <input
+              <Input
                 inputMode="numeric"
                 pattern="^-?\\d*$"
                 value={adjustAmount}
@@ -242,16 +249,18 @@ export function WalletManagement() {
                   if (/^-?\d*$/.test(v)) setAdjustAmount(v);
                 }}
                 placeholder={t('admin.amount')}
-                className="w-28 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-28 bg-gray-50 dark:bg-gray-900/40"
                 disabled={!selectedPair || adjusting !== null}
               />
-              <button
+              <Button
+                type="button"
                 onClick={() => selectedPair && handleAdjust(selectedPair.userId, selectedPair.channelId)}
                 disabled={!selectedPair || adjusting !== null}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-xl text-sm"
+                variant="primary"
+                size="sm"
               >
-                {adjusting ? t('admin.adjusting') : t('admin.adjust')}
-              </button>
+                {adjusting ? t('admin.adjusting', { defaultValue: 'Adjusting…' }) : t('admin.adjust', { defaultValue: 'Adjust' })}
+              </Button>
             </div>
           </div>
 

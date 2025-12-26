@@ -7,7 +7,7 @@ import type { Meme, Tag } from '@/types';
 import Header from '@/components/Header';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
-import { Card, Input } from '@/shared/ui';
+import { Card, Input, PageShell, Select, Spinner } from '@/shared/ui';
 
 function XSmallIcon() {
   return (
@@ -95,12 +95,10 @@ export default function Search() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Header />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <PageShell header={<Header />}>
+      <div className="section-gap">
         {/* Search Bar */}
-        <div className="mb-6 surface p-6">
+        <div className="surface p-6">
           <div className="mb-4">
             <Input
               type="text"
@@ -139,28 +137,26 @@ export default function Search() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.sortBy')}
               </label>
-              <select
+              <Select
                 value={filters.sortBy}
                 onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
-                className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
               >
                 <option value="createdAt">{t('search.sortDate')}</option>
                 <option value="priceCoins">{t('search.sortPrice')}</option>
                 <option value="popularity">{t('search.sortPopularity')}</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.order')}
               </label>
-              <select
+              <Select
                 value={filters.sortOrder}
                 onChange={(e) => setFilters({ ...filters, sortOrder: e.target.value })}
-                className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none ring-1 ring-black/5 dark:ring-white/10 focus:ring-2 focus:ring-primary/40"
               >
                 <option value="desc">{t('search.descending')}</option>
                 <option value="asc">{t('search.ascending')}</option>
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -193,12 +189,20 @@ export default function Search() {
 
         {/* Results */}
         {loading ? (
-          <div className="text-center py-8 text-gray-600 dark:text-gray-300">{t('common.loading')}</div>
+          <div className="flex items-center justify-center gap-3 py-8 text-gray-600 dark:text-gray-300">
+            <Spinner className="h-5 w-5" />
+            <span>{t('common.loading')}</span>
+          </div>
         ) : memes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            {query || selectedTags.length > 0
-              ? t('search.noResults')
-              : t('search.enterQuery')}
+          <div className="text-center py-10 surface p-6 text-gray-600 dark:text-gray-300">
+            <div className="text-base font-semibold text-gray-900 dark:text-white">
+              {query || selectedTags.length > 0 ? t('search.noResults') : t('search.enterQuery')}
+            </div>
+            {(query || selectedTags.length > 0) && (
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                {t('search.tryAdjusting', { defaultValue: 'Try changing filters or removing some tags.' })}
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -220,10 +224,7 @@ export default function Search() {
                   {meme.tags && meme.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {meme.tags.map((tagItem, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20"
-                        >
+                        <span key={idx} className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20">
                           {tagItem.tag.name}
                         </span>
                       ))}
@@ -234,8 +235,8 @@ export default function Search() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageShell>
   );
 }
 

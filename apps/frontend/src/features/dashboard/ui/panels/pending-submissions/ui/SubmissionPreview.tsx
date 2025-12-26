@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
+import { Spinner } from '@/shared/ui';
+
 export type SubmissionPreviewProps = {
   src: string;
   shouldLoad: boolean;
@@ -30,8 +32,11 @@ export function SubmissionPreview({
   return (
     <div className="rounded-xl overflow-hidden bg-black/80" style={{ aspectRatio }}>
       {!shouldLoad || !src ? (
-        <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
-          {t('common.loading', { defaultValue: 'Loading...' })}
+        <div className="w-full h-full flex items-center justify-center text-white/80 text-sm">
+          <div className="flex items-center gap-2">
+            <Spinner className="h-4 w-4 border-gray-200/40 border-t-white/90" />
+            <span>{t('common.loading', { defaultValue: 'Loading...' })}</span>
+          </div>
         </div>
       ) : (
         <div className="relative w-full h-full">
@@ -63,6 +68,7 @@ export function SubmissionPreview({
               aria-label={
                 isPlaying ? t('common.pause', { defaultValue: 'Pause' }) : t('common.play', { defaultValue: 'Play' })
               }
+              aria-pressed={isPlaying}
             >
               <span className="glass-btn bg-black/40 hover:bg-black/50 text-white rounded-full w-14 h-14 flex items-center justify-center">
                 {isPlaying ? (
@@ -87,6 +93,7 @@ export function SubmissionPreview({
               }}
               className="pointer-events-auto absolute top-2 right-2 glass-btn bg-black/40 hover:bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center"
               aria-label={isMuted ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
+              aria-pressed={isMuted}
               title={isMuted ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
             >
               {isMuted ? (

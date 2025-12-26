@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../lib/api';
 import { useAppSelector } from '../store/hooks';
+import { Button, Spinner } from '@/shared/ui';
 
 interface BetaAccessStatus {
   hasAccess: boolean;
@@ -69,14 +70,17 @@ export default function BetaAccessRequest() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4">
-        <div className="text-lg text-gray-700 dark:text-gray-200">{t('common.loading')}</div>
+        <div className="flex items-center gap-3 text-gray-700 dark:text-gray-200">
+          <Spinner className="h-5 w-5" />
+          <div className="text-base font-semibold">{t('common.loading')}</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4">
-      <div className="max-w-lg w-full bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="max-w-lg w-full surface p-6">
         <div className="flex items-start gap-4">
           <div className="flex-shrink-0">
             <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,13 +128,16 @@ export default function BetaAccessRequest() {
 
             {(requestStatus === undefined || requestStatus === 'rejected') && (
               <div className="flex gap-3">
-                <button
-                  onClick={handleRequest}
-                  disabled={requesting}
-                  className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {requesting ? t('common.loading') : t('betaAccess.requestButton', { defaultValue: 'Request beta access' })}
-                </button>
+                <Button type="button" variant="primary" onClick={handleRequest} disabled={requesting}>
+                  {requesting ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="h-4 w-4 border-white/40 border-t-white" />
+                      {t('common.loading')}
+                    </span>
+                  ) : (
+                    t('betaAccess.requestButton', { defaultValue: 'Request beta access' })
+                  )}
+                </Button>
               </div>
             )}
           </div>

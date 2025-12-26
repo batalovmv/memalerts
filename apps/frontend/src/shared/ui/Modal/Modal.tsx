@@ -1,6 +1,7 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 import { cn } from '@/shared/lib/cn';
+import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
 
 export type ModalProps = {
   isOpen: boolean;
@@ -33,16 +34,29 @@ export function Modal({
   contentClassName,
   zIndexClassName = 'z-50',
 }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const lastActiveElementRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
-    if (!closeOnEsc) return;
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    lastActiveElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const raf = window.requestAnimationFrame(() => {
+      const dialogEl = dialogRef.current;
+      if (!dialogEl) return;
+      const focusables = getFocusableElements(dialogEl);
+      focusSafely(focusables[0] ?? dialogEl);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      const lastActive = lastActiveElementRef.current;
+      lastActiveElementRef.current = null;
+      if (lastActive?.isConnected) focusSafely(lastActive);
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, closeOnEsc, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -64,12 +78,56 @@ export function Modal({
         aria-modal="true"
         aria-label={ariaLabelledBy ? undefined : ariaLabel}
         aria-labelledby={ariaLabelledBy}
+        tabIndex={-1}
+        ref={dialogRef}
         className={cn(
-          'w-full rounded-t-3xl sm:rounded-2xl shadow-2xl modal-pop-in',
+          'w-full rounded-t-3xl sm:rounded-2xl shadow-2xl modal-pop-in focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
           useGlass && 'glass',
           contentClassName,
         )}
         onMouseDown={(e) => e.stopPropagation()}
+        onKeyDownCapture={(e) => {
+          if (closeOnEsc && e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+            return;
+          }
+
+          if (e.key !== 'Tab') return;
+          const dialogEl = dialogRef.current;
+          if (!dialogEl) return;
+
+          const focusables = getFocusableElements(dialogEl);
+          if (focusables.length === 0) {
+            e.preventDefault();
+            focusSafely(dialogEl);
+            return;
+          }
+
+          const active = document.activeElement;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+
+          // If focus escaped for any reason, bring it back.
+          if (!(active instanceof HTMLElement) || !dialogEl.contains(active)) {
+            e.preventDefault();
+            focusSafely(first);
+            return;
+          }
+
+          if (e.shiftKey) {
+            if (active === first) {
+              e.preventDefault();
+              focusSafely(last);
+            }
+          } else {
+            if (active === last) {
+              e.preventDefault();
+              focusSafely(first);
+            }
+          }
+        }}
       >
         {children}
       </div>

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { Submission } from '@/types';
-import { AttemptsPill } from '@/shared/ui';
+import { AttemptsPill, Button } from '@/shared/ui';
 
 import { getResubmitsLeft } from './lib/resubmits';
 import { useSubmissionPreview } from './model/useSubmissionPreview';
@@ -55,22 +55,22 @@ export function PendingSubmissionCard(props: {
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button
+                <Button
                   type="button"
+                  variant="success"
+                  size="sm"
+                  className="glass-btn"
                   onClick={() => onApprove(submission.id)}
-                  className="glass-btn bg-emerald-500/90 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-semibold"
                 >
-                  {t('admin.approve', 'Approve')}
-                </button>
-                <button
+                  {t('admin.approve', { defaultValue: 'Approve' })}
+                </Button>
+                <Button
                   type="button"
+                  variant="warning"
+                  size="sm"
+                  className="glass-btn"
                   onClick={() => onNeedsChanges(submission.id)}
                   disabled={!canSendForChanges}
-                  className={`glass-btn px-4 py-2 rounded-xl font-semibold ${
-                    canSendForChanges
-                      ? 'bg-amber-500/90 hover:bg-amber-500 text-white'
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 opacity-60 cursor-not-allowed'
-                  }`}
                   title={
                     canSendForChanges
                       ? t('submissions.needsChanges', { defaultValue: 'Needs changes' })
@@ -78,14 +78,16 @@ export function PendingSubmissionCard(props: {
                   }
                 >
                   {t('submissions.needsChanges', { defaultValue: 'Needs changes' })}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
+                  className="glass-btn"
                   onClick={() => onReject(submission.id)}
-                  className="glass-btn bg-rose-500/85 hover:bg-rose-500 text-white px-4 py-2 rounded-xl font-semibold"
                 >
-                  {t('admin.reject', 'Reject')}
-                </button>
+                  {t('admin.reject', { defaultValue: 'Reject' })}
+                </Button>
               </div>
             </div>
           </div>

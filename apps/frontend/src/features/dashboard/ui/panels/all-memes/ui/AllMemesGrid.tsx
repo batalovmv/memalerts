@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Meme } from '@/types';
 
 import MemeCard from '@/components/MemeCard';
+import { Spinner } from '@/shared/ui';
 
 const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
 
@@ -75,7 +76,8 @@ export function AllMemesGrid({
       ))}
       <div ref={loadMoreRef} className="h-10" />
       {loadingMore && (
-        <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-2">
+          <Spinner className="h-4 w-4" />
           {t('common.loading', { defaultValue: 'Loading...' })}
         </div>
       )}

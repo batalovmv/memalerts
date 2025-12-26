@@ -13,7 +13,7 @@ import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesMo
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { api } from '@/lib/api';
-import { Button } from '@/shared/ui';
+import { Button, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
 import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
@@ -235,25 +235,29 @@ export default function DashboardPage() {
   if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+        <div className="flex items-center gap-3 text-gray-700 dark:text-gray-200">
+          <Spinner className="h-5 w-5" />
+          <div className="text-base font-semibold">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Header />
+    <>
+      <PageShell header={<Header />}>
+        <div className="section-gap">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 dark:text-white">{t('dashboard.title', 'Dashboard')}</h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              {t('dashboard.subtitle', 'Manage your memes and channel settings')}
+            </p>
+          </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold mb-2 dark:text-white">{t('dashboard.title', 'Dashboard')}</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-8">
-          {t('dashboard.subtitle', 'Manage your memes and channel settings')}
-        </p>
-        
-        {user.channelId ? (
-          <>
-            {/* Quick Actions Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
+          {user.channelId ? (
+            <>
+              {/* Quick Actions Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               {/* Submit Meme Card - Primary */}
               <div className="surface surface-hover p-6 flex flex-col min-h-[210px]">
                 <h2 className="text-lg font-semibold mb-2 dark:text-white">{t('dashboard.quickActions.submitMeme', 'Submit Meme')}</h2>
@@ -275,9 +279,9 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-semibold dark:text-white">{t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}</h2>
                   {pendingSubmissionsCount > 0 && (
-                    <span className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1">
+                    <Pill variant="danger" size="md" title={t('dashboard.pendingCount', { defaultValue: '{{count}} pending', count: pendingSubmissionsCount })}>
                       {pendingSubmissionsCount}
-                    </span>
+                    </Pill>
                   )}
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
@@ -344,70 +348,81 @@ export default function DashboardPage() {
                   {t('dashboard.quickActions.settingsButton', 'Open Settings')}
                 </Button>
               </div>
-            </div>
+              </div>
 
-            {/* Expandable panels */}
-            <div className={`transition-all duration-300 ${isPanelOpen ? 'mb-8' : 'mb-2'}`}>
-              <div
-                className={`overflow-hidden transition-all duration-300 ${
-                  panel === 'submissions' || panel === 'memes' ? 'max-h-[4000px] opacity-100' : 'max-h-0 opacity-0'
-                }`}
-              >
-                <div ref={submissionsPanelRef}>
-                  <PendingSubmissionsPanel
-                    isOpen={panel === 'submissions'}
-                    submissions={submissions}
-                    submissionsLoading={submissionsLoading}
-                    submissionsLoadingMore={submissionsLoadingMore}
-                    pendingCount={pendingSubmissionsCount}
-                    total={submissionsTotal}
-                    onClose={() => setPanel(null)}
-                    onLoadMore={() => {
-                      const offset = submissions.length;
-                      // If we know total and already loaded everything, skip.
-                      if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
-                      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
-                    }}
-                    onApprove={(submissionId) => {
-                      setApproveModal({ open: true, submissionId });
-                      setPriceCoins('100');
-                    }}
-                    onReject={(submissionId) => {
-                      setRejectModal({ open: true, submissionId });
-                      setRejectReason('');
-                    }}
-                    onNeedsChanges={(submissionId) => {
-                      setNeedsChangesModal({ open: true, submissionId });
-                      setNeedsChangesPreset({ badTitle: false, noTags: false, other: false });
-                      setNeedsChangesText('');
-                    }}
-                  />
-                </div>
+              {/* Expandable panels */}
+              <div className={`transition-all duration-300 ${isPanelOpen ? 'mb-8' : 'mb-2'}`}>
+                <div
+                  className={`overflow-hidden transition-all duration-300 ${
+                    panel === 'submissions' || panel === 'memes' ? 'max-h-[4000px] opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <div ref={submissionsPanelRef}>
+                    <PendingSubmissionsPanel
+                      isOpen={panel === 'submissions'}
+                      submissions={submissions}
+                      submissionsLoading={submissionsLoading}
+                      submissionsLoadingMore={submissionsLoadingMore}
+                      pendingCount={pendingSubmissionsCount}
+                      total={submissionsTotal}
+                      onClose={() => setPanel(null)}
+                      onLoadMore={() => {
+                        const offset = submissions.length;
+                        // If we know total and already loaded everything, skip.
+                        if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
+                      }}
+                      onApprove={(submissionId) => {
+                        setApproveModal({ open: true, submissionId });
+                        setPriceCoins('100');
+                      }}
+                      onReject={(submissionId) => {
+                        setRejectModal({ open: true, submissionId });
+                        setRejectReason('');
+                      }}
+                      onNeedsChanges={(submissionId) => {
+                        setNeedsChangesModal({ open: true, submissionId });
+                        setNeedsChangesPreset({ badTitle: false, noTags: false, other: false });
+                        setNeedsChangesText('');
+                      }}
+                    />
+                  </div>
 
-                <div ref={memesPanelRef}>
-                  <AllMemesPanel
-                    isOpen={panel === 'memes'}
-                    channelId={user.channelId}
-                    autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
-                    onClose={() => setPanel(null)}
-                    onSelectMeme={(meme) => {
-                      setSelectedMeme(meme);
-                      setIsMemeModalOpen(true);
-                    }}
-                  />
+                  <div ref={memesPanelRef}>
+                    <AllMemesPanel
+                      isOpen={panel === 'memes'}
+                      channelId={user.channelId}
+                      autoplayPreview={autoplayMemesEnabled ? 'autoplayMuted' : 'hoverWithSound'}
+                      onClose={() => setPanel(null)}
+                      onSelectMeme={(meme) => {
+                        setSelectedMeme(meme);
+                        setIsMemeModalOpen(true);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
+            </>
+          ) : (
+            <div className="surface p-6">
+              <div className="text-base font-semibold text-gray-900 dark:text-white">
+                {t('dashboard.noChannelTitle', { defaultValue: "You're not a streamer yet" })}
+              </div>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">
+                {t('dashboard.noChannel', { defaultValue: "You don't have a channel yet. You can still browse memes and request beta access." })}
+              </p>
+              <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                <Button type="button" variant="secondary" onClick={() => navigate('/search')}>
+                  {t('dashboard.browseMemes', { defaultValue: 'Browse memes' })}
+                </Button>
+                <Button type="button" variant="primary" onClick={() => navigate('/settings?tab=beta')}>
+                  {t('dashboard.requestBeta', { defaultValue: 'Request beta access' })}
+                </Button>
+              </div>
             </div>
-
-          </>
-        ) : (
-          <div className="surface p-6">
-            <p className="text-gray-600 dark:text-gray-400">
-              {t('dashboard.noChannel', "You don't have a channel yet. Create one to start using the platform.")}
-            </p>
-          </div>
-        )}
-      </main>
+          )}
+        </div>
+      </PageShell>
 
       {/* Submit Modal */}
       <Suspense fallback={null}>
@@ -464,7 +479,7 @@ export default function DashboardPage() {
         onClose={() => setRejectModal({ open: false, submissionId: null })}
         onReject={handleReject}
       />
-    </div>
+    </>
   );
 }
 

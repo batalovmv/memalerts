@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Submission, SubmissionStatus } from '@/types';
 
 import { cn } from '@/shared/lib/cn';
-import { IconButton } from '@/shared/ui';
+import { Button, IconButton, Input, Pill, Select, Spinner } from '@/shared/ui';
 
 export type ChannelSubmissionsSectionProps = {
   submissions: Submission[];
@@ -28,11 +28,11 @@ function statusLabel(t: ReturnType<typeof useTranslation>['t'], status: string):
   return status;
 }
 
-function statusPillClass(status: string): string {
-  if (status === 'approved') return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-  if (status === 'rejected') return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-  if (status === 'needs_changes') return 'bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-200';
-  return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+function statusPillVariant(status: string): 'success' | 'danger' | 'warning' | 'neutral' {
+  if (status === 'approved') return 'success';
+  if (status === 'rejected') return 'danger';
+  if (status === 'needs_changes') return 'warning';
+  return 'neutral';
 }
 
 function RefreshIcon(props: { spinning?: boolean }) {
@@ -89,6 +89,8 @@ export function ChannelSubmissionsSection({
     });
   }, [query, selectedSubmitterId, statusFilter, submissions]);
 
+  const hasFilters = !!query.trim() || statusFilter !== 'all' || !!selectedSubmitterId;
+
   return (
     <section className="mt-6 surface">
       <header className="surface-header">
@@ -119,24 +121,30 @@ export function ChannelSubmissionsSection({
       <div className="surface-body">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
           {(['pending', 'needs_changes', 'approved', 'rejected'] as SubmissionStatus[]).map((s) => (
-            <div key={s} className="glass px-3 py-2">
-              <div className="text-[11px] text-gray-500 dark:text-gray-400">{statusLabel(t, s)}</div>
-              <div className="text-lg font-bold text-gray-900 dark:text-white">{stats[s] || 0}</div>
+            <div key={s} className="glass px-3 py-2 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{statusLabel(t, s)}</div>
+              </div>
+              <Pill
+                variant={statusPillVariant(s)}
+                title={t('submit.statusCount', { defaultValue: '{{status}}: {{count}}', status: statusLabel(t, s), count: stats[s] || 0 })}
+              >
+                {stats[s] || 0}
+              </Pill>
             </div>
           ))}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <input
+          <Input
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder={t('submit.searchByUserOrTitle', { defaultValue: 'Search by user or title…' })}
-            className="flex-1 border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+            className="flex-1"
           />
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value as 'all' | SubmissionStatus)}
-            className="border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
             aria-label={t('submit.statusFilter', { defaultValue: 'Status' })}
           >
             <option value="all">{t('submit.allStatuses', { defaultValue: 'All statuses' })}</option>
@@ -144,28 +152,55 @@ export function ChannelSubmissionsSection({
             <option value="needs_changes">{statusLabel(t, 'needs_changes')}</option>
             <option value="approved">{statusLabel(t, 'approved')}</option>
             <option value="rejected">{statusLabel(t, 'rejected')}</option>
-          </select>
+          </Select>
         </div>
 
         {selectedSubmitterId && (
           <div className="mb-3">
-            <button
+            <Button
               type="button"
               onClick={onClearSubmitter}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors"
+              variant="ghost"
+              size="sm"
+              className="rounded-full bg-primary/10 text-primary hover:bg-primary/15"
               title={t('submit.clearUserFilter', { defaultValue: 'Clear user filter' })}
             >
               <span className="truncate max-w-[240px]">
                 {t('submit.filteredByUser', { defaultValue: 'Filtered by:' })} {selectedSubmitterName || selectedSubmitterId}
               </span>
               <span className="text-base leading-none">×</span>
-            </button>
+            </Button>
           </div>
         )}
 
-        {filtered.length === 0 ? (
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {t('submit.noChannelSubmissions', { defaultValue: 'No submissions found for the current filters.' })}
+        {loading && submissions.length === 0 ? (
+          <div className="glass p-6 text-center">
+            <div className="inline-flex items-center gap-3 text-gray-700 dark:text-gray-200">
+              <Spinner className="h-5 w-5" />
+              <span className="text-sm font-semibold">{t('common.loading', { defaultValue: 'Loading…' })}</span>
+            </div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="glass p-6">
+            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+              {t('submit.noChannelSubmissions', { defaultValue: 'No submissions found for the current filters.' })}
+            </div>
+            {hasFilters && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    onQueryChange('');
+                    onStatusFilterChange('all');
+                    onClearSubmitter();
+                  }}
+                >
+                  {t('common.clearFilters', { defaultValue: 'Clear filters' })}
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <ul className="space-y-3" role="list">
@@ -182,6 +217,7 @@ export function ChannelSubmissionsSection({
                             'font-semibold text-primary hover:text-secondary transition-colors',
                             selectedSubmitterId && s.submitter?.id === selectedSubmitterId ? 'underline' : '',
                           )}
+                          aria-pressed={!!selectedSubmitterId && s.submitter?.id === selectedSubmitterId}
                           onClick={() => {
                             if (s.submitter?.id && s.submitter?.displayName) {
                               onSelectSubmitter(s.submitter.id, s.submitter.displayName);
@@ -195,9 +231,7 @@ export function ChannelSubmissionsSection({
                         <span>{new Date(s.createdAt).toLocaleString()}</span>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${statusPillClass(s.status)}`}>
-                      {statusLabel(t, s.status)}
-                    </span>
+                    <Pill variant={statusPillVariant(s.status)}>{statusLabel(t, s.status)}</Pill>
                   </header>
                 </article>
               </li>

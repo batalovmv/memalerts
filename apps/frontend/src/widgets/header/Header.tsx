@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import type { Wallet } from '@/types';
 
@@ -9,7 +9,7 @@ import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
-import { Button } from '@/shared/ui';
+import { Button, Pill } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
 import { selectPendingSubmissionsCount } from '@/store/selectors';
@@ -531,10 +531,11 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           <div className="flex justify-between h-16 items-center gap-2 min-w-0">
             <h1
               className="text-lg sm:text-xl font-bold dark:text-white cursor-pointer channel-theme-logo truncate min-w-0"
-              onClick={() => navigate('/')}
               style={logoStyle}
             >
-              Mem Alerts
+              <Link to="/" className="text-inherit">
+                Mem Alerts
+              </Link>
             </h1>
 
             {user ? (
@@ -542,6 +543,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* Pending Submissions Indicator - always show for streamer/admin */}
                 {showPendingIndicator && (
                   <button
+                    type="button"
                     onClick={handlePendingSubmissionsClick}
                     className={`relative p-2 rounded-lg transition-colors ${
                       hasPendingSubmissions
@@ -583,9 +585,13 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       />
                     </svg>
                     {hasPendingSubmissions && !isLoadingSubmissions && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                      <Pill
+                        variant="dangerSolid"
+                        className="absolute -top-1 -right-1 w-5 h-5 p-0 text-[11px] font-bold leading-none"
+                        title={t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount })}
+                      >
                         {pendingSubmissionsCount}
-                      </span>
+                      </Pill>
                     )}
                   </button>
                 )}
@@ -611,22 +617,20 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Balance Display */}
                 <div className="relative group">
-                  <div
+                  <button
+                    type="button"
                     className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
                     onClick={() => {
                       setCoinUpdateDelta(null);
                     }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        setCoinUpdateDelta(null);
-                      }
-                    }}
                     aria-label={t('header.balance', 'Balance')}
                   >
                     {coinIconUrl || channelCoinIconUrl ? (
-                      <img src={coinIconUrl || channelCoinIconUrl || ''} alt="Coin" className="w-5 h-5" />
+                      <img
+                        src={coinIconUrl || channelCoinIconUrl || ''}
+                        alt={t('header.coin', { defaultValue: 'Coin' })}
+                        className="w-5 h-5"
+                      />
                     ) : (
                       <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
@@ -643,11 +647,16 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       </span>
                       <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
                     </div>
-                  </div>
+                  </button>
                   {coinUpdateDelta !== null && coinUpdateDelta > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] rounded-full px-2 py-0.5 font-bold shadow">
+                    <Pill
+                      variant="successSolid"
+                      size="sm"
+                      className="absolute -top-1 -right-1 text-[10px] px-2 py-0.5 font-bold shadow"
+                      title={t('header.coinsGained', { defaultValue: '+{{count}}', count: coinUpdateDelta })}
+                    >
                       +{coinUpdateDelta}
-                    </span>
+                    </Pill>
                   )}
                   {/* Tooltip */}
                   <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
@@ -667,6 +676,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 {/* Pending Submissions (guest preview) */}
                 <button
+                  type="button"
                   onClick={requireAuth}
                   className="relative p-2 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
                   title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
@@ -701,14 +711,10 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Balance (guest preview) */}
                 <div className="relative group">
-                  <div
+                  <button
+                    type="button"
                     className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10 cursor-pointer"
                     onClick={requireAuth}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') requireAuth();
-                    }}
                     aria-label={t('header.balance', 'Balance')}
                   >
                     <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -723,7 +729,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">0</span>
                       <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
                     </div>
-                  </div>
+                  </button>
                   <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
                     {t('auth.loginToUseWallet', { defaultValue: 'Log in to earn coins and activate memes' })}
                     <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45" />
@@ -732,6 +738,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Guest identity */}
                 <button
+                  type="button"
                   onClick={requireAuth}
                   className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   title={t('auth.login', { defaultValue: 'Log in with Twitch' })}

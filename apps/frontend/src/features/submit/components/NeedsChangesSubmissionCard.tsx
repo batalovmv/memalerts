@@ -9,6 +9,7 @@ import type { MySubmission } from '../types';
 import TagInput from '@/components/TagInput';
 import { api } from '@/lib/api';
 import { AttemptsPill } from '@/shared/ui/AttemptsPill';
+import { Button, Input, Spinner, Textarea, Pill } from '@/shared/ui';
 
 export function NeedsChangesSubmissionCard(props: { submission: MySubmission; onUpdated: () => void }) {
   const { submission, onUpdated } = props;
@@ -42,9 +43,7 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
           <div className="font-semibold text-gray-900 dark:text-white truncate">{submission.title}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(submission.createdAt).toLocaleString()}</div>
         </div>
-        <span className="px-2 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-200">
-          {t('submissions.statusNeedsChanges', { defaultValue: 'needs changes' })}
-        </span>
+        <Pill variant="warning">{t('submissions.statusNeedsChanges', { defaultValue: 'needs changes' })}</Pill>
       </header>
 
       <section className="mt-3 text-sm text-gray-700 dark:text-gray-300" aria-label={t('submissions.changesRequested', { defaultValue: 'Changes requested' })}>
@@ -70,10 +69,9 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             {t('submit.titleLabel', { defaultValue: 'Title' })}
           </label>
-          <input
+          <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
           />
         </div>
         <div>
@@ -90,16 +88,15 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             {t('submit.notes', { defaultValue: 'Notes (optional)' })}
           </label>
-          <textarea
+          <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full border border-secondary/30 dark:border-secondary/30 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
           />
         </div>
 
         <div className="mt-1 flex gap-2">
-          <button
+          <Button
             type="button"
             disabled={!canResubmit}
             onClick={async () => {
@@ -119,10 +116,17 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
                 setSaving(false);
               }
             }}
-            className="bg-primary hover:bg-secondary disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors border border-secondary/30"
+            variant="primary"
           >
-            {saving ? t('common.loading', { defaultValue: 'Loading...' }) : t('submissions.fixAndResubmit', { defaultValue: 'Fix & resubmit' })}
-          </button>
+            {saving ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="h-4 w-4 border-white/40 border-t-white" />
+                {t('common.loading', { defaultValue: 'Loading...' })}
+              </span>
+            ) : (
+              t('submissions.fixAndResubmit', { defaultValue: 'Fix & resubmit' })
+            )}
+          </Button>
         </div>
       </form>
     </article>

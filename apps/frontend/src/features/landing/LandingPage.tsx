@@ -1,11 +1,11 @@
 ﻿import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import UserMenu from '@/components/UserMenu';
 import { login } from '@/lib/auth';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
-import { Button, Card } from '@/shared/ui';
+import { Button, Card, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 export default function Landing() {
@@ -43,7 +43,10 @@ export default function Landing() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+        <div className="flex items-center gap-3 text-gray-200">
+          <Spinner className="h-5 w-5 border-white/30 border-t-white/90" />
+          <div className="text-base font-semibold">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+        </div>
       </div>
     );
   }
@@ -92,10 +95,15 @@ export default function Landing() {
                   </Button>
 
                   <p className="text-white/70 text-xs">
-                    {t('landing.terms')}{' '}
-                    <a href="/terms" className="link-soft hover:text-white">
-                      {t('landing.terms')}
-                    </a>
+                    {t('landing.agreeTo', { defaultValue: 'By continuing you agree to our' })}{' '}
+                    <Link to="/terms" className="link-soft hover:text-white">
+                      {t('landing.terms', { defaultValue: 'Terms of Service' })}
+                    </Link>{' '}
+                    {t('landing.and', { defaultValue: 'and' })}{' '}
+                    <Link to="/privacy" className="link-soft hover:text-white">
+                      {t('landing.privacy', { defaultValue: 'Privacy Policy' })}
+                    </Link>
+                    .
                   </p>
                 </div>
               )}
