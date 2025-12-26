@@ -9,7 +9,7 @@ export type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
 
 export function IconButton({ icon, variant = 'ghost', className, disabled, ...props }: IconButtonProps) {
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold leading-none transition-[transform,background-color,box-shadow,opacity] select-none [-webkit-tap-highlight-color:transparent] active:translate-y-[0.5px] disabled:opacity-60 disabled:pointer-events-none';
+    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold leading-none transition-[transform,background-color,box-shadow,opacity] select-none [-webkit-tap-highlight-color:transparent] active:translate-y-[0.5px] disabled:opacity-60 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent';
   const iconOnly = 'p-2 w-9 h-9';
   const variantClass: Record<NonNullable<IconButtonProps['variant']>, string> = {
     primary: 'bg-primary text-white shadow-[0_10px_18px_rgba(10,132,255,0.2)] hover:brightness-[0.98]',

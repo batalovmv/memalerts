@@ -9,6 +9,29 @@
   --accent-color: #30d158;    /* iOS system green */
 }
 
+@layer base {
+  /*
+    Minimal design tokens:
+    - Keep them tiny and composable.
+    - Prefer Tailwind utilities everywhere else.
+  */
+  :root {
+    --ma-radius: 0.75rem; /* rounded-xl */
+  }
+
+  a {
+    text-underline-offset: 0.18em;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -138,6 +161,17 @@ body {
 }
 
 @layer components {
+  /* Layout helpers (use sparingly) */
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  .section-gap {
+    @apply space-y-6 sm:space-y-8;
+  }
+  .link-soft {
+    @apply underline decoration-white/40 hover:decoration-white/70 transition-colors;
+  }
+
   /*
     Modern surfaces:
     - Avoid visible borders
