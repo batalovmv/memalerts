@@ -259,6 +259,65 @@ body {
     -ms-overflow-style: none; /* IE/Edge */
     scrollbar-width: none; /* Firefox */
   }
+
+  /*
+    Meme card hover (A + C):
+    - Premium lift (depth)
+    - Subtle gradient sheen (gloss)
+    Only on devices that actually support hover (avoid weirdness on touch).
+  */
+  @media (hover: hover) and (pointer: fine) {
+    .meme-card {
+      transition:
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .meme-card:hover {
+      transform: translateY(-3px) scale(1.006);
+      box-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.12),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+    }
+
+    .dark .meme-card:hover {
+      box-shadow:
+        0 16px 38px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+    }
+
+    /* Sheen layer (gloss) */
+    .meme-card::before {
+      content: '';
+      position: absolute;
+      inset: -40% -70%;
+      pointer-events: none;
+      z-index: 10;
+      opacity: 0;
+      transform: translateX(-120%) skewX(-18deg);
+      background: linear-gradient(
+        115deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.55) 50%,
+        transparent 60%
+      );
+      mix-blend-mode: overlay;
+    }
+
+    .dark .meme-card::before {
+      background: linear-gradient(
+        115deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.25) 50%,
+        transparent 60%
+      );
+    }
+
+    .meme-card:hover::before {
+      opacity: 0.9;
+      animation: memeSheen 900ms ease-out 1;
+    }
+  }
 }
 
 @keyframes modalBackdropIn {
@@ -269,5 +328,22 @@ body {
 @keyframes modalPopIn {
   from { opacity: 0; transform: translateY(6px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes memeSheen {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  20% { opacity: 0.85; }
+  100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meme-card {
+    transition: none !important;
+    transform: none !important;
+  }
+  .meme-card::before {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
