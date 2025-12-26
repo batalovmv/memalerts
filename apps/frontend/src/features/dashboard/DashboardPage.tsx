@@ -86,7 +86,6 @@ type DashboardCardId = 'submit' | 'pending' | 'memes' | 'settings' | 'submission
 const DEFAULT_DASHBOARD_ORDER: DashboardCardId[] = ['submit', 'pending', 'memes', 'settings', 'submissionsControl', 'bots'];
 const DASHBOARD_CARD_IDS: readonly DashboardCardId[] = DEFAULT_DASHBOARD_ORDER;
 const DASHBOARD_CARD_ID_SET = new Set<string>(DASHBOARD_CARD_IDS as unknown as string[]);
-const DASHBOARD_ORDER_LS_KEY_PREFIX = 'memalerts:dashboardCardOrder:v1:';
 
 function isDashboardCardId(v: unknown): v is DashboardCardId {
   return typeof v === 'string' && DASHBOARD_CARD_ID_SET.has(v);
@@ -106,14 +105,6 @@ function normalizeDashboardCardOrder(input: unknown): DashboardCardId[] {
     if (!seen.has(id)) out.push(id);
   }
   return out;
-}
-
-function sameOrder(a: DashboardCardId[], b: DashboardCardId[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
 }
 
 function DragHandleIcon() {
@@ -205,7 +196,6 @@ export default function DashboardPage() {
   const [expandedCard, setExpandedCard] = useState<ExpandCard>(null);
   const [dashboardCardOrder, setDashboardCardOrder] = useState<DashboardCardId[]>(DEFAULT_DASHBOARD_ORDER);
   const saveDashboardOrderTimerRef = useRef<number | null>(null);
-  const lastSavedOrderRef = useRef<DashboardCardId[] | null>(null);
 
   const [submissionsEnabled, setSubmissionsEnabled] = useState<boolean | null>(null);
   const [submissionsOnlyWhenLive, setSubmissionsOnlyWhenLive] = useState<boolean | null>(null);
@@ -336,24 +326,7 @@ export default function DashboardPage() {
           setDashboardCardOrder(DEFAULT_DASHBOARD_ORDER);
         } else if (Array.isArray(data?.dashboardCardOrder)) {
           const serverOrder = normalizeDashboardCardOrder(data.dashboardCardOrder);
-          // Fallback for environments where public GET is stale (CDN/replica):
-          // if localStorage has a newer order, prefer it and re-PATCH to enforce server truth.
-          try {
-            const key = `${DASHBOARD_ORDER_LS_KEY_PREFIX}${slug}`;
-            const raw = window.localStorage.getItem(key);
-            const parsed = raw ? (JSON.parse(raw) as { order?: unknown; savedAt?: unknown } | null) : null;
-            const localOrder = parsed?.order ? normalizeDashboardCardOrder(parsed.order) : null;
-            if (localOrder && !sameOrder(localOrder, serverOrder)) {
-              setDashboardCardOrder(localOrder);
-              lastSavedOrderRef.current = localOrder;
-              // Best-effort enforce (idempotent): this also helps when GET is stale but PATCH works.
-              void api.patch('/streamer/channel/settings', { dashboardCardOrder: localOrder });
-            } else {
-              setDashboardCardOrder(serverOrder);
-            }
-          } catch {
-            setDashboardCardOrder(serverOrder);
-          }
+          setDashboardCardOrder(serverOrder);
         }
       } catch {
         // ignore
@@ -369,13 +342,6 @@ export default function DashboardPage() {
         void (async () => {
           try {
             await api.patch('/streamer/channel/settings', { dashboardCardOrder: nextOrder });
-            lastSavedOrderRef.current = nextOrder;
-            // Persist a fallback copy (handles stale public GET on reload in some environments).
-            const slug = (user?.channel?.slug || '').trim();
-            if (slug) {
-              const key = `${DASHBOARD_ORDER_LS_KEY_PREFIX}${slug}`;
-              window.localStorage.setItem(key, JSON.stringify({ v: 1, savedAt: Date.now(), order: nextOrder }));
-            }
           } catch (error: unknown) {
             const apiError = error as { response?: { data?: { error?: string } } };
             toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
@@ -383,7 +349,7 @@ export default function DashboardPage() {
         })();
       }, 450);
     },
-    [t, user?.channel?.slug, user?.channelId]
+    [t, user?.channelId]
   );
 
   const resetDashboardOrder = useCallback(async () => {
@@ -394,19 +360,12 @@ export default function DashboardPage() {
       await api.patch('/streamer/channel/settings', { dashboardCardOrder: null });
       setDashboardCardOrder(DEFAULT_DASHBOARD_ORDER);
       setExpandedCard(null);
-      lastSavedOrderRef.current = DEFAULT_DASHBOARD_ORDER;
-      try {
-        const slug = (user?.channel?.slug || '').trim();
-        if (slug) window.localStorage.removeItem(`${DASHBOARD_ORDER_LS_KEY_PREFIX}${slug}`);
-      } catch {
-        // ignore
-      }
       toast.success(t('dashboard.layoutReset', { defaultValue: 'Layout reset.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
       toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
     }
-  }, [t, user?.channel?.slug, user?.channelId]);
+  }, [t, user?.channelId]);
 
   useEffect(() => {
     return () => {
