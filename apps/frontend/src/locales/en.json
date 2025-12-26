@@ -125,6 +125,8 @@
       "settingsDescription": "Configure your channel and preferences",
       "settingsButton": "Open Settings"
     },
+    "resetLayout": "Reset layout",
+    "layoutReset": "Layout reset.",
     "submissions": {
       "saved": "Saved",
       "enabledTitle": "Allow submissions",

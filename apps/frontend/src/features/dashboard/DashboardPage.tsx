@@ -325,6 +325,21 @@ export default function DashboardPage() {
     [t, user?.channelId]
   );
 
+  const resetDashboardOrder = useCallback(async () => {
+    if (!user?.channelId) return;
+    if (saveDashboardOrderTimerRef.current) window.clearTimeout(saveDashboardOrderTimerRef.current);
+    saveDashboardOrderTimerRef.current = null;
+    try {
+      await api.patch('/streamer/channel/settings', { dashboardCardOrder: null });
+      setDashboardCardOrder(DEFAULT_DASHBOARD_ORDER);
+      setExpandedCard(null);
+      toast.success(t('dashboard.layoutReset', { defaultValue: 'Layout reset.' }));
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+    }
+  }, [t, user?.channelId]);
+
   useEffect(() => {
     return () => {
       if (saveDashboardOrderTimerRef.current) window.clearTimeout(saveDashboardOrderTimerRef.current);
@@ -641,6 +656,13 @@ export default function DashboardPage() {
           {user.channelId ? (
             <>
               {/* Quick Actions Cards */}
+              {isStreamerAdmin && (
+                <div className="flex items-center justify-end mb-3">
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void resetDashboardOrder()}>
+                    {t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
+                  </Button>
+                </div>
+              )}
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={effectiveCardOrder} strategy={rectSortingStrategy}>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

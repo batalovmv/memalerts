@@ -129,6 +129,8 @@
       "settingsDescription": "Настройте свой канал и предпочтения",
       "settingsButton": "Открыть настройки"
     },
+    "resetLayout": "Сбросить порядок",
+    "layoutReset": "Порядок сброшен.",
     "submissions": {
       "saved": "Сохранено",
       "enabledTitle": "Разрешить отправку",
