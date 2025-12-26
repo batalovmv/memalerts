@@ -180,7 +180,7 @@ export default function SettingsPage() {
     <PageShell header={<Header />}>
       <div className="section-gap">
         <div className="surface">
-          <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 sm:px-6">
+          <div className="flex items-center border-b border-black/5 dark:border-white/10 px-3 sm:px-6 py-2 sm:py-3 gap-2">
             {/* Tabs scroller (mobile) */}
             <div className="flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] no-scrollbar">
               <div
@@ -268,7 +268,7 @@ export default function SettingsPage() {
             </div>
 
             {/* More menu (fixed on the right) */}
-            <div className="relative flex-shrink-0 ml-2 border-l border-black/5 dark:border-white/10 pl-3">
+            <div className="relative flex-shrink-0 ml-2">
               <button
                 ref={moreMenuButtonRef}
                 onClick={() => {
@@ -291,7 +291,7 @@ export default function SettingsPage() {
                     setIsMoreMenuOpen(true);
                   }
                 }}
-                className={`p-2.5 rounded-lg transition-all flex items-center gap-1 ${
+                className={`px-4 py-2.5 rounded-lg transition-all text-sm font-medium flex items-center justify-center ${
                   ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements'].includes(activeTab)
                     ? 'bg-primary text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'
@@ -319,7 +319,7 @@ export default function SettingsPage() {
                     ref={moreMenuPopupRef}
                     role="menu"
                     aria-label={t('admin.more', { defaultValue: 'More' })}
-                    className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-1 z-50"
+                    className="absolute right-0 top-full mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-50"
                     onKeyDownCapture={(e) => {
                       if (e.key === 'Escape') {
                         e.preventDefault();
@@ -355,105 +355,109 @@ export default function SettingsPage() {
                       focusSafely(items[nextIndex] ?? items[0]);
                     }}
                   >
-                    <button
-                      onClick={() => {
-                        setActiveTab('statistics');
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
-                        activeTab === 'statistics'
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      type="button"
-                      role="menuitem"
-                    >
-                      {t('admin.statistics')}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setActiveTab('promotions');
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
-                        activeTab === 'promotions'
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      type="button"
-                      role="menuitem"
-                    >
-                      {t('admin.promotions')}
-                    </button>
+                    <div className="p-1">
+                      <button
+                        onClick={() => {
+                          setActiveTab('statistics');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                          activeTab === 'statistics'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                        type="button"
+                        role="menuitem"
+                      >
+                        {t('admin.statistics')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('promotions');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                          activeTab === 'promotions'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                        type="button"
+                        role="menuitem"
+                      >
+                        {t('admin.promotions')}
+                      </button>
+                    </div>
                     <div className="border-t border-black/5 dark:border-white/10 my-1" />
 
-                    {(user?.role === 'admin' || isStreamerAdmin) && (
+                    <div className="p-1">
+                      {(user?.role === 'admin' || isStreamerAdmin) && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('wallets');
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                            activeTab === 'wallets'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                          }`}
+                          type="button"
+                          role="menuitem"
+                        >
+                          {t('admin.walletManagement')}
+                        </button>
+                      )}
+
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('entitlements');
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                            activeTab === 'entitlements'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                          }`}
+                          type="button"
+                          role="menuitem"
+                        >
+                          {t('admin.entitlements', { defaultValue: 'Entitlements' })}
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
-                          setActiveTab('wallets');
+                          setActiveTab('beta');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
-                          activeTab === 'wallets'
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                          activeTab === 'beta'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
                         }`}
                         type="button"
                         role="menuitem"
                       >
-                        {t('admin.walletManagement')}
+                        {t('admin.betaAccess')}
                       </button>
-                    )}
 
-                    {user?.role === 'admin' && (
                       <button
                         onClick={() => {
-                          setActiveTab('entitlements');
+                          setActiveTab('accounts');
                           setIsMoreMenuOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
-                          activeTab === 'entitlements'
+                        className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-lg ${
+                          activeTab === 'accounts'
                             ? 'bg-primary/10 text-primary'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
                         }`}
                         type="button"
                         role="menuitem"
                       >
-                        {t('admin.entitlements', { defaultValue: 'Entitlements' })}
+                        {t('settings.accounts', { defaultValue: 'Accounts' })}
                       </button>
-                    )}
-
-                    <button
-                      onClick={() => {
-                        setActiveTab('beta');
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
-                        activeTab === 'beta'
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      type="button"
-                      role="menuitem"
-                    >
-                      {t('admin.betaAccess')}
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setActiveTab('accounts');
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-md mx-1 ${
-                        activeTab === 'accounts'
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      type="button"
-                      role="menuitem"
-                    >
-                      {t('settings.accounts', { defaultValue: 'Accounts' })}
-                    </button>
+                    </div>
 
                     {/* walletManagement entry is rendered above once (admin OR streamer admin) */}
                   </div>
