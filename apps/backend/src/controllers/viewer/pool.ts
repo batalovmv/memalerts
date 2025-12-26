@@ -9,7 +9,7 @@ import {
   SEARCH_CACHE_MAX,
   searchCache,
   setSearchCacheHeaders,
-} from './search/cache.js';
+} from './cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 
 export const getMemePool = async (req: any, res: Response) => {
