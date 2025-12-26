@@ -13,7 +13,13 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
   const userId = req.userId;
   const verboseStages = (() => {
     const raw = String(process.env.DEBUG_LOGS || '').toLowerCase();
-    return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+    const debugFlag = raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+    // Default to verbose on beta to speed up incident debugging without touching envs.
+    const isBetaInstance =
+      String(process.env.PORT || '') === '3002' ||
+      String(process.env.INSTANCE || '').toLowerCase() === 'beta' ||
+      String(process.env.DOMAIN || '').includes('beta.');
+    return debugFlag || isBetaInstance;
   })();
   const stageLog = (event: string, meta: Record<string, any>) => {
     // Keep detailed stage logs opt-in to avoid spamming production logs.
