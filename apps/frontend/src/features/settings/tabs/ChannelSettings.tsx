@@ -3,13 +3,13 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { resolvePublicUrl } from '@/lib/urls';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { IconButton, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
-import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 
 // Channel Settings Component (Colors only)
 export function ChannelSettings() {

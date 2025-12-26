@@ -303,45 +303,46 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             </div>
           </div>
         ) : (
-        {/* Mode selector */}
-        <div className="mb-6 glass p-3 sm:p-4">
-          <div className="flex gap-3" role="tablist" aria-label={t('submitModal.mode', { defaultValue: 'Submit mode' })}>
-            <button
-              type="button"
-              onClick={() => setMode('upload')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'upload'
-                  ? 'bg-primary text-white'
-                  : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
-              }`}
-              role="tab"
-              id="submit-modal-tab-upload"
-              aria-controls="submit-modal-panel-upload"
-              aria-selected={mode === 'upload'}
-              tabIndex={mode === 'upload' ? 0 : -1}
-            >
-              {t('submit.uploadVideo')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('import')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                mode === 'import'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10'
-              }`}
-              role="tab"
-              id="submit-modal-tab-import"
-              aria-controls="submit-modal-panel-import"
-              aria-selected={mode === 'import'}
-              tabIndex={mode === 'import' ? 0 : -1}
-            >
-              {t('submit.import')}
-            </button>
-          </div>
-        </div>
+          <>
+            {/* Mode selector */}
+            <div className="mb-6 glass p-3 sm:p-4">
+              <div className="flex gap-3" role="tablist" aria-label={t('submitModal.mode', { defaultValue: 'Submit mode' })}>
+                <button
+                  type="button"
+                  onClick={() => setMode('upload')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    mode === 'upload'
+                      ? 'bg-primary text-white'
+                      : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
+                  }`}
+                  role="tab"
+                  id="submit-modal-tab-upload"
+                  aria-controls="submit-modal-panel-upload"
+                  aria-selected={mode === 'upload'}
+                  tabIndex={mode === 'upload' ? 0 : -1}
+                >
+                  {t('submit.uploadVideo')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('import')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    mode === 'import'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10'
+                  }`}
+                  role="tab"
+                  id="submit-modal-tab-import"
+                  aria-controls="submit-modal-panel-import"
+                  aria-selected={mode === 'import'}
+                  tabIndex={mode === 'import' ? 0 : -1}
+                >
+                  {t('submit.import')}
+                </button>
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('submit.titleLabel')}
@@ -445,7 +446,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
                 : t('common.submit')}
             </Button>
           </div>
-        </form>
+            </form>
+          </>
         )}
       </div>
     </Modal>

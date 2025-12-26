@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 
 import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
+import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
-import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 
 function toRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== 'object') return null;
