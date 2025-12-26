@@ -167,123 +167,124 @@ export default function UserMenu() {
       </button>
 
       {isOpen && (
-        <div
-          id={menuId}
-          ref={menuPopupRef}
-          role="menu"
-          aria-label={t('userMenu.menu', { defaultValue: 'User menu' })}
-          className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
-          onKeyDownCapture={(e) => {
-            if (e.key === 'Escape') {
+        <>
+          {/* Backdrop: prevents “invisible layer” click issues and makes outside click behavior consistent. */}
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} aria-hidden="true" />
+
+          <div
+            id={menuId}
+            ref={menuPopupRef}
+            role="menu"
+            aria-label={t('userMenu.menu', { defaultValue: 'User menu' })}
+            className="absolute right-0 mt-2 w-56 glass bg-white/80 dark:bg-gray-900/70 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
+            onKeyDownCapture={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsOpen(false);
+                focusSafely(triggerRef.current);
+                return;
+              }
+
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+              const popup = menuPopupRef.current;
+              if (!popup) return;
+              const items = getFocusableElements(popup);
+              if (items.length === 0) return;
+
+              const active = document.activeElement;
+              const currentIndex = active instanceof HTMLElement ? items.indexOf(active) : -1;
+
               e.preventDefault();
-              e.stopPropagation();
-              setIsOpen(false);
-              focusSafely(triggerRef.current);
-              return;
-            }
+              if (e.key === 'Home') {
+                focusSafely(items[0]);
+                return;
+              }
+              if (e.key === 'End') {
+                focusSafely(items[items.length - 1]);
+                return;
+              }
 
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
-            const popup = menuPopupRef.current;
-            if (!popup) return;
-            const items = getFocusableElements(popup);
-            if (items.length === 0) return;
-
-            const active = document.activeElement;
-            const currentIndex = active instanceof HTMLElement ? items.indexOf(active) : -1;
-
-            e.preventDefault();
-            if (e.key === 'Home') {
-              focusSafely(items[0]);
-              return;
-            }
-            if (e.key === 'End') {
-              focusSafely(items[items.length - 1]);
-              return;
-            }
-
-            const nextIndex =
-              e.key === 'ArrowDown'
-                ? (currentIndex + 1 + items.length) % items.length
-                : (currentIndex - 1 + items.length) % items.length;
-            focusSafely(items[nextIndex] ?? items[0]);
-          }}
-        >
-          {/* User info header */}
-          <div className="px-4 py-3 border-b border-black/5 dark:border-white/10">
-            <div className="flex items-center gap-3">
-              {user.profileImageUrl ? (
-                <img
-                  src={user.profileImageUrl}
-                  alt={user.displayName}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
-                  {user.displayName.charAt(0).toUpperCase()}
+              const nextIndex =
+                e.key === 'ArrowDown'
+                  ? (currentIndex + 1 + items.length) % items.length
+                  : (currentIndex - 1 + items.length) % items.length;
+              focusSafely(items[nextIndex] ?? items[0]);
+            }}
+          >
+            {/* User info header */}
+            <div className="px-4 py-3 border-b border-black/5 dark:border-white/10">
+              <div className="flex items-center gap-3">
+                {user.profileImageUrl ? (
+                  <img src={user.profileImageUrl} alt={user.displayName} className="w-10 h-10 rounded-full object-cover" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold">
+                    {user.displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">{user.displayName}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">{displayRole}</div>
                 </div>
-              )}
-              <div>
-                <div className="font-medium text-gray-900 dark:text-white">{user.displayName}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-300">{displayRole}</div>
               </div>
             </div>
-          </div>
 
-          {/* Menu items */}
-          <div className="py-1">
+            {/* Menu items */}
+            <div className="py-1">
+              <button
+                onClick={handleSettings}
+                className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                type="button"
+                role="menuitem"
+              >
+                {t('userMenu.settings')}
+              </button>
+
+              <button
+                onClick={handleMySubmissions}
+                className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                type="button"
+                role="menuitem"
+              >
+                {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
+              </button>
+
+              {user.role === 'streamer' || user.role === 'admin' ? (
+                <>
+                  <button
+                    onClick={handleMyProfile}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    type="button"
+                    role="menuitem"
+                  >
+                    {t('userMenu.myProfile')}
+                  </button>
+                  <button
+                    onClick={handleDashboard}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    type="button"
+                    role="menuitem"
+                  >
+                    {t('userMenu.dashboard')}
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-black/5 dark:border-white/10 my-1" />
+
+            {/* Logout */}
             <button
-              onClick={handleSettings}
-              className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              onClick={handleLogout}
+              className="w-full text-left px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
               type="button"
               role="menuitem"
             >
-              {t('userMenu.settings')}
+              {t('userMenu.logout')}
             </button>
-
-            <button
-              onClick={handleMySubmissions}
-              className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              type="button"
-              role="menuitem"
-            >
-              {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
-            </button>
-
-            {user.role === 'streamer' || user.role === 'admin' ? (
-              <>
-                <button
-                  onClick={handleMyProfile}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                  type="button"
-                  role="menuitem"
-                >
-                  {t('userMenu.myProfile')}
-                </button>
-                <button
-                  onClick={handleDashboard}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                  type="button"
-                  role="menuitem"
-                >
-                  {t('userMenu.dashboard')}
-                </button>
-              </>
-            ) : null}
           </div>
-
-          {/* Divider */}
-          <div className="border-t border-black/5 dark:border-white/10 my-1" />
-
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
-            type="button"
-            role="menuitem"
-          >
-            {t('userMenu.logout')}
-          </button>
-        </div>
+        </>
       )}
     </div>
   );
