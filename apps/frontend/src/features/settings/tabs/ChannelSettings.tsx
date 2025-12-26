@@ -54,7 +54,6 @@ export function ChannelSettings() {
           primaryColor: nextSettings.primaryColor || null,
           secondaryColor: nextSettings.secondaryColor || null,
           accentColor: nextSettings.accentColor || null,
-          autoplayMemesEnabled,
         });
         return;
       }
@@ -78,13 +77,12 @@ export function ChannelSettings() {
           primaryColor: nextSettings.primaryColor || null,
           secondaryColor: nextSettings.secondaryColor || null,
           accentColor: nextSettings.accentColor || null,
-          autoplayMemesEnabled,
         });
       }
     } catch (error) {
       settingsLoadedRef.current = null; // Reset on error to allow retry
     }
-  }, [user?.channel?.slug, getChannelData, getCachedChannelData, autoplayMemesEnabled]);
+  }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
 
   useEffect(() => {
     // Load current settings
