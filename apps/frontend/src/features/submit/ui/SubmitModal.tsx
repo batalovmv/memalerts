@@ -236,7 +236,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId }:
       ariaLabel={t('submitModal.title')}
     >
       {/* Header */}
-      <div className="sticky top-0 bg-white/40 dark:bg-black/20 backdrop-blur border-b border-black/5 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
+      <div className="sticky top-0 border-b border-black/5 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
         <h2 className="text-xl sm:text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
         <button
           type="button"
