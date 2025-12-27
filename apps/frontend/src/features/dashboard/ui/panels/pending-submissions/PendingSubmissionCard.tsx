@@ -38,6 +38,7 @@ export function PendingSubmissionCard(props: {
               isPlaying={preview.isPlaying}
               isMuted={preview.isMuted}
               error={preview.error}
+              playError={preview.playError}
               httpStatus={preview.httpStatus}
               videoRef={preview.videoRef}
               onPlayPause={() => void preview.togglePlay()}

@@ -9,6 +9,7 @@ export type SubmissionPreviewProps = {
   isPlaying: boolean;
   isMuted: boolean;
   error: string | null;
+  playError: { name?: string; message?: string } | null;
   httpStatus: number | null;
   videoRef: React.RefObject<HTMLVideoElement>;
   onPlayPause: () => void;
@@ -25,6 +26,7 @@ export function SubmissionPreview({
   isPlaying,
   isMuted,
   error,
+  playError,
   httpStatus,
   videoRef,
   onPlayPause,
@@ -79,6 +81,8 @@ export function SubmissionPreview({
             playsInline
             preload="metadata"
             muted={isMuted}
+            // Debug/UX fallback: native controls help when programmatic play is blocked by the browser.
+            controls={!!playError}
             className="w-full h-full object-contain"
             onPlay={onPlay}
             onPause={onPause}
@@ -88,6 +92,18 @@ export function SubmissionPreview({
               onPlayPause();
             }}
           />
+
+          {playError ? (
+            <div className="absolute bottom-2 left-2 right-2 text-xs text-white/85 bg-black/40 rounded-lg px-3 py-2 pointer-events-none">
+              <div className="font-semibold">
+                {t('submissions.playBlocked', { defaultValue: 'Play failed' })}
+              </div>
+              <div className="opacity-80">
+                {(playError.name || '').toString()}
+                {playError.message ? `: ${playError.message}` : ''}
+              </div>
+            </div>
+          ) : null}
 
           {/* Controls overlay */}
           <div className="absolute inset-0 pointer-events-none">

@@ -6,6 +6,7 @@ export function useSubmissionPreview(src: string) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [playError, setPlayError] = useState<{ name?: string; message?: string } | null>(null);
   const [httpStatus, setHttpStatus] = useState<number | null>(null);
 
   const cardRef = useRef<HTMLLIElement | null>(null);
@@ -79,6 +80,7 @@ export function useSubmissionPreview(src: string) {
     try {
       // Keep attribute and property in sync (some browsers can be finicky with programmatic play).
       video.muted = isMuted;
+      setPlayError(null);
       if (video.paused) {
         await video.play();
         setIsPlaying(true);
@@ -86,8 +88,12 @@ export function useSubmissionPreview(src: string) {
         video.pause();
         setIsPlaying(false);
       }
-    } catch {
-      // ignore autoplay/user-gesture restrictions
+    } catch (e: unknown) {
+      const err = e as { name?: unknown; message?: unknown };
+      setPlayError({
+        name: typeof err?.name === 'string' ? err.name : undefined,
+        message: typeof err?.message === 'string' ? err.message : undefined,
+      });
     }
   };
 
@@ -102,6 +108,7 @@ export function useSubmissionPreview(src: string) {
     setIsMuted,
     togglePlay,
     error,
+    playError,
     httpStatus,
     onVideoError: () => {
       // Keep it minimal; the preview component will render details.
