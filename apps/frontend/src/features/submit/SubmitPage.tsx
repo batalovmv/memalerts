@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ChannelSubmissionsSection } from './components/ChannelSubmissionsSection';
 import { MySubmissionsSection } from './components/MySubmissionsSection';
@@ -25,6 +25,7 @@ export default function Submit() {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const tabsReactId = useId();
   const tabsIdBase = `submit-tabs-${tabsReactId.replace(/:/g, '')}`;
   type SubmitTab = 'needs_changes' | 'history' | 'channel';
@@ -109,6 +110,16 @@ export default function Submit() {
   useEffect(() => {
     void loadMySubmissions();
   }, [loadMySubmissions]);
+
+  // Optional deep-link: /submit?tab=needs_changes|history|channel
+  useEffect(() => {
+    const tab = (searchParams.get('tab') || '').trim();
+    if (tab !== 'needs_changes' && tab !== 'history' && tab !== 'channel') return;
+    if (tab === 'channel' && !canSeeChannelHistory) return;
+
+    defaultTabSetRef.current = true;
+    setActiveTab(tab);
+  }, [canSeeChannelHistory, searchParams]);
 
   const loadChannelHistory = useCallback(async (statusOverride?: 'all' | SubmissionStatus) => {
     if (!user || !canSeeChannelHistory) return;

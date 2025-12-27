@@ -5,6 +5,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
 import { setStoredUserMode } from '@/shared/lib/userMode';
+import { getEffectiveUserMode } from '@/shared/lib/uiMode';
+import { getViewerHome, setViewerHome } from '@/shared/lib/viewerHome';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';
 
@@ -23,6 +25,11 @@ export default function UserMenu() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openedByKeyboardRef = useRef(false);
   const openFocusIntentRef = useRef<'first' | 'last'>('first');
+
+  const uiMode = getEffectiveUserMode(user);
+  const canSwitchToStreamer = Boolean(
+    user && uiMode === 'viewer' && (user.role === 'streamer' || user.role === 'admin') && !!user.channelId,
+  );
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -54,6 +61,15 @@ export default function UserMenu() {
 
     return () => window.cancelAnimationFrame(raf);
   }, [isOpen]);
+
+  // Keep viewer "home" channel in sync when user is browsing channel pages in viewer mode.
+  useEffect(() => {
+    if (!user) return;
+    if (uiMode !== 'viewer') return;
+    if (!location.pathname.startsWith('/channel/')) return;
+    if (!params.slug) return;
+    setViewerHome(`/channel/${params.slug}`);
+  }, [location.pathname, params.slug, uiMode, user]);
 
   if (!user) {
     return null;
@@ -93,9 +109,20 @@ export default function UserMenu() {
     setIsOpen(false);
   };
 
+  const handleAccounts = () => {
+    navigate('/settings/accounts');
+    setIsOpen(false);
+  };
+
   const handleMySubmissions = () => {
     setStoredUserMode('viewer');
     navigate('/submit');
+    setIsOpen(false);
+  };
+
+  const handleNeedsChanges = () => {
+    setStoredUserMode('viewer');
+    navigate('/submit?tab=needs_changes');
     setIsOpen(false);
   };
 
@@ -106,6 +133,23 @@ export default function UserMenu() {
   };
 
   const handlePublicProfile = () => {
+    // In viewer mode, "Public profile" should mean the channel we came to (or are browsing now),
+    // not necessarily the user's own channel.
+    if (uiMode === 'viewer') {
+      const home = getViewerHome();
+      if (home) {
+        navigate(home);
+      } else if (location.pathname.startsWith('/channel/') && params.slug) {
+        navigate(`/channel/${params.slug}`);
+      } else if (user.channel?.slug) {
+        navigate(`/channel/${user.channel.slug}`);
+      } else {
+        navigate('/search');
+      }
+      setIsOpen(false);
+      return;
+    }
+
     if (!user.channelId || !user.channel?.slug) return;
     setStoredUserMode('viewer');
     navigate(`/channel/${user.channel.slug}`);
@@ -115,6 +159,7 @@ export default function UserMenu() {
   // Determine displayed role based on context
   // Show "streamer" only when viewing own profile, "viewer" when viewing someone else's profile
   const getDisplayRole = (): string => {
+    if (uiMode === 'viewer') return t('userMenu.viewer');
     // If on channel profile page
     if (location.pathname.startsWith('/channel/') && params.slug) {
       // Check if this is the user's own channel
@@ -249,64 +294,108 @@ export default function UserMenu() {
 
             {/* Menu items */}
             <div className="py-1">
-              {user.channelId && user.channel?.slug ? (
-                <button
-                  onClick={handlePublicProfile}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                  type="button"
-                  role="menuitem"
-                >
-                  {t('userMenu.publicProfile', { defaultValue: 'Public profile' })}
-                </button>
-              ) : null}
-
-              <button
-                onClick={handleSettings}
-                className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                type="button"
-                role="menuitem"
-              >
-                {t('userMenu.settings')}
-              </button>
-
-              <button
-                onClick={handleMySubmissions}
-                className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                type="button"
-                role="menuitem"
-              >
-                {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
-              </button>
-
-              <button
-                onClick={handlePool}
-                className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                type="button"
-                role="menuitem"
-              >
-                {t('userMenu.pool', { defaultValue: 'Meme pool' })}
-              </button>
-
-              {user.role === 'streamer' || user.role === 'admin' ? (
+              {uiMode === 'viewer' ? (
                 <>
                   <button
-                    onClick={handleMyProfile}
+                    onClick={handlePublicProfile}
                     className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     type="button"
                     role="menuitem"
                   >
-                    {t('userMenu.myProfile')}
+                    {t('userMenu.publicProfile', { defaultValue: 'Public profile' })}
                   </button>
+
                   <button
-                    onClick={handleDashboard}
+                    onClick={handleNeedsChanges}
                     className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     type="button"
                     role="menuitem"
                   >
-                    {t('userMenu.dashboard')}
+                    {t('userMenu.needsChanges', { defaultValue: 'Needs changes' })}
                   </button>
+
+                  <button
+                    onClick={handleAccounts}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    type="button"
+                    role="menuitem"
+                  >
+                    {t('userMenu.linkAccounts', { defaultValue: 'Link accounts' })}
+                  </button>
+
+                  {canSwitchToStreamer ? (
+                    <button
+                      onClick={handleDashboard}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      type="button"
+                      role="menuitem"
+                    >
+                      {t('userMenu.switchToStreamer', { defaultValue: 'Switch to streamer mode' })}
+                    </button>
+                  ) : null}
                 </>
-              ) : null}
+              ) : (
+                <>
+                  {user.channelId && user.channel?.slug ? (
+                    <button
+                      onClick={handlePublicProfile}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      type="button"
+                      role="menuitem"
+                    >
+                      {t('userMenu.publicProfile', { defaultValue: 'Public profile' })}
+                    </button>
+                  ) : null}
+
+                  <button
+                    onClick={handleSettings}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    type="button"
+                    role="menuitem"
+                  >
+                    {t('userMenu.settings')}
+                  </button>
+
+                  <button
+                    onClick={handleMySubmissions}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    type="button"
+                    role="menuitem"
+                  >
+                    {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
+                  </button>
+
+                  <button
+                    onClick={handlePool}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    type="button"
+                    role="menuitem"
+                  >
+                    {t('userMenu.pool', { defaultValue: 'Meme pool' })}
+                  </button>
+
+                  {user.role === 'streamer' || user.role === 'admin' ? (
+                    <>
+                      <button
+                        onClick={handleMyProfile}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                        type="button"
+                        role="menuitem"
+                      >
+                        {t('userMenu.myProfile')}
+                      </button>
+                      <button
+                        onClick={handleDashboard}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                        type="button"
+                        role="menuitem"
+                      >
+                        {t('userMenu.dashboard')}
+                      </button>
+                    </>
+                  ) : null}
+                </>
+              )}
             </div>
 
             {/* Divider */}

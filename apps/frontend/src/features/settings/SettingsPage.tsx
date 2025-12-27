@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '@/components/Header';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
+import { getEffectiveUserMode } from '@/shared/lib/uiMode';
 import { IconButton, PageShell, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
@@ -63,7 +64,8 @@ export default function SettingsPage() {
   const moreMenuPopupRef = useRef<HTMLDivElement>(null);
   const moreMenuOpenedByKeyboardRef = useRef(false);
   const moreMenuOpenFocusIntentRef = useRef<'first' | 'last'>('first');
-  const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
+  const uiMode = getEffectiveUserMode(user);
+  const isStreamerAdmin = uiMode === 'streamer' && (user?.role === 'streamer' || user?.role === 'admin');
 
   const iconClass = 'w-5 h-5';
   const MenuIcon = (
@@ -237,13 +239,13 @@ export default function SettingsPage() {
       return;
     }
     // Allow viewers to access /settings for beta + accounts only.
-    if (user.role !== 'streamer' && user.role !== 'admin') {
+    if (uiMode !== 'streamer') {
       const allowedViewerTabs: TabType[] = ['beta', 'accounts'];
       if (!allowedViewerTabs.includes(activeTab)) {
-        navigate('/dashboard', { replace: true });
+        navigate('/settings/accounts', { replace: true });
       }
     }
-  }, [user, authLoading, navigate, activeTab]);
+  }, [user, authLoading, navigate, activeTab, uiMode]);
 
   if (authLoading || !user) {
     return (

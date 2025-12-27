@@ -9,6 +9,7 @@ import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
+import { getEffectiveUserMode } from '@/shared/lib/uiMode';
 import { Button, Pill } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
@@ -34,33 +35,12 @@ export interface HeaderProps {
   rewardTitle?: string | null;
 }
 
-function countNeedsChangesFromSubmissions(resp: unknown, uid: string | undefined): number {
-  if (!Array.isArray(resp)) return 0;
-  let count = 0;
-  for (const raw of resp) {
-    if (!raw || typeof raw !== 'object') continue;
-    const r = raw as Record<string, unknown>;
-    const status = typeof r.status === 'string' ? r.status : '';
-    if (status !== 'needs_changes') continue;
-
-    // Best-effort safety: if backend returns submitterId, only count items for the current user.
-    if (uid) {
-      const submitterId = typeof r.submitterId === 'string' ? r.submitterId : null;
-      const submitter =
-        r.submitter && typeof r.submitter === 'object' && !Array.isArray(r.submitter) ? (r.submitter as Record<string, unknown>) : null;
-      const submitterObjId = submitter && typeof submitter.id === 'string' ? submitter.id : null;
-      const effective = submitterId ?? submitterObjId;
-      if (effective && effective !== uid) continue;
-    }
-
-    count += 1;
-  }
-  return count;
-}
+// (helper removed) needs-changes count is fetched directly from backend via ?status=needs_changes
 
 export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
+  const uiMode = getEffectiveUserMode(user);
   const userId = user?.id;
   const userChannelId = user?.channelId;
   const userChannelSlug = user?.channel?.slug;
@@ -133,9 +113,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       mySubmissionsFetchInFlightRef.current = true;
       setMySubmissionsLoading(true);
       try {
-        // Back-compat: keep the same endpoint shape as SubmitPage (array of submissions)
-        const data = await api.get<unknown>('/submissions', { timeout: 10000 });
-        setMyNeedsChangesCount(countNeedsChangesFromSubmissions(data, userId));
+        // Fast path: backend supports filtering by status and guarantees "only mine" for /submissions.
+        const data = await api.get<unknown>('/submissions', { params: { status: 'needs_changes' }, timeout: 10000 });
+        setMyNeedsChangesCount(Array.isArray(data) ? data.length : 0);
         lastMySubmissionsFetchAtRef.current = Date.now();
       } catch {
         // Best-effort: don't break header UI
@@ -609,7 +589,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   };
 
   // Streamer/admin pending approvals
-  const showPendingIndicator = Boolean(user && (user.role === 'streamer' || user.role === 'admin'));
+  const showPendingIndicator = Boolean(user && uiMode === 'streamer' && (user.role === 'streamer' || user.role === 'admin'));
   const hasPendingSubmissions = pendingSubmissionsCount > 0;
   // Viewer needs-changes (my submissions)
   const hasNeedsChanges = myNeedsChangesCount > 0;
@@ -621,6 +601,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const balance = wallet?.balance || 0;
   const isInfiniteBalance =
     !!user &&
+    uiMode === 'streamer' &&
     (user.role === 'streamer' || user.role === 'admin') &&
     (location.pathname === '/dashboard' || location.pathname.startsWith('/settings') || isOwnProfile);
 
@@ -692,7 +673,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                       onClick={() => {
                         // If user is only a viewer (or has no pending), jump to /submit directly.
                         if (!showPendingIndicator || !hasPendingSubmissions) {
-                          navigate('/submit');
+                          navigate('/submit?tab=needs_changes');
                           return;
                         }
 
@@ -767,7 +748,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                           className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                           onClick={() => {
                             setIsRequestsMenuOpen(false);
-                            navigate('/submit');
+                            navigate('/submit?tab=needs_changes');
                           }}
                         >
                           {t('header.needsChanges', { defaultValue: 'Needs changes' })}{' '}

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
@@ -13,6 +13,8 @@ import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchUser } from './store/slices/authSlice';
 
 import { setStoredUserMode } from '@/shared/lib/userMode';
+import { getEffectiveUserMode } from '@/shared/lib/uiMode';
+import { getViewerHome, setViewerHome } from '@/shared/lib/viewerHome';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -54,7 +56,7 @@ function App() {
       returnTo = null;
     }
 
-    if (!returnTo) return;
+    if (!returnTo && !mode) return;
 
     const ttlMs = 2 * 60_000;
     if (!setAt || Date.now() - setAt > ttlMs) {
@@ -68,25 +70,40 @@ function App() {
       return;
     }
 
-    // Only auto-redirect when we landed in settings/accounts unexpectedly.
-    // This avoids hijacking legitimate navigation.
-    if (location.pathname !== '/settings/accounts') return;
+    const currentUrl = `${location.pathname}${location.search}`;
+    const returnToPath = returnTo ? returnTo.split('?')[0] : null;
 
-    // Clear first to avoid loops
-    try {
-      sessionStorage.removeItem('memalerts:auth:returnTo');
-      sessionStorage.removeItem('memalerts:auth:mode');
-      sessionStorage.removeItem('memalerts:auth:setAt');
-    } catch {
-      // ignore
+    const validMode = mode === 'viewer' || mode === 'streamer' ? (mode as 'viewer' | 'streamer') : null;
+    if (validMode) {
+      setStoredUserMode(validMode);
+
+      // If login started from a public channel page, remember it as a "viewer home" to keep navigation consistent.
+      // (We intentionally keep it in sessionStorage: it's contextual to the current login/tab.)
+      if (validMode === 'viewer' && returnToPath && returnToPath.startsWith('/channel/')) {
+        setViewerHome(returnTo);
+      }
     }
 
-    if (mode === 'viewer' || mode === 'streamer') {
-      setStoredUserMode(mode);
+    // If backend ignored redirect_to and sent user to settings/accounts, bring them back once.
+    // Otherwise, if we are already on the intended returnTo, clear the stored values to avoid future hijacks.
+    const shouldRedirectFromAccounts = location.pathname === '/settings/accounts' && !!returnTo;
+    const isAlreadyAtReturnTo = !!returnTo && currentUrl === returnTo;
+
+    if (shouldRedirectFromAccounts || isAlreadyAtReturnTo) {
+      // Clear first to avoid loops / future hijacks.
+      try {
+        sessionStorage.removeItem('memalerts:auth:returnTo');
+        sessionStorage.removeItem('memalerts:auth:mode');
+        sessionStorage.removeItem('memalerts:auth:setAt');
+      } catch {
+        // ignore
+      }
     }
 
-    navigate(returnTo, { replace: true });
-  }, [location.pathname, navigate, user]);
+    if (shouldRedirectFromAccounts) {
+      navigate(returnTo, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate, user]);
 
   // Check if we're on beta domain
   const isBetaDomain = window.location.hostname.includes('beta.');
@@ -136,6 +153,8 @@ function App() {
 
   // Public channel pages already provide their own full-screen background.
   const showGlobalBackground = !location.pathname.startsWith('/channel/');
+  const uiMode = getEffectiveUserMode(user);
+  const viewerHome = getViewerHome() || (user?.channel?.slug ? `/channel/${user.channel.slug}` : '/search');
 
   return (
     <SocketProvider>
@@ -168,11 +187,11 @@ function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/post-login" element={<PostLogin />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard" element={uiMode === 'viewer' ? <Navigate to={viewerHome} replace /> : <Dashboard />} />
               <Route path="/channel/:slug" element={<StreamerProfile />} />
               <Route path="/submit" element={<Submit />} />
               <Route path="/settings/*" element={<Admin />} />
-              <Route path="/admin" element={<AdminRedirect />} />
+              <Route path="/admin" element={uiMode === 'viewer' ? <Navigate to={viewerHome} replace /> : <AdminRedirect />} />
               <Route path="/search" element={<Search />} />
               <Route path="/pool" element={<Pool />} />
               <Route path="/beta-access" element={<BetaAccess />} />
