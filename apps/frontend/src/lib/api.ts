@@ -373,7 +373,21 @@ axiosInstance.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
-      // Handle unauthorized - could dispatch logout action here if needed
+      // Centralize "session is not valid anymore" signal without importing the Redux store here (avoid cycles).
+      // UI may still show stale user data; App listens for this and clears auth state.
+      try {
+        window.dispatchEvent(
+          new CustomEvent('memalerts:auth:unauthorized', {
+            detail: {
+              ts: new Date().toISOString(),
+              path: (error.config?.url as string | undefined) || null,
+              method: (error.config?.method as string | undefined)?.toUpperCase?.() || null,
+            },
+          }),
+        );
+      } catch {
+        // ignore
+      }
     }
     
     // Ensure error object has proper structure

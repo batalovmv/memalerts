@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { AllMemesSearchScope, AllMemesSortBy, AllMemesSortOrder } from '../model/useAllMemesPanel';
 
-import { Input, Select } from '@/shared/ui';
+import { Input, Select, Tooltip } from '@/shared/ui';
 
 export type AllMemesControlsProps = {
   query: string;
@@ -12,6 +12,7 @@ export type AllMemesControlsProps = {
   sortBy: AllMemesSortBy;
   sortOrder: AllMemesSortOrder;
   onSortChange: (sortBy: AllMemesSortBy, sortOrder: AllMemesSortOrder) => void;
+  helpEnabled?: boolean;
 };
 
 export function AllMemesControls(props: AllMemesControlsProps) {
@@ -38,14 +39,22 @@ export function AllMemesControls(props: AllMemesControlsProps) {
           <option value="priceCoins:desc">{t('search.sortPriceHigh', 'Price: high')}</option>
           <option value="priceCoins:asc">{t('search.sortPriceLow', 'Price: low')}</option>
         </Select>
-        <Select
-          value={props.searchScope}
-          onChange={(e) => props.onSearchScopeChange(e.target.value as AllMemesSearchScope)}
-          title={t('search.searchScope', 'Search scope')}
-        >
-          <option value="content">{t('search.scopeContent', 'Search: title')}</option>
-          <option value="contentAndUploader">{t('search.scopeContentUploader', 'Search: title + uploader nick')}</option>
-        </Select>
+        {(() => {
+          const select = (
+            <Select value={props.searchScope} onChange={(e) => props.onSearchScopeChange(e.target.value as AllMemesSearchScope)}>
+              <option value="content">{t('search.scopeContent', 'Search: title')}</option>
+              <option value="contentAndUploader">{t('search.scopeContentUploader', 'Search: title + uploader nick')}</option>
+            </Select>
+          );
+
+          if (!props.helpEnabled) return select;
+
+          return (
+            <Tooltip delayMs={1000} content={t('dashboard.help.searchScope', { defaultValue: 'Choose what to search by.' })}>
+              {select}
+            </Tooltip>
+          );
+        })()}
       </div>
     </div>
   );

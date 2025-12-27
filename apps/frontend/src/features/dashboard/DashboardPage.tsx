@@ -17,7 +17,7 @@ import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesMo
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { api } from '@/lib/api';
-import { Button, IconButton, PageShell, Pill, Spinner } from '@/shared/ui';
+import { Button, IconButton, PageShell, Pill, Spinner, Tooltip } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
 import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
@@ -131,10 +131,14 @@ function SortableCard({
   id,
   children,
   disabled,
+  helpEnabled,
+  dragHelpText,
 }: {
   id: DashboardCardId;
   children: (opts: { dragHandle: React.ReactNode; isDragging: boolean }) => React.ReactNode;
   disabled?: boolean;
+  helpEnabled?: boolean;
+  dragHelpText?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !!disabled });
   const style: React.CSSProperties = {
@@ -143,20 +147,28 @@ function SortableCard({
     opacity: isDragging ? 0.85 : undefined,
   };
 
-  const dragHandle = (
+  const dragHandleButton = (
     <button
       type="button"
       className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       aria-label="Drag to reorder"
-      title="Drag to reorder"
       {...attributes}
       {...listeners}
     >
       <DragHandleIcon />
     </button>
   );
+
+  const dragHandle =
+    helpEnabled && dragHelpText ? (
+      <Tooltip delayMs={1000} content={dragHelpText}>
+        {dragHandleButton}
+      </Tooltip>
+    ) : (
+      dragHandleButton
+    );
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -174,6 +186,16 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const DASHBOARD_HELP_STORAGE_KEY = 'memalerts.dashboard.helpMode';
+  const [helpEnabled, setHelpEnabled] = useState<boolean>(() => {
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_HELP_STORAGE_KEY);
+      if (raw === null) return false;
+      return raw === '1' || raw === 'true';
+    } catch {
+      return false;
+    }
+  });
   const submissionsLoadedRef = useRef(false);
   const [submissionsPanelTab, setSubmissionsPanelTab] = useState<'pending' | 'mine'>('pending');
   const [mySubmissions, setMySubmissions] = useState<import('@/features/submit/types').MySubmission[]>([]);
@@ -778,11 +800,40 @@ export default function DashboardPage() {
     <>
       <PageShell header={<Header />}>
         <div className="section-gap">
-          <div>
-            <h1 className="text-3xl font-bold mb-2 dark:text-white">{t('dashboard.title', 'Dashboard')}</h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              {t('dashboard.subtitle', 'Manage your memes and channel settings')}
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-bold mb-2 dark:text-white">{t('dashboard.title', 'Dashboard')}</h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                {t('dashboard.subtitle', 'Manage your memes and channel settings')}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <IconButton
+                type="button"
+                variant={helpEnabled ? 'primary' : 'secondary'}
+                aria-label={t('dashboard.help.toggle', { defaultValue: 'Help tooltips' })}
+                onClick={() => {
+                  const next = !helpEnabled;
+                  setHelpEnabled(next);
+                  try {
+                    window.localStorage.setItem(DASHBOARD_HELP_STORAGE_KEY, next ? '1' : '0');
+                  } catch {
+                    // ignore
+                  }
+                }}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.25 9a3.75 3.75 0 017.5 0c0 2.25-2.25 2.25-2.25 4.125M12 17.25h.008M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                }
+              />
+            </div>
           </div>
 
           {user.channelId ? (
@@ -790,25 +841,46 @@ export default function DashboardPage() {
               {/* Quick Actions Cards */}
               {isStreamerAdmin && (
                 <div className="flex items-center justify-end mb-3">
-                  <IconButton
-                    type="button"
-                    variant="secondary"
-                    onClick={() => void resetDashboardOrder()}
-                    aria-label={t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
-                    title={t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
-                    icon={
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006.34 6.34M4 15a8 8 0 0013.66 2.66" />
-                      </svg>
-                    }
-                  />
+                  {helpEnabled ? (
+                    <Tooltip delayMs={1000} content={t('dashboard.help.resetLayout', { defaultValue: 'Reset the order of dashboard cards back to the default.' })}>
+                      <IconButton
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void resetDashboardOrder()}
+                        aria-label={t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
+                        icon={
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006.34 6.34M4 15a8 8 0 0013.66 2.66" />
+                          </svg>
+                        }
+                      />
+                    </Tooltip>
+                  ) : (
+                    <IconButton
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void resetDashboardOrder()}
+                      aria-label={t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
+                      icon={
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006.34 6.34M4 15a8 8 0 0013.66 2.66" />
+                        </svg>
+                      }
+                    />
+                  )}
                 </div>
               )}
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={effectiveCardOrder} strategy={rectSortingStrategy}>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {effectiveCardOrder.map((cardId) => (
-                      <SortableCard key={cardId} id={cardId} disabled={!isStreamerAdmin}>
+                      <SortableCard
+                        key={cardId}
+                        id={cardId}
+                        disabled={!isStreamerAdmin}
+                        helpEnabled={helpEnabled}
+                        dragHelpText={t('dashboard.help.dragToReorder', { defaultValue: 'Drag this handle to change the order of cards on your dashboard.' })}
+                      >
                         {({ dragHandle }) => {
                           const baseCardCls =
                             'surface surface-hover p-6 flex flex-col min-h-[210px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl';
@@ -873,16 +945,20 @@ export default function DashboardPage() {
                                       {t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
                                     </h2>
                                     {pendingSubmissionsCount > 0 && (
-                                      <Pill
-                                        variant="danger"
-                                        size="md"
-                                        title={t('dashboard.pendingCount', {
-                                          defaultValue: '{{count}} pending',
-                                          count: pendingSubmissionsCount,
-                                        })}
-                                      >
-                                        {pendingSubmissionsCount}
-                                      </Pill>
+                                      helpEnabled ? (
+                                        <Tooltip
+                                          delayMs={1000}
+                                          content={t('dashboard.help.pendingCount', { defaultValue: 'How many submissions are waiting for approval.' })}
+                                        >
+                                          <Pill variant="danger" size="md">
+                                            {pendingSubmissionsCount}
+                                          </Pill>
+                                        </Tooltip>
+                                      ) : (
+                                        <Pill variant="danger" size="md">
+                                          {pendingSubmissionsCount}
+                                        </Pill>
+                                      )
                                     )}
                                   </div>
                                   {isStreamerAdmin ? dragHandle : null}
@@ -1182,17 +1258,20 @@ export default function DashboardPage() {
                                 label={t('dashboard.submissionsControl.enableLink', { defaultValue: 'Ссылка включения' })}
                                 value={submissionsControl.links.enable}
                                 masked={true}
+                                helpEnabled={helpEnabled}
                               />
                               <SecretCopyField
                                 label={t('dashboard.submissionsControl.disableLink', { defaultValue: 'Ссылка выключения' })}
                                 value={submissionsControl.links.disable}
                                 masked={true}
+                                helpEnabled={helpEnabled}
                               />
                               {submissionsControl.links.toggle ? (
                                 <SecretCopyField
                                   label={t('dashboard.submissionsControl.toggleLink', { defaultValue: 'Ссылка переключения (вкл/выкл)' })}
                                   value={submissionsControl.links.toggle}
                                   masked={true}
+                                  helpEnabled={helpEnabled}
                                 />
                               ) : null}
                             </div>
@@ -1281,6 +1360,7 @@ export default function DashboardPage() {
                           if (!mySubmissionsLoadedRef.current) void loadMySubmissions();
                         }
                       }}
+                      helpEnabled={helpEnabled}
                       submissions={submissions}
                       submissionsLoading={submissionsLoading}
                       submissionsLoadingMore={submissionsLoadingMore}
@@ -1322,6 +1402,7 @@ export default function DashboardPage() {
                         setSelectedMeme(meme);
                         setIsMemeModalOpen(true);
                       }}
+                      helpEnabled={helpEnabled}
                     />
                   </div>
                 </div>

@@ -49,6 +49,9 @@
     "hide": "Hide",
     "unhide": "Unhide",
     "quarantine": "Delete (quarantine)",
+    "hideTooltip": "Hide from the public pool list. The file is not deleted — you can unhide it later.",
+    "unhideTooltip": "Show in the pool again (undo “Hide”).",
+    "quarantineTooltip": "Quarantine = soft-delete: it disappears from the pool and re-uploading the same file is blocked. It is not purged immediately. Reason is required.",
     "hideTitle": "Hide item",
     "unhideTitle": "Unhide item",
     "quarantineTitle": "Delete (quarantine)",
@@ -70,6 +73,12 @@
       "quarantine": "Quarantine",
       "purged": "Purged",
       "all": "All"
+    },
+    "statusTooltip": {
+      "hidden": "Only hidden items (not visible in the pool).",
+      "quarantine": "Only quarantined items (re-upload is blocked).",
+      "purged": "Only purged items (already deleted).",
+      "all": "All statuses: visible + hidden + quarantine + purged."
     },
     "meta": "Showing: {{to}} • limit {{limit}} • next offset {{offset}}",
     "metaWithTotal": "Showing: {{from}}–{{to}} / {{total}} • limit {{limit}} • next offset {{offset}}"
@@ -200,6 +209,21 @@
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Manage your memes and channel settings",
+    "help": {
+      "toggle": "Help tooltips",
+      "resetLayout": "Reset the order of dashboard cards back to the default.",
+      "dragToReorder": "Drag this handle to change the order of cards on your dashboard.",
+      "pendingCount": "How many submissions are waiting for approval.",
+      "openPreview": "Open a larger preview.",
+      "needsChanges": "Send back to the author to fix and resubmit.",
+      "needsChangesDisabled": "No resubmits left — reject instead.",
+      "previewSoundToggle": "Toggle sound in the preview.",
+      "searchScope": "Choose what to search by.",
+      "copyField": "Click to copy.",
+      "refreshMySubmissions": "Refresh the list of your submissions (use if the list looks outdated).",
+      "historyComingSoon": "Submission history will appear here later (coming soon).",
+      "channelTabComingSoon": "A dedicated “channel submissions” view will appear here later (coming soon)."
+    },
     "wallet": "Your Wallet",
     "balance": "coins",
     "noWallets": "No wallets found.",

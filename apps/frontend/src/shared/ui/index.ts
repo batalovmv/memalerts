@@ -26,6 +26,9 @@ export type { SpinnerProps } from './Spinner/Spinner';
 export { Modal } from './Modal/Modal';
 export type { ModalProps } from './Modal/Modal';
 
+export { Tooltip } from './Tooltip/Tooltip';
+export type { TooltipProps } from './Tooltip/Tooltip';
+
 export { PageShell } from './PageShell';
 export type { PageShellProps, PageShellVariant } from './PageShell';
 

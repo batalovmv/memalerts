@@ -56,6 +56,12 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    setUnauthenticated: (state) => {
+      state.user = null;
+      state.loading = false;
+      state.error = null;
+      clearUserPreferencesCache();
+    },
     clearError: (state) => {
       state.error = null;
     },
@@ -117,6 +123,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, updateWalletBalance } = authSlice.actions;
+export const { setUnauthenticated, clearError, updateWalletBalance } = authSlice.actions;
 export default authSlice.reducer;
 

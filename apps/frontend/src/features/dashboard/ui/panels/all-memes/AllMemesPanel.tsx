@@ -17,9 +17,10 @@ export type AllMemesPanelProps = {
   autoplayPreview: 'autoplayMuted' | 'hoverWithSound';
   onClose: () => void;
   onSelectMeme: (meme: Meme) => void;
+  helpEnabled?: boolean;
 };
 
-export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onSelectMeme }: AllMemesPanelProps) {
+export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onSelectMeme, helpEnabled }: AllMemesPanelProps) {
   const { t } = useTranslation();
   // Dashboard is owner/admin-only context; request fileHash when backend allows it.
   const vm = useAllMemesPanel({ isOpen, channelId, includeFileHash: true });
@@ -55,6 +56,7 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
           sortBy={vm.filters.sortBy}
           sortOrder={vm.filters.sortOrder}
           onSortChange={(sortBy, sortOrder) => vm.setFilters({ sortBy, sortOrder })}
+          helpEnabled={helpEnabled}
         />
 
         <AllMemesGrid

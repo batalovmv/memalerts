@@ -59,7 +59,16 @@ export default function PoolPage() {
   const [searchParams] = useSearchParams();
   const [selectedItem, setSelectedItem] = useState<PoolItem | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
-  const [previewMuted, setPreviewMuted] = useState(true);
+  const PREVIEW_MUTED_STORAGE_KEY = 'memalerts.pool.previewMuted';
+  const [previewMuted, setPreviewMuted] = useState<boolean>(() => {
+    try {
+      const raw = window.localStorage.getItem(PREVIEW_MUTED_STORAGE_KEY);
+      if (raw === null) return false; // default: sound ON
+      return raw === '1' || raw === 'true';
+    } catch {
+      return false;
+    }
+  });
   const previewVideoRef = useRef<HTMLVideoElement>(null);
 
   // When opened from a streamer public profile, SubmitModal can pass a target channel via query params.
@@ -120,6 +129,15 @@ export default function PoolPage() {
       }
     })();
   }, [loadPage]);
+
+  // If the page was loaded while auth was still being established (fresh OAuth redirect),
+  // we may have shown "Sign in required" from an early 401. Once user appears, clear it and retry.
+  useEffect(() => {
+    if (!user) return;
+    if (!authRequired) return;
+    setAuthRequired(false);
+    void loadPage(0, false);
+  }, [authRequired, loadPage, user]);
 
   const runAdd = async (memeAssetId: string, title: string) => {
     try {
@@ -292,7 +310,6 @@ export default function PoolPage() {
                   meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))}
                   onClick={() => {
                     setSelectedItem(m);
-                    setPreviewMuted(true);
                     setIsMemeModalOpen(true);
                   }}
                   isOwner={false}
@@ -414,6 +431,11 @@ export default function PoolPage() {
                       onClick={() => {
                         const next = !previewMuted;
                         setPreviewMuted(next);
+                        try {
+                          window.localStorage.setItem(PREVIEW_MUTED_STORAGE_KEY, next ? '1' : '0');
+                        } catch {
+                          // ignore
+                        }
                         if (previewVideoRef.current) previewVideoRef.current.muted = next;
                       }}
                       className="h-10 px-4 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/60 transition-colors font-semibold"

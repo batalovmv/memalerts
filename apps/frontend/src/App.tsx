@@ -10,7 +10,7 @@ import { SocketProvider } from './contexts/SocketContext';
 import { api } from './lib/api';
 import { Spinner } from './shared/ui';
 import { useAppDispatch, useAppSelector } from './store/hooks';
-import { fetchUser } from './store/slices/authSlice';
+import { fetchUser, setUnauthenticated } from './store/slices/authSlice';
 
 import { getEffectiveUserMode } from '@/shared/lib/uiMode';
 import { setStoredUserMode } from '@/shared/lib/userMode';
@@ -39,6 +39,22 @@ function App() {
 
   useEffect(() => {
     dispatch(fetchUser());
+  }, [dispatch]);
+
+  // If any API call returns 401, clear auth state so we don't end up with "avatar menu + login required screen"
+  // (stale UI) at the same time.
+  useEffect(() => {
+    let lastAt = 0;
+    const onUnauthorized = () => {
+      const now = Date.now();
+      // Cheap debounce: multiple parallel requests can fail with 401 at once.
+      if (now - lastAt < 500) return;
+      lastAt = now;
+      dispatch(setUnauthenticated());
+    };
+
+    window.addEventListener('memalerts:auth:unauthorized', onUnauthorized as EventListener);
+    return () => window.removeEventListener('memalerts:auth:unauthorized', onUnauthorized as EventListener);
   }, [dispatch]);
 
   // Post-OAuth reliable return: some backend deployments may ignore redirect_to and send user to /settings/accounts.

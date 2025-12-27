@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import { Tooltip } from '@/shared/ui';
+
 type Props = {
   label: string;
   value: string;
@@ -9,6 +11,7 @@ type Props = {
   masked?: boolean;
   emptyText?: string;
   rightActions?: React.ReactNode;
+  helpEnabled?: boolean;
 };
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -52,7 +55,7 @@ function CopyIcon() {
   );
 }
 
-export default function SecretCopyField({ label, value, description, masked = true, emptyText = '—', rightActions }: Props) {
+export default function SecretCopyField({ label, value, description, masked = true, emptyText = '—', rightActions, helpEnabled }: Props) {
   const [isRevealed, setIsRevealed] = useState(false);
   const { t } = useTranslation();
 
@@ -100,7 +103,9 @@ export default function SecretCopyField({ label, value, description, masked = tr
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-      <div
+      {(() => {
+        const field = (
+          <div
         className={`flex items-center gap-2 rounded-xl bg-white/65 dark:bg-white/10 shadow-sm ring-1 ring-black/5 dark:ring-white/10 px-3 py-2 ${
           canCopy ? 'cursor-pointer hover:bg-white/75 dark:hover:bg-white/15' : 'cursor-not-allowed opacity-70'
         }`}
@@ -114,7 +119,7 @@ export default function SecretCopyField({ label, value, description, masked = tr
             void copy();
           }
         }}
-        title={canCopy ? t('common.clickToCopy', { defaultValue: 'Click to copy' }) : undefined}
+        title={helpEnabled === undefined && canCopy ? t('common.clickToCopy', { defaultValue: 'Click to copy' }) : undefined}
       >
         <div className="flex-1 min-w-0">
           <div className="font-mono text-sm text-gray-900 dark:text-gray-100 truncate">{displayValue}</div>
@@ -130,7 +135,7 @@ export default function SecretCopyField({ label, value, description, masked = tr
               e.stopPropagation();
               setIsRevealed((v) => !v);
             }}
-            title={isRevealed ? 'Hide' : 'Show'}
+            title={helpEnabled === undefined ? (isRevealed ? 'Hide' : 'Show') : undefined}
             aria-label={isRevealed ? 'Hide value' : 'Show value'}
           >
             <EyeIcon open={isRevealed} />
@@ -144,13 +149,24 @@ export default function SecretCopyField({ label, value, description, masked = tr
             e.stopPropagation();
             void copy();
           }}
-          title={t('common.copy', { defaultValue: 'Copy' })}
+          title={helpEnabled === undefined ? t('common.copy', { defaultValue: 'Copy' }) : undefined}
           aria-label={t('common.copy', { defaultValue: 'Copy' })}
           disabled={!canCopy}
         >
           <CopyIcon />
         </button>
-      </div>
+          </div>
+        );
+
+        if (!helpEnabled) return field;
+        if (helpEnabled === undefined) return field;
+
+        return (
+          <Tooltip delayMs={1000} content={t('dashboard.help.copyField', { defaultValue: 'Click to copy.' })}>
+            {field}
+          </Tooltip>
+        );
+      })()}
 
       {description && <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>}
     </div>

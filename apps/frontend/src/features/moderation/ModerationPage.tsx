@@ -17,7 +17,7 @@ import {
 } from '@/shared/api/moderationMemeAssets';
 import { cn } from '@/shared/lib/cn';
 import { canModerateGlobalPool } from '@/shared/lib/permissions';
-import { Button, Input, PageShell, Spinner, Textarea } from '@/shared/ui';
+import { Button, Input, PageShell, Spinner, Textarea, Tooltip } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
 
@@ -262,14 +262,24 @@ export default function ModerationPage() {
             />
             <div className="flex flex-wrap gap-2">
               {(['hidden', 'quarantine', 'purged', 'all'] as const).map((s) => (
-                <Button
+                <Tooltip
                   key={s}
-                  type="button"
-                  variant={status === s ? 'primary' : 'secondary'}
-                  onClick={() => setStatus(s)}
+                  delayMs={1000}
+                  content={t(`moderation.statusTooltip.${s}`, {
+                    defaultValue:
+                      s === 'hidden'
+                        ? 'Show assets that are hidden from the pool.'
+                        : s === 'quarantine'
+                          ? 'Show assets moved to quarantine (blocked from re-upload).'
+                          : s === 'purged'
+                            ? 'Show assets that were already purged.'
+                            : 'Show all assets regardless of status.',
+                  })}
                 >
-                  {t(`moderation.status.${s}`, { defaultValue: s })}
-                </Button>
+                  <Button type="button" variant={status === s ? 'primary' : 'secondary'} onClick={() => setStatus(s)}>
+                    {t(`moderation.status.${s}`, { defaultValue: s })}
+                  </Button>
+                </Tooltip>
               ))}
               <Button
                 type="button"
@@ -381,36 +391,60 @@ export default function ModerationPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={isBusy || purged}
-                        onClick={() => setConfirm({ kind: 'hide', asset: a })}
+                      <Tooltip
+                        delayMs={1000}
+                        content={t('moderation.hideTooltip', {
+                          defaultValue: 'Hide this asset from the pool (it will not be visible to users in the pool).',
+                        })}
                       >
-                        {t('moderation.hide', { defaultValue: 'Hide' })}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={isBusy || purged}
-                        onClick={() => setConfirm({ kind: 'unhide', asset: a })}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={isBusy || purged}
+                          onClick={() => setConfirm({ kind: 'hide', asset: a })}
+                        >
+                          {t('moderation.hide', { defaultValue: 'Hide' })}
+                        </Button>
+                      </Tooltip>
+
+                      <Tooltip
+                        delayMs={1000}
+                        content={t('moderation.unhideTooltip', {
+                          defaultValue: 'Make this asset visible in the pool again.',
+                        })}
                       >
-                        {t('moderation.unhide', { defaultValue: 'Unhide' })}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        disabled={isBusy || purged}
-                        onClick={() => {
-                          setReason('');
-                          setConfirm({ kind: 'quarantine', asset: a });
-                        }}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={isBusy || purged}
+                          onClick={() => setConfirm({ kind: 'unhide', asset: a })}
+                        >
+                          {t('moderation.unhide', { defaultValue: 'Unhide' })}
+                        </Button>
+                      </Tooltip>
+
+                      <Tooltip
+                        delayMs={1000}
+                        content={t('moderation.quarantineTooltip', {
+                          defaultValue:
+                            'Move this asset to quarantine. It is not purged immediately. Re-uploading the same file will be blocked. A reason is required.',
+                        })}
                       >
-                        {t('moderation.quarantine', { defaultValue: 'Delete (quarantine)' })}
-                      </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          disabled={isBusy || purged}
+                          onClick={() => {
+                            setReason('');
+                            setConfirm({ kind: 'quarantine', asset: a });
+                          }}
+                        >
+                          {t('moderation.quarantine', { defaultValue: 'Delete (quarantine)' })}
+                        </Button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

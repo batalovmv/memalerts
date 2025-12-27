@@ -6,7 +6,7 @@ import { SubmissionPreview } from './ui/SubmissionPreview';
 
 import type { Submission } from '@/types';
 
-import { AttemptsPill, Button } from '@/shared/ui';
+import { AttemptsPill, Button, Tooltip } from '@/shared/ui';
 
 export function PendingSubmissionCard(props: {
   submission: Submission;
@@ -15,8 +15,9 @@ export function PendingSubmissionCard(props: {
   onApprove: (id: string) => void;
   onNeedsChanges: (id: string) => void;
   onReject: (id: string) => void;
+  helpEnabled?: boolean;
 }) {
-  const { submission, resolveMediaUrl, onOpenPreview, onApprove, onNeedsChanges, onReject } = props;
+  const { submission, resolveMediaUrl, onOpenPreview, onApprove, onNeedsChanges, onReject, helpEnabled } = props;
   const { t } = useTranslation();
 
   // Submissions can come from multiple sources:
@@ -34,13 +35,26 @@ export function PendingSubmissionCard(props: {
           <div className="shrink-0 w-full lg:w-[249px]">
             <div className="relative">
               {onOpenPreview ? (
-                <button
-                  type="button"
-                  className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                  onClick={() => onOpenPreview({ src, title: submission.title })}
-                  aria-label={t('submissions.openPreview', { defaultValue: 'Open preview' })}
-                  title={t('submissions.openPreview', { defaultValue: 'Open preview' })}
-                />
+                helpEnabled ? (
+                  <Tooltip
+                    delayMs={1000}
+                    content={t('dashboard.help.openPreview', { defaultValue: 'Open a larger preview.' })}
+                  >
+                    <button
+                      type="button"
+                      className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      onClick={() => onOpenPreview({ src, title: submission.title })}
+                      aria-label={t('submissions.openPreview', { defaultValue: 'Open preview' })}
+                    />
+                  </Tooltip>
+                ) : (
+                  <button
+                    type="button"
+                    className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    onClick={() => onOpenPreview({ src, title: submission.title })}
+                    aria-label={t('submissions.openPreview', { defaultValue: 'Open preview' })}
+                  />
+                )
               ) : null}
               <div className="pointer-events-none">
                 <SubmissionPreview
@@ -49,6 +63,7 @@ export function PendingSubmissionCard(props: {
                   aspectRatio={preview.aspectRatio}
                   isPlaying={preview.isPlaying}
                   isMuted={preview.isMuted}
+                  helpEnabled={helpEnabled}
                   error={preview.error}
                   playError={preview.playError}
                   httpStatus={preview.httpStatus}
@@ -87,21 +102,39 @@ export function PendingSubmissionCard(props: {
                 >
                   {t('admin.approve', { defaultValue: 'Approve' })}
                 </Button>
-                <Button
-                  type="button"
-                  variant="warning"
-                  size="sm"
-                  className="glass-btn"
-                  onClick={() => onNeedsChanges(submission.id)}
-                  disabled={!canSendForChanges}
-                  title={
-                    canSendForChanges
-                      ? t('submissions.needsChanges', { defaultValue: 'Needs changes' })
-                      : t('submissions.noResubmitsLeftHint', { defaultValue: 'No resubmits left — reject instead.' })
-                  }
-                >
-                  {t('submissions.needsChanges', { defaultValue: 'Needs changes' })}
-                </Button>
+                {(() => {
+                  const btn = (
+                    <Button
+                      type="button"
+                      variant="warning"
+                      size="sm"
+                      className="glass-btn"
+                      onClick={() => onNeedsChanges(submission.id)}
+                      disabled={!canSendForChanges}
+                    >
+                      {t('submissions.needsChanges', { defaultValue: 'Needs changes' })}
+                    </Button>
+                  );
+
+                  if (!helpEnabled) return btn;
+
+                  return (
+                    <Tooltip
+                      delayMs={1000}
+                      content={
+                        canSendForChanges
+                          ? t('dashboard.help.needsChanges', {
+                              defaultValue: 'Send back to the author to fix and resubmit.',
+                            })
+                          : t('dashboard.help.needsChangesDisabled', {
+                              defaultValue: 'No resubmits left — reject instead.',
+                            })
+                      }
+                    >
+                      {btn}
+                    </Tooltip>
+                  );
+                })()}
                 <Button
                   type="button"
                   variant="danger"

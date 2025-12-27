@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { Spinner } from '@/shared/ui';
+import { Spinner, Tooltip } from '@/shared/ui';
 
 export type SubmissionPreviewProps = {
   src: string;
@@ -8,6 +8,7 @@ export type SubmissionPreviewProps = {
   aspectRatio: number;
   isPlaying: boolean;
   isMuted: boolean;
+  helpEnabled?: boolean;
   error: string | null;
   playError: { name?: string; message?: string } | null;
   httpStatus: number | null;
@@ -25,6 +26,7 @@ export function SubmissionPreview({
   aspectRatio,
   isPlaying,
   isMuted,
+  helpEnabled,
   error,
   playError,
   httpStatus,
@@ -135,31 +137,45 @@ export function SubmissionPreview({
             </button>
 
             {/* Sound toggle */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onToggleMute();
-              }}
-              className="pointer-events-auto absolute top-2 right-2 glass-btn bg-black/40 hover:bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center"
-              aria-label={isMuted ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
-              aria-pressed={isMuted}
-              title={isMuted ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
-            >
-              {isMuted ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M23 9l-6 6M17 9l6 6" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 9a3 3 0 010 6" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 7a6 6 0 010 10" />
-                </svg>
-              )}
-            </button>
+            {(() => {
+              const btn = (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleMute();
+                  }}
+                  className="pointer-events-auto absolute top-2 right-2 glass-btn bg-black/40 hover:bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center"
+                  aria-label={isMuted ? t('common.soundOn', { defaultValue: 'Sound on' }) : t('common.mute', { defaultValue: 'Mute' })}
+                  aria-pressed={isMuted}
+                >
+                  {isMuted ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M23 9l-6 6M17 9l6 6" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 9a3 3 0 010 6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 7a6 6 0 010 10" />
+                    </svg>
+                  )}
+                </button>
+              );
+
+              if (!helpEnabled) return btn;
+
+              return (
+                <Tooltip
+                  delayMs={1000}
+                  content={t('dashboard.help.previewSoundToggle', { defaultValue: 'Toggle sound in the preview.' })}
+                >
+                  {btn}
+                </Tooltip>
+              );
+            })()}
           </div>
         </div>
       )}

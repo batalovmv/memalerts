@@ -1,4 +1,4 @@
-import type { SelectHTMLAttributes } from 'react';
+import { forwardRef, type SelectHTMLAttributes } from 'react';
 
 import { cn } from '@/shared/lib/cn';
 
@@ -6,9 +6,10 @@ export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   hasError?: boolean;
 };
 
-export function Select({ hasError, className, ...props }: SelectProps) {
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select({ hasError, className, ...props }, ref) {
   return (
     <select
+      ref={ref}
       {...props}
       className={cn(
         'w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none',
@@ -18,6 +19,6 @@ export function Select({ hasError, className, ...props }: SelectProps) {
       )}
     />
   );
-}
+});
 
 

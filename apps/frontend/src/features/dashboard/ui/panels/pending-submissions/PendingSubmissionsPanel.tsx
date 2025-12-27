@@ -10,7 +10,7 @@ import type { Submission } from '@/types';
 
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
-import { Pill, Spinner } from '@/shared/ui';
+import { Pill, Spinner, Tooltip } from '@/shared/ui';
 
 export type PendingSubmissionsPanelProps = {
   isOpen: boolean;
@@ -24,6 +24,7 @@ export type PendingSubmissionsPanelProps = {
   onApprove: (submissionId: string) => void;
   onNeedsChanges: (submissionId: string) => void;
   onReject: (submissionId: string) => void;
+  helpEnabled?: boolean;
 };
 
 export function PendingSubmissionsPanel({
@@ -38,6 +39,7 @@ export function PendingSubmissionsPanel({
   onApprove,
   onNeedsChanges,
   onReject,
+  helpEnabled,
 }: PendingSubmissionsPanelProps) {
   const { t } = useTranslation();
 
@@ -67,9 +69,13 @@ export function PendingSubmissionsPanel({
         meta={
           <div className="flex items-center gap-2">
             {pendingCount > 0 && (
-              <Pill variant="danger" title={t('dashboard.pendingCount', { defaultValue: '{{count}} pending', count: pendingCount })}>
-                {pendingCount}
-              </Pill>
+              helpEnabled ? (
+                <Tooltip delayMs={1000} content={t('dashboard.help.pendingCount', { defaultValue: 'How many submissions are waiting for approval.' })}>
+                  <Pill variant="danger">{pendingCount}</Pill>
+                </Tooltip>
+              ) : (
+                <Pill variant="danger">{pendingCount}</Pill>
+              )
             )}
             {submissionsLoading && (
               <span className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">

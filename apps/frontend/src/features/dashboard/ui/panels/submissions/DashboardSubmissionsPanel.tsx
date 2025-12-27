@@ -11,7 +11,7 @@ import type { Submission } from '@/types';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
-import { IconButton, Modal, Pill, Spinner } from '@/shared/ui';
+import { IconButton, Modal, Pill, Spinner, Tooltip } from '@/shared/ui';
 
 export type SubmissionsPanelTab = 'pending' | 'mine';
 
@@ -19,6 +19,7 @@ export type DashboardSubmissionsPanelProps = {
   isOpen: boolean;
   activeTab: SubmissionsPanelTab;
   onTabChange: (tab: SubmissionsPanelTab) => void;
+  helpEnabled?: boolean;
 
   // Streamer pending approvals
   submissions: Submission[];
@@ -43,6 +44,7 @@ export function DashboardSubmissionsPanel({
   isOpen,
   activeTab,
   onTabChange,
+  helpEnabled,
 
   submissions,
   submissionsLoading,
@@ -199,6 +201,7 @@ export function DashboardSubmissionsPanel({
                   onApprove={onApprove}
                   onNeedsChanges={onNeedsChanges}
                   onReject={onReject}
+                  helpEnabled={helpEnabled}
                 />
               ))}
               <li ref={loadMoreRef} className="h-8" aria-hidden="true" />
@@ -213,33 +216,84 @@ export function DashboardSubmissionsPanel({
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-end gap-2">
-              <IconButton
-                type="button"
-                variant="secondary"
-                onClick={onRefreshMySubmissions}
-                disabled={mySubmissionsLoading}
-                aria-label={t('common.retry', { defaultValue: 'Повторить' })}
-                title={t('common.retry', { defaultValue: 'Повторить' })}
-                icon={<RefreshIcon spinning={mySubmissionsLoading} />}
-              />
+              {helpEnabled ? (
+                <Tooltip
+                  delayMs={1000}
+                  content={t('dashboard.help.refreshMySubmissions', {
+                    defaultValue: 'Refresh the list of your submissions (use if the list looks outdated).',
+                  })}
+                >
+                  <IconButton
+                    type="button"
+                    variant="secondary"
+                    onClick={onRefreshMySubmissions}
+                    disabled={mySubmissionsLoading}
+                    aria-label={t('common.retry', { defaultValue: 'Повторить' })}
+                    icon={<RefreshIcon spinning={mySubmissionsLoading} />}
+                  />
+                </Tooltip>
+              ) : (
+                <IconButton
+                  type="button"
+                  variant="secondary"
+                  onClick={onRefreshMySubmissions}
+                  disabled={mySubmissionsLoading}
+                  aria-label={t('common.retry', { defaultValue: 'Повторить' })}
+                  icon={<RefreshIcon spinning={mySubmissionsLoading} />}
+                />
+              )}
 
-              <IconButton
-                type="button"
-                variant="secondary"
-                disabled={true}
-                aria-label={t('dashboard.submissionsPanel.historyTab', { defaultValue: 'История' })}
-                title={t('dashboard.submissionsPanel.temporarilyUnavailable', { defaultValue: 'Временно недоступно' })}
-                icon={<HistoryIcon />}
-              />
+              {helpEnabled ? (
+                <Tooltip
+                  delayMs={1000}
+                  content={t('dashboard.help.historyComingSoon', { defaultValue: 'Submission history will appear here later (coming soon).' })}
+                >
+                  <span className="inline-flex">
+                    <IconButton
+                      type="button"
+                      variant="secondary"
+                      disabled={true}
+                      aria-label={t('dashboard.submissionsPanel.historyTab', { defaultValue: 'История' })}
+                      icon={<HistoryIcon />}
+                    />
+                  </span>
+                </Tooltip>
+              ) : (
+                <IconButton
+                  type="button"
+                  variant="secondary"
+                  disabled={true}
+                  aria-label={t('dashboard.submissionsPanel.historyTab', { defaultValue: 'История' })}
+                  icon={<HistoryIcon />}
+                />
+              )}
 
-              <IconButton
-                type="button"
-                variant="secondary"
-                disabled={true}
-                aria-label={t('dashboard.submissionsPanel.channelTab', { defaultValue: 'Заявки канала' })}
-                title={t('dashboard.submissionsPanel.temporarilyUnavailable', { defaultValue: 'Временно недоступно' })}
-                icon={<ChannelIcon />}
-              />
+              {helpEnabled ? (
+                <Tooltip
+                  delayMs={1000}
+                  content={t('dashboard.help.channelTabComingSoon', {
+                    defaultValue: 'A dedicated “channel submissions” view will appear here later (coming soon).',
+                  })}
+                >
+                  <span className="inline-flex">
+                    <IconButton
+                      type="button"
+                      variant="secondary"
+                      disabled={true}
+                      aria-label={t('dashboard.submissionsPanel.channelTab', { defaultValue: 'Заявки канала' })}
+                      icon={<ChannelIcon />}
+                    />
+                  </span>
+                </Tooltip>
+              ) : (
+                <IconButton
+                  type="button"
+                  variant="secondary"
+                  disabled={true}
+                  aria-label={t('dashboard.submissionsPanel.channelTab', { defaultValue: 'Заявки канала' })}
+                  icon={<ChannelIcon />}
+                />
+              )}
             </div>
 
             {mySubmissionsLoading ? (
@@ -301,7 +355,6 @@ export function DashboardSubmissionsPanel({
               type="button"
               variant="secondary"
               aria-label={t('common.close', { defaultValue: 'Close' })}
-              title={t('common.close', { defaultValue: 'Close' })}
               onClick={() => setPreviewModal({ open: false, src: '', title: '' })}
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

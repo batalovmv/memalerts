@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '@/shared/lib/cn';
 
@@ -31,18 +31,13 @@ const variantClass: Record<ButtonVariant, string> = {
   ghost: 'text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/10',
 };
 
-export function Button({
-  variant = 'secondary',
-  size = 'md',
-  leftIcon,
-  rightIcon,
-  className,
-  disabled,
-  children,
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'secondary', size = 'md', leftIcon, rightIcon, className, disabled, children, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       {...props}
       disabled={disabled}
       className={cn(base, sizeClass[size], variantClass[variant], className)}
@@ -52,6 +47,6 @@ export function Button({
       {rightIcon ? <span aria-hidden="true">{rightIcon}</span> : null}
     </button>
   );
-}
+});
 
 
