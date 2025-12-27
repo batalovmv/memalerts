@@ -58,6 +58,8 @@ export default function StreamerProfile() {
   const { socket, isConnected } = useSocket();
   
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
+  const [channelLoadError, setChannelLoadError] = useState<null | 'auth_required' | 'forbidden' | 'not_found' | 'failed'>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
   const [memes, setMemes] = useState<Meme[]>([]);
@@ -117,11 +119,34 @@ export default function StreamerProfile() {
     }
 
     const loadChannelData = async () => {
+      // Reset state for a clean retry / slug change.
+      setLoading(true);
+      setChannelLoadError(null);
+      setChannelInfo(null);
+      setWallet(null);
+      setMemes([]);
+      setSearchResults([]);
+      setHasMore(true);
+      setMemesOffset(0);
       try {
-        // Load channel info without memes for faster initial load
-        const channelInfo = await api.get<ChannelInfo>(`/channels/${normalizedSlug}?includeMemes=false`, {
-          timeout: 15000, // 15 seconds timeout
-        });
+        // Load channel info without memes for faster initial load.
+        // On some deployments, /channels/* may require auth; in that case try a public fallback for guests.
+        let channelInfo: ChannelInfo | null = null;
+        try {
+          channelInfo = await api.get<ChannelInfo>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        } catch (e: unknown) {
+          const err = e as { response?: { status?: number } };
+          const status = err.response?.status;
+          if (!isAuthed && (status === 401 || status === 403)) {
+            // Best-effort: try public endpoint if server exposes it (won't break if absent).
+            channelInfo = await api.get<ChannelInfo>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+          } else {
+            throw e;
+          }
+        }
+        if (!channelInfo) {
+          throw new Error('Channel info missing');
+        }
         setChannelInfo({ ...channelInfo, memes: [] }); // Set memes to empty array initially
         setLoading(false); // Channel info loaded, can show page structure
 
@@ -132,7 +157,6 @@ export default function StreamerProfile() {
         
         // Load memes separately with pagination
         setMemesLoading(true);
-        setMemesOffset(0);
         try {
           const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
           const listParams = new URLSearchParams();
@@ -142,9 +166,18 @@ export default function StreamerProfile() {
           listParams.set('sortOrder', 'desc');
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
-          const memes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, {
-            timeout: 15000, // 15 seconds timeout
-          });
+          let memes: Meme[] = [];
+          try {
+            memes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
+          } catch (e: unknown) {
+            const err = e as { response?: { status?: number } };
+            const status = err.response?.status;
+            if (!isAuthed && (status === 401 || status === 403)) {
+              memes = await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
+            } else {
+              throw e;
+            }
+          }
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
         } catch (error) {
@@ -190,10 +223,15 @@ export default function StreamerProfile() {
         }
       } catch (error: unknown) {
         const apiError = error as { response?: { status?: number; data?: { error?: string } } };
-        if (apiError.response?.status === 404) {
-          toast.error(t('toast.channelNotFound'));
-          navigate('/');
+        const status = apiError.response?.status;
+        if (!isAuthed && status === 401) {
+          setChannelLoadError('auth_required');
+        } else if (status === 403) {
+          setChannelLoadError('forbidden');
+        } else if (status === 404) {
+          setChannelLoadError('not_found');
         } else {
+          setChannelLoadError('failed');
           toast.error(apiError.response?.data?.error || t('toast.failedToLoadChannel'));
         }
         setLoading(false);
@@ -202,7 +240,7 @@ export default function StreamerProfile() {
     };
 
     loadChannelData();
-  }, [slug, normalizedSlug, user, navigate, t, dispatch]);
+  }, [slug, normalizedSlug, user, navigate, t, dispatch, isAuthed, reloadNonce]);
 
   // Realtime: submissions status updates (Socket.IO)
   useEffect(() => {
@@ -360,19 +398,39 @@ export default function StreamerProfile() {
   };
 
 
-  // Show error state if channel not found
+  // Show error state when channel info didn't load
   if (!loading && !channelInfo) {
     return (
       <PageShell header={<Header />}>
         <div className="min-h-[50vh] flex items-center justify-center px-4">
           <div className="surface p-6 max-w-md w-full text-center">
             <div className="text-lg font-semibold text-gray-900 dark:text-white">
-              {t('profile.channelNotFoundTitle', { defaultValue: 'Channel not found' })}
+              {channelLoadError === 'auth_required'
+                ? t('profile.authRequiredTitle', { defaultValue: 'Login required' })
+                : channelLoadError === 'forbidden'
+                  ? t('profile.accessDeniedTitle', { defaultValue: 'Access denied' })
+                  : channelLoadError === 'failed'
+                    ? t('profile.failedToLoadTitle', { defaultValue: 'Failed to load channel' })
+                    : t('profile.channelNotFoundTitle', { defaultValue: 'Channel not found' })}
             </div>
             <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              {t('profile.channelNotFoundHint', { defaultValue: 'The link may be wrong, or the channel was removed.' })}
+              {channelLoadError === 'auth_required'
+                ? t('profile.authRequiredHint', { defaultValue: 'Please log in to view this channel.' })
+                : channelLoadError === 'forbidden'
+                  ? t('profile.accessDeniedHint', { defaultValue: 'You do not have access to view this channel.' })
+                  : channelLoadError === 'failed'
+                    ? t('profile.failedToLoadHint', { defaultValue: 'Please retry. If the problem persists, try again later.' })
+                    : t('profile.channelNotFoundHint', { defaultValue: 'The link may be wrong, or the channel was removed.' })}
             </div>
-            <div className="mt-5 flex justify-center">
+            <div className="mt-5 flex justify-center gap-2">
+              {channelLoadError === 'auth_required' ? (
+                <Button type="button" variant="primary" onClick={() => login(`/channel/${normalizedSlug}`)}>
+                  {t('auth.login', { defaultValue: 'Log in with Twitch' })}
+                </Button>
+              ) : null}
+              <Button type="button" variant="secondary" onClick={() => setReloadNonce((n) => n + 1)}>
+                {t('common.retry', { defaultValue: 'Retry' })}
+              </Button>
               <Button type="button" variant="secondary" onClick={() => navigate('/')}>
                 {t('common.goHome', { defaultValue: 'Go home' })}
               </Button>

@@ -28,7 +28,8 @@
     "unknown": "Неизвестно",
     "notAvailable": "Недоступно",
     "on": "Вкл",
-    "off": "Выкл"
+    "off": "Выкл",
+    "goHome": "На главную"
   },
   "nav": {
     "home": "Главная",
@@ -937,6 +938,15 @@
     "availableMemes": "Доступные мемы",
     "noMemes": "Мемы отсутствуют",
     "allMemesLoaded": "Все мемы загружены"
+    ,
+    "channelNotFoundTitle": "Канал не найден",
+    "channelNotFoundHint": "Ссылка может быть неверной или канал был удалён.",
+    "authRequiredTitle": "Нужен вход",
+    "authRequiredHint": "Пожалуйста, войдите, чтобы открыть этот канал.",
+    "accessDeniedTitle": "Нет доступа",
+    "accessDeniedHint": "У вас нет доступа к этому каналу.",
+    "failedToLoadTitle": "Не удалось загрузить канал",
+    "failedToLoadHint": "Попробуйте ещё раз. Если проблема повторяется — попробуйте позже."
   },
   "tagInput": {
     "pressEnterToAdd": "Нажмите Enter, пробел или запятую, чтобы добавить тег. Тег — одно слово. Максимум 50 символов на тег.",

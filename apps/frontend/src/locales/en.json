@@ -24,7 +24,8 @@
     "unknown": "Unknown",
     "notAvailable": "Not available",
     "on": "On",
-    "off": "Off"
+    "off": "Off",
+    "goHome": "Go home"
   },
   "nav": {
     "home": "Home",
@@ -918,7 +919,15 @@
     "availableMemes": "Available Memes",
     "noMemes": "No memes available",
     "submitMeme": "Submit a Meme",
-    "allMemesLoaded": "All memes loaded"
+    "allMemesLoaded": "All memes loaded",
+    "channelNotFoundTitle": "Channel not found",
+    "channelNotFoundHint": "The link may be wrong, or the channel was removed.",
+    "authRequiredTitle": "Login required",
+    "authRequiredHint": "Please log in to view this channel.",
+    "accessDeniedTitle": "Access denied",
+    "accessDeniedHint": "You do not have access to view this channel.",
+    "failedToLoadTitle": "Failed to load channel",
+    "failedToLoadHint": "Please retry. If the problem persists, try again later."
   },
   "coinsInfoModal": {
     "title": "How to get coins",
