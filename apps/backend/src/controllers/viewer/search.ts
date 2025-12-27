@@ -13,6 +13,7 @@ import {
   setSearchCacheHeaders,
 } from './cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
+import { toChannelMemeListItemDto } from './channelMemeListDto.js';
 
 export const searchMemes = async (req: any, res: Response) => {
   const {
@@ -116,6 +117,75 @@ export const searchMemes = async (req: any, res: Response) => {
     }
     // Save for later in the request lifecycle (after we compute the response).
     (req as any).__searchCacheKey = cacheKey;
+  }
+
+  // Channel listing mode (canonical for "list memes in a channel"):
+  // If frontend just needs the channel's approved+not-deleted list (createdAt/priceCoins ordering + offset pagination),
+  // we must read ChannelMeme as the source of truth, not legacy Meme.
+  const qStr = q ? String(q).trim() : '';
+  const tagsStr = tags ? String(tags).trim() : '';
+  const includeUploaderEnabled = String(includeUploader || '') === '1';
+  const sortByStr = String(sortBy || 'createdAt');
+  const sortOrderStr = String(sortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+  const isChannelListingMode =
+    !!targetChannelId &&
+    !favoritesEnabled &&
+    !qStr &&
+    !tagsStr &&
+    minPrice === undefined &&
+    maxPrice === undefined &&
+    !includeUploaderEnabled &&
+    (sortByStr === 'createdAt' || sortByStr === 'priceCoins');
+
+  if (isChannelListingMode) {
+    const orderBy =
+      sortByStr === 'priceCoins'
+        ? [{ priceCoins: sortOrderStr }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
+        : [{ createdAt: sortOrderStr }, { id: 'desc' as const }];
+
+    const rows = await prisma.channelMeme.findMany({
+      where: { channelId: targetChannelId!, status: 'approved', deletedAt: null },
+      orderBy: orderBy as any,
+      take: parsedLimit,
+      skip: parsedOffset,
+      select: {
+        id: true,
+        legacyMemeId: true,
+        memeAssetId: true,
+        title: true,
+        priceCoins: true,
+        status: true,
+        createdAt: true,
+        memeAsset: {
+          select: {
+            type: true,
+            fileUrl: true,
+            fileHash: true,
+            durationMs: true,
+            createdBy: { select: { id: true, displayName: true } },
+          },
+        },
+      },
+    });
+
+    const items = rows.map((r) => toChannelMemeListItemDto(req, targetChannelId!, r as any));
+
+    // Cache non-personalized responses (best-effort) using the existing search cache mechanism.
+    try {
+      const body = JSON.stringify(items);
+      const etag = makeEtagFromString(body);
+      const cacheKey = (req as any).__searchCacheKey as string | undefined;
+      if (cacheKey) {
+        searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+        if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+      }
+      res.setHeader('ETag', etag);
+      if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+      return res.type('application/json').send(body);
+    } catch {
+      return res.json(items);
+    }
   }
 
   // Search query - search in title + tags; optionally uploader (dashboard)

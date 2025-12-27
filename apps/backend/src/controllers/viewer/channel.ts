@@ -11,6 +11,7 @@ import {
 } from './cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 import { normalizeDashboardCardOrder } from '../../utils/dashboardCardOrder.js';
+import { toChannelMemeListItemDto } from './channelMemeListDto.js';
 
 export const getChannelBySlug = async (req: any, res: Response) => {
   const slug = String(req.params.slug || '').trim();
@@ -20,6 +21,8 @@ export const getChannelBySlug = async (req: any, res: Response) => {
   // Optional pagination for memes when includeMemes=true (defensive cap to protect server/DB).
   const limitRaw = req.query.limit as string | undefined;
   const offsetRaw = req.query.offset as string | undefined;
+  const sortByRaw = String(req.query.sortBy || '').trim();
+  const sortOrderRaw = String(req.query.sortOrder || '').trim().toLowerCase();
   const maxFromEnv = parseInt(String(process.env.CHANNEL_MEMES_MAX || ''), 10);
   const MAX_MEMES = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 200;
   const requestedLimit = limitRaw !== undefined ? parseInt(limitRaw, 10) : undefined;
@@ -29,6 +32,13 @@ export const getChannelBySlug = async (req: any, res: Response) => {
     : 0;
   const memesOffset =
     includeMemes && Number.isFinite(requestedOffset as number) && (requestedOffset as number) > 0 ? (requestedOffset as number) : 0;
+
+  const sortBy = sortByRaw === 'priceCoins' ? 'priceCoins' : 'createdAt';
+  const sortOrder = sortOrderRaw === 'asc' ? 'asc' : 'desc';
+  const orderBy =
+    sortBy === 'priceCoins'
+      ? [{ priceCoins: sortOrder }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
+      : [{ createdAt: sortOrder }, { id: 'desc' as const }];
 
   // Cache channel metadata (colors/icons/reward settings) when we are NOT returning memes.
   // Safe because response is not user-personalized.
@@ -145,7 +155,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       // This prevents "resurrection" if legacy Meme rows exist for back-compat.
       const rows = await prisma.channelMeme.findMany({
         where: { channelId: channel.id, status: 'approved', deletedAt: null },
-        orderBy: { createdAt: 'desc' },
+        orderBy: orderBy as any,
         take: memesLimit,
         skip: memesOffset,
         select: {
@@ -160,30 +170,20 @@ export const getChannelBySlug = async (req: any, res: Response) => {
             select: {
               type: true,
               fileUrl: true,
+              fileHash: true,
               durationMs: true,
+              createdBy: { select: { id: true, displayName: true } },
             },
           },
         },
       });
 
-      response.memes = rows.map((r) => ({
-        // Back-compat: keep legacy id when present.
-        id: r.legacyMemeId ?? r.id,
-        channelMemeId: r.id,
-        memeAssetId: r.memeAssetId,
-        title: r.title,
-        type: r.memeAsset.type,
-        fileUrl: r.memeAsset.fileUrl,
-        durationMs: r.memeAsset.durationMs,
-        priceCoins: r.priceCoins,
-        status: r.status,
-        createdAt: r.createdAt,
-      }));
+      response.memes = rows.map((r) => toChannelMemeListItemDto(req, channel.id, r as any));
       response.memesPage = {
         limit: memesLimit,
         offset: memesOffset,
         returned: Array.isArray(response.memes) ? response.memes.length : 0,
-        total: (channel as any)._count.memes,
+        total: (channel as any)._count.channelMemes,
       };
     }
 
@@ -308,6 +308,15 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_PAGE) : 30;
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
 
+  const sortByRaw = String(req.query.sortBy || '').trim();
+  const sortOrderRaw = String(req.query.sortOrder || '').trim().toLowerCase();
+  const sortBy = sortByRaw === 'priceCoins' ? 'priceCoins' : 'createdAt';
+  const sortOrder = sortOrderRaw === 'asc' ? 'asc' : 'desc';
+  const orderBy =
+    sortBy === 'priceCoins'
+      ? [{ priceCoins: sortOrder }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
+      : [{ createdAt: sortOrder }, { id: 'desc' as const }];
+
   // Cacheable on production (public). On beta it's gated via auth; still safe but keep it private.
   if (req?.userId) res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
   else res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
@@ -345,25 +354,12 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
         },
       },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: orderBy as any,
     take: limit,
     skip: offset,
   });
 
-  // Keep legacy-compatible shape, but include new ids for clients that can use them.
-  const memes = rows.map((r) => ({
-    id: r.legacyMemeId ?? r.id,
-    channelMemeId: r.id,
-    memeAssetId: r.memeAssetId,
-    title: r.title,
-    type: r.memeAsset.type,
-    fileUrl: r.memeAsset.fileUrl,
-    durationMs: r.memeAsset.durationMs,
-    priceCoins: r.priceCoins,
-    status: r.status,
-    createdAt: r.createdAt,
-    createdBy: r.memeAsset.createdBy,
-  }));
+  const memes = rows.map((r) => toChannelMemeListItemDto(req, channel.id, r as any));
 
   try {
     const body = JSON.stringify(memes);
