@@ -4,9 +4,21 @@ import { prisma } from '../../lib/prisma.js';
 
 export const getMySubmissions = async (req: AuthRequest, res: Response) => {
   try {
+    const statusRaw = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : '';
+    const allowedStatuses = new Set(['pending', 'approved', 'rejected', 'needs_changes']);
+    const status = statusRaw ? (allowedStatuses.has(statusRaw) ? statusRaw : null) : undefined;
+
+    if (status === null) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `Invalid status. Allowed: ${Array.from(allowedStatuses).join(', ')}`,
+      });
+    }
+
     const submissionsPromise = prisma.memeSubmission.findMany({
       where: {
         submitterUserId: req.userId!,
+        ...(status ? { status } : {}),
       },
       orderBy: {
         createdAt: 'desc',
@@ -71,7 +83,7 @@ export const getMySubmissions = async (req: AuthRequest, res: Response) => {
       if (error?.code === 'P2021' && error?.meta?.table === 'public.MemeSubmissionTag') {
         try {
           const fallback = await prisma.memeSubmission.findMany({
-            where: { submitterUserId: req.userId! },
+            where: { submitterUserId: req.userId!, ...(status ? { status } : {}) },
             orderBy: { createdAt: 'desc' },
             select: {
               id: true,
