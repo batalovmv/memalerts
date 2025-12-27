@@ -392,7 +392,7 @@
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (если подписки нет — `enabled: false`)
 
 ### Bot integrations (панель стримера)
-- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkplaylive"|"vkvideo"|"youtube", enabled, updatedAt }] }`
+- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkvideo"|"youtube", enabled, updatedAt }] }`
 - **PATCH `/streamer/bots/:provider`** → `{ ok: true }`
   - body для всех провайдеров: `{ enabled: boolean }`
   - **дополнительно для `provider="vkvideo"` при `enabled=true`** нужно передать `vkvideoChannelId`:

@@ -5,7 +5,7 @@
 ## TL;DR (что нужно знать)
 
 - **Управление из панели стримера (frontend)**:
-  - `GET /streamer/bots` — текущие тумблеры интеграций (`twitch | youtube | vkvideo | vkplaylive`)
+  - `GET /streamer/bots` — текущие тумблеры интеграций (`twitch | youtube | vkvideo`)
   - `PATCH /streamer/bots/:provider` — включить/выключить (и создать/обновить подписку в БД)
 - **Сами боты — это отдельные процессы-воркеры** (кроме “inline credits bot”):
   - Twitch runner: `pnpm build && pnpm start:chatbot`

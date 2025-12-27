@@ -14,7 +14,11 @@ import { hasChannelEntitlement } from '../../utils/entitlements.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
 type BotProviderV2 = BotProvider | 'vkvideo';
-const PROVIDERS: BotProviderV2[] = ['twitch', 'vkplaylive', 'vkvideo', 'youtube'];
+// NOTE: vkplaylive is deprecated (we use vkvideo instead) but may still exist in DB for legacy installs.
+// Do not expose it to the frontend and do not allow enabling it via API.
+type BotProviderDeprecated = 'vkplaylive';
+type BotProviderActive = Exclude<BotProviderV2, BotProviderDeprecated>;
+const PROVIDERS: BotProviderActive[] = ['twitch', 'vkvideo', 'youtube'];
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
@@ -51,7 +55,7 @@ function requireChannelId(req: AuthRequest, res: Response): string | null {
 function normalizeProvider(raw: any): BotProviderV2 | null {
   const p = String(raw ?? '').trim().toLowerCase();
   if (!p || !PROVIDERS_SET.has(p)) return null;
-  return p as BotProviderV2;
+  return p as BotProviderActive;
 }
 
 async function getTwitchEnabledFallback(channelId: string): Promise<boolean> {
@@ -399,14 +403,12 @@ export const botIntegrationsController = {
       // Ensure stable shape with defaults for known providers.
       // Twitch falls back to ChatBotSubscription if no row exists yet.
       const twitch = byProvider.get('twitch') ?? { enabled: await getTwitchEnabledFallback(channelId), updatedAt: null };
-      const vkplaylive = byProvider.get('vkplaylive') ?? { enabled: false, updatedAt: null };
       const vkvideo = byProvider.get('vkvideo') ?? { enabled: await getVkVideoEnabledFallback(channelId), updatedAt: null };
       const youtube = byProvider.get('youtube') ?? { enabled: false, updatedAt: null };
 
       return res.json({
         items: [
           { provider: 'twitch', ...twitch },
-          { provider: 'vkplaylive', ...vkplaylive },
           { provider: 'vkvideo', ...vkvideo },
           { provider: 'youtube', ...youtube },
         ],
@@ -425,7 +427,16 @@ export const botIntegrationsController = {
     const channelId = requireChannelId(req, res);
     if (!channelId) return;
 
-    const provider = normalizeProvider((req.params as any)?.provider);
+    const rawProvider = String((req.params as any)?.provider || '').trim().toLowerCase();
+    if (rawProvider === 'vkplaylive') {
+      // Deprecated integration: we use vkvideo instead.
+      return res.status(410).json({
+        error: 'Gone',
+        code: 'PROVIDER_DEPRECATED',
+        message: 'vkplaylive integration is deprecated. Use vkvideo instead.',
+      });
+    }
+    const provider = normalizeProvider(rawProvider);
     if (!provider) return res.status(400).json({ error: 'Bad Request', message: `provider must be one of: ${PROVIDERS.join(', ')}` });
 
     const enabled = (req.body as any)?.enabled;
