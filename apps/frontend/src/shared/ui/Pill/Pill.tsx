@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '@/shared/lib/cn';
 
@@ -29,12 +29,15 @@ const variantClass: Record<PillVariant, string> = {
   dangerSolid: 'bg-rose-600 text-white ring-0',
 };
 
-export function Pill({ children, variant = 'neutral', size = 'sm', className, ...props }: PillProps) {
+export const Pill = forwardRef<HTMLSpanElement, PillProps>(function Pill(
+  { children, variant = 'neutral', size = 'sm', className, ...props },
+  ref,
+) {
   return (
-    <span {...props} className={cn(base, sizeClass[size], variantClass[variant], className)}>
+    <span ref={ref} {...props} className={cn(base, sizeClass[size], variantClass[variant], className)}>
       {children}
     </span>
   );
-}
+});
 
 

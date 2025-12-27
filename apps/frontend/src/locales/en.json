@@ -211,6 +211,8 @@
     "subtitle": "Manage your memes and channel settings",
     "help": {
       "toggle": "Help tooltips",
+      "enabledToast": "Help: ON",
+      "disabledToast": "Help: OFF",
       "resetLayout": "Reset the order of dashboard cards back to the default.",
       "dragToReorder": "Drag this handle to change the order of cards on your dashboard.",
       "pendingCount": "How many submissions are waiting for approval.",

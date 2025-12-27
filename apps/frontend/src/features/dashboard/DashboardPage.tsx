@@ -821,6 +821,11 @@ export default function DashboardPage() {
                   } catch {
                     // ignore
                   }
+                    toast.success(
+                      next
+                        ? t('dashboard.help.enabledToast', { defaultValue: 'Help: ON' })
+                        : t('dashboard.help.disabledToast', { defaultValue: 'Help: OFF' }),
+                    );
                 }}
                 icon={
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
