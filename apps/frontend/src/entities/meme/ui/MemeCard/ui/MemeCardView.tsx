@@ -77,7 +77,10 @@ export function MemeCardView({
         )}
         {isHovered && (
           <div
-            className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-20"
+            // NOTE: On hover the whole card is slightly scaled (see `src/index.css` .meme-card:hover).
+            // That transform can create a 1px anti-aliased edge where the card background/ring peeks through.
+            // Bleed the caption by 1px to fully cover the rounded edge on all DPRs.
+            className="absolute -bottom-px -left-px -right-px bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-20"
             aria-label={`Meme title: ${meme.title}`}
           >
             <p className="text-sm font-medium truncate px-2">{meme.title}</p>
