@@ -74,6 +74,8 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
       type: true,
       fileUrlTemp: true,
       sourceUrl: true,
+      sourceKind: true,
+      memeAssetId: true,
       notes: true,
       status: true,
       moderatorNotes: true,
@@ -81,6 +83,9 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
       createdAt: true,
       submitter: {
         select: { id: true, displayName: true },
+      },
+      memeAsset: {
+        select: { fileUrl: true },
       },
       tags: {
         select: {
@@ -97,6 +102,8 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
       type: true,
       fileUrlTemp: true,
       sourceUrl: true,
+      sourceKind: true,
+      memeAssetId: true,
       notes: true,
       status: true,
       moderatorNotes: true,
@@ -104,6 +111,9 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
       createdAt: true,
       submitter: {
         select: { id: true, displayName: true },
+      },
+      memeAsset: {
+        select: { fileUrl: true },
       },
     } as const;
 
@@ -139,12 +149,34 @@ export const getSubmissions = async (req: AuthRequest, res: Response) => {
 
     // Back-compat: if client didn't request pagination, keep legacy array response.
     if (limit === undefined && offset === undefined) {
-      return res.json(submissions);
+      const normalized = Array.isArray(submissions)
+        ? submissions.map((s: any) => {
+            const { memeAsset, ...rest } = s || {};
+            return {
+              ...rest,
+              // Ensure pending pool submissions always have a usable preview URL.
+              // NOTE: sourceUrl is also used for imported memes; pool uses it strictly for preview.
+              sourceUrl:
+                String((s?.sourceKind || '')).toLowerCase() === 'pool' && !s?.sourceUrl ? s?.memeAsset?.fileUrl ?? null : s?.sourceUrl ?? null,
+            };
+          })
+        : submissions;
+      return res.json(normalized);
     }
 
     // Perf: counting can be expensive on large datasets; only compute if requested.
     const total = includeTotal ? await prisma.memeSubmission.count({ where }) : null;
-    return res.json({ items: submissions, total });
+    const items = Array.isArray(submissions)
+      ? submissions.map((s: any) => {
+          const { memeAsset, ...rest } = s || {};
+          return {
+            ...rest,
+            sourceUrl:
+              String((s?.sourceKind || '')).toLowerCase() === 'pool' && !s?.sourceUrl ? s?.memeAsset?.fileUrl ?? null : s?.sourceUrl ?? null,
+          };
+        })
+      : [];
+    return res.json({ items, total });
   } catch (error: any) {
     console.error('Error in getSubmissions:', error);
     if (!res.headersSent) {

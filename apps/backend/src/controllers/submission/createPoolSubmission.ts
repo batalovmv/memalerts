@@ -209,9 +209,12 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         channelId: body.channelId,
         submitterUserId: userId,
         title: body.title,
-        type: 'video',
-        // Not used for pool submissions, but keep non-null for legacy back-compat.
+        type: asset.type,
+        // fileUrlTemp is only for local uploads; keep non-null for legacy back-compat.
         fileUrlTemp: '',
+        // For pool submissions, preview should come from the asset itself.
+        // Keep it in sourceUrl so pending UI has a stable URL without extra joins/endpoints.
+        sourceUrl: asset.fileUrl,
         notes: body.notes || null,
         status: 'pending',
         sourceKind: 'pool',

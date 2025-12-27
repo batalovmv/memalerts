@@ -26,6 +26,9 @@ export const getMySubmissions = async (req: AuthRequest, res: Response) => {
         moderatorNotes: true,
         revision: true,
         createdAt: true,
+        memeAsset: {
+          select: { fileUrl: true },
+        },
         tags: {
           select: {
             tag: { select: { id: true, name: true } },
@@ -43,7 +46,15 @@ export const getMySubmissions = async (req: AuthRequest, res: Response) => {
     // Back-compat: some deployments might not have MemeSubmissionTag table (older DB).
     // If so, retry without tags and provide empty tags array.
     if (Array.isArray(submissions)) {
-      return res.json(submissions);
+      const normalized = submissions.map((s: any) => {
+        const { memeAsset, ...rest } = s || {};
+        return {
+          ...rest,
+          sourceUrl:
+            String((s?.sourceKind || '')).toLowerCase() === 'pool' && !s?.sourceUrl ? s?.memeAsset?.fileUrl ?? null : s?.sourceUrl ?? null,
+        };
+      });
+      return res.json(normalized);
     }
     return res.json([]);
   } catch (error: any) {
@@ -77,9 +88,22 @@ export const getMySubmissions = async (req: AuthRequest, res: Response) => {
               moderatorNotes: true,
               revision: true,
               createdAt: true,
+              memeAsset: {
+                select: { fileUrl: true },
+              },
             },
           });
-          return res.json(fallback.map((s: any) => ({ ...s, tags: [] })));
+          return res.json(
+            fallback.map((s: any) => {
+              const { memeAsset, ...rest } = s || {};
+              return {
+                ...rest,
+                sourceUrl:
+                  String((s?.sourceKind || '')).toLowerCase() === 'pool' && !s?.sourceUrl ? s?.memeAsset?.fileUrl ?? null : s?.sourceUrl ?? null,
+                tags: [],
+              };
+            }),
+          );
         } catch {
           // fall through
         }
