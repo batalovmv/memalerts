@@ -7,6 +7,7 @@ import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBo
 import { entitlementsController } from '../controllers/owner/entitlementsController.js';
 import { channelResolveController } from '../controllers/owner/channelResolveController.js';
 import { memeAssetModerationController } from '../controllers/owner/memeAssetModerationController.js';
+import { moderatorsController } from '../controllers/owner/moderatorsController.js';
 import { ownerResolveLimiter } from '../middleware/rateLimit.js';
 
 // Owner-only API (role: admin).
@@ -44,8 +45,15 @@ ownerRoutes.get('/channels/resolve', ownerResolveLimiter, channelResolveControll
 ownerRoutes.post('/entitlements/custom-bot/grant-by-provider', ownerResolveLimiter, entitlementsController.grantCustomBotByProvider);
 
 // Meme pool moderation (admin-only): affects only pool visibility (does not retroactively remove from channels).
+ownerRoutes.get('/meme-assets', memeAssetModerationController.list);
 ownerRoutes.post('/meme-assets/:id/hide', memeAssetModerationController.hide);
 ownerRoutes.post('/meme-assets/:id/unhide', memeAssetModerationController.unhide);
 ownerRoutes.post('/meme-assets/:id/purge', memeAssetModerationController.purge);
+ownerRoutes.post('/meme-assets/:id/restore', memeAssetModerationController.restore);
+
+// Global moderators management (admin-only)
+ownerRoutes.get('/moderators', moderatorsController.list);
+ownerRoutes.post('/moderators/:userId/grant', moderatorsController.grant);
+ownerRoutes.post('/moderators/:userId/revoke', moderatorsController.revoke);
 
 

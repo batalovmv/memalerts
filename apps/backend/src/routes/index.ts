@@ -4,6 +4,7 @@ import { viewerRoutes } from './viewer.js';
 import { submissionRoutes } from './submissions.js';
 import { streamerRoutes } from './streamer.js';
 import { ownerRoutes } from './owner.js';
+import { moderationRoutes } from './moderation.js';
 import { webhookRoutes } from './webhooks.js';
 import { betaRoutes } from './beta.js';
 import { authenticate, AuthRequest, optionalAuthenticate } from '../middleware/auth.js';
@@ -508,9 +509,11 @@ export function setupRoutes(app: Express) {
   // Panel routes:
   // - /streamer/*: streamer/admin panel endpoints
   // - /owner/*: owner-only endpoints
+  // - /moderation/*: global pool moderation endpoints (admin + global moderators)
   // All are authenticated and beta-gated on beta.
   app.use('/streamer', authenticate, requireBetaAccess, streamerRoutes);
   app.use('/owner', authenticate, requireBetaAccess, ownerRoutes);
+  app.use('/moderation', authenticate, requireBetaAccess, moderationRoutes);
   app.use('/', betaRoutes); // Beta access routes (mounted at root to avoid /beta/beta/request)
 }
 

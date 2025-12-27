@@ -150,10 +150,24 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
     if (fileHash) {
       const existingAsset = await prisma.memeAsset.findFirst({
         where: { fileHash },
-        select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true },
+        select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgeRequestedAt: true, purgedAt: true },
       });
 
       if (existingAsset) {
+        // Safety: forbid re-import by hash if the asset was deleted (quarantine) or purged.
+        if (existingAsset.purgeRequestedAt || existingAsset.purgedAt) {
+          try {
+            await decrementFileHashReference(fileHash);
+          } catch {
+            // ignore
+          }
+          return res.status(410).json({
+            errorCode: 'MEME_ASSET_DELETED',
+            error: 'This meme was deleted and cannot be imported again',
+            requestId: req.requestId,
+          });
+        }
+
         const existingCm = await prisma.channelMeme.findUnique({
           where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId: existingAsset.id } },
           select: { id: true, deletedAt: true, legacyMemeId: true, memeAssetId: true },

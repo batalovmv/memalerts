@@ -397,10 +397,31 @@ model User {
   channelStats30d             ChannelUserStats30d[]
   auditLogs                   AuditLog[]
   betaAccess                  BetaAccess?
+  globalModerator             GlobalModerator?
+  moderatorsGranted           GlobalModerator[]            @relation("GlobalModeratorGrantedBy")
+  moderatorsRevoked           GlobalModerator[]            @relation("GlobalModeratorRevokedBy")
 
   @@index([twitchUserId])
   @@index([channelId])
   @@index([hasBetaAccess])
+}
+
+// Global moderator permission (does NOT change User.role).
+// Used for shared meme pool moderation (MemeAsset visibility + quarantine deletion).
+model GlobalModerator {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  grantedAt       DateTime @default(now())
+  grantedByUserId String?
+  revokedAt       DateTime?
+  revokedByUserId String?
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("GlobalModeratorGrantedBy", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  revokedBy User? @relation("GlobalModeratorRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([grantedAt])
+  @@index([revokedAt])
 }
 
 model ExternalAccount {

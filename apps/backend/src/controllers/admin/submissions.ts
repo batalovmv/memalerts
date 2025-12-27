@@ -6,6 +6,7 @@ import { approveSubmissionSchema, needsChangesSubmissionSchema, rejectSubmission
 import { getOrCreateTags } from '../../utils/tags.js';
 import {
   calculateFileHash,
+  decrementFileHashReference,
   findOrCreateFileHash,
   getFileStats,
   getFileHashByPath,
@@ -369,7 +370,16 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
               // File was already deduplicated - use existing path and increment reference
               finalFileUrl = submission.fileUrlTemp;
               fileHash = existingHash;
-              await incrementFileHashReference(existingHash);
+            // Safety: forbid approving a submission that maps to a deleted/quarantined asset by hash.
+            // This prevents reintroducing a moderator-deleted meme via an old pending submission.
+            const blocked = await tx.memeAsset.findFirst({
+              where: { fileHash: existingHash, OR: [{ purgeRequestedAt: { not: null } }, { purgedAt: { not: null } }] },
+              select: { id: true },
+            });
+            if (blocked) {
+              throw new Error('MEME_ASSET_DELETED');
+            }
+            await incrementFileHashReference(existingHash);
             } else if (filePath && fs.existsSync(filePath)) {
               // File exists but not in FileHash - calculate hash and deduplicate with timeout
               try {
@@ -393,6 +403,23 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
               }
             } else {
               throw new Error('Uploaded file not found');
+            }
+          }
+
+          // Safety: forbid approving if this hash is in quarantine/purged.
+          if (fileHash) {
+            const blocked = await tx.memeAsset.findFirst({
+              where: { fileHash, OR: [{ purgeRequestedAt: { not: null } }, { purgedAt: { not: null } }] },
+              select: { id: true },
+            });
+            if (blocked) {
+              // findOrCreateFileHash increments FileHash.referenceCount; undo to avoid leaks.
+              try {
+                await decrementFileHashReference(fileHash);
+              } catch {
+                // ignore
+              }
+              throw new Error('MEME_ASSET_DELETED');
             }
           }
 
@@ -758,6 +785,13 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
         errorCode: 'MEME_ASSET_NOT_FOUND',
         error: 'Meme asset not found',
         details: { entity: 'memeAsset', id: submission?.memeAssetId ?? null },
+      });
+    }
+    if (error.message === 'MEME_ASSET_DELETED') {
+      return res.status(410).json({
+        errorCode: 'MEME_ASSET_DELETED',
+        error: 'This meme was deleted and cannot be approved',
+        details: { fileHash: null },
       });
     }
     if (error.message === 'MEDIA_NOT_AVAILABLE') {

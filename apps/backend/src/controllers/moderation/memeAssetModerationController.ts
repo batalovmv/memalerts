@@ -7,11 +7,16 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   if (!Number.isFinite(n)) return fallback;
   if (n < min) return min;
   if (n > max) return max;
-  return n;
+  return Math.floor(n);
 }
 
-export const memeAssetModerationController = {
-  // GET /owner/meme-assets?status=hidden|quarantine|purged|all&q=...&limit=...&offset=...
+function getDefaultQuarantineDays(): number {
+  const raw = parseInt(String(process.env.MEME_ASSET_QUARANTINE_DAYS || ''), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 14;
+}
+
+export const moderationMemeAssetController = {
+  // GET /moderation/meme-assets?status=hidden|quarantine|purged|all&q=...&limit=...&offset=...
   list: async (req: AuthRequest, res: Response) => {
     const status = String((req.query as any)?.status || 'quarantine').toLowerCase();
     const qRaw = String((req.query as any)?.q || '').trim();
@@ -19,7 +24,7 @@ export const memeAssetModerationController = {
 
     const limitRaw = parseInt(String((req.query as any)?.limit ?? ''), 10);
     const offsetRaw = parseInt(String((req.query as any)?.offset ?? ''), 10);
-    const limit = clampInt(Number.isFinite(limitRaw) ? limitRaw : 50, 1, 500, 50);
+    const limit = clampInt(Number.isFinite(limitRaw) ? limitRaw : 50, 1, 200, 50);
     const offset = clampInt(Number.isFinite(offsetRaw) ? offsetRaw : 0, 0, 1_000_000, 0);
 
     const where: any = {};
@@ -33,11 +38,12 @@ export const memeAssetModerationController = {
     } else if (status === 'purged') {
       where.purgedAt = { not: null };
     } else if (status === 'all') {
-      // no extra filters
+      // no additional filters
     } else {
       return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Invalid status filter', requestId: req.requestId });
     }
 
+    // Simple search by fileHash or reason (best-effort).
     if (q) {
       where.OR = [
         { fileHash: { equals: q } },
@@ -75,11 +81,10 @@ export const memeAssetModerationController = {
     return res.json(rows);
   },
 
-  // POST /owner/meme-assets/:id/hide
+  // POST /moderation/meme-assets/:id/hide  body: { reason?: string }
   hide: async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id || '');
     const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).slice(0, 500) : null;
-
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     try {
@@ -101,18 +106,17 @@ export const memeAssetModerationController = {
       });
 
       await auditLog({
-        action: 'owner.memeAsset.hide',
+        action: 'moderation.memeAsset.hide',
         actorId: req.userId!,
         payload: { memeAssetId: id, reason },
         ipAddress,
         userAgent,
         success: true,
       });
-
       return res.json(updated);
     } catch (e: any) {
       await auditLog({
-        action: 'owner.memeAsset.hide',
+        action: 'moderation.memeAsset.hide',
         actorId: req.userId || null,
         payload: { memeAssetId: id, reason },
         ipAddress,
@@ -120,11 +124,11 @@ export const memeAssetModerationController = {
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 
-  // POST /owner/meme-assets/:id/unhide
+  // POST /moderation/meme-assets/:id/unhide
   unhide: async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id || '');
     const { ipAddress, userAgent } = getRequestMetadata(req);
@@ -144,22 +148,24 @@ export const memeAssetModerationController = {
           poolHiddenAt: true,
           poolHiddenByUserId: true,
           poolHiddenReason: true,
+          purgeRequestedAt: true,
+          purgeNotBefore: true,
+          purgedAt: true,
         },
       });
 
       await auditLog({
-        action: 'owner.memeAsset.unhide',
+        action: 'moderation.memeAsset.unhide',
         actorId: req.userId!,
         payload: { memeAssetId: id },
         ipAddress,
         userAgent,
         success: true,
       });
-
       return res.json(updated);
     } catch (e: any) {
       await auditLog({
-        action: 'owner.memeAsset.unhide',
+        action: 'moderation.memeAsset.unhide',
         actorId: req.userId || null,
         payload: { memeAssetId: id },
         ipAddress,
@@ -167,22 +173,26 @@ export const memeAssetModerationController = {
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 
-  // POST /owner/meme-assets/:id/purge
-  // Sets quarantine (purgeNotBefore) and hides from pool immediately.
-  purge: async (req: AuthRequest, res: Response) => {
+  // POST /moderation/meme-assets/:id/delete  body: { reason?: string, days?: number }
+  // "Delete" = quarantine (sets purgeRequestedAt/purgeNotBefore) + hide from pool immediately.
+  // Final purge is performed by background job after purgeNotBefore (and can be restored by admin before/after).
+  del: async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id || '');
     const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).slice(0, 500) : null;
+    if (!reason) {
+      return res.status(400).json({ errorCode: 'VALIDATION_ERROR', error: 'Reason is required', requestId: req.requestId });
+    }
     const daysRaw = (req.body as any)?.days;
     const daysNum = typeof daysRaw === 'number' ? daysRaw : typeof daysRaw === 'string' ? parseInt(daysRaw, 10) : NaN;
-    const days = clampInt(daysNum, 1, 90, 7);
+    // Safety: keep a minimum window so the admin has time to review/restore.
+    const days = clampInt(daysNum, 3, 90, getDefaultQuarantineDays());
 
     const now = new Date();
     const purgeNotBefore = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
     try {
@@ -201,62 +211,6 @@ export const memeAssetModerationController = {
         select: {
           id: true,
           poolVisibility: true,
-          purgeRequestedAt: true,
-          purgeNotBefore: true,
-          purgedAt: true,
-          purgeReason: true,
-          purgeByUserId: true,
-        },
-      });
-
-      await auditLog({
-        action: 'owner.memeAsset.purge',
-        actorId: req.userId!,
-        payload: { memeAssetId: id, days, purgeNotBefore, reason },
-        ipAddress,
-        userAgent,
-        success: true,
-      });
-
-      return res.json(updated);
-    } catch (e: any) {
-      await auditLog({
-        action: 'owner.memeAsset.purge',
-        actorId: req.userId || null,
-        payload: { memeAssetId: id, days, purgeNotBefore, reason },
-        ipAddress,
-        userAgent,
-        success: false,
-        error: e?.message,
-      });
-      return res.status(404).json({ error: 'NOT_FOUND' });
-    }
-  },
-
-  // POST /owner/meme-assets/:id/restore
-  // Restores visibility AND clears quarantine fields (safe undo).
-  // Note: this does not touch ChannelMeme state; streamers manage their channel memes separately.
-  restore: async (req: AuthRequest, res: Response) => {
-    const id = String(req.params.id || '');
-    const { ipAddress, userAgent } = getRequestMetadata(req);
-
-    try {
-      const updated = await prisma.memeAsset.update({
-        where: { id },
-        data: {
-          poolVisibility: 'visible',
-          poolHiddenAt: null,
-          poolHiddenByUserId: null,
-          poolHiddenReason: null,
-          purgeRequestedAt: null,
-          purgeNotBefore: null,
-          purgedAt: null,
-          purgeReason: null,
-          purgeByUserId: null,
-        },
-        select: {
-          id: true,
-          poolVisibility: true,
           poolHiddenAt: true,
           poolHiddenByUserId: true,
           poolHiddenReason: true,
@@ -269,26 +223,25 @@ export const memeAssetModerationController = {
       });
 
       await auditLog({
-        action: 'owner.memeAsset.restore',
+        action: 'moderation.memeAsset.delete',
         actorId: req.userId!,
-        payload: { memeAssetId: id },
+        payload: { memeAssetId: id, days, purgeNotBefore, reason },
         ipAddress,
         userAgent,
         success: true,
       });
-
       return res.json(updated);
     } catch (e: any) {
       await auditLog({
-        action: 'owner.memeAsset.restore',
+        action: 'moderation.memeAsset.delete',
         actorId: req.userId || null,
-        payload: { memeAssetId: id },
+        payload: { memeAssetId: id, days, purgeNotBefore, reason },
         ipAddress,
         userAgent,
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 };

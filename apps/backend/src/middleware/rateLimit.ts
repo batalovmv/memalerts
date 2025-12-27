@@ -209,6 +209,35 @@ export const uploadLimiter = rateLimit({
   },
 });
 
+// Moderator/admin panel actions: keep strict but per-user to avoid shared-IP issues.
+// Intended for low-frequency "click actions" (hide/delete/restore/grant/revoke).
+export const moderationActionLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60/min per user (or per IP for guests, but these routes are auth-gated)
+  message: 'Too many moderation requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: maybeCreateRateLimitStore('moderationAction'),
+  keyGenerator: (req) => {
+    const anyReq = req as any;
+    const userId = typeof anyReq.userId === 'string' ? anyReq.userId : null;
+    if (userId) return `user:${userId}`;
+    return `ip:${getClientIP(req)}`;
+  },
+  handler: (req: Request, res: any, _next: any, options: any) => {
+    logRateLimitEvent('blocked', req, {
+      limiter: 'moderationAction',
+      limit: options.max,
+      windowMs: options.windowMs,
+    });
+    res.status(options.statusCode).json({
+      errorCode: 'RATE_LIMITED',
+      error: 'Too many requests',
+      message: options.message,
+    });
+  },
+});
+
 // Public (token-based) submissions control endpoints for StreamDeck/StreamerBot.
 // Keep it strict: this should be triggered rarely (button press), not spammed.
 export const publicSubmissionsControlLimiter = rateLimit({

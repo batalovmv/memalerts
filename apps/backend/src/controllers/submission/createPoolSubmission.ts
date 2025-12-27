@@ -88,7 +88,16 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
 
     const asset = await prisma.memeAsset.findUnique({
       where: { id: body.memeAssetId },
-      select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgedAt: true },
+      select: {
+        id: true,
+        type: true,
+        fileUrl: true,
+        fileHash: true,
+        durationMs: true,
+        poolVisibility: true,
+        purgeRequestedAt: true,
+        purgedAt: true,
+      },
     });
     stageLog('submission.pool.after_asset_lookup', {
       requestId,
@@ -97,7 +106,10 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       purged: !!asset?.purgedAt,
       durationMs: Date.now() - startedAt,
     });
-    if (!asset || asset.purgedAt) return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
+    // Safety: prevent adopting hidden/quarantined/purged assets even if caller knows the id.
+    if (!asset || asset.purgedAt || asset.purgeRequestedAt || asset.poolVisibility !== 'visible') {
+      return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
+    }
     if (!asset.fileUrl) return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
 
     // If already adopted in this channel -> error for frontend handling.
