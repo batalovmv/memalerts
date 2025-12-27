@@ -58,7 +58,7 @@ export default function StreamerProfile() {
   const { socket, isConnected } = useSocket();
   
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
-  const [channelLoadError, setChannelLoadError] = useState<null | 'auth_required' | 'forbidden' | 'not_found' | 'failed'>(null);
+  const [channelLoadError, setChannelLoadError] = useState<null | 'auth_required' | 'forbidden' | 'beta_required' | 'not_found' | 'failed'>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,27 +129,8 @@ export default function StreamerProfile() {
       setHasMore(true);
       setMemesOffset(0);
       try {
-        // Load channel info without memes for faster initial load.
-        // On some deployments, /channels/* may require auth; in that case try a public fallback for guests.
-        let channelInfo: ChannelInfo | null = null;
-        try {
-          channelInfo = await api.get<ChannelInfo>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
-        } catch (e: unknown) {
-          const err = e as { response?: { status?: number } };
-          const status = err.response?.status;
-          if (!isAuthed && (status === 401 || status === 403)) {
-            // Best-effort: try public endpoint if server exposes it (won't break if absent).
-            try {
-              channelInfo = await api.get<ChannelInfo>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
-            } catch {
-              // If public endpoint is missing/blocked, preserve the original auth error
-              // so UI doesn't mis-report "channel not found" for guests.
-              throw e;
-            }
-          } else {
-            throw e;
-          }
-        }
+        // Public profile must use public API as canonical source.
+        const channelInfo = await api.get<ChannelInfo>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
         if (!channelInfo) {
           throw new Error('Channel info missing');
         }
@@ -172,22 +153,9 @@ export default function StreamerProfile() {
           listParams.set('sortOrder', 'desc');
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
-          let memes: Meme[] = [];
-          try {
-            memes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
-          } catch (e: unknown) {
-            const err = e as { response?: { status?: number } };
-            const status = err.response?.status;
-            if (!isAuthed && (status === 401 || status === 403)) {
-              try {
-                memes = await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
-              } catch {
-                throw e;
-              }
-            } else {
-              throw e;
-            }
-          }
+          const memes = canIncludeFileHash
+            ? await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 })
+            : await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
         } catch (error) {
@@ -232,10 +200,13 @@ export default function StreamerProfile() {
           }
         }
       } catch (error: unknown) {
-        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
+        const apiError = error as { response?: { status?: number; data?: { error?: string; errorCode?: string } } };
         const status = apiError.response?.status;
+        const errorCode = apiError.response?.data?.errorCode;
         if (!isAuthed && status === 401) {
           setChannelLoadError('auth_required');
+        } else if (status === 403 && errorCode === 'BETA_ACCESS_REQUIRED') {
+          setChannelLoadError('beta_required');
         } else if (status === 403) {
           setChannelLoadError('forbidden');
         } else if (status === 404) {
@@ -312,9 +283,9 @@ export default function StreamerProfile() {
       listParams.set('sortOrder', 'desc');
       if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
-      const newMemes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, {
-        timeout: 15000, // 15 seconds timeout
-      });
+      const newMemes = canIncludeFileHash
+        ? await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 })
+        : await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
       
       if (newMemes.length > 0) {
         setMemes(prev => [...prev, ...newMemes]);
@@ -364,31 +335,26 @@ export default function StreamerProfile() {
     const performSearch = async () => {
       setIsSearching(true);
       try {
+        // Favorites search requires auth; for regular search use safe public endpoint.
+        if (myFavorites && !isAuthed) {
+          setSearchResults([]);
+          return;
+        }
+
         const params = new URLSearchParams();
         if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
-        params.set('channelSlug', normalizedSlug);
         params.set('limit', '100');
-        if (myFavorites) params.set('favorites', '1');
         params.set('sortBy', 'createdAt');
         params.set('sortOrder', 'desc');
-        let memes: Meme[] = [];
-        try {
-          memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
-        } catch (e: unknown) {
-          const err = e as { response?: { status?: number } };
-          const status = err.response?.status;
-          if (!isAuthed && (status === 401 || status === 403)) {
-            // Guest search should work if backend exposes public read APIs.
-            // If not available, keep empty results quietly.
-            try {
-              memes = await api.get<Meme[]>(`/public/channels/memes/search?${params.toString()}`);
-            } catch {
-              memes = [];
-            }
-          } else {
-            throw e;
-          }
-        }
+
+        const memes = myFavorites
+          ? await api.get<Meme[]>(`/channels/memes/search?${(() => {
+              const p = new URLSearchParams(params);
+              p.set('channelSlug', normalizedSlug);
+              p.set('favorites', '1');
+              return p.toString();
+            })()}`)
+          : await api.get<Meme[]>(`/public/channels/${normalizedSlug}/memes/search?${params.toString()}`);
         setSearchResults(memes);
       } catch (error: unknown) {
         setSearchResults([]);
@@ -427,6 +393,18 @@ export default function StreamerProfile() {
 
   // Show error state when channel info didn't load
   if (!loading && !channelInfo) {
+    const isBetaRequired = channelLoadError === 'beta_required';
+    const isBetaHost = window.location.hostname.toLowerCase().includes('beta.');
+    const openProduction = () => {
+      try {
+        if (!isBetaHost) return;
+        const origin = window.location.origin;
+        const prodOrigin = origin.replace('//beta.', '//');
+        window.location.href = `${prodOrigin}/channel/${normalizedSlug}`;
+      } catch {
+        // ignore
+      }
+    };
     return (
       <PageShell header={<Header />}>
         <div className="min-h-[50vh] flex items-center justify-center px-4">
@@ -434,6 +412,8 @@ export default function StreamerProfile() {
             <div className="text-lg font-semibold text-gray-900 dark:text-white">
               {channelLoadError === 'auth_required'
                 ? t('profile.authRequiredTitle', { defaultValue: 'Login required' })
+                : isBetaRequired
+                  ? t('betaAccess.title', { defaultValue: 'Beta access required' })
                 : channelLoadError === 'forbidden'
                   ? t('profile.accessDeniedTitle', { defaultValue: 'Access denied' })
                   : channelLoadError === 'failed'
@@ -443,6 +423,10 @@ export default function StreamerProfile() {
             <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               {channelLoadError === 'auth_required'
                 ? t('profile.authRequiredHint', { defaultValue: 'Please log in to view this channel.' })
+                : isBetaRequired
+                  ? t('betaAccess.pageDescription', {
+                      defaultValue: 'Beta is for testing new features. You can request access below.',
+                    })
                 : channelLoadError === 'forbidden'
                   ? t('profile.accessDeniedHint', { defaultValue: 'You do not have access to view this channel.' })
                   : channelLoadError === 'failed'
@@ -453,6 +437,25 @@ export default function StreamerProfile() {
               {channelLoadError === 'auth_required' ? (
                 <Button type="button" variant="primary" onClick={() => login(`/channel/${normalizedSlug}`)}>
                   {t('auth.login', { defaultValue: 'Log in with Twitch' })}
+                </Button>
+              ) : isBetaRequired ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => {
+                    if (!user) {
+                      login('/beta-access');
+                      return;
+                    }
+                    navigate('/beta-access');
+                  }}
+                >
+                  {t('betaAccess.requestButton', { defaultValue: 'Request beta access' })}
+                </Button>
+              ) : null}
+              {isBetaRequired && isBetaHost ? (
+                <Button type="button" variant="secondary" onClick={openProduction}>
+                  {t('betaAccess.openProductionButton', { defaultValue: 'Open production' })}
                 </Button>
               ) : null}
               <Button type="button" variant="secondary" onClick={() => setReloadNonce((n) => n + 1)}>

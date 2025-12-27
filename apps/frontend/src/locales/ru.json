@@ -981,6 +981,7 @@
     "revoked": "Доступ к beta был забран администратором.",
     "useProduction": "Пока нет доступа к beta, используйте продакшн-версию сайта.",
     "requestButton": "Запросить доступ к Beta",
+    "openProductionButton": "Открыть production",
     "pageTitle": "Доступ к Beta",
     "pageDescription": "Beta нужна для тестирования нового функционала. Вы можете отправить заявку на доступ ниже.",
     "loginRequired": "Пожалуйста, войдите, чтобы запросить доступ к Beta.",
