@@ -44,6 +44,7 @@ export const ERROR_CODES = {
   OAUTH_STATE_MISMATCH: 'OAUTH_STATE_MISMATCH',
   TWITCH_NOT_LINKED: 'TWITCH_NOT_LINKED',
   TWITCH_ALREADY_LINKED: 'TWITCH_ALREADY_LINKED',
+  ACCOUNT_ALREADY_LINKED: 'ACCOUNT_ALREADY_LINKED',
   // Bots / relay (public contract)
   BOT_NOT_CONFIGURED: 'BOT_NOT_CONFIGURED',
   BOT_DISABLED: 'BOT_DISABLED',
@@ -97,6 +98,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   OAUTH_STATE_MISMATCH: 'OAuth state mismatch',
   TWITCH_NOT_LINKED: 'Twitch account is not linked',
   TWITCH_ALREADY_LINKED: 'Twitch account already linked',
+  ACCOUNT_ALREADY_LINKED: 'Account already linked',
   BOT_NOT_CONFIGURED: 'Bot is not configured',
   BOT_DISABLED: 'Bot is disabled',
   RELAY_UNAVAILABLE: 'Relay unavailable',

@@ -14,6 +14,7 @@ import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/
 import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
+import { ERROR_CODES } from '../shared/errors.js';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -90,6 +91,15 @@ function buildRedirectWithError(baseUrl: string, redirectPath: string, params: R
     if (v) url.searchParams.set(k, v);
   }
   return url.toString();
+}
+
+function wantsJson(req: AuthRequest): boolean {
+  const accept = String(req.get('accept') || '').toLowerCase();
+  if (accept.includes('application/json')) return true;
+  // Some clients send */* but still expect JSON for API calls; rely on XHR hint.
+  const anyReq = req as any;
+  if (anyReq?.xhr) return true;
+  return false;
 }
 
 // Simple Twitch OAuth implementation (you can replace with passport-twitch-new)
@@ -176,6 +186,7 @@ export const authController = {
 
     const { code, error, state } = req.query;
     const errorDescription = (req.query as any)?.error_description;
+    const requestId = (req as any)?.requestId as string | undefined;
 
     // Load+consume state from DB (real verification; old JSON-state is no longer supported).
     const stateId = typeof state === 'string' ? state : '';
@@ -238,6 +249,11 @@ export const authController = {
       const redirectUrl = getRedirectUrl(req, stateOrigin);
       return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_code`);
     }
+
+    // Keep some context for catch() diagnostics.
+    let diagProviderAccountId: string | null = null;
+    let diagResolvedUserId: string | null = null;
+    let diagExistingExternalUserId: string | null = null;
 
     try {
       if (!consumed.ok) {
@@ -310,6 +326,7 @@ export const authController = {
         }
 
         providerAccountId = twitchUser.id;
+        diagProviderAccountId = providerAccountId;
         displayName = twitchUser.display_name ?? null;
         login = twitchUser.login ?? null;
         avatarUrl = twitchUser.profile_image_url || null;
@@ -374,12 +391,14 @@ export const authController = {
             return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user`);
           }
           providerAccountId = googleUser.sub;
+          diagProviderAccountId = providerAccountId;
           displayName = googleUser.name || null;
           login = googleUser.email || null;
           avatarUrl = googleUser.picture || null;
           profileUrl = null;
         } else {
           providerAccountId = sub;
+          diagProviderAccountId = providerAccountId;
           // We don't request profile/email scopes for streamer YouTube linking; keep these empty.
           // For bot_link with OIDC scopes, we could fill some fields, but it's optional.
           displayName = null;
@@ -413,6 +432,7 @@ export const authController = {
         }
 
         providerAccountId = String(vkUser.id);
+        diagProviderAccountId = providerAccountId;
         const dn = [vkUser.first_name, vkUser.last_name].filter(Boolean).join(' ').trim();
         displayName = dn || null;
         login = vkUser.screen_name || tokenData.email || null;
@@ -504,6 +524,7 @@ export const authController = {
 
         const tokenUserId = String(tokenExchange.data.sub ?? tokenExchange.data.user_id ?? '').trim();
         providerAccountId = String(vkVideoUser?.id || tokenUserId).trim();
+        diagProviderAccountId = providerAccountId || null;
 
         // Fallback: if userinfo is not configured and token response does not include user id,
         // attempt to decode access_token as JWT and use its "sub" claim.
@@ -541,6 +562,7 @@ export const authController = {
         where: { provider_providerAccountId: { provider, providerAccountId } },
         select: { id: true, userId: true },
       });
+      diagExistingExternalUserId = existingExternal?.userId ?? null;
 
       let user = null as any;
 
@@ -552,6 +574,14 @@ export const authController = {
         if (existingExternal && existingExternal.userId !== stateUserId) {
           const redirectUrl = getRedirectUrl(req, stateOrigin);
           const redirectPath = sanitizeRedirectTo(stateRedirectTo || DEFAULT_LINK_REDIRECT);
+          // If the client expects JSON (API-style), return 409 with a stable errorCode.
+          if (wantsJson(req)) {
+            return res.status(409).json({
+              errorCode: ERROR_CODES.ACCOUNT_ALREADY_LINKED,
+              error: 'Account already linked',
+              details: { provider, providerAccountId },
+            });
+          }
           return res.redirect(buildRedirectWithError(redirectUrl, redirectPath, { error: 'auth_failed', reason: 'account_already_linked', provider }));
         }
 
@@ -570,22 +600,56 @@ export const authController = {
           return res.redirect(`${redirectUrl}/?error=auth_failed&reason=login_not_supported&provider=${provider}`);
         }
 
-        if (existingExternal) {
-          user = await prisma.user.findUnique({
-            where: { id: existingExternal.userId },
-            include: { wallets: true, channel: { select: safeChannelSelect } },
-          });
+        // Canonical lookup: User.twitchUserId (unique). This avoids "reassigning" twitchUserId on a user
+        // that was found via a different key (e.g. stale ExternalAccount mapping).
+        const userByTwitchId = await prisma.user.findUnique({
+          where: { twitchUserId: providerAccountId },
+          include: { wallets: true, channel: { select: safeChannelSelect } },
+        });
+
+        if (userByTwitchId) {
+          user = userByTwitchId;
+          if (existingExternal && existingExternal.userId !== userByTwitchId.id) {
+            logger.warn('oauth.twitch.login.mapping_mismatch', {
+              requestId,
+              state: statePreview,
+              twitchUserId: providerAccountId,
+              externalUserId: existingExternal.userId,
+              userIdByTwitchUserId: userByTwitchId.id,
+            });
+          }
         }
 
-        // Legacy fallback (pre-backfill)
         if (!user) {
-          user = await prisma.user.findUnique({
-            where: { twitchUserId: providerAccountId },
-            include: { wallets: true, channel: { select: safeChannelSelect } },
-          });
-        }
+          // If ExternalAccount exists but User.twitchUserId is not set anywhere, this Twitch account
+          // is already linked as a secondary identity (e.g. bot_link) or DB is inconsistent.
+          // Do NOT "steal" it for login by moving the ExternalAccount mapping.
+          if (existingExternal) {
+            logger.warn('oauth.twitch.login.account_already_linked_no_primary', {
+              requestId,
+              state: statePreview,
+              twitchUserId: providerAccountId,
+              externalUserId: existingExternal.userId,
+            });
 
-        if (!user) {
+            const redirectUrl = getRedirectUrl(req, stateOrigin);
+            const redirectPath = sanitizeRedirectTo(stateRedirectTo || '/');
+            if (wantsJson(req)) {
+              return res.status(409).json({
+                errorCode: ERROR_CODES.ACCOUNT_ALREADY_LINKED,
+                error: 'Account already linked',
+                details: { provider, providerAccountId },
+              });
+            }
+            return res.redirect(
+              buildRedirectWithError(redirectUrl, redirectPath, {
+                error: 'auth_failed',
+                reason: 'account_already_linked',
+                provider,
+              })
+            );
+          }
+
           // First login: create viewer user (no Channel auto-creation)
           user = await prisma.user.create({
             data: {
@@ -601,6 +665,7 @@ export const authController = {
           });
         }
       }
+      diagResolvedUserId = user?.id ?? null;
 
       // Upsert ExternalAccount (either login or link). For Twitch login, also refresh legacy User fields.
       const botLinkChannelId = stateKind === 'bot_link' ? String(stateChannelId || '').trim() : '';
@@ -692,6 +757,18 @@ export const authController = {
         // For link/bot_link (e.g. linking a separate bot account), updating User.twitchUserId can violate
         // the unique constraint and also corrupt the "logged-in user" identity.
         if (provider === 'twitch' && stateKind === 'login') {
+          if (user.twitchUserId && user.twitchUserId !== providerAccountId) {
+            // Safety net: should be prevented by the selection logic above.
+            logger.error('oauth.twitch.login.user_mismatch_guard', {
+              requestId,
+              state: statePreview,
+              twitchUserId: providerAccountId,
+              userId: user.id,
+              userTwitchUserId: user.twitchUserId,
+            });
+            throw new Error('twitch_user_mismatch');
+          }
+
           await tx.user.update({
             where: { id: user.id },
             data: {
@@ -998,6 +1075,20 @@ export const authController = {
       // Use 302 redirect (temporary) to ensure cookie is sent
       res.status(302).redirect(finalRedirectUrl);
     } catch (error) {
+      // Prefer structured logs (requestId + state) so we can correlate with client reports.
+      logger.error('oauth.callback.exception', {
+        requestId,
+        provider: providerFromUrl,
+        state: statePreview,
+        flow: stateKind || 'unknown',
+        state_userId: stateUserId || null,
+        providerAccountId: diagProviderAccountId,
+        existingExternalUserId: diagExistingExternalUserId,
+        resolvedUserId: diagResolvedUserId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        ...(process.env.NODE_ENV === 'production' ? {} : { stack: error instanceof Error ? error.stack : undefined }),
+      });
+
       console.error('Auth error:', error);
       debugError('Auth error (debug)', error);
       if (providerFromUrl === 'vkvideo') {
