@@ -205,7 +205,7 @@ export function DashboardSubmissionsPanel({
               )}
             </ul>
           )
-        ) : activeTab === 'mine' ? (
+        ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-end gap-2">
               <IconButton
