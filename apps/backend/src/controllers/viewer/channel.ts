@@ -86,8 +86,9 @@ export const getChannelBySlug = async (req: any, res: Response) => {
         },
         _count: {
           select: {
-            // Back-compat: legacy Meme count. Channel-scoped visibility is enforced via ChannelMeme elsewhere.
-            memes: { where: { status: 'approved' } },
+            // Source of truth: ChannelMeme (approved + not deleted).
+            // This avoids showing counts for disabled/deleted memes when legacy rows exist.
+            channelMemes: { where: { status: 'approved', deletedAt: null } },
             users: true,
           },
         },
@@ -95,7 +96,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
     });
 
     if (!channel) {
-      return res.status(404).json({ error: 'Channel not found' });
+      return res.status(404).json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
     }
 
     const owner = (channel as any).users?.[0] || null;
@@ -133,7 +134,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
           }
         : null,
       stats: {
-        memesCount: (channel as any)._count.memes,
+        memesCount: (channel as any)._count.channelMemes,
         usersCount: (channel as any)._count.users,
       },
     };
@@ -312,7 +313,7 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
   else res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
 
   if (!slug) {
-    return res.status(400).json({ error: 'Channel slug is required' });
+    return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Bad request', details: { field: 'slug' } });
   }
 
   const channel = await prisma.channel.findFirst({
@@ -321,7 +322,7 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
   });
 
   if (!channel) {
-    return res.status(404).json({ error: 'Channel not found' });
+    return res.status(404).json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
   }
 
   // IMPORTANT: channel-scoped visibility must follow ChannelMeme, not legacy Meme.

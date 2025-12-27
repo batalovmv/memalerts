@@ -4,7 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { importMemeSchema } from '../../shared/index.js';
 import { getVideoMetadata } from '../../utils/videoValidator.js';
 import { getOrCreateTags } from '../../utils/tags.js';
-import { calculateFileHash, downloadFileFromUrl, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
+import { calculateFileHash, decrementFileHashReference, downloadFileFromUrl, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
 import { validateFileContent } from '../../utils/fileTypeValidator.js';
 import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
 import fs from 'fs';
@@ -77,7 +77,11 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
     // Validate URL is from memalerts.com or cdns.memealerts.com
     const isValidUrl = body.sourceUrl.includes('memalerts.com') || body.sourceUrl.includes('cdns.memealerts.com');
     if (!isValidUrl) {
-      return res.status(400).json({ error: 'Source URL must be from memalerts.com or cdns.memealerts.com' });
+      return res.status(400).json({
+        errorCode: 'INVALID_MEDIA_URL',
+        error: 'Invalid media URL',
+        details: { allowed: ['memalerts.com', 'cdns.memealerts.com'] },
+      });
     }
 
     // Download the file to our server immediately (so we don't depend on external CDN),
@@ -105,8 +109,10 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       const MAX_SIZE = 50 * 1024 * 1024; // 50MB
       if (stat.size > MAX_SIZE) {
         await safeUnlink(tempFilePath);
-        return res.status(400).json({
-          error: `Video file size (${(stat.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (50MB)`,
+        return res.status(413).json({
+          errorCode: 'FILE_TOO_LARGE',
+          error: 'File too large',
+          details: { maxBytes: MAX_SIZE, sizeBytes: stat.size },
         });
       }
 
@@ -116,8 +122,10 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       detectedDurationMs = durationMs;
       if (durationMs !== null && durationMs > 15000) {
         await safeUnlink(tempFilePath);
-        return res.status(400).json({
-          error: `Video duration (${(durationMs / 1000).toFixed(2)}s) exceeds maximum allowed duration (15s)`,
+        return res.status(413).json({
+          errorCode: 'VIDEO_TOO_LONG',
+          error: 'Video is too long',
+          details: { maxDurationMs: 15000, durationMs },
         });
       }
 
@@ -131,9 +139,112 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         await safeUnlink(tempFilePath);
       }
       return res.status(502).json({
-        error: 'Failed to import meme from source URL',
+        errorCode: 'UPLOAD_FAILED',
+        error: 'Upload failed',
         message: dlErr?.message || 'Download failed',
       });
+    }
+
+    // Invariant: if the target channel already has this asset enabled, return 409 for all submission endpoints.
+    // For import we always have a fileHash unless hashing fails catastrophically.
+    if (fileHash) {
+      const existingAsset = await prisma.memeAsset.findFirst({
+        where: { fileHash },
+        select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true },
+      });
+
+      if (existingAsset) {
+        const existingCm = await prisma.channelMeme.findUnique({
+          where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId: existingAsset.id } },
+          select: { id: true, deletedAt: true, legacyMemeId: true, memeAssetId: true },
+        });
+
+        if (existingCm && !existingCm.deletedAt) {
+          // We incremented FileHash.referenceCount in findOrCreateFileHash; undo to avoid leaks.
+          try {
+            await decrementFileHashReference(fileHash);
+          } catch {
+            // ignore
+          }
+          return res.status(409).json({
+            errorCode: 'ALREADY_IN_CHANNEL',
+            error: 'This meme is already in your channel',
+            requestId: req.requestId,
+          });
+        }
+
+        // Owner-bypass: if meme was previously disabled in this channel, restore it instead of creating a duplicate.
+        if (isOwner && existingCm && existingCm.deletedAt) {
+          try {
+            await decrementFileHashReference(fileHash);
+          } catch {
+            // ignore
+          }
+
+          const defaultPrice = (channel as any).defaultPriceCoins ?? 100;
+          const now = new Date();
+
+          const restored = await prisma.channelMeme.update({
+            where: { id: existingCm.id },
+            data: {
+              status: 'approved',
+              deletedAt: null,
+              title: body.title,
+              priceCoins: defaultPrice,
+              approvedByUserId: req.userId!,
+              approvedAt: now,
+            },
+            select: { id: true, legacyMemeId: true, memeAssetId: true },
+          });
+
+          const legacyData: any = {
+            channelId,
+            title: body.title,
+            type: existingAsset.type,
+            fileUrl: existingAsset.fileUrl,
+            fileHash: existingAsset.fileHash,
+            durationMs: existingAsset.durationMs,
+            priceCoins: defaultPrice,
+            status: 'approved',
+            deletedAt: null,
+            createdByUserId: req.userId!,
+            approvedByUserId: req.userId!,
+          };
+
+          let legacy: any | null = null;
+          if (restored.legacyMemeId) {
+            try {
+              legacy = await prisma.meme.update({
+                where: { id: restored.legacyMemeId },
+                data: legacyData,
+              });
+            } catch {
+              legacy = await prisma.meme.create({ data: legacyData });
+              await prisma.channelMeme.update({
+                where: { id: restored.id },
+                data: { legacyMemeId: legacy.id },
+              });
+            }
+          } else {
+            legacy = await prisma.meme.create({ data: legacyData });
+            await prisma.channelMeme.update({
+              where: { id: restored.id },
+              data: { legacyMemeId: legacy.id },
+            });
+          }
+
+          return res.status(201).json({
+            ...(legacy as any),
+            isDirectApproval: true,
+            channelMemeId: restored.id,
+            memeAssetId: restored.memeAssetId,
+            sourceKind: 'url',
+            isRestored: true,
+            status: 'approved',
+            deletedAt: null,
+          });
+        }
+      }
     }
 
     // Get or create tags with timeout protection (same as createSubmission)
@@ -213,7 +324,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Dual-write (best-effort): create/find asset and upsert channel adoption.
+      // Dual-write (required for strict client contract): create/find asset and upsert channel adoption.
       let memeAssetId: string | null = null;
       let channelMemeId: string | null = null;
       try {
@@ -265,8 +376,15 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           select: { id: true },
         });
         channelMemeId = cm.id;
-      } catch (e) {
-        // ignore (backfill can reconcile later)
+      } catch (e: any) {
+        if (e?.code === 'P2002') {
+          return res.status(409).json({
+            errorCode: 'ALREADY_IN_CHANNEL',
+            error: 'This meme is already in your channel',
+            requestId: req.requestId,
+          });
+        }
+        throw e;
       }
 
       return res.status(201).json({
@@ -274,6 +392,9 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         isDirectApproval: true,
         channelMemeId,
         memeAssetId,
+        isRestored: false,
+        status: 'approved',
+        deletedAt: null,
       });
     }
 

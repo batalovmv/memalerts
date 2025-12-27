@@ -205,7 +205,14 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
         : null;
 
     const target = cm ?? cmByLegacy;
-    if (!target || target.channelId !== channelId) return res.status(404).json({ error: 'Meme not found' });
+    if (!target) {
+      return res.status(404).json({ errorCode: 'CHANNEL_MEME_NOT_FOUND', error: 'Meme not found', details: { entity: 'channelMeme', id } });
+    }
+    if (target.channelId !== channelId) {
+      return res
+        .status(403)
+        .json({ errorCode: 'FORBIDDEN', error: 'Forbidden', details: { entity: 'channelMeme', id, channelId: target.channelId } });
+    }
 
     const updated = await prisma.channelMeme.update({
       where: { id: target.id },
@@ -270,7 +277,12 @@ export const deleteMeme = async (req: AuthRequest, res: Response) => {
       (await prisma.channelMeme.findUnique({ where: { id } })) ??
       (await prisma.channelMeme.findFirst({ where: { legacyMemeId: id, channelId } }));
 
-    if (!cm || cm.channelId !== channelId) return res.status(404).json({ error: 'Meme not found' });
+    if (!cm) {
+      return res.status(404).json({ errorCode: 'CHANNEL_MEME_NOT_FOUND', error: 'Meme not found', details: { entity: 'channelMeme', id } });
+    }
+    if (cm.channelId !== channelId) {
+      return res.status(403).json({ errorCode: 'FORBIDDEN', error: 'Forbidden', details: { entity: 'channelMeme', id, channelId: cm.channelId } });
+    }
 
     // Soft delete: disable channel adoption
     const now = new Date();

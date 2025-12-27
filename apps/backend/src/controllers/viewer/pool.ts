@@ -52,23 +52,24 @@ export const getMemePool = async (req: any, res: Response) => {
     // ignore
   }
 
+  // IMPORTANT (product): pool visibility is governed by MemeAsset moderation only.
+  // ChannelMeme adoption (approved/disabled/deletedAt) must NOT hide the asset from the pool.
+  // Search is best-effort via historical channel titles (even if disabled).
   const where: any = {
     poolVisibility: 'visible',
     purgedAt: null,
-    channelMemes: {
-      some: {
-        status: 'approved',
-        deletedAt: null,
-        ...(q
-          ? {
+    ...(q
+      ? {
+          channelMemes: {
+            some: {
               title: {
                 contains: q,
                 mode: 'insensitive',
               },
-            }
-          : {}),
-      },
-    },
+            },
+          },
+        }
+      : {}),
   };
 
   // Order by most recently created asset; later можно заменить на popularity rollups.
@@ -89,7 +90,6 @@ export const getMemePool = async (req: any, res: Response) => {
         },
       },
       channelMemes: {
-        where: { status: 'approved', deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 1,
         select: {

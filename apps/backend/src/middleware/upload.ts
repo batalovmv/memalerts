@@ -71,7 +71,8 @@ export const uploadWithLogging = (req: any, res: any, next: any) => {
       // If response hasn't been sent, send error
       if (!res.headersSent) {
         return res.status(408).json({ 
-          error: 'Upload timeout', 
+          errorCode: 'UPLOAD_TIMEOUT',
+          error: 'Upload timed out',
           message: 'File upload processing timed out. Please try again with a smaller file.' 
         });
       }
@@ -97,14 +98,16 @@ export const uploadWithLogging = (req: any, res: any, next: any) => {
       
       // Handle specific multer errors
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ 
-          error: 'File too large', 
+        return res.status(413).json({
+          errorCode: 'FILE_TOO_LARGE',
+          error: 'File too large',
           message: `File size exceeds maximum allowed size (${MAX_FILE_SIZE / 1024 / 1024}MB)` 
         });
       }
       if (err.code === 'LIMIT_UNEXPECTED_FILE') {
         return res.status(400).json({ 
-          error: 'Unexpected file field', 
+          errorCode: 'BAD_REQUEST',
+          error: 'Unexpected file field',
           message: 'Unexpected file field name. Expected field name: "file"' 
         });
       }

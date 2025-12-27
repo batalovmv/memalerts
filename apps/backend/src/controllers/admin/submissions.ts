@@ -200,12 +200,15 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
             throw new Error('Failed to fetch submission');
           }
 
-          if (!submission || submission.channelId !== channelId) {
-            throw new Error('Submission not found');
+          if (!submission) {
+            throw new Error('SUBMISSION_NOT_FOUND');
+          }
+          if (submission.channelId !== channelId) {
+            throw new Error('SUBMISSION_FORBIDDEN');
           }
 
           if (submission.status !== 'pending') {
-            throw new Error('Submission already processed');
+            throw new Error('SUBMISSION_NOT_PENDING');
           }
 
           // Get channel to use default price and slug for Socket.IO
@@ -238,8 +241,8 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
               where: { id: String((submission as any).memeAssetId) },
               select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgedAt: true },
             });
-            if (!asset || asset.purgedAt) throw new Error('Meme asset not found');
-            if (!asset.fileUrl) throw new Error('Meme asset has no file');
+            if (!asset || asset.purgedAt) throw new Error('MEME_ASSET_NOT_FOUND');
+            if (!asset.fileUrl) throw new Error('MEDIA_NOT_AVAILABLE');
 
             // Upsert ChannelMeme
             const cm = await tx.channelMeme.upsert({
@@ -704,12 +707,41 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
     }
 
     // Handle specific error messages
-    if (error.message === 'Submission not found' || error.message === 'Submission already processed') {
-      return res.status(400).json({ error: error.message });
+    if (error.message === 'SUBMISSION_NOT_FOUND') {
+      return res.status(404).json({ errorCode: 'SUBMISSION_NOT_FOUND', error: 'Submission not found', details: { entity: 'submission', id } });
+    }
+    if (error.message === 'SUBMISSION_FORBIDDEN') {
+      return res.status(403).json({ errorCode: 'FORBIDDEN', error: 'Forbidden', details: { entity: 'submission', id } });
+    }
+    if (error.message === 'SUBMISSION_NOT_PENDING') {
+      return res.status(409).json({
+        errorCode: 'SUBMISSION_NOT_PENDING',
+        error: 'Submission is not pending',
+        details: { entity: 'submission', id, expectedStatus: 'pending', actualStatus: submission?.status ?? null },
+      });
+    }
+
+    if (error.message === 'MEME_ASSET_NOT_FOUND') {
+      return res.status(404).json({
+        errorCode: 'MEME_ASSET_NOT_FOUND',
+        error: 'Meme asset not found',
+        details: { entity: 'memeAsset', id: submission?.memeAssetId ?? null },
+      });
+    }
+    if (error.message === 'MEDIA_NOT_AVAILABLE') {
+      return res.status(410).json({
+        errorCode: 'MEDIA_NOT_AVAILABLE',
+        error: 'Media not available',
+        details: { entity: 'memeAsset', id: submission?.memeAssetId ?? null, reason: 'missing_fileUrl' },
+      });
     }
 
     if (error.message === 'Uploaded file not found') {
-      return res.status(404).json({ error: error.message });
+      return res.status(404).json({
+        errorCode: 'MEDIA_NOT_AVAILABLE',
+        error: 'Media not available',
+        details: { entity: 'upload', id, path: submission?.fileUrlTemp ?? null, reason: 'file_missing_on_disk' },
+      });
     }
 
     // Handle file operation errors with more specific messages
@@ -754,14 +786,21 @@ export const rejectSubmission = async (req: AuthRequest, res: Response) => {
 
     const submission = await prisma.memeSubmission.findUnique({
       where: { id },
+      select: { id: true, channelId: true, status: true },
     });
 
-    if (!submission || submission.channelId !== channelId) {
-      return res.status(404).json({ error: 'Submission not found' });
+    if (!submission) {
+      return res.status(404).json({ errorCode: 'SUBMISSION_NOT_FOUND', error: 'Submission not found', details: { entity: 'submission', id } });
     }
-
+    if (submission.channelId !== channelId) {
+      return res.status(403).json({ errorCode: 'FORBIDDEN', error: 'Forbidden', details: { entity: 'submission', id, channelId: submission.channelId } });
+    }
     if (submission.status !== 'pending') {
-      return res.status(400).json({ error: 'Submission already processed' });
+      return res.status(409).json({
+        errorCode: 'SUBMISSION_NOT_PENDING',
+        error: 'Submission is not pending',
+        details: { entity: 'submission', id, expectedStatus: 'pending', actualStatus: submission.status },
+      });
     }
 
     const updated = await prisma.memeSubmission.update({
@@ -827,11 +866,6 @@ export const rejectSubmission = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // Handle specific error messages
-      if (error.message === 'Submission not found' || error.message === 'Submission already processed') {
-        return res.status(400).json({ error: error.message });
-      }
-
       return res.status(500).json({
         error: 'Internal server error',
         message: 'Failed to reject submission',
@@ -859,19 +893,27 @@ export const needsChangesSubmission = async (req: AuthRequest, res: Response) =>
       select: { id: true, channelId: true, status: true, submitterUserId: true, revision: true },
     });
 
-    if (!submission || submission.channelId !== channelId) {
-      return res.status(404).json({ error: 'Submission not found' });
+    if (!submission) {
+      return res.status(404).json({ errorCode: 'SUBMISSION_NOT_FOUND', error: 'Submission not found', details: { entity: 'submission', id } });
     }
-
+    if (submission.channelId !== channelId) {
+      return res.status(403).json({ errorCode: 'FORBIDDEN', error: 'Forbidden', details: { entity: 'submission', id, channelId: submission.channelId } });
+    }
     if (submission.status !== 'pending') {
-      return res.status(400).json({ error: 'Submission already processed' });
+      return res.status(409).json({
+        errorCode: 'SUBMISSION_NOT_PENDING',
+        error: 'Submission is not pending',
+        details: { entity: 'submission', id, expectedStatus: 'pending', actualStatus: submission.status },
+      });
     }
 
     // If attempts are exhausted, "needs changes" would dead-end the user. Force reject instead.
     if (submission.revision >= MAX_RESUBMITS) {
       return res.status(400).json({
+        errorCode: 'BAD_REQUEST',
         error: 'No resubmits remaining',
         message: `This submission already used ${submission.revision}/${MAX_RESUBMITS} resubmits. Please reject instead.`,
+        details: { entity: 'submission', id, revision: submission.revision, maxResubmits: MAX_RESUBMITS },
       });
     }
 

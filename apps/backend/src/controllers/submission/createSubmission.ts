@@ -5,7 +5,7 @@ import type { Server } from 'socket.io';
 import { createSubmissionSchema } from '../../shared/index.js';
 import { getVideoMetadata } from '../../utils/videoValidator.js';
 import { getOrCreateTags } from '../../utils/tags.js';
-import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
+import { calculateFileHash, decrementFileHashReference, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
 import { validateFileContent } from '../../utils/fileTypeValidator.js';
 import { logFileUpload, logSecurityEvent } from '../../utils/auditLogger.js';
 import path from 'path';
@@ -26,7 +26,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
   debugLog('[DEBUG] createSubmission started', { hasFile: !!req.file, userId: req.userId, channelId: req.channelId });
 
   if (!req.file) {
-    return res.status(400).json({ error: 'File is required' });
+    return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Bad request', details: { field: 'file' } });
   }
 
   // Determine channelId: use from body/query if provided, otherwise use from token
@@ -85,7 +85,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
   try {
     // Validate file is video
     if (!req.file.mimetype.startsWith('video/')) {
-      return res.status(400).json({ error: 'Only video files are allowed' });
+    return res.status(400).json({ errorCode: 'INVALID_MEDIA_TYPE', error: 'Invalid media type' });
     }
 
     // Validate file content using magic bytes (prevents MIME type spoofing)
@@ -110,6 +110,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       );
 
       return res.status(400).json({
+        errorCode: 'INVALID_FILE_CONTENT',
         error: 'Invalid file content',
         message: contentValidation.error || 'File content does not match declared file type',
       });
@@ -165,8 +166,10 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       });
     } else if (effectiveDurationMs > 15000) {
       await safeUnlink(filePath);
-      return res.status(400).json({
-        error: `Video duration (${(effectiveDurationMs / 1000).toFixed(2)}s) exceeds maximum allowed duration (15s)`,
+      return res.status(413).json({
+        errorCode: 'VIDEO_TOO_LONG',
+        error: 'Video is too long',
+        details: { maxDurationMs: 15000, durationMs: effectiveDurationMs },
       });
     }
 
@@ -177,7 +180,8 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       // Add timeout for hash calculation to prevent hanging
       const hashPromise = calculateFileHash(filePath);
       const hashTimeout = new Promise<string>((_, reject) => {
-        setTimeout(() => reject(new Error('Hash calculation timeout')), 10000); // 10 second timeout
+        // 50MB hashing can exceed 10s on busy/slow disks; too aggressive timeout causes fileHash=null + non-dedup paths.
+        setTimeout(() => reject(new Error('Hash calculation timeout')), 30000); // 30 second timeout
       });
 
       const hash = await Promise.race([hashPromise, hashTimeout]);
@@ -190,6 +194,108 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       console.error('File hash calculation failed, using original path:', error.message);
       // Fallback to original path if hash calculation fails
       finalFilePath = `/uploads/${req.file.filename}`;
+    }
+
+    // Invariant: if the target channel already has this asset enabled, return 409 for all submission endpoints.
+    // Best-effort: only enforce when we have a stable dedup key (fileHash).
+    if (fileHash) {
+      const existingAsset = await prisma.memeAsset.findFirst({
+        where: { fileHash },
+        select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true },
+      });
+
+      if (existingAsset) {
+        const existingCm = await prisma.channelMeme.findUnique({
+          where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId: existingAsset.id } },
+          select: { id: true, deletedAt: true, legacyMemeId: true },
+        });
+
+        if (existingCm && !existingCm.deletedAt) {
+          // We incremented FileHash.referenceCount in findOrCreateFileHash; undo to avoid leaks.
+          try {
+            await decrementFileHashReference(fileHash);
+          } catch {
+            // ignore
+          }
+          return res.status(409).json({
+            errorCode: 'ALREADY_IN_CHANNEL',
+            error: 'This meme is already in your channel',
+            requestId: req.requestId,
+          });
+        }
+
+        // Owner-bypass: if meme was previously disabled in this channel, restore it instead of creating a duplicate.
+        if (isOwner && existingCm && existingCm.deletedAt) {
+          try {
+            await decrementFileHashReference(fileHash);
+          } catch {
+            // ignore
+          }
+
+          const defaultPrice = channel.defaultPriceCoins ?? 100;
+          const now = new Date();
+
+          const restored = await prisma.channelMeme.update({
+            where: { id: existingCm.id },
+            data: {
+              status: 'approved',
+              deletedAt: null,
+              title: body.title,
+              priceCoins: defaultPrice,
+              approvedByUserId: req.userId!,
+              approvedAt: now,
+            },
+            select: { id: true, legacyMemeId: true, memeAssetId: true },
+          });
+
+          const legacyData: any = {
+            channelId,
+            title: body.title,
+            type: existingAsset.type,
+            fileUrl: existingAsset.fileUrl,
+            fileHash: existingAsset.fileHash,
+            durationMs: existingAsset.durationMs,
+            priceCoins: defaultPrice,
+            status: 'approved',
+            deletedAt: null,
+            createdByUserId: req.userId!,
+            approvedByUserId: req.userId!,
+          };
+
+          let legacy: any | null = null;
+          if (restored.legacyMemeId) {
+            try {
+              legacy = await prisma.meme.update({
+                where: { id: restored.legacyMemeId },
+                data: legacyData,
+              });
+            } catch {
+              legacy = await prisma.meme.create({ data: legacyData });
+              await prisma.channelMeme.update({
+                where: { id: restored.id },
+                data: { legacyMemeId: legacy.id },
+              });
+            }
+          } else {
+            legacy = await prisma.meme.create({ data: legacyData });
+            await prisma.channelMeme.update({
+              where: { id: restored.id },
+              data: { legacyMemeId: legacy.id },
+            });
+          }
+
+          return res.status(201).json({
+            ...(legacy as any),
+            isDirectApproval: true,
+            channelMemeId: restored.id,
+            memeAssetId: restored.memeAssetId,
+            sourceKind: 'upload',
+            isRestored: true,
+            status: 'approved',
+            deletedAt: null,
+          });
+        }
+      }
     }
 
     // Get or create tags with timeout protection
@@ -285,7 +391,9 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Dual-write: create global MemeAsset + ChannelMeme (best-effort; do not fail owner bypass if this fails).
+      // Dual-write (required for strict client contract): ensure we have MemeAsset + ChannelMeme ids.
+      let memeAssetId: string | null = null;
+      let channelMemeId: string | null = null;
       try {
         const existingAsset =
           fileHash
@@ -295,7 +403,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
                 select: { id: true },
               });
 
-        const assetId =
+        memeAssetId =
           existingAsset?.id ??
           (
             await prisma.memeAsset.create({
@@ -310,11 +418,11 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             })
           ).id;
 
-        await prisma.channelMeme.upsert({
-          where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId: assetId } },
+        const cm = await prisma.channelMeme.upsert({
+          where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId } },
           create: {
             channelId: String(channelId),
-            memeAssetId: assetId,
+            memeAssetId,
             legacyMemeId: meme?.id || null,
             status: 'approved',
             title: body.title,
@@ -332,9 +440,19 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             approvedAt: new Date(),
             deletedAt: null,
           },
+          select: { id: true },
         });
-      } catch (e) {
-        console.warn('[createSubmission] Dual-write to MemeAsset/ChannelMeme failed (ignored):', (e as any)?.message);
+        channelMemeId = cm.id;
+      } catch (e: any) {
+        // Race-condition safety: unique(ChannelMeme.channelId,memeAssetId) -> map to 409 instead of 500.
+        if (e?.code === 'P2002') {
+          return res.status(409).json({
+            errorCode: 'ALREADY_IN_CHANNEL',
+            error: 'This meme is already in your channel',
+            requestId: req.requestId,
+          });
+        }
+        throw e;
       }
 
       // Log file upload
@@ -344,6 +462,11 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       return res.status(201).json({
         ...meme,
         isDirectApproval: true,
+        isRestored: false,
+        channelMemeId,
+        memeAssetId,
+        status: 'approved',
+        deletedAt: null,
       });
     }
 

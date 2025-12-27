@@ -13,6 +13,7 @@ import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
 import { requestContext } from './middleware/requestContext.js';
+import { errorResponseFormat } from './middleware/errorResponseFormat.js';
 import { startRejectedSubmissionsCleanupScheduler } from './jobs/cleanupRejectedSubmissions.js';
 import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsRollup.js';
 import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
@@ -119,6 +120,9 @@ app.set('trust proxy', 1);
 // Middleware
 // Attach requestId early and keep access logs controlled (sampling + slow/error logs).
 app.use(requestContext);
+// Normalize all error responses to a strict shape: { errorCode, error, requestId }.
+// This keeps API clients consistent even when controllers return legacy { error, message } payloads.
+app.use(errorResponseFormat);
 
 // Optional response compression (JSON/text). Can be disabled if CPU is a bottleneck or if nginx/CDN handles it.
 // Env:
@@ -225,7 +229,16 @@ app.use((req, res, next) => {
 
 // Static files
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
-app.use('/uploads', express.static(path.join(process.cwd(), uploadDir)));
+// Back-compat: serve both configured UPLOAD_DIR and the legacy default ./uploads (if they differ).
+// This avoids 404s when storage wrote to a different directory than the one being served.
+const uploadsRoots = [
+  path.resolve(process.cwd(), uploadDir),
+  path.resolve(process.cwd(), './uploads'),
+];
+const uniqueUploadsRoots = Array.from(new Set(uploadsRoots));
+for (const dir of uniqueUploadsRoots) {
+  app.use('/uploads', express.static(dir));
+}
 
 // Attach io to app for use in routes
 app.set('io', io);

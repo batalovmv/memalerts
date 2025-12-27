@@ -109,7 +109,8 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
         path: req.path,
       });
       return res.status(403).json({
-        error: 'Forbidden',
+        errorCode: 'CSRF_INVALID',
+        error: 'CSRF validation failed',
         message: 'CSRF protection: Origin header is required for state-changing operations',
       });
     }
@@ -157,7 +158,8 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
     );
     
     return res.status(403).json({
-      error: 'Forbidden',
+      errorCode: 'CSRF_INVALID',
+      error: 'CSRF validation failed',
       message: 'CSRF protection: Request origin is not allowed',
     });
   }

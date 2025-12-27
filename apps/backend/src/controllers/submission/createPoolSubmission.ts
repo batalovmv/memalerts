@@ -84,7 +84,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       found: !!channel,
       durationMs: Date.now() - startedAt,
     });
-    if (!channel) return res.status(404).json({ error: 'Channel not found', requestId });
+    if (!channel) return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId });
 
     const asset = await prisma.memeAsset.findUnique({
       where: { id: body.memeAssetId },
@@ -97,8 +97,8 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       purged: !!asset?.purgedAt,
       durationMs: Date.now() - startedAt,
     });
-    if (!asset || asset.purgedAt) return res.status(404).json({ error: 'Meme asset not found', requestId });
-    if (!asset.fileUrl) return res.status(404).json({ error: 'Meme asset not found', requestId });
+    if (!asset || asset.purgedAt) return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
+    if (!asset.fileUrl) return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
 
     // If already adopted in this channel -> error for frontend handling.
     const existing = await prisma.channelMeme.findUnique({
@@ -114,7 +114,11 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       durationMs: Date.now() - startedAt,
     });
     if (existing && !existing.deletedAt) {
-      return res.status(409).json({ error: 'ALREADY_IN_CHANNEL', requestId });
+      return res.status(409).json({
+        errorCode: 'ALREADY_IN_CHANNEL',
+        error: 'This meme is already in your channel',
+        requestId,
+      });
     }
 
     // Owner bypass: if the authenticated user is the streamer/admin for this channel, adopt immediately (no submission).
@@ -147,25 +151,39 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      const legacy =
-        cm.legacyMemeId
-          ? await prisma.meme.findUnique({ where: { id: cm.legacyMemeId } })
-          : await prisma.meme.create({
-              data: {
-                channelId: body.channelId,
-                title: body.title,
-                type: asset.type,
-                fileUrl: asset.fileUrl,
-                fileHash: asset.fileHash,
-                durationMs: asset.durationMs,
-                priceCoins: defaultPrice,
-                status: 'approved',
-                createdByUserId: userId,
-                approvedByUserId: userId,
-              },
-            });
+      // Back-compat: keep legacy Meme row in sync.
+      // Bugfix: if we restored ChannelMeme but legacy Meme was previously soft-deleted, the response must NOT return deletedAt/status=deleted.
+      const legacyData: any = {
+        channelId: body.channelId,
+        title: body.title,
+        type: asset.type,
+        fileUrl: asset.fileUrl,
+        fileHash: asset.fileHash,
+        durationMs: asset.durationMs,
+        priceCoins: defaultPrice,
+        status: 'approved',
+        deletedAt: null,
+        createdByUserId: userId,
+        approvedByUserId: userId,
+      };
 
-      if (!cm.legacyMemeId && legacy?.id) {
+      let legacy: any | null = null;
+      if (cm.legacyMemeId) {
+        try {
+          legacy = await prisma.meme.update({
+            where: { id: cm.legacyMemeId },
+            data: legacyData,
+          });
+        } catch {
+          // Dangling legacy id / row missing → recreate.
+          legacy = await prisma.meme.create({ data: legacyData });
+          await prisma.channelMeme.update({
+            where: { id: cm.id },
+            data: { legacyMemeId: legacy.id },
+          });
+        }
+      } else {
+        legacy = await prisma.meme.create({ data: legacyData });
         await prisma.channelMeme.update({
           where: { id: cm.id },
           data: { legacyMemeId: legacy.id },
@@ -178,6 +196,8 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         channelMemeId: cm.id,
         memeAssetId: asset.id,
         sourceKind: 'pool',
+        status: 'approved',
+        deletedAt: null,
       });
     }
 

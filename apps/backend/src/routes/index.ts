@@ -19,10 +19,39 @@ import { debugLog, isDebugLogsEnabled } from '../utils/debug.js';
 import { creditsInternalController } from '../controllers/internal/creditsInternal.js';
 import { submissionsPublicControlController } from '../controllers/public/submissionsPublicControlController.js';
 import { publicSubmissionsControlLimiter } from '../middleware/rateLimit.js';
+import fs from 'fs';
+import path from 'path';
+
+let healthBuildInfoCache: any | null = null;
+function getHealthBuildInfo(): any {
+  if (healthBuildInfoCache) return healthBuildInfoCache;
+  try {
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    const raw = fs.readFileSync(pkgPath, 'utf8');
+    const pkg = JSON.parse(raw);
+    healthBuildInfoCache = {
+      name: pkg?.name ?? null,
+      version: pkg?.version ?? null,
+      deployTrigger: pkg?._deploy_trigger ?? null,
+    };
+    return healthBuildInfoCache;
+  } catch {
+    healthBuildInfoCache = { name: null, version: null, deployTrigger: null };
+    return healthBuildInfoCache;
+  }
+}
 
 export function setupRoutes(app: Express) {
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({
+      status: 'ok',
+      build: getHealthBuildInfo(),
+      instance: {
+        port: process.env.PORT ?? null,
+        domain: process.env.DOMAIN ?? null,
+        instance: process.env.INSTANCE ?? null,
+      },
+    });
   });
 
   // Public (token-based) control endpoints for StreamDeck/StreamerBot.

@@ -72,7 +72,7 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
   }
 
   if (!req.userId) {
-    return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required' });
+    return res.status(401).json({ errorCode: 'UNAUTHORIZED', error: 'Unauthorized', message: 'Authentication required' });
   }
 
   try {
@@ -82,7 +82,8 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     if (cachedAccess !== null) {
       if (!cachedAccess) {
         return res.status(403).json({ 
-          error: 'Forbidden', 
+          errorCode: 'BETA_ACCESS_REQUIRED',
+          error: 'Beta access required',
           message: 'Beta access required. Please request access or contact an administrator.' 
         });
       }
@@ -105,7 +106,8 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     if (!hasAccess) {
       debugLog('[requireBetaAccess] User does not have beta access', { userId: req.userId });
       return res.status(403).json({ 
-        error: 'Forbidden', 
+        errorCode: 'BETA_ACCESS_REQUIRED',
+        error: 'Beta access required',
         message: 'Beta access required. Please request access or contact an administrator.' 
       });
     }
@@ -113,7 +115,7 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     next();
   } catch (error) {
     debugError('Error checking beta access', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ errorCode: 'INTERNAL_ERROR', error: 'Internal server error' });
   }
 }
 

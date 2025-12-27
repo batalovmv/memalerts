@@ -6,6 +6,19 @@ import { Semaphore, parsePositiveIntEnv } from './semaphore.js';
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// Best-effort: set ffprobe path as well (fluent-ffmpeg needs ffprobe to extract duration).
+// Many ffmpeg distributions ship ffprobe alongside ffmpeg in the same directory.
+try {
+  const ffmpegDir = path.dirname(ffmpegInstaller.path);
+  const ffprobeBin = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+  const ffprobePath = path.join(ffmpegDir, ffprobeBin);
+  if (fs.existsSync(ffprobePath)) {
+    // fluent-ffmpeg supports setFfprobePath at runtime, but its TS types can be out of date.
+    (ffmpeg as any).setFfprobePath(ffprobePath);
+  }
+} catch {
+  // ignore
+}
 
 const MAX_DURATION_SECONDS = 15; // 15 seconds max
 const ffprobeConcurrency = parsePositiveIntEnv(

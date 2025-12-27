@@ -63,6 +63,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       cookieKeys,
     });
     return res.status(401).json({
+      errorCode: 'UNAUTHORIZED',
       error: 'Unauthorized',
       message: 'No auth token found',
       requestId: req.requestId,
@@ -82,6 +83,9 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     
     next();
   } catch (error) {
+    // Distinguish session expiry from other invalid token reasons for UX.
+    const name = (error as any)?.name;
+    const isExpired = name === 'TokenExpiredError';
     logger.warn('auth.jwt_invalid', {
       requestId: req.requestId,
       isBeta,
@@ -90,10 +94,12 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       forwardedHost: req.get('x-forwarded-host') || null,
       forwardedProto: req.get('x-forwarded-proto') || null,
       forwardedPort: req.get('x-forwarded-port') || null,
+      reason: name || null,
     });
     return res.status(401).json({
-      error: 'Unauthorized',
-      message: 'Invalid token',
+      errorCode: isExpired ? 'SESSION_EXPIRED' : 'UNAUTHORIZED',
+      error: isExpired ? 'Session expired' : 'Unauthorized',
+      message: isExpired ? 'Session expired' : 'Invalid token',
       requestId: req.requestId,
     });
   }

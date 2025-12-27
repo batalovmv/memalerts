@@ -132,7 +132,8 @@ export const globalLimiter = rateLimit({
     
     // Use default handler behavior
     res.status(options.statusCode).json({
-      error: 'Too Many Requests',
+      errorCode: 'RATE_LIMITED',
+      error: 'Too many requests',
       message: options.message,
     });
   },
@@ -161,7 +162,8 @@ export const activateMemeLimiter = rateLimit({
       windowMs: options.windowMs,
     });
     res.status(options.statusCode).json({
-      error: 'Too Many Requests',
+      errorCode: 'RATE_LIMITED',
+      error: 'Too many requests',
       message: options.message,
     });
   },
@@ -200,7 +202,8 @@ export const uploadLimiter = rateLimit({
       windowMs: options.windowMs,
     });
     res.status(options.statusCode).json({
-      error: 'Too Many Requests',
+      errorCode: 'RATE_LIMITED',
+      error: 'Too many requests',
       message: options.message,
     });
   },
@@ -231,7 +234,8 @@ export const publicSubmissionsControlLimiter = rateLimit({
       windowMs: options.windowMs,
     });
     res.status(options.statusCode).json({
-      error: 'Too Many Requests',
+      errorCode: 'RATE_LIMITED',
+      error: 'Too many requests',
       message: options.message,
     });
   },
@@ -268,7 +272,8 @@ export const ownerResolveLimiter = rateLimit({
       windowMs: options.windowMs,
     });
     res.status(options.statusCode).json({
-      error: 'Too Many Requests',
+      errorCode: 'RATE_LIMITED',
+      error: 'Too many requests',
       message: options.message,
     });
   },

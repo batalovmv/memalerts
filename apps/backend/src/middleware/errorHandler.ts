@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../utils/logger.js';
+import { ERROR_CODES, ERROR_MESSAGES, defaultErrorCodeForStatus, type ErrorCode } from '../shared/errors.js';
 
 export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
   const anyReq = req as any;
@@ -26,95 +27,61 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return next(err);
   }
 
-  if (err instanceof ZodError) {
-    return res.status(400).json({
-      error: 'Validation error',
-      message: 'Validation failed',
-      details: err.errors,
+  const send = (status: number, errorCode: ErrorCode, error?: string) => {
+    // NOTE: errorResponseFormat middleware will also normalize, but we keep this explicit here
+    // so the error handler is self-contained.
+    return res.status(status).json({
+      errorCode,
+      error: error ?? ERROR_MESSAGES[errorCode] ?? 'Error',
       requestId,
     });
+  };
+
+  if (err instanceof ZodError) {
+    return send(400, ERROR_CODES.VALIDATION_ERROR);
   }
 
   if (err.name === 'UnauthorizedError' || err.message === 'Unauthorized') {
-    return res.status(401).json({ 
-      error: 'Unauthorized',
-      message: 'Unauthorized',
-      requestId,
-    });
+    return send(401, ERROR_CODES.UNAUTHORIZED);
   }
 
   if (err.message === 'Forbidden') {
-    return res.status(403).json({ 
-      error: 'Forbidden',
-      message: 'Forbidden',
-      requestId,
-    });
+    return send(403, ERROR_CODES.FORBIDDEN);
   }
 
   if (err.message === 'Not Found') {
-    return res.status(404).json({ 
-      error: 'Not Found',
-      message: 'Not Found',
-      requestId,
-    });
+    return send(404, ERROR_CODES.NOT_FOUND);
   }
 
   // Handle multer errors
   if ((err as any).code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({
-      error: 'File too large',
-      message: 'File size exceeds maximum allowed size',
-      requestId,
-    });
+    return send(413, ERROR_CODES.FILE_TOO_LARGE);
   }
 
   if ((err as any).code === 'LIMIT_UNEXPECTED_FILE') {
-    return res.status(400).json({
-      error: 'Unexpected file field',
-      message: 'Unexpected file field name',
-      requestId,
-    });
+    return send(400, ERROR_CODES.BAD_REQUEST, 'Unexpected file field');
   }
 
   if ((err as any).code === 'LIMIT_PART_COUNT' || (err as any).code === 'LIMIT_FILE_COUNT') {
-    return res.status(400).json({
-      error: 'Too many files',
-      message: 'Too many files in request',
-      requestId,
-    });
+    return send(400, ERROR_CODES.BAD_REQUEST, 'Too many files');
   }
 
   // Handle timeout errors
   if (err.message?.includes('timeout') || err.message === 'Submission creation timeout') {
-    return res.status(408).json({
-      error: 'Request timeout',
-      message: 'Request timed out. Please try again.',
-      requestId,
-    });
+    return send(408, ERROR_CODES.TIMEOUT);
   }
 
   // Handle ECONNRESET and other connection errors
   if ((err as any).code === 'ECONNRESET' || (err as any).code === 'ECONNABORTED') {
-    return res.status(408).json({
-      error: 'Connection error',
-      message: 'Connection was reset or aborted. Please try again.',
-      requestId,
-    });
+    return send(408, ERROR_CODES.TIMEOUT, 'Connection was reset or aborted');
   }
 
   // In production, never expose error details to prevent information leakage
   const isProduction = process.env.NODE_ENV === 'production';
-  
-  res.status(500).json({
-    error: 'Internal server error',
-    message: 'Internal server error',
-    requestId,
-    // Only include details in development
-    ...(isProduction ? {} : { 
-      details: err.message,
-      stack: err.stack 
-    }),
-  });
+  const fallbackStatus = 500;
+  const fallbackCode = defaultErrorCodeForStatus(fallbackStatus);
+  const msg = isProduction ? undefined : err.message;
+  return send(fallbackStatus, fallbackCode, msg ?? ERROR_MESSAGES[fallbackCode]);
 }
 
 
