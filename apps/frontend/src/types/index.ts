@@ -48,6 +48,13 @@ export interface User {
   displayName: string;
   profileImageUrl?: string | null;
   role: UserRole;
+  /**
+   * Additive permissions flag (does NOT change User.role).
+   * When true, user can access global pool moderation endpoints.
+   *
+   * NOTE: optional for backward compatibility with older backends.
+   */
+  isGlobalModerator?: boolean;
   channelId: string | null;
   channel?: Channel;
   wallets?: Wallet[];

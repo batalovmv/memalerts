@@ -23,6 +23,7 @@ const Submit = lazy(() => import('./pages/Submit'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Search = lazy(() => import('./pages/Search'));
 const Pool = lazy(() => import('./pages/Pool'));
+const Moderation = lazy(() => import('./pages/Moderation'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const BetaAccess = lazy(() => import('./pages/BetaAccess'));
@@ -194,6 +195,7 @@ function App() {
               <Route path="/admin" element={uiMode === 'viewer' ? <Navigate to={viewerHome} replace /> : <AdminRedirect />} />
               <Route path="/search" element={<Search />} />
               <Route path="/pool" element={<Pool />} />
+              <Route path="/moderation" element={<Moderation />} />
               <Route path="/beta-access" element={<BetaAccess />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />

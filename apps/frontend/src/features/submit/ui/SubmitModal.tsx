@@ -218,6 +218,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
           toast.error(t('submitModal.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
           return;
         }
+        if (apiError.response?.status === 410) {
+          toast.error(t('submitModal.uploadBlockedDeleted', { defaultValue: 'This file is deleted/quarantined and cannot be uploaded again.' }));
+          return;
+        }
         // Handle 524 Cloudflare timeout specifically
         if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
           toast.error(t('submitModal.uploadTimeout'));
@@ -297,6 +301,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         }
         if (apiError.response?.status === 409 && apiError.response?.data?.errorCode === 'ALREADY_IN_CHANNEL') {
           toast.error(t('submitModal.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
+          return;
+        }
+        if (apiError.response?.status === 410) {
+          toast.error(t('submitModal.uploadBlockedDeleted', { defaultValue: 'This file is deleted/quarantined and cannot be uploaded again.' }));
           return;
         }
         toast.error(apiError.response?.data?.error || t('submitModal.failedToImport'));

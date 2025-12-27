@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
+import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { getEffectiveUserMode } from '@/shared/lib/uiMode';
 import { setStoredUserMode } from '@/shared/lib/userMode';
 import { getViewerHome, setViewerHome } from '@/shared/lib/viewerHome';
@@ -110,6 +111,11 @@ export default function UserMenu() {
   const handlePool = () => {
     setStoredUserMode('viewer');
     navigate('/pool');
+    setIsOpen(false);
+  };
+
+  const handleModeration = () => {
+    navigate('/moderation');
     setIsOpen(false);
   };
 
@@ -305,6 +311,17 @@ export default function UserMenu() {
                       {t('userMenu.switchToStreamer', { defaultValue: 'Switch to streamer mode' })}
                     </button>
                   ) : null}
+
+                  {canModerateGlobalPool(user) ? (
+                    <button
+                      onClick={handleModeration}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      type="button"
+                      role="menuitem"
+                    >
+                      {t('userMenu.moderation', { defaultValue: 'Moderation' })}
+                    </button>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -336,6 +353,17 @@ export default function UserMenu() {
                   >
                     {t('userMenu.pool', { defaultValue: 'Meme pool' })}
                   </button>
+
+                  {canModerateGlobalPool(user) ? (
+                    <button
+                      onClick={handleModeration}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      type="button"
+                      role="menuitem"
+                    >
+                      {t('userMenu.moderation', { defaultValue: 'Moderation' })}
+                    </button>
+                  ) : null}
 
                   {user.role === 'streamer' || user.role === 'admin' ? (
                     <>

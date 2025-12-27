@@ -149,6 +149,10 @@ export default function PoolPage() {
         toast.error(t('pool.authRequired', { defaultValue: 'Authentication required to view the pool.' }));
         return;
       }
+      if (err.response?.status === 410) {
+        toast.error(t('pool.deletedBlocked', { defaultValue: 'This meme is deleted/quarantined and cannot be used.' }));
+        return;
+      }
       if (err.response?.status === 409 && err.response?.data?.errorCode === 'ALREADY_IN_CHANNEL') {
         toast.error(t('pool.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
         return;

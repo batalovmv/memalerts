@@ -156,6 +156,40 @@ const axiosInstance: AxiosInstance = axios.create({
   validateStatus: (status) => (status >= 200 && status < 300) || status === 304,
 });
 
+export type ApiResponseMeta = {
+  status: number;
+  /**
+   * Axios normalizes header keys to lowercase in browsers.
+   */
+  headers: Record<string, unknown>;
+};
+
+/**
+ * Make a request and return both data and response metadata (status + headers).
+ *
+ * This is intentionally separate from the `api` wrapper to avoid breaking existing call sites
+ * that expect `api.get<T>() => Promise<T>`.
+ */
+export async function apiRequestWithMeta<T = unknown>(
+  config: AxiosRequestConfig,
+): Promise<{ data: T; meta: ApiResponseMeta }> {
+  const resp = await axiosInstance.request<T>(config);
+  return {
+    data: resp.data as T,
+    meta: {
+      status: resp.status,
+      headers: (resp.headers ?? {}) as Record<string, unknown>,
+    },
+  };
+}
+
+export async function apiGetWithMeta<T = unknown>(
+  url: string,
+  config?: AxiosRequestConfig,
+): Promise<{ data: T; meta: ApiResponseMeta }> {
+  return await apiRequestWithMeta<T>({ ...(config || {}), method: 'GET', url });
+}
+
 /**
  * Override API baseURL at runtime (used for runtime config).
  * This avoids hard-binding API URL at build time and prevents beta/prod cross-calls.
