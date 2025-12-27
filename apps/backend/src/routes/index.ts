@@ -10,6 +10,7 @@ import { authenticate, AuthRequest, optionalAuthenticate } from '../middleware/a
 import { activateMemeLimiter } from '../middleware/rateLimit.js';
 import { requireBetaAccess } from '../middleware/betaAccess.js';
 import { isBetaDomain } from '../middleware/betaAccess.js';
+import { requireBetaAccessOrGuestForbidden } from '../middleware/betaAccess.js';
 import { csrfProtection } from '../middleware/csrf.js';
 import { viewerController } from '../controllers/viewerController.js';
 import { Server } from 'socket.io';
@@ -18,6 +19,7 @@ import { emitSubmissionEvent, isInternalSubmissionRelayRequest, SubmissionEvent 
 import { debugLog, isDebugLogsEnabled } from '../utils/debug.js';
 import { creditsInternalController } from '../controllers/internal/creditsInternal.js';
 import { submissionsPublicControlController } from '../controllers/public/submissionsPublicControlController.js';
+import { getPublicChannelBySlug, getPublicChannelMemes, searchPublicChannelMemes } from '../controllers/public/channelPublicController.js';
 import { publicSubmissionsControlLimiter } from '../middleware/rateLimit.js';
 import fs from 'fs';
 import path from 'path';
@@ -60,6 +62,12 @@ export function setupRoutes(app: Express) {
   app.post('/public/submissions/enable', publicSubmissionsControlLimiter, submissionsPublicControlController.enable);
   app.post('/public/submissions/disable', publicSubmissionsControlLimiter, submissionsPublicControlController.disable);
   app.post('/public/submissions/toggle', publicSubmissionsControlLimiter, submissionsPublicControlController.toggle);
+
+  // Public read endpoints (sanitized DTOs for guest access on production).
+  // On beta: still gated by beta access (even for guests) via route-level middleware below.
+  app.get('/public/channels/:slug', optionalAuthenticate, requireBetaAccessOrGuestForbidden, getPublicChannelBySlug);
+  app.get('/public/channels/:slug/memes', optionalAuthenticate, requireBetaAccessOrGuestForbidden, getPublicChannelMemes);
+  app.get('/public/channels/:slug/memes/search', optionalAuthenticate, requireBetaAccessOrGuestForbidden, searchPublicChannelMemes);
 
   // Public OBS Browser Source: Credits overlay (titres).
   // Served by backend so OBS can point to backend domain directly.
@@ -387,6 +395,7 @@ export function setupRoutes(app: Express) {
         req.path.startsWith('/beta/status') ||
         req.path === '/health' ||
         req.path.startsWith('/public/submissions/') ||
+        req.path.startsWith('/public/channels/') ||
         /^\/overlay\/credits\/t\/[^\/]+$/.test(req.path) ||
         req.path.startsWith('/auth/twitch') ||
         req.path === '/auth/logout' || // Logout doesn't require authentication
@@ -429,8 +438,9 @@ export function setupRoutes(app: Express) {
   // Public on production; gated on beta (auth + requireBetaAccess)
   app.get('/channels/:slug', (req, res) => {
     if (isBetaDomain(req)) {
-      return authenticate(req as AuthRequest, res, () =>
-        requireBetaAccess(req as AuthRequest, res, () => viewerController.getChannelBySlug(req as any, res))
+      // Beta is not public: show beta-required screen even for guests.
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () => viewerController.getChannelBySlug(req as any, res))
       );
     }
     return viewerController.getChannelBySlug(req as any, res);
@@ -442,7 +452,10 @@ export function setupRoutes(app: Express) {
   // Public on production; gated on beta (auth + requireBetaAccess)
   app.get('/channels/:slug/memes', (req, res, next) => {
     if (isBetaDomain(req)) {
-      return authenticate(req as AuthRequest, res, () => requireBetaAccess(req as AuthRequest, res, () => viewerController.getChannelMemesPublic(req as AuthRequest, res)));
+      // Beta is not public: show beta-required screen even for guests.
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () => viewerController.getChannelMemesPublic(req as AuthRequest, res))
+      );
     }
     return viewerController.getChannelMemesPublic(req as AuthRequest, res);
   });
@@ -451,8 +464,9 @@ export function setupRoutes(app: Express) {
   // - Beta: gated (auth + requireBetaAccess), because beta is not public
   app.get('/channels/memes/search', (req, res) => {
     if (isBetaDomain(req)) {
-      return authenticate(req as AuthRequest, res, () =>
-        requireBetaAccess(req as AuthRequest, res, () => viewerController.searchMemes(req as any, res))
+      // Beta is not public: show beta-required screen even for guests.
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () => viewerController.searchMemes(req as any, res))
       );
     }
     return optionalAuthenticate(req as AuthRequest, res, () => viewerController.searchMemes(req as any, res));
@@ -463,8 +477,9 @@ export function setupRoutes(app: Express) {
   // - Beta: gated (auth + requireBetaAccess)
   app.get('/memes/stats', (req, res) => {
     if (isBetaDomain(req)) {
-      return authenticate(req as AuthRequest, res, () =>
-        requireBetaAccess(req as AuthRequest, res, () => viewerController.getMemeStats(req as any, res))
+      // Beta is not public: show beta-required screen even for guests.
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () => viewerController.getMemeStats(req as any, res))
       );
     }
     return optionalAuthenticate(req as AuthRequest, res, () => viewerController.getMemeStats(req as any, res));
@@ -473,8 +488,9 @@ export function setupRoutes(app: Express) {
   // Global meme pool (public in production; beta gated).
   app.get('/memes/pool', (req, res) => {
     if (isBetaDomain(req)) {
-      return authenticate(req as AuthRequest, res, () =>
-        requireBetaAccess(req as AuthRequest, res, () => viewerController.getMemePool(req as any, res))
+      // Beta is not public: show beta-required screen even for guests.
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () => viewerController.getMemePool(req as any, res))
       );
     }
     return viewerController.getMemePool(req as any, res);

@@ -119,3 +119,24 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
   }
 }
 
+/**
+ * Beta gating helper for "public read" endpoints.
+ *
+ * Semantics:
+ * - production: always pass-through
+ * - beta:
+ *   - guest (no session): 403 BETA_ACCESS_REQUIRED (so frontend can show "beta required" screen)
+ *   - authenticated: defer to requireBetaAccess (may 403 if user has no access)
+ */
+export async function requireBetaAccessOrGuestForbidden(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!isBetaDomain(req)) return next();
+  if (!req.userId) {
+    return res.status(403).json({
+      errorCode: 'BETA_ACCESS_REQUIRED',
+      error: 'Beta access required',
+      message: 'Beta access required. Please request access or contact an administrator.',
+    });
+  }
+  return requireBetaAccess(req, res, next);
+}
+
