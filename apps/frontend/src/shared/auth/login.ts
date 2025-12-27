@@ -29,6 +29,18 @@ export function getApiOriginForRedirect(): string {
   return getApiOrigin();
 }
 
+function rememberLoginReturnTo(returnTo: string) {
+  try {
+    const mode =
+      returnTo.startsWith('/channel/') || returnTo.startsWith('/submit') || returnTo.startsWith('/pool') ? 'viewer' : 'streamer';
+    sessionStorage.setItem('memalerts:auth:returnTo', returnTo);
+    sessionStorage.setItem('memalerts:auth:mode', mode);
+    sessionStorage.setItem('memalerts:auth:setAt', String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
+
 export const login = (redirectTo?: string): void => {
   const apiUrl = getApiOrigin();
 
@@ -41,6 +53,12 @@ export const login = (redirectTo?: string): void => {
   // If login is initiated from a contextual page (channel/pool/submit/etc), keep that return URL.
   const effectiveRedirect = redirectPath && redirectPath !== '/' ? redirectPath : '/post-login';
   authUrl.searchParams.set('redirect_to', effectiveRedirect);
+
+  // Reliable UX: if backend ignores redirect_to and sends user elsewhere (e.g. /settings/accounts),
+  // we can still return them to the intended page after /me succeeds.
+  if (effectiveRedirect && effectiveRedirect !== '/post-login') {
+    rememberLoginReturnTo(effectiveRedirect);
+  }
 
   window.location.href = authUrl.toString();
 };

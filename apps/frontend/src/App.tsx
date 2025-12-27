@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import AdminRedirect from './components/AdminRedirect';
 import BetaAccessRequest from './components/BetaAccessRequest';
@@ -11,6 +11,8 @@ import { api } from './lib/api';
 import { Spinner } from './shared/ui';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchUser } from './store/slices/authSlice';
+
+import { setStoredUserMode } from '@/shared/lib/userMode';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -30,10 +32,61 @@ function App() {
   const [betaChecked, setBetaChecked] = useState(false);
   const [betaHasAccess, setBetaHasAccess] = useState<boolean>(true);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     dispatch(fetchUser());
   }, [dispatch]);
+
+  // Post-OAuth reliable return: some backend deployments may ignore redirect_to and send user to /settings/accounts.
+  // If we have a stored intended returnTo, redirect once after /me succeeds.
+  useEffect(() => {
+    if (!user) return;
+
+    let returnTo: string | null = null;
+    let mode: string | null = null;
+    let setAt: number | null = null;
+    try {
+      returnTo = sessionStorage.getItem('memalerts:auth:returnTo');
+      mode = sessionStorage.getItem('memalerts:auth:mode');
+      setAt = Number(sessionStorage.getItem('memalerts:auth:setAt') || '0') || null;
+    } catch {
+      returnTo = null;
+    }
+
+    if (!returnTo) return;
+
+    const ttlMs = 2 * 60_000;
+    if (!setAt || Date.now() - setAt > ttlMs) {
+      try {
+        sessionStorage.removeItem('memalerts:auth:returnTo');
+        sessionStorage.removeItem('memalerts:auth:mode');
+        sessionStorage.removeItem('memalerts:auth:setAt');
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    // Only auto-redirect when we landed in settings/accounts unexpectedly.
+    // This avoids hijacking legitimate navigation.
+    if (location.pathname !== '/settings/accounts') return;
+
+    // Clear first to avoid loops
+    try {
+      sessionStorage.removeItem('memalerts:auth:returnTo');
+      sessionStorage.removeItem('memalerts:auth:mode');
+      sessionStorage.removeItem('memalerts:auth:setAt');
+    } catch {
+      // ignore
+    }
+
+    if (mode === 'viewer' || mode === 'streamer') {
+      setStoredUserMode(mode);
+    }
+
+    navigate(returnTo, { replace: true });
+  }, [location.pathname, navigate, user]);
 
   // Check if we're on beta domain
   const isBetaDomain = window.location.hostname.includes('beta.');
