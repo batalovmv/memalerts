@@ -8,11 +8,14 @@ export type SubmissionPreviewProps = {
   aspectRatio: number;
   isPlaying: boolean;
   isMuted: boolean;
+  error: string | null;
+  httpStatus: number | null;
   videoRef: React.RefObject<HTMLVideoElement>;
   onPlayPause: () => void;
   onToggleMute: () => void;
   onPlay: () => void;
   onPause: () => void;
+  onError: () => void;
 };
 
 export function SubmissionPreview({
@@ -21,22 +24,52 @@ export function SubmissionPreview({
   aspectRatio,
   isPlaying,
   isMuted,
+  error,
+  httpStatus,
   videoRef,
   onPlayPause,
   onToggleMute,
   onPlay,
   onPause,
+  onError,
 }: SubmissionPreviewProps) {
   const { t } = useTranslation();
 
   return (
     <div className="rounded-xl overflow-hidden bg-black/80" style={{ aspectRatio }}>
-      {!shouldLoad || !src ? (
+      {!shouldLoad || !src || error ? (
         <div className="w-full h-full flex items-center justify-center text-white/80 text-sm">
-          <div className="flex items-center gap-2">
-            <Spinner className="h-4 w-4 border-gray-200/40 border-t-white/90" />
-            <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
-          </div>
+          {!shouldLoad && !error ? (
+            <div className="flex items-center gap-2">
+              <Spinner className="h-4 w-4 border-gray-200/40 border-t-white/90" />
+              <span>{t('common.loading', { defaultValue: 'Loading…' })}</span>
+            </div>
+          ) : !src ? (
+            <div className="px-3 text-center">
+              {t('submissions.previewUnavailable', { defaultValue: 'Preview unavailable (no URL provided)' })}
+            </div>
+          ) : (
+            <div className="px-3 text-center space-y-1">
+              <div className="font-semibold text-white/90">
+                {t('submissions.previewFailed', { defaultValue: 'Preview failed to load' })}
+              </div>
+              {typeof httpStatus === 'number' ? (
+                <div className="text-xs text-white/70">
+                  {t('submissions.httpStatus', { defaultValue: 'HTTP {{status}}', status: httpStatus })}
+                </div>
+              ) : null}
+              <div className="text-xs text-white/70 break-all">{src}</div>
+              <a
+                className="inline-block text-xs underline text-white/90 hover:text-white"
+                href={src}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {t('submissions.openPreview', { defaultValue: 'Open preview' })}
+              </a>
+            </div>
+          )}
         </div>
       ) : (
         <div className="relative w-full h-full">
@@ -45,9 +78,11 @@ export function SubmissionPreview({
             src={src}
             playsInline
             preload="metadata"
+            muted={isMuted}
             className="w-full h-full object-contain"
             onPlay={onPlay}
             onPause={onPause}
+            onError={onError}
             onClick={(e) => {
               e.preventDefault();
               onPlayPause();

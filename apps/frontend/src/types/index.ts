@@ -111,6 +111,7 @@ export interface Submission {
   title: string;
   type: MemeType;
   fileUrlTemp: string;
+  sourceUrl?: string | null;
   notes: string | null;
   status: SubmissionStatus;
   sourceKind?: 'upload' | 'url' | 'pool';

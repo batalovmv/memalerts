@@ -5,6 +5,8 @@ export function useSubmissionPreview(src: string) {
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [httpStatus, setHttpStatus] = useState<number | null>(null);
 
   const cardRef = useRef<HTMLLIElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null!);
@@ -48,10 +50,35 @@ export function useSubmissionPreview(src: string) {
     video.muted = isMuted;
   }, [isMuted]);
 
+  // When media fails to load, try a cheap HEAD request to give a better hint (401/403/404/etc).
+  // This runs only after an actual media error and only once per src.
+  useEffect(() => {
+    if (!error) return;
+    if (!src) return;
+    let cancelled = false;
+    setHttpStatus(null);
+
+    void (async () => {
+      try {
+        const resp = await fetch(src, { method: 'HEAD', credentials: 'include' });
+        if (cancelled) return;
+        setHttpStatus(resp.status);
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [error, src]);
+
   const togglePlay = async () => {
     const video = videoRef.current;
     if (!video) return;
     try {
+      // Keep attribute and property in sync (some browsers can be finicky with programmatic play).
+      video.muted = isMuted;
       if (video.paused) {
         await video.play();
         setIsPlaying(true);
@@ -74,6 +101,12 @@ export function useSubmissionPreview(src: string) {
     isMuted,
     setIsMuted,
     togglePlay,
+    error,
+    httpStatus,
+    onVideoError: () => {
+      // Keep it minimal; the preview component will render details.
+      setError('MEDIA_ERROR');
+    },
   };
 }
 

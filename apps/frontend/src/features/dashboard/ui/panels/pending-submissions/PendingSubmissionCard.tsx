@@ -18,7 +18,11 @@ export function PendingSubmissionCard(props: {
   const { submission, resolveMediaUrl, onApprove, onNeedsChanges, onReject } = props;
   const { t } = useTranslation();
 
-  const src = resolveMediaUrl(submission.fileUrlTemp || '');
+  // Submissions can come from multiple sources:
+  // - upload: fileUrlTemp is populated
+  // - import: sourceUrl (and often fileUrlTemp) is populated
+  // - pool: backend should provide at least one of them; otherwise preview is impossible
+  const src = resolveMediaUrl(submission.fileUrlTemp || submission.sourceUrl || '');
   const { resubmitsLeft, maxResubmits, canSendForChanges } = getResubmitsLeft(submission.revision, 2);
   const preview = useSubmissionPreview(src);
 
@@ -33,11 +37,14 @@ export function PendingSubmissionCard(props: {
               aspectRatio={preview.aspectRatio}
               isPlaying={preview.isPlaying}
               isMuted={preview.isMuted}
+              error={preview.error}
+              httpStatus={preview.httpStatus}
               videoRef={preview.videoRef}
               onPlayPause={() => void preview.togglePlay()}
               onToggleMute={() => preview.setIsMuted((v) => !v)}
               onPlay={() => preview.setIsPlaying(true)}
               onPause={() => preview.setIsPlaying(false)}
+              onError={preview.onVideoError}
             />
           </div>
 
