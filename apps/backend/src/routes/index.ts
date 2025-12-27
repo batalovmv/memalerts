@@ -17,7 +17,7 @@ import { viewerController } from '../controllers/viewerController.js';
 import { Server } from 'socket.io';
 import { emitWalletUpdated, isInternalWalletRelayRequest, WalletUpdatedEvent } from '../realtime/walletBridge.js';
 import { emitSubmissionEvent, isInternalSubmissionRelayRequest, SubmissionEvent } from '../realtime/submissionBridge.js';
-import { debugLog, isDebugLogsEnabled } from '../utils/debug.js';
+import { debugLog, isDebugAuthEnabled, isDebugLogsEnabled } from '../utils/debug.js';
 import { creditsInternalController } from '../controllers/internal/creditsInternal.js';
 import { submissionsPublicControlController } from '../controllers/public/submissionsPublicControlController.js';
 import { getPublicChannelBySlug, getPublicChannelMemes, searchPublicChannelMemes } from '../controllers/public/channelPublicController.js';
@@ -376,6 +376,30 @@ export function setupRoutes(app: Express) {
       };
       debugLog('[DEBUG_IP] Request IP info:', ipInfo);
       res.json(ipInfo);
+    });
+  }
+
+  // Temporary endpoint to debug auth/cookies/proxy headers.
+  // Opt-in via DEBUG_AUTH=1 (or DEBUG_LOGS=1). Keep response minimal; never return tokens.
+  if (isDebugAuthEnabled()) {
+    app.get('/debug-auth', optionalAuthenticate, (req, res) => {
+      const r = req as AuthRequest;
+      const cookieHeader = typeof (req.headers as any)?.cookie === 'string' ? String((req.headers as any)?.cookie || '') : '';
+      const cookieKeys = r.cookies ? Object.keys(r.cookies) : [];
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({
+        requestId: r.requestId ?? null,
+        path: req.originalUrl || req.url || null,
+        host: req.get('host') || null,
+        'x-forwarded-host': req.get('x-forwarded-host') || null,
+        'x-forwarded-proto': req.get('x-forwarded-proto') || null,
+        hasCookie: cookieHeader.length > 0,
+        sessionId: (req as any)?.sessionID ?? (req as any)?.session?.id ?? null,
+        userId: r.userId ?? null,
+        isBeta: isBetaDomain(req),
+        instancePort: process.env.PORT ?? null,
+        cookieKeys,
+      });
     });
   }
 

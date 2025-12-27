@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
+import { isDebugAuthEnabled } from '../utils/debug.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -49,7 +50,27 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const bearerToken = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice('bearer '.length).trim() : '';
   const token = cookieToken || bearerToken;
 
+  const originalUrl = (req.originalUrl || req.url || '').toString();
+  const shouldDebugThisRoute =
+    isDebugAuthEnabled() && (originalUrl.startsWith('/me') || originalUrl.startsWith('/moderation'));
+  const hasCookie = typeof (req.headers as any)?.cookie === 'string' && String((req.headers as any)?.cookie || '').length > 0;
+  const sessionId = (req as any)?.sessionID ?? (req as any)?.session?.id ?? null;
+
   if (!token) {
+    if (shouldDebugThisRoute) {
+      logger.info('auth.debug', {
+        stage: 'no_token',
+        requestId: req.requestId,
+        path: originalUrl,
+        host: req.get('host') || null,
+        forwardedProto: req.get('x-forwarded-proto') || null,
+        hasCookie,
+        sessionId,
+        userId: req.userId || null,
+        isBeta,
+        instancePort: process.env.PORT || null,
+      });
+    }
     // Avoid logging secrets: only log presence of cookie keys.
     const cookieKeys = req.cookies ? Object.keys(req.cookies) : [];
     logger.warn('auth.no_token_cookie', {
@@ -80,12 +101,42 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     req.userRole = decoded.role;
     req.channelId = decoded.channelId;
     logger.debug('auth.success', { requestId: req.requestId, userId: decoded.userId, role: decoded.role });
+
+    if (shouldDebugThisRoute) {
+      logger.info('auth.debug', {
+        stage: 'success',
+        requestId: req.requestId,
+        path: originalUrl,
+        host: req.get('host') || null,
+        forwardedProto: req.get('x-forwarded-proto') || null,
+        hasCookie,
+        sessionId,
+        userId: req.userId || null,
+        isBeta,
+        instancePort: process.env.PORT || null,
+      });
+    }
     
     next();
   } catch (error) {
     // Distinguish session expiry from other invalid token reasons for UX.
     const name = (error as any)?.name;
     const isExpired = name === 'TokenExpiredError';
+    if (shouldDebugThisRoute) {
+      logger.info('auth.debug', {
+        stage: 'jwt_invalid',
+        requestId: req.requestId,
+        path: originalUrl,
+        host: req.get('host') || null,
+        forwardedProto: req.get('x-forwarded-proto') || null,
+        hasCookie,
+        sessionId,
+        userId: req.userId || null,
+        isBeta,
+        instancePort: process.env.PORT || null,
+        reason: name || null,
+      });
+    }
     logger.warn('auth.jwt_invalid', {
       requestId: req.requestId,
       isBeta,

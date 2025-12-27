@@ -10,6 +10,18 @@ export function isDebugLogsEnabled(): boolean {
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
+/**
+ * Temporary auth debugging toggle.
+ *
+ * - Opt-in via env only (never via query params/headers).
+ * - DEBUG_AUTH=1 enables, or DEBUG_LOGS=1 also enables (convenience).
+ */
+export function isDebugAuthEnabled(): boolean {
+  if (isDebugLogsEnabled()) return true;
+  const v = String(process.env.DEBUG_AUTH ?? '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
 export function debugLog(message: string, data?: unknown) {
   if (!isDebugLogsEnabled()) return;
   if (typeof data === 'undefined') {
