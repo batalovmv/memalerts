@@ -6,6 +6,8 @@ import https from 'https';
 import http from 'http';
 import { Semaphore, parsePositiveIntEnv } from './semaphore.js';
 import { getStorageProvider } from '../storage/index.js';
+import { validatePathWithinDirectory } from './pathSecurity.js';
+import { logger } from './logger.js';
 
 const hashConcurrency = parsePositiveIntEnv(
   'FILE_HASH_CONCURRENCY',
@@ -18,6 +20,47 @@ async function safeUnlink(filePath: string): Promise<void> {
     await fs.promises.unlink(filePath);
   } catch {
     // ignore
+  }
+}
+
+async function fileExists(absPath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(absPath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function safeMoveFile(src: string, dst: string): Promise<void> {
+  await fs.promises.mkdir(path.dirname(dst), { recursive: true });
+  try {
+    await fs.promises.rename(src, dst);
+  } catch (e: any) {
+    // Cross-device move fallback (rare on VPS, but possible with temp dirs).
+    if (e?.code === 'EXDEV') {
+      await fs.promises.copyFile(src, dst);
+      await safeUnlink(src);
+      return;
+    }
+    throw e;
+  }
+}
+
+function getUploadsRootAbs(): string {
+  const uploadDir = process.env.UPLOAD_DIR || './uploads';
+  return path.resolve(process.cwd(), uploadDir);
+}
+
+function publicUploadsPathToAbs(publicPath: string): string | null {
+  const p = String(publicPath || '').trim();
+  if (!p.startsWith('/uploads/')) return null;
+  const uploadsRoot = getUploadsRootAbs();
+  const rel = p.replace(/^\/uploads\//, '');
+  try {
+    return validatePathWithinDirectory(rel, uploadsRoot);
+  } catch {
+    return null;
   }
 }
 
@@ -94,14 +137,54 @@ export async function findOrCreateFileHash(
       },
     });
 
-    // Delete temp file since we're using existing one
-    try {
-      await safeUnlink(tempFilePath);
-    } catch (error) {
-      console.warn('Failed to delete temp file:', error);
+    const existingPath = String(existing.filePath || '');
+    const storage = getStorageProvider();
+
+    // IMPORTANT (multi-instance + shared DB):
+    // In shared DB mode (beta+prod), local storage is NOT shared across instances (different cwd/UPLOAD_DIR).
+    // If we blindly delete temp upload on a dedup hit, we can end up with a DB filePath that points to a
+    // file that doesn't exist on this instance => /uploads 404. Mitigation: if local storage and the
+    // expected file is missing locally, "repair" by moving this temp upload into the expected location.
+    if (storage.kind === 'local') {
+      const abs = publicUploadsPathToAbs(existingPath);
+      if (abs) {
+        const exists = await fileExists(abs);
+        if (!exists) {
+          try {
+            await safeMoveFile(tempFilePath, abs);
+            logger.warn('filehash.dedup.repair_missing_local', {
+              hash,
+              existingFilePath: existingPath,
+              repairedAbsPath: abs,
+            });
+            return { filePath: existingPath, isNew: false };
+          } catch (e: any) {
+            logger.error('filehash.dedup.repair_failed', {
+              hash,
+              existingFilePath: existingPath,
+              attemptedAbsPath: abs,
+              errorMessage: e?.message || String(e),
+            });
+            // Fall back to legacy behavior below.
+          }
+        }
+      }
     }
 
-    return { filePath: existing.filePath, isNew: false };
+    // Delete temp file since we're using existing one (default behavior).
+    try {
+      await safeUnlink(tempFilePath);
+      logger.debug('filehash.dedup.temp_deleted', { hash, tempFilePath, existingFilePath: existingPath });
+    } catch (error: any) {
+      logger.warn('filehash.dedup.temp_delete_failed', {
+        hash,
+        tempFilePath,
+        existingFilePath: existingPath,
+        errorMessage: error?.message || String(error),
+      });
+    }
+
+    return { filePath: existingPath, isNew: false };
   }
 
   // File doesn't exist - move temp file to permanent location
