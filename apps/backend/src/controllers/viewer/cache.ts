@@ -135,8 +135,22 @@ export function ifNoneMatchHit(req: any, etag: string | undefined): boolean {
   const inm = req?.headers?.['if-none-match'];
   if (!inm) return false;
   const raw = Array.isArray(inm) ? inm.join(',') : String(inm);
-  // Exact match (common case); we don't parse weak etags or lists deeply.
-  return raw.split(',').map((s) => s.trim()).includes(etag);
+  const normalize = (v: string) => {
+    let s = String(v || '').trim();
+    // Strip weak prefix.
+    if (s.toLowerCase().startsWith('w/')) s = s.slice(2).trim();
+    // Strip optional quotes: "abc" -> abc
+    if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) s = s.slice(1, -1);
+    return s.trim();
+  };
+
+  const target = normalize(etag);
+  // Compare normalized values so clients can send either quoted or unquoted tags.
+  return raw
+    .split(',')
+    .map((s) => normalize(s))
+    .filter(Boolean)
+    .includes(target);
 }
 
 export function pruneOldestEntries<K, V>(map: Map<K, V>, maxSize: number): void {
