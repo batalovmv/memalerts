@@ -58,6 +58,7 @@ export function HelpModeProvider(props: { children: React.ReactNode }) {
   return <HelpModeContext.Provider value={value}>{props.children}</HelpModeContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useHelpMode(): HelpModeContextValue {
   const ctx = useContext(HelpModeContext);
   if (!ctx) {

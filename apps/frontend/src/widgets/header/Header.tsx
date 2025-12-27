@@ -60,7 +60,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [channelCoinIconUrl, setChannelCoinIconUrl] = useState<string | null>(null);
-  const [channelRewardTitle, setChannelRewardTitle] = useState<string | null>(null);
   const { socket, isConnected } = useSocket();
   // Aggregated "coins gained" badge (avoid confusing "+100 (2)" UI; show the total delta instead).
   const [coinUpdateDelta, setCoinUpdateDelta] = useState<number | null>(null);
@@ -350,7 +349,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
       // If rewardTitle is provided via props, use it
       if (rewardTitle !== undefined) {
-        setChannelRewardTitle(rewardTitle);
+        // rewardTitle is passed as prop; no need to duplicate in state.
       }
 
       // If both are provided via props, we're done
@@ -385,7 +384,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           setChannelCoinIconUrl(cached.coinIconUrl);
         }
         if (rewardTitle === undefined && cached.rewardTitle) {
-          setChannelRewardTitle(cached.rewardTitle);
+          // rewardTitle is passed as prop; no need to duplicate in state.
         }
         // If we got both from cache, we're done
         if ((coinIconUrl !== undefined || cached.coinIconUrl) && (rewardTitle !== undefined || cached.rewardTitle)) {
@@ -402,7 +401,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
           setChannelCoinIconUrl(channelData.coinIconUrl);
         }
         if (rewardTitle === undefined && channelData.rewardTitle) {
-          setChannelRewardTitle(channelData.rewardTitle);
+          // rewardTitle is passed as prop; no need to duplicate in state.
         }
         channelDataLoadedRef.current = slugToUse;
       }

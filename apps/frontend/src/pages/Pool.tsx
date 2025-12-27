@@ -311,8 +311,8 @@ export default function PoolPage() {
         ) : (
           <div className="meme-masonry">
             {items.map((m) => (
-              <HelpTooltip content={t('help.pool.openPreview', { defaultValue: 'Open preview. From there you can submit this meme.' })}>
-                <div key={m.id} className="relative break-inside-avoid mb-3">
+              <div key={m.id} className="relative break-inside-avoid mb-3">
+                <HelpTooltip content={t('help.pool.openPreview', { defaultValue: 'Open preview. From there you can submit this meme.' })}>
                   <MemeCard
                     meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))}
                     onClick={() => {
@@ -322,8 +322,8 @@ export default function PoolPage() {
                     isOwner={false}
                     previewMode="autoplayMuted"
                   />
-                </div>
-              </HelpTooltip>
+                </HelpTooltip>
+              </div>
             ))}
           </div>
         )}

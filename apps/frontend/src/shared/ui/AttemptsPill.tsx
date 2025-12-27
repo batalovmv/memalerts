@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 
-import { cn } from '@/shared/lib/cn';
 import { HelpTooltip } from './Tooltip/HelpTooltip';
+
+import { cn } from '@/shared/lib/cn';
 
 export function AttemptsPill(props: { left: number; max?: number; className?: string }) {
   const { t } = useTranslation();
@@ -33,28 +34,28 @@ export function AttemptsPill(props: { left: number; max?: number; className?: st
           'inline-flex items-center gap-2 rounded-full border border-white/25 dark:border-white/10 bg-white/55 dark:bg-white/10 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200 shadow-sm'
         }
       >
-      <span className="sr-only">
-        {t('submissions.attemptsTooltip', {
-          defaultValue: 'Attempts left: {{left}}/{{max}}',
-          left,
-          max,
-        })}
-      </span>
-      <span className="inline-flex items-center gap-1.5" aria-hidden="true">
-        {Array.from({ length: max }).map((_, i) => {
-          // Render "remaining" dots from left to right, like iOS page indicators.
-          const active = i >= used;
-          return (
-            <span
-              key={i}
-              className={cn(
-                'h-1.5 w-1.5 rounded-full transition-colors',
-                active ? dotOn : 'bg-gray-300/80 dark:bg-white/15',
-              )}
-            />
-          );
-        })}
-      </span>
+        <span className="sr-only">
+          {t('submissions.attemptsTooltip', {
+            defaultValue: 'Attempts left: {{left}}/{{max}}',
+            left,
+            max,
+          })}
+        </span>
+        <span className="inline-flex items-center gap-1.5" aria-hidden="true">
+          {Array.from({ length: max }).map((_, i) => {
+            // Render "remaining" dots from left to right, like iOS page indicators.
+            const active = i >= used;
+            return (
+              <span
+                key={i}
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full transition-colors',
+                  active ? dotOn : 'bg-gray-300/80 dark:bg-white/15',
+                )}
+              />
+            );
+          })}
+        </span>
       </span>
     </HelpTooltip>
   );
