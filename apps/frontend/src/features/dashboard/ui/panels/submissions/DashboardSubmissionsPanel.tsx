@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { PanelHeader } from '../../PanelHeader';
-
 import { useLoadMoreOnIntersect } from '../pending-submissions/model/useLoadMoreOnIntersect';
 import { PendingSubmissionCard } from '../pending-submissions/PendingSubmissionCard';
 
@@ -313,7 +312,6 @@ export function DashboardSubmissionsPanel({
           </div>
 
           <div className="mt-4 rounded-xl overflow-hidden bg-black/90 ring-1 ring-black/10 dark:ring-white/10">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video src={previewModal.src} controls autoPlay playsInline className="w-full max-h-[70vh] object-contain" />
           </div>
         </div>
