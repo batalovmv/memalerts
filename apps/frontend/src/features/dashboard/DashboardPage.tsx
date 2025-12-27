@@ -17,8 +17,7 @@ import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesMo
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { api } from '@/lib/api';
-import { setStoredUserMode } from '@/shared/lib/userMode';
-import { Button, PageShell, Pill, Spinner } from '@/shared/ui';
+import { Button, IconButton, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
 import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
@@ -791,9 +790,18 @@ export default function DashboardPage() {
               {/* Quick Actions Cards */}
               {isStreamerAdmin && (
                 <div className="flex items-center justify-end mb-3">
-                  <Button type="button" variant="secondary" size="sm" onClick={() => void resetDashboardOrder()}>
-                    {t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
-                  </Button>
+                  <IconButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void resetDashboardOrder()}
+                    aria-label={t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
+                    title={t('dashboard.resetLayout', { defaultValue: 'Reset layout' })}
+                    icon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006.34 6.34M4 15a8 8 0 0013.66 2.66" />
+                      </svg>
+                    }
+                  />
                 </div>
               )}
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -1301,10 +1309,6 @@ export default function DashboardPage() {
                       mySubmissions={mySubmissions}
                       mySubmissionsLoading={mySubmissionsLoading}
                       onRefreshMySubmissions={() => void loadMySubmissions()}
-                      onOpenMySubmissionsPage={() => {
-                        setStoredUserMode('viewer');
-                        navigate('/submit');
-                      }}
                     />
                   </div>
 

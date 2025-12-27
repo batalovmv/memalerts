@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { PanelHeader } from '../../PanelHeader';
@@ -12,7 +12,7 @@ import type { Submission } from '@/types';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
-import { Button, IconButton, Pill, Spinner } from '@/shared/ui';
+import { IconButton, Modal, Pill, Spinner } from '@/shared/ui';
 
 export type SubmissionsPanelTab = 'pending' | 'mine';
 
@@ -36,7 +36,6 @@ export type DashboardSubmissionsPanelProps = {
   mySubmissions: MySubmission[];
   mySubmissionsLoading: boolean;
   onRefreshMySubmissions: () => void;
-  onOpenMySubmissionsPage: () => void;
 
   onClose: () => void;
 };
@@ -59,11 +58,15 @@ export function DashboardSubmissionsPanel({
   mySubmissions,
   mySubmissionsLoading,
   onRefreshMySubmissions,
-  onOpenMySubmissionsPage,
 
   onClose,
 }: DashboardSubmissionsPanelProps) {
   const { t } = useTranslation();
+  const [previewModal, setPreviewModal] = useState<{ open: boolean; src: string; title: string }>(() => ({
+    open: false,
+    src: '',
+    title: '',
+  }));
 
   const pendingSubmissions = useMemo(() => submissions.filter((s) => s.status === 'pending'), [submissions]);
   const hasMorePending = typeof total === 'number' ? pendingSubmissions.length < total : true;
@@ -191,6 +194,9 @@ export function DashboardSubmissionsPanel({
                   key={submission.id}
                   submission={submission}
                   resolveMediaUrl={resolveMedia}
+                  onOpenPreview={(data) => {
+                    setPreviewModal({ open: true, src: data.src, title: data.title });
+                  }}
                   onApprove={onApprove}
                   onNeedsChanges={onNeedsChanges}
                   onReject={onReject}
@@ -235,10 +241,6 @@ export function DashboardSubmissionsPanel({
                 title={t('dashboard.submissionsPanel.temporarilyUnavailable', { defaultValue: 'Временно недоступно' })}
                 icon={<ChannelIcon />}
               />
-
-              <Button type="button" variant="secondary" size="sm" onClick={onOpenMySubmissionsPage}>
-                {t('dashboard.submissionsPanel.openFull', { defaultValue: 'Open page' })}
-              </Button>
             </div>
 
             {mySubmissionsLoading ? (
@@ -284,6 +286,38 @@ export function DashboardSubmissionsPanel({
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={previewModal.open}
+        onClose={() => setPreviewModal({ open: false, src: '', title: '' })}
+        ariaLabel={t('submissions.preview', { defaultValue: 'Submission preview' })}
+        contentClassName="max-w-4xl"
+      >
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-lg font-bold dark:text-white truncate">{previewModal.title || t('submissions.preview', { defaultValue: 'Preview' })}</div>
+            </div>
+            <IconButton
+              type="button"
+              variant="secondary"
+              aria-label={t('common.close', { defaultValue: 'Close' })}
+              title={t('common.close', { defaultValue: 'Close' })}
+              onClick={() => setPreviewModal({ open: false, src: '', title: '' })}
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              }
+            />
+          </div>
+
+          <div className="mt-4 rounded-xl overflow-hidden bg-black/90 ring-1 ring-black/10 dark:ring-white/10">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video src={previewModal.src} controls autoPlay playsInline className="w-full max-h-[70vh] object-contain" />
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }
