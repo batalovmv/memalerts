@@ -9,7 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Meme } from '@/types';
 
 import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
-import { PendingSubmissionsPanel } from '@/components/dashboard/PendingSubmissionsPanel';
+import { DashboardSubmissionsPanel } from '@/components/dashboard/DashboardSubmissionsPanel';
 import Header from '@/components/Header';
 import SecretCopyField from '@/components/SecretCopyField';
 import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
@@ -177,6 +177,10 @@ export default function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
+  const [submissionsPanelTab, setSubmissionsPanelTab] = useState<'pending' | 'mine'>('pending');
+  const [mySubmissions, setMySubmissions] = useState<import('@/features/submit/types').MySubmission[]>([]);
+  const [mySubmissionsLoading, setMySubmissionsLoading] = useState(false);
+  const mySubmissionsLoadedRef = useRef(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -234,6 +238,12 @@ export default function DashboardPage() {
     else nextParams.delete('panel');
     setSearchParams(nextParams, { replace });
   }, [searchParams, setSearchParams]);
+
+  function toRecord(v: unknown): Record<string, unknown> | null {
+    if (!v || typeof v !== 'object') return null;
+    if (Array.isArray(v)) return null;
+    return v as Record<string, unknown>;
+  }
 
   const scrollToPanelIfMobile = (next: 'submissions' | 'memes') => {
     const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
@@ -309,6 +319,91 @@ export default function DashboardPage() {
       submissionsLoadedRef.current = false;
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
+
+  const loadMySubmissions = useCallback(async () => {
+    if (!user) return;
+    setMySubmissionsLoading(true);
+    try {
+      const tryFetch = async (withParams: boolean) => {
+        return await api.get<unknown>('/submissions', {
+          params: withParams ? { limit: 50, offset: 0 } : undefined,
+          timeout: 10000,
+        });
+      };
+
+      let data: unknown;
+      try {
+        data = await tryFetch(true);
+      } catch {
+        data = await tryFetch(false);
+      }
+
+      const normalized = Array.isArray(data)
+        ? (data as unknown[]).map((raw) => {
+            const s = toRecord(raw);
+            const submitter = toRecord(s?.submitter);
+            const tags = Array.isArray(s?.tags) ? (s?.tags as unknown[]) : [];
+            const tagNames = tags
+              .map((x) => {
+                const xr = toRecord(x);
+                const tag = toRecord(xr?.tag);
+                return typeof tag?.name === 'string' ? tag.name : '';
+              })
+              .filter(Boolean);
+            return {
+              id: String(s?.id ?? ''),
+              title: String(s?.title ?? ''),
+              status: String(s?.status ?? ''),
+              sourceKind:
+                s?.sourceKind === 'upload' || s?.sourceKind === 'url' || s?.sourceKind === 'pool'
+                  ? (s.sourceKind as 'upload' | 'url' | 'pool')
+                  : undefined,
+              memeAssetId: typeof s?.memeAssetId === 'string' ? (s.memeAssetId as string) : s?.memeAssetId === null ? null : undefined,
+              createdAt: String(s?.createdAt ?? new Date().toISOString()),
+              notes: typeof s?.notes === 'string' ? s.notes : s?.notes === null ? null : null,
+              moderatorNotes: typeof s?.moderatorNotes === 'string' ? s.moderatorNotes : s?.moderatorNotes === null ? null : null,
+              revision: typeof s?.revision === 'number' ? s.revision : 0,
+              tags: tagNames,
+              submitterId:
+                typeof submitter?.id === 'string' ? submitter.id : typeof s?.submitterId === 'string' ? (s.submitterId as string) : null,
+              submitterDisplayName:
+                typeof submitter?.displayName === 'string'
+                  ? submitter.displayName
+                  : typeof s?.submitterDisplayName === 'string'
+                    ? (s.submitterDisplayName as string)
+                    : null,
+            } as import('@/features/submit/types').MySubmission;
+          })
+        : [];
+
+      const filtered =
+        user?.id && normalized.some((x) => x.submitterId)
+          ? normalized.filter((x) => x.submitterId === user.id)
+          : normalized;
+
+      const sorted = [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setMySubmissions(sorted);
+    } catch {
+      setMySubmissions([]);
+    } finally {
+      setMySubmissionsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // Reset viewer-side cache when user changes (logout/login).
+    mySubmissionsLoadedRef.current = false;
+    setMySubmissions([]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    // Lazy-load "my submissions" only when user opens the dashboard submissions panel and selects the tab.
+    if (panel !== 'submissions') return;
+    if (submissionsPanelTab !== 'mine') return;
+    if (mySubmissionsLoadedRef.current) return;
+    mySubmissionsLoadedRef.current = true;
+    void loadMySubmissions();
+  }, [loadMySubmissions, panel, submissionsPanelTab]);
 
   // Load memes count (lightweight) for own channel (do NOT load all memes here)
   useEffect(() => {
@@ -750,6 +845,7 @@ export default function DashboardPage() {
                                 role="button"
                                 tabIndex={0}
                                 onClick={() => {
+                                  setSubmissionsPanelTab('pending');
                                   const next = panel === 'submissions' ? null : 'submissions';
                                   if (next) scrollToPanelIfMobile('submissions');
                                   setPanel(next);
@@ -757,6 +853,7 @@ export default function DashboardPage() {
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
+                                    setSubmissionsPanelTab('pending');
                                     const next = panel === 'submissions' ? null : 'submissions';
                                     if (next) scrollToPanelIfMobile('submissions');
                                     setPanel(next);
@@ -814,15 +911,17 @@ export default function DashboardPage() {
                                 role="button"
                                 tabIndex={0}
                                 onClick={() => {
-                                  // User can be both streamer and viewer; "My submissions" is viewer-side.
-                                  setStoredUserMode('viewer');
-                                  navigate('/submit');
+                                  // Open inside dashboard: same submissions panel, but different tab.
+                                  setSubmissionsPanelTab('mine');
+                                  if (panel !== 'submissions') scrollToPanelIfMobile('submissions');
+                                  setPanel('submissions');
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
-                                    setStoredUserMode('viewer');
-                                    navigate('/submit');
+                                    setSubmissionsPanelTab('mine');
+                                    if (panel !== 'submissions') scrollToPanelIfMobile('submissions');
+                                    setPanel('submissions');
                                   }
                                 }}
                                 aria-label={t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
@@ -1217,15 +1316,23 @@ export default function DashboardPage() {
                   }`}
                 >
                   <div ref={submissionsPanelRef}>
-                    <PendingSubmissionsPanel
+                    <DashboardSubmissionsPanel
                       isOpen={panel === 'submissions'}
+                      activeTab={submissionsPanelTab}
+                      onTabChange={(nextTab) => {
+                        setSubmissionsPanelTab(nextTab);
+                        if (nextTab === 'mine') {
+                          // Ensure we load as soon as user selects the tab.
+                          if (!mySubmissionsLoadedRef.current) void loadMySubmissions();
+                        }
+                      }}
                       submissions={submissions}
                       submissionsLoading={submissionsLoading}
                       submissionsLoadingMore={submissionsLoadingMore}
                       pendingCount={pendingSubmissionsCount}
                       total={submissionsTotal}
                       onClose={() => setPanel(null)}
-                      onLoadMore={() => {
+                      onLoadMorePending={() => {
                         const offset = submissions.length;
                         // If we know total and already loaded everything, skip.
                         if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
@@ -1243,6 +1350,13 @@ export default function DashboardPage() {
                         setNeedsChangesModal({ open: true, submissionId });
                         setNeedsChangesPreset({ badTitle: false, noTags: false, other: false });
                         setNeedsChangesText('');
+                      }}
+                      mySubmissions={mySubmissions}
+                      mySubmissionsLoading={mySubmissionsLoading}
+                      onRefreshMySubmissions={() => void loadMySubmissions()}
+                      onOpenMySubmissionsPage={() => {
+                        setStoredUserMode('viewer');
+                        navigate('/submit');
                       }}
                     />
                   </div>

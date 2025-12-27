@@ -139,6 +139,13 @@
       "settingsDescription": "Настройте свой канал и предпочтения",
       "settingsButton": "Открыть настройки"
     },
+    "submissionsPanel": {
+      "title": "Заявки",
+      "pendingTab": "На одобрение",
+      "myTab": "Мои заявки",
+      "openFull": "Открыть страницу",
+      "myHint": "Здесь будут заявки, которые вы отправляли в другие каналы."
+    },
     "resetLayout": "Сбросить порядок",
     "layoutReset": "Порядок сброшен.",
     "submissions": {
