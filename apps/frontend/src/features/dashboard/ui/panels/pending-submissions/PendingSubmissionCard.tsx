@@ -11,7 +11,7 @@ import { AttemptsPill, Button } from '@/shared/ui';
 export function PendingSubmissionCard(props: {
   submission: Submission;
   resolveMediaUrl: (src: string) => string;
-  onOpenPreview: (data: { src: string; title: string }) => void;
+  onOpenPreview?: (data: { src: string; title: string }) => void;
   onApprove: (id: string) => void;
   onNeedsChanges: (id: string) => void;
   onReject: (id: string) => void;
@@ -33,13 +33,15 @@ export function PendingSubmissionCard(props: {
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="shrink-0 w-full lg:w-[249px]">
             <div className="relative">
-              <button
-                type="button"
-                className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                onClick={() => onOpenPreview({ src, title: submission.title })}
-                aria-label={t('submissions.openPreview', { defaultValue: 'Open preview' })}
-                title={t('submissions.openPreview', { defaultValue: 'Open preview' })}
-              />
+              {onOpenPreview ? (
+                <button
+                  type="button"
+                  className="absolute inset-0 z-10 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  onClick={() => onOpenPreview({ src, title: submission.title })}
+                  aria-label={t('submissions.openPreview', { defaultValue: 'Open preview' })}
+                  title={t('submissions.openPreview', { defaultValue: 'Open preview' })}
+                />
+              ) : null}
               <div className="pointer-events-none">
                 <SubmissionPreview
                   src={src}
