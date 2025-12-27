@@ -49,6 +49,53 @@ interface ChannelInfo {
   };
 }
 
+function toRecord(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== 'object') return null;
+  if (Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
+function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo | null {
+  const r = toRecord(raw);
+  if (!r) return null;
+
+  const id = typeof r.id === 'string' ? r.id : null;
+  const name = typeof r.name === 'string' ? r.name : null;
+  const slug = typeof r.slug === 'string' && r.slug.trim() ? r.slug.trim() : fallbackSlug;
+  if (!id || !name) return null;
+
+  const ownerRaw = toRecord(r.owner);
+  const owner = ownerRaw
+    ? {
+        id: typeof ownerRaw.id === 'string' ? ownerRaw.id : '',
+        displayName: typeof ownerRaw.displayName === 'string' ? ownerRaw.displayName : '',
+        profileImageUrl: typeof ownerRaw.profileImageUrl === 'string' ? ownerRaw.profileImageUrl : null,
+      }
+    : null;
+
+  const statsRaw = toRecord(r.stats);
+  const memesCount = typeof statsRaw?.memesCount === 'number' && Number.isFinite(statsRaw.memesCount) ? statsRaw.memesCount : 0;
+  const usersCount = typeof statsRaw?.usersCount === 'number' && Number.isFinite(statsRaw.usersCount) ? statsRaw.usersCount : 0;
+
+  return {
+    id,
+    slug,
+    name,
+    coinPerPointRatio: typeof r.coinPerPointRatio === 'number' && Number.isFinite(r.coinPerPointRatio) ? r.coinPerPointRatio : 0,
+    coinIconUrl: typeof r.coinIconUrl === 'string' ? r.coinIconUrl : r.coinIconUrl === null ? null : null,
+    rewardTitle: typeof r.rewardTitle === 'string' ? r.rewardTitle : r.rewardTitle === null ? null : null,
+    primaryColor: typeof r.primaryColor === 'string' ? r.primaryColor : r.primaryColor === null ? null : null,
+    secondaryColor: typeof r.secondaryColor === 'string' ? r.secondaryColor : r.secondaryColor === null ? null : null,
+    accentColor: typeof r.accentColor === 'string' ? r.accentColor : r.accentColor === null ? null : null,
+    submissionsEnabled: typeof r.submissionsEnabled === 'boolean' ? r.submissionsEnabled : undefined,
+    submissionsOnlyWhenLive: typeof r.submissionsOnlyWhenLive === 'boolean' ? r.submissionsOnlyWhenLive : undefined,
+    createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
+    memes: [],
+    owner,
+    stats: { memesCount, usersCount },
+  };
+}
+
 export default function StreamerProfile() {
   const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
@@ -130,7 +177,8 @@ export default function StreamerProfile() {
       setMemesOffset(0);
       try {
         // Public profile must use public API as canonical source.
-        const channelInfo = await api.get<ChannelInfo>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        const channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        const channelInfo = normalizeChannelInfo(channelInfoRaw, normalizedSlug);
         if (!channelInfo) {
           throw new Error('Channel info missing');
         }
@@ -153,9 +201,11 @@ export default function StreamerProfile() {
           listParams.set('sortOrder', 'desc');
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
-          const memes = canIncludeFileHash
-            ? await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 })
-            : await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
+          const channelSlugForApi = channelInfo.slug || normalizedSlug;
+          const resp = canIncludeFileHash
+            ? await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 })
+            : await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+          const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
         } catch (error) {
@@ -283,9 +333,11 @@ export default function StreamerProfile() {
       listParams.set('sortOrder', 'desc');
       if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
-      const newMemes = canIncludeFileHash
-        ? await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 })
-        : await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
+      const channelSlugForApi = (channelInfo.slug || normalizedSlug).trim();
+      const resp = canIncludeFileHash
+        ? await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 })
+        : await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+      const newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
       
       if (newMemes.length > 0) {
         setMemes(prev => [...prev, ...newMemes]);
@@ -299,7 +351,7 @@ export default function StreamerProfile() {
     } finally {
       setLoadingMore(false);
     }
-  }, [channelInfo, loadingMore, hasMore, searchQuery, memesOffset, user]);
+  }, [channelInfo, loadingMore, hasMore, searchQuery, memesOffset, user, normalizedSlug]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -347,14 +399,15 @@ export default function StreamerProfile() {
         params.set('sortBy', 'createdAt');
         params.set('sortOrder', 'desc');
 
-        const memes = myFavorites
-          ? await api.get<Meme[]>(`/channels/memes/search?${(() => {
+        const memesResp = myFavorites
+          ? await api.get<unknown>(`/channels/memes/search?${(() => {
               const p = new URLSearchParams(params);
               p.set('channelSlug', normalizedSlug);
               p.set('favorites', '1');
               return p.toString();
             })()}`)
-          : await api.get<Meme[]>(`/public/channels/${normalizedSlug}/memes/search?${params.toString()}`);
+          : await api.get<unknown>(`/public/channels/${normalizedSlug}/memes/search?${params.toString()}`);
+        const memes = Array.isArray(memesResp) ? (memesResp as Meme[]) : [];
         setSearchResults(memes);
       } catch (error: unknown) {
         setSearchResults([]);
