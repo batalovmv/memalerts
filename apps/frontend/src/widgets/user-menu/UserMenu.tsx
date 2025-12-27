@@ -85,19 +85,6 @@ export default function UserMenu() {
     }
   };
 
-  const handleMyProfile = () => {
-    // Admin is an additional role, not exclusive - admin can also be a streamer
-    // Check if user has a channel (regardless of role)
-    if (user.channelId && user.channel?.slug) {
-      setStoredUserMode('viewer');
-      navigate(`/channel/${user.channel.slug}`);
-    } else {
-      setStoredUserMode('streamer');
-      navigate('/dashboard');
-    }
-    setIsOpen(false);
-  };
-
   const handleDashboard = () => {
     setStoredUserMode('streamer');
     navigate('/dashboard');
@@ -117,12 +104,6 @@ export default function UserMenu() {
   const handleMySubmissions = () => {
     setStoredUserMode('viewer');
     navigate('/submit');
-    setIsOpen(false);
-  };
-
-  const handleNeedsChanges = () => {
-    setStoredUserMode('viewer');
-    navigate('/submit?tab=needs_changes');
     setIsOpen(false);
   };
 
@@ -297,21 +278,12 @@ export default function UserMenu() {
               {uiMode === 'viewer' ? (
                 <>
                   <button
-                    onClick={handlePublicProfile}
+                    onClick={handleMySubmissions}
                     className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     type="button"
                     role="menuitem"
                   >
-                    {t('userMenu.publicProfile', { defaultValue: 'Public profile' })}
-                  </button>
-
-                  <button
-                    onClick={handleNeedsChanges}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                    type="button"
-                    role="menuitem"
-                  >
-                    {t('userMenu.needsChanges', { defaultValue: 'Needs changes' })}
+                    {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
                   </button>
 
                   <button
@@ -357,15 +329,6 @@ export default function UserMenu() {
                   </button>
 
                   <button
-                    onClick={handleMySubmissions}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                    type="button"
-                    role="menuitem"
-                  >
-                    {t('userMenu.mySubmissions', { defaultValue: 'My submissions' })}
-                  </button>
-
-                  <button
                     onClick={handlePool}
                     className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     type="button"
@@ -376,14 +339,6 @@ export default function UserMenu() {
 
                   {user.role === 'streamer' || user.role === 'admin' ? (
                     <>
-                      <button
-                        onClick={handleMyProfile}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                        type="button"
-                        role="menuitem"
-                      >
-                        {t('userMenu.myProfile')}
-                      </button>
                       <button
                         onClick={handleDashboard}
                         className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"

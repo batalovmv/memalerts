@@ -17,6 +17,7 @@ import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesMo
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { api } from '@/lib/api';
+import { setStoredUserMode } from '@/shared/lib/userMode';
 import { Button, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
@@ -81,9 +82,17 @@ type BotIntegration = { provider: string; enabled?: boolean | null };
 type PublicSubmissionsStatusResponse = { ok: true; submissions: { enabled: boolean; onlyWhenLive: boolean } };
 
 type ExpandCard = null | 'submissionsControl' | 'bots';
-type DashboardCardId = 'submit' | 'pending' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
+type DashboardCardId = 'submit' | 'pending' | 'mySubmissions' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
 
-const DEFAULT_DASHBOARD_ORDER: DashboardCardId[] = ['submit', 'pending', 'memes', 'settings', 'submissionsControl', 'bots'];
+const DEFAULT_DASHBOARD_ORDER: DashboardCardId[] = [
+  'submit',
+  'pending',
+  'mySubmissions',
+  'memes',
+  'settings',
+  'submissionsControl',
+  'bots',
+];
 const DASHBOARD_CARD_IDS: readonly DashboardCardId[] = DEFAULT_DASHBOARD_ORDER;
 const DASHBOARD_CARD_ID_SET = new Set<string>(DASHBOARD_CARD_IDS as unknown as string[]);
 
@@ -571,7 +580,7 @@ export default function DashboardPage() {
   const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
   const effectiveCardOrder: DashboardCardId[] = isStreamerAdmin
     ? dashboardCardOrder
-    : (['submit', 'pending', 'memes', 'settings'] as DashboardCardId[]);
+    : (['submit', 'pending', 'mySubmissions', 'memes', 'settings'] as DashboardCardId[]);
 
   const onDragEnd = useCallback(
     (event: { active: { id: unknown }; over: { id: unknown } | null }) => {
@@ -792,6 +801,45 @@ export default function DashboardPage() {
                                         })
                                       : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')}
                                   </span>
+                                  <ChevronRightIcon />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (cardId === 'mySubmissions') {
+                            return (
+                              <div
+                                className={baseCardCls}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  // User can be both streamer and viewer; "My submissions" is viewer-side.
+                                  setStoredUserMode('viewer');
+                                  navigate('/submit');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setStoredUserMode('viewer');
+                                    navigate('/submit');
+                                  }
+                                }}
+                                aria-label={t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
+                              >
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <h2 className="text-lg font-semibold dark:text-white">
+                                    {t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
+                                  </h2>
+                                  {isStreamerAdmin ? dragHandle : null}
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                                  {t('dashboard.quickActions.mySubmissionsDescription', {
+                                    defaultValue: 'Track the submissions you sent to other channels',
+                                  })}
+                                </p>
+                                <div className="mt-auto flex items-center justify-between text-primary font-semibold">
+                                  <span>{t('dashboard.quickActions.mySubmissionsButton', { defaultValue: 'Open' })}</span>
                                   <ChevronRightIcon />
                                 </div>
                               </div>

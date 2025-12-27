@@ -508,7 +508,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
                 ? uploadProgress > 0
                   ? `${t('submit.submitting')} ${uploadProgress}%`
                   : t('submit.submitting')
-                : t('common.submit')}
+                : t('submit.submitButton', { defaultValue: 'Add' })}
             </Button>
           </div>
             </form>
