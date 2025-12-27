@@ -58,34 +58,38 @@ export const memeAssetModerationController = {
       ];
     }
 
-    const rows = await prisma.memeAsset.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
-      select: {
-        id: true,
-        type: true,
-        fileUrl: true,
-        fileHash: true,
-        durationMs: true,
-        createdAt: true,
-        poolVisibility: true,
-        poolHiddenAt: true,
-        poolHiddenByUserId: true,
-        poolHiddenReason: true,
-        purgeRequestedAt: true,
-        purgeNotBefore: true,
-        purgedAt: true,
-        purgeReason: true,
-        purgeByUserId: true,
-        hiddenBy: { select: { id: true, displayName: true } },
-        purgedBy: { select: { id: true, displayName: true } },
-      },
-    });
+    const [total, rows] = await Promise.all([
+      prisma.memeAsset.count({ where }),
+      prisma.memeAsset.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true,
+          type: true,
+          fileUrl: true,
+          fileHash: true,
+          durationMs: true,
+          createdAt: true,
+          poolVisibility: true,
+          poolHiddenAt: true,
+          poolHiddenByUserId: true,
+          poolHiddenReason: true,
+          purgeRequestedAt: true,
+          purgeNotBefore: true,
+          purgedAt: true,
+          purgeReason: true,
+          purgeByUserId: true,
+          hiddenBy: { select: { id: true, displayName: true } },
+          purgedBy: { select: { id: true, displayName: true } },
+        },
+      }),
+    ]);
 
     res.setHeader('X-Limit', String(limit));
     res.setHeader('X-Offset', String(offset));
+    res.setHeader('X-Total', String(total));
     return res.json(rows.map(toMemeAssetModerationDto));
   },
 
