@@ -1,6 +1,5 @@
-import type { User } from '@/types';
-
 import { getStoredUserMode, type UserMode } from './userMode';
+import type { User } from '@/types';
 
 export function canUseStreamerUi(user: User | null | undefined): boolean {
   return Boolean(user && (user.role === 'streamer' || user.role === 'admin') && user.channelId);

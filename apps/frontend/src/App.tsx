@@ -12,8 +12,8 @@ import { Spinner } from './shared/ui';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchUser } from './store/slices/authSlice';
 
-import { setStoredUserMode } from '@/shared/lib/userMode';
 import { getEffectiveUserMode } from '@/shared/lib/uiMode';
+import { setStoredUserMode } from '@/shared/lib/userMode';
 import { getViewerHome, setViewerHome } from '@/shared/lib/viewerHome';
 
 const Landing = lazy(() => import('./pages/Landing'));
@@ -80,7 +80,7 @@ function App() {
       // If login started from a public channel page, remember it as a "viewer home" to keep navigation consistent.
       // (We intentionally keep it in sessionStorage: it's contextual to the current login/tab.)
       if (validMode === 'viewer' && returnToPath && returnToPath.startsWith('/channel/')) {
-        setViewerHome(returnTo);
+        if (returnTo) setViewerHome(returnTo);
       }
     }
 
@@ -100,7 +100,7 @@ function App() {
       }
     }
 
-    if (shouldRedirectFromAccounts) {
+    if (shouldRedirectFromAccounts && returnTo) {
       navigate(returnTo, { replace: true });
     }
   }, [location.pathname, location.search, navigate, user]);

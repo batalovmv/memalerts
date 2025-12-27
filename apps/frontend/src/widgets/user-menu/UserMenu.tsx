@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
-import { setStoredUserMode } from '@/shared/lib/userMode';
 import { getEffectiveUserMode } from '@/shared/lib/uiMode';
+import { setStoredUserMode } from '@/shared/lib/userMode';
 import { getViewerHome, setViewerHome } from '@/shared/lib/viewerHome';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';
