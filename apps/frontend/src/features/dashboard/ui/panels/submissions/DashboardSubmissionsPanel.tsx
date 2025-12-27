@@ -7,15 +7,14 @@ import { useLoadMoreOnIntersect } from '../pending-submissions/model/useLoadMore
 import { PendingSubmissionCard } from '../pending-submissions/PendingSubmissionCard';
 
 import type { MySubmission } from '@/features/submit/types';
-import type { Submission, SubmissionStatus } from '@/types';
+import type { Submission } from '@/types';
 
-import { ChannelSubmissionsSection } from '@/features/submit/components/ChannelSubmissionsSection';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
-import { Button, Pill, Spinner } from '@/shared/ui';
+import { Button, IconButton, Pill, Spinner } from '@/shared/ui';
 
-export type SubmissionsPanelTab = 'pending' | 'mine' | 'history' | 'channel';
+export type SubmissionsPanelTab = 'pending' | 'mine';
 
 export type DashboardSubmissionsPanelProps = {
   isOpen: boolean;
@@ -39,20 +38,6 @@ export type DashboardSubmissionsPanelProps = {
   onRefreshMySubmissions: () => void;
   onOpenMySubmissionsPage: () => void;
 
-  // Streamer "channel submissions" (history for the whole channel)
-  canSeeChannelHistory: boolean;
-  channelSubmissions: Submission[];
-  channelSubmissionsLoading: boolean;
-  channelStatusFilter: 'all' | SubmissionStatus;
-  channelQuery: string;
-  channelSelectedSubmitterId: string | null;
-  channelSelectedSubmitterName: string | null;
-  onChannelQueryChange: (q: string) => void;
-  onChannelStatusFilterChange: (s: 'all' | SubmissionStatus) => void;
-  onChannelSelectSubmitter: (id: string, name: string) => void;
-  onChannelClearSubmitter: () => void;
-  onRefreshChannelSubmissions: () => void;
-
   onClose: () => void;
 };
 
@@ -75,19 +60,6 @@ export function DashboardSubmissionsPanel({
   mySubmissionsLoading,
   onRefreshMySubmissions,
   onOpenMySubmissionsPage,
-
-  canSeeChannelHistory,
-  channelSubmissions,
-  channelSubmissionsLoading,
-  channelStatusFilter,
-  channelQuery,
-  channelSelectedSubmitterId,
-  channelSelectedSubmitterName,
-  onChannelQueryChange,
-  onChannelStatusFilterChange,
-  onChannelSelectSubmitter,
-  onChannelClearSubmitter,
-  onRefreshChannelSubmissions,
 
   onClose,
 }: DashboardSubmissionsPanelProps) {
@@ -114,10 +86,6 @@ export function DashboardSubmissionsPanel({
   );
 
   const myCount = myActive.length;
-  const myHistorySorted = useMemo(() => {
-    const byTime = (a: MySubmission, b: MySubmission) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    return [...mySubmissions].sort(byTime);
-  }, [mySubmissions]);
   const mySorted = useMemo(() => {
     // UX: show "needs_changes" first, then pending; both by date desc.
     const byTime = (a: MySubmission, b: MySubmission) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -125,6 +93,32 @@ export function DashboardSubmissionsPanel({
     const rest = myActive.filter((s) => s.status !== 'needs_changes').sort(byTime);
     return [...needs, ...rest];
   }, [myActive]);
+
+  function RefreshIcon(props: { spinning?: boolean }) {
+    const { spinning } = props;
+    return (
+      <svg className={`w-5 h-5 ${spinning ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006.34 6.34M4 15a8 8 0 0013.66 2.66" />
+      </svg>
+    );
+  }
+
+  function HistoryIcon() {
+    return (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z" />
+      </svg>
+    );
+  }
+
+  function ChannelIcon() {
+    return (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    );
+  }
 
   const TabButton = (props: { tab: SubmissionsPanelTab; label: string; count?: number; busy?: boolean; emphasis?: 'primary' | 'secondary' }) => {
     const { tab, label, count, busy, emphasis = 'primary' } = props;
@@ -172,20 +166,8 @@ export function DashboardSubmissionsPanel({
               tab="mine"
               label={t('dashboard.submissionsPanel.myTab', { defaultValue: 'My submissions' })}
               count={myCount}
-              busy={(activeTab === 'mine' || activeTab === 'history') && mySubmissionsLoading}
+              busy={activeTab === 'mine' && mySubmissionsLoading}
             />
-            <TabButton
-              tab="history"
-              label={t('dashboard.submissionsPanel.historyTab', { defaultValue: 'History' })}
-              emphasis="secondary"
-            />
-            {canSeeChannelHistory ? (
-              <TabButton
-                tab="channel"
-                label={t('dashboard.submissionsPanel.channelTab', { defaultValue: 'Channel submissions' })}
-                emphasis="secondary"
-              />
-            ) : null}
           </div>
         }
         onClose={onClose}
@@ -226,9 +208,34 @@ export function DashboardSubmissionsPanel({
         ) : activeTab === 'mine' ? (
           <div className="space-y-4">
             <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={onRefreshMySubmissions} disabled={mySubmissionsLoading}>
-                {t('common.refresh', { defaultValue: 'Refresh' })}
-              </Button>
+              <IconButton
+                type="button"
+                variant="secondary"
+                onClick={onRefreshMySubmissions}
+                disabled={mySubmissionsLoading}
+                aria-label={t('common.retry', { defaultValue: 'Повторить' })}
+                title={t('common.retry', { defaultValue: 'Повторить' })}
+                icon={<RefreshIcon spinning={mySubmissionsLoading} />}
+              />
+
+              <IconButton
+                type="button"
+                variant="secondary"
+                disabled={true}
+                aria-label={t('dashboard.submissionsPanel.historyTab', { defaultValue: 'История' })}
+                title={t('dashboard.submissionsPanel.temporarilyUnavailable', { defaultValue: 'Временно недоступно' })}
+                icon={<HistoryIcon />}
+              />
+
+              <IconButton
+                type="button"
+                variant="secondary"
+                disabled={true}
+                aria-label={t('dashboard.submissionsPanel.channelTab', { defaultValue: 'Заявки канала' })}
+                title={t('dashboard.submissionsPanel.temporarilyUnavailable', { defaultValue: 'Временно недоступно' })}
+                icon={<ChannelIcon />}
+              />
+
               <Button type="button" variant="secondary" size="sm" onClick={onOpenMySubmissionsPage}>
                 {t('dashboard.submissionsPanel.openFull', { defaultValue: 'Open page' })}
               </Button>
@@ -274,78 +281,6 @@ export function DashboardSubmissionsPanel({
                 })}
               </ul>
             )}
-          </div>
-        ) : activeTab === 'history' ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={onRefreshMySubmissions} disabled={mySubmissionsLoading}>
-                {t('common.refresh', { defaultValue: 'Refresh' })}
-              </Button>
-              <Button type="button" variant="secondary" size="sm" onClick={onOpenMySubmissionsPage}>
-                {t('dashboard.submissionsPanel.openFull', { defaultValue: 'Open page' })}
-              </Button>
-            </div>
-
-            {mySubmissionsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <Spinner className="h-4 w-4" />
-                {t('common.loading', { defaultValue: 'Loading…' })}
-              </div>
-            ) : myHistorySorted.length === 0 ? (
-              <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
-                <div className="font-semibold mb-1">{t('submit.noSubmissionsYet', { defaultValue: 'No submissions yet.' })}</div>
-              </div>
-            ) : (
-              <ul className="space-y-3" role="list">
-                {myHistorySorted.slice(0, 80).map((s) => {
-                  if (s.status === 'needs_changes') {
-                    return (
-                      <li key={s.id}>
-                        <NeedsChangesSubmissionCard submission={s} onUpdated={onRefreshMySubmissions} />
-                      </li>
-                    );
-                  }
-                  return (
-                    <li key={s.id}>
-                      <article className="glass p-4">
-                        <header className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="font-semibold text-gray-900 dark:text-white">{s.title}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(s.createdAt).toLocaleString()}</div>
-                          </div>
-                          <Pill variant={s.status === 'approved' ? 'success' : s.status === 'rejected' ? 'danger' : 'neutral'}>
-                            {s.status === 'approved'
-                              ? t('submissions.statusApproved', { defaultValue: 'approved' })
-                              : s.status === 'rejected'
-                                ? t('submissions.statusRejected', { defaultValue: 'rejected' })
-                                : t('submissions.statusPending', { defaultValue: 'pending' })}
-                          </Pill>
-                        </header>
-                      </article>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        ) : (
-          <div>
-            {canSeeChannelHistory ? (
-              <ChannelSubmissionsSection
-                className="mt-0"
-                submissions={channelSubmissions}
-                loading={channelSubmissionsLoading}
-                statusFilter={channelStatusFilter}
-                query={channelQuery}
-                selectedSubmitterId={channelSelectedSubmitterId}
-                selectedSubmitterName={channelSelectedSubmitterName}
-                onQueryChange={onChannelQueryChange}
-                onStatusFilterChange={onChannelStatusFilterChange}
-                onSelectSubmitter={onChannelSelectSubmitter}
-                onClearSubmitter={onChannelClearSubmitter}
-                onRefresh={onRefreshChannelSubmissions}
-              />
-            ) : null}
           </div>
         )}
       </div>
