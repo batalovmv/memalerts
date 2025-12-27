@@ -1,5 +1,4 @@
 ﻿import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -9,8 +8,7 @@ import type { MySubmission } from './types';
 
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
-import { focusSafely } from '@/shared/lib/a11y/focus';
-import { PageShell, Pill } from '@/shared/ui';
+import { PageShell } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 function toRecord(v: unknown): Record<string, unknown> | null {
@@ -126,35 +124,8 @@ export default function Submit() {
     return null;
   }
 
-  const tabs: readonly SubmitTab[] = ['needs_changes'];
   const getTabId = (tab: SubmitTab) => `${tabsIdBase}-tab-${tab}`;
   const getPanelId = (tab: SubmitTab) => `${tabsIdBase}-panel-${tab}`;
-
-  const focusTabButton = (tab: SubmitTab) => {
-    const el = document.getElementById(getTabId(tab));
-    if (el instanceof HTMLElement) focusSafely(el);
-  };
-
-  const handleTabsKeyDown = (
-    e: React.KeyboardEvent<HTMLButtonElement>,
-    tab: SubmitTab,
-  ) => {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const idx = tabs.indexOf(tab);
-    if (idx === -1) return;
-
-    let next: (typeof tabs)[number] = tab;
-    if (e.key === 'Home') next = tabs[0]!;
-    if (e.key === 'End') next = tabs[tabs.length - 1]!;
-    if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length]!;
-    if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length]!;
-
-    setActiveTab(next);
-    window.requestAnimationFrame(() => focusTabButton(next));
-  };
 
   return (
     <PageShell header={<Header />} containerClassName="max-w-4xl">

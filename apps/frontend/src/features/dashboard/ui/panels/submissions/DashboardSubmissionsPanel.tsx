@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next';
 
 import { PanelHeader } from '../../PanelHeader';
 
-import { PendingSubmissionCard } from '../pending-submissions/PendingSubmissionCard';
 import { useLoadMoreOnIntersect } from '../pending-submissions/model/useLoadMoreOnIntersect';
+import { PendingSubmissionCard } from '../pending-submissions/PendingSubmissionCard';
 
-import type { Submission } from '@/types';
 import type { MySubmission } from '@/features/submit/types';
+import type { Submission, SubmissionStatus } from '@/types';
 
 import { ChannelSubmissionsSection } from '@/features/submit/components/ChannelSubmissionsSection';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
@@ -43,12 +43,12 @@ export type DashboardSubmissionsPanelProps = {
   canSeeChannelHistory: boolean;
   channelSubmissions: Submission[];
   channelSubmissionsLoading: boolean;
-  channelStatusFilter: 'all' | import('@/types').SubmissionStatus;
+  channelStatusFilter: 'all' | SubmissionStatus;
   channelQuery: string;
   channelSelectedSubmitterId: string | null;
   channelSelectedSubmitterName: string | null;
   onChannelQueryChange: (q: string) => void;
-  onChannelStatusFilterChange: (s: 'all' | import('@/types').SubmissionStatus) => void;
+  onChannelStatusFilterChange: (s: 'all' | SubmissionStatus) => void;
   onChannelSelectSubmitter: (id: string, name: string) => void;
   onChannelClearSubmitter: () => void;
   onRefreshChannelSubmissions: () => void;
