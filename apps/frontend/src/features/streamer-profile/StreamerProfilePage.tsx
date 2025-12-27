@@ -139,7 +139,13 @@ export default function StreamerProfile() {
           const status = err.response?.status;
           if (!isAuthed && (status === 401 || status === 403)) {
             // Best-effort: try public endpoint if server exposes it (won't break if absent).
-            channelInfo = await api.get<ChannelInfo>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            try {
+              channelInfo = await api.get<ChannelInfo>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            } catch {
+              // If public endpoint is missing/blocked, preserve the original auth error
+              // so UI doesn't mis-report "channel not found" for guests.
+              throw e;
+            }
           } else {
             throw e;
           }
@@ -173,7 +179,11 @@ export default function StreamerProfile() {
             const err = e as { response?: { status?: number } };
             const status = err.response?.status;
             if (!isAuthed && (status === 401 || status === 403)) {
-              memes = await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
+              try {
+                memes = await api.get<Meme[]>(`/public/channels/${channelInfo.slug}/memes?${listParams.toString()}`, { timeout: 15000 });
+              } catch {
+                throw e;
+              }
             } else {
               throw e;
             }
@@ -361,7 +371,24 @@ export default function StreamerProfile() {
         if (myFavorites) params.set('favorites', '1');
         params.set('sortBy', 'createdAt');
         params.set('sortOrder', 'desc');
-        const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
+        let memes: Meme[] = [];
+        try {
+          memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
+        } catch (e: unknown) {
+          const err = e as { response?: { status?: number } };
+          const status = err.response?.status;
+          if (!isAuthed && (status === 401 || status === 403)) {
+            // Guest search should work if backend exposes public read APIs.
+            // If not available, keep empty results quietly.
+            try {
+              memes = await api.get<Meme[]>(`/public/channels/memes/search?${params.toString()}`);
+            } catch {
+              memes = [];
+            }
+          } else {
+            throw e;
+          }
+        }
         setSearchResults(memes);
       } catch (error: unknown) {
         setSearchResults([]);
@@ -371,7 +398,7 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [debouncedSearchQuery, normalizedSlug, myFavorites]);
+  }, [debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
