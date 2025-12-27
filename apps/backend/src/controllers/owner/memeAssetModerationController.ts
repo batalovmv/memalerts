@@ -62,7 +62,8 @@ export const memeAssetModerationController = {
       prisma.memeAsset.count({ where }),
       prisma.memeAsset.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        // Deterministic ordering for stable pagination (avoid duplicates/skips when rows change).
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,
         skip: offset,
         select: {

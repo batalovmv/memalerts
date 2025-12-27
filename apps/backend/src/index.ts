@@ -194,7 +194,9 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
-    exposedHeaders: ['Set-Cookie'],
+    // Allow browser JS (frontend) to read pagination + requestId headers on cross-origin requests.
+    // If frontend is same-origin, this is harmless.
+    exposedHeaders: ['Set-Cookie', 'X-Total', 'X-Limit', 'X-Offset', 'X-Request-Id'],
   })
 );
 
