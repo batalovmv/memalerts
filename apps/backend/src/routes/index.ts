@@ -436,6 +436,7 @@ export function setupRoutes(app: Express) {
         req.path === '/memes/pool' ||
         req.path.startsWith('/streamer') ||
         req.path.startsWith('/owner') ||
+        req.path.startsWith('/moderation') ||
         req.path.startsWith('/submissions') ||
         // Channel routes handled explicitly below (beta: auth+beta; prod: public where applicable)
         /^\/channels\/[^\/]+$/.test(req.path) ||
