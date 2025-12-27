@@ -7,6 +7,7 @@ import { cn } from '@/shared/lib/cn';
 import { Button, IconButton, Input, Pill, Select, Spinner } from '@/shared/ui';
 
 export type ChannelSubmissionsSectionProps = {
+  className?: string;
   submissions: Submission[];
   loading: boolean;
   statusFilter: 'all' | SubmissionStatus;
@@ -55,6 +56,7 @@ function RefreshIcon(props: { spinning?: boolean }) {
 }
 
 export function ChannelSubmissionsSection({
+  className,
   submissions,
   loading,
   statusFilter,
@@ -92,7 +94,7 @@ export function ChannelSubmissionsSection({
   const hasFilters = !!query.trim() || statusFilter !== 'all' || !!selectedSubmitterId;
 
   return (
-    <section className="mt-6 surface">
+    <section className={cn('surface', className)}>
       <header className="surface-header">
         <div>
           <h3 className="text-xl font-bold dark:text-white">

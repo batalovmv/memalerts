@@ -176,10 +176,19 @@ export default function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const submissionsLoadedRef = useRef(false);
-  const [submissionsPanelTab, setSubmissionsPanelTab] = useState<'pending' | 'mine'>('pending');
+  const [submissionsPanelTab, setSubmissionsPanelTab] = useState<'pending' | 'mine' | 'history' | 'channel'>('pending');
   const [mySubmissions, setMySubmissions] = useState<import('@/features/submit/types').MySubmission[]>([]);
   const [mySubmissionsLoading, setMySubmissionsLoading] = useState(false);
   const mySubmissionsLoadedRef = useRef(false);
+
+  const canSeeChannelHistory = Boolean(user && (user.role === 'streamer' || user.role === 'admin') && user.channelId);
+  const [channelSubmissions, setChannelSubmissions] = useState<import('@/types').Submission[]>([]);
+  const [channelSubmissionsLoading, setChannelSubmissionsLoading] = useState(false);
+  const [channelStatusFilter, setChannelStatusFilter] = useState<'all' | import('@/types').SubmissionStatus>('all');
+  const [channelQuery, setChannelQuery] = useState('');
+  const [channelSelectedSubmitterId, setChannelSelectedSubmitterId] = useState<string | null>(null);
+  const [channelSelectedSubmitterName, setChannelSelectedSubmitterName] = useState<string | null>(null);
+  const channelLoadedRef = useRef(false);
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -398,11 +407,76 @@ export default function DashboardPage() {
   useEffect(() => {
     // Lazy-load "my submissions" only when user opens the dashboard submissions panel and selects the tab.
     if (panel !== 'submissions') return;
-    if (submissionsPanelTab !== 'mine') return;
+    if (submissionsPanelTab !== 'mine' && submissionsPanelTab !== 'history') return;
     if (mySubmissionsLoadedRef.current) return;
     mySubmissionsLoadedRef.current = true;
     void loadMySubmissions();
   }, [loadMySubmissions, panel, submissionsPanelTab]);
+
+  const loadChannelHistory = useCallback(
+    async (statusOverride?: 'all' | import('@/types').SubmissionStatus) => {
+      if (!user || !canSeeChannelHistory) return;
+      const effectiveStatus = statusOverride ?? channelStatusFilter;
+
+      const parsePage = (resp: unknown): { items: import('@/types').Submission[]; total: number | null } => {
+        if (Array.isArray(resp)) return { items: resp as import('@/types').Submission[], total: resp.length };
+        const r = resp && typeof resp === 'object' ? (resp as { items?: unknown; total?: unknown }) : null;
+        if (Array.isArray(r?.items)) {
+          const total = typeof r?.total === 'number' ? r.total : null;
+          return { items: r.items as import('@/types').Submission[], total };
+        }
+        return { items: [], total: null };
+      };
+
+      try {
+        setChannelSubmissionsLoading(true);
+        const limit = 50;
+        const fetchOne = async (status: import('@/types').SubmissionStatus) => {
+          const resp = await api.get<unknown>('/streamer/submissions', {
+            params: { status, limit, offset: 0, includeTotal: 0, includeTags: 0 },
+            timeout: 15000,
+          });
+          return parsePage(resp).items;
+        };
+
+        const items =
+          effectiveStatus === 'all'
+            ? (await Promise.all([fetchOne('pending'), fetchOne('needs_changes'), fetchOne('approved'), fetchOne('rejected')])).flat()
+            : await fetchOne(effectiveStatus);
+
+        const dedup = new Map<string, import('@/types').Submission>();
+        for (const s of items) dedup.set(s.id, s);
+
+        const merged = Array.from(dedup.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setChannelSubmissions(merged);
+      } catch {
+        setChannelSubmissions([]);
+        toast.error(t('submit.failedToLoadChannelSubmissions', { defaultValue: 'Failed to load channel submissions.' }));
+      } finally {
+        setChannelSubmissionsLoading(false);
+      }
+    },
+    [canSeeChannelHistory, channelStatusFilter, t, user],
+  );
+
+  useEffect(() => {
+    // Reset channel-history cache on user change.
+    channelLoadedRef.current = false;
+    setChannelSubmissions([]);
+    setChannelQuery('');
+    setChannelStatusFilter('all');
+    setChannelSelectedSubmitterId(null);
+    setChannelSelectedSubmitterName(null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (panel !== 'submissions') return;
+    if (submissionsPanelTab !== 'channel') return;
+    if (!canSeeChannelHistory) return;
+    if (channelLoadedRef.current) return;
+    channelLoadedRef.current = true;
+    void loadChannelHistory();
+  }, [canSeeChannelHistory, loadChannelHistory, panel, submissionsPanelTab]);
 
   // Load memes count (lightweight) for own channel (do NOT load all memes here)
   useEffect(() => {
@@ -1268,9 +1342,12 @@ export default function DashboardPage() {
                       activeTab={submissionsPanelTab}
                       onTabChange={(nextTab) => {
                         setSubmissionsPanelTab(nextTab);
-                        if (nextTab === 'mine') {
+                        if (nextTab === 'mine' || nextTab === 'history') {
                           // Ensure we load as soon as user selects the tab.
                           if (!mySubmissionsLoadedRef.current) void loadMySubmissions();
+                        }
+                        if (nextTab === 'channel') {
+                          if (!channelLoadedRef.current) void loadChannelHistory();
                         }
                       }}
                       submissions={submissions}
@@ -1305,6 +1382,29 @@ export default function DashboardPage() {
                         setStoredUserMode('viewer');
                         navigate('/submit');
                       }}
+                      canSeeChannelHistory={canSeeChannelHistory}
+                      channelSubmissions={channelSubmissions}
+                      channelSubmissionsLoading={channelSubmissionsLoading}
+                      channelStatusFilter={channelStatusFilter}
+                      channelQuery={channelQuery}
+                      channelSelectedSubmitterId={channelSelectedSubmitterId}
+                      channelSelectedSubmitterName={channelSelectedSubmitterName}
+                      onChannelQueryChange={setChannelQuery}
+                      onChannelStatusFilterChange={(s) => {
+                        setChannelStatusFilter(s);
+                        setChannelSubmissions([]);
+                        channelLoadedRef.current = true; // keep tab "loaded"; we are refreshing it explicitly
+                        void loadChannelHistory(s);
+                      }}
+                      onChannelSelectSubmitter={(id, name) => {
+                        setChannelSelectedSubmitterId(id);
+                        setChannelSelectedSubmitterName(name);
+                      }}
+                      onChannelClearSubmitter={() => {
+                        setChannelSelectedSubmitterId(null);
+                        setChannelSelectedSubmitterName(null);
+                      }}
+                      onRefreshChannelSubmissions={() => void loadChannelHistory()}
                     />
                   </div>
 
