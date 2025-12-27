@@ -21,7 +21,8 @@ export type AllMemesPanelProps = {
 
 export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onSelectMeme }: AllMemesPanelProps) {
   const { t } = useTranslation();
-  const vm = useAllMemesPanel({ isOpen, channelId });
+  // Dashboard is owner/admin-only context; request fileHash when backend allows it.
+  const vm = useAllMemesPanel({ isOpen, channelId, includeFileHash: true });
 
   return (
     <section

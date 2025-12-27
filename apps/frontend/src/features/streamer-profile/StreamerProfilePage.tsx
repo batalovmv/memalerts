@@ -65,7 +65,7 @@ export default function StreamerProfile() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [memesOffset, setMemesOffset] = useState(0);
-  const MEMES_PER_PAGE = 30;
+  const MEMES_PER_PAGE = 40;
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -134,7 +134,15 @@ export default function StreamerProfile() {
         setMemesLoading(true);
         setMemesOffset(0);
         try {
-          const memes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?limit=${MEMES_PER_PAGE}&offset=0`, {
+          const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
+          const listParams = new URLSearchParams();
+          listParams.set('limit', String(MEMES_PER_PAGE));
+          listParams.set('offset', '0');
+          listParams.set('sortBy', 'createdAt');
+          listParams.set('sortOrder', 'desc');
+          if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+
+          const memes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, {
             timeout: 15000, // 15 seconds timeout
           });
           setMemes(memes);
@@ -248,7 +256,15 @@ export default function StreamerProfile() {
     setLoadingMore(true);
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
-      const newMemes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?limit=${MEMES_PER_PAGE}&offset=${nextOffset}`, {
+      const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
+      const listParams = new URLSearchParams();
+      listParams.set('limit', String(MEMES_PER_PAGE));
+      listParams.set('offset', String(nextOffset));
+      listParams.set('sortBy', 'createdAt');
+      listParams.set('sortOrder', 'desc');
+      if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+
+      const newMemes = await api.get<Meme[]>(`/channels/${channelInfo.slug}/memes?${listParams.toString()}`, {
         timeout: 15000, // 15 seconds timeout
       });
       
@@ -264,7 +280,7 @@ export default function StreamerProfile() {
     } finally {
       setLoadingMore(false);
     }
-  }, [channelInfo, loadingMore, hasMore, searchQuery, memesOffset]);
+  }, [channelInfo, loadingMore, hasMore, searchQuery, memesOffset, user]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {

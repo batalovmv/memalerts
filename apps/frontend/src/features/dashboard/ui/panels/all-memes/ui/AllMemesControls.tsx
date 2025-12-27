@@ -35,15 +35,16 @@ export function AllMemesControls(props: AllMemesControlsProps) {
         >
           <option value="createdAt:desc">{t('search.sortNewest', 'Newest')}</option>
           <option value="createdAt:asc">{t('search.sortOldest', 'Oldest')}</option>
-          <option value="popularity:desc">{t('search.sortPopular', 'Popular (30d)')}</option>
+          <option value="priceCoins:desc">{t('search.sortPriceHigh', 'Price: high')}</option>
+          <option value="priceCoins:asc">{t('search.sortPriceLow', 'Price: low')}</option>
         </Select>
         <Select
           value={props.searchScope}
           onChange={(e) => props.onSearchScopeChange(e.target.value as AllMemesSearchScope)}
           title={t('search.searchScope', 'Search scope')}
         >
-          <option value="content">{t('search.scopeContent', 'Search: title + tags')}</option>
-          <option value="contentAndUploader">{t('search.scopeContentUploader', 'Search: title + tags + uploader nick')}</option>
+          <option value="content">{t('search.scopeContent', 'Search: title')}</option>
+          <option value="contentAndUploader">{t('search.scopeContentUploader', 'Search: title + uploader nick')}</option>
         </Select>
       </div>
     </div>

@@ -7,21 +7,22 @@ import { api } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 
 export type AllMemesSearchScope = 'content' | 'contentAndUploader';
-export type AllMemesSortBy = 'createdAt' | 'popularity';
+export type AllMemesSortBy = 'createdAt' | 'priceCoins';
 export type AllMemesSortOrder = 'asc' | 'desc';
 
-export function useAllMemesPanel(params: { isOpen: boolean; channelId: string }) {
-  const { isOpen, channelId } = params;
+export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; includeFileHash?: boolean }) {
+  const { isOpen, channelId, includeFileHash } = params;
 
   const [query, setQuery] = useState('');
-  const debouncedQuery = useDebounce(query, 350);
+  const debouncedQuery = useDebounce(query, 250);
   const [searchScope, setSearchScope] = useState<AllMemesSearchScope>('content');
   const [filters, setFilters] = useState<{ sortBy: AllMemesSortBy; sortOrder: AllMemesSortOrder }>({
     sortBy: 'createdAt',
     sortOrder: 'desc',
   });
 
-  const [memes, setMemes] = useState<Meme[]>([]);
+  // Raw loaded items (pagination offset must be based on unfiltered length).
+  const [items, setItems] = useState<Meme[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -38,7 +39,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string })
       const deletedChannelId = ce.detail?.channelId;
       if (!memeId && !legacyMemeId) return;
       if (deletedChannelId && deletedChannelId !== channelId) return;
-      setMemes((prev) =>
+      setItems((prev) =>
         prev.filter((m) => {
           const pid = getMemePrimaryId(m);
           if (memeId && pid === memeId) return false;
@@ -54,19 +55,37 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string })
   const paramsBase = useMemo(() => {
     const p = new URLSearchParams();
     p.set('channelId', channelId);
-    if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim());
-    if (searchScope === 'contentAndUploader') p.set('includeUploader', '1');
+    // IMPORTANT:
+    // To keep the dashboard "All memes" list identical to the public channel listing,
+    // we MUST use the backend "channel listing mode" for /channels/memes/search.
+    // That mode reads ChannelMeme (approved + not deleted) and returns the canonical DTO.
+    // Passing params like q/includeUploader/tags/popularity may switch the backend into
+    // legacy search mode (legacy Meme), producing a different shape and mismatched set.
     p.set('sortBy', filters.sortBy);
     p.set('sortOrder', filters.sortOrder);
     p.set('limit', String(limit));
+    if (includeFileHash) p.set('includeFileHash', '1');
     return p;
-  }, [channelId, debouncedQuery, filters, searchScope, limit]);
+  }, [channelId, filters, limit, includeFileHash]);
 
   const loadPage = async (offset: number) => {
     const p = new URLSearchParams(paramsBase);
     p.set('offset', String(offset));
     return await api.get<Meme[]>(`/channels/memes/search?${p.toString()}`);
   };
+
+  const memes = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((m) => {
+      const title = (m.title || '').toLowerCase();
+      const uploader = (m.createdBy?.displayName || '').toLowerCase();
+      if (searchScope === 'contentAndUploader') {
+        return title.includes(q) || uploader.includes(q);
+      }
+      return title.includes(q);
+    });
+  }, [items, debouncedQuery, searchScope]);
 
   // Reset + load first page when panel opens or filters change
   useEffect(() => {
@@ -76,7 +95,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string })
     void (async () => {
       try {
         const first = await loadPage(0);
-        setMemes(first);
+        setItems(first);
         setHasMore(first.length === limit);
       } finally {
         setLoading(false);
@@ -100,8 +119,8 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string })
             setLoadingMore(true);
             void (async () => {
               try {
-                const next = await loadPage(memes.length);
-                setMemes((prev) => [...prev, ...next]);
+                const next = await loadPage(items.length);
+                setItems((prev) => [...prev, ...next]);
                 setHasMore(next.length === limit);
               } finally {
                 setLoadingMore(false);
@@ -116,7 +135,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string })
 
     obs.observe(el);
     return () => obs.disconnect();
-  }, [isOpen, hasMore, loading, loadingMore, memes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, hasMore, loading, loadingMore, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     query,

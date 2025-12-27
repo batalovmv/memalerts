@@ -81,6 +81,7 @@ export interface Meme {
   title: string;
   type: MemeType;
   fileUrl: string;
+  fileHash?: string | null;
   priceCoins: number;
   durationMs: number;
   status?: MemeStatus;
