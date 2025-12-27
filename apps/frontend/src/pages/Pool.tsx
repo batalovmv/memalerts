@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -9,9 +9,11 @@ import type { Meme } from '@/types';
 import Header from '@/components/Header';
 import MemeCard from '@/components/MemeCard';
 import { login } from '@/lib/auth';
+import { resolveMediaUrl } from '@/lib/urls';
 import { getMemesPool } from '@/shared/api/memesPool';
 import { createPoolSubmission } from '@/shared/api/submissionsPool';
 import { PageShell, Button, Input, Spinner } from '@/shared/ui';
+import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
 
@@ -55,6 +57,10 @@ export default function PoolPage() {
   const [authRequired, setAuthRequired] = useState(false);
   const [submittingAssetId, setSubmittingAssetId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
+  const [selectedItem, setSelectedItem] = useState<PoolItem | null>(null);
+  const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
+  const [previewMuted, setPreviewMuted] = useState(true);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
 
   // When opened from a streamer public profile, SubmitModal can pass a target channel via query params.
   const targetChannelId = (searchParams.get('channelId') || '').trim() || null;
@@ -278,20 +284,16 @@ export default function PoolPage() {
           <div className="meme-masonry">
             {items.map((m) => (
               <div key={m.id} className="relative break-inside-avoid mb-3">
-                <MemeCard meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))} onClick={() => {}} isOwner={false} previewMode="autoplayMuted" />
-                <div className="absolute left-3 right-3 bottom-3 z-10">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    className="w-full"
-                    onClick={() => void onAdd(m)}
-                    disabled={!isAuthed || !submitChannelId || (!!submittingAssetId && submittingAssetId !== getPoolMemeAssetId(m))}
-                  >
-                    {submitMode === 'viewerToStreamer'
-                      ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })
-                      : t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
-                  </Button>
-                </div>
+                <MemeCard
+                  meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))}
+                  onClick={() => {
+                    setSelectedItem(m);
+                    setPreviewMuted(true);
+                    setIsMemeModalOpen(true);
+                  }}
+                  isOwner={false}
+                  previewMode="autoplayMuted"
+                />
               </div>
             ))}
           </div>
@@ -333,6 +335,8 @@ export default function PoolPage() {
           }
           void runAdd(pendingAdd.memeAssetId, title);
           setPendingAdd(null);
+          setIsMemeModalOpen(false);
+          setSelectedItem(null);
         }}
         title={t('pool.addTitleTitle', { defaultValue: 'Add meme to channel' })}
         message={
@@ -362,6 +366,138 @@ export default function PoolPage() {
         confirmButtonClass="bg-primary hover:bg-primary/90"
         isLoading={!!submittingAssetId}
       />
+
+      <Modal
+        isOpen={isMemeModalOpen && !!selectedItem}
+        onClose={() => {
+          setIsMemeModalOpen(false);
+          setSelectedItem(null);
+        }}
+        ariaLabel={t('pool.previewModalTitle', { defaultValue: 'Meme preview' })}
+        zIndexClassName="z-40"
+        overlayClassName="bg-black/40"
+        contentClassName="max-w-5xl p-0 overflow-hidden"
+      >
+        {(() => {
+          if (!selectedItem) return null;
+          const meme = toPoolCardMeme(selectedItem, t('pool.untitled', { defaultValue: 'Untitled' }));
+          const mediaUrl = resolveMediaUrl(meme.fileUrl);
+          const isBusyForThis =
+            !!submittingAssetId && submittingAssetId === getPoolMemeAssetId(selectedItem);
+
+          return (
+            <div className="flex flex-col">
+              <div className="relative bg-black">
+                {/* top bar */}
+                <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMemeModalOpen(false);
+                      setSelectedItem(null);
+                    }}
+                    className="h-10 w-10 rounded-full bg-black/50 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+                    aria-label={t('common.close', { defaultValue: 'Close' })}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  {meme.type === 'video' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !previewMuted;
+                        setPreviewMuted(next);
+                        if (previewVideoRef.current) previewVideoRef.current.muted = next;
+                      }}
+                      className="h-10 px-4 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/60 transition-colors font-semibold"
+                      aria-pressed={previewMuted}
+                    >
+                      {previewMuted
+                        ? t('common.mute', { defaultValue: 'Без звука' })
+                        : t('common.soundOn', { defaultValue: 'Со звуком' })}
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+
+                <div className="w-full aspect-video sm:aspect-[16/9] overflow-hidden">
+                  {meme.type === 'video' ? (
+                    <>
+                      {/* blurred background for vertical videos */}
+                      <video
+                        src={mediaUrl}
+                        muted
+                        loop
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
+                        preload="auto"
+                        aria-hidden="true"
+                      />
+                      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+                      <video
+                        ref={previewVideoRef}
+                        src={mediaUrl}
+                        muted={previewMuted}
+                        autoPlay
+                        loop
+                        playsInline
+                        controls
+                        className="relative z-10 w-full h-full object-contain"
+                        preload="auto"
+                      />
+                    </>
+                  ) : (
+                    <img src={mediaUrl} alt={meme.title} className="w-full h-full object-contain" />
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+                      {meme.title}
+                    </div>
+                    <div className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
+                      {t('pool.previewHint', {
+                        defaultValue: 'To add, tap the button below.',
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="w-full"
+                  onClick={() => void onAdd(selectedItem)}
+                  disabled={!isAuthed || !submitChannelId || isBusyForThis}
+                >
+                  {submitMode === 'viewerToStreamer'
+                    ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })
+                    : t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
+                </Button>
+
+                {!isAuthed ? (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('pool.loginRequired', { defaultValue: 'Please log in to add memes.' })}
+                  </div>
+                ) : !submitChannelId ? (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('pool.openFromStreamer', {
+                      defaultValue: 'Open the pool from a streamer profile to submit memes to them.',
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
     </PageShell>
   );
 }
