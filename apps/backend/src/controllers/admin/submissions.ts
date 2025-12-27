@@ -789,9 +789,9 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
     }
     if (error.message === 'MEME_ASSET_DELETED') {
       return res.status(410).json({
-        errorCode: 'MEME_ASSET_DELETED',
+        errorCode: 'ASSET_PURGED_OR_QUARANTINED',
         error: 'This meme was deleted and cannot be approved',
-        details: { fileHash: null },
+        details: { legacyErrorCode: 'MEME_ASSET_DELETED', fileHash: null },
       });
     }
     if (error.message === 'MEDIA_NOT_AVAILABLE') {

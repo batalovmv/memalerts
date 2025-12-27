@@ -11,6 +11,7 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       where: { id: req.userId! },
       include: {
         wallets: true,
+        globalModerator: { select: { revokedAt: true } },
         externalAccounts: {
           orderBy: { createdAt: 'asc' },
           select: {
@@ -41,11 +42,16 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Used by frontend to enable /moderation UX without extra round-trips.
+    // Admin is always allowed; otherwise this reflects an active GlobalModerator grant (revokedAt IS NULL).
+    const isGlobalModerator = user.role === 'admin' || (Boolean(user.globalModerator) && !user.globalModerator?.revokedAt);
+
     const response = {
       id: user.id,
       displayName: user.displayName,
       profileImageUrl: user.profileImageUrl || null,
       role: user.role,
+      isGlobalModerator,
       channelId: user.channelId,
       channel: user.channel,
       wallets: user.wallets,

@@ -20,7 +20,12 @@ export const moderatorsController = {
         revokedBy: { select: { id: true, displayName: true } },
       },
     });
-    return res.json(rows);
+    return res.json(
+      rows.map((r) => ({
+        ...r,
+        active: !r.revokedAt,
+      }))
+    );
   },
 
   // POST /owner/moderators/:userId/grant

@@ -162,9 +162,16 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             // ignore
           }
           return res.status(410).json({
-            errorCode: 'MEME_ASSET_DELETED',
+            errorCode: 'ASSET_PURGED_OR_QUARANTINED',
             error: 'This meme was deleted and cannot be imported again',
             requestId: req.requestId,
+            details: {
+              legacyErrorCode: 'MEME_ASSET_DELETED',
+              fileHash,
+              memeAssetId: existingAsset.id,
+              purgeRequestedAt: existingAsset.purgeRequestedAt,
+              purgedAt: existingAsset.purgedAt,
+            },
           });
         }
 

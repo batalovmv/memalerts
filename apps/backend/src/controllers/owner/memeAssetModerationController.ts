@@ -10,6 +10,18 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   return n;
 }
 
+function toMemeAssetModerationDto(row: any) {
+  return {
+    ...row,
+    // Stable, UI-friendly aliases (keep existing poolHidden*/purge* fields for backward compatibility)
+    hiddenReason: row.poolHiddenReason ?? null,
+    hiddenByUserId: row.poolHiddenByUserId ?? null,
+    purgeRequestedByUserId: row.purgeByUserId ?? null,
+    hiddenBy: row.hiddenBy ?? null,
+    purgeRequestedBy: row.purgedBy ?? null,
+  };
+}
+
 export const memeAssetModerationController = {
   // GET /owner/meme-assets?status=hidden|quarantine|purged|all&q=...&limit=...&offset=...
   list: async (req: AuthRequest, res: Response) => {
@@ -67,12 +79,14 @@ export const memeAssetModerationController = {
         purgedAt: true,
         purgeReason: true,
         purgeByUserId: true,
+        hiddenBy: { select: { id: true, displayName: true } },
+        purgedBy: { select: { id: true, displayName: true } },
       },
     });
 
     res.setHeader('X-Limit', String(limit));
     res.setHeader('X-Offset', String(offset));
-    return res.json(rows);
+    return res.json(rows.map(toMemeAssetModerationDto));
   },
 
   // POST /owner/meme-assets/:id/hide
@@ -97,6 +111,7 @@ export const memeAssetModerationController = {
           poolHiddenAt: true,
           poolHiddenByUserId: true,
           poolHiddenReason: true,
+          hiddenBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -109,7 +124,7 @@ export const memeAssetModerationController = {
         success: true,
       });
 
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'owner.memeAsset.hide',
@@ -120,7 +135,7 @@ export const memeAssetModerationController = {
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 
@@ -144,6 +159,7 @@ export const memeAssetModerationController = {
           poolHiddenAt: true,
           poolHiddenByUserId: true,
           poolHiddenReason: true,
+          hiddenBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -156,7 +172,7 @@ export const memeAssetModerationController = {
         success: true,
       });
 
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'owner.memeAsset.unhide',
@@ -167,7 +183,7 @@ export const memeAssetModerationController = {
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 
@@ -206,6 +222,8 @@ export const memeAssetModerationController = {
           purgedAt: true,
           purgeReason: true,
           purgeByUserId: true,
+          hiddenBy: { select: { id: true, displayName: true } },
+          purgedBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -218,7 +236,7 @@ export const memeAssetModerationController = {
         success: true,
       });
 
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'owner.memeAsset.purge',
@@ -229,7 +247,7 @@ export const memeAssetModerationController = {
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 
@@ -265,6 +283,8 @@ export const memeAssetModerationController = {
           purgedAt: true,
           purgeReason: true,
           purgeByUserId: true,
+          hiddenBy: { select: { id: true, displayName: true } },
+          purgedBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -277,7 +297,7 @@ export const memeAssetModerationController = {
         success: true,
       });
 
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'owner.memeAsset.restore',
@@ -288,7 +308,7 @@ export const memeAssetModerationController = {
         success: false,
         error: e?.message,
       });
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 };

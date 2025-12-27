@@ -15,6 +15,18 @@ function getDefaultQuarantineDays(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 14;
 }
 
+function toMemeAssetModerationDto(row: any) {
+  return {
+    ...row,
+    // Stable, UI-friendly aliases (keep existing poolHidden*/purge* fields for backward compatibility)
+    hiddenReason: row.poolHiddenReason ?? null,
+    hiddenByUserId: row.poolHiddenByUserId ?? null,
+    purgeRequestedByUserId: row.purgeByUserId ?? null,
+    hiddenBy: row.hiddenBy ?? null,
+    purgeRequestedBy: row.purgedBy ?? null,
+  };
+}
+
 export const moderationMemeAssetController = {
   // GET /moderation/meme-assets?status=hidden|quarantine|purged|all&q=...&limit=...&offset=...
   list: async (req: AuthRequest, res: Response) => {
@@ -73,12 +85,14 @@ export const moderationMemeAssetController = {
         purgedAt: true,
         purgeReason: true,
         purgeByUserId: true,
+        hiddenBy: { select: { id: true, displayName: true } },
+        purgedBy: { select: { id: true, displayName: true } },
       },
     });
 
     res.setHeader('X-Limit', String(limit));
     res.setHeader('X-Offset', String(offset));
-    return res.json(rows);
+    return res.json(rows.map(toMemeAssetModerationDto));
   },
 
   // POST /moderation/meme-assets/:id/hide  body: { reason?: string }
@@ -102,6 +116,7 @@ export const moderationMemeAssetController = {
           poolHiddenAt: true,
           poolHiddenByUserId: true,
           poolHiddenReason: true,
+          hiddenBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -113,7 +128,7 @@ export const moderationMemeAssetController = {
         userAgent,
         success: true,
       });
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'moderation.memeAsset.hide',
@@ -151,6 +166,8 @@ export const moderationMemeAssetController = {
           purgeRequestedAt: true,
           purgeNotBefore: true,
           purgedAt: true,
+          hiddenBy: { select: { id: true, displayName: true } },
+          purgedBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -162,7 +179,7 @@ export const moderationMemeAssetController = {
         userAgent,
         success: true,
       });
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'moderation.memeAsset.unhide',
@@ -219,6 +236,8 @@ export const moderationMemeAssetController = {
           purgedAt: true,
           purgeReason: true,
           purgeByUserId: true,
+          hiddenBy: { select: { id: true, displayName: true } },
+          purgedBy: { select: { id: true, displayName: true } },
         },
       });
 
@@ -230,7 +249,7 @@ export const moderationMemeAssetController = {
         userAgent,
         success: true,
       });
-      return res.json(updated);
+      return res.json(toMemeAssetModerationDto(updated));
     } catch (e: any) {
       await auditLog({
         action: 'moderation.memeAsset.delete',
