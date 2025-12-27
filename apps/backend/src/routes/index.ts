@@ -63,11 +63,12 @@ export function setupRoutes(app: Express) {
   app.post('/public/submissions/disable', publicSubmissionsControlLimiter, submissionsPublicControlController.disable);
   app.post('/public/submissions/toggle', publicSubmissionsControlLimiter, submissionsPublicControlController.toggle);
 
-  // Public read endpoints (sanitized DTOs for guest access on production).
-  // On beta: still gated by beta access (even for guests) via route-level middleware below.
-  app.get('/public/channels/:slug', optionalAuthenticate, requireBetaAccessOrGuestForbidden, getPublicChannelBySlug);
-  app.get('/public/channels/:slug/memes', optionalAuthenticate, requireBetaAccessOrGuestForbidden, getPublicChannelMemes);
-  app.get('/public/channels/:slug/memes/search', optionalAuthenticate, requireBetaAccessOrGuestForbidden, searchPublicChannelMemes);
+  // Public read endpoints (sanitized DTOs for guest access).
+  // UX: public pages & meme lists must be visible to guests on BOTH prod and beta.
+  // Actions (activate/favorites/submissions) remain auth-gated elsewhere.
+  app.get('/public/channels/:slug', optionalAuthenticate, getPublicChannelBySlug);
+  app.get('/public/channels/:slug/memes', optionalAuthenticate, getPublicChannelMemes);
+  app.get('/public/channels/:slug/memes/search', optionalAuthenticate, searchPublicChannelMemes);
 
   // Public OBS Browser Source: Credits overlay (titres).
   // Served by backend so OBS can point to backend domain directly.
