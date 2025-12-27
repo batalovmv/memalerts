@@ -176,11 +176,14 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         const d = respData as Record<string, unknown> | null;
         const respStatus = typeof d?.status === 'string' ? d.status : null;
         const isDirectApproval = d?.isDirectApproval === true;
+        const isRestored = d?.isRestored === true;
 
         toast.success(
-          isDirectApproval
-            ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
-            : t('submit.submitted'),
+          isRestored
+            ? t('submit.restored', { defaultValue: 'Meme was restored in your channel.' })
+            : isDirectApproval
+              ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
+              : t('submit.submitted'),
         );
         onClose();
 
@@ -209,6 +212,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         }
         if (apiError.response?.status === 403 && maybeErrorCode === 'SUBMISSIONS_OFFLINE') {
           setBlockedReason('offline');
+          return;
+        }
+        if (apiError.response?.status === 409 && maybeErrorCode === 'ALREADY_IN_CHANNEL') {
+          toast.error(t('submitModal.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
           return;
         }
         // Handle 524 Cloudflare timeout specifically
@@ -251,11 +258,14 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         const d = respData as Record<string, unknown> | null;
         const respStatus = typeof d?.status === 'string' ? d.status : null;
         const isDirectApproval = d?.isDirectApproval === true;
+        const isRestored = d?.isRestored === true;
 
         toast.success(
-          isDirectApproval
-            ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
-            : t('submit.importSubmitted'),
+          isRestored
+            ? t('submit.restored', { defaultValue: 'Meme was restored in your channel.' })
+            : isDirectApproval
+              ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
+              : t('submit.importSubmitted'),
         );
         onClose();
 
@@ -283,6 +293,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         }
         if (apiError.response?.status === 403 && apiError.response?.data?.errorCode === 'SUBMISSIONS_OFFLINE') {
           setBlockedReason('offline');
+          return;
+        }
+        if (apiError.response?.status === 409 && apiError.response?.data?.errorCode === 'ALREADY_IN_CHANNEL') {
+          toast.error(t('submitModal.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
           return;
         }
         toast.error(apiError.response?.data?.error || t('submitModal.failedToImport'));
