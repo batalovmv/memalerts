@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Submission, SubmissionStatus } from '@/types';
 
 import { cn } from '@/shared/lib/cn';
-import { Button, IconButton, Input, Pill, Select, Spinner } from '@/shared/ui';
+import { Button, HelpTooltip, IconButton, Input, Pill, Select, Spinner } from '@/shared/ui';
 
 export type ChannelSubmissionsSectionProps = {
   className?: string;
@@ -108,15 +108,16 @@ export function ChannelSubmissionsSection({
         </div>
 
         <div className="flex items-center gap-2">
-          <IconButton
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            variant="secondary"
-            aria-label={t('common.retry', { defaultValue: 'Refresh' })}
-            title={t('common.retry', { defaultValue: 'Refresh' })}
-            icon={<RefreshIcon spinning={loading} />}
-          />
+          <HelpTooltip content={t('help.submit.refresh', { defaultValue: 'Refresh the list.' })}>
+            <IconButton
+              type="button"
+              onClick={onRefresh}
+              disabled={loading}
+              variant="secondary"
+              aria-label={t('common.retry', { defaultValue: 'Refresh' })}
+              icon={<RefreshIcon spinning={loading} />}
+            />
+          </HelpTooltip>
         </div>
       </header>
 
@@ -127,12 +128,15 @@ export function ChannelSubmissionsSection({
               <div className="min-w-0">
                 <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{statusLabel(t, s)}</div>
               </div>
-              <Pill
-                variant={statusPillVariant(s)}
-                title={t('submit.statusCount', { defaultValue: '{{status}}: {{count}}', status: statusLabel(t, s), count: stats[s] || 0 })}
+              <HelpTooltip
+                content={t('submit.statusCount', {
+                  defaultValue: '{{status}}: {{count}}',
+                  status: statusLabel(t, s),
+                  count: stats[s] || 0,
+                })}
               >
-                {stats[s] || 0}
-              </Pill>
+                <Pill variant={statusPillVariant(s)}>{stats[s] || 0}</Pill>
+              </HelpTooltip>
             </div>
           ))}
         </div>
@@ -159,19 +163,20 @@ export function ChannelSubmissionsSection({
 
         {selectedSubmitterId && (
           <div className="mb-3">
-            <Button
-              type="button"
-              onClick={onClearSubmitter}
-              variant="ghost"
-              size="sm"
-              className="rounded-full bg-primary/10 text-primary hover:bg-primary/15"
-              title={t('submit.clearUserFilter', { defaultValue: 'Clear user filter' })}
-            >
-              <span className="truncate max-w-[240px]">
-                {t('submit.filteredByUser', { defaultValue: 'Filtered by:' })} {selectedSubmitterName || selectedSubmitterId}
-              </span>
-              <span className="text-base leading-none">×</span>
-            </Button>
+            <HelpTooltip content={t('help.submit.clearUserFilter', { defaultValue: 'Clear the user filter.' })}>
+              <Button
+                type="button"
+                onClick={onClearSubmitter}
+                variant="ghost"
+                size="sm"
+                className="rounded-full bg-primary/10 text-primary hover:bg-primary/15"
+              >
+                <span className="truncate max-w-[240px]">
+                  {t('submit.filteredByUser', { defaultValue: 'Filtered by:' })} {selectedSubmitterName || selectedSubmitterId}
+                </span>
+                <span className="text-base leading-none">×</span>
+              </Button>
+            </HelpTooltip>
           </div>
         )}
 
@@ -213,22 +218,23 @@ export function ChannelSubmissionsSection({
                     <div className="min-w-0">
                       <div className="font-semibold text-gray-900 dark:text-white truncate">{s.title}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
-                        <button
-                          type="button"
-                          className={cn(
-                            'font-semibold text-primary hover:text-secondary transition-colors',
-                            selectedSubmitterId && s.submitter?.id === selectedSubmitterId ? 'underline' : '',
-                          )}
-                          aria-pressed={!!selectedSubmitterId && s.submitter?.id === selectedSubmitterId}
-                          onClick={() => {
-                            if (s.submitter?.id && s.submitter?.displayName) {
-                              onSelectSubmitter(s.submitter.id, s.submitter.displayName);
-                            }
-                          }}
-                          title={t('submit.filterByUser', { defaultValue: 'Filter by this user' })}
-                        >
-                          {s.submitter?.displayName || t('submit.unknownUser', { defaultValue: 'Unknown' })}
-                        </button>
+                        <HelpTooltip content={t('help.submit.filterByUser', { defaultValue: 'Show only submissions from this user.' })}>
+                          <button
+                            type="button"
+                            className={cn(
+                              'font-semibold text-primary hover:text-secondary transition-colors',
+                              selectedSubmitterId && s.submitter?.id === selectedSubmitterId ? 'underline' : '',
+                            )}
+                            aria-pressed={!!selectedSubmitterId && s.submitter?.id === selectedSubmitterId}
+                            onClick={() => {
+                              if (s.submitter?.id && s.submitter?.displayName) {
+                                onSelectSubmitter(s.submitter.id, s.submitter.displayName);
+                              }
+                            }}
+                          >
+                            {s.submitter?.displayName || t('submit.unknownUser', { defaultValue: 'Unknown' })}
+                          </button>
+                        </HelpTooltip>
                         <span aria-hidden="true">•</span>
                         <span>{new Date(s.createdAt).toLocaleString()}</span>
                       </div>

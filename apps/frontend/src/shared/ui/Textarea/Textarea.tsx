@@ -1,4 +1,4 @@
-import type { TextareaHTMLAttributes } from 'react';
+import { forwardRef, type TextareaHTMLAttributes } from 'react';
 
 import { cn } from '@/shared/lib/cn';
 
@@ -6,9 +6,10 @@ export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   hasError?: boolean;
 };
 
-export function Textarea({ hasError, className, ...props }: TextareaProps) {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea({ hasError, className, ...props }, ref) {
   return (
     <textarea
+      ref={ref}
       {...props}
       className={cn(
         'w-full rounded-xl px-3 py-2.5 text-sm bg-white/60 dark:bg-white/10 text-gray-900 dark:text-white shadow-sm outline-none',
@@ -18,6 +19,6 @@ export function Textarea({ hasError, className, ...props }: TextareaProps) {
       )}
     />
   );
-}
+});
 
 

@@ -4,7 +4,7 @@ import type { Meme } from '@/types';
 
 import MemeCard from '@/components/MemeCard';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
-import { Spinner } from '@/shared/ui';
+import { HelpTooltip, Spinner } from '@/shared/ui';
 
 const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
 
@@ -67,13 +67,17 @@ export function AllMemesGrid({
   return (
     <div className="meme-masonry">
       {memes.map((meme) => (
-        <MemeCard
+        <HelpTooltip
           key={getMemePrimaryId(meme)}
-          meme={meme}
-          onClick={() => onSelectMeme(meme)}
-          isOwner={true}
-          previewMode={autoplayPreview}
-        />
+          content={t('help.memes.open', { defaultValue: 'Open meme details. Here you can edit or delete it.' })}
+        >
+          <MemeCard
+            meme={meme}
+            onClick={() => onSelectMeme(meme)}
+            isOwner={true}
+            previewMode={autoplayPreview}
+          />
+        </HelpTooltip>
       ))}
       <div ref={loadMoreRef} className="h-10" />
       {loadingMore && (

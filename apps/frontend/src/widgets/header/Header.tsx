@@ -10,7 +10,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
 import { getEffectiveUserMode } from '@/shared/lib/uiMode';
-import { Button, Pill } from '@/shared/ui';
+import { Button, HelpTooltip, Pill } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
 import { selectPendingSubmissionsCount } from '@/store/selectors';
@@ -668,59 +668,67 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 {/* Requests Indicator (streamer approvals + viewer "needs changes") */}
                 {showRequestsIndicator && (
                   <div className="relative" ref={requestsMenuRef}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // If user is only a viewer (or has no pending), jump to /submit directly.
-                        if (!showPendingIndicator || !hasPendingSubmissions) {
-                          navigate('/submit?tab=needs_changes');
-                          return;
-                        }
+                    {(() => {
+                      const btn = (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // If user is only a viewer (or has no pending), jump to /submit directly.
+                            if (!showPendingIndicator || !hasPendingSubmissions) {
+                              navigate('/submit?tab=needs_changes');
+                              return;
+                            }
 
-                        // Streamer/admin with pending only: keep old behavior (dashboard panel).
-                        if (!hasNeedsChanges) {
-                          handlePendingSubmissionsClick();
-                          return;
-                        }
+                            // Streamer/admin with pending only: keep old behavior (dashboard panel).
+                            if (!hasNeedsChanges) {
+                              handlePendingSubmissionsClick();
+                              return;
+                            }
 
-                        // Both: open a small chooser popover.
-                        setIsRequestsMenuOpen((v) => !v);
-                      }}
-                      className={`relative p-2 rounded-lg transition-colors ${
-                        requestsTotalCount > 0 ? 'hover:bg-gray-100 dark:hover:bg-gray-700' : 'opacity-60 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                      title={requestsTitle}
-                      aria-label={requestsTitle}
-                      aria-haspopup={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? 'menu' : undefined}
-                      aria-expanded={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? isRequestsMenuOpen : undefined}
-                      aria-controls={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? requestsMenuId : undefined}
-                    >
-                      <svg
-                        className={`w-6 h-6 transition-colors ${
-                          requestsTotalCount > 0 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                        />
-                      </svg>
-
-                      {requestsTotalCount > 0 && !(isLoadingSubmissions && showPendingIndicator) && (
-                        <Pill
-                          variant="dangerSolid"
-                          className="absolute -top-1 -right-1 w-5 h-5 p-0 text-[11px] font-bold leading-none"
-                          title={requestsTitle}
+                            // Both: open a small chooser popover.
+                            setIsRequestsMenuOpen((v) => !v);
+                          }}
+                          className={`relative p-2 rounded-lg transition-colors ${
+                            requestsTotalCount > 0 ? 'hover:bg-gray-100 dark:hover:bg-gray-700' : 'opacity-60 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                          aria-label={requestsTitle}
+                          aria-haspopup={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? 'menu' : undefined}
+                          aria-expanded={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? isRequestsMenuOpen : undefined}
+                          aria-controls={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? requestsMenuId : undefined}
                         >
-                          {requestsTotalCount}
-                        </Pill>
-                      )}
-                    </button>
+                          <svg
+                            className={`w-6 h-6 transition-colors ${
+                              requestsTotalCount > 0 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                            />
+                          </svg>
+
+                          {requestsTotalCount > 0 && !(isLoadingSubmissions && showPendingIndicator) && (
+                            <Pill
+                              variant="dangerSolid"
+                              className="absolute -top-1 -right-1 w-5 h-5 p-0 text-[11px] font-bold leading-none"
+                            >
+                              {requestsTotalCount}
+                            </Pill>
+                          )}
+                        </button>
+                      );
+
+                      return (
+                        <HelpTooltip content={t('help.header.requests', { defaultValue: 'Your notifications: pending approvals and memes that need changes.' })}>
+                          {btn}
+                        </HelpTooltip>
+                      );
+                    })()}
 
                     {showPendingIndicator && hasPendingSubmissions && hasNeedsChanges && isRequestsMenuOpen && (
                       <div
@@ -761,75 +769,69 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
                 {/* Submit Meme Button - only show on own pages */}
                 {showSubmitButton && (
-                  <Button
-                    onClick={() => setIsSubmitModalOpen(true)}
-                    variant="ghost"
-                    size="sm"
-                    leftIcon={
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    }
-                    className="text-primary"
-                    title={t('header.submitMeme')}
-                    aria-label={t('header.submitMeme')}
-                  >
-                    <span className="text-sm hidden sm:inline">{t('header.submitMeme')}</span>
-                  </Button>
+                  <HelpTooltip content={t('help.header.submit', { defaultValue: 'Submit a meme to your channel (upload or import).' })}>
+                    <Button
+                      onClick={() => setIsSubmitModalOpen(true)}
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      }
+                      className="text-primary"
+                      aria-label={t('header.submitMeme')}
+                    >
+                      <span className="text-sm hidden sm:inline">{t('header.submitMeme')}</span>
+                    </Button>
+                  </HelpTooltip>
                 )}
 
                 {/* Balance Display */}
                 <div className="relative group">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                    onClick={() => {
-                      setCoinUpdateDelta(null);
-                    }}
-                    aria-label={t('header.balance', 'Balance')}
-                  >
-                    {coinIconUrl || channelCoinIconUrl ? (
-                      <img
-                        src={coinIconUrl || channelCoinIconUrl || ''}
-                        alt={t('header.coin', { defaultValue: 'Coin' })}
-                        className="w-5 h-5"
-                      />
-                    ) : (
-                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  <HelpTooltip content={t('help.header.balance', { defaultValue: 'Your coin balance. You can earn coins via the channel reward.' })}>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                      onClick={() => {
+                        setCoinUpdateDelta(null);
+                      }}
+                      aria-label={t('header.balance', 'Balance')}
+                    >
+                      {coinIconUrl || channelCoinIconUrl ? (
+                        <img
+                          src={coinIconUrl || channelCoinIconUrl || ''}
+                          alt={t('header.coin', { defaultValue: 'Coin' })}
+                          className="w-5 h-5"
                         />
-                      </svg>
-                    )}
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
-                        {isInfiniteBalance ? '∞' : isLoadingWallet ? '...' : balance}
-                      </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
-                    </div>
-                  </button>
+                      ) : (
+                        <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      )}
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
+                          {isInfiniteBalance ? '∞' : isLoadingWallet ? '...' : balance}
+                        </span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
+                      </div>
+                    </button>
+                  </HelpTooltip>
                   {coinUpdateDelta !== null && coinUpdateDelta > 0 && (
                     <Pill
                       variant="successSolid"
                       size="sm"
                       className="absolute -top-1 -right-1 text-[10px] px-2 py-0.5 font-bold shadow"
-                      title={t('header.coinsGained', { defaultValue: '+{{count}}', count: coinUpdateDelta })}
                     >
                       +{coinUpdateDelta}
                     </Pill>
                   )}
-                  {/* Tooltip */}
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
-                    {channelRewardTitle
-                      ? t('header.activateRewardToEarn', `Activate ${channelRewardTitle} to earn`, {
-                          rewardTitle: channelRewardTitle,
-                        })
-                      : t('header.redeemChannelPoints', 'Redeem channel points to earn')}
-                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45" />
-                  </div>
+                  {/* (Help tooltip is controlled via help-mode) */}
                 </div>
 
                 {/* User Menu */}
@@ -842,7 +844,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                   type="button"
                   onClick={requireAuth}
                   className="relative p-2 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 opacity-80"
-                  title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                   aria-label={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
                 >
                   <svg className="w-6 h-6 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -856,47 +857,46 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                 </button>
 
                 {/* Submit Meme (guest preview) */}
-                <Button
-                  onClick={requireAuth}
-                  title={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
-                  aria-label={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  }
-                  className="text-primary"
-                >
-                  <span className="text-sm hidden sm:inline">{t('header.submitMeme', { defaultValue: 'Submit Meme' })}</span>
-                </Button>
+                <HelpTooltip content={t('help.header.loginRequired', { defaultValue: 'Log in to submit memes and use favorites.' })}>
+                  <Button
+                    onClick={requireAuth}
+                    aria-label={t('header.submitMeme', { defaultValue: 'Submit Meme' })}
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    }
+                    className="text-primary"
+                  >
+                    <span className="text-sm hidden sm:inline">{t('header.submitMeme', { defaultValue: 'Submit Meme' })}</span>
+                  </Button>
+                </HelpTooltip>
 
                 {/* Balance (guest preview) */}
                 <div className="relative group">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10 cursor-pointer"
-                    onClick={requireAuth}
-                    aria-label={t('header.balance', 'Balance')}
-                  >
-                    <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">0</span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
-                    </div>
-                  </button>
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-xl">
-                    {t('auth.loginToUseWallet', { defaultValue: 'Log in to earn coins and activate memes' })}
-                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45" />
-                  </div>
+                  <HelpTooltip content={t('help.header.loginToUseWallet', { defaultValue: 'Log in to earn coins and activate memes.' })}>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-primary/10 dark:bg-primary/20 shadow-sm ring-1 ring-black/5 dark:ring-white/10 cursor-pointer"
+                      onClick={requireAuth}
+                      aria-label={t('header.balance', 'Balance')}
+                    >
+                      <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">0</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">coins</span>
+                      </div>
+                    </button>
+                  </HelpTooltip>
                 </div>
 
                 {/* Guest identity */}
@@ -904,7 +904,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                   type="button"
                   onClick={requireAuth}
                   className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  title={t('auth.login', { defaultValue: 'Log in with Twitch' })}
                 >
                   <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-200 font-bold">
                     ?

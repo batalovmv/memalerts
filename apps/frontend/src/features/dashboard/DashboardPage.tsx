@@ -17,6 +17,7 @@ import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesMo
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { api } from '@/lib/api';
+import { useHelpMode } from '@/contexts/HelpModeContext';
 import { Button, IconButton, PageShell, Pill, Spinner, Tooltip } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { store } from '@/store/index';
@@ -186,16 +187,22 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const DASHBOARD_HELP_STORAGE_KEY = 'memalerts.dashboard.helpMode';
-  const [helpEnabled, setHelpEnabled] = useState<boolean>(() => {
-    try {
-      const raw = window.localStorage.getItem(DASHBOARD_HELP_STORAGE_KEY);
-      if (raw === null) return false;
-      return raw === '1' || raw === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const { enabled: helpEnabled, setEnabled: setHelpEnabled } = useHelpMode();
+
+  function CardHelpHint(props: { text: string }) {
+    if (!helpEnabled) return null;
+    return (
+      <Tooltip delayMs={1000} content={props.text}>
+        <span
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 dark:text-gray-300 bg-black/5 dark:bg-white/10"
+          aria-label={t('dashboard.help.cardHint', { defaultValue: 'Help' })}
+          role="img"
+        >
+          ?
+        </span>
+      </Tooltip>
+    );
+  }
   const submissionsLoadedRef = useRef(false);
   const [submissionsPanelTab, setSubmissionsPanelTab] = useState<'pending' | 'mine'>('pending');
   const [mySubmissions, setMySubmissions] = useState<import('@/features/submit/types').MySubmission[]>([]);
@@ -816,11 +823,6 @@ export default function DashboardPage() {
                 onClick={() => {
                   const next = !helpEnabled;
                   setHelpEnabled(next);
-                  try {
-                    window.localStorage.setItem(DASHBOARD_HELP_STORAGE_KEY, next ? '1' : '0');
-                  } catch {
-                    // ignore
-                  }
                     toast.success(
                       next
                         ? t('dashboard.help.enabledToast', { defaultValue: 'Help: ON' })
@@ -909,7 +911,14 @@ export default function DashboardPage() {
                                   <h2 className="text-lg font-semibold mb-2 dark:text-white">
                                     {t('dashboard.quickActions.submitMeme', 'Submit Meme')}
                                   </h2>
-                                  {isStreamerAdmin ? dragHandle : null}
+                                  <div className="flex items-start gap-2">
+                                    <CardHelpHint
+                                      text={t('dashboard.help.cards.submit', {
+                                        defaultValue: 'Add a new meme to your channel (upload or import).',
+                                      })}
+                                    />
+                                    {isStreamerAdmin ? dragHandle : null}
+                                  </div>
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                                   {t('dashboard.quickActions.submitMemeDescription', 'Add a meme directly to your pool')}
@@ -966,7 +975,14 @@ export default function DashboardPage() {
                                       )
                                     )}
                                   </div>
-                                  {isStreamerAdmin ? dragHandle : null}
+                                  <div className="flex items-start gap-2">
+                                    <CardHelpHint
+                                      text={t('dashboard.help.cards.mySubmissions', {
+                                        defaultValue: 'Open your submission list and see what needs your action.',
+                                      })}
+                                    />
+                                    {isStreamerAdmin ? dragHandle : null}
+                                  </div>
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                                   {t('dashboard.quickActions.mySubmissionsDescription', {
@@ -1011,7 +1027,14 @@ export default function DashboardPage() {
                                       {memesCount === null ? '…' : myChannelMemesCount}
                                     </span>
                                   </div>
-                                  {isStreamerAdmin ? dragHandle : null}
+                                  <div className="flex items-start gap-2">
+                                    <CardHelpHint
+                                      text={t('dashboard.help.cards.allMemes', {
+                                        defaultValue: 'Browse your meme library and edit existing memes.',
+                                      })}
+                                    />
+                                    {isStreamerAdmin ? dragHandle : null}
+                                  </div>
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                                   {t('dashboard.quickActions.allMemesDescription', { defaultValue: 'Browse and edit your meme library' })}
@@ -1047,7 +1070,14 @@ export default function DashboardPage() {
                                   <h2 className="text-lg font-semibold mb-2 dark:text-white">
                                     {t('dashboard.quickActions.settings', 'Settings')}
                                   </h2>
-                                  {isStreamerAdmin ? dragHandle : null}
+                                  <div className="flex items-start gap-2">
+                                    <CardHelpHint
+                                      text={t('dashboard.help.cards.settings', {
+                                        defaultValue: 'Open channel settings: rewards, bots, OBS links, and more.',
+                                      })}
+                                    />
+                                    {isStreamerAdmin ? dragHandle : null}
+                                  </div>
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                                   {t('dashboard.quickActions.settingsDescription', 'Configure your channel and preferences')}
@@ -1087,6 +1117,11 @@ export default function DashboardPage() {
                                     </p>
                                   </div>
                                   <div className="flex items-start gap-2 shrink-0">
+                                    <CardHelpHint
+                                      text={t('dashboard.help.cards.submissionsControl', {
+                                        defaultValue: 'Control whether viewers can submit memes, and generate automation links.',
+                                      })}
+                                    />
                                     <Pill variant={submissionsEnabled === false ? 'dangerSolid' : 'successSolid'} size="sm">
                                       {t('dashboard.submissionsControl.statusSubmits', { defaultValue: 'Submits' })}:{' '}
                                       {submissionsEnabled === false ? t('common.off', { defaultValue: 'Off' }) : t('common.on', { defaultValue: 'On' })}
@@ -1125,6 +1160,11 @@ export default function DashboardPage() {
                                     </p>
                                   </div>
                                   <div className="flex items-start gap-2 shrink-0">
+                                    <CardHelpHint
+                                      text={t('dashboard.help.cards.bots', {
+                                        defaultValue: 'Manage bot integrations: enable/disable them quickly.',
+                                      })}
+                                    />
                                     <Pill variant={anyBotEnabled ? 'successSolid' : 'neutral'} size="sm">
                                       {anyBotEnabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
                                     </Pill>
@@ -1407,7 +1447,6 @@ export default function DashboardPage() {
                         setSelectedMeme(meme);
                         setIsMemeModalOpen(true);
                       }}
-                      helpEnabled={helpEnabled}
                     />
                   </div>
                 </div>

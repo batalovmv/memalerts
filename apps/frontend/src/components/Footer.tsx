@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '../contexts/ThemeContext';
 
-import { Button, IconButton } from '@/shared/ui';
+import { Button, HelpTooltip, IconButton } from '@/shared/ui';
 
 function SunIcon() {
   return (
@@ -53,24 +53,26 @@ export default function Footer() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              onClick={toggleLanguage}
-              size="sm"
-              variant="secondary"
-              className="min-w-[52px] justify-center"
-              title={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
-              aria-label={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
-            >
-              {currentLang}
-            </Button>
+            <HelpTooltip content={t('help.footer.language', { defaultValue: 'Switch language.' })}>
+              <Button
+                onClick={toggleLanguage}
+                size="sm"
+                variant="secondary"
+                className="min-w-[52px] justify-center"
+                aria-label={i18n.language === 'ru' ? t('footer.switchToEnglish') : t('footer.switchToRussian')}
+              >
+                {currentLang}
+              </Button>
+            </HelpTooltip>
 
-            <IconButton
-              onClick={toggleTheme}
-              variant="secondary"
-              title={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
-              aria-label={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
-              icon={theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-            />
+            <HelpTooltip content={t('help.footer.theme', { defaultValue: 'Switch theme.' })}>
+              <IconButton
+                onClick={toggleTheme}
+                variant="secondary"
+                aria-label={theme === 'dark' ? t('footer.switchToLightTheme') : t('footer.switchToDarkTheme')}
+                icon={theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+              />
+            </HelpTooltip>
 
             <a
               href="https://twitch.tv/LOTAS_bro"

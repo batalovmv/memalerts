@@ -17,7 +17,7 @@ import {
 } from '@/shared/api/moderationMemeAssets';
 import { cn } from '@/shared/lib/cn';
 import { canModerateGlobalPool } from '@/shared/lib/permissions';
-import { Button, Input, PageShell, Spinner, Textarea, Tooltip } from '@/shared/ui';
+import { Button, HelpTooltip, Input, PageShell, Spinner, Textarea } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
 
@@ -254,70 +254,73 @@ export default function ModerationPage() {
           </div>
 
           <div className="mt-4 flex flex-col md:flex-row gap-2">
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t('moderation.searchPlaceholder', { defaultValue: 'Search by id/hash…' })}
-              className="flex-1"
-            />
+            <HelpTooltip content={t('help.moderation.search', { defaultValue: 'Search by asset id or file hash.' })}>
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('moderation.searchPlaceholder', { defaultValue: 'Search by id/hash…' })}
+                className="flex-1"
+              />
+            </HelpTooltip>
             <div className="flex flex-wrap gap-2">
               {(['hidden', 'quarantine', 'purged', 'all'] as const).map((s) => (
-                <Tooltip
+                <HelpTooltip
                   key={s}
-                  delayMs={1000}
-                  content={t(`moderation.statusTooltip.${s}`, {
+                  content={t(`help.moderation.status.${s}`, {
                     defaultValue:
                       s === 'hidden'
-                        ? 'Show assets that are hidden from the pool.'
+                        ? 'Hidden in pool (not visible to users).'
                         : s === 'quarantine'
-                          ? 'Show assets moved to quarantine (blocked from re-upload).'
+                          ? 'In quarantine (blocked from re-upload; pending purge).'
                           : s === 'purged'
-                            ? 'Show assets that were already purged.'
-                            : 'Show all assets regardless of status.',
+                            ? 'Already purged (deleted from storage).'
+                            : 'All items, regardless of status.',
                   })}
                 >
                   <Button type="button" variant={status === s ? 'primary' : 'secondary'} onClick={() => setStatus(s)}>
                     {t(`moderation.status.${s}`, { defaultValue: s })}
                   </Button>
-                </Tooltip>
+                </HelpTooltip>
               ))}
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setLoading(true);
-                  void (async () => {
-                    try {
-                      await loadPage(0, false);
-                    } finally {
-                      setLoading(false);
-                    }
-                  })();
-                }}
-                disabled={loading}
-              >
-                {t('common.refresh', { defaultValue: 'Refresh' })}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setQ('');
-                  setStatus('hidden');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                disabled={loading || loadingMore}
-              >
-                {t('common.reset', { defaultValue: 'Reset' })}
-              </Button>
-              {items.length > effectiveLimit ? (
+              <HelpTooltip content={t('help.moderation.refresh', { defaultValue: 'Reload the list from the server.' })}>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  onClick={() => {
+                    setLoading(true);
+                    void (async () => {
+                      try {
+                        await loadPage(0, false);
+                      } finally {
+                        setLoading(false);
+                      }
+                    })();
+                  }}
+                  disabled={loading}
                 >
-                  {t('common.backToTop', { defaultValue: 'Back to top' })}
+                  {t('common.refresh', { defaultValue: 'Refresh' })}
                 </Button>
+              </HelpTooltip>
+              <HelpTooltip content={t('help.moderation.reset', { defaultValue: 'Clear search and reset status filter.' })}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setQ('');
+                    setStatus('hidden');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={loading || loadingMore}
+                >
+                  {t('common.reset', { defaultValue: 'Reset' })}
+                </Button>
+              </HelpTooltip>
+              {items.length > effectiveLimit ? (
+                <HelpTooltip content={t('help.moderation.backToTop', { defaultValue: 'Scroll to the top of the page.' })}>
+                  <Button type="button" variant="secondary" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                    {t('common.backToTop', { defaultValue: 'Back to top' })}
+                  </Button>
+                </HelpTooltip>
               ) : null}
             </div>
           </div>
@@ -391,10 +394,9 @@ export default function ModerationPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Tooltip
-                        delayMs={1000}
-                        content={t('moderation.hideTooltip', {
-                          defaultValue: 'Hide this asset from the pool (it will not be visible to users in the pool).',
+                      <HelpTooltip
+                        content={t('help.moderation.hide', {
+                          defaultValue: 'Hide from the pool (can be undone).',
                         })}
                       >
                         <Button
@@ -406,12 +408,11 @@ export default function ModerationPage() {
                         >
                           {t('moderation.hide', { defaultValue: 'Hide' })}
                         </Button>
-                      </Tooltip>
+                      </HelpTooltip>
 
-                      <Tooltip
-                        delayMs={1000}
-                        content={t('moderation.unhideTooltip', {
-                          defaultValue: 'Make this asset visible in the pool again.',
+                      <HelpTooltip
+                        content={t('help.moderation.unhide', {
+                          defaultValue: 'Make visible in the pool again.',
                         })}
                       >
                         <Button
@@ -423,13 +424,11 @@ export default function ModerationPage() {
                         >
                           {t('moderation.unhide', { defaultValue: 'Unhide' })}
                         </Button>
-                      </Tooltip>
+                      </HelpTooltip>
 
-                      <Tooltip
-                        delayMs={1000}
-                        content={t('moderation.quarantineTooltip', {
-                          defaultValue:
-                            'Move this asset to quarantine. It is not purged immediately. Re-uploading the same file will be blocked. A reason is required.',
+                      <HelpTooltip
+                        content={t('help.moderation.quarantine', {
+                          defaultValue: 'Move to quarantine: blocks re-upload of this file. Requires a reason.',
                         })}
                       >
                         <Button
@@ -444,7 +443,7 @@ export default function ModerationPage() {
                         >
                           {t('moderation.quarantine', { defaultValue: 'Delete (quarantine)' })}
                         </Button>
-                      </Tooltip>
+                      </HelpTooltip>
                     </div>
                   </div>
                 </div>
@@ -455,27 +454,29 @@ export default function ModerationPage() {
 
         {!loading && items.length > 0 && (
           <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                if (loadingMore) return;
-                if (!hasMore) return;
-                setLoadingMore(true);
-                void (async () => {
-                  try {
-                    await loadPage(items.length, true);
-                  } catch {
-                    toast.error(t('moderation.failedToLoad', { defaultValue: 'Failed to load moderation list.' }));
-                  } finally {
-                    setLoadingMore(false);
-                  }
-                })();
-              }}
-              disabled={loadingMore || !hasMore}
-            >
-              {loadingMore ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.loadMore', { defaultValue: 'Load more' })}
-            </Button>
+            <HelpTooltip content={t('help.moderation.loadMore', { defaultValue: 'Load the next page.' })}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (loadingMore) return;
+                  if (!hasMore) return;
+                  setLoadingMore(true);
+                  void (async () => {
+                    try {
+                      await loadPage(items.length, true);
+                    } catch {
+                      toast.error(t('moderation.failedToLoad', { defaultValue: 'Failed to load moderation list.' }));
+                    } finally {
+                      setLoadingMore(false);
+                    }
+                  })();
+                }}
+                disabled={loadingMore || !hasMore}
+              >
+                {loadingMore ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.loadMore', { defaultValue: 'Load more' })}
+              </Button>
+            </HelpTooltip>
           </div>
         )}
       </div>
@@ -508,13 +509,15 @@ export default function ModerationPage() {
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
                   {t('moderation.reasonLabel', { defaultValue: 'Reason (required)' })}
                 </label>
-                <Textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  rows={4}
-                  className="w-full"
-                  placeholder={t('moderation.reasonPlaceholder', { defaultValue: 'Describe why this should be deleted…' })}
-                />
+                <HelpTooltip content={t('help.moderation.reason', { defaultValue: 'Write a short reason (it is required). Example: duplicate / DMCA / reupload.' })}>
+                  <Textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    rows={4}
+                    className="w-full"
+                    placeholder={t('moderation.reasonPlaceholder', { defaultValue: 'Describe why this should be deleted…' })}
+                  />
+                </HelpTooltip>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {t('moderation.reasonMin', { defaultValue: 'Minimum 3 characters.' })}
                 </div>

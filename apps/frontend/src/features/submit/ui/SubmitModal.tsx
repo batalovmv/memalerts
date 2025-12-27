@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import TagInput from '@/components/TagInput';
-import { Button, Input, Modal } from '@/shared/ui';
+import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMemes } from '@/store/slices/memesSlice';
 import { fetchSubmissions } from '@/store/slices/submissionsSlice';
@@ -326,16 +326,18 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
       {/* Header */}
       <div className="sticky top-0 border-b border-black/5 dark:border-white/10 px-4 sm:px-6 py-4 flex justify-between items-center">
         <h2 className="text-xl sm:text-2xl font-bold dark:text-white">{t('submitModal.title')}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          aria-label={t('submitModal.closeModal')}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <HelpTooltip content={t('help.submitModal.close', { defaultValue: 'Close without sending.' })}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            aria-label={t('submitModal.closeModal')}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </HelpTooltip>
       </div>
 
       {/* Content */}
@@ -359,55 +361,61 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             {/* Mode selector */}
             <div className="mb-6 glass p-3 sm:p-4">
               <div className="flex gap-3" role="tablist" aria-label={t('submitModal.mode', { defaultValue: 'Submit mode' })}>
-                <button
-                  type="button"
-                  onClick={() => setMode('upload')}
-                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                    mode === 'upload'
-                      ? 'bg-primary text-white'
-                      : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
-                  }`}
-                  role="tab"
-                  id="submit-modal-tab-upload"
-                  aria-controls="submit-modal-panel-upload"
-                  aria-selected={mode === 'upload'}
-                  tabIndex={mode === 'upload' ? 0 : -1}
-                >
-                  {t('submit.uploadVideo')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode('import')}
-                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                    mode === 'import'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10'
-                  }`}
-                  role="tab"
-                  id="submit-modal-tab-import"
-                  aria-controls="submit-modal-panel-import"
-                  aria-selected={mode === 'import'}
-                  tabIndex={mode === 'import' ? 0 : -1}
-                >
-                  {t('submit.import')}
-                </button>
+                <HelpTooltip content={t('help.submitModal.modeUpload', { defaultValue: 'Upload a video file from your device.' })}>
+                  <button
+                    type="button"
+                    onClick={() => setMode('upload')}
+                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                      mode === 'upload'
+                        ? 'bg-primary text-white'
+                        : 'bg-white/40 dark:bg-white/5 text-gray-700 dark:text-gray-200 hover:bg-white/60 dark:hover:bg-white/10'
+                    }`}
+                    role="tab"
+                    id="submit-modal-tab-upload"
+                    aria-controls="submit-modal-panel-upload"
+                    aria-selected={mode === 'upload'}
+                    tabIndex={mode === 'upload' ? 0 : -1}
+                  >
+                    {t('submit.uploadVideo')}
+                  </button>
+                </HelpTooltip>
+                <HelpTooltip content={t('help.submitModal.modeImport', { defaultValue: 'Import by pasting a direct Memealerts media link.' })}>
+                  <button
+                    type="button"
+                    onClick={() => setMode('import')}
+                    className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                      mode === 'import'
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-secondary/10 dark:hover:bg-secondary/10'
+                    }`}
+                    role="tab"
+                    id="submit-modal-tab-import"
+                    aria-controls="submit-modal-panel-import"
+                    aria-selected={mode === 'import'}
+                    tabIndex={mode === 'import' ? 0 : -1}
+                  >
+                    {t('submit.import')}
+                  </button>
+                </HelpTooltip>
               </div>
               <div className="mt-3 flex justify-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="glass-btn bg-white/40 dark:bg-white/5"
-                  onClick={() => {
-                    onClose();
-                    const qs = new URLSearchParams();
-                    if (channelId) qs.set('channelId', channelId);
-                    if (channelSlug) qs.set('channelSlug', channelSlug);
-                    navigate(`/pool${qs.toString() ? `?${qs.toString()}` : ''}`);
-                  }}
-                >
-                  {t('submitModal.openPool', { defaultValue: 'Open pool' })}
-                </Button>
+                <HelpTooltip content={t('help.submitModal.openPool', { defaultValue: 'Open the Pool to choose a ready meme instead of uploading.' })}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="glass-btn bg-white/40 dark:bg-white/5"
+                    onClick={() => {
+                      onClose();
+                      const qs = new URLSearchParams();
+                      if (channelId) qs.set('channelId', channelId);
+                      if (channelSlug) qs.set('channelSlug', channelSlug);
+                      navigate(`/pool${qs.toString() ? `?${qs.toString()}` : ''}`);
+                    }}
+                  >
+                    {t('submitModal.openPool', { defaultValue: 'Open pool' })}
+                  </Button>
+                </HelpTooltip>
               </div>
             </div>
 
@@ -416,12 +424,14 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t('submit.titleLabel')}
             </label>
-            <Input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              required
-            />
+            <HelpTooltip content={t('help.submitModal.title', { defaultValue: 'Name of the meme in the channel. Viewers will see this title.' })}>
+              <Input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+              />
+            </HelpTooltip>
           </div>
 
           {mode === 'upload' ? (
@@ -429,12 +439,14 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('submit.videoFile')}
               </label>
-              <Input
-                type="file"
-                onChange={handleFileChange}
-                required
-                accept="video/*"
-              />
+              <HelpTooltip content={t('help.submitModal.file', { defaultValue: 'Choose a video file to upload. Supported: common video formats.' })}>
+                <Input
+                  type="file"
+                  onChange={handleFileChange}
+                  required
+                  accept="video/*"
+                />
+              </HelpTooltip>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
               {filePreview && (
                 <div className="mt-4">
@@ -452,13 +464,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('submit.memalertsUrl')}
               </label>
-              <Input
-                type="url"
-                value={formData.sourceUrl || ''}
-                onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
-                required
-                placeholder={t('submit.memalertsUrlPlaceholder', { defaultValue: 'https://cdns.memealerts.com/.../alert_orig.webm' })}
-              />
+              <HelpTooltip content={t('help.submitModal.url', { defaultValue: 'Paste a direct link to the media file from Memealerts (cdns.memealerts.com).' })}>
+                <Input
+                  type="url"
+                  value={formData.sourceUrl || ''}
+                  onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
+                  required
+                  placeholder={t('submit.memalertsUrlPlaceholder', { defaultValue: 'https://cdns.memealerts.com/.../alert_orig.webm' })}
+                />
+              </HelpTooltip>
               <div className="mt-2 p-3 bg-accent/10 rounded-xl ring-1 ring-accent/20">
                 <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">{t('submit.howToCopy')}</p>
                 <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
@@ -477,11 +491,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('submit.tags')}</label>
-            <TagInput
-              tags={formData.tags || []}
-              onChange={(tags) => setFormData({ ...formData, tags })}
-              placeholder={t('submit.addTags')}
-            />
+            <HelpTooltip content={t('help.submitModal.tags', { defaultValue: 'Add a few tags to help search and moderation (optional).' })}>
+              <div>
+                <TagInput
+                  tags={formData.tags || []}
+                  onChange={(tags) => setFormData({ ...formData, tags })}
+                  placeholder={t('submit.addTags')}
+                />
+              </div>
+            </HelpTooltip>
           </div>
 
           {loading && uploadProgress > 0 && (
@@ -511,13 +529,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={loading}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
-              {loading
-                ? uploadProgress > 0
-                  ? `${t('submit.submitting')} ${uploadProgress}%`
-                  : t('submit.submitting')
-                : t('submit.submitButton', { defaultValue: 'Add' })}
-            </Button>
+            <HelpTooltip content={t('help.submitModal.submit', { defaultValue: 'Send the meme for review. If this is your own channel, it will be added instantly.' })}>
+              <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
+                {loading
+                  ? uploadProgress > 0
+                    ? `${t('submit.submitting')} ${uploadProgress}%`
+                    : t('submit.submitting')
+                  : t('submit.submitButton', { defaultValue: 'Add' })}
+              </Button>
+            </HelpTooltip>
           </div>
             </form>
           </>

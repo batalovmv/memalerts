@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
-import { Button, Input, Textarea } from '@/shared/ui';
+import { Button, HelpTooltip, Input, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
@@ -346,73 +346,82 @@ export default function MemeModal({
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
           {mode === 'admin' && isOwner && (
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={isEditing ? handleCancel : handleEdit}
-                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors group"
-                title={isEditing ? 'Cancel editing' : 'Edit meme'}
-                aria-label={isEditing ? t('common.cancel', { defaultValue: 'Cancel' }) : t('common.edit', { defaultValue: 'Edit' })}
-                disabled={loading}
+              <HelpTooltip
+                content={
+                  isEditing
+                    ? t('help.memeModal.cancelEdit', { defaultValue: 'Stop editing without saving.' })
+                    : t('help.memeModal.edit', { defaultValue: 'Edit meme details (title, price, etc.).' })
+                }
               >
-                <svg
-                  className={`w-5 h-5 ${
-                    isEditing
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400 group-hover:text-primary'
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  {isEditing ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  )}
-                </svg>
-              </button>
-              {!isEditing && (
                 <button
                   type="button"
-                  onClick={handleDelete}
-                  className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-full transition-colors group"
-                  title="Delete meme"
-                  aria-label={t('common.delete', { defaultValue: 'Delete' })}
+                  onClick={isEditing ? handleCancel : handleEdit}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors group"
+                  aria-label={isEditing ? t('common.cancel', { defaultValue: 'Cancel' }) : t('common.edit', { defaultValue: 'Edit' })}
                   disabled={loading}
                 >
                   <svg
-                    className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-red-600 dark:group-hover:text-red-400"
+                    className={`w-5 h-5 ${
+                      isEditing
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-600 dark:text-gray-400 group-hover:text-primary'
+                    }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
+                    {isEditing ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    )}
                   </svg>
                 </button>
+              </HelpTooltip>
+              {!isEditing && (
+                <HelpTooltip content={t('help.memeModal.delete', { defaultValue: 'Delete this meme.' })}>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-full transition-colors group"
+                    aria-label={t('common.delete', { defaultValue: 'Delete' })}
+                    disabled={loading}
+                  >
+                    <svg
+                      className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-red-600 dark:group-hover:text-red-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                </HelpTooltip>
               )}
             </div>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
-            title="Close"
-            aria-label={t('common.close', { defaultValue: 'Close' })}
-          >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <HelpTooltip content={t('help.memeModal.close', { defaultValue: 'Close.' })}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
+              aria-label={t('common.close', { defaultValue: 'Close' })}
+            >
+              <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </HelpTooltip>
         </div>
 
         <div className="p-5 md:p-6 space-y-5 md:space-y-6 pt-16">

@@ -5,7 +5,7 @@ import { NeedsChangesSubmissionCard } from './NeedsChangesSubmissionCard';
 import type { MySubmission } from '../types';
 import type { RefCallback } from 'react';
 
-import { IconButton, Pill } from '@/shared/ui';
+import { HelpTooltip, IconButton, Pill } from '@/shared/ui';
 
 export type MySubmissionsSectionMode = 'needs_changes' | 'history';
 
@@ -49,15 +49,16 @@ export function MySubmissionsSection(props: {
         <h3 id="my-submissions-title" className="text-xl font-bold dark:text-white">
           {title || t('submit.mySubmissions', { defaultValue: 'My submissions' })}
         </h3>
-        <IconButton
-          type="button"
-          onClick={onRefresh}
-          disabled={loading}
-          variant="secondary"
-          aria-label={t('common.retry', { defaultValue: 'Refresh' })}
-          title={t('common.retry', { defaultValue: 'Refresh' })}
-          icon={<RefreshIcon spinning={loading} />}
-        />
+        <HelpTooltip content={t('help.submit.refresh', { defaultValue: 'Refresh the list.' })}>
+          <IconButton
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            variant="secondary"
+            aria-label={t('common.retry', { defaultValue: 'Refresh' })}
+            icon={<RefreshIcon spinning={loading} />}
+          />
+        </HelpTooltip>
       </header>
 
       <div className="surface-body">

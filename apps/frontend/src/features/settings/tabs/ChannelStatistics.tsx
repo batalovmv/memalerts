@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { Spinner } from '@/shared/ui';
+import { HelpTooltip, Spinner } from '@/shared/ui';
 
 export function ChannelStatistics() {
   const { t } = useTranslation();
@@ -72,11 +72,12 @@ export function ChannelStatistics() {
                   const label = new Date(d.day).toLocaleDateString();
                   return (
                     <div key={`a-${d.day}`} className="h-full flex items-end">
-                      <div
-                        className="w-full rounded bg-primary/70"
-                        style={{ height: `${Math.max(3, h)}%` }}
-                        title={`${label}: ${d.activations || 0}`}
-                      />
+                      <HelpTooltip content={`${label}: ${d.activations || 0}`}>
+                        <div
+                          className="w-full rounded bg-primary/70"
+                          style={{ height: `${Math.max(3, h)}%` }}
+                        />
+                      </HelpTooltip>
                     </div>
                   );
                 })}
@@ -93,11 +94,12 @@ export function ChannelStatistics() {
                   const label = new Date(d.day).toLocaleDateString();
                   return (
                     <div key={`c-${d.day}`} className="h-full flex items-end">
-                      <div
-                        className="w-full rounded bg-accent/70"
-                        style={{ height: `${Math.max(3, h)}%` }}
-                        title={`${label}: ${d.coins || 0}`}
-                      />
+                      <HelpTooltip content={`${label}: ${d.coins || 0}`}>
+                        <div
+                          className="w-full rounded bg-accent/70"
+                          style={{ height: `${Math.max(3, h)}%` }}
+                        />
+                      </HelpTooltip>
                     </div>
                   );
                 })}

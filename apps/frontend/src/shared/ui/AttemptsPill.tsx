@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/lib/cn';
+import { HelpTooltip } from './Tooltip/HelpTooltip';
 
 export function AttemptsPill(props: { left: number; max?: number; className?: string }) {
   const { t } = useTranslation();
@@ -19,17 +20,19 @@ export function AttemptsPill(props: { left: number; max?: number; className?: st
         : 'bg-emerald-500/90';
 
   return (
-    <span
-      className={
-        props.className ||
-        'inline-flex items-center gap-2 rounded-full border border-white/25 dark:border-white/10 bg-white/55 dark:bg-white/10 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200 shadow-sm'
-      }
-      title={t('submissions.attemptsTooltip', {
+    <HelpTooltip
+      content={t('submissions.attemptsTooltip', {
         defaultValue: 'Attempts left: {{left}}/{{max}}',
         left,
         max,
       })}
     >
+      <span
+        className={
+          props.className ||
+          'inline-flex items-center gap-2 rounded-full border border-white/25 dark:border-white/10 bg-white/55 dark:bg-white/10 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200 shadow-sm'
+        }
+      >
       <span className="sr-only">
         {t('submissions.attemptsTooltip', {
           defaultValue: 'Attempts left: {{left}}/{{max}}',
@@ -52,7 +55,8 @@ export function AttemptsPill(props: { left: number; max?: number; className?: st
           );
         })}
       </span>
-    </span>
+      </span>
+    </HelpTooltip>
   );
 }
 

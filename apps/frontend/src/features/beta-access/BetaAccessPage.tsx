@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
-import { Button, PageShell, Pill, Spinner } from '@/shared/ui';
+import { Button, HelpTooltip, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 type BetaAccessStatus = {
@@ -104,11 +104,13 @@ export default function BetaAccess() {
 
                   {hasAccess && (
                     <div className="mt-4 flex items-center gap-3 text-gray-900 dark:text-white">
-                      <Pill variant="successSolid" className="w-6 h-6 p-0 shadow" title={t('betaAccess.statusApproved', { defaultValue: 'approved' })}>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </Pill>
+                      <HelpTooltip content={t('help.beta.statusApproved', { defaultValue: 'You have beta access.' })}>
+                        <Pill variant="successSolid" className="w-6 h-6 p-0 shadow">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </Pill>
+                      </HelpTooltip>
                       <div className="font-semibold">{t('betaAccess.hasAccess', { defaultValue: 'You already have beta access.' })}</div>
                     </div>
                   )}

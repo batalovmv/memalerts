@@ -31,6 +31,124 @@
     "tooManyRequests": "Too many requests. Please try again later.",
     "goHome": "Go home"
   },
+  "help": {
+    "header": {
+      "requests": "Your notifications: pending approvals and memes that need changes.",
+      "submit": "Submit a meme to your channel (upload or import).",
+      "balance": "Your coin balance. You can earn coins via the channel reward.",
+      "loginRequired": "Log in to submit memes and use favorites.",
+      "loginToUseWallet": "Log in to earn coins and activate memes."
+    },
+    "common": {
+      "clickToCopy": "Click to copy."
+    },
+    "footer": {
+      "language": "Switch language.",
+      "theme": "Switch theme."
+    },
+    "submit": {
+      "refresh": "Refresh the list.",
+      "filterByUser": "Show only submissions from this user.",
+      "clearUserFilter": "Clear the user filter."
+    },
+    "submitModal": {
+      "close": "Close without sending.",
+      "modeUpload": "Upload a video file from your device.",
+      "modeImport": "Import by pasting a direct Memealerts media link.",
+      "openPool": "Open the Pool to choose a ready meme instead of uploading.",
+      "title": "Name of the meme in the channel. Viewers will see this title.",
+      "file": "Choose a video file to upload. Supported: common video formats.",
+      "url": "Paste a direct link to the media file from Memealerts (cdns.memealerts.com).",
+      "tags": "Add a few tags to help search and moderation (optional).",
+      "submit": "Send the meme for review. If this is your own channel, it will be added instantly."
+    },
+    "memes": {
+      "search": "Search your memes by title, id, etc.",
+      "sort": "Choose how to sort the list.",
+      "searchScope": "Choose what fields the search uses.",
+      "open": "Open meme details. Here you can edit or delete it."
+    },
+    "search": {
+      "query": "Search by title, tags, uploader, etc. Results update automatically.",
+      "minPrice": "Show memes that cost at least this many coins.",
+      "maxPrice": "Show memes that cost no more than this many coins.",
+      "sortBy": "Choose how to sort the search results.",
+      "sortOrder": "Ascending = from low to high / old to new. Descending = opposite.",
+      "tags": "Click tags to filter results. Click again to remove.",
+      "openChannel": "Open the channel where this meme belongs."
+    },
+    "moderation": {
+      "search": "Search by asset id or file hash.",
+      "status": {
+        "hidden": "Hidden in pool (not visible to users).",
+        "quarantine": "In quarantine (blocked from re-upload; pending purge).",
+        "purged": "Already purged (deleted from storage).",
+        "all": "All items, regardless of status."
+      },
+      "refresh": "Reload the list from the server.",
+      "reset": "Clear search and reset status filter.",
+      "backToTop": "Scroll to the top of the page.",
+      "hide": "Hide from the pool (can be undone).",
+      "unhide": "Make visible in the pool again.",
+      "quarantine": "Move to quarantine: blocks re-upload of this file. Requires a reason.",
+      "reason": "Write a short reason (it is required). Example: duplicate / DMCA / reupload.",
+      "loadMore": "Load the next page."
+    },
+    "pool": {
+      "search": "Search in the global meme pool (by text, id, etc.).",
+      "runSearch": "Run search with the current query.",
+      "signIn": "Sign in to view the pool and submit memes.",
+      "openPreview": "Open preview. From there you can submit this meme.",
+      "loadMore": "Load more memes from the pool.",
+      "closePreview": "Close preview.",
+      "previewSound": "Toggle preview sound. This is saved in your browser.",
+      "add": "Submit this meme. You will be asked to enter a title for your channel."
+    },
+    "beta": {
+      "statusApproved": "You have beta access."
+    },
+    "profile": {
+      "submitMeme": "Submit a meme to this channel.",
+      "loginToInteract": "Log in to submit memes and use favorites.",
+      "favorites": "Show only your favorite memes.",
+      "loginToUseFavorites": "Log in to use favorites."
+    },
+    "settings": {
+      "copyProfileLink": "Copy your profile link.",
+      "rewards": {
+        "enableTwitchReward": "Turn the Twitch reward on/off (it gives coins to viewers).",
+        "onlyWhenLive": "If enabled, it works only when your stream is live.",
+        "enableApprovedReward": "Give coins to the viewer when you approve their meme. Turn off = set both rewards to 0.",
+        "approvedOnlyWhenLive": "If enabled, coins are granted only when your stream is live.",
+        "approvedUploadCoins": "Coins for approved submissions from upload/URL. Use 0 to disable.",
+        "approvedPoolCoins": "Coins for approved submissions from the Pool. Use 0 to disable.",
+        "quickAdd100": "Quickly add +100 coins."
+      },
+      "bot": {
+        "enable": "Turn the bot on/off for this channel. When on, it can respond in chat.",
+        "override": "Use your own bot account instead of the default one. Turning it on will redirect you to connect.",
+        "commandsMaster": "Master switch for all bot commands. Turn off to silence all commands at once.",
+        "sendTestMessage": "Send a message from the bot to chat to check that it works."
+      },
+      "obs": {
+        "rotateLink": "Generate a new overlay link. Use this if the link was leaked — the old one will stop working.",
+        "previewNext": "Load a new random meme for preview (does not affect your real overlay).",
+        "previewLoop": "Loop preview: when on, the same preview memes repeat.",
+        "previewShufflePositions": "Shuffle positions in preview (useful to test layout).",
+        "previewBackground": "Switch preview background (dark/white) to see how it looks in OBS.",
+        "previewFrame": "Preview frame",
+        "resetDefaults": "Reset all overlay appearance settings back to defaults.",
+        "presetApply": "Apply this saved preset to your overlay settings.",
+        "presetDelete": "Delete this saved preset."
+      }
+    },
+    "memeModal": {
+      "edit": "Edit meme details (title, price, etc.).",
+      "cancelEdit": "Stop editing without saving.",
+      "delete": "Delete this meme.",
+      "close": "Close."
+    }
+  },
   "moderation": {
     "title": "Pool moderation",
     "hint": "Moderators can only hide/unhide or move items to quarantine. Title/tags cannot be edited here.",
@@ -213,6 +331,15 @@
       "toggle": "Help tooltips",
       "enabledToast": "Help: ON",
       "disabledToast": "Help: OFF",
+      "cardHint": "Help",
+      "cards": {
+        "submit": "Add a new meme to your channel.",
+        "mySubmissions": "Open submissions and see what needs your action.",
+        "allMemes": "Open your channel meme library and edit existing memes.",
+        "settings": "Open channel settings: rewards, bots, OBS, and more.",
+        "submissionsControl": "Control whether viewers can submit memes and generate automation links.",
+        "bots": "Quickly enable/disable bot integrations."
+      },
       "resetLayout": "Reset the order of dashboard cards back to the default.",
       "dragToReorder": "Drag this handle to change the order of cards on your dashboard.",
       "pendingCount": "How many submissions are waiting for approval.",

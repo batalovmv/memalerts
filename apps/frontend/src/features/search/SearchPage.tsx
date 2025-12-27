@@ -8,7 +8,7 @@ import Header from '@/components/Header';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
-import { Card, Input, PageShell, Select, Spinner } from '@/shared/ui';
+import { Card, HelpTooltip, Input, PageShell, Select, Spinner } from '@/shared/ui';
 
 function XSmallIcon() {
   return (
@@ -101,13 +101,15 @@ export default function Search() {
         {/* Search Bar */}
         <div className="surface p-6">
           <div className="mb-4">
-            <Input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('search.placeholder')}
-              className="text-lg px-4 py-3"
-            />
+            <HelpTooltip content={t('help.search.query', { defaultValue: 'Search by title, tags, uploader, etc. Results update automatically.' })}>
+              <Input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('search.placeholder')}
+                className="text-lg px-4 py-3"
+              />
+            </HelpTooltip>
           </div>
 
           {/* Filters */}
@@ -116,48 +118,56 @@ export default function Search() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.minPrice')}
               </label>
-              <Input
-                type="number"
-                value={filters.minPrice}
-                onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
-                min="0"
-              />
+              <HelpTooltip content={t('help.search.minPrice', { defaultValue: 'Show memes that cost at least this many coins.' })}>
+                <Input
+                  type="number"
+                  value={filters.minPrice}
+                  onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
+                  min="0"
+                />
+              </HelpTooltip>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.maxPrice')}
               </label>
-              <Input
-                type="number"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
-                min="0"
-              />
+              <HelpTooltip content={t('help.search.maxPrice', { defaultValue: 'Show memes that cost no more than this many coins.' })}>
+                <Input
+                  type="number"
+                  value={filters.maxPrice}
+                  onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+                  min="0"
+                />
+              </HelpTooltip>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.sortBy')}
               </label>
-              <Select
-                value={filters.sortBy}
-                onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
-              >
-                <option value="createdAt">{t('search.sortDate')}</option>
-                <option value="priceCoins">{t('search.sortPrice')}</option>
-                <option value="popularity">{t('search.sortPopularity')}</option>
-              </Select>
+              <HelpTooltip content={t('help.search.sortBy', { defaultValue: 'Choose how to sort the search results.' })}>
+                <Select
+                  value={filters.sortBy}
+                  onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+                >
+                  <option value="createdAt">{t('search.sortDate')}</option>
+                  <option value="priceCoins">{t('search.sortPrice')}</option>
+                  <option value="popularity">{t('search.sortPopularity')}</option>
+                </Select>
+              </HelpTooltip>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('search.order')}
               </label>
-              <Select
-                value={filters.sortOrder}
-                onChange={(e) => setFilters({ ...filters, sortOrder: e.target.value })}
-              >
-                <option value="desc">{t('search.descending')}</option>
-                <option value="asc">{t('search.ascending')}</option>
-              </Select>
+              <HelpTooltip content={t('help.search.sortOrder', { defaultValue: 'Ascending = from low to high / old to new. Descending = opposite.' })}>
+                <Select
+                  value={filters.sortOrder}
+                  onChange={(e) => setFilters({ ...filters, sortOrder: e.target.value })}
+                >
+                  <option value="desc">{t('search.descending')}</option>
+                  <option value="asc">{t('search.ascending')}</option>
+                </Select>
+              </HelpTooltip>
             </div>
           </div>
 
@@ -167,23 +177,25 @@ export default function Search() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {t('search.filterByTags')}
               </label>
-              <div className="flex flex-wrap gap-2">
-                {availableTags.map((tag) => (
-                  <button
-                    key={tag.id}
-                    onClick={() => toggleTag(tag.name)}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ring-1 ${
-                      selectedTags.includes(tag.name)
-                        ? 'bg-primary/10 dark:bg-primary/20 text-primary ring-primary/20'
-                        : 'bg-white/40 dark:bg-white/5 text-gray-800 dark:text-gray-200 ring-black/5 dark:ring-white/10 hover:bg-white/60 dark:hover:bg-white/10'
-                    }`}
-                    aria-pressed={selectedTags.includes(tag.name)}
-                  >
-                    {tag.name}
-                    {selectedTags.includes(tag.name) ? <XSmallIcon /> : null}
-                  </button>
-                ))}
-              </div>
+              <HelpTooltip content={t('help.search.tags', { defaultValue: 'Click tags to filter results. Click again to remove.' })}>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      onClick={() => toggleTag(tag.name)}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ring-1 ${
+                        selectedTags.includes(tag.name)
+                          ? 'bg-primary/10 dark:bg-primary/20 text-primary ring-primary/20'
+                          : 'bg-white/40 dark:bg-white/5 text-gray-800 dark:text-gray-200 ring-black/5 dark:ring-white/10 hover:bg-white/60 dark:hover:bg-white/10'
+                      }`}
+                      aria-pressed={selectedTags.includes(tag.name)}
+                    >
+                      {tag.name}
+                      {selectedTags.includes(tag.name) ? <XSmallIcon /> : null}
+                    </button>
+                  ))}
+                </div>
+              </HelpTooltip>
             </div>
           )}
         </div>
@@ -208,31 +220,35 @@ export default function Search() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {memes.map((meme) => (
-              <Card
+              <HelpTooltip
                 key={getMemePrimaryId(meme)}
-                hoverable
-                className="cursor-pointer overflow-hidden"
-                onClick={() => navigate(`/channel/${meme.channelId}`)}
+                content={t('help.search.openChannel', { defaultValue: 'Open the channel where this meme belongs.' })}
               >
-                <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">{meme.type.toUpperCase()}</span>
-                    <span className="text-lg font-bold text-primary">
-                      {meme.priceCoins} {t('profile.coins')}
-                    </span>
-                  </div>
-                  {meme.tags && meme.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {meme.tags.map((tagItem, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20">
-                          {tagItem.tag.name}
-                        </span>
-                      ))}
+                <Card
+                  hoverable
+                  className="cursor-pointer overflow-hidden"
+                  onClick={() => navigate(`/channel/${meme.channelId}`)}
+                >
+                  <div className="p-4">
+                    <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{meme.type.toUpperCase()}</span>
+                      <span className="text-lg font-bold text-primary">
+                        {meme.priceCoins} {t('profile.coins')}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </Card>
+                    {meme.tags && meme.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {meme.tags.map((tagItem, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20">
+                            {tagItem.tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </HelpTooltip>
             ))}
           </div>
         )}

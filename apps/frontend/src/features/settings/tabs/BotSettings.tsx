@@ -7,7 +7,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { Button, Input, Spinner, Textarea } from '@/shared/ui';
+import { Button, HelpTooltip, Input, Spinner, Textarea } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -1770,49 +1770,53 @@ export function BotSettings() {
                 </div>
               </button>
               <div className="flex items-center gap-3 shrink-0">
-                <ToggleSwitch
-                  checked={anyCommandEnabled}
-                  disabled={savingCommandsBulk || commandToggleLoadingId !== null || commandsLoading || commandsNotAvailable}
-                  busy={savingCommandsBulk}
-                  onChange={async (next) => {
-                    setCommandsOpen(next);
-                    const startedAt = Date.now();
-                    try {
-                      setSavingCommandsBulk(true);
+                <HelpTooltip content={t('help.settings.bot.commandsMaster', { defaultValue: 'Master switch for all bot commands. Turn off to silence all commands at once.' })}>
+                  <div>
+                    <ToggleSwitch
+                      checked={anyCommandEnabled}
+                      disabled={savingCommandsBulk || commandToggleLoadingId !== null || commandsLoading || commandsNotAvailable}
+                      busy={savingCommandsBulk}
+                      onChange={async (next) => {
+                        setCommandsOpen(next);
+                        const startedAt = Date.now();
+                        try {
+                          setSavingCommandsBulk(true);
 
-                      // Remember previous per-command enabled flags so we can restore on re-enable.
-                      if (!next) {
-                        lastCommandsEnabledMapRef.current = Object.fromEntries(commands.map((c) => [c.id, c.enabled !== false]));
-                        for (const c of commands) {
-                          if (c.enabled !== false) {
-                            await updateCommand(c.id, { enabled: false });
+                          // Remember previous per-command enabled flags so we can restore on re-enable.
+                          if (!next) {
+                            lastCommandsEnabledMapRef.current = Object.fromEntries(commands.map((c) => [c.id, c.enabled !== false]));
+                            for (const c of commands) {
+                              if (c.enabled !== false) {
+                                await updateCommand(c.id, { enabled: false });
+                              }
+                            }
+                            return;
                           }
-                        }
-                        return;
-                      }
 
-                      // Restore previous states if we have them; otherwise enable all.
-                      const map = lastCommandsEnabledMapRef.current;
-                      if (!map) {
-                        for (const c of commands) {
-                          await updateCommand(c.id, { enabled: true });
-                        }
-                        return;
-                      }
+                          // Restore previous states if we have them; otherwise enable all.
+                          const map = lastCommandsEnabledMapRef.current;
+                          if (!map) {
+                            for (const c of commands) {
+                              await updateCommand(c.id, { enabled: true });
+                            }
+                            return;
+                          }
 
-                      for (const c of commands) {
-                        const prevEnabled = map[c.id];
-                        if (prevEnabled === true) {
-                          await updateCommand(c.id, { enabled: true });
+                          for (const c of commands) {
+                            const prevEnabled = map[c.id];
+                            if (prevEnabled === true) {
+                              await updateCommand(c.id, { enabled: true });
+                            }
+                          }
+                        } finally {
+                          await ensureMinDuration(startedAt, 450);
+                          setSavingCommandsBulk(false);
                         }
-                      }
-                    } finally {
-                      await ensureMinDuration(startedAt, 450);
-                      setSavingCommandsBulk(false);
-                    }
-                  }}
-                  ariaLabel={t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
-                />
+                      }}
+                      ariaLabel={t('admin.botCommandsMasterTitle', { defaultValue: 'Commands enabled' })}
+                    />
+                  </div>
+                </HelpTooltip>
               </div>
             </div>
 
@@ -1961,16 +1965,20 @@ export function BotSettings() {
                 ) : null}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <ToggleSwitch
-                  checked={twitchOverrideStatus?.enabled === true}
-                  disabled={twitchOverrideBusy || twitchOverrideLoading}
-                  busy={twitchOverrideBusy || twitchOverrideLoading}
-                  onChange={(next) => {
-                    if (next) void preflightAndRedirectToOverrideLink('twitch');
-                    else void disconnectTwitchOverride();
-                  }}
-                  ariaLabel={t('admin.twitchOverrideTitle', { defaultValue: 'Свой бот' })}
-                />
+                <HelpTooltip content={t('help.settings.bot.override', { defaultValue: 'Use your own bot account instead of the default one. If you turn it on, you will be redirected to connect.' })}>
+                  <div>
+                    <ToggleSwitch
+                      checked={twitchOverrideStatus?.enabled === true}
+                      disabled={twitchOverrideBusy || twitchOverrideLoading}
+                      busy={twitchOverrideBusy || twitchOverrideLoading}
+                      onChange={(next) => {
+                        if (next) void preflightAndRedirectToOverrideLink('twitch');
+                        else void disconnectTwitchOverride();
+                      }}
+                      ariaLabel={t('admin.twitchOverrideTitle', { defaultValue: 'Свой бот' })}
+                    />
+                  </div>
+                </HelpTooltip>
               </div>
             </div>
             {isCustomBotConnectLocked ? (
@@ -1992,13 +2000,17 @@ export function BotSettings() {
                   {t('admin.botToggleHint', { defaultValue: 'When enabled, the runner will join your chat.' })}
                 </div>
               </div>
-              <ToggleSwitch
-                checked={botEnabled ?? false}
-                onChange={(next) => void callToggle(next)}
-                disabled={isBusy || !statusLoaded || !twitchLinked}
-                busy={loading === 'toggle'}
-                ariaLabel={t('admin.botToggleTitle', { defaultValue: 'Chat bot' })}
-              />
+              <HelpTooltip content={t('help.settings.bot.enable', { defaultValue: 'Turn the bot on/off for this channel. When on, it can respond in chat.' })}>
+                <div>
+                  <ToggleSwitch
+                    checked={botEnabled ?? false}
+                    onChange={(next) => void callToggle(next)}
+                    disabled={isBusy || !statusLoaded || !twitchLinked}
+                    busy={loading === 'toggle'}
+                    ariaLabel={t('admin.botToggleTitle', { defaultValue: 'Chat bot' })}
+                  />
+                </div>
+              </HelpTooltip>
             </div>
 
             {!twitchLinked && (
@@ -2639,16 +2651,18 @@ export function BotSettings() {
                     onChange={(e) => setTestMessage(e.target.value)}
                     placeholder={t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })}
                   />
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => {
-                      void sendTestMessage('twitch');
-                    }}
-                    disabled={sendingTestMessage}
-                  >
-                    {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
-                  </Button>
+                  <HelpTooltip content={t('help.settings.bot.sendTestMessage', { defaultValue: 'Send a message from the bot to chat to check that it works.' })}>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => {
+                        void sendTestMessage('twitch');
+                      }}
+                      disabled={sendingTestMessage}
+                    >
+                      {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
+                    </Button>
+                  </HelpTooltip>
                   {renderOutboxStatus('twitch')}
                 </div>
               </div>

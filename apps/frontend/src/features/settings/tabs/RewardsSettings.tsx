@@ -6,7 +6,7 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { Button, Input } from '@/shared/ui';
+import { Button, HelpTooltip, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -404,44 +404,46 @@ export function RewardsSettings() {
             </>
           }
           right={
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rewardSettings.rewardEnabled}
-                disabled={savingTwitchReward || eligibilityLoading || twitchRewardEligible === false || !twitchLinked}
-                onChange={(e) => {
-                  if (!twitchLinked) {
-                    toast.error(t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' }));
-                    return;
-                  }
-                  if (twitchRewardEligible === false) {
-                    toast.error(
-                      t('admin.twitchRewardNotAvailable', {
-                        defaultValue: 'This Twitch reward is available only for affiliate/partner channels.',
-                      })
-                    );
-                    return;
-                  }
-                  const nextEnabled = e.target.checked;
-                  // Friendly defaults when enabling.
-                  if (nextEnabled) {
-                    setRewardSettings((p) => ({
-                      ...p,
-                      rewardEnabled: true,
-                      rewardTitle: p.rewardTitle?.trim()
-                        ? p.rewardTitle
-                        : t('admin.rewardTitlePlaceholder', { defaultValue: 'Get Coins' }),
-                      rewardCost: String(p.rewardCost || '').trim() ? p.rewardCost : '1000',
-                      rewardCoins: String(p.rewardCoins || '').trim() ? p.rewardCoins : '1000',
-                    }));
-                    return;
-                  }
-                  setRewardSettings((p) => ({ ...p, rewardEnabled: false }));
-                }}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-            </label>
+            <HelpTooltip content={t('help.settings.rewards.enableTwitchReward', { defaultValue: 'Turn the Twitch reward on/off (it gives coins to viewers).' })}>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rewardSettings.rewardEnabled}
+                  disabled={savingTwitchReward || eligibilityLoading || twitchRewardEligible === false || !twitchLinked}
+                  onChange={(e) => {
+                    if (!twitchLinked) {
+                      toast.error(t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' }));
+                      return;
+                    }
+                    if (twitchRewardEligible === false) {
+                      toast.error(
+                        t('admin.twitchRewardNotAvailable', {
+                          defaultValue: 'This Twitch reward is available only for affiliate/partner channels.',
+                        })
+                      );
+                      return;
+                    }
+                    const nextEnabled = e.target.checked;
+                    // Friendly defaults when enabling.
+                    if (nextEnabled) {
+                      setRewardSettings((p) => ({
+                        ...p,
+                        rewardEnabled: true,
+                        rewardTitle: p.rewardTitle?.trim()
+                          ? p.rewardTitle
+                          : t('admin.rewardTitlePlaceholder', { defaultValue: 'Get Coins' }),
+                        rewardCost: String(p.rewardCost || '').trim() ? p.rewardCost : '1000',
+                        rewardCoins: String(p.rewardCoins || '').trim() ? p.rewardCoins : '1000',
+                      }));
+                      return;
+                    }
+                    setRewardSettings((p) => ({ ...p, rewardEnabled: false }));
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </HelpTooltip>
           }
           contentClassName={rewardSettings.rewardEnabled ? 'space-y-4' : undefined}
         >
@@ -484,7 +486,8 @@ export function RewardsSettings() {
                     })}
                   </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <HelpTooltip content={t('help.settings.rewards.onlyWhenLive', { defaultValue: 'If enabled, the reward works only when your stream is live.' })}>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
                     checked={rewardSettings.rewardOnlyWhenLive}
@@ -493,7 +496,8 @@ export function RewardsSettings() {
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                </label>
+                  </label>
+                </HelpTooltip>
               </div>
 
               <div>
@@ -584,33 +588,35 @@ export function RewardsSettings() {
             </>
           }
           right={
-            <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
-              <input
-                type="checkbox"
-                checked={
-                  (parseInt(rewardSettings.submissionRewardCoinsUpload || '0', 10) || 0) > 0 ||
-                  (parseInt(rewardSettings.submissionRewardCoinsPool || '0', 10) || 0) > 0
-                }
-                disabled={savingApprovedMemeReward}
-                onChange={(e) => {
-                  if (savingApprovedMemeReward) return;
-                  const enabled = e.target.checked;
-                  if (!enabled) {
-                    setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: '0', submissionRewardCoinsPool: '0' });
-                    return;
+            <HelpTooltip content={t('help.settings.rewards.enableApprovedReward', { defaultValue: 'Give coins to the viewer when you approve their meme. Turn off = set both rewards to 0.' })}>
+              <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={
+                    (parseInt(rewardSettings.submissionRewardCoinsUpload || '0', 10) || 0) > 0 ||
+                    (parseInt(rewardSettings.submissionRewardCoinsPool || '0', 10) || 0) > 0
                   }
-                  const restoreUpload = lastApprovedNonZeroRef.current > 0 ? lastApprovedNonZeroRef.current : 100;
-                  const restorePool = lastApprovedNonZeroPoolRef.current > 0 ? lastApprovedNonZeroPoolRef.current : 100;
-                  setRewardSettings({
-                    ...rewardSettings,
-                    submissionRewardCoinsUpload: String(restoreUpload),
-                    submissionRewardCoinsPool: String(restorePool),
-                  });
-                }}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-            </label>
+                  disabled={savingApprovedMemeReward}
+                  onChange={(e) => {
+                    if (savingApprovedMemeReward) return;
+                    const enabled = e.target.checked;
+                    if (!enabled) {
+                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: '0', submissionRewardCoinsPool: '0' });
+                      return;
+                    }
+                    const restoreUpload = lastApprovedNonZeroRef.current > 0 ? lastApprovedNonZeroRef.current : 100;
+                    const restorePool = lastApprovedNonZeroPoolRef.current > 0 ? lastApprovedNonZeroPoolRef.current : 100;
+                    setRewardSettings({
+                      ...rewardSettings,
+                      submissionRewardCoinsUpload: String(restoreUpload),
+                      submissionRewardCoinsPool: String(restorePool),
+                    });
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </HelpTooltip>
           }
         >
 
@@ -626,98 +632,108 @@ export function RewardsSettings() {
                   })}
                 </div>
               </div>
-              <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={rewardSettings.submissionRewardOnlyWhenLive}
-                  disabled={savingApprovedMemeReward}
-                  onChange={(e) => setRewardSettings((p) => ({ ...p, submissionRewardOnlyWhenLive: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-              </label>
+              <HelpTooltip content={t('help.settings.rewards.approvedOnlyWhenLive', { defaultValue: 'If enabled, coins are granted only when your stream is live.' })}>
+                <label className={`relative inline-flex items-center cursor-pointer shrink-0 ${savingApprovedMemeReward ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={rewardSettings.submissionRewardOnlyWhenLive}
+                    disabled={savingApprovedMemeReward}
+                    onChange={(e) => setRewardSettings((p) => ({ ...p, submissionRewardOnlyWhenLive: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                </label>
+              </HelpTooltip>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('admin.submissionRewardCoinsUpload', { defaultValue: 'Reward (upload / URL) (coins)' })}
-                </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={rewardSettings.submissionRewardCoinsUpload}
-                    onChange={(e) => {
-                      const next = e.target.value.replace(/[^\d]/g, '');
-                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: next });
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
-                        e.preventDefault();
-                      }
-                    }}
-                    placeholder="0"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
-                    onClick={() => {
-                      const current = rewardSettings.submissionRewardCoinsUpload
-                        ? parseInt(rewardSettings.submissionRewardCoinsUpload, 10)
-                        : 0;
-                      const next = (Number.isFinite(current) ? current : 0) + 100;
-                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: String(next) });
-                    }}
-                    disabled={savingApprovedMemeReward}
-                  >
-                    {t('admin.quickAdd100', { defaultValue: '+100' })}
-                  </Button>
+              <HelpTooltip content={t('help.settings.rewards.approvedUploadCoins', { defaultValue: 'How many coins the viewer gets when you approve a submission from upload/URL. Use 0 to disable.' })}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.submissionRewardCoinsUpload', { defaultValue: 'Reward (upload / URL) (coins)' })}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={rewardSettings.submissionRewardCoinsUpload}
+                      onChange={(e) => {
+                        const next = e.target.value.replace(/[^\d]/g, '');
+                        setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: next });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                          e.preventDefault();
+                        }
+                      }}
+                      placeholder="0"
+                    />
+                    <HelpTooltip content={t('help.settings.rewards.quickAdd100', { defaultValue: 'Quickly add +100 coins.' })}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
+                        onClick={() => {
+                          const current = rewardSettings.submissionRewardCoinsUpload
+                            ? parseInt(rewardSettings.submissionRewardCoinsUpload, 10)
+                            : 0;
+                          const next = (Number.isFinite(current) ? current : 0) + 100;
+                          setRewardSettings({ ...rewardSettings, submissionRewardCoinsUpload: String(next) });
+                        }}
+                        disabled={savingApprovedMemeReward}
+                      >
+                        {t('admin.quickAdd100', { defaultValue: '+100' })}
+                      </Button>
+                    </HelpTooltip>
+                  </div>
                 </div>
-              </div>
+              </HelpTooltip>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t('admin.submissionRewardCoinsPool', { defaultValue: 'Reward (pool) (coins)' })}
-                </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={rewardSettings.submissionRewardCoinsPool}
-                    onChange={(e) => {
-                      const next = e.target.value.replace(/[^\d]/g, '');
-                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsPool: next });
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
-                        e.preventDefault();
-                      }
-                    }}
-                    placeholder="0"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
-                    onClick={() => {
-                      const current = rewardSettings.submissionRewardCoinsPool
-                        ? parseInt(rewardSettings.submissionRewardCoinsPool, 10)
-                        : 0;
-                      const next = (Number.isFinite(current) ? current : 0) + 100;
-                      setRewardSettings({ ...rewardSettings, submissionRewardCoinsPool: String(next) });
-                    }}
-                    disabled={savingApprovedMemeReward}
-                  >
-                    {t('admin.quickAdd100', { defaultValue: '+100' })}
-                  </Button>
+              <HelpTooltip content={t('help.settings.rewards.approvedPoolCoins', { defaultValue: 'How many coins the viewer gets when you approve a submission from the Pool. Use 0 to disable.' })}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.submissionRewardCoinsPool', { defaultValue: 'Reward (pool) (coins)' })}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={rewardSettings.submissionRewardCoinsPool}
+                      onChange={(e) => {
+                        const next = e.target.value.replace(/[^\d]/g, '');
+                        setRewardSettings({ ...rewardSettings, submissionRewardCoinsPool: next });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                          e.preventDefault();
+                        }
+                      }}
+                      placeholder="0"
+                    />
+                    <HelpTooltip content={t('help.settings.rewards.quickAdd100', { defaultValue: 'Quickly add +100 coins.' })}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="shrink-0 glass-btn bg-white/40 dark:bg-white/5"
+                        onClick={() => {
+                          const current = rewardSettings.submissionRewardCoinsPool
+                            ? parseInt(rewardSettings.submissionRewardCoinsPool, 10)
+                            : 0;
+                          const next = (Number.isFinite(current) ? current : 0) + 100;
+                          setRewardSettings({ ...rewardSettings, submissionRewardCoinsPool: String(next) });
+                        }}
+                        disabled={savingApprovedMemeReward}
+                      >
+                        {t('admin.quickAdd100', { defaultValue: '+100' })}
+                      </Button>
+                    </HelpTooltip>
+                  </div>
                 </div>
-              </div>
+              </HelpTooltip>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {t('admin.submissionRewardCoinsDescriptionSplit', {

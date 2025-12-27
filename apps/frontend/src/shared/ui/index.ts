@@ -28,6 +28,7 @@ export type { ModalProps } from './Modal/Modal';
 
 export { Tooltip } from './Tooltip/Tooltip';
 export type { TooltipProps } from './Tooltip/Tooltip';
+export { HelpTooltip } from './Tooltip/HelpTooltip';
 
 export { PageShell } from './PageShell';
 export type { PageShellProps, PageShellVariant } from './PageShell';

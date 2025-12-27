@@ -366,7 +366,6 @@ export default function SettingsPage() {
                       aria-selected={true}
                       aria-controls={getTabPanelId(activeTab)}
                       tabIndex={0}
-                      title={getTabLabel(activeTab)}
                     >
                       {getTabLabel(activeTab)}
                     </button>

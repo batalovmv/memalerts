@@ -19,7 +19,7 @@ import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
-import { Button, IconButton, Input, PageShell, Pill, Spinner } from '@/shared/ui';
+import { Button, HelpTooltip, IconButton, Input, PageShell, Pill, Spinner } from '@/shared/ui';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
@@ -629,32 +629,29 @@ export default function StreamerProfile() {
               </div>
               {/* Submit Meme Button - only show when logged in and not owner */}
               {user && !isOwner && (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() => setIsSubmitModalOpen(true)}
-                  title={t('profile.submitMeme')}
-                  leftIcon={
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  }
-                >
-                  {t('profile.submitMeme')}
-                </Button>
+                <HelpTooltip content={t('help.profile.submitMeme', { defaultValue: 'Submit a meme to this channel.' })}>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => setIsSubmitModalOpen(true)}
+                    leftIcon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    }
+                  >
+                    {t('profile.submitMeme')}
+                  </Button>
+                </HelpTooltip>
               )}
 
               {/* Guest CTA */}
               {!user && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="glass-btn"
-                  onClick={() => setAuthModalOpen(true)}
-                  title={t('auth.loginToInteract', 'Log in to submit memes and use favorites')}
-                >
-                  {t('auth.login', 'Log in with Twitch')}
-                </Button>
+                <HelpTooltip content={t('help.profile.loginToInteract', { defaultValue: 'Log in to submit memes and use favorites.' })}>
+                  <Button type="button" variant="secondary" className="glass-btn" onClick={() => setAuthModalOpen(true)}>
+                    {t('auth.login', 'Log in with Twitch')}
+                  </Button>
+                </HelpTooltip>
               )}
             </div>
           </div>
@@ -697,25 +694,31 @@ export default function StreamerProfile() {
           </div>
 
           <div className="mt-3 flex items-center gap-3 flex-wrap">
-            <button
-              type="button"
-              className={`inline-flex items-center gap-2 text-sm rounded-full px-4 py-2 border shadow-sm transition-colors select-none ${
-                !isAuthed
-                  ? 'opacity-60 cursor-not-allowed bg-white/60 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-500 dark:text-gray-400'
-                  : myFavorites
-                    ? 'bg-white/80 dark:bg-gray-900/60 border-accent/30 text-accent'
-                    : 'bg-white/70 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10'
-              }`}
-              onClick={() => {
-                if (!isAuthed) {
-                  setAuthModalOpen(true);
-                  return;
-                }
-                setMyFavorites((v) => !v);
-              }}
-              title={isAuthed ? '' : t('auth.loginToUseFavorites', 'Log in to use favorites')}
-              aria-pressed={myFavorites}
+            <HelpTooltip
+              content={
+                isAuthed
+                  ? t('help.profile.favorites', { defaultValue: 'Show only your favorite memes.' })
+                  : t('help.profile.loginToUseFavorites', { defaultValue: 'Log in to use favorites.' })
+              }
             >
+              <button
+                type="button"
+                className={`inline-flex items-center gap-2 text-sm rounded-full px-4 py-2 border shadow-sm transition-colors select-none ${
+                  !isAuthed
+                    ? 'opacity-60 cursor-not-allowed bg-white/60 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-500 dark:text-gray-400'
+                    : myFavorites
+                      ? 'bg-white/80 dark:bg-gray-900/60 border-accent/30 text-accent'
+                      : 'bg-white/70 dark:bg-gray-900/40 border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-white/80 dark:hover:bg-white/10'
+                }`}
+                onClick={() => {
+                  if (!isAuthed) {
+                    setAuthModalOpen(true);
+                    return;
+                  }
+                  setMyFavorites((v) => !v);
+                }}
+                aria-pressed={myFavorites}
+              >
               <svg
                 className={`w-4 h-4 ${myFavorites ? 'text-accent' : 'text-gray-500 dark:text-gray-300'}`}
                 viewBox="0 0 24 24"
@@ -731,7 +734,8 @@ export default function StreamerProfile() {
                 />
               </svg>
               {t('search.myFavorites', 'My favorites')}
-            </button>
+              </button>
+            </HelpTooltip>
           </div>
 
           {searchQuery && (

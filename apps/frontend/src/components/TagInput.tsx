@@ -1,6 +1,8 @@
 import { useId, useState, KeyboardEvent, ClipboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { HelpTooltip } from '@/shared/ui';
+
 function XSmallIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -84,15 +86,19 @@ export default function TagInput({ tags, onChange, placeholder }: TagInputProps)
             className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm font-medium bg-primary/10 dark:bg-primary/20 text-primary ring-1 ring-primary/20"
           >
             {tag}
-            <button
-              type="button"
-              onClick={() => removeTag(index)}
-              className="inline-flex items-center justify-center rounded-md p-0.5 text-primary/80 hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              aria-label={t('tagInput.removeTag', { defaultValue: 'Remove tag' })}
-              title={t('tagInput.removeTag', { defaultValue: 'Remove tag' })}
-            >
-              <XSmallIcon />
-            </button>
+            {(() => {
+              const btn = (
+                <button
+                  type="button"
+                  onClick={() => removeTag(index)}
+                  className="inline-flex items-center justify-center rounded-md p-0.5 text-primary/80 hover:text-primary hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                  aria-label={t('tagInput.removeTag', { defaultValue: 'Remove tag' })}
+                >
+                  <XSmallIcon />
+                </button>
+              );
+              return <HelpTooltip content={t('tagInput.removeTag', { defaultValue: 'Remove tag' })}>{btn}</HelpTooltip>;
+            })()}
           </span>
         ))}
         <input

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { Tooltip } from '@/shared/ui';
+import { useHelpMode } from '@/contexts/HelpModeContext';
+import { HelpTooltip } from '@/shared/ui';
 
 type Props = {
   label: string;
@@ -58,6 +59,8 @@ function CopyIcon() {
 export default function SecretCopyField({ label, value, description, masked = true, emptyText = '—', rightActions, helpEnabled }: Props) {
   const [isRevealed, setIsRevealed] = useState(false);
   const { t } = useTranslation();
+  const { enabled: globalHelpEnabled } = useHelpMode();
+  const effectiveHelpEnabled = helpEnabled ?? globalHelpEnabled;
 
   const displayValue = useMemo(() => {
     const v = (value || '').trim();
@@ -119,7 +122,6 @@ export default function SecretCopyField({ label, value, description, masked = tr
             void copy();
           }
         }}
-        title={helpEnabled === undefined && canCopy ? t('common.clickToCopy', { defaultValue: 'Click to copy' }) : undefined}
       >
         <div className="flex-1 min-w-0">
           <div className="font-mono text-sm text-gray-900 dark:text-gray-100 truncate">{displayValue}</div>
@@ -135,7 +137,6 @@ export default function SecretCopyField({ label, value, description, masked = tr
               e.stopPropagation();
               setIsRevealed((v) => !v);
             }}
-            title={helpEnabled === undefined ? (isRevealed ? 'Hide' : 'Show') : undefined}
             aria-label={isRevealed ? 'Hide value' : 'Show value'}
           >
             <EyeIcon open={isRevealed} />
@@ -149,7 +150,6 @@ export default function SecretCopyField({ label, value, description, masked = tr
             e.stopPropagation();
             void copy();
           }}
-          title={helpEnabled === undefined ? t('common.copy', { defaultValue: 'Copy' }) : undefined}
           aria-label={t('common.copy', { defaultValue: 'Copy' })}
           disabled={!canCopy}
         >
@@ -158,14 +158,8 @@ export default function SecretCopyField({ label, value, description, masked = tr
           </div>
         );
 
-        if (!helpEnabled) return field;
-        if (helpEnabled === undefined) return field;
-
-        return (
-          <Tooltip delayMs={1000} content={t('dashboard.help.copyField', { defaultValue: 'Click to copy.' })}>
-            {field}
-          </Tooltip>
-        );
+        if (!effectiveHelpEnabled) return field;
+        return <HelpTooltip content={t('help.common.clickToCopy', { defaultValue: 'Click to copy.' })}>{field}</HelpTooltip>;
       })()}
 
       {description && <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>}

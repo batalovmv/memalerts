@@ -7,7 +7,7 @@ import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { resolvePublicUrl } from '@/lib/urls';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { IconButton, Input } from '@/shared/ui';
+import { HelpTooltip, IconButton, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -194,31 +194,32 @@ export function ChannelSettings() {
           title={t('admin.profileLink', { defaultValue: 'Profile link' })}
           description={t('dashboard.shareLinkDescription')}
           right={
-            <IconButton
-              type="button"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(profileUrl);
-                  toast.success(t('toast.linkCopied'));
-                } catch {
-                  toast.error(t('toast.failedToCopyLink'));
+            <HelpTooltip content={t('help.settings.copyProfileLink', { defaultValue: 'Copy your profile link.' })}>
+              <IconButton
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success(t('toast.linkCopied'));
+                  } catch {
+                    toast.error(t('toast.failedToCopyLink'));
+                  }
+                }}
+                variant="secondary"
+                className="glass-btn bg-white/40 dark:bg-white/5"
+                aria-label={t('dashboard.copyLink')}
+                icon={
+                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
                 }
-              }}
-              variant="secondary"
-              className="glass-btn bg-white/40 dark:bg-white/5"
-              aria-label={t('dashboard.copyLink')}
-              title={t('dashboard.copyLink')}
-              icon={
-                <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  />
-                </svg>
-              }
-            />
+              />
+            </HelpTooltip>
           }
         >
           <Input type="text" readOnly value={profileUrl} className="w-full" />

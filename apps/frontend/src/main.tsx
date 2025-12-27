@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from '@/App.tsx';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ChannelColorsProvider } from '@/contexts/ChannelColorsContext.tsx';
+import { HelpModeProvider } from '@/contexts/HelpModeContext.tsx';
 import { ThemeProvider } from '@/contexts/ThemeContext.tsx';
 import '@/shared/styles/tokens.css';
 import '@/shared/styles/theme.css';
@@ -43,9 +44,11 @@ async function bootstrap() {
         <BrowserRouter>
           <ThemeProvider>
             <ChannelColorsProvider>
-              <ErrorBoundary>
-                <App />
-              </ErrorBoundary>
+              <HelpModeProvider>
+                <ErrorBoundary>
+                  <App />
+                </ErrorBoundary>
+              </HelpModeProvider>
             </ChannelColorsProvider>
           </ThemeProvider>
         </BrowserRouter>

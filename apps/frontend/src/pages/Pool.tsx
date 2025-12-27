@@ -12,7 +12,7 @@ import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemesPool } from '@/shared/api/memesPool';
 import { createPoolSubmission } from '@/shared/api/submissionsPool';
-import { PageShell, Button, Input, Spinner } from '@/shared/ui';
+import { PageShell, Button, HelpTooltip, Input, Spinner } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
@@ -248,31 +248,35 @@ export default function PoolPage() {
           </div>
 
           <div className="mt-4 flex flex-col sm:flex-row gap-2">
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t('pool.searchPlaceholder', { defaultValue: 'Search…' })}
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setItems([]);
-                setOffset(0);
-                setLoading(true);
-                void (async () => {
-                  try {
-                    await loadPage(0, false);
-                  } finally {
-                    setLoading(false);
-                  }
-                })();
-              }}
-              disabled={loading}
-            >
-              {t('common.search', { defaultValue: 'Search' })}
-            </Button>
+            <HelpTooltip content={t('help.pool.search', { defaultValue: 'Search in the global meme pool (by text, id, etc.).' })}>
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('pool.searchPlaceholder', { defaultValue: 'Search…' })}
+                className="flex-1"
+              />
+            </HelpTooltip>
+            <HelpTooltip content={t('help.pool.runSearch', { defaultValue: 'Run search with the current query.' })}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setItems([]);
+                  setOffset(0);
+                  setLoading(true);
+                  void (async () => {
+                    try {
+                      await loadPage(0, false);
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }}
+                disabled={loading}
+              >
+                {t('common.search', { defaultValue: 'Search' })}
+              </Button>
+            </HelpTooltip>
           </div>
         </div>
 
@@ -285,9 +289,11 @@ export default function PoolPage() {
               {t('pool.authRequiredHint', { defaultValue: 'Please sign in to view the pool.' })}
             </div>
             <div className="mt-4 flex flex-col sm:flex-row gap-2">
-              <Button type="button" variant="primary" onClick={() => login('/pool')}>
-                {t('pool.signIn', { defaultValue: 'Sign in with Twitch' })}
-              </Button>
+              <HelpTooltip content={t('help.pool.signIn', { defaultValue: 'Sign in to view the pool and submit memes.' })}>
+                <Button type="button" variant="primary" onClick={() => login('/pool')}>
+                  {t('pool.signIn', { defaultValue: 'Sign in with Twitch' })}
+                </Button>
+              </HelpTooltip>
               <Button type="button" variant="secondary" onClick={() => void loadPage(0, false)}>
                 {t('common.retry', { defaultValue: 'Retry' })}
               </Button>
@@ -305,41 +311,45 @@ export default function PoolPage() {
         ) : (
           <div className="meme-masonry">
             {items.map((m) => (
-              <div key={m.id} className="relative break-inside-avoid mb-3">
-                <MemeCard
-                  meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))}
-                  onClick={() => {
-                    setSelectedItem(m);
-                    setIsMemeModalOpen(true);
-                  }}
-                  isOwner={false}
-                  previewMode="autoplayMuted"
-                />
-              </div>
+              <HelpTooltip content={t('help.pool.openPreview', { defaultValue: 'Open preview. From there you can submit this meme.' })}>
+                <div key={m.id} className="relative break-inside-avoid mb-3">
+                  <MemeCard
+                    meme={toPoolCardMeme(m, t('pool.untitled', { defaultValue: 'Untitled' }))}
+                    onClick={() => {
+                      setSelectedItem(m);
+                      setIsMemeModalOpen(true);
+                    }}
+                    isOwner={false}
+                    previewMode="autoplayMuted"
+                  />
+                </div>
+              </HelpTooltip>
             ))}
           </div>
         )}
 
         {!loading && items.length > 0 && (
           <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                if (loadingMore) return;
-                setLoadingMore(true);
-                void (async () => {
-                  try {
-                    await loadPage(offset + limit, true);
-                  } finally {
-                    setLoadingMore(false);
-                  }
-                })();
-              }}
-              disabled={loadingMore || !canLoadMore}
-            >
-              {loadingMore ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.loadMore', { defaultValue: 'Load more' })}
-            </Button>
+            <HelpTooltip content={t('help.pool.loadMore', { defaultValue: 'Load more memes from the pool.' })}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (loadingMore) return;
+                  setLoadingMore(true);
+                  void (async () => {
+                    try {
+                      await loadPage(offset + limit, true);
+                    } finally {
+                      setLoadingMore(false);
+                    }
+                  })();
+                }}
+                disabled={loadingMore || !canLoadMore}
+              >
+                {loadingMore ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.loadMore', { defaultValue: 'Load more' })}
+              </Button>
+            </HelpTooltip>
           </div>
         )}
       </div>
@@ -411,40 +421,44 @@ export default function PoolPage() {
               <div className="relative bg-black">
                 {/* top bar */}
                 <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMemeModalOpen(false);
-                      setSelectedItem(null);
-                    }}
-                    className="h-10 w-10 rounded-full bg-black/50 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/60 transition-colors"
-                    aria-label={t('common.close', { defaultValue: 'Close' })}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-
-                  {meme.type === 'video' ? (
+                  <HelpTooltip content={t('help.pool.closePreview', { defaultValue: 'Close preview.' })}>
                     <button
                       type="button"
                       onClick={() => {
-                        const next = !previewMuted;
-                        setPreviewMuted(next);
-                        try {
-                          window.localStorage.setItem(PREVIEW_MUTED_STORAGE_KEY, next ? '1' : '0');
-                        } catch {
-                          // ignore
-                        }
-                        if (previewVideoRef.current) previewVideoRef.current.muted = next;
+                        setIsMemeModalOpen(false);
+                        setSelectedItem(null);
                       }}
-                      className="h-10 px-4 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/60 transition-colors font-semibold"
-                      aria-pressed={previewMuted}
+                      className="h-10 w-10 rounded-full bg-black/50 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+                      aria-label={t('common.close', { defaultValue: 'Close' })}
                     >
-                      {previewMuted
-                        ? t('common.mute', { defaultValue: 'Без звука' })
-                        : t('common.soundOn', { defaultValue: 'Со звуком' })}
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </button>
+                  </HelpTooltip>
+
+                  {meme.type === 'video' ? (
+                    <HelpTooltip content={t('help.pool.previewSound', { defaultValue: 'Toggle preview sound. This is saved in your browser.' })}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !previewMuted;
+                          setPreviewMuted(next);
+                          try {
+                            window.localStorage.setItem(PREVIEW_MUTED_STORAGE_KEY, next ? '1' : '0');
+                          } catch {
+                            // ignore
+                          }
+                          if (previewVideoRef.current) previewVideoRef.current.muted = next;
+                        }}
+                        className="h-10 px-4 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/60 transition-colors font-semibold"
+                        aria-pressed={previewMuted}
+                      >
+                        {previewMuted
+                          ? t('common.mute', { defaultValue: 'Без звука' })
+                          : t('common.soundOn', { defaultValue: 'Со звуком' })}
+                      </button>
+                    </HelpTooltip>
                   ) : (
                     <div />
                   )}
@@ -496,17 +510,19 @@ export default function PoolPage() {
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="w-full"
-                  onClick={() => void onAdd(selectedItem)}
-                  disabled={!isAuthed || !submitChannelId || isBusyForThis}
-                >
-                  {submitMode === 'viewerToStreamer'
-                    ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })
-                    : t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
-                </Button>
+                <HelpTooltip content={t('help.pool.add', { defaultValue: 'Submit this meme. You will be asked to enter a title for your channel.' })}>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="w-full"
+                    onClick={() => void onAdd(selectedItem)}
+                    disabled={!isAuthed || !submitChannelId || isBusyForThis}
+                  >
+                    {submitMode === 'viewerToStreamer'
+                      ? t('pool.sendToStreamer', { defaultValue: 'Submit to streamer' })
+                      : t('pool.addToMyChannel', { defaultValue: 'Add to my channel' })}
+                  </Button>
+                </HelpTooltip>
 
                 {!isAuthed ? (
                   <div className="text-xs text-gray-500 dark:text-gray-400">

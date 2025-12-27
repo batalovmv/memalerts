@@ -14,7 +14,7 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { useSocket } from '@/contexts/SocketContext';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { Button, IconButton, Input, Textarea } from '@/shared/ui';
+import { Button, HelpTooltip, IconButton, Input, Textarea } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -2725,19 +2725,20 @@ export function ObsLinksSettings() {
             emptyText={t('common.notAvailable', { defaultValue: 'Not available' })}
             description={loadingToken ? t('common.loading', { defaultValue: 'Loading…' }) : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })}
             rightActions={
-              <IconButton
-                type="button"
-                variant="ghost"
-                className="rounded-xl text-gray-700 dark:text-gray-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleRotateOverlayToken();
-                }}
-                disabled={rotatingOverlayToken || loadingToken || !overlayToken}
-                title={t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
-                aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
-                icon={<RotateIcon />}
-              />
+              <HelpTooltip content={t('help.settings.obs.rotateLink', { defaultValue: 'Generate a new overlay link. Use this if the link was leaked — the old one will stop working.' })}>
+                <IconButton
+                  type="button"
+                  variant="ghost"
+                  className="rounded-xl text-gray-700 dark:text-gray-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleRotateOverlayToken();
+                  }}
+                  disabled={rotatingOverlayToken || loadingToken || !overlayToken}
+                  aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
+                  icon={<RotateIcon />}
+                />
+              </HelpTooltip>
             }
           />
         ) : (
@@ -2752,19 +2753,20 @@ export function ObsLinksSettings() {
                 : t('admin.obsOverlayUrlHint', { defaultValue: 'Click to copy. You can reveal the URL with the eye icon.' })
             }
             rightActions={
-              <IconButton
-                type="button"
-                variant="ghost"
-                className="rounded-xl text-gray-700 dark:text-gray-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleRotateCreditsToken();
-                }}
-                disabled={rotatingCreditsToken || loadingCreditsToken || !creditsToken}
-                title={t('admin.obsOverlayRotateLinkHint', { defaultValue: 'Use this if your overlay URL was leaked. The old link will stop working.' })}
-                aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
-                icon={<RotateIcon />}
-              />
+              <HelpTooltip content={t('help.settings.obs.rotateLink', { defaultValue: 'Generate a new overlay link. Use this if the link was leaked — the old one will stop working.' })}>
+                <IconButton
+                  type="button"
+                  variant="ghost"
+                  className="rounded-xl text-gray-700 dark:text-gray-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleRotateCreditsToken();
+                  }}
+                  disabled={rotatingCreditsToken || loadingCreditsToken || !creditsToken}
+                  aria-label={t('admin.obsOverlayRotateLink', { defaultValue: 'Update overlay link' })}
+                  icon={<RotateIcon />}
+                />
+              </HelpTooltip>
             }
           />
         )}
@@ -2921,71 +2923,75 @@ export function ObsLinksSettings() {
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       {t('admin.obsOverlayLivePreview')}
                     </div>
-                    <button
-                      type="button"
-                      className="glass-btn p-2 shrink-0"
-                      disabled={loadingPreview || !overlayToken}
-                      onClick={() => {
-                        const next = previewSeedRef.current >= 1000000000 ? 1 : previewSeedRef.current + 1;
-                        // IMPORTANT: do not update previewSeed before the new preview set arrives.
-                        // We fetch using next seed and then commit seed+urls in the same render.
-                        void fetchPreviewMemes(previewCount, next, { commitSeed: true });
-                      }}
-                      title={t('admin.obsPreviewNextMeme')}
-                      aria-label={t('admin.obsPreviewNextMeme')}
-                    >
-                      {/* Next arrow icon */}
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h11" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5-5 5" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
-                      title={t('admin.obsPreviewLoop', { defaultValue: 'Р—Р°С†РёРєР»РёС‚СЊ' })}
-                      aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Р—Р°С†РёРєР»РёС‚СЊ' })}
-                      onClick={() => setPreviewLoopEnabled((p) => !p)}
-                    >
-                      {/* Loop icon */}
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 1l4 4-4 4" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11V9a4 4 0 014-4h14" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 23l-4-4 4-4" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13v2a4 4 0 01-4 4H3" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="glass-btn p-2 shrink-0"
-                      title={t('admin.obsPreviewShufflePositions', { defaultValue: 'Shuffle positions' })}
-                      aria-label={t('admin.obsPreviewShufflePositions', { defaultValue: 'Shuffle positions' })}
-                      onClick={() => setPreviewPosSeed((s) => (s >= 1000000000 ? 1 : s + 1))}
-                    >
-                      {/* Shuffle icon */}
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20l6-6" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l6-7" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 21h5v-5" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l6 6" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 14l6 7" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className={`glass-btn p-2 shrink-0 ${previewBg === 'white' ? 'ring-2 ring-primary/40' : ''}`}
-                      title={t('admin.obsPreviewBackground', { defaultValue: 'Р¤РѕРЅ РїСЂРµРІСЊСЋ (Р±РµР»С‹Р№/С‚РµРјР°С‚РёС‡РµСЃРєРёР№)' })}
-                      aria-label={t('admin.obsPreviewBackground', { defaultValue: 'Р¤РѕРЅ РїСЂРµРІСЊСЋ (Р±РµР»С‹Р№/С‚РµРјР°С‚РёС‡РµСЃРєРёР№)' })}
-                      onClick={() => setPreviewBg((b) => (b === 'twitch' ? 'white' : 'twitch'))}
-                    >
-                      {/* Photo / background icon */}
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11l2 2 4-4 6 6" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 9.5h.01" />
-                      </svg>
-                    </button>
+                    <HelpTooltip content={t('help.settings.obs.previewNext', { defaultValue: 'Load a new random meme for preview (does not affect your real overlay).' })}>
+                      <button
+                        type="button"
+                        className="glass-btn p-2 shrink-0"
+                        disabled={loadingPreview || !overlayToken}
+                        onClick={() => {
+                          const next = previewSeedRef.current >= 1000000000 ? 1 : previewSeedRef.current + 1;
+                          // IMPORTANT: do not update previewSeed before the new preview set arrives.
+                          // We fetch using next seed and then commit seed+urls in the same render.
+                          void fetchPreviewMemes(previewCount, next, { commitSeed: true });
+                        }}
+                        aria-label={t('admin.obsPreviewNextMeme')}
+                      >
+                        {/* Next arrow icon */}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h11" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5-5 5" />
+                        </svg>
+                      </button>
+                    </HelpTooltip>
+                    <HelpTooltip content={t('help.settings.obs.previewLoop', { defaultValue: 'Loop preview: when on, the same preview memes repeat.' })}>
+                      <button
+                        type="button"
+                        className={`glass-btn p-2 shrink-0 ${previewLoopEnabled ? 'ring-2 ring-primary/40' : ''}`}
+                        aria-label={t('admin.obsPreviewLoop', { defaultValue: 'Loop' })}
+                        onClick={() => setPreviewLoopEnabled((p) => !p)}
+                      >
+                        {/* Loop icon */}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 1l4 4-4 4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11V9a4 4 0 014-4h14" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 23l-4-4 4-4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13v2a4 4 0 01-4 4H3" />
+                        </svg>
+                      </button>
+                    </HelpTooltip>
+                    <HelpTooltip content={t('help.settings.obs.previewShufflePositions', { defaultValue: 'Shuffle positions in preview (useful to test layout).' })}>
+                      <button
+                        type="button"
+                        className="glass-btn p-2 shrink-0"
+                        aria-label={t('admin.obsPreviewShufflePositions', { defaultValue: 'Shuffle positions' })}
+                        onClick={() => setPreviewPosSeed((s) => (s >= 1000000000 ? 1 : s + 1))}
+                      >
+                        {/* Shuffle icon */}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20l6-6" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l6-7" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 21h5v-5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l6 6" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 14l6 7" />
+                        </svg>
+                      </button>
+                    </HelpTooltip>
+                    <HelpTooltip content={t('help.settings.obs.previewBackground', { defaultValue: 'Switch preview background (dark/white) to see how it looks in OBS.' })}>
+                      <button
+                        type="button"
+                        className={`glass-btn p-2 shrink-0 ${previewBg === 'white' ? 'ring-2 ring-primary/40' : ''}`}
+                        aria-label={t('admin.obsPreviewBackground', { defaultValue: 'Preview background' })}
+                        onClick={() => setPreviewBg((b) => (b === 'twitch' ? 'white' : 'twitch'))}
+                      >
+                        {/* Photo / background icon */}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11l2 2 4-4 6 6" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 9.5h.01" />
+                        </svg>
+                      </button>
+                    </HelpTooltip>
                   </div>
                   <div className="rounded-2xl overflow-hidden border border-white/20 dark:border-white/10 bg-black/40">
                     {!previewInitialized ? (
@@ -2998,7 +3004,7 @@ export function ObsLinksSettings() {
                     ) : (
                       <iframe
                         ref={previewIframeRef}
-                        title="Overlay preview"
+                        aria-label={t('help.settings.obs.previewFrame', { defaultValue: 'Overlay preview frame' })}
                         src={activePreviewBaseUrl}
                         className="w-full"
                         style={{ aspectRatio: '16 / 9', border: '0' }}
@@ -3076,23 +3082,24 @@ export function ObsLinksSettings() {
                           {t('admin.unsavedChanges', { defaultValue: 'Р•СЃС‚СЊ РЅРµСЃРѕС…СЂР°РЅС‘РЅРЅС‹Рµ РёР·РјРµРЅРµРЅРёСЏ' })}
                         </div>
                       )}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="glass-btn"
-                        onClick={resetOverlayToDefaults}
-                        disabled={savingOverlaySettings || loadingOverlaySettings}
-                        title={t('admin.overlayResetDefaults')}
-                        leftIcon={
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
-                          </svg>
-                        }
-                      >
-                        <span className="hidden sm:inline">{t('admin.overlayResetDefaults')}</span>
-                      </Button>
+                      <HelpTooltip content={t('help.settings.obs.resetDefaults', { defaultValue: 'Reset all overlay appearance settings back to defaults.' })}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="glass-btn"
+                          onClick={resetOverlayToDefaults}
+                          disabled={savingOverlaySettings || loadingOverlaySettings}
+                          leftIcon={
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12a9 9 0 101.8-5.4" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4v6h6" />
+                            </svg>
+                          }
+                        >
+                          <span className="hidden sm:inline">{t('admin.overlayResetDefaults')}</span>
+                        </Button>
+                      </HelpTooltip>
                       {/* Import/Export removed: users can save custom presets locally instead */}
                       <button
                         type="button"
@@ -3147,26 +3154,28 @@ export function ObsLinksSettings() {
                           <div className="mt-2 space-y-2">
                             {customPresets.map((p) => (
                               <div key={p.id} className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="secondary"
-                                  className="glass-btn flex-1 justify-start"
-                                  onClick={() => applySharePayload(p.payload)}
-                                  title={t('admin.obsPresetApply', { defaultValue: 'Apply preset' })}
-                                >
-                                  {p.name}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="secondary"
-                                  className="glass-btn"
-                                  onClick={() => deleteCustomPreset(p.id)}
-                                  title={t('admin.obsPresetDelete', { defaultValue: 'Delete' })}
-                                >
-                                  {t('common.delete', { defaultValue: 'Delete' })}
-                                </Button>
+                                <HelpTooltip content={t('help.settings.obs.presetApply', { defaultValue: 'Apply this saved preset to your overlay settings.' })}>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    className="glass-btn flex-1 justify-start"
+                                    onClick={() => applySharePayload(p.payload)}
+                                  >
+                                    {p.name}
+                                  </Button>
+                                </HelpTooltip>
+                                <HelpTooltip content={t('help.settings.obs.presetDelete', { defaultValue: 'Delete this saved preset.' })}>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    className="glass-btn"
+                                    onClick={() => deleteCustomPreset(p.id)}
+                                  >
+                                    {t('common.delete', { defaultValue: 'Delete' })}
+                                  </Button>
+                                </HelpTooltip>
                               </div>
                             ))}
                           </div>
@@ -5186,7 +5195,7 @@ export function ObsLinksSettings() {
               {activePreviewBaseUrl ? (
                 <iframe
                   ref={previewIframeRef}
-                  title="Credits preview"
+                  aria-label={t('help.settings.obs.previewFrame', { defaultValue: 'Preview frame' })}
                   src={activePreviewBaseUrl}
                   className="w-full"
                   style={{ aspectRatio: '16 / 9', border: '0' }}
