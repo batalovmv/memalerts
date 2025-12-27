@@ -109,6 +109,8 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
                 });
                 toast.success(t('submissions.resubmitted', { defaultValue: 'Resubmitted.' }));
                 onUpdated();
+                // Notify global UI (header badge) to refresh viewer-side counters.
+                window.dispatchEvent(new Event('my-submissions:updated'));
               } catch {
                 toast.error(t('submissions.failedToResubmit', { defaultValue: 'Failed to resubmit.' }));
               } finally {

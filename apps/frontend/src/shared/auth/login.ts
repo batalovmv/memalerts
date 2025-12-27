@@ -37,9 +37,10 @@ export const login = (redirectTo?: string): void => {
 
   // Build auth URL with redirect_to parameter
   const authUrl = new URL(`${apiUrl}/auth/twitch`);
-  if (redirectPath && redirectPath !== '/') {
-    authUrl.searchParams.set('redirect_to', redirectPath);
-  }
+  // If user logs in from "/" (no context), route them to a small post-login chooser.
+  // If login is initiated from a contextual page (channel/pool/submit/etc), keep that return URL.
+  const effectiveRedirect = redirectPath && redirectPath !== '/' ? redirectPath : '/post-login';
+  authUrl.searchParams.set('redirect_to', effectiveRedirect);
 
   window.location.href = authUrl.toString();
 };

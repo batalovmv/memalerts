@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { focusSafely, getFocusableElements } from '@/shared/lib/a11y/focus';
+import { setStoredUserMode } from '@/shared/lib/userMode';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logout } from '@/store/slices/authSlice';
 
@@ -72,14 +73,17 @@ export default function UserMenu() {
     // Admin is an additional role, not exclusive - admin can also be a streamer
     // Check if user has a channel (regardless of role)
     if (user.channelId && user.channel?.slug) {
+      setStoredUserMode('viewer');
       navigate(`/channel/${user.channel.slug}`);
     } else {
+      setStoredUserMode('streamer');
       navigate('/dashboard');
     }
     setIsOpen(false);
   };
 
   const handleDashboard = () => {
+    setStoredUserMode('streamer');
     navigate('/dashboard');
     setIsOpen(false);
   };
@@ -90,12 +94,21 @@ export default function UserMenu() {
   };
 
   const handleMySubmissions = () => {
+    setStoredUserMode('viewer');
     navigate('/submit');
     setIsOpen(false);
   };
 
   const handlePool = () => {
+    setStoredUserMode('viewer');
     navigate('/pool');
+    setIsOpen(false);
+  };
+
+  const handlePublicProfile = () => {
+    if (!user.channelId || !user.channel?.slug) return;
+    setStoredUserMode('viewer');
+    navigate(`/channel/${user.channel.slug}`);
     setIsOpen(false);
   };
 
@@ -236,6 +249,17 @@ export default function UserMenu() {
 
             {/* Menu items */}
             <div className="py-1">
+              {user.channelId && user.channel?.slug ? (
+                <button
+                  onClick={handlePublicProfile}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                  type="button"
+                  role="menuitem"
+                >
+                  {t('userMenu.publicProfile', { defaultValue: 'Public profile' })}
+                </button>
+              ) : null}
+
               <button
                 onClick={handleSettings}
                 className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"

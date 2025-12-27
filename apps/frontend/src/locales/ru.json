@@ -73,6 +73,12 @@
     "loginToUseFavorites": "Войдите, чтобы использовать избранное",
     "loginToUseWallet": "Войдите, чтобы получать монеты и активировать мемы",
     "loginToUse": "Войти, чтобы использовать",
+    "chooseModeTitle": "Куда перейти?",
+    "chooseModeHint": "Позже можно переключиться через меню аватара. Мы запомним выбор на этом устройстве.",
+    "modeStreamer": "Режим стримера",
+    "modeStreamerHint": "Одобрение заявок, боты и настройки канала.",
+    "modeViewer": "Режим зрителя",
+    "modeViewerHint": "Откройте публичный профиль, чтобы смотреть и отправлять мемы.",
     "modal": {
       "title": "Нужен вход",
       "description": "Войдите через Twitch, чтобы пользоваться этой функцией."
@@ -870,6 +876,12 @@
     "pendingSubmissions": "ожидающая заявка",
     "pendingSubmissionsPlural": "ожидающих заявок",
     "noPendingSubmissions": "Нет ожидающих заявок",
+    "noSubmissions": "Нет заявок",
+    "needsChangesSubmissions": "Нужно исправить: {{count}}",
+    "submissionsSummary": "На одобрение: {{pending}}, нужно исправить: {{needsChanges}}",
+    "submissionsMenu": "Меню заявок",
+    "pendingApprovals": "На одобрение",
+    "needsChanges": "Нужно исправить",
     "submitMeme": "Отправить мем",
     "addCoins": "Добавить монеты",
     "coinsTooltip": "Монеты, которые вы можете обменять у вашего стримера",
@@ -883,6 +895,7 @@
     "failedToAddCoins": "Не удалось добавить монеты"
   },
   "userMenu": {
+    "publicProfile": "Публичный профиль",
     "myProfile": "Мой профиль",
     "dashboard": "Панель управления",
     "settings": "Настройки",

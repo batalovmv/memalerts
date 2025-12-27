@@ -22,6 +22,7 @@ const Pool = lazy(() => import('./pages/Pool'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const BetaAccess = lazy(() => import('./pages/BetaAccess'));
+const PostLogin = lazy(() => import('./pages/PostLogin'));
 
 function App() {
   const dispatch = useAppDispatch();
@@ -113,6 +114,7 @@ function App() {
           >
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/post-login" element={<PostLogin />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/channel/:slug" element={<StreamerProfile />} />
               <Route path="/submit" element={<Submit />} />

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -34,6 +34,30 @@ export interface HeaderProps {
   rewardTitle?: string | null;
 }
 
+function countNeedsChangesFromSubmissions(resp: unknown, uid: string | undefined): number {
+  if (!Array.isArray(resp)) return 0;
+  let count = 0;
+  for (const raw of resp) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const status = typeof r.status === 'string' ? r.status : '';
+    if (status !== 'needs_changes') continue;
+
+    // Best-effort safety: if backend returns submitterId, only count items for the current user.
+    if (uid) {
+      const submitterId = typeof r.submitterId === 'string' ? r.submitterId : null;
+      const submitter =
+        r.submitter && typeof r.submitter === 'object' && !Array.isArray(r.submitter) ? (r.submitter as Record<string, unknown>) : null;
+      const submitterObjId = submitter && typeof submitter.id === 'string' ? submitter.id : null;
+      const effective = submitterId ?? submitterObjId;
+      if (effective && effective !== uid) continue;
+    }
+
+    count += 1;
+  }
+  return count;
+}
+
 export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
@@ -48,6 +72,8 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const location = useLocation();
   const params = useParams<{ slug: string }>();
   const { getChannelData, getCachedChannelData } = useChannelColors();
+  const reactId = useId();
+  const requestsMenuId = `header-requests-${reactId.replace(/:/g, '')}`;
 
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -65,6 +91,16 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
   const lastWalletFetchAtRef = useRef<number>(0);
   const walletFetchInFlightRef = useRef(false);
 
+  // Viewer-side "needs changes" submissions (my submissions that require edits)
+  const [myNeedsChangesCount, setMyNeedsChangesCount] = useState(0);
+  const [mySubmissionsLoading, setMySubmissionsLoading] = useState(false);
+  const lastMySubmissionsFetchAtRef = useRef<number>(0);
+  const mySubmissionsFetchInFlightRef = useRef(false);
+
+  // Requests bell popover when both streamer+viewer counters are present
+  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(false);
+  const requestsMenuRef = useRef<HTMLDivElement>(null);
+
   // Determine if we're on own profile page
   const isOwnProfile = user && channelId && user.channelId === channelId;
   const currentChannelSlug = channelSlug || params.slug;
@@ -79,6 +115,39 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     (location.pathname === '/dashboard' || location.pathname.startsWith('/settings') || isOwnProfile);
 
   const requireAuth = () => setAuthModalOpen(true);
+
+  const loadMyNeedsChangesCount = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (!userId) {
+        setMyNeedsChangesCount(0);
+        setMySubmissionsLoading(false);
+        lastMySubmissionsFetchAtRef.current = 0;
+        return;
+      }
+
+      const ttlMs = 30_000;
+      const now = Date.now();
+      if (!opts?.force && now - lastMySubmissionsFetchAtRef.current < ttlMs) return;
+      if (mySubmissionsFetchInFlightRef.current) return;
+
+      mySubmissionsFetchInFlightRef.current = true;
+      setMySubmissionsLoading(true);
+      try {
+        // Back-compat: keep the same endpoint shape as SubmitPage (array of submissions)
+        const data = await api.get<unknown>('/submissions', { timeout: 10000 });
+        setMyNeedsChangesCount(countNeedsChangesFromSubmissions(data, userId));
+        lastMySubmissionsFetchAtRef.current = Date.now();
+      } catch {
+        // Best-effort: don't break header UI
+        setMyNeedsChangesCount(0);
+        lastMySubmissionsFetchAtRef.current = Date.now();
+      } finally {
+        setMySubmissionsLoading(false);
+        mySubmissionsFetchInFlightRef.current = false;
+      }
+    },
+    [userId],
+  );
 
   // Load submissions for streamer/admin if not already loaded
   // Check Redux store with TTL to avoid duplicate requests on navigation
@@ -118,6 +187,41 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       submissionsLoadedRef.current = false;
     }
   }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
+
+  // Load viewer-side "needs changes" count with TTL + refresh on focus/visibility and after local resubmits.
+  useEffect(() => {
+    void loadMyNeedsChangesCount({ force: true });
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadMyNeedsChangesCount();
+      }
+    };
+    const onFocus = () => void loadMyNeedsChangesCount();
+    const onMySubmissionsUpdated = () => void loadMyNeedsChangesCount({ force: true });
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('my-submissions:updated', onMySubmissionsUpdated as EventListener);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('my-submissions:updated', onMySubmissionsUpdated as EventListener);
+    };
+  }, [loadMyNeedsChangesCount]);
+
+  // Close requests popover on outside click
+  useEffect(() => {
+    if (!isRequestsMenuOpen) return;
+    const onDown = (event: MouseEvent) => {
+      const root = requestsMenuRef.current;
+      if (!root) return;
+      if (!root.contains(event.target as Node)) setIsRequestsMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [isRequestsMenuOpen]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -504,9 +608,14 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     navigate(search ? `/dashboard?${search}` : '/dashboard');
   };
 
-  // Show indicator for streamers/admins always, even if submissions are not loaded yet
-  const showPendingIndicator = user && (user.role === 'streamer' || user.role === 'admin');
+  // Streamer/admin pending approvals
+  const showPendingIndicator = Boolean(user && (user.role === 'streamer' || user.role === 'admin'));
   const hasPendingSubmissions = pendingSubmissionsCount > 0;
+  // Viewer needs-changes (my submissions)
+  const hasNeedsChanges = myNeedsChangesCount > 0;
+
+  const showRequestsIndicator = Boolean(user) && (showPendingIndicator || hasNeedsChanges || mySubmissionsLoading);
+  const requestsTotalCount = (showPendingIndicator ? pendingSubmissionsCount : 0) + myNeedsChangesCount;
   const isLoadingSubmissions = submissionsLoading && submissions.length === 0;
   // Remove add coin button - channel owners can activate memes for free
   const balance = wallet?.balance || 0;
@@ -524,6 +633,41 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     color: primaryColor && !document.documentElement.classList.contains('dark') ? '#ffffff' : undefined,
   };
 
+  const requestsTitle = useMemo(() => {
+    if (!user) return '';
+    if (showPendingIndicator && hasPendingSubmissions && hasNeedsChanges) {
+      return t('header.submissionsSummary', {
+        defaultValue: 'Pending: {{pending}}, needs changes: {{needsChanges}}',
+        pending: pendingSubmissionsCount,
+        needsChanges: myNeedsChangesCount,
+      });
+    }
+    if (showPendingIndicator && hasPendingSubmissions) {
+      return pendingSubmissionsCount === 1
+        ? t('header.pendingSubmissions', { count: 1 })
+        : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount });
+    }
+    if (hasNeedsChanges) {
+      return t('header.needsChangesSubmissions', {
+        defaultValue: 'Needs changes: {{count}}',
+        count: myNeedsChangesCount,
+      });
+    }
+    if (mySubmissionsLoading) {
+      return t('header.loadingSubmissions', { defaultValue: 'Loading submissions...' });
+    }
+    return t('header.noSubmissions', { defaultValue: 'No submissions' });
+  }, [
+    user,
+    showPendingIndicator,
+    hasPendingSubmissions,
+    hasNeedsChanges,
+    mySubmissionsLoading,
+    t,
+    pendingSubmissionsCount,
+    myNeedsChangesCount,
+  ]);
+
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-sm channel-theme-nav" style={navStyle}>
@@ -540,60 +684,98 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
 
             {user ? (
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
-                {/* Pending Submissions Indicator - always show for streamer/admin */}
-                {showPendingIndicator && (
-                  <button
-                    type="button"
-                    onClick={handlePendingSubmissionsClick}
-                    className={`relative p-2 rounded-lg transition-colors ${
-                      hasPendingSubmissions
-                        ? 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800 opacity-60'
-                    }`}
-                    title={
-                      isLoadingSubmissions
-                        ? t('header.loadingSubmissions', 'Loading submissions...')
-                        : hasPendingSubmissions
-                          ? pendingSubmissionsCount === 1
-                            ? t('header.pendingSubmissions', { count: 1 })
-                            : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount })
-                          : t('header.noPendingSubmissions', 'No pending submissions')
-                    }
-                    aria-label={
-                      isLoadingSubmissions
-                        ? t('header.loadingSubmissions', 'Loading submissions...')
-                        : hasPendingSubmissions
-                          ? pendingSubmissionsCount === 1
-                            ? t('header.pendingSubmissions', { count: 1 })
-                            : t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount })
-                          : t('header.noPendingSubmissions', 'No pending submissions')
-                    }
-                  >
-                    <svg
-                      className={`w-6 h-6 transition-colors ${
-                        hasPendingSubmissions ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
+                {/* Requests Indicator (streamer approvals + viewer "needs changes") */}
+                {showRequestsIndicator && (
+                  <div className="relative" ref={requestsMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // If user is only a viewer (or has no pending), jump to /submit directly.
+                        if (!showPendingIndicator || !hasPendingSubmissions) {
+                          navigate('/submit');
+                          return;
+                        }
+
+                        // Streamer/admin with pending only: keep old behavior (dashboard panel).
+                        if (!hasNeedsChanges) {
+                          handlePendingSubmissionsClick();
+                          return;
+                        }
+
+                        // Both: open a small chooser popover.
+                        setIsRequestsMenuOpen((v) => !v);
+                      }}
+                      className={`relative p-2 rounded-lg transition-colors ${
+                        requestsTotalCount > 0 ? 'hover:bg-gray-100 dark:hover:bg-gray-700' : 'opacity-60 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                      title={requestsTitle}
+                      aria-label={requestsTitle}
+                      aria-haspopup={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? 'menu' : undefined}
+                      aria-expanded={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? isRequestsMenuOpen : undefined}
+                      aria-controls={showPendingIndicator && hasPendingSubmissions && hasNeedsChanges ? requestsMenuId : undefined}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                      />
-                    </svg>
-                    {hasPendingSubmissions && !isLoadingSubmissions && (
-                      <Pill
-                        variant="dangerSolid"
-                        className="absolute -top-1 -right-1 w-5 h-5 p-0 text-[11px] font-bold leading-none"
-                        title={t('header.pendingSubmissionsPlural', { count: pendingSubmissionsCount })}
+                      <svg
+                        className={`w-6 h-6 transition-colors ${
+                          requestsTotalCount > 0 ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        {pendingSubmissionsCount}
-                      </Pill>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                        />
+                      </svg>
+
+                      {requestsTotalCount > 0 && !(isLoadingSubmissions && showPendingIndicator) && (
+                        <Pill
+                          variant="dangerSolid"
+                          className="absolute -top-1 -right-1 w-5 h-5 p-0 text-[11px] font-bold leading-none"
+                          title={requestsTitle}
+                        >
+                          {requestsTotalCount}
+                        </Pill>
+                      )}
+                    </button>
+
+                    {showPendingIndicator && hasPendingSubmissions && hasNeedsChanges && isRequestsMenuOpen && (
+                      <div
+                        id={requestsMenuId}
+                        role="menu"
+                        aria-label={t('header.submissionsMenu', { defaultValue: 'Submissions menu' })}
+                        className="absolute right-0 mt-2 w-64 glass rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 py-2 z-50"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                          onClick={() => {
+                            setIsRequestsMenuOpen(false);
+                            handlePendingSubmissionsClick();
+                          }}
+                        >
+                          {t('header.pendingApprovals', { defaultValue: 'Pending approvals' })}{' '}
+                          <span className="text-xs text-gray-500 dark:text-gray-400">({pendingSubmissionsCount})</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                          onClick={() => {
+                            setIsRequestsMenuOpen(false);
+                            navigate('/submit');
+                          }}
+                        >
+                          {t('header.needsChanges', { defaultValue: 'Needs changes' })}{' '}
+                          <span className="text-xs text-gray-500 dark:text-gray-400">({myNeedsChangesCount})</span>
+                        </button>
+                      </div>
                     )}
-                  </button>
+                  </div>
                 )}
 
                 {/* Submit Meme Button - only show on own pages */}

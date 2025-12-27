@@ -69,6 +69,12 @@
     "loginToUseFavorites": "Log in to use favorites",
     "loginToUseWallet": "Log in to earn coins and activate memes",
     "loginToUse": "Log in to use",
+    "chooseModeTitle": "Where do you want to go?",
+    "chooseModeHint": "You can switch later from the avatar menu. We will remember your choice on this device.",
+    "modeStreamer": "Streamer dashboard",
+    "modeStreamerHint": "Approve submissions, manage bots and settings.",
+    "modeViewer": "Viewer mode",
+    "modeViewerHint": "Open a public profile to browse and submit memes.",
     "modal": {
       "title": "Login required",
       "description": "Log in with Twitch to use this feature."
@@ -849,6 +855,12 @@
     "pendingSubmissions": "pending submission",
     "pendingSubmissionsPlural": "pending submissions",
     "noPendingSubmissions": "No pending submissions",
+    "noSubmissions": "No submissions",
+    "needsChangesSubmissions": "Needs changes: {{count}}",
+    "submissionsSummary": "Pending: {{pending}}, needs changes: {{needsChanges}}",
+    "submissionsMenu": "Submissions menu",
+    "pendingApprovals": "Pending approvals",
+    "needsChanges": "Needs changes",
     "submitMeme": "Submit a meme",
     "addCoins": "Add coins",
     "coinsTooltip": "Coins you can redeem with your streamer",
@@ -862,6 +874,7 @@
     "failedToAddCoins": "Failed to add coins"
   },
   "userMenu": {
+    "publicProfile": "Public profile",
     "myProfile": "My Profile",
     "dashboard": "Dashboard",
     "settings": "Settings",
