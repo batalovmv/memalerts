@@ -78,14 +78,21 @@ export function DashboardSubmissionsPanel({
 
   const resolveMedia = (src: string): string => resolveMediaUrl(src);
 
-  const myCount = mySubmissions.length;
+  // IMPORTANT: "My submissions" tab should show only active submissions (no full history),
+  // otherwise counts become huge and the list mixes "current" with "history".
+  const myActive = useMemo(
+    () => mySubmissions.filter((s) => s.status === 'pending' || s.status === 'needs_changes'),
+    [mySubmissions],
+  );
+
+  const myCount = myActive.length;
   const mySorted = useMemo(() => {
-    // Small UX improvement: show "needs_changes" first, then the rest by date desc.
+    // UX: show "needs_changes" first, then pending; both by date desc.
     const byTime = (a: MySubmission, b: MySubmission) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    const needs = mySubmissions.filter((s) => s.status === 'needs_changes').sort(byTime);
-    const rest = mySubmissions.filter((s) => s.status !== 'needs_changes').sort(byTime);
+    const needs = myActive.filter((s) => s.status === 'needs_changes').sort(byTime);
+    const rest = myActive.filter((s) => s.status !== 'needs_changes').sort(byTime);
     return [...needs, ...rest];
-  }, [mySubmissions]);
+  }, [myActive]);
 
   const TabButton = (props: { tab: SubmissionsPanelTab; label: string; count: number; busy?: boolean }) => {
     const { tab, label, count, busy } = props;

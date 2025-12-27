@@ -82,11 +82,10 @@ type BotIntegration = { provider: string; enabled?: boolean | null };
 type PublicSubmissionsStatusResponse = { ok: true; submissions: { enabled: boolean; onlyWhenLive: boolean } };
 
 type ExpandCard = null | 'submissionsControl' | 'bots';
-type DashboardCardId = 'submit' | 'pending' | 'mySubmissions' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
+type DashboardCardId = 'submit' | 'mySubmissions' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
 
 const DEFAULT_DASHBOARD_ORDER: DashboardCardId[] = [
   'submit',
-  'pending',
   'mySubmissions',
   'memes',
   'settings',
@@ -675,7 +674,7 @@ export default function DashboardPage() {
   const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
   const effectiveCardOrder: DashboardCardId[] = isStreamerAdmin
     ? dashboardCardOrder
-    : (['submit', 'pending', 'mySubmissions', 'memes', 'settings'] as DashboardCardId[]);
+    : (['submit', 'mySubmissions', 'memes', 'settings'] as DashboardCardId[]);
 
   const onDragEnd = useCallback(
     (event: { active: { id: unknown }; over: { id: unknown } | null }) => {
@@ -838,72 +837,6 @@ export default function DashboardPage() {
                             );
                           }
 
-                          if (cardId === 'pending') {
-                            return (
-                              <div
-                                className={baseCardCls}
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => {
-                                  setSubmissionsPanelTab('pending');
-                                  const next = panel === 'submissions' ? null : 'submissions';
-                                  if (next) scrollToPanelIfMobile('submissions');
-                                  setPanel(next);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    setSubmissionsPanelTab('pending');
-                                    const next = panel === 'submissions' ? null : 'submissions';
-                                    if (next) scrollToPanelIfMobile('submissions');
-                                    setPanel(next);
-                                  }
-                                }}
-                                aria-label={t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}
-                              >
-                                <div className="flex items-start justify-between gap-3 mb-2">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <h2 className="text-lg font-semibold dark:text-white truncate">
-                                      {t('dashboard.quickActions.pendingSubmissions', 'Pending Submissions')}
-                                    </h2>
-                                    {pendingSubmissionsCount > 0 && (
-                                      <Pill
-                                        variant="danger"
-                                        size="md"
-                                        title={t('dashboard.pendingCount', {
-                                          defaultValue: '{{count}} pending',
-                                          count: pendingSubmissionsCount,
-                                        })}
-                                      >
-                                        {pendingSubmissionsCount}
-                                      </Pill>
-                                    )}
-                                  </div>
-                                  {isStreamerAdmin ? dragHandle : null}
-                                </div>
-                                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                                  {t('dashboard.quickActions.pendingSubmissionsDescription', 'Review and approve meme submissions')}
-                                </p>
-                                <div
-                                  className={`mt-auto flex items-center justify-between font-semibold ${
-                                    panel === 'submissions' || pendingSubmissionsCount > 0
-                                      ? 'text-rose-600 dark:text-rose-400'
-                                      : 'text-primary'
-                                  }`}
-                                >
-                                  <span>
-                                    {pendingSubmissionsCount > 0
-                                      ? t('dashboard.quickActions.pendingSubmissionsButton', `${pendingSubmissionsCount} Pending`, {
-                                          count: pendingSubmissionsCount,
-                                        })
-                                      : t('dashboard.quickActions.noPendingSubmissions', 'No Pending')}
-                                  </span>
-                                  <ChevronRightIcon />
-                                </div>
-                              </div>
-                            );
-                          }
-
                           if (cardId === 'mySubmissions') {
                             return (
                               <div
@@ -927,9 +860,23 @@ export default function DashboardPage() {
                                 aria-label={t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
                               >
                                 <div className="flex items-start justify-between gap-3 mb-2">
-                                  <h2 className="text-lg font-semibold dark:text-white">
-                                    {t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
-                                  </h2>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h2 className="text-lg font-semibold dark:text-white truncate">
+                                      {t('dashboard.quickActions.mySubmissions', { defaultValue: 'My submissions' })}
+                                    </h2>
+                                    {pendingSubmissionsCount > 0 && (
+                                      <Pill
+                                        variant="danger"
+                                        size="md"
+                                        title={t('dashboard.pendingCount', {
+                                          defaultValue: '{{count}} pending',
+                                          count: pendingSubmissionsCount,
+                                        })}
+                                      >
+                                        {pendingSubmissionsCount}
+                                      </Pill>
+                                    )}
+                                  </div>
                                   {isStreamerAdmin ? dragHandle : null}
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
