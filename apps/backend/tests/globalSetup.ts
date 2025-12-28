@@ -32,13 +32,19 @@ export default async function globalSetup() {
   // Create schema for this run.
   await admin.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
 
-  // Apply migrations to the per-run schema (DATABASE_URL already points to it).
-  const migrate = spawnSync('pnpm', ['prisma', 'migrate', 'deploy'], {
+  // Bootstrap schema for this run.
+  //
+  // IMPORTANT:
+  // This repo's migration history is not guaranteed to be replayable from an empty database
+  // (some migrations were created assuming pre-existing tables).
+  // For CI tests we need a deterministic "create schema from current Prisma schema" step,
+  // therefore we use `prisma db push`.
+  const bootstrap = spawnSync('pnpm', ['prisma', 'db', 'push', '--accept-data-loss'], {
     stdio: 'inherit',
     env: process.env as NodeJS.ProcessEnv,
   });
-  if (migrate.status !== 0) {
-    throw new Error(`prisma migrate deploy failed with exit code ${migrate.status}`);
+  if (bootstrap.status !== 0) {
+    throw new Error(`prisma db push failed with exit code ${bootstrap.status}`);
   }
 
   return async () => {
