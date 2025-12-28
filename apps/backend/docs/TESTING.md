@@ -16,22 +16,12 @@
 
 Это даёт изоляцию без необходимости пересоздавать весь контейнер.
 
-## Локальный запуск
-
-Поднять Postgres для тестов:
-
-- `docker compose -f docker-compose.test.yml up -d`
-
-Запустить тесты:
-
-- `TEST_DATABASE_URL_BASE="postgresql://postgres:postgres@localhost:5433/memalerts_test" pnpm test`
-
-Примечания:
-- `JWT_SECRET` в тестах имеет дефолт (`test_jwt_secret`), но можно переопределить при необходимости.
-
 ## CI (self-hosted runner)
 
-Workflow запускает Postgres как service (порт **5433**) и выполняет `pnpm test:ci`.
-Деплой (beta/prod) должен зависеть от успешного прохождения тестов.
+Тесты рассчитаны на запуск **через CI/CD** на self-hosted runner (VPS).
+
+- Workflow поднимает Postgres как service (порт **5433**) и выполняет:
+  - `cd "$GITHUB_WORKSPACE"; pnpm test:ci`
+- Деплой (beta/prod) зависит от успешного прохождения тестов.
 
 

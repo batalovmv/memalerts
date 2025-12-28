@@ -20,6 +20,10 @@ jobs:
     name: Test (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
     timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      JWT_SECRET: test_jwt_secret
+      TEST_DATABASE_URL_BASE: postgresql://postgres:postgres@localhost:5433/memalerts_test
 
     services:
       postgres:
@@ -75,12 +79,9 @@ jobs:
 
       - name: Run tests
         shell: bash
-        env:
-          NODE_ENV: test
-          JWT_SECRET: test_jwt_secret
-          TEST_DATABASE_URL_BASE: postgresql://postgres:postgres@localhost:5433/memalerts_test
         run: |
           set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
           pnpm test:ci
 
   deploy-production:
