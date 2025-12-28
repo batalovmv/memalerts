@@ -15,11 +15,11 @@ function connectClient(url: string, token: string): ClientSocket {
   // Handshake auth is derived from cookies in `setupSocketIO`.
   const cookie = `token=${encodeURIComponent(token)}`;
   return ioClient(url, {
-    transports: ['websocket'],
     forceNew: true,
-    extraHeaders: {
-      cookie,
-      host: 'example.com',
+    // IMPORTANT: in Node, headers must be provided via transportOptions to reliably reach both polling and websocket.
+    transportOptions: {
+      polling: { extraHeaders: { cookie } },
+      websocket: { extraHeaders: { cookie } },
     },
   });
 }

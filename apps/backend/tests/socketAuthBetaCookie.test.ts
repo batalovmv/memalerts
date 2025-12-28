@@ -34,26 +34,44 @@ async function expectNoEvent(socket: ClientSocket, event: string, ms = 600): Pro
 
 describe('Socket.IO cookie selection: token_beta vs token', () => {
   it('uses token_beta on beta host; uses token on non-beta host', async () => {
-    const httpServer = createServer();
-    const io = new Server(httpServer, { cors: { origin: '*', credentials: true } });
-    setupSocketIO(io);
-    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-    const port = (httpServer.address() as AddressInfo).port;
-    const url = `http://127.0.0.1:${port}`;
-
     const tokenUser = makeJwt({ userId: 'user_from_token', role: 'viewer', channelId: 'ch1' });
     const tokenBetaUser = makeJwt({ userId: 'user_from_token_beta', role: 'viewer', channelId: 'ch1' });
     const cookie = `token=${encodeURIComponent(tokenUser)}; token_beta=${encodeURIComponent(tokenBetaUser)}`;
 
-    const betaSocket = ioClient(url, {
-      transports: ['websocket'],
+    const originalDomain = process.env.DOMAIN;
+
+    // Beta server
+    process.env.DOMAIN = 'beta.example.com';
+    const betaHttp = createServer();
+    const betaIo = new Server(betaHttp, { cors: { origin: '*', credentials: true } });
+    setupSocketIO(betaIo);
+    await new Promise<void>((resolve) => betaHttp.listen(0, resolve));
+    const betaPort = (betaHttp.address() as AddressInfo).port;
+    const betaUrl = `http://127.0.0.1:${betaPort}`;
+
+    const betaSocket = ioClient(betaUrl, {
       forceNew: true,
-      extraHeaders: { cookie, host: 'beta.example.com' },
+      transportOptions: {
+        polling: { extraHeaders: { cookie } },
+        websocket: { extraHeaders: { cookie } },
+      },
     });
-    const prodSocket = ioClient(url, {
-      transports: ['websocket'],
+
+    // Production server
+    process.env.DOMAIN = 'example.com';
+    const prodHttp = createServer();
+    const prodIo = new Server(prodHttp, { cors: { origin: '*', credentials: true } });
+    setupSocketIO(prodIo);
+    await new Promise<void>((resolve) => prodHttp.listen(0, resolve));
+    const prodPort = (prodHttp.address() as AddressInfo).port;
+    const prodUrl = `http://127.0.0.1:${prodPort}`;
+
+    const prodSocket = ioClient(prodUrl, {
       forceNew: true,
-      extraHeaders: { cookie, host: 'example.com' },
+      transportOptions: {
+        polling: { extraHeaders: { cookie } },
+        websocket: { extraHeaders: { cookie } },
+      },
     });
 
     try {
@@ -65,20 +83,23 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
       prodSocket.emit('join:user', 'user_from_token');
       prodSocket.emit('join:user', 'user_from_token_beta');
 
-      emitWalletUpdated(io, { userId: 'user_from_token_beta', channelId: 'ch1', balance: 1 });
+      emitWalletUpdated(betaIo, { userId: 'user_from_token_beta', channelId: 'ch1', balance: 1 });
       const betaGot = await waitForEvent<any>(betaSocket, 'wallet:updated', 2000);
       expect(betaGot.userId).toBe('user_from_token_beta');
       await expectNoEvent(prodSocket, 'wallet:updated', 700);
 
-      emitWalletUpdated(io, { userId: 'user_from_token', channelId: 'ch1', balance: 2 });
+      emitWalletUpdated(prodIo, { userId: 'user_from_token', channelId: 'ch1', balance: 2 });
       const prodGot = await waitForEvent<any>(prodSocket, 'wallet:updated', 2000);
       expect(prodGot.userId).toBe('user_from_token');
       await expectNoEvent(betaSocket, 'wallet:updated', 700);
     } finally {
+      process.env.DOMAIN = originalDomain;
       betaSocket.disconnect();
       prodSocket.disconnect();
-      await new Promise<void>((resolve) => io.close(() => resolve()));
-      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      await new Promise<void>((resolve) => betaIo.close(() => resolve()));
+      await new Promise<void>((resolve) => betaHttp.close(() => resolve()));
+      await new Promise<void>((resolve) => prodIo.close(() => resolve()));
+      await new Promise<void>((resolve) => prodHttp.close(() => resolve()));
     }
   });
 });
