@@ -69,12 +69,13 @@ describe('Socket.IO join:overlay', () => {
         waitForEvent(badKind, 'connect', 4000),
       ]);
 
+      const goodCfgP = waitForEvent<any>(good, 'overlay:config', 2000);
       good.emit('join:overlay', { token: goodToken });
       rotated.emit('join:overlay', { token: rotatedToken });
       badKind.emit('join:overlay', { token: badKindToken });
 
       // Good overlay must receive private overlay config.
-      const cfg = await waitForEvent<any>(good, 'overlay:config', 2000);
+      const cfg = await goodCfgP;
       expect(cfg).toBeTruthy();
 
       // Rotated token / bad kind must not receive overlay:config.
@@ -125,6 +126,7 @@ describe('Socket.IO join:overlay', () => {
 
     try {
       await Promise.all([waitForEvent(missingTv, 'connect', 4000), waitForEvent(good, 'connect', 4000)]);
+      const goodCfgP = waitForEvent<any>(good, 'overlay:config', 2000);
       missingTv.emit('join:overlay', { token: missingTvToken });
       good.emit('join:overlay', { token: goodToken });
 
@@ -132,7 +134,7 @@ describe('Socket.IO join:overlay', () => {
       await expectNoEvent(missingTv, 'overlay:config', 700);
 
       // Good token must get overlay config...
-      const cfg = await waitForEvent<any>(good, 'overlay:config', 2000);
+      const cfg = await goodCfgP;
       expect(cfg).toBeTruthy();
 
       // ...and must be in the DB slug room (not in "oldslug").
