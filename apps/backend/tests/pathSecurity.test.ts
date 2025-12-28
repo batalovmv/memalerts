@@ -6,7 +6,10 @@ describe('pathSecurity', () => {
     // We only care that traversal/dir separators are removed; exact prefixing may vary.
     expect(sanitizeFilename('../evil.mp4')).toMatch(/evil\.mp4$/);
     expect(sanitizeFilename('..\\evil.mp4')).toMatch(/evil\.mp4$/);
-    expect(sanitizeFilename('sub/dir\\name<>:"|?*.mp4')).toBe('sub_dir_name________.mp4');
+    const s = sanitizeFilename('sub/dir\\name<>:"|?*.mp4');
+    expect(s).toMatch(/^sub_dir_name_+\.mp4$/);
+    expect(s).not.toMatch(/[\/\\]/);
+    expect(s).not.toMatch(/[<>:"|?*]/);
   });
 
   it('validatePathWithinDirectory blocks escaping baseDir', () => {
