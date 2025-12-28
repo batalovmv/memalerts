@@ -22,6 +22,7 @@ import { creditsInternalController } from '../controllers/internal/creditsIntern
 import { submissionsPublicControlController } from '../controllers/public/submissionsPublicControlController.js';
 import { getPublicChannelBySlug, getPublicChannelMemes, searchPublicChannelMemes } from '../controllers/public/channelPublicController.js';
 import { publicSubmissionsControlLimiter } from '../middleware/rateLimit.js';
+import { isLocalhostAddress } from '../utils/isLocalhostAddress.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -318,8 +319,7 @@ export function setupRoutes(app: Express) {
   // Internal-only relay endpoint (used to mirror wallet updates between prod/beta backends on the same VPS)
   // Not exposed via nginx public routes; additionally, requires localhost source + internal header.
   app.post('/internal/wallet-updated', (req, res) => {
-    const remote = req.socket.remoteAddress || '';
-    const isLocal = remote === '127.0.0.1' || remote === '::1' || remote.endsWith('127.0.0.1');
+    const isLocal = isLocalhostAddress(req.socket.remoteAddress);
     if (!isLocal || !isInternalWalletRelayRequest(req.headers as any)) {
       return res.status(404).json({ error: 'Not Found' });
     }
@@ -337,8 +337,7 @@ export function setupRoutes(app: Express) {
   // Internal-only relay endpoint (used to mirror submission events between prod/beta backends on the same VPS)
   // Not exposed via nginx public routes; additionally, requires localhost source + internal header.
   app.post('/internal/submission-event', (req, res) => {
-    const remote = req.socket.remoteAddress || '';
-    const isLocal = remote === '127.0.0.1' || remote === '::1' || remote.endsWith('127.0.0.1');
+    const isLocal = isLocalhostAddress(req.socket.remoteAddress);
     if (!isLocal || !isInternalSubmissionRelayRequest(req.headers as any)) {
       return res.status(404).json({ error: 'Not Found' });
     }

@@ -4,6 +4,7 @@ import { addCreditsChatter, addCreditsDonor } from '../../realtime/creditsSessio
 import type { Server } from 'socket.io';
 import { emitCreditsState } from '../../realtime/creditsState.js';
 import { shouldIgnoreCreditsChatter } from '../../utils/creditsIgnore.js';
+import { isLocalhostAddress } from '../../utils/isLocalhostAddress.js';
 
 // Reuse the same internal header name pattern as other relays.
 const INTERNAL_HEADER = 'x-memalerts-internal';
@@ -21,8 +22,7 @@ const emitStateBySlug = new Map<string, EmitThrottleState>();
 const EMIT_MIN_INTERVAL_MS = 1_000;
 
 function isLocalRequest(req: Request): boolean {
-  const remote = req.socket.remoteAddress || '';
-  return remote === '127.0.0.1' || remote === '::1' || remote.endsWith('127.0.0.1');
+  return isLocalhostAddress(req.socket.remoteAddress);
 }
 
 function isInternal(req: Request): boolean {
