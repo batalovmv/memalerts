@@ -32,6 +32,16 @@ async function expectNoEvent(socket: ClientSocket, event: string, ms = 600): Pro
   if (seen) throw new Error(`Expected no ${event} but received one`);
 }
 
+async function waitForRoomJoin(io: Server, room: string, minCount = 1, timeoutMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const sockets = await io.in(room).allSockets();
+    if (sockets.size >= minCount) return;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error(`Timeout waiting for server room join: ${room}`);
+}
+
 describe('Socket.IO cookie selection: token_beta vs token', () => {
   it('uses token_beta on beta host; uses token on non-beta host', async () => {
     const tokenUser = makeJwt({ userId: 'user_from_token', role: 'viewer', channelId: 'ch1' });
@@ -82,6 +92,10 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
       betaSocket.emit('join:user', 'user_from_token_beta');
       prodSocket.emit('join:user', 'user_from_token');
       prodSocket.emit('join:user', 'user_from_token_beta');
+
+      // Wait until the expected rooms are actually joined on the server.
+      await waitForRoomJoin(betaIo, 'user:user_from_token_beta', 1, 2000);
+      await waitForRoomJoin(prodIo, 'user:user_from_token', 1, 2000);
 
       emitWalletUpdated(betaIo, { userId: 'user_from_token_beta', channelId: 'ch1', balance: 1 });
       const betaGot = await waitForEvent<any>(betaSocket, 'wallet:updated', 2000);

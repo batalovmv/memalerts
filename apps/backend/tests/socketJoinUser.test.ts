@@ -11,6 +11,16 @@ function makeJwt(payload: Record<string, any>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
+async function waitForRoomJoin(io: Server, room: string, minCount = 1, timeoutMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const sockets = await io.in(room).allSockets();
+    if (sockets.size >= minCount) return;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error(`Timeout waiting for server room join: ${room}`);
+}
+
 function connectClient(url: string, token: string): ClientSocket {
   // Handshake auth is derived from cookies in `setupSocketIO`.
   const cookie = `token=${encodeURIComponent(token)}`;
@@ -72,6 +82,10 @@ describe('Socket.IO join:user', () => {
 
       // Attempt to join чужую комнату (должно быть проигнорировано).
       a.emit('join:user', 'userB');
+
+      // Ensure the server processed joins before emitting user-scoped events.
+      await waitForRoomJoin(io, 'user:userA', 1, 2000);
+      await waitForRoomJoin(io, 'user:userB', 1, 2000);
 
       emitWalletUpdated(io, { userId: 'userA', channelId: 'ch1', balance: 1 });
       const payloadA = await waitForEvent<any>(a, 'wallet:updated');
