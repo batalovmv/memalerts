@@ -120,6 +120,24 @@ describe('Twitch EventSub webhook /webhooks/twitch/eventsub', () => {
     expect(res.status).toBe(200);
     expect(res.body?.message).toBe('Event received');
   });
+
+  it('rejects invalid timestamp format even with valid signature', async () => {
+    const secret = process.env.TWITCH_EVENTSUB_SECRET!;
+    const rawBody = '{\"subscription\": {\"type\": \"something.unknown\"}, \"event\": {\"ok\": true}}';
+    const messageId = 'm5';
+    const ts = 'not-a-timestamp';
+    const sig = signEventSub(secret, messageId, ts, rawBody);
+
+    const res = await request(makeApp())
+      .post('/webhooks/twitch/eventsub')
+      .set('twitch-eventsub-message-id', messageId)
+      .set('twitch-eventsub-message-timestamp', ts)
+      .set('twitch-eventsub-message-signature', sig)
+      .set('Content-Type', 'application/json')
+      .send(rawBody);
+    expect(res.status).toBe(403);
+    expect(res.body?.error).toBe('Invalid timestamp');
+  });
 });
 
 
