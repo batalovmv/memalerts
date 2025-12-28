@@ -16,9 +16,9 @@ function safeSchemaIdent(schema: string): string {
 }
 
 export default async function globalSetup() {
-  const base = process.env.TEST_DATABASE_URL_BASE || process.env.DATABASE_URL;
+  const base = process.env.TEST_DATABASE_URL_BASE;
   const schema = safeSchemaIdent(String(process.env.TEST_SCHEMA || ''));
-  if (!base) throw new Error('TEST_DATABASE_URL_BASE or DATABASE_URL must be set');
+  if (!base) throw new Error('TEST_DATABASE_URL_BASE must be set');
   if (!schema) throw new Error('TEST_SCHEMA must be set (it is normally set by vitest.config.ts)');
 
   // Admin connection: always use public schema for CREATE/DROP schema operations.

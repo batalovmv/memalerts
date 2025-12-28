@@ -9,9 +9,9 @@ function appendSchemaToPostgresUrl(baseUrl: string, schema: string): string {
   return url.toString();
 }
 
-const base = process.env.TEST_DATABASE_URL_BASE || process.env.DATABASE_URL;
+const base = process.env.TEST_DATABASE_URL_BASE;
 if (!base) {
-  throw new Error('TEST_DATABASE_URL_BASE (preferred) or DATABASE_URL must be set for tests');
+  throw new Error('TEST_DATABASE_URL_BASE must be set for tests (safety: do not run tests against regular DATABASE_URL)');
 }
 
 // Unique schema per vitest run: isolation without needing to drop/recreate the whole DB.
