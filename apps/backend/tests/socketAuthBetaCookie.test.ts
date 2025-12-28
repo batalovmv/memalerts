@@ -50,7 +50,12 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
 
     const originalDomain = process.env.DOMAIN;
 
-    // Beta server
+    // IMPORTANT:
+    // `setupSocketIO` reads beta/prod detection from process.env.DOMAIN at connection time.
+    // In the real system beta/prod are separate processes with different env.
+    // In tests we must not flip DOMAIN while a socket is connecting.
+
+    // Beta server (DOMAIN includes beta.)
     process.env.DOMAIN = 'beta.example.com';
     const betaHttp = createServer();
     const betaIo = new Server(betaHttp, { cors: { origin: '*', credentials: true } });
@@ -58,7 +63,6 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
     await new Promise<void>((resolve) => betaHttp.listen(0, resolve));
     const betaPort = (betaHttp.address() as AddressInfo).port;
     const betaUrl = `http://127.0.0.1:${betaPort}`;
-
     const betaSocket = ioClient(betaUrl, {
       forceNew: true,
       transportOptions: {
@@ -67,53 +71,55 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
       },
     });
 
-    // Production server
-    process.env.DOMAIN = 'example.com';
-    const prodHttp = createServer();
-    const prodIo = new Server(prodHttp, { cors: { origin: '*', credentials: true } });
-    setupSocketIO(prodIo);
-    await new Promise<void>((resolve) => prodHttp.listen(0, resolve));
-    const prodPort = (prodHttp.address() as AddressInfo).port;
-    const prodUrl = `http://127.0.0.1:${prodPort}`;
-
-    const prodSocket = ioClient(prodUrl, {
-      forceNew: true,
-      transportOptions: {
-        polling: { extraHeaders: { cookie } },
-        websocket: { extraHeaders: { cookie } },
-      },
-    });
-
     try {
-      await Promise.all([waitForEvent(betaSocket, 'connect', 4000), waitForEvent(prodSocket, 'connect', 4000)]);
-
-      // Attempt joining both ids on each socket. Only the correct cookie-derived userId should succeed.
       betaSocket.emit('join:user', 'user_from_token');
       betaSocket.emit('join:user', 'user_from_token_beta');
-      prodSocket.emit('join:user', 'user_from_token');
-      prodSocket.emit('join:user', 'user_from_token_beta');
-
-      // Wait until the expected rooms are actually joined on the server.
+      await waitForEvent(betaSocket, 'connect', 4000);
       await waitForRoomJoin(betaIo, 'user:user_from_token_beta', 1, 2000);
-      await waitForRoomJoin(prodIo, 'user:user_from_token', 1, 2000);
 
       emitWalletUpdated(betaIo, { userId: 'user_from_token_beta', channelId: 'ch1', balance: 1 });
       const betaGot = await waitForEvent<any>(betaSocket, 'wallet:updated', 2000);
       expect(betaGot.userId).toBe('user_from_token_beta');
-      await expectNoEvent(prodSocket, 'wallet:updated', 700);
 
-      emitWalletUpdated(prodIo, { userId: 'user_from_token', channelId: 'ch1', balance: 2 });
-      const prodGot = await waitForEvent<any>(prodSocket, 'wallet:updated', 2000);
-      expect(prodGot.userId).toBe('user_from_token');
-      await expectNoEvent(betaSocket, 'wallet:updated', 700);
+      // Production server (DOMAIN without beta.)
+      process.env.DOMAIN = 'example.com';
+      const prodHttp = createServer();
+      const prodIo = new Server(prodHttp, { cors: { origin: '*', credentials: true } });
+      setupSocketIO(prodIo);
+      await new Promise<void>((resolve) => prodHttp.listen(0, resolve));
+      const prodPort = (prodHttp.address() as AddressInfo).port;
+      const prodUrl = `http://127.0.0.1:${prodPort}`;
+      const prodSocket = ioClient(prodUrl, {
+        forceNew: true,
+        transportOptions: {
+          polling: { extraHeaders: { cookie } },
+          websocket: { extraHeaders: { cookie } },
+        },
+      });
+
+      try {
+        await waitForEvent(prodSocket, 'connect', 4000);
+        prodSocket.emit('join:user', 'user_from_token');
+        prodSocket.emit('join:user', 'user_from_token_beta');
+        await waitForRoomJoin(prodIo, 'user:user_from_token', 1, 2000);
+
+        emitWalletUpdated(prodIo, { userId: 'user_from_token', channelId: 'ch1', balance: 2 });
+        const prodGot = await waitForEvent<any>(prodSocket, 'wallet:updated', 2000);
+        expect(prodGot.userId).toBe('user_from_token');
+
+        // Cross-instance sanity: beta socket should not get prod server events and vice versa.
+        await expectNoEvent(betaSocket, 'wallet:updated', 700);
+        await expectNoEvent(prodSocket, 'wallet:updated', 700);
+      } finally {
+        prodSocket.disconnect();
+        await new Promise<void>((resolve) => prodIo.close(() => resolve()));
+        await new Promise<void>((resolve) => prodHttp.close(() => resolve()));
+      }
     } finally {
       process.env.DOMAIN = originalDomain;
       betaSocket.disconnect();
-      prodSocket.disconnect();
       await new Promise<void>((resolve) => betaIo.close(() => resolve()));
       await new Promise<void>((resolve) => betaHttp.close(() => resolve()));
-      await new Promise<void>((resolve) => prodIo.close(() => resolve()));
-      await new Promise<void>((resolve) => prodHttp.close(() => resolve()));
     }
   });
 });
