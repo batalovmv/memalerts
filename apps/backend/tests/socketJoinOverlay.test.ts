@@ -96,6 +96,57 @@ describe('Socket.IO join:overlay', () => {
     }
   });
 
+  it('uses DB slug even if token has stale channelSlug; tv defaults to 1 if missing', async () => {
+    const channelId = randomUUID();
+    const dbSlug = 'NewSlug';
+    await prisma.channel.create({
+      data: {
+        id: channelId,
+        slug: dbSlug,
+        name: 'Slug change channel',
+        overlayTokenVersion: 2,
+      },
+    });
+
+    const httpServer = createServer();
+    const io = new Server(httpServer, { cors: { origin: '*', credentials: true } });
+    setupSocketIO(io);
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const port = (httpServer.address() as AddressInfo).port;
+    const url = `http://127.0.0.1:${port}`;
+
+    // Missing tv => defaults to 1 => must be denied because current version is 2.
+    const missingTvToken = makeOverlayJwt({ kind: 'overlay', channelId, channelSlug: 'oldslug' });
+    // Correct tv + stale channelSlug => should still join DB slug.
+    const goodToken = makeOverlayJwt({ kind: 'overlay', channelId, channelSlug: 'oldslug', tv: 2 });
+
+    const missingTv = ioClient(url, { transports: ['websocket'], forceNew: true });
+    const good = ioClient(url, { transports: ['websocket'], forceNew: true });
+
+    try {
+      await Promise.all([waitForEvent(missingTv, 'connect', 4000), waitForEvent(good, 'connect', 4000)]);
+      missingTv.emit('join:overlay', { token: missingTvToken });
+      good.emit('join:overlay', { token: goodToken });
+
+      // Missing tv must not get overlay config.
+      await expectNoEvent(missingTv, 'overlay:config', 700);
+
+      // Good token must get overlay config...
+      const cfg = await waitForEvent<any>(good, 'overlay:config', 2000);
+      expect(cfg).toBeTruthy();
+
+      // ...and must be in the DB slug room (not in "oldslug").
+      io.to(`channel:${dbSlug.toLowerCase()}`).emit('test:event', { ok: true });
+      const got = await waitForEvent<any>(good, 'test:event', 2000);
+      expect(got.ok).toBe(true);
+    } finally {
+      missingTv.disconnect();
+      good.disconnect();
+      await new Promise<void>((resolve) => io.close(() => resolve()));
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    }
+  });
+
   it('supports credits overlay kind=credits with creditsTokenVersion', async () => {
     const channelId = randomUUID();
     const slug = 'CreditsChan';
