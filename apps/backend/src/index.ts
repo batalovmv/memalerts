@@ -208,7 +208,16 @@ app.use(csrfProtection);
 // - keep JSON/urlencoded limits tight to avoid memory pressure under abusive/bursty traffic
 const jsonLimit = String(process.env.JSON_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '1mb' : '5mb'));
 const urlencodedLimit = String(process.env.URLENCODED_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '1mb' : '5mb'));
-app.use(express.json({ limit: jsonLimit }));
+// Capture raw JSON body for webhook signature verification (Twitch EventSub signs raw bytes).
+// Safe: JSON bodies are size-limited and uploads use multipart (multer) instead of JSON.
+app.use(
+  express.json({
+    limit: jsonLimit,
+    verify: (req, _res, buf) => {
+      (req as any).rawBody = buf;
+    },
+  })
+);
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: urlencodedLimit }));
 

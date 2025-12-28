@@ -5,6 +5,27 @@ import { twitchFollowEventSchema, twitchRedemptionEventSchema } from '../shared/
 import { markCreditsSessionOffline, startOrResumeCreditsSession } from '../realtime/creditsSessionStore.js';
 import { getStreamDurationSnapshot, handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 
+function parseEventSubTimestampToMs(raw: string): number | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  // Some implementations send epoch ms as string; accept it.
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  // Twitch docs use RFC3339/ISO8601 timestamps like "2025-01-01T00:00:00Z".
+  const ms = Date.parse(s);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function safeEqual(a: string, b: string): boolean {
+  // Constant-time compare to avoid leaking signature info.
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
 export const webhookController = {
   handleEventSub: async (req: Request, res: Response) => {
     // Handle challenge verification
@@ -22,19 +43,27 @@ export const webhookController = {
       return res.status(403).json({ error: 'Missing signature headers' });
     }
 
-    const hmacMessage = messageId + messageTimestamp + JSON.stringify(req.body);
+    // Twitch signs the raw request body bytes. Prefer captured rawBody; fallback to JSON.stringify for safety.
+    const rawBody =
+      (req as any)?.rawBody && Buffer.isBuffer((req as any).rawBody)
+        ? ((req as any).rawBody as Buffer).toString('utf8')
+        : JSON.stringify(req.body);
+    const hmacMessage = messageId + messageTimestamp + rawBody;
     const hmac = crypto
       .createHmac('sha256', process.env.TWITCH_EVENTSUB_SECRET!)
       .update(hmacMessage)
       .digest('hex');
     const expectedSignature = 'sha256=' + hmac;
 
-    if (messageSignature !== expectedSignature) {
+    if (!safeEqual(messageSignature, expectedSignature)) {
       return res.status(403).json({ error: 'Invalid signature' });
     }
 
     // Check timestamp (should be within 10 minutes)
-    const timestamp = parseInt(messageTimestamp, 10);
+    const timestamp = parseEventSubTimestampToMs(messageTimestamp);
+    if (!timestamp) {
+      return res.status(403).json({ error: 'Invalid timestamp' });
+    }
     const now = Date.now();
     if (Math.abs(now - timestamp) > 10 * 60 * 1000) {
       return res.status(403).json({ error: 'Request too old' });
