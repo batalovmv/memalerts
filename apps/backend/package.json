@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run --reporter=default",
     "migrations:check": "tsx scripts/check-migrations.ts",
     "schema:check": "tsx scripts/check-prisma-schema.ts",
     "prebuild": "pnpm -s schema:check && prisma generate",
@@ -45,6 +48,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/supertest": "^6.0.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
     "@types/cookie-parser": "^1.4.6",
@@ -56,8 +60,11 @@
     "@types/passport": "^1.0.16",
     "@types/ws": "^8.18.1",
     "prisma": "^5.22.0",
+    "socket.io-client": "^4.5.4",
+    "supertest": "^7.1.4",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.9"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
