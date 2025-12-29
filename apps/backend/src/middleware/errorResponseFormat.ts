@@ -12,14 +12,17 @@ function pickErrorCode(status: number, body: any): ErrorCode {
 }
 
 function pickErrorMessage(code: ErrorCode, body: any): string {
-  // Prefer explicit human message if provided
-  const human =
-    body && typeof body.error === 'string' && !isErrorCode(body.error)
-      ? body.error
-      : body && typeof body.message === 'string'
-        ? body.message
-        : null;
-  return human && human.trim().length > 0 ? human : (ERROR_MESSAGES[code] ?? 'Error');
+  // Prefer explicit human message if provided.
+  // IMPORTANT: Many legacy controllers/middlewares return { error: "Generic", message: "Specific reason" }.
+  // errorResponseFormat historically preferred `error`, which hid the useful `message`.
+  const humanMessage = body && typeof body.message === 'string' ? body.message : null;
+  if (humanMessage && humanMessage.trim().length > 0) return humanMessage;
+
+  const humanError =
+    body && typeof body.error === 'string' && !isErrorCode(body.error) ? body.error : null;
+  if (humanError && humanError.trim().length > 0) return humanError;
+
+  return ERROR_MESSAGES[code] ?? 'Error';
 }
 
 export function errorResponseFormat(req: Request, res: Response, next: NextFunction) {
