@@ -45,7 +45,7 @@ describe('AccountsSettings (integration)', () => {
     let meCalls = 0;
 
     server.use(
-      mockAuthAccounts(me.externalAccounts),
+      mockAuthAccounts({ accounts: me.externalAccounts }),
       mockAuthAccountDeleteOk(({ id }) => {
         deleteAssert({ id });
         me = { ...me, externalAccounts: [] };

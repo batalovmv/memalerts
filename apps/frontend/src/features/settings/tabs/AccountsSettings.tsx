@@ -15,6 +15,11 @@ import { fetchUser } from '@/store/slices/authSlice';
 
 function normalizeAccounts(input: unknown): ExternalAccount[] {
   if (Array.isArray(input)) return input as ExternalAccount[];
+  // Backend shape: { accounts: [...] }
+  if (input && typeof input === 'object') {
+    const obj = input as { accounts?: unknown };
+    if (Array.isArray(obj.accounts)) return obj.accounts as ExternalAccount[];
+  }
   return [];
 }
 
@@ -125,6 +130,8 @@ export function AccountsSettings() {
     }
   }, [t]);
 
+  // Prefer /auth/accounts (linked login accounts). /me.externalAccounts may include bot-credentials,
+  // which should not flip "Connected" state in Accounts UI.
   const accounts = useMemo(
     () => (accountsOverride ? accountsOverride : normalizeAccounts(user?.externalAccounts)),
     [accountsOverride, user?.externalAccounts]
@@ -142,14 +149,14 @@ export function AccountsSettings() {
     // avoid spamming backend with /auth/accounts + /me on each mount.
     const COOLDOWN_MS = 10_000;
     const storageKey = 'memalerts:accountsSettings:lastRefreshAt';
+    let withinCooldown = false;
     try {
       const last = Number(sessionStorage.getItem(storageKey) || '0');
       if (Number.isFinite(last) && last > 0 && Date.now() - last < COOLDOWN_MS) {
-        return () => {
-          isMountedRef.current = false;
-        };
+        withinCooldown = true;
+      } else {
+        sessionStorage.setItem(storageKey, String(Date.now()));
       }
-      sessionStorage.setItem(storageKey, String(Date.now()));
     } catch {
       // sessionStorage may be unavailable (privacy mode). Ignore.
     }
@@ -164,6 +171,8 @@ export function AccountsSettings() {
       }
 
       // Optional refresh of /me (updates redux user, channel data, etc).
+      // Keep a cooldown here to avoid spamming backend on navigation churn.
+      if (withinCooldown) return;
       try {
         await dispatch(fetchUser()).unwrap();
       } catch {
