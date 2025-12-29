@@ -78,7 +78,6 @@ interface PendingRequest<T = unknown> {
 
 const pendingRequests = new Map<string, PendingRequest<unknown>>();
 const REQUEST_DEDUP_TTL = 5000; // 5 seconds - requests with same key within this time share the same promise
-const PENDING_REQUEST_CLEANUP_DELAY_MS = import.meta.env.MODE === 'test' ? 0 : 100;
 
 // Response cache: allows serving cached JSON for conditional requests (304 Not Modified).
 // This prevents thunks like fetchUser() from breaking when axios receives 304 with an empty body.
@@ -216,15 +215,9 @@ export const api: CustomAxiosInstance = {
       // Create new request
       const promise: Promise<T> = axiosInstance.request<unknown>(config)
         .then((response: AxiosResponse<unknown>) => {
-          // Remove from pending after a short delay to allow for rapid successive calls.
-          // In tests, remove immediately to avoid cross-test leakage and stale reuse.
-          if (PENDING_REQUEST_CLEANUP_DELAY_MS === 0) {
-            pendingRequests.delete(requestKey);
-          } else {
-            setTimeout(() => {
-              pendingRequests.delete(requestKey);
-            }, PENDING_REQUEST_CLEANUP_DELAY_MS);
-          }
+          // Remove from pending immediately after completion.
+          // Dedup is meant only for in-flight requests; keeping resolved entries causes stale reuse.
+          pendingRequests.delete(requestKey);
 
           // Handle conditional GET with 304 by serving cached JSON when available.
           if (response.status === 304) {
@@ -291,9 +284,8 @@ export const api: CustomAxiosInstance = {
     
     const promise: Promise<T> = axiosInstance.request<unknown>(requestConfig)
       .then((response: AxiosResponse<unknown>) => {
-        setTimeout(() => {
-          pendingRequests.delete(requestKey);
-        }, 100);
+        // Remove from pending immediately after completion.
+        pendingRequests.delete(requestKey);
 
         if (response.status === 304) {
           const cached = responseCache.get(requestKey);
