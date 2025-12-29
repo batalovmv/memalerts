@@ -48,12 +48,14 @@ type StreamDurationSettings = {
 };
 
 type StreamerBotIntegration = {
-  provider: 'twitch' | 'youtube' | 'vkvideo' | string;
+  provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' | string;
   enabled?: boolean;
   updatedAt?: string | null;
   // Optional config fields (provider-specific).
   vkvideoChannelId?: string | null;
   vkvideoChannelUrl?: string | null;
+  trovoChannelId?: string | null;
+  kickChannelId?: string | null;
 };
 
 type ToggleSwitchProps = {
@@ -121,8 +123,10 @@ export function BotSettings() {
   const twitchLinked = user?.channel?.twitchChannelId !== null && user?.channel?.twitchChannelId !== undefined ? true : linkedProviders.has('twitch');
   const youtubeLinked = linkedProviders.has('youtube');
   const vkvideoLinked = linkedProviders.has('vkvideo');
+  const trovoLinked = linkedProviders.has('trovo');
+  const kickLinked = linkedProviders.has('kick');
 
-  const [botTab, setBotTab] = useState<'commands' | 'twitch' | 'youtube' | 'vk'>('commands');
+  const [botTab, setBotTab] = useState<'commands' | 'twitch' | 'youtube' | 'vk' | 'trovo' | 'kick'>('commands');
   const [loading, setLoading] = useState<'toggle' | 'load' | null>(null);
   const [botEnabled, setBotEnabled] = useState<boolean | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
@@ -143,13 +147,21 @@ export function BotSettings() {
   const [vkvideoOverrideStatus, setVkvideoOverrideStatus] = useState<OverrideStatus | null>(null);
   const [vkvideoOverrideLoading, setVkvideoOverrideLoading] = useState(false);
   const [vkvideoOverrideBusy, setVkvideoOverrideBusy] = useState(false);
+  const [trovoOverrideStatus, setTrovoOverrideStatus] = useState<OverrideStatus | null>(null);
+  const [trovoOverrideLoading, setTrovoOverrideLoading] = useState(false);
+  const [trovoOverrideBusy, setTrovoOverrideBusy] = useState(false);
+  const [kickOverrideStatus, setKickOverrideStatus] = useState<OverrideStatus | null>(null);
+  const [kickOverrideLoading, setKickOverrideLoading] = useState(false);
+  const [kickOverrideBusy, setKickOverrideBusy] = useState(false);
 
   const [customBotEntitlement, setCustomBotEntitlement] = useState<CustomBotEntitlementStatus>('unknown');
   const [subscriptionRequiredModalOpen, setSubscriptionRequiredModalOpen] = useState(false);
-  const [subscriptionRequiredModalProvider, setSubscriptionRequiredModalProvider] = useState<'twitch' | 'youtube' | 'vkvideo' | null>(null);
-  const [oauthSubscriptionRequiredBanner, setOauthSubscriptionRequiredBanner] = useState<{ provider: 'twitch' | 'youtube' | 'vkvideo' } | null>(
-    null
-  );
+  const [subscriptionRequiredModalProvider, setSubscriptionRequiredModalProvider] = useState<
+    'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' | null
+  >(null);
+  const [oauthSubscriptionRequiredBanner, setOauthSubscriptionRequiredBanner] = useState<{
+    provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+  } | null>(null);
   const [twitchBotNotConfiguredHint, setTwitchBotNotConfiguredHint] = useState(false);
   const [vkvideoNotAvailable, setVkvideoNotAvailable] = useState(false);
 
@@ -176,7 +188,7 @@ export function BotSettings() {
   type OutboxStatus = 'pending' | 'processing' | 'sent' | 'failed';
   type OutboxLastError = 'bot_not_joined' | string | null;
   type OutboxStatusResponse = {
-    provider?: 'twitch' | 'youtube' | 'vkvideo' | string;
+    provider?: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' | string;
     id?: string;
     status?: OutboxStatus | string;
     attempts?: number;
@@ -189,7 +201,7 @@ export function BotSettings() {
   };
 
   const [lastOutbox, setLastOutbox] = useState<null | {
-    provider: 'twitch' | 'youtube' | 'vkvideo';
+    provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
     id?: string;
     status?: string;
     attempts?: number;
@@ -201,9 +213,10 @@ export function BotSettings() {
     createdAt?: string | null;
     updatedAt?: string | null;
   }>(null);
-  const [lastOutboxRequest, setLastOutboxRequest] = useState<null | { provider: 'twitch' | 'youtube' | 'vkvideo'; message: string }>(
-    null
-  );
+  const [lastOutboxRequest, setLastOutboxRequest] = useState<null | {
+    provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+    message: string;
+  }>(null);
 
   const outboxPollTimerRef = useRef<number | null>(null);
   const outboxPollStartedAtRef = useRef<number>(0);
@@ -677,7 +690,7 @@ export function BotSettings() {
   );
 
   const queueBotSay = useCallback(
-    async (provider: 'twitch' | 'youtube' | 'vkvideo', message: string) => {
+    async (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', message: string) => {
       const msg = String(message || '').trim();
       if (!msg) {
         toast.error(t('admin.botTestMessageRequired', { defaultValue: 'Enter a message.' }));
@@ -698,7 +711,13 @@ export function BotSettings() {
 
         const usedProvider = typeof res?.provider === 'string' && res.provider.trim() ? res.provider.trim() : provider;
         const normalizedProvider =
-          usedProvider === 'twitch' || usedProvider === 'youtube' || usedProvider === 'vkvideo' ? usedProvider : provider;
+          usedProvider === 'twitch' ||
+          usedProvider === 'youtube' ||
+          usedProvider === 'vkvideo' ||
+          usedProvider === 'trovo' ||
+          usedProvider === 'kick'
+            ? usedProvider
+            : provider;
 
         if (res?.outbox && typeof res.outbox === 'object') {
           setLastOutbox({
@@ -792,7 +811,7 @@ export function BotSettings() {
   );
 
   const sendTestMessage = useCallback(
-    async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
+    async (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
       const msg = (testMessage || t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })).trim();
       await queueBotSay(provider, msg);
     },
@@ -974,7 +993,7 @@ export function BotSettings() {
     return typeof v === 'string' && v.trim() ? v.trim() : null;
   }, []);
 
-  const showSubscriptionRequiredModal = useCallback((provider: 'twitch' | 'youtube' | 'vkvideo') => {
+  const showSubscriptionRequiredModal = useCallback((provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
     setSubscriptionRequiredModalProvider(provider);
     setSubscriptionRequiredModalOpen(true);
   }, []);
@@ -1007,14 +1026,14 @@ export function BotSettings() {
 
   useEffect(() => {
     // OAuth callback error handling:
-    // error=auth_failed&reason=subscription_required&provider=twitch|youtube|vkvideo
+    // error=auth_failed&reason=subscription_required&provider=twitch|youtube|vkvideo|trovo|kick
     try {
       const url = new URL(window.location.href);
       const reason = url.searchParams.get('reason');
       const provider = (url.searchParams.get('provider') || '').toLowerCase();
-      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo';
+      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo' || provider === 'trovo' || provider === 'kick';
       if (reason === 'subscription_required' && isProvider) {
-        setOauthSubscriptionRequiredBanner({ provider: provider as 'twitch' | 'youtube' | 'vkvideo' });
+        setOauthSubscriptionRequiredBanner({ provider: provider as 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' });
         url.searchParams.delete('error');
         url.searchParams.delete('reason');
         url.searchParams.delete('provider');
@@ -1026,7 +1045,7 @@ export function BotSettings() {
   }, []);
 
   useEffect(() => {
-    // Deep link support: /settings/bot/youtube | /settings/bot/twitch | /settings/bot/vkvideo (legacy: /settings/bot/vk)
+    // Deep link support: /settings/bot/youtube | /settings/bot/twitch | /settings/bot/vkvideo | /settings/bot/trovo | /settings/bot/kick (legacy: /settings/bot/vk)
     const sub = window.location.pathname.replace(/^\/settings\/?/, '');
     const parts = sub.split('/').filter(Boolean);
     if (parts[0] !== 'bot') return;
@@ -1034,6 +1053,8 @@ export function BotSettings() {
     if (provider === 'youtube') setBotTab('youtube');
     else if (provider === 'vk' || provider === 'vkvideo') setBotTab('vk');
     else if (provider === 'twitch') setBotTab('twitch');
+    else if (provider === 'trovo') setBotTab('trovo');
+    else if (provider === 'kick') setBotTab('kick');
   }, []);
 
   const startStreamerYoutubeAccountRelink = useCallback(() => {
@@ -1120,15 +1141,60 @@ export function BotSettings() {
     void loadVkvideoOverride();
   }, [botTab, loadVkvideoOverride]);
 
+  const loadTrovoOverride = useCallback(async () => {
+    try {
+      setTrovoOverrideLoading(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<unknown>('/streamer/bots/trovo/bot', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      const externalAccountIdRaw = (res as { externalAccountId?: unknown } | null)?.externalAccountId;
+      const externalAccountId = typeof externalAccountIdRaw === 'string' ? externalAccountIdRaw : null;
+      const lockedRaw = (res as { lockedBySubscription?: unknown } | null)?.lockedBySubscription;
+      const lockedBySubscription = typeof lockedRaw === 'boolean' ? lockedRaw : null;
+      setTrovoOverrideStatus({ enabled, updatedAt, externalAccountId, lockedBySubscription });
+    } catch {
+      setTrovoOverrideStatus(null);
+    } finally {
+      setTrovoOverrideLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (botTab !== 'trovo') return;
+    void loadTrovoOverride();
+  }, [botTab, loadTrovoOverride]);
+
+  const loadKickOverride = useCallback(async () => {
+    try {
+      setKickOverrideLoading(true);
+      const { api } = await import('@/lib/api');
+      const res = await api.get<unknown>('/streamer/bots/kick/bot', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      const externalAccountIdRaw = (res as { externalAccountId?: unknown } | null)?.externalAccountId;
+      const externalAccountId = typeof externalAccountIdRaw === 'string' ? externalAccountIdRaw : null;
+      const lockedRaw = (res as { lockedBySubscription?: unknown } | null)?.lockedBySubscription;
+      const lockedBySubscription = typeof lockedRaw === 'boolean' ? lockedRaw : null;
+      setKickOverrideStatus({ enabled, updatedAt, externalAccountId, lockedBySubscription });
+    } catch {
+      setKickOverrideStatus(null);
+    } finally {
+      setKickOverrideLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (botTab !== 'kick') return;
+    void loadKickOverride();
+  }, [botTab, loadKickOverride]);
+
   const preflightAndRedirectToOverrideLink = useCallback(
-    async (provider: 'twitch' | 'youtube' | 'vkvideo') => {
+    async (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
       const apiOrigin = getApiOriginForRedirect();
-      const redirectTo =
-        provider === 'youtube'
-          ? '/settings/bot/youtube'
-          : provider === 'twitch'
-            ? '/settings/bot/twitch'
-            : '/settings/bot/vkvideo';
+      const redirectTo = provider === 'vkvideo' ? '/settings/bot/vkvideo' : `/settings/bot/${provider}`;
       const url = new URL(`${apiOrigin}/streamer/bots/${provider}/bot/link`);
       url.searchParams.set('redirect_to', redirectTo);
       url.searchParams.set('origin', window.location.origin);
@@ -1247,6 +1313,56 @@ export function BotSettings() {
       setVkvideoOverrideBusy(false);
     }
   }, [loadVkvideoOverride, t, vkvideoOverrideBusy]);
+
+  const disconnectTrovoOverride = useCallback(async () => {
+    if (trovoOverrideBusy) return;
+    const confirmed = window.confirm(t('admin.trovoOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего Trovo-бота (override)?' }));
+    if (!confirmed) return;
+
+    const startedAt = Date.now();
+    try {
+      setTrovoOverrideBusy(true);
+      const { api } = await import('@/lib/api');
+      await api.delete('/streamer/bots/trovo/bot');
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      await loadTrovoOverride();
+    } catch (e) {
+      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(msg);
+    } finally {
+      await ensureMinDuration(startedAt, 350);
+      setTrovoOverrideBusy(false);
+    }
+  }, [loadTrovoOverride, t, trovoOverrideBusy]);
+
+  const disconnectKickOverride = useCallback(async () => {
+    if (kickOverrideBusy) return;
+    const confirmed = window.confirm(t('admin.kickOverrideDisconnectConfirm', { defaultValue: 'Отключить вашего Kick-бота (override)?' }));
+    if (!confirmed) return;
+
+    const startedAt = Date.now();
+    try {
+      setKickOverrideBusy(true);
+      const { api } = await import('@/lib/api');
+      await api.delete('/streamer/bots/kick/bot');
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+      await loadKickOverride();
+    } catch (e) {
+      const apiError = e as { response?: { data?: { error?: string; message?: string } } };
+      const msg =
+        apiError.response?.data?.error ||
+        apiError.response?.data?.message ||
+        t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+      toast.error(msg);
+    } finally {
+      await ensureMinDuration(startedAt, 350);
+      setKickOverrideBusy(false);
+    }
+  }, [kickOverrideBusy, loadKickOverride, t]);
 
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
@@ -1406,6 +1522,122 @@ export function BotSettings() {
     [loadBotIntegrations, t]
   );
 
+  const toggleTrovoIntegration = useCallback(
+    async (nextEnabled: boolean) => {
+      const startedAt = Date.now();
+      let optimisticItems: StreamerBotIntegration[] | null = null;
+      try {
+        setBotIntegrationToggleLoading('trovo');
+        const { api } = await import('@/lib/api');
+
+        // optimistic
+        setBots((prev) => {
+          const next = prev.map((b) => (b.provider === 'trovo' ? { ...b, enabled: nextEnabled } : b));
+          optimisticItems = next;
+          return next;
+        });
+
+        await api.patch('/streamer/bots/trovo', { enabled: nextEnabled });
+        toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+        try {
+          if (optimisticItems) {
+            sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
+          }
+        } catch {
+          // ignore cache write
+        }
+        void loadBotIntegrations();
+      } catch (error: unknown) {
+        void loadBotIntegrations();
+        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
+        const code = String((apiError.response?.data as { code?: unknown } | undefined)?.code || '');
+        if (apiError.response?.status === 503 && code === 'TROVO_BOT_NOT_CONFIGURED') {
+          toast.error(
+            t('admin.trovoBotNotConfigured', {
+              defaultValue:
+                'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
+            })
+          );
+          return;
+        }
+        if (apiError.response?.status === 404) {
+          toast.error(t('admin.featureNotAvailable', { defaultValue: 'Feature not available on this server yet.' }));
+          return;
+        }
+        try {
+          const { getRequestIdFromError } = await import('@/lib/api');
+          const rid = getRequestIdFromError(error);
+          const msg = apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+          toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+        } catch {
+          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+        }
+      } finally {
+        await ensureMinDuration(startedAt, 450);
+        setBotIntegrationToggleLoading(null);
+      }
+    },
+    [loadBotIntegrations, t]
+  );
+
+  const toggleKickIntegration = useCallback(
+    async (nextEnabled: boolean) => {
+      const startedAt = Date.now();
+      let optimisticItems: StreamerBotIntegration[] | null = null;
+      try {
+        setBotIntegrationToggleLoading('kick');
+        const { api } = await import('@/lib/api');
+
+        // optimistic
+        setBots((prev) => {
+          const next = prev.map((b) => (b.provider === 'kick' ? { ...b, enabled: nextEnabled } : b));
+          optimisticItems = next;
+          return next;
+        });
+
+        await api.patch('/streamer/bots/kick', { enabled: nextEnabled });
+        toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+        try {
+          if (optimisticItems) {
+            sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
+          }
+        } catch {
+          // ignore cache write
+        }
+        void loadBotIntegrations();
+      } catch (error: unknown) {
+        void loadBotIntegrations();
+        const apiError = error as { response?: { status?: number; data?: { error?: string } } };
+        const code = String((apiError.response?.data as { code?: unknown } | undefined)?.code || '');
+        if (apiError.response?.status === 503 && code === 'KICK_BOT_NOT_CONFIGURED') {
+          toast.error(
+            t('admin.kickBotNotConfigured', {
+              defaultValue:
+                'Нужен отправитель сообщений: подключите своего бота или попросите админа подключить дефолтного.',
+            })
+          );
+          return;
+        }
+        if (apiError.response?.status === 404) {
+          toast.error(t('admin.featureNotAvailable', { defaultValue: 'Feature not available on this server yet.' }));
+          return;
+        }
+        try {
+          const { getRequestIdFromError } = await import('@/lib/api');
+          const rid = getRequestIdFromError(error);
+          const msg = apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' });
+          toast.error(rid ? `${msg} (${t('common.errorId', { defaultValue: 'Error ID' })}: ${rid})` : msg);
+        } catch {
+          toast.error(apiError.response?.data?.error || t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+        }
+      } finally {
+        await ensureMinDuration(startedAt, 450);
+        setBotIntegrationToggleLoading(null);
+      }
+    },
+    [loadBotIntegrations, t]
+  );
+
   const callToggle = async (nextEnabled: boolean) => {
     const startedAt = Date.now();
     try {
@@ -1469,6 +1701,12 @@ export function BotSettings() {
   const vk = botsMap.get('vkvideo');
   const vkEnabled = vk?.enabled === true;
   const vkBusy = botIntegrationToggleLoading === 'vkvideo';
+  const trovo = botsMap.get('trovo');
+  const trovoEnabled = trovo?.enabled === true;
+  const trovoBusy = botIntegrationToggleLoading === 'trovo';
+  const kick = botsMap.get('kick');
+  const kickEnabled = kick?.enabled === true;
+  const kickBusy = botIntegrationToggleLoading === 'kick';
 
   const visibleCommands = useMemo(() => [...commands].sort((a, b) => a.trigger.localeCompare(b.trigger)), [commands]);
   const anyCommandEnabled = useMemo(() => visibleCommands.some((c) => c.enabled !== false), [visibleCommands]);
@@ -1503,7 +1741,7 @@ export function BotSettings() {
   }, [loadStreamDuration, showMenus, streamDurationLoaded, streamDurationNotAvailable]);
 
   const renderOutboxStatus = useCallback(
-    (provider: 'twitch' | 'youtube' | 'vkvideo') => {
+    (provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick') => {
       if (!lastOutbox || lastOutbox.provider !== provider) return null;
 
       const status = String(lastOutbox.status || 'unknown');
@@ -1738,6 +1976,32 @@ export function BotSettings() {
           }`}
         >
           VKVideo
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setBotTab('trovo');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            botTab === 'trovo'
+              ? 'bg-primary text-white border-primary'
+              : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}
+        >
+          Trovo
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setBotTab('kick');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            botTab === 'kick'
+              ? 'bg-primary text-white border-primary'
+              : 'bg-transparent text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}
+        >
+          Kick
         </button>
       </div>
 
@@ -2929,6 +3193,222 @@ export function BotSettings() {
               {!ytEnabled && (
                 <div className="text-xs text-amber-800 dark:text-amber-200">
                   {t('admin.youtubeEnableRequiredToSend', { defaultValue: 'Сначала включите YouTube-бота для канала.' })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : botTab === 'trovo' ? (
+        <>
+          {!trovoLinked ? (
+            <div className="glass p-5 sm:p-6 mb-4">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.accountsServiceTrovoHint', { defaultValue: 'Нужно привязать Trovo аккаунт в Accounts.' })}
+              </div>
+              <div className="mt-2">
+                <Link to="/settings/accounts" className="underline hover:no-underline text-sm">
+                  {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Trovo override bot */}
+          {trovoLinked ? (
+            <div className="glass p-5 sm:p-6 mb-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('admin.trovoOverrideTitle', { defaultValue: 'Свой бот' })}
+                  </div>
+                  {isOverrideConnectedButLocked(trovoOverrideStatus) ? (
+                    <div className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                      {t('subscription.overrideConnectedButLocked', {
+                        defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+                <ToggleSwitch
+                  checked={trovoOverrideStatus?.enabled === true}
+                  disabled={trovoOverrideBusy || trovoOverrideLoading}
+                  busy={trovoOverrideBusy || trovoOverrideLoading}
+                  onChange={(next) => {
+                    if (next) void preflightAndRedirectToOverrideLink('trovo');
+                    else void disconnectTrovoOverride();
+                  }}
+                  ariaLabel={t('admin.trovoOverrideTitle', { defaultValue: 'Свой бот' })}
+                />
+              </div>
+              {isCustomBotConnectLocked ? (
+                <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                  {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Trovo integration */}
+          {trovoLinked ? (
+            <div className="glass p-5 sm:p-6 mb-4 relative">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">Trovo</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                    {t('admin.trovoBotIntegrationLabel', { defaultValue: 'Включить Trovo-бота для канала.' })}
+                  </div>
+                </div>
+                {botsLoading ? <Spinner className="h-5 w-5" /> : null}
+                <ToggleSwitch
+                  checked={trovoEnabled}
+                  disabled={!botsLoaded || botsLoading || trovoBusy}
+                  busy={trovoBusy}
+                  onChange={(next) => void toggleTrovoIntegration(next)}
+                  ariaLabel={t('admin.trovoBotIntegrationLabel', { defaultValue: 'Trovo bot enabled' })}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* Trovo test message */}
+          <div className="glass p-5 sm:p-6">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.botTestMessageHintTrovo', {
+                defaultValue: 'Send a message from the bot into your Trovo chat to confirm it works.',
+              })}
+            </div>
+            <div className="mt-3 space-y-3">
+              <Textarea
+                rows={2}
+                value={testMessage}
+                onChange={(e) => setTestMessage(e.target.value)}
+                placeholder={t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })}
+              />
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  void sendTestMessage('trovo');
+                }}
+                disabled={sendingTestMessage}
+              >
+                {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
+              </Button>
+              {renderOutboxStatus('trovo')}
+              {!trovoEnabled && (
+                <div className="text-xs text-amber-800 dark:text-amber-200">
+                  {t('admin.trovoEnableRequiredToSend', { defaultValue: 'Сначала включите Trovo-бота для канала.' })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : botTab === 'kick' ? (
+        <>
+          {!kickLinked ? (
+            <div className="glass p-5 sm:p-6 mb-4">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.accountsServiceKickHint', { defaultValue: 'Нужно привязать Kick аккаунт в Accounts.' })}
+              </div>
+              <div className="mt-2">
+                <Link to="/settings/accounts" className="underline hover:no-underline text-sm">
+                  {t('settings.goToAccounts', { defaultValue: 'Привязать аккаунт' })}
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Kick override bot */}
+          {kickLinked ? (
+            <div className="glass p-5 sm:p-6 mb-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('admin.kickOverrideTitle', { defaultValue: 'Свой бот' })}
+                  </div>
+                  {isOverrideConnectedButLocked(kickOverrideStatus) ? (
+                    <div className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                      {t('subscription.overrideConnectedButLocked', {
+                        defaultValue: 'Бот подключен, но не используется без подписки. Сейчас работает глобальный бот.',
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+                <ToggleSwitch
+                  checked={kickOverrideStatus?.enabled === true}
+                  disabled={kickOverrideBusy || kickOverrideLoading}
+                  busy={kickOverrideBusy || kickOverrideLoading}
+                  onChange={(next) => {
+                    if (next) void preflightAndRedirectToOverrideLink('kick');
+                    else void disconnectKickOverride();
+                  }}
+                  ariaLabel={t('admin.kickOverrideTitle', { defaultValue: 'Свой бот' })}
+                />
+              </div>
+              {isCustomBotConnectLocked ? (
+                <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                  {t('subscription.availableOnlyWithSubscription', { defaultValue: 'по заявкам' })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Kick integration */}
+          {kickLinked ? (
+            <div className="glass p-5 sm:p-6 mb-4 relative">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">Kick</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                    {t('admin.kickBotIntegrationLabel', { defaultValue: 'Включить Kick-бота для канала.' })}
+                  </div>
+                </div>
+                {botsLoading ? <Spinner className="h-5 w-5" /> : null}
+                <ToggleSwitch
+                  checked={kickEnabled}
+                  disabled={!botsLoaded || botsLoading || kickBusy}
+                  busy={kickBusy}
+                  onChange={(next) => void toggleKickIntegration(next)}
+                  ariaLabel={t('admin.kickBotIntegrationLabel', { defaultValue: 'Kick bot enabled' })}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* Kick test message */}
+          <div className="glass p-5 sm:p-6">
+            <div className="font-semibold text-gray-900 dark:text-white">
+              {t('admin.botTestMessageTitle', { defaultValue: 'Test message' })}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {t('admin.botTestMessageHintKick', {
+                defaultValue: 'Send a message from the bot into your Kick chat to confirm it works.',
+              })}
+            </div>
+            <div className="mt-3 space-y-3">
+              <Textarea
+                rows={2}
+                value={testMessage}
+                onChange={(e) => setTestMessage(e.target.value)}
+                placeholder={t('admin.botDefaultTestMessage', { defaultValue: 'Bot connected ✅' })}
+              />
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  void sendTestMessage('kick');
+                }}
+                disabled={sendingTestMessage}
+              >
+                {t('admin.sendTestMessage', { defaultValue: 'Send test message' })}
+              </Button>
+              {renderOutboxStatus('kick')}
+              {!kickEnabled && (
+                <div className="text-xs text-amber-800 dark:text-amber-200">
+                  {t('admin.kickEnableRequiredToSend', { defaultValue: 'Сначала включите Kick-бота для канала.' })}
                 </div>
               )}
             </div>

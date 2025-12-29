@@ -100,6 +100,12 @@ export function AccountsSettings() {
   const [defaultVkvideoBotStatus, setDefaultVkvideoBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [defaultVkvideoBotLoading, setDefaultVkvideoBotLoading] = useState(false);
   const [defaultVkvideoBotBusy, setDefaultVkvideoBotBusy] = useState(false);
+  const [defaultKickBotStatus, setDefaultKickBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [defaultKickBotLoading, setDefaultKickBotLoading] = useState(false);
+  const [defaultKickBotBusy, setDefaultKickBotBusy] = useState(false);
+  const [defaultTrovoBotStatus, setDefaultTrovoBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
+  const [defaultTrovoBotLoading, setDefaultTrovoBotLoading] = useState(false);
+  const [defaultTrovoBotBusy, setDefaultTrovoBotBusy] = useState(false);
   const refreshedOnMountRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -107,12 +113,12 @@ export function AccountsSettings() {
 
   useEffect(() => {
     // OAuth callback may redirect here with:
-    // error=auth_failed&reason=subscription_required&provider=twitch|youtube|vkvideo
+    // error=auth_failed&reason=subscription_required&provider=twitch|youtube|vkvideo|trovo|kick
     try {
       const url = new URL(window.location.href);
       const reason = url.searchParams.get('reason');
       const provider = (url.searchParams.get('provider') || '').toLowerCase();
-      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo';
+      const isProvider = provider === 'twitch' || provider === 'youtube' || provider === 'vkvideo' || provider === 'trovo' || provider === 'kick';
       if (reason === 'subscription_required' && isProvider) {
         toast.error(
           t('subscription.oauthSubscriptionRequiredBody', {
@@ -198,12 +204,16 @@ export function AccountsSettings() {
     setDefaultTwitchBotLoading(true);
     setDefaultYoutubeBotLoading(true);
     setDefaultVkvideoBotLoading(true);
+    setDefaultKickBotLoading(true);
+    setDefaultTrovoBotLoading(true);
 
     void (async () => {
-      const [tw, yt, vk] = await Promise.allSettled([
+      const [tw, yt, vk, kick, trovo] = await Promise.allSettled([
         api.get<unknown>('/owner/bots/twitch/default/status', { timeout: 8000 }),
         api.get<unknown>('/owner/bots/youtube/default/status', { timeout: 8000 }),
         api.get<unknown>('/owner/bots/vkvideo/default/status', { timeout: 8000 }),
+        api.get<unknown>('/owner/bots/kick/default/status', { timeout: 8000 }),
+        api.get<unknown>('/owner/bots/trovo/default/status', { timeout: 8000 }),
       ]);
 
       if (cancelled) return;
@@ -217,9 +227,17 @@ export function AccountsSettings() {
       if (vk.status === 'fulfilled') setDefaultVkvideoBotStatus(parse(vk.value));
       else setDefaultVkvideoBotStatus(null);
 
+      if (kick.status === 'fulfilled') setDefaultKickBotStatus(parse(kick.value));
+      else setDefaultKickBotStatus(null);
+
+      if (trovo.status === 'fulfilled') setDefaultTrovoBotStatus(parse(trovo.value));
+      else setDefaultTrovoBotStatus(null);
+
       setDefaultTwitchBotLoading(false);
       setDefaultYoutubeBotLoading(false);
       setDefaultVkvideoBotLoading(false);
+      setDefaultKickBotLoading(false);
+      setDefaultTrovoBotLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -246,6 +264,22 @@ export function AccountsSettings() {
   const redirectToDefaultVkvideoBotLink = useCallback(() => {
     const apiOrigin = getApiOriginForRedirect();
     const url = new URL(`${apiOrigin}/owner/bots/vkvideo/default/link`);
+    url.searchParams.set('redirect_to', '/settings/accounts');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
+
+  const redirectToDefaultKickBotLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/owner/bots/kick/default/link`);
+    url.searchParams.set('redirect_to', '/settings/accounts');
+    url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }, []);
+
+  const redirectToDefaultTrovoBotLink = useCallback(() => {
+    const apiOrigin = getApiOriginForRedirect();
+    const url = new URL(`${apiOrigin}/owner/bots/trovo/default/link`);
     url.searchParams.set('redirect_to', '/settings/accounts');
     url.searchParams.set('origin', window.location.origin);
     window.location.href = url.toString();
@@ -322,6 +356,50 @@ export function AccountsSettings() {
       setDefaultVkvideoBotBusy(false);
     }
   }, [defaultVkvideoBotBusy, t]);
+
+  const disconnectDefaultKickBot = useCallback(async () => {
+    if (defaultKickBotBusy) return;
+    const confirmed = window.confirm(t('settings.defaultKickBotDisconnectConfirm', { defaultValue: 'Отключить дефолтного Kick-бота?' }));
+    if (!confirmed) return;
+
+    try {
+      setDefaultKickBotBusy(true);
+      await api.delete('/owner/bots/kick/default');
+      const res = await api.get<unknown>('/owner/bots/kick/default/status', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setDefaultKickBotStatus({ enabled, updatedAt });
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+    } catch (e) {
+      const err = toApiError(e, t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      toast.error(err.message);
+    } finally {
+      setDefaultKickBotBusy(false);
+    }
+  }, [defaultKickBotBusy, t]);
+
+  const disconnectDefaultTrovoBot = useCallback(async () => {
+    if (defaultTrovoBotBusy) return;
+    const confirmed = window.confirm(t('settings.defaultTrovoBotDisconnectConfirm', { defaultValue: 'Отключить дефолтного Trovo-бота?' }));
+    if (!confirmed) return;
+
+    try {
+      setDefaultTrovoBotBusy(true);
+      await api.delete('/owner/bots/trovo/default');
+      const res = await api.get<unknown>('/owner/bots/trovo/default/status', { timeout: 8000 });
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      setDefaultTrovoBotStatus({ enabled, updatedAt });
+      toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+    } catch (e) {
+      const err = toApiError(e, t('admin.failedToSave', { defaultValue: 'Failed to save.' }));
+      toast.error(err.message);
+    } finally {
+      setDefaultTrovoBotBusy(false);
+    }
+  }, [defaultTrovoBotBusy, t]);
 
   const ensureSessionOrLogin = useCallback(async () => {
     try {
@@ -423,7 +501,7 @@ export function AccountsSettings() {
           icon: KickIcon,
           iconClassName: 'text-[#53FC18]',
           supportsLink: true,
-          isAvailable: false,
+          isAvailable: true,
           onLink: () => linkProvider('kick'),
         },
         {
@@ -435,7 +513,7 @@ export function AccountsSettings() {
           icon: TrovoIcon,
           iconClassName: 'text-[#1BD96A]',
           supportsLink: true,
-          isAvailable: false,
+          isAvailable: true,
           onLink: () => linkProvider('trovo'),
         },
       ] as const,
@@ -686,6 +764,96 @@ export function AccountsSettings() {
               ) : (
                 <Button variant="primary" onClick={() => redirectToDefaultVkvideoBotLink()} disabled={defaultVkvideoBotBusy}>
                   {t('settings.defaultVkvideoBotConnect', { defaultValue: 'Подключить' })}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {user?.role === 'admin' && (
+        <Card className="p-5 mb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.defaultKickBotTitle', { defaultValue: 'Дефолтный Kick бот' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {defaultKickBotLoading ? (
+                  t('common.loading', { defaultValue: 'Loading…' })
+                ) : defaultKickBotStatus?.enabled ? (
+                  <>
+                    {t('settings.defaultKickBotConnected', { defaultValue: 'Подключён' })}
+                    {defaultKickBotStatus.updatedAt ? (
+                      <span className="ml-2 opacity-80">
+                        {t('admin.updatedAt', { defaultValue: 'Updated' })}:{' '}
+                        {new Date(defaultKickBotStatus.updatedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  t('settings.defaultKickBotNotConnected', { defaultValue: 'Дефолтный Kick бот не подключён' })
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {defaultKickBotStatus?.enabled ? (
+                <>
+                  <Button variant="secondary" onClick={() => redirectToDefaultKickBotLink()} disabled={defaultKickBotBusy}>
+                    {t('settings.defaultKickBotRelink', { defaultValue: 'Перепривязать' })}
+                  </Button>
+                  <Button variant="secondary" onClick={() => void disconnectDefaultKickBot()} disabled={defaultKickBotBusy}>
+                    {t('settings.defaultKickBotDisconnect', { defaultValue: 'Отключить' })}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => redirectToDefaultKickBotLink()} disabled={defaultKickBotBusy}>
+                  {t('settings.defaultKickBotConnect', { defaultValue: 'Подключить' })}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {user?.role === 'admin' && (
+        <Card className="p-5 mb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {t('settings.defaultTrovoBotTitle', { defaultValue: 'Дефолтный Trovo бот' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {defaultTrovoBotLoading ? (
+                  t('common.loading', { defaultValue: 'Loading…' })
+                ) : defaultTrovoBotStatus?.enabled ? (
+                  <>
+                    {t('settings.defaultTrovoBotConnected', { defaultValue: 'Подключён' })}
+                    {defaultTrovoBotStatus.updatedAt ? (
+                      <span className="ml-2 opacity-80">
+                        {t('admin.updatedAt', { defaultValue: 'Updated' })}:{' '}
+                        {new Date(defaultTrovoBotStatus.updatedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  t('settings.defaultTrovoBotNotConnected', { defaultValue: 'Дефолтный Trovo бот не подключён' })
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {defaultTrovoBotStatus?.enabled ? (
+                <>
+                  <Button variant="secondary" onClick={() => redirectToDefaultTrovoBotLink()} disabled={defaultTrovoBotBusy}>
+                    {t('settings.defaultTrovoBotRelink', { defaultValue: 'Перепривязать' })}
+                  </Button>
+                  <Button variant="secondary" onClick={() => void disconnectDefaultTrovoBot()} disabled={defaultTrovoBotBusy}>
+                    {t('settings.defaultTrovoBotDisconnect', { defaultValue: 'Отключить' })}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => redirectToDefaultTrovoBotLink()} disabled={defaultTrovoBotBusy}>
+                  {t('settings.defaultTrovoBotConnect', { defaultValue: 'Подключить' })}
                 </Button>
               )}
             </div>

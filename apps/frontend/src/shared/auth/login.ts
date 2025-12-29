@@ -92,6 +92,8 @@ export const linkTwitchAccount = (redirectTo?: string): void => {
   if (redirectPath && redirectPath !== '/') {
     authUrl.searchParams.set('redirect_to', redirectPath);
   }
+  // Important: keep environments separated on backend (prod/beta).
+  authUrl.searchParams.set('origin', window.location.origin);
 
   window.location.href = authUrl.toString();
 };
@@ -105,6 +107,8 @@ export const linkExternalAccount = (provider: string, redirectTo?: string): void
   if (redirectPath && redirectPath !== '/') {
     authUrl.searchParams.set('redirect_to', redirectPath);
   }
+  // Important: keep environments separated on backend (prod/beta).
+  authUrl.searchParams.set('origin', window.location.origin);
 
   window.location.href = authUrl.toString();
 };

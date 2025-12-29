@@ -375,11 +375,11 @@ export function mockAuthAccountDeleteOk(assert?: (data: { id: string }) => void)
   });
 }
 
-export function mockOwnerDefaultBotStatus(provider: 'twitch' | 'youtube' | 'vkvideo', payload: unknown) {
+export function mockOwnerDefaultBotStatus(provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', payload: unknown) {
   return http.get(`*/owner/bots/${provider}/default/status`, () => HttpResponse.json(payload));
 }
 
-export function mockOwnerDefaultBotDisconnect(provider: 'twitch' | 'youtube' | 'vkvideo', onCall?: () => void) {
+export function mockOwnerDefaultBotDisconnect(provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', onCall?: () => void) {
   return http.delete(`*/owner/bots/${provider}/default`, () => {
     onCall?.();
     return HttpResponse.json({ ok: true });
@@ -398,7 +398,7 @@ export function mockStreamerFollowGreetings(payload: unknown) {
   return http.get('*/streamer/bot/follow-greetings', () => HttpResponse.json(payload));
 }
 
-export function mockStreamerBotOverrideStatus(provider: 'twitch' | 'youtube' | 'vkvideo', payload: unknown) {
+export function mockStreamerBotOverrideStatus(provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick', payload: unknown) {
   return http.get(`*/streamer/bots/${provider}/bot`, () => HttpResponse.json(payload));
 }
 
