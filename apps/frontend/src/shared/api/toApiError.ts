@@ -7,14 +7,15 @@ export function toApiError(error: unknown, fallbackMessage: string): ApiError {
   const statusCode = typeof response?.status === 'number' ? response.status : undefined;
   const data = (response?.data && typeof response.data === 'object' ? (response.data as Partial<ApiError>) : undefined) ?? undefined;
 
+  const errorCode = typeof (data as { errorCode?: unknown } | undefined)?.errorCode === 'string' ? (data as { errorCode?: string }).errorCode : undefined;
+  const details = (data as { details?: unknown } | undefined)?.details;
+
   const message =
     (typeof data?.message === 'string' && data.message) ||
-    (typeof data?.error === 'string' && data.error) ||
+    (errorCode && typeof data?.error === 'string' && data.error) ||
     (typeof errObj?.message === 'string' && errObj.message) ||
     fallbackMessage;
   const err = typeof data?.error === 'string' ? data.error : undefined;
-  const errorCode = typeof (data as { errorCode?: unknown } | undefined)?.errorCode === 'string' ? (data as { errorCode?: string }).errorCode : undefined;
-  const details = (data as { details?: unknown } | undefined)?.details;
 
   return { message, error: err, errorCode, details, statusCode };
 }
