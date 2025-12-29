@@ -9,3 +9,8 @@ build/
 .cache/
 .vite/
 .cursor/
+
+# Test/coverage artifacts
+coverage/
+test-results/
+e2e/.auth/storageState.json

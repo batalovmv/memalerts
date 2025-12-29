@@ -1,2 +1,2 @@
-﻿trigger deploy after rollback: 2025-12-20T23:19:03+03:00
-reason: rollback main to 7399683 then trigger CI
+trigger deploy manual: 2025-12-29T00:14:00+03:00
+reason: manual trigger
