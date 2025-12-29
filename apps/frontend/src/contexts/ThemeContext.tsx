@@ -27,13 +27,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // Persist theme locally only for guests (logged-in users are persisted in backend).
-    if (!user) {
-      try {
-        localStorage.setItem('theme', theme);
-      } catch {
-        // ignore
-      }
+    // Persist theme locally as a fallback.
+    // Backend persistence may be unavailable if nginx routes /me/preferences to SPA fallback.
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      // ignore
     }
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');

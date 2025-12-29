@@ -13,6 +13,7 @@ type ApiErrorLike = { response?: { status?: number } };
 
 let cached: UserPreferences | null = null;
 let inFlight: Promise<UserPreferences | null> | null = null;
+let backendSupported: boolean | null = null;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object';
@@ -32,8 +33,8 @@ function normalize(raw: unknown): UserPreferences {
  * Backend-first user preferences.
  *
  * Expected API (to be implemented in backend):
- * - GET /api/me/preferences -> UserPreferences
- * - PATCH /api/me/preferences (partial) -> UserPreferences
+ * - GET /me/preferences -> UserPreferences
+ * - PATCH /me/preferences (partial) -> UserPreferences
  *
  * We intentionally degrade gracefully:
  * - 401/403/404 -> returns null (caller can fall back to localStorage defaults)
@@ -41,15 +42,24 @@ function normalize(raw: unknown): UserPreferences {
 export async function getUserPreferences(): Promise<UserPreferences | null> {
   if (cached) return cached;
   if (inFlight) return inFlight;
+  if (backendSupported === false) return null;
 
   inFlight = (async () => {
     try {
-      const res = await api.get<UserPreferences>('/api/me/preferences', { timeout: 8000 });
+      const res = await api.get<unknown>('/me/preferences', { timeout: 8000 });
+      // If nginx SPA fallback catches this route, we'll get HTML instead of JSON.
+      // Treat it as "endpoint not supported" to avoid noisy PATCH attempts.
+      if (typeof res === 'string') {
+        backendSupported = false;
+        return null;
+      }
+      backendSupported = true;
       cached = normalize(res);
       return cached;
     } catch (e: unknown) {
       const err = e as ApiErrorLike;
       const status = err?.response?.status;
+      if (status === 404 || status === 405) backendSupported = false;
       if (status === 401 || status === 403 || status === 404) return null;
       return null;
     } finally {
@@ -62,6 +72,7 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
 
 export async function patchUserPreferences(patch: Partial<UserPreferences>): Promise<UserPreferences | null> {
   try {
+    if (backendSupported === false) return null;
     // Avoid PATCH noise on public pages (e.g. /channel/:slug) where backend/proxy may not allow PATCH.
     // Preferences are a dashboard/settings concern; public pages should stay read-only.
     try {
@@ -70,13 +81,19 @@ export async function patchUserPreferences(patch: Partial<UserPreferences>): Pro
     } catch {
       // ignore
     }
-    const res = await api.patch<UserPreferences>('/api/me/preferences', patch, { timeout: 8000 });
+    const res = await api.patch<unknown>('/me/preferences', patch, { timeout: 8000 });
+    if (typeof res === 'string') {
+      backendSupported = false;
+      return null;
+    }
+    backendSupported = true;
     cached = normalize(res);
     return cached;
   } catch (e: unknown) {
     const err = e as ApiErrorLike;
     const status = err?.response?.status;
     // Some environments may not support this endpoint/method yet (back-compat).
+    if (status === 404 || status === 405) backendSupported = false;
     if (status === 401 || status === 403 || status === 404 || status === 405) return null;
     return null;
   }
@@ -85,6 +102,7 @@ export async function patchUserPreferences(patch: Partial<UserPreferences>): Pro
 export function clearUserPreferencesCache(): void {
   cached = null;
   inFlight = null;
+  backendSupported = null;
 }
 
 
