@@ -493,7 +493,21 @@ export async function fetchMyYouTubeChannelIdDetailed(userId: string): Promise<F
 
   try {
     const data = await youtubeGetJson<Resp>({ accessToken, url: url.toString() });
-    const id = String(data?.items?.[0]?.id || '').trim();
+    let id = String(data?.items?.[0]?.id || '').trim();
+
+    // Fallback for Brand / managed channels: some accounts may have no "owned" channel but still manage one.
+    // Try channels.list with managedByMe=true (best-effort). If this returns a channelId, we can proceed.
+    if (!id) {
+      const managedUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+      managedUrl.searchParams.set('part', 'id');
+      managedUrl.searchParams.set('managedByMe', 'true');
+      try {
+        const managed = await youtubeGetJson<Resp>({ accessToken, url: managedUrl.toString() });
+        id = String(managed?.items?.[0]?.id || '').trim();
+      } catch {
+        // ignore: fall through to the standard "no channel" reason
+      }
+    }
     return {
       ok: Boolean(id),
       channelId: id || null,

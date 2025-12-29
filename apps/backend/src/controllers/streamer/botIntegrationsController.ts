@@ -602,7 +602,11 @@ export const botIntegrationsController = {
             return res.status(409).json({
               errorCode: 'YOUTUBE_CHANNEL_REQUIRED',
               error: 'Your Google account has no YouTube channel. Please create/activate a YouTube channel and try again.',
-              details: { reason },
+              details: {
+                reason,
+                // Helps support/debugging when multiple YouTube accounts are linked.
+                externalAccountId: acc?.id ?? null,
+              },
             });
           }
 
