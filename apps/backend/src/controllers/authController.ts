@@ -1297,8 +1297,18 @@ export const authController = {
   listAccounts: async (req: AuthRequest, res: Response) => {
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
 
+    // IMPORTANT: /auth/accounts is "user-linked identities" (minimal scopes).
+    // Bot credentials (global default bot and per-channel bot sender overrides) must NOT appear here.
     const accounts = await prisma.externalAccount.findMany({
-      where: { userId: req.userId },
+      where: {
+        userId: req.userId,
+        youTubeBotIntegration: { is: null },
+        globalYouTubeBotCredential: { is: null },
+        vkVideoBotIntegration: { is: null },
+        globalVkVideoBotCredential: { is: null },
+        twitchBotIntegration: { is: null },
+        globalTwitchBotCredential: { is: null },
+      },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -1321,7 +1331,56 @@ export const authController = {
     const externalAccountId = String((req.params as any)?.externalAccountId || '').trim();
     if (!externalAccountId) return res.status(400).json({ error: 'Bad Request' });
 
-    const count = await prisma.externalAccount.count({ where: { userId: req.userId } });
+    // Prevent unlinking bot credentials via the "user accounts" endpoint.
+    const row = await prisma.externalAccount.findFirst({
+      where: { id: externalAccountId, userId: req.userId },
+      select: {
+        id: true,
+        provider: true,
+        youTubeBotIntegration: { select: { id: true } },
+        globalYouTubeBotCredential: { select: { id: true } },
+        vkVideoBotIntegration: { select: { id: true } },
+        globalVkVideoBotCredential: { select: { id: true } },
+        twitchBotIntegration: { select: { id: true } },
+        globalTwitchBotCredential: { select: { id: true } },
+      },
+    });
+
+    if (!row) return res.status(404).json({ error: 'Not found' });
+
+    const isBotCredential =
+      Boolean((row as any).youTubeBotIntegration?.id) ||
+      Boolean((row as any).globalYouTubeBotCredential?.id) ||
+      Boolean((row as any).vkVideoBotIntegration?.id) ||
+      Boolean((row as any).globalVkVideoBotCredential?.id) ||
+      Boolean((row as any).twitchBotIntegration?.id) ||
+      Boolean((row as any).globalTwitchBotCredential?.id);
+
+    if (isBotCredential) {
+      const provider = String((row as any).provider || '').toLowerCase();
+      const hintByProvider: Record<string, string> = {
+        youtube: 'Use DELETE /owner/bots/youtube/default (global) or DELETE /streamer/bots/youtube/bot (per-channel override).',
+        twitch: 'Use DELETE /owner/bots/twitch/default (global) or DELETE /streamer/bots/twitch/bot (per-channel override).',
+        vkvideo: 'Use DELETE /owner/bots/vkvideo/default (global) or DELETE /streamer/bots/vkvideo/bot (per-channel override).',
+      };
+      return res.status(409).json({
+        errorCode: 'CONFLICT',
+        error: 'This account is used as a bot credential and cannot be unlinked via /auth/accounts',
+        details: { hint: hintByProvider[provider] ?? null },
+      });
+    }
+
+    const count = await prisma.externalAccount.count({
+      where: {
+        userId: req.userId,
+        youTubeBotIntegration: { is: null },
+        globalYouTubeBotCredential: { is: null },
+        vkVideoBotIntegration: { is: null },
+        globalVkVideoBotCredential: { is: null },
+        twitchBotIntegration: { is: null },
+        globalTwitchBotCredential: { is: null },
+      },
+    });
     if (count <= 1) {
       return res.status(400).json({ error: 'Cannot unlink last account' });
     }

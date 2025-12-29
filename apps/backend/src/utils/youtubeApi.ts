@@ -171,7 +171,16 @@ export async function getYouTubeExternalAccount(userId: string): Promise<{
   // - Prefer accounts that have required YouTube Data API scopes
   // - Otherwise, fall back to the most recently created row
   const rows = await prisma.externalAccount.findMany({
-    where: { userId, provider: 'youtube' },
+    where: {
+      userId,
+      provider: 'youtube',
+      // IMPORTANT:
+      // This helper is used for the streamer's OWN YouTube account (read operations: resolve channelId, read live chat).
+      // Do NOT accidentally pick bot sender accounts (custom bot overrides / global bot credential),
+      // otherwise enabling YouTube integration can fail with "no channel" for the bot Google account.
+      youTubeBotIntegration: { is: null },
+      globalYouTubeBotCredential: { is: null },
+    },
     orderBy: { createdAt: 'desc' },
     select: { id: true, accessToken: true, refreshToken: true, tokenExpiresAt: true, scopes: true },
   });
