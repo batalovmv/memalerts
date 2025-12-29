@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -45,19 +45,34 @@ export default function Search() {
     // For simplicity, we'll extract unique tags from search results
   }, []);
 
+  const searchParamsString = searchParams.toString();
+
+  const buildSearchParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (debouncedQuery) params.append('q', debouncedQuery);
+    if (selectedTags.length > 0) params.append('tags', selectedTags.join(','));
+    if (filters.minPrice) params.append('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
+    params.append('sortBy', filters.sortBy);
+    params.append('sortOrder', filters.sortOrder);
+    params.append('limit', '50');
+    return params;
+  }, [debouncedQuery, filters, selectedTags]);
+
+  // Keep URL in sync with current search inputs without triggering duplicate searches.
+  // (Updating search params can change hook identities / cause rerenders.)
+  useEffect(() => {
+    const params = buildSearchParams();
+    const next = params.toString();
+    if (next === searchParamsString) return;
+    setSearchParams(params, { replace: true });
+  }, [buildSearchParams, searchParamsString, setSearchParams]);
+
   // Perform search
   const performSearch = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (debouncedQuery) params.append('q', debouncedQuery);
-      if (selectedTags.length > 0) params.append('tags', selectedTags.join(','));
-      if (filters.minPrice) params.append('minPrice', filters.minPrice);
-      if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
-      params.append('sortBy', filters.sortBy);
-      params.append('sortOrder', filters.sortOrder);
-      params.append('limit', '50');
-
+      const params = buildSearchParams();
       const memes = await api.get<Meme[]>(`/channels/memes/search?${params.toString()}`);
       setMemes(memes);
 
@@ -71,9 +86,6 @@ export default function Search() {
         });
       });
       setAvailableTags(Array.from(allTags.values()));
-
-      // Update URL without spamming history while typing/filtering.
-      setSearchParams(params, { replace: true });
     } catch (error: unknown) {
       // On failures, show empty state instead of stale results.
       setMemes([]);
@@ -81,7 +93,7 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery, selectedTags, filters, setSearchParams]);
+  }, [buildSearchParams]);
 
   useEffect(() => {
     performSearch();
