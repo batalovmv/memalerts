@@ -481,6 +481,8 @@ model User {
   oauthStates                 OAuthState[]
   youTubeChatBotSubscriptions YouTubeChatBotSubscription[]
   vkVideoChatBotSubscriptions VkVideoChatBotSubscription[]
+  trovoChatBotSubscriptions   TrovoChatBotSubscription[]
+  kickChatBotSubscriptions    KickChatBotSubscription[]
   wallets                     Wallet[]
   memesCreated                Meme[]                       @relation("CreatedBy")
   memesApproved               Meme[]                       @relation("ApprovedBy")
