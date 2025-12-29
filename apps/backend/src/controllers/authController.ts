@@ -1194,7 +1194,11 @@ export const authController = {
       // - Sending chat messages is done by a shared MemAlerts bot account (server-side token).
       //
       // Therefore for user linking we request ONLY read scope:
-      const scopes = ['https://www.googleapis.com/auth/youtube.readonly'];
+      //
+      // IMPORTANT: we also include `openid` to reliably get a stable Google account id ("sub")
+      // in the callback (via id_token/tokeninfo). Without it, Google may omit `sub`, causing
+      // the callback to fail with reason=no_user even though consent succeeded.
+      const scopes = ['https://www.googleapis.com/auth/youtube.readonly', 'openid'];
       authUrl = getYouTubeAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,
