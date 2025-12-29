@@ -10,6 +10,11 @@ function isDebugCsrfEnabled(): boolean {
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
+function isFetchMetadataSameSite(req: Request): boolean {
+  const v = String(req.get('sec-fetch-site') || '').trim().toLowerCase();
+  return v === 'same-origin' || v === 'same-site';
+}
+
 function normalizeOrigin(input: string | undefined | null): string | null {
   const raw = String(input ?? '').trim();
   if (!raw) return null;
@@ -163,6 +168,13 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   // In development, we allow requests without origin (e.g., Postman, curl)
   if (!requestOrigin) {
     if (process.env.NODE_ENV === 'production') {
+      // UX hardening (minimal surface):
+      // Some browsers / proxies may omit Origin on same-site POSTs.
+      // Allow ONLY logout without Origin if browser fetch metadata proves same-site.
+      if (req.path === '/auth/logout' && isFetchMetadataSameSite(req)) {
+        return next();
+      }
+
       logger.warn('security.csrf.missing_origin', {
         requestId: (req as any).requestId,
         method: req.method,
@@ -172,6 +184,12 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
         errorCode: 'CSRF_INVALID',
         // Put the human-readable reason into `error` so errorResponseFormat doesn't hide it.
         error: 'CSRF protection: Origin header is required for state-changing operations',
+        details: {
+          reason: 'missing_origin',
+          secFetchSite: req.get('sec-fetch-site') || null,
+          originHeader: req.get('origin') || null,
+          refererHeader: req.get('referer') || null,
+        },
       });
     }
     // In development, allow requests without origin
@@ -221,6 +239,11 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
       errorCode: 'CSRF_INVALID',
       // Put the human-readable reason into `error` so errorResponseFormat doesn't hide it.
       error: 'CSRF protection: Request origin is not allowed',
+      details: {
+        reason: 'origin_not_allowed',
+        requestOrigin,
+        ...(isDebugCsrfEnabled() ? { allowedOrigins } : {}),
+      },
     });
   }
   

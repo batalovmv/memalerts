@@ -50,6 +50,19 @@ describe('POST /auth/logout: CSRF + beta-gate invariants', () => {
     expect(joined).toContain('token_beta=');
   });
 
+  it('production: allows logout without Origin when Sec-Fetch-Site indicates same-origin/same-site', async () => {
+    process.env.PORT = '3001';
+    process.env.DOMAIN = 'example.com';
+    process.env.WEB_URL = 'https://example.com';
+
+    const res = await request(makeApp())
+      .post('/auth/logout')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .send({});
+
+    expect(res.status).toBe(200);
+  });
+
   it('beta: logout is not blocked by beta-gate itself (still CSRF-protected)', async () => {
     process.env.PORT = '3002';
     process.env.DOMAIN = 'beta.example.com';
