@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
 
@@ -29,6 +29,60 @@ vi.mock('@/shared/lib/ensureMinDuration', () => ({
 }));
 
 describe('BotSettings (integration)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('does not revert YouTube integration toggle due to sessionStorage TTL cache', async () => {
+    const user = userEvent.setup();
+
+    // Simulate a recent cached /streamer/bots response (TTL=10s) with YouTube disabled.
+    sessionStorage.setItem(
+      'memalerts:botSettings:bots',
+      JSON.stringify({ at: Date.now(), items: [{ provider: 'youtube', enabled: false }, { provider: 'vkvideo', enabled: false }, { provider: 'twitch', enabled: false }] })
+    );
+
+    const me = makeStreamerUser({
+      role: 'streamer',
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
+      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' } as any],
+    });
+
+    server.use(
+      mockStreamerBotSubscription({ enabled: true }),
+      mockStreamerCustomBotEntitlement({ entitled: true }),
+      mockStreamerFollowGreetings({ followGreetingsEnabled: false, followGreetingTemplate: '' }),
+      mockStreamerBots([{ provider: 'youtube', enabled: false }, { provider: 'vkvideo', enabled: false }, { provider: 'twitch', enabled: false }]),
+      mockStreamerBotOverrideStatus('youtube', { enabled: false, updatedAt: null, externalAccountId: null, lockedBySubscription: false }),
+      http.options('*/streamer/bot/commands', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/streamer/bot/commands', () => HttpResponse.json({ items: [] })),
+      http.options('*/streamer/bot/stream-duration', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/streamer/bot/stream-duration', () =>
+        HttpResponse.json({ enabled: false, trigger: '!time', responseTemplate: '', breakCreditMinutes: 60, onlyWhenLive: false }),
+      ),
+      http.patch('*/streamer/bots/youtube', () => HttpResponse.json({ ok: true }))
+    );
+
+    renderWithProviders(<BotSettings />, {
+      route: '/settings/bot',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    await user.click(screen.getByRole('button', { name: /^youtube$/i }));
+
+    const checkbox = await screen.findByRole('checkbox', { name: /youtube bot enabled/i });
+    expect(checkbox).not.toBeChecked();
+
+    await user.click(checkbox);
+
+    await waitFor(() => expect(checkbox).toBeChecked());
+
+    const raw = sessionStorage.getItem('memalerts:botSettings:bots');
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(String(raw)) as { items?: Array<{ provider?: string; enabled?: boolean }> };
+    expect(parsed.items?.find((i) => i.provider === 'youtube')?.enabled).toBe(true);
+  });
+
   it('enables YouTube bot integration via PATCH /streamer/bots/youtube', async () => {
     const user = userEvent.setup();
 

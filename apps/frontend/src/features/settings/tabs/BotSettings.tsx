@@ -1251,6 +1251,7 @@ export function BotSettings() {
   const toggleBotIntegration = useCallback(
     async (provider: 'youtube', nextEnabled: boolean) => {
       const startedAt = Date.now();
+      let optimisticItems: StreamerBotIntegration[] | null = null;
       try {
         setBotIntegrationToggleLoading(provider);
         if (provider === 'youtube' && !nextEnabled) {
@@ -1259,11 +1260,23 @@ export function BotSettings() {
           setYoutubeLastRelinkErrorId(null);
         }
         // optimistic
-        setBots((prev) => prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b)));
+        setBots((prev) => {
+          const next = prev.map((b) => (b.provider === provider ? { ...b, enabled: nextEnabled } : b));
+          optimisticItems = next;
+          return next;
+        });
 
         const { api } = await import('@/lib/api');
         await api.patch(`/streamer/bots/${encodeURIComponent(provider)}`, { enabled: nextEnabled });
         toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+        // Keep sessionStorage cache in sync to avoid flaky UI after reload (TTL-based cache).
+        try {
+          if (optimisticItems) {
+            sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
+          }
+        } catch {
+          // ignore cache write
+        }
         // best-effort refresh (updatedAt may change)
         void loadBotIntegrations();
       } catch (error: unknown) {
@@ -1310,26 +1323,49 @@ export function BotSettings() {
   const toggleVkvideoIntegration = useCallback(
     async (nextEnabled: boolean) => {
       const startedAt = Date.now();
+      let optimisticItems: StreamerBotIntegration[] | null = null;
       try {
         setBotIntegrationToggleLoading('vkvideo');
         const { api } = await import('@/lib/api');
 
         if (!nextEnabled) {
           // optimistic
-          setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: false } : b)));
+          setBots((prev) => {
+            const next = prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: false } : b));
+            optimisticItems = next;
+            return next;
+          });
           await api.patch('/streamer/bots/vkvideo', { enabled: false });
           setVkvideoNotAvailable(false);
           toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+          try {
+            if (optimisticItems) {
+              sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
+            }
+          } catch {
+            // ignore cache write
+          }
           void loadBotIntegrations();
           return;
         }
 
         // enabling (automated backend flow)
-        setBots((prev) => prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b)));
+        setBots((prev) => {
+          const next = prev.map((b) => (b.provider === 'vkvideo' ? { ...b, enabled: true } : b));
+          optimisticItems = next;
+          return next;
+        });
         await api.patch('/streamer/bots/vkvideo', { enabled: true });
 
         setVkvideoNotAvailable(false);
         toast.success(t('admin.saved', { defaultValue: 'Saved.' }));
+        try {
+          if (optimisticItems) {
+            sessionStorage.setItem('memalerts:botSettings:bots', JSON.stringify({ at: Date.now(), items: optimisticItems }));
+          }
+        } catch {
+          // ignore cache write
+        }
         void loadBotIntegrations();
       } catch (error: unknown) {
         void loadBotIntegrations();
@@ -1383,6 +1419,12 @@ export function BotSettings() {
       const { api } = await import('@/lib/api');
       await api.post(nextEnabled ? '/streamer/bot/enable' : '/streamer/bot/disable');
       setBotEnabled(nextEnabled);
+      // Keep sessionStorage cache in sync to avoid flaky UI after reload (TTL-based cache).
+      try {
+        sessionStorage.setItem('memalerts:botSettings:subscription', JSON.stringify({ at: Date.now(), enabled: nextEnabled }));
+      } catch {
+        // ignore cache write
+      }
       toast.success(nextEnabled ? t('admin.botEnabled', { defaultValue: 'Bot enabled.' }) : t('admin.botDisabled', { defaultValue: 'Bot disabled.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { status?: number; data?: { error?: string; message?: string; errorCode?: string } } };
