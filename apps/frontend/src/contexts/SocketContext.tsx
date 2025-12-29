@@ -23,7 +23,7 @@ interface SocketProviderProps {
 }
 
 export function SocketProvider({ children }: SocketProviderProps) {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, loading } = useAppSelector((state) => state.auth);
   const userId = user?.id;
   const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
@@ -106,10 +106,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
   };
 
   useEffect(() => {
-    // Don't create socket if user is not loaded yet (user === null means still loading)
-    // Only create socket when user is explicitly undefined (logged out) or when user exists
-    if (user === null) {
-      // User is still loading, don't create socket yet
+    // Don't create/disconnect socket while auth is loading.
+    if (loading) {
       return;
     }
 
@@ -209,7 +207,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       // Socket will be cleaned up when app unmounts or user logs out
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user === null ? 'loading' : user ? 'authenticated' : 'unauthenticated']); // More specific dependencies
+  }, [loading, user?.id, user ? 'authenticated' : 'unauthenticated']); // More specific dependencies
 
   // Global wallet updates: keep Redux in sync everywhere (dashboard, settings, profile, etc.)
   useEffect(() => {
