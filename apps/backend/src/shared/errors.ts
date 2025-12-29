@@ -11,6 +11,16 @@ export const ERROR_CODES = {
   CONFLICT: 'CONFLICT',
   TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
   ALREADY_IN_CHANNEL: 'ALREADY_IN_CHANNEL',
+  // Bots / integrations (streamer panel contract)
+  MISSING_CHANNEL_ID: 'MISSING_CHANNEL_ID',
+  TWITCH_BOT_NOT_CONFIGURED: 'TWITCH_BOT_NOT_CONFIGURED',
+  YOUTUBE_RELINK_REQUIRED: 'YOUTUBE_RELINK_REQUIRED',
+  YOUTUBE_CHANNEL_REQUIRED: 'YOUTUBE_CHANNEL_REQUIRED',
+  YOUTUBE_API_NOT_CONFIGURED: 'YOUTUBE_API_NOT_CONFIGURED',
+  YOUTUBE_API_QUOTA: 'YOUTUBE_API_QUOTA',
+  YOUTUBE_BOT_NOT_CONFIGURED: 'YOUTUBE_BOT_NOT_CONFIGURED',
+  YOUTUBE_ENABLE_FAILED: 'YOUTUBE_ENABLE_FAILED',
+  VKVIDEO_BOT_NOT_CONFIGURED: 'VKVIDEO_BOT_NOT_CONFIGURED',
   // Submissions / uploads
   SUBMISSIONS_DISABLED: 'SUBMISSIONS_DISABLED',
   SUBMISSIONS_OFFLINE: 'SUBMISSIONS_OFFLINE',
@@ -69,6 +79,15 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   CONFLICT: 'Conflict',
   TOO_MANY_REQUESTS: 'Too many requests',
   ALREADY_IN_CHANNEL: 'This meme is already in your channel',
+  MISSING_CHANNEL_ID: 'Missing channelId',
+  TWITCH_BOT_NOT_CONFIGURED: 'Twitch bot is not configured',
+  YOUTUBE_RELINK_REQUIRED: 'YouTube re-link required',
+  YOUTUBE_CHANNEL_REQUIRED: 'YouTube channel required',
+  YOUTUBE_API_NOT_CONFIGURED: 'YouTube API is not configured',
+  YOUTUBE_API_QUOTA: 'YouTube API quota exceeded',
+  YOUTUBE_BOT_NOT_CONFIGURED: 'YouTube bot is not configured',
+  YOUTUBE_ENABLE_FAILED: 'Failed to enable YouTube bot',
+  VKVIDEO_BOT_NOT_CONFIGURED: 'VKVideo bot is not configured',
   SUBMISSIONS_DISABLED: 'Submissions are disabled for this channel',
   SUBMISSIONS_OFFLINE: 'Submissions are allowed only while the stream is live',
   SUBMISSION_NOT_FOUND: 'Submission not found',
@@ -127,6 +146,9 @@ export function defaultErrorCodeForStatus(status: number): ErrorCode {
   if (status === 408) return ERROR_CODES.TIMEOUT;
   if (status === 409) return ERROR_CODES.CONFLICT;
   if (status === 410) return ERROR_CODES.MEDIA_NOT_AVAILABLE;
+  // Precondition Failed: treat as a client-side / contract issue by default.
+  // (Some endpoints use 412 for "relink required".)
+  if (status === 412) return ERROR_CODES.BAD_REQUEST;
   if (status === 413) return ERROR_CODES.FILE_TOO_LARGE;
   if (status === 429) return ERROR_CODES.RATE_LIMITED;
   if (status === 502) return ERROR_CODES.UPLOAD_FAILED;

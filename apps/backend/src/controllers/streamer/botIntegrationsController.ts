@@ -46,7 +46,13 @@ function sanitizeRedirectTo(input: unknown): string {
 function requireChannelId(req: AuthRequest, res: Response): string | null {
   const channelId = String(req.channelId || '').trim();
   if (!channelId) {
-    res.status(400).json({ error: 'Bad Request', message: 'Missing channelId' });
+    res.status(400).json({
+      errorCode: 'MISSING_CHANNEL_ID',
+      error: 'Missing channelId',
+      details: {
+        hint: 'Your auth token has no channelId. Re-login as streamer (or select channel) and retry.',
+      },
+    });
     return null;
   }
   return channelId;
@@ -437,10 +443,30 @@ export const botIntegrationsController = {
       });
     }
     const provider = normalizeProvider(rawProvider);
-    if (!provider) return res.status(400).json({ error: 'Bad Request', message: `provider must be one of: ${PROVIDERS.join(', ')}` });
+    if (!provider) {
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        error: `provider must be one of: ${PROVIDERS.join(', ')}`,
+        details: { provider: rawProvider, allowed: PROVIDERS },
+      });
+    }
 
     const enabled = (req.body as any)?.enabled;
-    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'Bad Request', message: 'enabled must be boolean' });
+    if (typeof enabled !== 'boolean') {
+      const contentType = String(req.get('content-type') || '');
+      const hint = contentType.toLowerCase().includes('application/json')
+        ? null
+        : 'Check request headers: Content-Type must be application/json';
+      return res.status(400).json({
+        errorCode: 'VALIDATION_ERROR',
+        error: 'enabled must be boolean',
+        details: {
+          field: 'enabled',
+          receivedType: typeof enabled,
+          hint,
+        },
+      });
+    }
 
     try {
       const customBotEntitled = await hasChannelEntitlement(channelId, 'custom_bot');
@@ -481,12 +507,9 @@ export const botIntegrationsController = {
         // Without entitlement, per-channel override MUST NOT be considered a valid sender.
         if (hasOverride && !customBotEntitled) hasOverride = false;
         if (!hasGlobal && !hasOverride) {
-          if (req.requestId) res.setHeader('x-request-id', req.requestId);
           return res.status(503).json({
-            error: 'Service Unavailable',
-            code: 'TWITCH_BOT_NOT_CONFIGURED',
-            requestId: req.requestId,
-            message: 'Twitch bot is not configured (missing global bot credential and no per-channel bot override).',
+            errorCode: 'TWITCH_BOT_NOT_CONFIGURED',
+            error: 'Twitch bot is not configured (missing global bot credential and no per-channel bot override).',
           });
         }
 
@@ -546,9 +569,6 @@ export const botIntegrationsController = {
             tokeninfoError: tokenInfo?.error ?? null,
             tokeninfoErrorDescription: tokenInfo?.error_description ?? null,
           });
-          // Ensure frontend can show/copy the requestId.
-          if (req.requestId) res.setHeader('x-request-id', req.requestId);
-
           const reason = diag.reason || 'failed_to_resolve_channel_id';
           const msgByReason: Record<string, string> = {
             missing_scopes: 'YouTube is linked without required permissions. Please re-link YouTube and grant the requested access.',
@@ -568,52 +588,44 @@ export const botIntegrationsController = {
 
           if (relinkReasons.has(reason)) {
             return res.status(412).json({
-              error: 'Precondition Failed',
-              code: 'YOUTUBE_RELINK_REQUIRED',
-              needsRelink: true,
-              requestId: req.requestId,
-              reason,
-              requiredScopesMissing: diag.requiredScopesMissing,
-              message: msgByReason[reason] || 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
+              errorCode: 'YOUTUBE_RELINK_REQUIRED',
+              error: msgByReason[reason] || 'Failed to resolve YouTube channelId. Please re-link YouTube with required scopes and try again.',
+              details: {
+                needsRelink: true,
+                reason,
+                requiredScopesMissing: diag.requiredScopesMissing,
+              },
             });
           }
 
           if (reason === 'api_youtube_signup_required') {
             return res.status(409).json({
-              error: 'Conflict',
-              code: 'YOUTUBE_CHANNEL_REQUIRED',
-              requestId: req.requestId,
-              reason,
-              message: 'Your Google account has no YouTube channel. Please create/activate a YouTube channel and try again.',
+              errorCode: 'YOUTUBE_CHANNEL_REQUIRED',
+              error: 'Your Google account has no YouTube channel. Please create/activate a YouTube channel and try again.',
+              details: { reason },
             });
           }
 
           if (reason === 'api_access_not_configured') {
             return res.status(503).json({
-              error: 'Service Unavailable',
-              code: 'YOUTUBE_API_NOT_CONFIGURED',
-              requestId: req.requestId,
-              reason,
-              message: 'YouTube Data API is not configured for this application. Please contact support.',
+              errorCode: 'YOUTUBE_API_NOT_CONFIGURED',
+              error: 'YouTube Data API is not configured for this application. Please contact support.',
+              details: { reason },
             });
           }
 
           if (reason === 'api_quota') {
             return res.status(503).json({
-              error: 'Service Unavailable',
-              code: 'YOUTUBE_API_QUOTA',
-              requestId: req.requestId,
-              reason,
-              message: 'YouTube API quota exceeded. Please try again later.',
+              errorCode: 'YOUTUBE_API_QUOTA',
+              error: 'YouTube API quota exceeded. Please try again later.',
+              details: { reason },
             });
           }
 
           return res.status(400).json({
-            error: 'Bad Request',
-            code: 'YOUTUBE_ENABLE_FAILED',
-            requestId: req.requestId,
-            reason,
-            message: 'Failed to enable YouTube bot. Please try again or contact support.',
+            errorCode: 'YOUTUBE_ENABLE_FAILED',
+            error: 'Failed to enable YouTube bot. Please try again or contact support.',
+            details: { reason },
           });
         }
 
@@ -635,12 +647,9 @@ export const botIntegrationsController = {
         if (hasOverride && !customBotEntitled) hasOverride = false;
 
         if (!botAccessToken && !hasOverride) {
-          if (req.requestId) res.setHeader('x-request-id', req.requestId);
           return res.status(503).json({
-            error: 'Service Unavailable',
-            code: 'YOUTUBE_BOT_NOT_CONFIGURED',
-            requestId: req.requestId,
-            message: 'YouTube bot is not configured (missing global bot credential/token and no per-channel bot override).',
+            errorCode: 'YOUTUBE_BOT_NOT_CONFIGURED',
+            error: 'YouTube bot is not configured (missing global bot credential/token and no per-channel bot override).',
           });
         }
       }
@@ -692,13 +701,10 @@ export const botIntegrationsController = {
           if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
           if (!youtubeChannelId) {
             // Defensive: should not happen because precondition handles it.
-            if (req.requestId) res.setHeader('x-request-id', req.requestId);
             return res.status(412).json({
-              error: 'Precondition Failed',
-              code: 'YOUTUBE_RELINK_REQUIRED',
-              needsRelink: true,
-              requestId: req.requestId,
-              message: 'Failed to resolve YouTube channelId. Please re-link YouTube and try again.',
+              errorCode: 'YOUTUBE_RELINK_REQUIRED',
+              error: 'Failed to resolve YouTube channelId. Please re-link YouTube and try again.',
+              details: { needsRelink: true },
             });
           }
           await (prisma as any).youTubeChatBotSubscription.upsert({
@@ -736,12 +742,9 @@ export const botIntegrationsController = {
           }
           if (hasOverride && !customBotEntitled) hasOverride = false;
           if (!botAccessToken && !hasOverride) {
-            if (req.requestId) res.setHeader('x-request-id', req.requestId);
             return res.status(503).json({
-              error: 'Service Unavailable',
-              code: 'VKVIDEO_BOT_NOT_CONFIGURED',
-              requestId: req.requestId,
-              message: 'VKVideo bot is not configured (missing global bot credential and no per-channel bot override).',
+              errorCode: 'VKVIDEO_BOT_NOT_CONFIGURED',
+              error: 'VKVideo bot is not configured (missing global bot credential and no per-channel bot override).',
             });
           }
 
