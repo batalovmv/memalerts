@@ -16,6 +16,7 @@ import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } fr
 import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
 import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/providers/vk.js';
 import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
+import { fetchVkVideoCurrentUser } from '../utils/vkvideoApi.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
 import { ERROR_CODES } from '../shared/errors.js';
@@ -556,6 +557,51 @@ export const authController = {
         login = vkVideoUser?.login || null;
         avatarUrl = vkVideoUser?.avatarUrl || null;
         profileUrl = vkVideoUser?.profileUrl || null;
+
+        // Best-effort: enrich VKVideo identity via DevAPI current_user (fills channel slug/url).
+        // This keeps /me cheap and ensures titles can be rendered without extra runtime fetches.
+        try {
+          const normalizeProfileUrl = (raw: string | null | undefined): { slug: string | null; url: string | null } => {
+            const s = String(raw || '').trim();
+            if (!s) return { slug: null, url: null };
+            if (/^https?:\/\//i.test(s)) {
+              try {
+                const u = new URL(s);
+                const parts = u.pathname.split('/').map((p) => p.trim()).filter(Boolean);
+                const last = parts[parts.length - 1] || '';
+                return { slug: last ? decodeURIComponent(last) : null, url: s };
+              } catch {
+                return { slug: null, url: s };
+              }
+            }
+            const slug = s.replace(/^\/+/, '').replace(/^@/, '').trim();
+            return { slug: slug || null, url: slug ? `https://live.vkvideo.ru/${slug}` : null };
+          };
+
+          const currentUser = await fetchVkVideoCurrentUser({ accessToken });
+          if (currentUser.ok) {
+            const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
+            const u = (root as any)?.user ?? (root as any)?.profile ?? root ?? null;
+            const channelUrlRaw =
+              String((root as any)?.channel?.url || (u as any)?.channel?.url || (u as any)?.url || '').trim() || null;
+            const normalized = normalizeProfileUrl(channelUrlRaw);
+
+            if (!profileUrl && normalized.url) profileUrl = normalized.url;
+            if (!login && normalized.slug) login = normalized.slug;
+
+            const nameFromParts = String([u?.first_name, u?.last_name].filter(Boolean).join(' ')).trim() || null;
+            const name =
+              String(u?.display_name ?? u?.displayName ?? u?.name ?? u?.full_name ?? u?.nickname ?? u?.username ?? '').trim() ||
+              nameFromParts ||
+              null;
+            if (!displayName && name) displayName = name;
+          }
+        } catch {
+          // ignore
+        }
+
+        // Final fallback: for titles, prefer a stable non-null label.
+        if (!displayName && login) displayName = login;
       } else {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=provider_not_supported&provider=${provider}`);
