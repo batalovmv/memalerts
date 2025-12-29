@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 
 import { api } from '../lib/api';
 import { useAppSelector } from '../store/hooks';
@@ -160,18 +160,19 @@ export function ChannelColorsProvider({ children }: { children: ReactNode }) {
   // Note: Colors are no longer applied globally here.
   // They are applied only on public channel pages via ChannelThemeProvider.
 
-  return (
-    <ChannelColorsContext.Provider value={{ 
-      colors, 
+  const value = useMemo(
+    () => ({
+      colors,
       channelData,
-      isLoading, 
+      isLoading,
       refreshColors: fetchChannelColors,
       getChannelData,
-      getCachedChannelData
-    }}>
-      {children}
-    </ChannelColorsContext.Provider>
+      getCachedChannelData,
+    }),
+    [colors, channelData, isLoading, fetchChannelColors, getChannelData, getCachedChannelData],
   );
+
+  return <ChannelColorsContext.Provider value={value}>{children}</ChannelColorsContext.Provider>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

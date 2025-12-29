@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 
 import { getUserPreferences, patchUserPreferences, type ThemePreference } from '@/shared/lib/userPreferences';
 import { useAppSelector } from '@/store/hooks';
@@ -62,17 +62,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [userId]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => {
       const next = prev === 'light' ? 'dark' : 'light';
       // Best-effort persist to backend (if available).
       if (user) void patchUserPreferences({ theme: next });
       return next;
     });
-  };
+  }, [user]);
+
+  const value = useMemo(() => ({ theme, toggleTheme }), [theme, toggleTheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

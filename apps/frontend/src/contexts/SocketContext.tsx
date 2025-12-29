@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 import { getRuntimeConfig } from '../lib/runtimeConfig';
@@ -27,6 +27,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const userId = user?.id;
   const dispatch = useAppDispatch();
   const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const attemptedPollingFallbackRef = useRef(false);
 
@@ -117,6 +118,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
+        setSocket(null);
         setIsConnected(false);
       }
       return;
@@ -142,6 +144,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         });
 
         socketRef.current = s;
+        setSocket(s);
 
         s.on('connect', () => {
           setIsConnected(true);
@@ -225,8 +228,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
     };
   }, [dispatch, isConnected, userId]);
 
+  const value = useMemo(() => ({ socket, isConnected }), [socket, isConnected]);
+
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
+    <SocketContext.Provider value={value}>
       {children}
     </SocketContext.Provider>
   );
