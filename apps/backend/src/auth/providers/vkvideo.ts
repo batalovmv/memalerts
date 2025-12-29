@@ -173,17 +173,43 @@ export async function fetchVkVideoUser(params: {
   }
 
   const displayName =
-    String(userRoot?.display_name ?? userRoot?.displayName ?? userRoot?.name ?? userRoot?.username ?? '').trim() ||
+    String(
+      userRoot?.display_name ??
+        userRoot?.displayName ??
+        userRoot?.name ??
+        userRoot?.full_name ??
+        userRoot?.nickname ??
+        userRoot?.nick ??
+        userRoot?.username ??
+        userRoot?.user_name ??
+        ''
+    ).trim() ||
     null;
+  // If provider returns split name fields, join them (best-effort).
+  const displayNameFromParts =
+    String([userRoot?.first_name, userRoot?.last_name].filter(Boolean).join(' ')).trim() || null;
   const login =
-    String(userRoot?.login ?? userRoot?.screen_name ?? userRoot?.email ?? userRoot?.username ?? '').trim() || null;
+    String(
+      userRoot?.login ??
+        userRoot?.screen_name ??
+        userRoot?.screenName ??
+        userRoot?.email ??
+        userRoot?.username ??
+        userRoot?.user_name ??
+        userRoot?.nickname ??
+        ''
+    ).trim() || null;
   const avatarUrl =
     String(userRoot?.avatar_url ?? userRoot?.avatarUrl ?? userRoot?.photo_200 ?? userRoot?.picture ?? '').trim() ||
     null;
-  const profileUrl = String(userRoot?.profile_url ?? userRoot?.profileUrl ?? '').trim() || null;
+  const profileUrl = String(userRoot?.profile_url ?? userRoot?.profileUrl ?? userRoot?.url ?? '').trim() || null;
 
   debugLog('vkvideo.user.fetch', { status: resp.status, hasUser: true, id });
-  return { status: resp.status, user: { id, displayName, login, avatarUrl, profileUrl }, raw: data };
+  return {
+    status: resp.status,
+    user: { id, displayName: displayName ?? displayNameFromParts, login, avatarUrl, profileUrl },
+    raw: data,
+  };
 }
 
 

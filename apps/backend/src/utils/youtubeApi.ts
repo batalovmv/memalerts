@@ -413,6 +413,45 @@ export async function fetchMyYouTubeChannelIdByAccessToken(accessToken: string):
   }
 }
 
+export async function fetchMyYouTubeChannelProfileByAccessToken(accessToken: string): Promise<{
+  channelId: string | null;
+  title: string | null;
+  avatarUrl: string | null;
+} | null> {
+  const token = String(accessToken || '').trim();
+  if (!token) return null;
+
+  type Resp = {
+    items?: Array<{
+      id?: string;
+      snippet?: {
+        title?: string;
+        thumbnails?: Record<string, { url?: string }>;
+      };
+    }>;
+  };
+
+  const url = new URL('https://www.googleapis.com/youtube/v3/channels');
+  url.searchParams.set('part', 'snippet');
+  url.searchParams.set('mine', 'true');
+
+  try {
+    const data = await youtubeGetJson<Resp>({ accessToken: token, url: url.toString() });
+    const item = data?.items?.[0] ?? null;
+    const channelId = String(item?.id || '').trim() || null;
+    const title = (item?.snippet?.title ? String(item.snippet.title) : '').trim() || null;
+    const thumbs = item?.snippet?.thumbnails ?? null;
+    const avatarUrl =
+      (thumbs?.high?.url ? String(thumbs.high.url) : '').trim() ||
+      (thumbs?.medium?.url ? String(thumbs.medium.url) : '').trim() ||
+      (thumbs?.default?.url ? String(thumbs.default.url) : '').trim() ||
+      null;
+    return { channelId, title, avatarUrl };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMyYouTubeChannelId(userId: string): Promise<string | null> {
   const detailed = await fetchMyYouTubeChannelIdDetailed(userId);
   return detailed.channelId;

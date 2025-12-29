@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { logAuthEvent } from '../utils/auditLogger.js';
 import { debugLog, debugError } from '../utils/debug.js';
 import { logger } from '../utils/logger.js';
-import { fetchMyYouTubeChannelIdByAccessToken } from '../utils/youtubeApi.js';
+import { fetchMyYouTubeChannelIdByAccessToken, fetchMyYouTubeChannelProfileByAccessToken } from '../utils/youtubeApi.js';
 import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
 import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
@@ -737,15 +737,18 @@ export const authController = {
         // This is safe for streamer linking because we don't use email login for YouTube anyway.
         if (provider === 'youtube' && accessToken) {
           try {
-            const channelId = await fetchMyYouTubeChannelIdByAccessToken(accessToken);
+            const profile = await fetchMyYouTubeChannelProfileByAccessToken(accessToken);
+            const channelId = profile?.channelId || (await fetchMyYouTubeChannelIdByAccessToken(accessToken));
             if (channelId) {
-              await tx.externalAccount.update({
-                where: { id: upserted.id },
-                data: {
-                  login: channelId,
-                  profileUrl: `https://www.youtube.com/channel/${channelId}`,
-                },
-              });
+              const data: any = {
+                login: channelId,
+                profileUrl: `https://www.youtube.com/channel/${channelId}`,
+              };
+              // For readonly linking we intentionally avoid OIDC profile scopes; use channel snippet instead.
+              if (profile?.title) data.displayName = profile.title;
+              if (profile?.avatarUrl) data.avatarUrl = profile.avatarUrl;
+
+              await tx.externalAccount.update({ where: { id: upserted.id }, data });
             }
           } catch {
             // ignore
@@ -1363,10 +1366,29 @@ export const authController = {
         twitch: 'Use DELETE /owner/bots/twitch/default (global) or DELETE /streamer/bots/twitch/bot (per-channel override).',
         vkvideo: 'Use DELETE /owner/bots/vkvideo/default (global) or DELETE /streamer/bots/vkvideo/bot (per-channel override).',
       };
+
+      const isGlobal =
+        Boolean((row as any).globalYouTubeBotCredential?.id) ||
+        Boolean((row as any).globalVkVideoBotCredential?.id) ||
+        Boolean((row as any).globalTwitchBotCredential?.id);
+      const kind = isGlobal ? 'global_bot_credential' : 'channel_bot_credential';
+      const unlinkEndpoint =
+        provider === 'youtube'
+          ? (isGlobal ? 'DELETE /owner/bots/youtube/default' : 'DELETE /streamer/bots/youtube/bot')
+          : provider === 'twitch'
+            ? (isGlobal ? 'DELETE /owner/bots/twitch/default' : 'DELETE /streamer/bots/twitch/bot')
+            : provider === 'vkvideo'
+              ? (isGlobal ? 'DELETE /owner/bots/vkvideo/default' : 'DELETE /streamer/bots/vkvideo/bot')
+              : null;
       return res.status(409).json({
         errorCode: 'CONFLICT',
         error: 'This account is used as a bot credential and cannot be unlinked via /auth/accounts',
-        details: { hint: hintByProvider[provider] ?? null },
+        details: {
+          kind,
+          provider,
+          unlinkEndpoint,
+          hint: hintByProvider[provider] ?? null,
+        },
       });
     }
 
