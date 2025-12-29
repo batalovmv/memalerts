@@ -32,8 +32,8 @@ function normalize(raw: unknown): UserPreferences {
  * Backend-first user preferences.
  *
  * Expected API (to be implemented in backend):
- * - GET /me/preferences -> UserPreferences
- * - PATCH /me/preferences (partial) -> UserPreferences
+ * - GET /api/me/preferences -> UserPreferences
+ * - PATCH /api/me/preferences (partial) -> UserPreferences
  *
  * We intentionally degrade gracefully:
  * - 401/403/404 -> returns null (caller can fall back to localStorage defaults)
@@ -44,7 +44,7 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
 
   inFlight = (async () => {
     try {
-      const res = await api.get<UserPreferences>('/me/preferences', { timeout: 8000 });
+      const res = await api.get<UserPreferences>('/api/me/preferences', { timeout: 8000 });
       cached = normalize(res);
       return cached;
     } catch (e: unknown) {
@@ -70,7 +70,7 @@ export async function patchUserPreferences(patch: Partial<UserPreferences>): Pro
     } catch {
       // ignore
     }
-    const res = await api.patch<UserPreferences>('/me/preferences', patch, { timeout: 8000 });
+    const res = await api.patch<UserPreferences>('/api/me/preferences', patch, { timeout: 8000 });
     cached = normalize(res);
     return cached;
   } catch (e: unknown) {
