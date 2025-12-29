@@ -232,6 +232,15 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
 
+      # DANGEROUS (nuclear): rewrites nginx config and removes other site configs.
+      # Run only when explicitly requested via commit message marker.
+      - name: Setup nginx full (optional; requires [nginx-full])
+        if: steps.decide.outputs.deploy == 'true' && contains(github.event.head_commit.message, '[nginx-full]')
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo bash .github/scripts/setup-nginx-full.sh twitchmemes.ru 3001 3002
+
       - name: Deploy beta (build + migrate + restart)
         shell: bash
         if: steps.decide.outputs.deploy == 'true'
