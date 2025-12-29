@@ -46,7 +46,10 @@ const getAllowedOrigins = () => {
   const origins: string[] = [];
   
   // Check if this is a beta instance (by checking DOMAIN or PORT)
-  const isBetaInstance = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
+  const isBetaInstance =
+    process.env.DOMAIN?.includes('beta.') ||
+    process.env.PORT === '3002' ||
+    String(process.env.INSTANCE || '').toLowerCase() === 'beta';
   
   if (process.env.WEB_URL) {
     // Only add WEB_URL if it matches the instance type (beta or production)

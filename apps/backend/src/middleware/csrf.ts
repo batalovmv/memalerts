@@ -32,7 +32,10 @@ function getAllowedOrigins(): string[] {
   const origins = new Set<string>();
   
   // Check if this is a beta instance
-  const isBetaInstance = process.env.DOMAIN?.includes('beta.') || process.env.PORT === '3002';
+  const isBetaInstance =
+    process.env.DOMAIN?.includes('beta.') ||
+    process.env.PORT === '3002' ||
+    String(process.env.INSTANCE || '').toLowerCase() === 'beta';
   
   if (process.env.WEB_URL) {
     const webUrlNormalized = normalizeOrigin(process.env.WEB_URL);
@@ -167,8 +170,8 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
       });
       return res.status(403).json({
         errorCode: 'CSRF_INVALID',
-        error: 'CSRF validation failed',
-        message: 'CSRF protection: Origin header is required for state-changing operations',
+        // Put the human-readable reason into `error` so errorResponseFormat doesn't hide it.
+        error: 'CSRF protection: Origin header is required for state-changing operations',
       });
     }
     // In development, allow requests without origin
@@ -216,8 +219,8 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
     
     return res.status(403).json({
       errorCode: 'CSRF_INVALID',
-      error: 'CSRF validation failed',
-      message: 'CSRF protection: Request origin is not allowed',
+      // Put the human-readable reason into `error` so errorResponseFormat doesn't hide it.
+      error: 'CSRF protection: Request origin is not allowed',
     });
   }
   
