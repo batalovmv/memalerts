@@ -625,7 +625,15 @@ export const botIntegrationsController = {
           return res.status(400).json({
             errorCode: 'YOUTUBE_ENABLE_FAILED',
             error: 'Failed to enable YouTube bot. Please try again or contact support.',
-            details: { reason },
+            details: {
+              reason,
+              httpStatus: diag.httpStatus,
+              youtubeErrorReason: diag.youtubeErrorReason,
+              youtubeErrorMessage: diag.youtubeErrorMessage,
+              googleError: diag.googleError,
+              googleErrorDescription: diag.googleErrorDescription,
+              requiredScopesMissing: diag.requiredScopesMissing,
+            },
           });
         }
 

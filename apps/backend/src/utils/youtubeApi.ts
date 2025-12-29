@@ -497,7 +497,9 @@ export async function fetchMyYouTubeChannelIdDetailed(userId: string): Promise<F
     return {
       ok: Boolean(id),
       channelId: id || null,
-      reason: id ? null : 'api_error',
+      // If mine=true returns empty items, the Google account typically has no YouTube channel.
+      // Map this to a specific, user-actionable reason for better UX in the streamer panel.
+      reason: id ? null : 'api_youtube_signup_required',
       httpStatus: null,
       googleError: null,
       googleErrorDescription: null,
