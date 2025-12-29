@@ -452,6 +452,28 @@ export async function fetchMyYouTubeChannelProfileByAccessToken(accessToken: str
   }
 }
 
+export async function fetchYouTubeChannelProfilePublicByChannelId(channelId: string): Promise<{ title: string | null; avatarUrl: string | null } | null> {
+  const id = String(channelId || '').trim();
+  if (!id) return null;
+
+  // Public oEmbed endpoint; no OAuth / API key required.
+  // Useful as a fallback when we already know the channelId (stored in ExternalAccount.login).
+  const url = new URL('https://www.youtube.com/oembed');
+  url.searchParams.set('url', `https://www.youtube.com/channel/${id}`);
+  url.searchParams.set('format', 'json');
+
+  try {
+    const resp = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    if (!resp.ok) return null;
+    const json = (await resp.json().catch(() => null)) as any;
+    const title = String(json?.title || '').trim() || null;
+    const avatarUrl = String(json?.thumbnail_url || '').trim() || null;
+    return { title, avatarUrl };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMyYouTubeChannelId(userId: string): Promise<string | null> {
   const detailed = await fetchMyYouTubeChannelIdDetailed(userId);
   return detailed.channelId;

@@ -2,7 +2,11 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { debugLog, debugError } from '../../utils/debug.js';
-import { fetchMyYouTubeChannelProfileByAccessToken, getValidYouTubeAccessTokenByExternalAccountId } from '../../utils/youtubeApi.js';
+import {
+  fetchMyYouTubeChannelProfileByAccessToken,
+  fetchYouTubeChannelProfilePublicByChannelId,
+  getValidYouTubeAccessTokenByExternalAccountId,
+} from '../../utils/youtubeApi.js';
 import { fetchVkVideoCurrentUser, getValidVkVideoAccessTokenByExternalAccountId } from '../../utils/vkvideoApi.js';
 
 function normalizeVkVideoProfileUrl(raw: string | null | undefined): string | null {
@@ -32,27 +36,50 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
       youTubeAttempts++;
       try {
         const token = await getValidYouTubeAccessTokenByExternalAccountId(String(a.id || ''));
-        if (!token) continue;
+        if (token) {
+          const profile = await fetchMyYouTubeChannelProfileByAccessToken(token);
+          const channelId = profile?.channelId || null;
+          if (channelId) {
+            const data: any = {};
+            if (!a.displayName && profile?.title) data.displayName = profile.title;
+            if (!a.avatarUrl && profile?.avatarUrl) data.avatarUrl = profile.avatarUrl;
+            if (!a.login) data.login = channelId;
+            if (!a.profileUrl) data.profileUrl = `https://www.youtube.com/channel/${channelId}`;
 
-        const profile = await fetchMyYouTubeChannelProfileByAccessToken(token);
-        const channelId = profile?.channelId || null;
-        if (!channelId) continue;
+            if (Object.keys(data).length) {
+              const row = await prisma.externalAccount.update({
+                where: { id: a.id },
+                data,
+                select: { displayName: true, login: true, avatarUrl: true, profileUrl: true, updatedAt: true },
+              });
+              updated[i] = { ...a, ...row };
+              debugLog('[DEBUG] getMe externalAccount backfilled (youtube)', { requestId, externalAccountId: a.id });
+              break; // success: don't try other YouTube rows
+            }
+          }
+        }
 
-        const data: any = {};
-        if (!a.displayName && profile?.title) data.displayName = profile.title;
-        if (!a.avatarUrl && profile?.avatarUrl) data.avatarUrl = profile.avatarUrl;
-        if (!a.login) data.login = channelId;
-        if (!a.profileUrl) data.profileUrl = `https://www.youtube.com/channel/${channelId}`;
+        // Public fallback: if we already have channelId in `login`, use oEmbed to get title + thumbnail without OAuth.
+        const existingChannelId = String(a?.login || '').trim();
+        if (existingChannelId && (!a.displayName || !a.avatarUrl)) {
+          const publicProfile = await fetchYouTubeChannelProfilePublicByChannelId(existingChannelId);
+          if (publicProfile) {
+            const data: any = {};
+            if (!a.displayName && publicProfile.title) data.displayName = publicProfile.title;
+            if (!a.avatarUrl && publicProfile.avatarUrl) data.avatarUrl = publicProfile.avatarUrl;
+            if (!a.profileUrl) data.profileUrl = `https://www.youtube.com/channel/${existingChannelId}`;
 
-        if (Object.keys(data).length) {
-          const row = await prisma.externalAccount.update({
-            where: { id: a.id },
-            data,
-            select: { displayName: true, login: true, avatarUrl: true, profileUrl: true, updatedAt: true },
-          });
-          updated[i] = { ...a, ...row };
-          debugLog('[DEBUG] getMe externalAccount backfilled (youtube)', { requestId, externalAccountId: a.id });
-          break; // success: don't try other YouTube rows
+            if (Object.keys(data).length) {
+              const row = await prisma.externalAccount.update({
+                where: { id: a.id },
+                data,
+                select: { displayName: true, login: true, avatarUrl: true, profileUrl: true, updatedAt: true },
+              });
+              updated[i] = { ...a, ...row };
+              debugLog('[DEBUG] getMe externalAccount backfilled (youtube, public)', { requestId, externalAccountId: a.id });
+              break;
+            }
+          }
         }
       } catch (e: any) {
         debugLog('[DEBUG] getMe externalAccount backfill failed (youtube)', { requestId, errorMessage: e?.message || String(e) });
@@ -87,6 +114,10 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
         if (!a.displayName && name) data.displayName = name;
         if (!a.login) data.login = login || channelSlug || null;
         if (!a.profileUrl && channelUrl) data.profileUrl = channelUrl;
+        if (!a.displayName && !data.displayName) {
+          const fallbackName = String(a?.login || data.login || channelSlug || '').trim();
+          if (fallbackName) data.displayName = fallbackName;
+        }
 
         if (Object.keys(data).length) {
           const row = await prisma.externalAccount.update({
