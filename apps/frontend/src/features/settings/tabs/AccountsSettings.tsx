@@ -179,63 +179,38 @@ export function AccountsSettings() {
   useEffect(() => {
     if (user?.role !== 'admin') return;
     let cancelled = false;
-    void (async () => {
-      try {
-        setDefaultTwitchBotLoading(true);
-        const res = await api.get<unknown>('/owner/bots/twitch/default/status', { timeout: 8000 });
-        const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
-        const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
-        const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
-        if (!cancelled) setDefaultTwitchBotStatus({ enabled, updatedAt });
-      } catch {
-        if (!cancelled) setDefaultTwitchBotStatus(null);
-      } finally {
-        if (!cancelled) setDefaultTwitchBotLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
+    const parse = (res: unknown): { enabled: boolean; updatedAt: string | null } => {
+      const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
+      const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
+      const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
+      return { enabled, updatedAt };
     };
-  }, [user?.role]);
 
-  useEffect(() => {
-    if (user?.role !== 'admin') return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        setDefaultYoutubeBotLoading(true);
-        const res = await api.get<unknown>('/owner/bots/youtube/default/status', { timeout: 8000 });
-        const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
-        const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
-        const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
-        if (!cancelled) setDefaultYoutubeBotStatus({ enabled, updatedAt });
-      } catch {
-        if (!cancelled) setDefaultYoutubeBotStatus(null);
-      } finally {
-        if (!cancelled) setDefaultYoutubeBotLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.role]);
+    setDefaultTwitchBotLoading(true);
+    setDefaultYoutubeBotLoading(true);
+    setDefaultVkvideoBotLoading(true);
 
-  useEffect(() => {
-    if (user?.role !== 'admin') return;
-    let cancelled = false;
     void (async () => {
-      try {
-        setDefaultVkvideoBotLoading(true);
-        const res = await api.get<unknown>('/owner/bots/vkvideo/default/status', { timeout: 8000 });
-        const enabled = Boolean((res as { enabled?: unknown } | null)?.enabled);
-        const updatedAtRaw = (res as { updatedAt?: unknown } | null)?.updatedAt;
-        const updatedAt = typeof updatedAtRaw === 'string' ? updatedAtRaw : null;
-        if (!cancelled) setDefaultVkvideoBotStatus({ enabled, updatedAt });
-      } catch {
-        if (!cancelled) setDefaultVkvideoBotStatus(null);
-      } finally {
-        if (!cancelled) setDefaultVkvideoBotLoading(false);
-      }
+      const [tw, yt, vk] = await Promise.allSettled([
+        api.get<unknown>('/owner/bots/twitch/default/status', { timeout: 8000 }),
+        api.get<unknown>('/owner/bots/youtube/default/status', { timeout: 8000 }),
+        api.get<unknown>('/owner/bots/vkvideo/default/status', { timeout: 8000 }),
+      ]);
+
+      if (cancelled) return;
+
+      if (tw.status === 'fulfilled') setDefaultTwitchBotStatus(parse(tw.value));
+      else setDefaultTwitchBotStatus(null);
+
+      if (yt.status === 'fulfilled') setDefaultYoutubeBotStatus(parse(yt.value));
+      else setDefaultYoutubeBotStatus(null);
+
+      if (vk.status === 'fulfilled') setDefaultVkvideoBotStatus(parse(vk.value));
+      else setDefaultVkvideoBotStatus(null);
+
+      setDefaultTwitchBotLoading(false);
+      setDefaultYoutubeBotLoading(false);
+      setDefaultVkvideoBotLoading(false);
     })();
     return () => {
       cancelled = true;

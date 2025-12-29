@@ -127,6 +127,8 @@ export function ObsLinksSettings() {
   const [previewPosSeed, setPreviewPosSeed] = useState<number>(1);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewSeedRef = useRef<number>(1);
+  const previewCacheRef = useRef(new Map<string, { at: number; memes: Array<{ fileUrl: string; type: string; title?: string }> }>());
+  const previewInFlightRef = useRef(new Map<string, Promise<Array<{ fileUrl: string; type: string; title?: string }>>>());
   const overlayReadyRef = useRef(false);
   const [obsUiMode, setObsUiMode] = useState<'basic' | 'pro'>('basic');
   const [previewLockPositions, setPreviewLockPositions] = useState(false);
@@ -1311,28 +1313,88 @@ export function ObsLinksSettings() {
 
   const fetchPreviewMemes = useCallback(async (count?: number, seed?: number, opts?: { commitSeed?: boolean }) => {
     const n = Math.min(5, Math.max(1, Number.isFinite(count) ? Number(count) : previewCount));
+    const PREVIEW_TTL_MS = 5_000;
     try {
-      setLoadingPreview(true);
       const { api } = await import('@/lib/api');
       const effectiveSeed = Number.isFinite(seed) ? String(seed) : String(previewSeedRef.current || 1);
+      const cacheKey = `${n}:${effectiveSeed}`;
 
-      const resp = await api.get<{ memes: Array<null | { fileUrl: string; type: string; title?: string }> }>(
-        '/streamer/overlay/preview-memes',
-        {
-          params: { count: n, seed: effectiveSeed, _ts: Date.now() },
-          headers: { 'Cache-Control': 'no-store' },
+      // TTL cache (best-effort). Avoids repeated hits while user tweaks unrelated settings.
+      const now = Date.now();
+      const mem = previewCacheRef.current.get(cacheKey);
+      if (mem && now - mem.at < PREVIEW_TTL_MS) {
+        setPreviewMemes(mem.memes);
+        if (opts?.commitSeed && Number.isFinite(seed)) {
+          previewSeedRef.current = seed!;
+          setPreviewSeed(seed!);
         }
-      );
-
-      const list = Array.isArray(resp?.memes) ? resp.memes : [];
-      const cleaned: Array<{ fileUrl: string; type: string; title?: string }> = [];
-      const seen = new Set<string>();
-      for (const m of list) {
-        if (!m?.fileUrl) continue;
-        if (seen.has(m.fileUrl)) continue;
-        seen.add(m.fileUrl);
-        cleaned.push({ fileUrl: m.fileUrl, type: m.type, title: m.title });
+        return;
       }
+      try {
+        const raw = sessionStorage.getItem(`memalerts:obsLinks:previewMemes:${cacheKey}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { at?: unknown; memes?: unknown };
+          const at = typeof parsed?.at === 'number' ? parsed.at : 0;
+          const cached = Array.isArray(parsed?.memes) ? (parsed.memes as Array<{ fileUrl: string; type: string; title?: string }>) : null;
+          if (at > 0 && cached && now - at < PREVIEW_TTL_MS) {
+            previewCacheRef.current.set(cacheKey, { at, memes: cached });
+            setPreviewMemes(cached);
+            if (opts?.commitSeed && Number.isFinite(seed)) {
+              previewSeedRef.current = seed!;
+              setPreviewSeed(seed!);
+            }
+            return;
+          }
+        }
+      } catch {
+        // ignore cache
+      }
+
+      setLoadingPreview(true);
+
+      const existing = previewInFlightRef.current.get(cacheKey);
+      if (existing) {
+        const memes = await existing;
+        setPreviewMemes(memes);
+        if (opts?.commitSeed && Number.isFinite(seed)) {
+          previewSeedRef.current = seed!;
+          setPreviewSeed(seed!);
+        }
+        return;
+      }
+
+      const req = (async () => {
+        const resp = await api.get<{ memes: Array<null | { fileUrl: string; type: string; title?: string }> }>(
+          '/streamer/overlay/preview-memes',
+          {
+            params: { count: n, seed: effectiveSeed, _ts: Date.now() },
+            headers: { 'Cache-Control': 'no-store' },
+          }
+        );
+
+        const list = Array.isArray(resp?.memes) ? resp.memes : [];
+        const cleaned: Array<{ fileUrl: string; type: string; title?: string }> = [];
+        const seen = new Set<string>();
+        for (const m of list) {
+          if (!m?.fileUrl) continue;
+          if (seen.has(m.fileUrl)) continue;
+          seen.add(m.fileUrl);
+          cleaned.push({ fileUrl: m.fileUrl, type: m.type, title: m.title });
+        }
+        return cleaned;
+      })();
+
+      previewInFlightRef.current.set(cacheKey, req);
+      const cleaned = await req;
+      previewInFlightRef.current.delete(cacheKey);
+
+      previewCacheRef.current.set(cacheKey, { at: now, memes: cleaned });
+      try {
+        sessionStorage.setItem(`memalerts:obsLinks:previewMemes:${cacheKey}`, JSON.stringify({ at: now, memes: cleaned }));
+      } catch {
+        // ignore cache write
+      }
+
       setPreviewMemes(cleaned);
 
       // Optional: commit the seed atomically together with the new preview set.
@@ -1342,6 +1404,7 @@ export function ObsLinksSettings() {
         setPreviewSeed(seed!);
       }
     } catch {
+      previewInFlightRef.current.clear();
       setPreviewMemes([]);
     } finally {
       setLoadingPreview(false);
@@ -1904,8 +1967,9 @@ export function ObsLinksSettings() {
   }, [glassEnabled, shadowBlur, shadowDistance, shadowSpread, t, urlBgOpacity, urlBlur]);
 
   // Receive "ready" handshake from iframe so the first params post is never lost.
+  const onPreviewMessageRef = useRef<(event: MessageEvent) => void>(() => undefined);
   useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
+    onPreviewMessageRef.current = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.source !== previewIframeRef.current?.contentWindow) return;
       const data = toRecord(event.data);
@@ -1915,9 +1979,13 @@ export function ObsLinksSettings() {
       // Send current params immediately when overlay confirms readiness.
       schedulePostPreviewParams({ immediate: true });
     };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
   }, [schedulePostPreviewParams]);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => onPreviewMessageRef.current(event);
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
 
   const animSpeedPct = useMemo(() => {
     const slow = 800;

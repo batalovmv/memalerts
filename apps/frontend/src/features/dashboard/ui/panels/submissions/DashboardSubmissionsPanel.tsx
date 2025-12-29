@@ -11,7 +11,7 @@ import type { Submission } from '@/types';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
-import { IconButton, Modal, Pill, Spinner, Tooltip } from '@/shared/ui';
+import { Button, IconButton, Modal, Pill, Spinner, Tooltip } from '@/shared/ui';
 
 export type SubmissionsPanelTab = 'pending' | 'mine';
 
@@ -25,9 +25,11 @@ export type DashboardSubmissionsPanelProps = {
   submissions: Submission[];
   submissionsLoading: boolean;
   submissionsLoadingMore: boolean;
+  pendingError?: string | null;
   pendingCount: number;
   total: number | null;
   onLoadMorePending: () => void;
+  onRetryPending?: () => void;
   onApprove: (submissionId: string) => void;
   onNeedsChanges: (submissionId: string) => void;
   onReject: (submissionId: string) => void;
@@ -49,9 +51,11 @@ export function DashboardSubmissionsPanel({
   submissions,
   submissionsLoading,
   submissionsLoadingMore,
+  pendingError,
   pendingCount,
   total,
   onLoadMorePending,
+  onRetryPending,
   onApprove,
   onNeedsChanges,
   onReject,
@@ -180,6 +184,21 @@ export function DashboardSubmissionsPanel({
       <div className="surface-body max-h-[70vh] overflow-y-auto">
         {activeTab === 'pending' ? (
           pendingSubmissions.length === 0 ? (
+            pendingError && !submissionsLoading ? (
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
+                <div className="font-semibold mb-1">{t('common.requestFailed', { defaultValue: 'Request failed' })}</div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {t('dashboard.failedToLoadPendingSubmissions', { defaultValue: 'Failed to load pending submissions.' })}
+                </p>
+                {onRetryPending ? (
+                  <div className="mt-4">
+                    <Button type="button" variant="secondary" onClick={onRetryPending}>
+                      {t('common.retry', { defaultValue: 'Retry' })}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
             <div className="rounded-lg bg-gray-50 dark:bg-gray-900/30 p-6 text-gray-700 dark:text-gray-300 shadow-sm">
               <div className="font-semibold mb-1">
                 {t('dashboard.noPendingSubmissions', { defaultValue: 'No pending submissions' })}
@@ -188,6 +207,7 @@ export function DashboardSubmissionsPanel({
                 {t('dashboard.noPendingSubmissionsHint', { defaultValue: 'New submissions will appear here automatically.' })}
               </p>
             </div>
+            )
           ) : (
             <ul className="space-y-4" role="list">
               {pendingSubmissions.map((submission) => (

@@ -1,6 +1,6 @@
 ﻿import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import Header from '@/components/Header';
 import { ChannelSettings } from '@/features/settings/tabs/ChannelSettings';
@@ -58,7 +58,6 @@ export default function SettingsPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const location = useLocation();
   const moreMenuReactId = useId();
   const moreMenuId = `settings-more-menu-${moreMenuReactId.replace(/:/g, '')}`;
@@ -194,15 +193,15 @@ export default function SettingsPage() {
     const maybeSubPath = location.pathname.replace(/^\/settings\/?/, '');
     const pathTab = (maybeSubPath.split('/')[0] || '').trim();
     if (pathTab === 'accounts') {
-      setActiveTab('accounts');
+      setActiveTab((prev) => (prev === 'accounts' ? prev : 'accounts'));
       return;
     }
     if (pathTab === 'bot') {
-      setActiveTab('bot');
+      setActiveTab((prev) => (prev === 'bot' ? prev : 'bot'));
       return;
     }
 
-    const tabParam = searchParams.get('tab');
+    const tabParam = new URLSearchParams(location.search).get('tab');
     if (tabParam === 'submissions') {
       // Pending submissions live on the dashboard now.
       navigate('/dashboard?tab=submissions', { replace: true });
@@ -230,9 +229,9 @@ export default function SettingsPage() {
         'beta',
       ].includes(tabParam)
     ) {
-      setActiveTab(tabParam as TabType);
+      setActiveTab((prev) => (prev === (tabParam as TabType) ? prev : (tabParam as TabType)));
     }
-  }, [searchParams, navigate, location.pathname]);
+  }, [navigate, location.pathname, location.search]);
 
   // Viewers should land on beta access tab in settings.
   useEffect(() => {

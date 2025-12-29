@@ -56,6 +56,7 @@ export default function ModerationPage() {
   const [hasMore, setHasMore] = useState(true);
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const busyIdRef = useRef<string | null>(null);
 
   const [confirm, setConfirm] = useState<null | { kind: 'hide' | 'unhide' | 'quarantine'; asset: ModerationMemeAsset }>(null);
   const [reason, setReason] = useState('');
@@ -132,7 +133,9 @@ export default function ModerationPage() {
 
   const doAction = async (kind: 'hide' | 'unhide' | 'quarantine', asset: ModerationMemeAsset, reasonText?: string) => {
     if (!asset.id) return;
-    if (busyId) return;
+    // Prevent duplicate actions from fast double-clicks (React state updates are async).
+    if (busyIdRef.current) return;
+    busyIdRef.current = asset.id;
     setBusyId(asset.id);
     try {
       if (kind === 'hide') {
@@ -166,6 +169,7 @@ export default function ModerationPage() {
       }
     } finally {
       setBusyId(null);
+      busyIdRef.current = null;
     }
   };
 

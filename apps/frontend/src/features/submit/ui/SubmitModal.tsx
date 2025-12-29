@@ -27,8 +27,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
     title: string;
-    sourceUrl?: string;
-    tags?: string[];
+    sourceUrl: string;
+    tags: string[];
   }>({
     title: '',
     sourceUrl: '',
@@ -256,7 +256,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         const respData = await api.post<Record<string, unknown>>('/submissions/import', {
           title: formData.title,
           sourceUrl: formData.sourceUrl,
-          tags: formData.tags || [],
+          tags: formData.tags,
           ...(channelId && { channelId }), // Add channelId if provided
         });
         const d = respData as Record<string, unknown> | null;
@@ -441,6 +441,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
               </label>
               <HelpTooltip content={t('help.submitModal.file', { defaultValue: 'Choose a video file to upload. Supported: common video formats.' })}>
                 <Input
+                  key="submit-upload-file"
                   type="file"
                   onChange={handleFileChange}
                   required
@@ -466,6 +467,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
               </label>
               <HelpTooltip content={t('help.submitModal.url', { defaultValue: 'Paste a direct link to the media file from Memealerts (cdns.memealerts.com).' })}>
                 <Input
+                  key="submit-import-url"
                   type="url"
                   value={formData.sourceUrl || ''}
                   onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
@@ -494,7 +496,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             <HelpTooltip content={t('help.submitModal.tags', { defaultValue: 'Add a few tags to help search and moderation (optional).' })}>
               <div>
                 <TagInput
-                  tags={formData.tags || []}
+                  tags={formData.tags}
                   onChange={(tags) => setFormData({ ...formData, tags })}
                   placeholder={t('submit.addTags')}
                 />

@@ -79,6 +79,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm lint
           pnpm lint:overlay
+          pnpm test:ci
           pnpm build
           pnpm build:overlay
 
@@ -150,6 +151,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm lint
           pnpm lint:overlay
+          pnpm test:ci
           pnpm build
           pnpm build:overlay
 

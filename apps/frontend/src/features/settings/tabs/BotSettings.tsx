@@ -226,6 +226,22 @@ export function BotSettings() {
   const [streamDurationOpen, setStreamDurationOpen] = useState<boolean>(false);
 
   const loadFollowGreetings = useCallback(async () => {
+    const TTL_MS = 10_000;
+    const cacheKey = 'memalerts:botSettings:followGreetings';
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { at?: unknown; followGreetingsEnabled?: unknown; followGreetingTemplate?: unknown };
+        const at = typeof parsed?.at === 'number' ? parsed.at : 0;
+        if (at > 0 && Date.now() - at < TTL_MS) {
+          if (typeof parsed.followGreetingsEnabled === 'boolean') setFollowGreetingsEnabled(parsed.followGreetingsEnabled);
+          if (typeof parsed.followGreetingTemplate === 'string') setFollowGreetingTemplate(parsed.followGreetingTemplate);
+          return;
+        }
+      }
+    } catch {
+      // ignore cache
+    }
     try {
       const { api } = await import('@/lib/api');
       const res = await api.get<{ followGreetingsEnabled?: boolean; followGreetingTemplate?: string | null }>(
@@ -234,6 +250,18 @@ export function BotSettings() {
       );
       if (typeof res?.followGreetingsEnabled === 'boolean') setFollowGreetingsEnabled(res.followGreetingsEnabled);
       if (typeof res?.followGreetingTemplate === 'string') setFollowGreetingTemplate(res.followGreetingTemplate);
+      try {
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            at: Date.now(),
+            followGreetingsEnabled: typeof res?.followGreetingsEnabled === 'boolean' ? res.followGreetingsEnabled : undefined,
+            followGreetingTemplate: typeof res?.followGreetingTemplate === 'string' ? res.followGreetingTemplate : undefined,
+          })
+        );
+      } catch {
+        // ignore cache write
+      }
     } catch (error: unknown) {
       const apiError = error as { response?: { status?: number } };
       // Backend may not support this endpoint yet.
@@ -270,6 +298,23 @@ export function BotSettings() {
   }, []);
 
   const loadSubscription = useCallback(async () => {
+    const TTL_MS = 10_000;
+    const cacheKey = 'memalerts:botSettings:subscription';
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { at?: unknown; enabled?: unknown };
+        const at = typeof parsed?.at === 'number' ? parsed.at : 0;
+        if (at > 0 && Date.now() - at < TTL_MS) {
+          if (typeof parsed.enabled === 'boolean') setBotEnabled(parsed.enabled);
+          else setBotEnabled(null);
+          setStatusLoaded(true);
+          return;
+        }
+      }
+    } catch {
+      // ignore cache
+    }
     try {
       setLoading('load');
       const { api } = await import('@/lib/api');
@@ -278,6 +323,17 @@ export function BotSettings() {
         setBotEnabled(res.enabled);
       } else {
         setBotEnabled(null);
+      }
+      try {
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            at: Date.now(),
+            enabled: typeof res?.enabled === 'boolean' ? res.enabled : null,
+          })
+        );
+      } catch {
+        // ignore cache write
       }
     } catch (error: unknown) {
       // If backend doesn't support it yet, keep optimistic UI (unknown until toggled).
@@ -295,6 +351,25 @@ export function BotSettings() {
   }, []);
 
   const loadBotIntegrations = useCallback(async () => {
+    const TTL_MS = 10_000;
+    const cacheKey = 'memalerts:botSettings:bots';
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { at?: unknown; items?: unknown };
+        const at = typeof parsed?.at === 'number' ? parsed.at : 0;
+        if (at > 0 && Date.now() - at < TTL_MS) {
+          const items = Array.isArray(parsed.items) ? (parsed.items as StreamerBotIntegration[]) : [];
+          setBots(items);
+          const yt = items.find((b) => b.provider === 'youtube');
+          if (yt?.enabled === true) setYoutubeNeedsRelink(false);
+          setBotsLoaded(true);
+          return;
+        }
+      }
+    } catch {
+      // ignore cache
+    }
     try {
       setBotsLoading(true);
       const { api } = await import('@/lib/api');
@@ -306,6 +381,11 @@ export function BotSettings() {
       if (yt?.enabled === true) setYoutubeNeedsRelink(false);
 
       setBotsLoaded(true);
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), items }));
+      } catch {
+        // ignore cache write
+      }
     } catch (error: unknown) {
       // Keep quiet on load; the rest of the page works without it.
       setBotsLoaded(false);

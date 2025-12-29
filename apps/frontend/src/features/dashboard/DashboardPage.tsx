@@ -20,7 +20,6 @@ import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { api } from '@/lib/api';
 import { Button, IconButton, PageShell, Pill, Spinner, Tooltip } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { store } from '@/store/index';
 import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
@@ -181,7 +180,15 @@ function SortableCard({
 export default function DashboardPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
-  const { submissions, loading: submissionsLoading, loadingMore: submissionsLoadingMore, total: submissionsTotal } = useAppSelector((state) => state.submissions);
+  const {
+    submissions,
+    loading: submissionsLoading,
+    loadingMore: submissionsLoadingMore,
+    total: submissionsTotal,
+    error: submissionsError,
+    lastFetchedAt: submissionsLastFetchedAt,
+    lastErrorAt: submissionsLastErrorAt,
+  } = useAppSelector((state) => state.submissions);
   const [memesCount, setMemesCount] = useState<number | null>(null);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -317,21 +324,21 @@ export default function DashboardPage() {
     const userChannelId = user?.channelId;
 
     if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
-      const currentState = store.getState();
-      const submissionsState = currentState.submissions;
       const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
       
       // Check if we have fresh data based on timestamp
-      const hasFreshData = submissionsState.submissions.length > 0 && 
-        submissionsState.lastFetchedAt !== null &&
-        (Date.now() - submissionsState.lastFetchedAt) < SUBMISSIONS_CACHE_TTL;
+      const hasFreshData =
+        submissions.length > 0 &&
+        submissionsLastFetchedAt !== null &&
+        (Date.now() - submissionsLastFetchedAt) < SUBMISSIONS_CACHE_TTL;
       
       // Check if we had a recent error (especially 403) - don't retry immediately
-      const hasRecentError = submissionsState.lastErrorAt !== null &&
-        (Date.now() - submissionsState.lastErrorAt) < ERROR_RETRY_DELAY;
+      const hasRecentError =
+        submissionsLastErrorAt !== null &&
+        (Date.now() - submissionsLastErrorAt) < ERROR_RETRY_DELAY;
       
-      const isLoading = submissionsState.loading;
+      const isLoading = submissionsLoading;
       
       // Only fetch if no fresh data, not loading, no recent error, and not already loaded
       if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
@@ -345,7 +352,16 @@ export default function DashboardPage() {
     if (!userId || !userChannelId) {
       submissionsLoadedRef.current = false;
     }
-  }, [user?.id, user?.role, user?.channelId, dispatch]); // Use user?.id instead of user to prevent unnecessary re-runs
+  }, [
+    user?.id,
+    user?.role,
+    user?.channelId,
+    submissions.length,
+    submissionsLastFetchedAt,
+    submissionsLastErrorAt,
+    submissionsLoading,
+    dispatch,
+  ]); // Use user?.id instead of user to prevent unnecessary re-runs
 
   const loadMySubmissions = useCallback(async () => {
     if (!user) return;
@@ -1409,6 +1425,7 @@ export default function DashboardPage() {
                       submissions={submissions}
                       submissionsLoading={submissionsLoading}
                       submissionsLoadingMore={submissionsLoadingMore}
+                      pendingError={submissionsError}
                       pendingCount={pendingSubmissionsCount}
                       total={submissionsTotal}
                       onClose={() => setPanel(null)}
@@ -1417,6 +1434,9 @@ export default function DashboardPage() {
                         // If we know total and already loaded everything, skip.
                         if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
                         dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
+                      }}
+                      onRetryPending={() => {
+                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
                       }}
                       onApprove={(submissionId) => {
                         setApproveModal({ open: true, submissionId });

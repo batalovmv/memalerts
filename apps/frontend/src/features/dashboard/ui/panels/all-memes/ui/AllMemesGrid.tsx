@@ -4,7 +4,7 @@ import type { Meme } from '@/types';
 
 import MemeCard from '@/components/MemeCard';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
-import { HelpTooltip, Spinner } from '@/shared/ui';
+import { Button, HelpTooltip, Spinner } from '@/shared/ui';
 
 const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
 
@@ -12,6 +12,8 @@ export type AllMemesGridProps = {
   memes: Meme[];
   loading: boolean;
   loadingMore: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   loadMoreRef: React.RefObject<HTMLDivElement>;
   autoplayPreview: 'autoplayMuted' | 'hoverWithSound';
   onSelectMeme: (meme: Meme) => void;
@@ -21,6 +23,8 @@ export function AllMemesGrid({
   memes,
   loading,
   loadingMore,
+  error,
+  onRetry,
   loadMoreRef,
   autoplayPreview,
   onSelectMeme,
@@ -54,6 +58,24 @@ export function AllMemesGrid({
   }
 
   if (memes.length === 0) {
+    if (error) {
+      return (
+        <div className="glass p-6 text-gray-800 dark:text-gray-200">
+          <div className="font-semibold mb-1">{t('common.requestFailed', { defaultValue: 'Request failed' })}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {t('dashboard.failedToLoadMemes', { defaultValue: 'Failed to load memes.' })}
+          </div>
+          {onRetry ? (
+            <div className="mt-4">
+              <Button type="button" variant="secondary" onClick={onRetry}>
+                {t('common.retry', { defaultValue: 'Retry' })}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div className="glass p-6 text-gray-800 dark:text-gray-200">
         <div className="font-semibold mb-1">{t('dashboard.noMemes', { defaultValue: 'No memes yet' })}</div>

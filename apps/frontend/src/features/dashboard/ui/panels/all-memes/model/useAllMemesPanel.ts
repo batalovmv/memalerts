@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Meme } from '@/types';
 
@@ -26,6 +26,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const limit = 40;
@@ -74,6 +75,25 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     return await api.get<Meme[]>(`/channels/memes/search?${p.toString()}`);
   };
 
+  const reload = useCallback(async () => {
+    if (!isOpen) return;
+    setError(null);
+    setLoading(true);
+    setHasMore(true);
+    try {
+      const first = await loadPage(0);
+      setItems(first);
+      setHasMore(first.length === limit);
+    } catch {
+      setItems([]);
+      setHasMore(false);
+      setError('failed');
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, paramsBase.toString(), limit]);
+
   const memes = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     if (!q) return items;
@@ -89,26 +109,15 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
 
   // Reset + load first page when panel opens or filters change
   useEffect(() => {
-    if (!isOpen) return;
-    setLoading(true);
-    setHasMore(true);
-    void (async () => {
-      try {
-        const first = await loadPage(0);
-        setItems(first);
-        setHasMore(first.length === limit);
-      } finally {
-        setLoading(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, paramsBase.toString()]);
+    void reload();
+  }, [reload]);
 
   // Infinite scroll
   useEffect(() => {
     if (!isOpen) return;
     if (!hasMore) return;
     if (loading || loadingMore) return;
+    if (error) return;
     const el = loadMoreRef.current;
     if (!el) return;
 
@@ -122,6 +131,9 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
                 const next = await loadPage(items.length);
                 setItems((prev) => [...prev, ...next]);
                 setHasMore(next.length === limit);
+              } catch {
+                setHasMore(false);
+                setError('failed');
               } finally {
                 setLoadingMore(false);
               }
@@ -135,7 +147,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
 
     obs.observe(el);
     return () => obs.disconnect();
-  }, [isOpen, hasMore, loading, loadingMore, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, hasMore, loading, loadingMore, items.length, error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     query,
@@ -148,8 +160,10 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     loading,
     loadingMore,
     hasMore,
+    error,
     loadMoreRef,
     limit,
+    reload,
   };
 }
 

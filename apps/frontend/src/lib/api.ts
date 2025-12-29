@@ -126,11 +126,10 @@ const getApiUrl = () => {
   }
   
   // If VITE_API_URL is not set at all, determine based on environment
-  // In production, use same origin (relative URL)
-  // This ensures beta frontend uses beta API, production uses production API
+  // In production, use same-origin relative URLs by default.
+  // Nginx must proxy API routes (e.g. /me/*) to the backend; otherwise requests may hit SPA fallback.
   if (import.meta.env.PROD) {
-    const relativeUrl = '';
-    return relativeUrl;
+    return '';
   }
   
   // In development, use localhost
@@ -373,21 +372,7 @@ axiosInstance.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
-      // Centralize "session is not valid anymore" signal without importing the Redux store here (avoid cycles).
-      // UI may still show stale user data; App listens for this and clears auth state.
-      try {
-        window.dispatchEvent(
-          new CustomEvent('memalerts:auth:unauthorized', {
-            detail: {
-              ts: new Date().toISOString(),
-              path: (error.config?.url as string | undefined) || null,
-              method: (error.config?.method as string | undefined)?.toUpperCase?.() || null,
-            },
-          }),
-        );
-      } catch {
-        // ignore
-      }
+      // Handle unauthorized - could dispatch logout action here if needed
     }
     
     // Ensure error object has proper structure

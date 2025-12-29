@@ -19,11 +19,11 @@
 
 ## GitHub Actions
 Workflows:
-- `.github/workflows/ci-cd.yml` — GitHub-hosted runner (PR checks: lint + build)
-- `.github/workflows/ci-cd-selfhosted.yml` — self-hosted runner на VPS (sync → build → deploy)
+- `.github/workflows/ci-selfhosted-checks.yml` — self-hosted runner на VPS (PR checks: lint + typecheck + tests + build)
+- `.github/workflows/ci-cd-selfhosted.yml` — self-hosted runner на VPS (push/tag: sync → lint → tests → build → deploy)
 
 Логика:
-- **build**: lint + build web/overlay, публикует артефакты (`web-dist`, `overlay-dist`) — только в `ci-cd.yml` (для PR/ручного запуска)
+- **checks (PR)**: lint + typecheck + tests + build web/overlay (без деплоя)
 - **deploy-beta**: (push в `main`) пишет `dist/config.json`, деплоит в `/opt/memalerts-frontend-beta`
 - **deploy (prod)**: (tag `prod-*`) пишет `dist/config.json`, деплоит в `/opt/memalerts-frontend`
 
@@ -58,8 +58,7 @@ Deploy кладёт статику:
 1) Работаете в `main` → автоматически деплоится beta (job `deploy-beta`).
 2) Когда готово к релизу: создаёте тег `prod-*` (например `prod-2025-12-25` или `prod-1.0.10`).
 3) Push тега запускает production deploy; job `deploy-production` можно защитить manual approval через GitHub Environments.
-4) В `ci-cd.yml` production deploy использует артефакты из build job этого же workflow run (без пересборки на сервере).
-5) В `ci-cd-selfhosted.yml` билд выполняется на VPS (self-hosted runner), без скачивания артефактов.
+4) В `ci-cd-selfhosted.yml` билд выполняется на VPS (self-hosted runner) и затем деплоится статика.
 
 ## Runbook: как безопасно перенести beta → основной домен (main)
 Цель: вы разрабатываете в `main` (beta), тестируете beta, затем **одним действием** (создание тега `prod-*` + approve deploy) переносите ту же версию на основной домен.
@@ -96,7 +95,7 @@ Deploy кладёт статику:
    - Если включён manual approval в `production` environment — подтверждаете деплой.
 
 Почему это “не ломает”:
-- Production deploy **не пересобирает** проект заново: он берёт **тот же артефакт**, который собрался/прошёл lint в этом workflow run.
+- Перед деплоем в self-hosted пайплайне выполняются lint + tests + build, и только затем происходит sync/deploy.
 - Различия окружения идут только через `dist/config.json` (runtime config).
 
 ### 3) Что важно про `config.json` (чтобы не было cross-domain)

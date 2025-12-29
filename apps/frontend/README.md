@@ -52,6 +52,7 @@ pnpm dev:overlay  # http://localhost:5174
 ## Команды
 ```bash
 pnpm lint
+pnpm test
 pnpm build
 pnpm build:overlay
 ```

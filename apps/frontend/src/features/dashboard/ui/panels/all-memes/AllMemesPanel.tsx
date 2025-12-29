@@ -61,6 +61,8 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
           memes={vm.memes}
           loading={vm.loading}
           loadingMore={vm.loadingMore}
+          error={vm.error}
+          onRetry={vm.reload}
           loadMoreRef={vm.loadMoreRef}
           autoplayPreview={autoplayPreview}
           onSelectMeme={onSelectMeme}
