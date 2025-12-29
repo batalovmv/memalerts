@@ -136,6 +136,8 @@ export interface Submission {
 export interface ApiError {
   message: string;
   error?: string;
+  errorCode?: string;
+  details?: unknown;
   statusCode?: number;
 }
 

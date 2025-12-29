@@ -450,6 +450,7 @@ export function AccountsSettings() {
         setUnlinkingProvider(account.provider);
         await api.delete(`/auth/accounts/${encodeURIComponent(account.id)}`);
         await dispatch(fetchUser()).unwrap();
+        setAccountsOverride((prev) => (Array.isArray(prev) ? prev.filter((a) => a?.id !== account.id) : prev));
         toast.success(
           t('settings.accountsUnlinked', {
             defaultValue: 'Disconnected.',
@@ -457,6 +458,64 @@ export function AccountsSettings() {
         );
       } catch (e) {
         const err = toApiError(e, 'Failed to disconnect account');
+
+        // Backend may block unlinking accounts that are used as bot credentials.
+        // In this case it returns 409 with details: { kind, provider, unlinkEndpoint }.
+        if (err.statusCode === 409 && err.details && typeof err.details === 'object') {
+          const details = err.details as Record<string, unknown>;
+          const unlinkEndpointRaw = typeof details.unlinkEndpoint === 'string' ? details.unlinkEndpoint : null;
+          const kind = typeof details.kind === 'string' ? details.kind : null;
+
+          const parseEndpointPath = (val: string): string | null => {
+            // Expected: "DELETE /owner/bots/twitch/default"
+            const parts = val.trim().split(/\s+/);
+            const path = parts.length >= 2 ? parts[1] : '';
+            return path.startsWith('/') ? path : null;
+          };
+
+          const unlinkPath = unlinkEndpointRaw ? parseEndpointPath(unlinkEndpointRaw) : null;
+          if (unlinkPath) {
+            const confirmedBot = window.confirm(
+              t('settings.accountsBotCredentialUnlinkConfirm', {
+                defaultValue:
+                  kind === 'global_bot_credential'
+                    ? 'Этот аккаунт используется как дефолтный бот. Отключить бота и затем отвязать аккаунт?'
+                    : 'Этот аккаунт используется как бот канала. Отключить бота и затем отвязать аккаунт?',
+              })
+            );
+            if (!confirmedBot) return;
+
+            try {
+              await api.delete(unlinkPath);
+            } catch (e2) {
+              const err2 = toApiError(e2, 'Failed to disconnect bot');
+              toast.error(err2.message);
+              return;
+            }
+
+            try {
+              await api.delete(`/auth/accounts/${encodeURIComponent(account.id)}`);
+            } catch (e3) {
+              const err3 = toApiError(e3, 'Failed to disconnect account');
+              toast.error(err3.message);
+              return;
+            }
+
+            try {
+              await dispatch(fetchUser()).unwrap();
+            } catch {
+              // best-effort
+            }
+            setAccountsOverride((prev) => (Array.isArray(prev) ? prev.filter((a) => a?.id !== account.id) : prev));
+            toast.success(
+              t('settings.accountsUnlinked', {
+                defaultValue: 'Disconnected.',
+              })
+            );
+            return;
+          }
+        }
+
         toast.error(err.message);
       } finally {
         setUnlinkingProvider(null);

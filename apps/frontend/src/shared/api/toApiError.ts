@@ -9,11 +9,14 @@ export function toApiError(error: unknown, fallbackMessage: string): ApiError {
 
   const message =
     (typeof data?.message === 'string' && data.message) ||
+    (typeof data?.error === 'string' && data.error) ||
     (typeof errObj?.message === 'string' && errObj.message) ||
     fallbackMessage;
   const err = typeof data?.error === 'string' ? data.error : undefined;
+  const errorCode = typeof (data as { errorCode?: unknown } | undefined)?.errorCode === 'string' ? (data as { errorCode?: string }).errorCode : undefined;
+  const details = (data as { details?: unknown } | undefined)?.details;
 
-  return { message, error: err, statusCode };
+  return { message, error: err, errorCode, details, statusCode };
 }
 
 
