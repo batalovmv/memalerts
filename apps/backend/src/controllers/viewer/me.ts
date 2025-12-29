@@ -5,10 +5,19 @@ import { debugLog, debugError } from '../../utils/debug.js';
 import { fetchMyYouTubeChannelProfileByAccessToken, getValidYouTubeAccessTokenByExternalAccountId } from '../../utils/youtubeApi.js';
 import { fetchVkVideoCurrentUser, getValidVkVideoAccessTokenByExternalAccountId } from '../../utils/vkvideoApi.js';
 
+function normalizeVkVideoProfileUrl(raw: string | null | undefined): string | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  const slug = s.replace(/^\/+/, '').replace(/^@/, '').trim();
+  if (!slug) return null;
+  return `https://live.vkvideo.ru/${slug}`;
+}
+
 async function bestEffortBackfillExternalAccounts(externalAccounts: any[], requestId: string | null): Promise<any[]> {
-  // Avoid turning /me into a heavy endpoint: at most 1 YouTube + 1 VKVideo fetch per request, only if fields are missing.
-  let didYouTube = false;
-  let didVkVideo = false;
+  // Avoid turning /me into a heavy endpoint: at most 2 YouTube + 2 VKVideo attempts per request, only if fields are missing.
+  let youTubeAttempts = 0;
+  let vkVideoAttempts = 0;
 
   const updated = [...externalAccounts];
 
@@ -16,10 +25,11 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
     const a = updated[i];
     const provider = String(a?.provider || '').toLowerCase();
 
-    if (provider === 'youtube' && !didYouTube) {
+    if (provider === 'youtube' && youTubeAttempts < 2) {
       const needs = !a?.displayName || !a?.avatarUrl || !a?.profileUrl || !a?.login;
       if (!needs) continue;
 
+      youTubeAttempts++;
       try {
         const token = await getValidYouTubeAccessTokenByExternalAccountId(String(a.id || ''));
         if (!token) continue;
@@ -42,18 +52,18 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
           });
           updated[i] = { ...a, ...row };
           debugLog('[DEBUG] getMe externalAccount backfilled (youtube)', { requestId, externalAccountId: a.id });
+          break; // success: don't try other YouTube rows
         }
       } catch (e: any) {
         debugLog('[DEBUG] getMe externalAccount backfill failed (youtube)', { requestId, errorMessage: e?.message || String(e) });
-      } finally {
-        didYouTube = true;
       }
     }
 
-    if (provider === 'vkvideo' && !didVkVideo) {
+    if (provider === 'vkvideo' && vkVideoAttempts < 2) {
       const needs = !a?.displayName || !a?.login || !a?.profileUrl;
       if (!needs) continue;
 
+      vkVideoAttempts++;
       try {
         const token = await getValidVkVideoAccessTokenByExternalAccountId(String(a.id || ''));
         if (!token) continue;
@@ -63,7 +73,9 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
 
         const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
         const user = (root as any)?.user ?? (root as any)?.profile ?? root ?? null;
-        const channelUrl = String((root as any)?.channel?.url || (user as any)?.url || '').trim() || null;
+        const channelUrlRaw = String((root as any)?.channel?.url || (user as any)?.url || '').trim() || null;
+        const channelUrl = normalizeVkVideoProfileUrl(channelUrlRaw);
+        const channelSlug = channelUrlRaw ? String(channelUrlRaw).trim().replace(/^\/+/, '').replace(/^@/, '') : null;
         const nameFromParts = String([user?.first_name, user?.last_name].filter(Boolean).join(' ')).trim() || null;
         const name =
           String(user?.display_name ?? user?.displayName ?? user?.name ?? user?.full_name ?? user?.nickname ?? user?.username ?? '').trim() ||
@@ -73,7 +85,7 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
 
         const data: any = {};
         if (!a.displayName && name) data.displayName = name;
-        if (!a.login && login) data.login = login;
+        if (!a.login) data.login = login || channelSlug || null;
         if (!a.profileUrl && channelUrl) data.profileUrl = channelUrl;
 
         if (Object.keys(data).length) {
@@ -84,15 +96,14 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
           });
           updated[i] = { ...a, ...row };
           debugLog('[DEBUG] getMe externalAccount backfilled (vkvideo)', { requestId, externalAccountId: a.id });
+          break; // success: don't try other VKVideo rows
         }
       } catch (e: any) {
         debugLog('[DEBUG] getMe externalAccount backfill failed (vkvideo)', { requestId, errorMessage: e?.message || String(e) });
-      } finally {
-        didVkVideo = true;
       }
     }
 
-    if (didYouTube && didVkVideo) break;
+    if (youTubeAttempts >= 2 && vkVideoAttempts >= 2) break;
   }
 
   // If we can derive YouTube profileUrl from stored channelId, do it without API calls.
@@ -102,6 +113,16 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
     const channelId = String(a?.login || '').trim();
     if (!a?.profileUrl && channelId) {
       updated[i] = { ...a, profileUrl: `https://www.youtube.com/channel/${channelId}` };
+    }
+  }
+
+  // Normalize VKVideo profileUrl if it looks like a slug.
+  for (let i = 0; i < updated.length; i++) {
+    const a = updated[i];
+    if (String(a?.provider || '').toLowerCase() !== 'vkvideo') continue;
+    const normalized = normalizeVkVideoProfileUrl(a?.profileUrl ?? null);
+    if (normalized && normalized !== a?.profileUrl) {
+      updated[i] = { ...a, profileUrl: normalized };
     }
   }
 
