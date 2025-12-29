@@ -4,6 +4,8 @@ import { adminController } from '../controllers/adminController.js';
 import { youtubeDefaultBotController } from '../controllers/owner/youtubeDefaultBotController.js';
 import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefaultBotController.js';
 import { twitchDefaultBotController } from '../controllers/owner/twitchDefaultBotController.js';
+import { trovoDefaultBotController } from '../controllers/owner/trovoDefaultBotController.js';
+import { kickDefaultBotController } from '../controllers/owner/kickDefaultBotController.js';
 import { entitlementsController } from '../controllers/owner/entitlementsController.js';
 import { channelResolveController } from '../controllers/owner/channelResolveController.js';
 import { memeAssetModerationController } from '../controllers/owner/memeAssetModerationController.js';
@@ -35,6 +37,16 @@ ownerRoutes.delete('/bots/vkvideo/default', vkvideoDefaultBotController.unlink);
 ownerRoutes.get('/bots/twitch/default/status', twitchDefaultBotController.status);
 ownerRoutes.get('/bots/twitch/default/link', twitchDefaultBotController.linkStart);
 ownerRoutes.delete('/bots/twitch/default', twitchDefaultBotController.unlink);
+
+// Trovo default bot (global shared sender, admin-only)
+ownerRoutes.get('/bots/trovo/default/status', trovoDefaultBotController.status);
+ownerRoutes.get('/bots/trovo/default/link', trovoDefaultBotController.linkStart);
+ownerRoutes.delete('/bots/trovo/default', trovoDefaultBotController.unlink);
+
+// Kick default bot (global shared sender, admin-only)
+ownerRoutes.get('/bots/kick/default/status', kickDefaultBotController.status);
+ownerRoutes.get('/bots/kick/default/link', kickDefaultBotController.linkStart);
+ownerRoutes.delete('/bots/kick/default', kickDefaultBotController.unlink);
 
 // Channel entitlements (admin-only; subscription gates / feature flags)
 ownerRoutes.get('/entitlements/custom-bot', entitlementsController.getCustomBot);

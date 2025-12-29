@@ -90,6 +90,22 @@ describe('csrfProtection', () => {
       .send({ a: 1 });
     expect(res.status).toBe(403);
   });
+
+  it('normalizes WEB_URL (trailing slash / path) to origin for allowlist matching', async () => {
+    process.env.NODE_ENV = 'production';
+
+    // Beta instance: WEB_URL may accidentally include trailing slash or path.
+    process.env.PORT = '3002';
+    process.env.DOMAIN = 'beta.example.com';
+    process.env.WEB_URL = 'https://beta.example.com/app/';
+
+    const res = await request(makeApp())
+      .post('/protected')
+      .set('Origin', 'https://beta.example.com')
+      .send({ a: 1 });
+
+    expect(res.status).toBe(200);
+  });
 });
 
 

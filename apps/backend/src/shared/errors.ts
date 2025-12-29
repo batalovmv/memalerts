@@ -21,6 +21,8 @@ export const ERROR_CODES = {
   YOUTUBE_BOT_NOT_CONFIGURED: 'YOUTUBE_BOT_NOT_CONFIGURED',
   YOUTUBE_ENABLE_FAILED: 'YOUTUBE_ENABLE_FAILED',
   VKVIDEO_BOT_NOT_CONFIGURED: 'VKVIDEO_BOT_NOT_CONFIGURED',
+  TROVO_BOT_NOT_CONFIGURED: 'TROVO_BOT_NOT_CONFIGURED',
+  KICK_BOT_NOT_CONFIGURED: 'KICK_BOT_NOT_CONFIGURED',
   // Submissions / uploads
   SUBMISSIONS_DISABLED: 'SUBMISSIONS_DISABLED',
   SUBMISSIONS_OFFLINE: 'SUBMISSIONS_OFFLINE',
@@ -88,6 +90,8 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   YOUTUBE_BOT_NOT_CONFIGURED: 'YouTube bot is not configured',
   YOUTUBE_ENABLE_FAILED: 'Failed to enable YouTube bot',
   VKVIDEO_BOT_NOT_CONFIGURED: 'VKVideo bot is not configured',
+  TROVO_BOT_NOT_CONFIGURED: 'Trovo bot is not configured',
+  KICK_BOT_NOT_CONFIGURED: 'Kick bot is not configured',
   SUBMISSIONS_DISABLED: 'Submissions are disabled for this channel',
   SUBMISSIONS_OFFLINE: 'Submissions are allowed only while the stream is live',
   SUBMISSION_NOT_FOUND: 'Submission not found',

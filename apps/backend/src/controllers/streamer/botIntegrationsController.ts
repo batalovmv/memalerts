@@ -8,17 +8,21 @@ import { createOAuthState } from '../../auth/oauthState.js';
 import { getYouTubeAuthorizeUrl } from '../../auth/providers/youtube.js';
 import { getTwitchAuthorizeUrl } from '../../auth/providers/twitch.js';
 import { generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../../auth/providers/vkvideo.js';
+import { getTrovoAuthorizeUrl, fetchTrovoUserInfo } from '../../auth/providers/trovo.js';
+import { getKickAuthorizeUrl, fetchKickUser } from '../../auth/providers/kick.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount, getValidVkVideoBotAccessToken } from '../../utils/vkvideoApi.js';
+import { getTrovoExternalAccount, getValidTrovoBotAccessToken } from '../../utils/trovoApi.js';
+import { getKickExternalAccount, getValidKickBotAccessToken } from '../../utils/kickApi.js';
 import { logger } from '../../utils/logger.js';
 import { hasChannelEntitlement } from '../../utils/entitlements.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
-type BotProviderV2 = BotProvider | 'vkvideo';
+type BotProviderV2 = BotProvider | 'vkvideo' | 'trovo' | 'kick';
 // NOTE: vkplaylive is deprecated (we use vkvideo instead) but may still exist in DB for legacy installs.
 // Do not expose it to the frontend and do not allow enabling it via API.
 type BotProviderDeprecated = 'vkplaylive';
 type BotProviderActive = Exclude<BotProviderV2, BotProviderDeprecated>;
-const PROVIDERS: BotProviderActive[] = ['twitch', 'vkvideo', 'youtube'];
+const PROVIDERS: BotProviderActive[] = ['twitch', 'vkvideo', 'youtube', 'trovo', 'kick'];
 const PROVIDERS_SET = new Set<string>(PROVIDERS);
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
@@ -29,6 +33,8 @@ const REDIRECT_ALLOWLIST = new Set<string>([
   '/settings/bot/youtube',
   '/settings/bot/vk',
   '/settings/bot/vkvideo',
+  '/settings/bot/trovo',
+  '/settings/bot/kick',
   '/dashboard',
   '/',
 ]);
@@ -160,6 +166,187 @@ export const botIntegrationsController = {
     if (!channelId) return;
     try {
       await (prisma as any).youTubeBotIntegration.deleteMany({ where: { channelId } });
+      return res.json({ ok: true });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/trovo/bot
+  // Returns current per-channel Trovo bot override status (if configured).
+  trovoBotStatus: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      const row = await (prisma as any).trovoBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true, updatedAt: true },
+      });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null, lockedBySubscription: false });
+      const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+      return res.json({
+        enabled: Boolean((row as any)?.enabled),
+        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
+        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        lockedBySubscription: !entitled,
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/trovo/bot/link
+  // Starts OAuth linking for a per-channel Trovo bot account (chat scopes), stored as mapping to this channel.
+  trovoBotLinkStart: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+    if (!entitled) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'Custom bot sender is available only with subscription.',
+      });
+    }
+
+    const clientId = process.env.TROVO_CLIENT_ID;
+    const callbackUrl = process.env.TROVO_CALLBACK_URL;
+    const clientSecret = process.env.TROVO_CLIENT_SECRET;
+    if (!clientId || !callbackUrl || !clientSecret) {
+      return res.status(503).json({ error: 'Service Unavailable', message: 'Trovo OAuth is not configured' });
+    }
+
+    const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
+    const origin = (req.query.origin as string) || null;
+
+    const { state } = await createOAuthState({
+      provider: 'trovo',
+      kind: 'bot_link',
+      userId: req.userId,
+      channelId,
+      redirectTo,
+      origin,
+    });
+
+    const scopes = String(process.env.TROVO_BOT_SCOPES || process.env.TROVO_SCOPES || '')
+      .split(/[ ,+]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const authUrl = getTrovoAuthorizeUrl({
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+    });
+
+    return res.redirect(authUrl);
+  },
+
+  // DELETE /streamer/bots/trovo/bot
+  // Removes per-channel Trovo bot override (falls back to global Trovo bot credential).
+  trovoBotUnlink: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      await (prisma as any).trovoBotIntegration.deleteMany({ where: { channelId } });
+      return res.json({ ok: true });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/kick/bot
+  // Returns current per-channel Kick bot override status (if configured).
+  kickBotStatus: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      const row = await (prisma as any).kickBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true, updatedAt: true },
+      });
+      if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null, lockedBySubscription: false });
+      const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+      return res.json({
+        enabled: Boolean((row as any)?.enabled),
+        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
+        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        lockedBySubscription: !entitled,
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw e;
+    }
+  },
+
+  // GET /streamer/bots/kick/bot/link
+  // Starts OAuth linking for a per-channel Kick bot account (chat scopes), stored as mapping to this channel.
+  kickBotLinkStart: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const entitled = await hasChannelEntitlement(channelId, 'custom_bot');
+    if (!entitled) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'Custom bot sender is available only with subscription.',
+      });
+    }
+
+    const clientId = process.env.KICK_CLIENT_ID;
+    const callbackUrl = process.env.KICK_CALLBACK_URL;
+    const authorizeUrl = process.env.KICK_AUTHORIZE_URL;
+    const tokenUrl = process.env.KICK_TOKEN_URL;
+    const refreshUrl = process.env.KICK_REFRESH_URL;
+    const userInfoUrl = process.env.KICK_USERINFO_URL;
+    const clientSecret = process.env.KICK_CLIENT_SECRET;
+    if (!clientId || !callbackUrl || !authorizeUrl || !tokenUrl || !refreshUrl || !userInfoUrl || !clientSecret) {
+      return res.status(503).json({ error: 'Service Unavailable', message: 'Kick OAuth is not configured' });
+    }
+
+    const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
+    const origin = (req.query.origin as string) || null;
+
+    const { state } = await createOAuthState({
+      provider: 'kick',
+      kind: 'bot_link',
+      userId: req.userId,
+      channelId,
+      redirectTo,
+      origin,
+    });
+
+    const scopes = String(process.env.KICK_BOT_SCOPES || process.env.KICK_SCOPES || '')
+      .split(/[ ,+]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const authUrl = getKickAuthorizeUrl({
+      authorizeUrl,
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+    });
+
+    return res.redirect(authUrl);
+  },
+
+  // DELETE /streamer/bots/kick/bot
+  // Removes per-channel Kick bot override (falls back to global Kick bot credential).
+  kickBotUnlink: async (req: AuthRequest, res: Response) => {
+    const channelId = requireChannelId(req, res);
+    if (!channelId) return;
+    try {
+      await (prisma as any).kickBotIntegration.deleteMany({ where: { channelId } });
       return res.json({ ok: true });
     } catch (e: any) {
       if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
@@ -411,12 +598,16 @@ export const botIntegrationsController = {
       const twitch = byProvider.get('twitch') ?? { enabled: await getTwitchEnabledFallback(channelId), updatedAt: null };
       const vkvideo = byProvider.get('vkvideo') ?? { enabled: await getVkVideoEnabledFallback(channelId), updatedAt: null };
       const youtube = byProvider.get('youtube') ?? { enabled: false, updatedAt: null };
+      const trovo = byProvider.get('trovo') ?? { enabled: false, updatedAt: null };
+      const kick = byProvider.get('kick') ?? { enabled: false, updatedAt: null };
 
       return res.json({
         items: [
           { provider: 'twitch', ...twitch },
           { provider: 'vkvideo', ...vkvideo },
           { provider: 'youtube', ...youtube },
+          { provider: 'trovo', ...trovo },
+          { provider: 'kick', ...kick },
         ],
       });
     } catch (e: any) {
@@ -476,6 +667,8 @@ export const botIntegrationsController = {
       let twitchLogin: string | null = null;
       let twitchChannelId: string | null = null;
       let youtubeChannelId: string | null = null;
+      let trovoChannelId: string | null = null;
+      let kickChannelId: string | null = null;
 
       if (provider === 'twitch' && enabled) {
         // Ensure we have SOME sender identity configured for chat writes/replies:
@@ -662,6 +855,130 @@ export const botIntegrationsController = {
           return res.status(503).json({
             errorCode: 'YOUTUBE_BOT_NOT_CONFIGURED',
             error: 'YouTube bot is not configured (missing global bot credential/token and no per-channel bot override).',
+          });
+        }
+      }
+
+      if (provider === 'trovo' && enabled) {
+        if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const clientId = String(process.env.TROVO_CLIENT_ID || '').trim();
+        if (!clientId) {
+          return res.status(503).json({
+            errorCode: 'TROVO_BOT_NOT_CONFIGURED',
+            error: 'Trovo bot is not configured (missing TROVO_CLIENT_ID).',
+          });
+        }
+
+        const acc = await getTrovoExternalAccount(req.userId);
+        if (!acc?.accessToken) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            code: 'TROVO_NOT_LINKED',
+            message: 'Trovo account is not linked',
+          });
+        }
+
+        const bodyChannelId = String((req.body as any)?.trovoChannelId || '').trim();
+        if (bodyChannelId) {
+          trovoChannelId = bodyChannelId;
+        } else {
+          const u = await fetchTrovoUserInfo({
+            clientId,
+            accessToken: acc.accessToken,
+            userInfoUrl: process.env.TROVO_USERINFO_URL || undefined,
+          });
+          const chId = String(u.user?.channel_id || '').trim();
+          trovoChannelId = chId || null;
+        }
+
+        if (!trovoChannelId) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Failed to resolve trovoChannelId. Please pass trovoChannelId explicitly (or re-link Trovo and retry).',
+          });
+        }
+
+        // Ensure we have SOME sender identity configured for chat writes:
+        // - either global shared bot credential
+        // - or per-channel bot override (TrovoBotIntegration row)
+        const botAccessToken = await getValidTrovoBotAccessToken();
+        let hasOverride = false;
+        try {
+          const override = await (prisma as any).trovoBotIntegration.findUnique({
+            where: { channelId },
+            select: { enabled: true },
+          });
+          hasOverride = Boolean(override?.enabled);
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+          hasOverride = false;
+        }
+        if (hasOverride && !customBotEntitled) hasOverride = false;
+
+        if (!botAccessToken && !hasOverride) {
+          return res.status(503).json({
+            errorCode: 'TROVO_BOT_NOT_CONFIGURED',
+            error: 'Trovo bot is not configured (missing global bot credential and no per-channel bot override).',
+          });
+        }
+      }
+
+      if (provider === 'kick' && enabled) {
+        if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const clientId = String(process.env.KICK_CLIENT_ID || '').trim();
+        const userInfoUrl = String(process.env.KICK_USERINFO_URL || '').trim();
+        if (!clientId || !userInfoUrl) {
+          return res.status(503).json({
+            errorCode: 'KICK_BOT_NOT_CONFIGURED',
+            error: 'Kick bot is not configured (missing KICK_CLIENT_ID/KICK_USERINFO_URL).',
+          });
+        }
+
+        const acc = await getKickExternalAccount(req.userId);
+        if (!acc?.accessToken) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            code: 'KICK_NOT_LINKED',
+            message: 'Kick account is not linked',
+          });
+        }
+
+        const bodyChannelId = String((req.body as any)?.kickChannelId || '').trim();
+        if (bodyChannelId) {
+          kickChannelId = bodyChannelId;
+        } else {
+          const u = await fetchKickUser({ userInfoUrl, accessToken: acc.accessToken });
+          const id = String(u.user?.id ?? u.user?.user_id ?? '').trim();
+          kickChannelId = id || null;
+        }
+
+        if (!kickChannelId) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Failed to resolve kickChannelId. Please pass kickChannelId explicitly (or re-link Kick and retry).',
+          });
+        }
+
+        const botAccessToken = await getValidKickBotAccessToken();
+        let hasOverride = false;
+        try {
+          const override = await (prisma as any).kickBotIntegration.findUnique({
+            where: { channelId },
+            select: { enabled: true },
+          });
+          hasOverride = Boolean(override?.enabled);
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+          hasOverride = false;
+        }
+        if (hasOverride && !customBotEntitled) hasOverride = false;
+
+        if (!botAccessToken && !hasOverride) {
+          return res.status(503).json({
+            errorCode: 'KICK_BOT_NOT_CONFIGURED',
+            error: 'Kick bot is not configured (missing global bot credential and no per-channel bot override).',
           });
         }
       }
@@ -858,6 +1175,44 @@ export const botIntegrationsController = {
           });
         } else {
           await (prisma as any).vkVideoChatBotSubscription.updateMany({
+            where: { channelId },
+            data: { enabled: false },
+          });
+        }
+      }
+
+      if (provider === 'trovo') {
+        if (enabled) {
+          if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+          if (!trovoChannelId) {
+            return res.status(400).json({ error: 'Bad Request', message: 'Missing trovoChannelId' });
+          }
+          await (prisma as any).trovoChatBotSubscription.upsert({
+            where: { channelId },
+            create: { channelId, userId: req.userId, trovoChannelId, enabled: true },
+            update: { userId: req.userId, trovoChannelId, enabled: true },
+            select: { id: true },
+          });
+        } else {
+          await (prisma as any).trovoChatBotSubscription.updateMany({
+            where: { channelId },
+            data: { enabled: false },
+          });
+        }
+      }
+
+      if (provider === 'kick') {
+        if (enabled) {
+          if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+          if (!kickChannelId) return res.status(400).json({ error: 'Bad Request', message: 'Missing kickChannelId' });
+          await (prisma as any).kickChatBotSubscription.upsert({
+            where: { channelId },
+            create: { channelId, userId: req.userId, kickChannelId, enabled: true },
+            update: { userId: req.userId, kickChannelId, enabled: true },
+            select: { id: true },
+          });
+        } else {
+          await (prisma as any).kickChatBotSubscription.updateMany({
             where: { channelId },
             data: { enabled: false },
           });

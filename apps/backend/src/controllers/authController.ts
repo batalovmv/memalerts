@@ -16,6 +16,8 @@ import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } fr
 import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
 import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/providers/vk.js';
 import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
+import { exchangeTrovoCodeForToken, fetchTrovoUserInfo, getTrovoAuthorizeUrl } from '../auth/providers/trovo.js';
+import { exchangeKickCodeForToken, fetchKickUser, getKickAuthorizeUrl } from '../auth/providers/kick.js';
 import { fetchVkVideoCurrentUser } from '../utils/vkvideoApi.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
@@ -602,6 +604,97 @@ export const authController = {
 
         // Final fallback: for titles, prefer a stable non-null label.
         if (!displayName && login) displayName = login;
+      } else if (provider === 'trovo') {
+        const clientId = process.env.TROVO_CLIENT_ID;
+        const clientSecret = process.env.TROVO_CLIENT_SECRET;
+        const callbackUrl = process.env.TROVO_CALLBACK_URL;
+        if (!clientId || !clientSecret || !callbackUrl) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env&provider=trovo`);
+        }
+
+        const tokenExchange = await exchangeTrovoCodeForToken({
+          clientId,
+          clientSecret,
+          code: code as string,
+          redirectUri: callbackUrl,
+          tokenUrl: process.env.TROVO_TOKEN_URL || undefined,
+        });
+
+        if (!tokenExchange.data?.access_token) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token&provider=trovo`);
+        }
+
+        accessToken = String(tokenExchange.data.access_token || '').trim() || null;
+        refreshToken = String(tokenExchange.data.refresh_token || '').trim() || null;
+        const expiresIn = Number(tokenExchange.data.expires_in || 0);
+        tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000) : null;
+        scopes = Array.isArray(tokenExchange.data.scope) ? tokenExchange.data.scope.join(' ') : (tokenExchange.data.scope ? String(tokenExchange.data.scope) : null);
+
+        const userInfo = await fetchTrovoUserInfo({
+          clientId,
+          accessToken: String(tokenExchange.data.access_token),
+          userInfoUrl: process.env.TROVO_USERINFO_URL || undefined,
+        });
+        const trovoUser = userInfo.user;
+
+        providerAccountId = String(trovoUser?.user_id ?? (tokenExchange.data as any)?.user_id ?? '').trim();
+        diagProviderAccountId = providerAccountId || null;
+        if (!providerAccountId) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user&provider=trovo`);
+        }
+
+        displayName = String(trovoUser?.nickname || '').trim() || null;
+        login = String(trovoUser?.user_name || '').trim() || null;
+        avatarUrl = String(trovoUser?.profile_pic || '').trim() || null;
+        profileUrl = login ? `https://trovo.live/${encodeURIComponent(login)}` : null;
+      } else if (provider === 'kick') {
+        const clientId = process.env.KICK_CLIENT_ID;
+        const clientSecret = process.env.KICK_CLIENT_SECRET;
+        const callbackUrl = process.env.KICK_CALLBACK_URL;
+        const tokenUrl = process.env.KICK_TOKEN_URL;
+        const refreshUrl = process.env.KICK_REFRESH_URL;
+        const userInfoUrl = process.env.KICK_USERINFO_URL;
+        if (!clientId || !clientSecret || !callbackUrl || !tokenUrl || !refreshUrl || !userInfoUrl) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env&provider=kick`);
+        }
+
+        const tokenExchange = await exchangeKickCodeForToken({
+          tokenUrl,
+          clientId,
+          clientSecret,
+          code: code as string,
+          redirectUri: callbackUrl,
+        });
+        if (!tokenExchange.data?.access_token) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token&provider=kick`);
+        }
+
+        accessToken = String(tokenExchange.data.access_token || '').trim() || null;
+        refreshToken = String(tokenExchange.data.refresh_token || '').trim() || null;
+        const expiresIn = Number(tokenExchange.data.expires_in || 0);
+        tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000) : null;
+        scopes = Array.isArray(tokenExchange.data.scope)
+          ? tokenExchange.data.scope.join(' ')
+          : (tokenExchange.data.scope ? String(tokenExchange.data.scope) : null);
+
+        const userFetch = await fetchKickUser({ userInfoUrl, accessToken: String(tokenExchange.data.access_token) });
+        const u = userFetch.user;
+        providerAccountId = String(u?.id ?? u?.user_id ?? '').trim();
+        diagProviderAccountId = providerAccountId || null;
+        if (!providerAccountId) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user&provider=kick`);
+        }
+
+        displayName = String((u as any)?.display_name ?? (u as any)?.name ?? '').trim() || null;
+        login = String((u as any)?.username ?? (u as any)?.user_name ?? '').trim() || null;
+        avatarUrl = String((u as any)?.avatar_url ?? (u as any)?.avatarUrl ?? '').trim() || null;
+        profileUrl = login ? `https://kick.com/${encodeURIComponent(login)}` : null;
       } else {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=provider_not_supported&provider=${provider}`);
@@ -719,7 +812,8 @@ export const authController = {
 
       // Upsert ExternalAccount (either login or link). For Twitch login, also refresh legacy User fields.
       const botLinkChannelId = stateKind === 'bot_link' ? String(stateChannelId || '').trim() : '';
-      const isBotLinkProvider = stateKind === 'bot_link' && (provider === 'youtube' || provider === 'vkvideo' || provider === 'twitch');
+      const isBotLinkProvider =
+        stateKind === 'bot_link' && (provider === 'youtube' || provider === 'vkvideo' || provider === 'twitch' || provider === 'trovo' || provider === 'kick');
 
       let botLinkSubscriptionDenied = false;
       let botLinkSubscriptionDeniedProvider: string | null = null;
@@ -729,7 +823,9 @@ export const authController = {
         const isGlobalSentinel =
           (provider === 'youtube' && botLinkChannelId === '__global_youtube_bot__') ||
           (provider === 'vkvideo' && botLinkChannelId === '__global_vkvideo_bot__') ||
-          (provider === 'twitch' && botLinkChannelId === '__global_twitch_bot__');
+          (provider === 'twitch' && botLinkChannelId === '__global_twitch_bot__') ||
+          (provider === 'trovo' && botLinkChannelId === '__global_trovo_bot__') ||
+          (provider === 'kick' && botLinkChannelId === '__global_kick_bot__');
 
         if (!isGlobalSentinel) {
           allowPerChannelBotOverride = await hasChannelEntitlement(botLinkChannelId, 'custom_bot');
@@ -841,8 +937,8 @@ export const authController = {
         }
 
         // Bot linking: map this external account as the channel's bot sender.
-        // Supported providers: youtube, vkvideo, twitch.
-        if ((provider === 'youtube' || provider === 'vkvideo' || provider === 'twitch') && stateKind === 'bot_link') {
+        // Supported providers: youtube, vkvideo, twitch, trovo, kick.
+        if ((provider === 'youtube' || provider === 'vkvideo' || provider === 'twitch' || provider === 'trovo' || provider === 'kick') && stateKind === 'bot_link') {
           const channelId = String(stateChannelId || '').trim();
           if (!channelId) {
             throw new Error('missing_bot_link_channel');
@@ -902,6 +998,48 @@ export const authController = {
               // Default behavior: per-channel override.
               if (allowPerChannelBotOverride) {
                 await (tx as any).twitchBotIntegration.upsert({
+                  where: { channelId },
+                  create: { channelId, externalAccountId: upserted.id, enabled: true },
+                  update: { externalAccountId: upserted.id, enabled: true },
+                  select: { id: true },
+                });
+              }
+            }
+          }
+
+          if (provider === 'trovo') {
+            // Special sentinel channelId: store the default/global Trovo bot credential.
+            if (channelId === '__global_trovo_bot__') {
+              await (tx as any).globalTrovoBotCredential.deleteMany({});
+              await (tx as any).globalTrovoBotCredential.create({
+                data: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            } else {
+              // Default behavior: per-channel override.
+              if (allowPerChannelBotOverride) {
+                await (tx as any).trovoBotIntegration.upsert({
+                  where: { channelId },
+                  create: { channelId, externalAccountId: upserted.id, enabled: true },
+                  update: { externalAccountId: upserted.id, enabled: true },
+                  select: { id: true },
+                });
+              }
+            }
+          }
+
+          if (provider === 'kick') {
+            // Special sentinel channelId: store the default/global Kick bot credential.
+            if (channelId === '__global_kick_bot__') {
+              await (tx as any).globalKickBotCredential.deleteMany({});
+              await (tx as any).globalKickBotCredential.create({
+                data: { externalAccountId: upserted.id, enabled: true },
+                select: { id: true },
+              });
+            } else {
+              // Default behavior: per-channel override.
+              if (allowPerChannelBotOverride) {
+                await (tx as any).kickBotIntegration.upsert({
                   where: { channelId },
                   create: { channelId, externalAccountId: upserted.id, enabled: true },
                   update: { externalAccountId: upserted.id, enabled: true },
@@ -1339,8 +1477,73 @@ export const authController = {
         scopes,
         codeChallenge,
       });
+    } else if (provider === 'trovo') {
+      const clientId = process.env.TROVO_CLIENT_ID;
+      const callbackUrl = process.env.TROVO_CALLBACK_URL;
+      const clientSecret = process.env.TROVO_CLIENT_SECRET;
+      if (!clientId || !callbackUrl || !clientSecret) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(
+          buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider })
+        );
+      }
+
+      const { state } = await createOAuthState({
+        provider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+      });
+
+      const scopes = String(process.env.TROVO_SCOPES || '')
+        .split(/[ ,+]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      authUrl = getTrovoAuthorizeUrl({
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes,
+      });
+    } else if (provider === 'kick') {
+      const clientId = process.env.KICK_CLIENT_ID;
+      const callbackUrl = process.env.KICK_CALLBACK_URL;
+      const authorizeUrl = process.env.KICK_AUTHORIZE_URL;
+      const tokenUrl = process.env.KICK_TOKEN_URL;
+      const refreshUrl = process.env.KICK_REFRESH_URL;
+      const userInfoUrl = process.env.KICK_USERINFO_URL;
+      const clientSecret = process.env.KICK_CLIENT_SECRET;
+      if (!clientId || !callbackUrl || !authorizeUrl || !tokenUrl || !refreshUrl || !userInfoUrl || !clientSecret) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(
+          buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider })
+        );
+      }
+
+      const { state } = await createOAuthState({
+        provider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+      });
+
+      const scopes = String(process.env.KICK_SCOPES || '')
+        .split(/[ ,+]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      authUrl = getKickAuthorizeUrl({
+        authorizeUrl,
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes,
+      });
     } else {
-      // Providers without implemented OAuth yet: kick / trovo / boosty.
+      // Providers without implemented OAuth yet: boosty.
       const redirectUrl = getRedirectUrl(req);
       return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'provider_not_supported', provider }));
     }
@@ -1358,7 +1561,7 @@ export const authController = {
 
     // IMPORTANT: /auth/accounts is "user-linked identities" (minimal scopes).
     // Bot credentials (global default bot and per-channel bot sender overrides) must NOT appear here.
-    const accounts = await prisma.externalAccount.findMany({
+    const accounts = await (prisma as any).externalAccount.findMany({
       where: {
         userId: req.userId,
         youTubeBotIntegration: { is: null },
@@ -1367,6 +1570,10 @@ export const authController = {
         globalVkVideoBotCredential: { is: null },
         twitchBotIntegration: { is: null },
         globalTwitchBotCredential: { is: null },
+        trovoBotIntegration: { is: null },
+        globalTrovoBotCredential: { is: null },
+        kickBotIntegration: { is: null },
+        globalKickBotCredential: { is: null },
       },
       orderBy: { createdAt: 'asc' },
       select: {
@@ -1391,7 +1598,7 @@ export const authController = {
     if (!externalAccountId) return res.status(400).json({ error: 'Bad Request' });
 
     // Prevent unlinking bot credentials via the "user accounts" endpoint.
-    const row = await prisma.externalAccount.findFirst({
+    const row = await (prisma as any).externalAccount.findFirst({
       where: { id: externalAccountId, userId: req.userId },
       select: {
         id: true,
@@ -1402,6 +1609,10 @@ export const authController = {
         globalVkVideoBotCredential: { select: { id: true } },
         twitchBotIntegration: { select: { id: true } },
         globalTwitchBotCredential: { select: { id: true } },
+        trovoBotIntegration: { select: { id: true } },
+        globalTrovoBotCredential: { select: { id: true } },
+        kickBotIntegration: { select: { id: true } },
+        globalKickBotCredential: { select: { id: true } },
       },
     });
 
@@ -1413,7 +1624,11 @@ export const authController = {
       Boolean((row as any).vkVideoBotIntegration?.id) ||
       Boolean((row as any).globalVkVideoBotCredential?.id) ||
       Boolean((row as any).twitchBotIntegration?.id) ||
-      Boolean((row as any).globalTwitchBotCredential?.id);
+      Boolean((row as any).globalTwitchBotCredential?.id) ||
+      Boolean((row as any).trovoBotIntegration?.id) ||
+      Boolean((row as any).globalTrovoBotCredential?.id) ||
+      Boolean((row as any).kickBotIntegration?.id) ||
+      Boolean((row as any).globalKickBotCredential?.id);
 
     if (isBotCredential) {
       const provider = String((row as any).provider || '').toLowerCase();
@@ -1421,12 +1636,16 @@ export const authController = {
         youtube: 'Use DELETE /owner/bots/youtube/default (global) or DELETE /streamer/bots/youtube/bot (per-channel override).',
         twitch: 'Use DELETE /owner/bots/twitch/default (global) or DELETE /streamer/bots/twitch/bot (per-channel override).',
         vkvideo: 'Use DELETE /owner/bots/vkvideo/default (global) or DELETE /streamer/bots/vkvideo/bot (per-channel override).',
+        trovo: 'Use DELETE /owner/bots/trovo/default (global) or DELETE /streamer/bots/trovo/bot (per-channel override).',
+        kick: 'Use DELETE /owner/bots/kick/default (global) or DELETE /streamer/bots/kick/bot (per-channel override).',
       };
 
       const isGlobal =
         Boolean((row as any).globalYouTubeBotCredential?.id) ||
         Boolean((row as any).globalVkVideoBotCredential?.id) ||
-        Boolean((row as any).globalTwitchBotCredential?.id);
+        Boolean((row as any).globalTwitchBotCredential?.id) ||
+        Boolean((row as any).globalTrovoBotCredential?.id) ||
+        Boolean((row as any).globalKickBotCredential?.id);
       const kind = isGlobal ? 'global_bot_credential' : 'channel_bot_credential';
       const unlinkEndpoint =
         provider === 'youtube'
@@ -1435,6 +1654,10 @@ export const authController = {
             ? (isGlobal ? 'DELETE /owner/bots/twitch/default' : 'DELETE /streamer/bots/twitch/bot')
             : provider === 'vkvideo'
               ? (isGlobal ? 'DELETE /owner/bots/vkvideo/default' : 'DELETE /streamer/bots/vkvideo/bot')
+              : provider === 'trovo'
+                ? (isGlobal ? 'DELETE /owner/bots/trovo/default' : 'DELETE /streamer/bots/trovo/bot')
+                  : provider === 'kick'
+                    ? (isGlobal ? 'DELETE /owner/bots/kick/default' : 'DELETE /streamer/bots/kick/bot')
               : null;
       return res.status(409).json({
         errorCode: 'CONFLICT',
@@ -1448,7 +1671,7 @@ export const authController = {
       });
     }
 
-    const count = await prisma.externalAccount.count({
+    const count = await (prisma as any).externalAccount.count({
       where: {
         userId: req.userId,
         youTubeBotIntegration: { is: null },
@@ -1457,6 +1680,10 @@ export const authController = {
         globalVkVideoBotCredential: { is: null },
         twitchBotIntegration: { is: null },
         globalTwitchBotCredential: { is: null },
+        trovoBotIntegration: { is: null },
+        globalTrovoBotCredential: { is: null },
+        kickBotIntegration: { is: null },
+        globalKickBotCredential: { is: null },
       },
     });
     if (count <= 1) {

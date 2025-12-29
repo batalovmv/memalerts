@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 
-export type ChatIdentityProvider = 'twitch' | 'youtube' | 'vkvideo';
+export type ChatIdentityProvider = 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
 
 type CacheEntry = { userId: string | null; ts: number };
 const cache = new Map<string, CacheEntry>();
@@ -64,6 +64,18 @@ export async function resolveMemalertsUserIdFromChatIdentity(params: {
       // We store authorChannelId into ExternalAccount.login on link (best-effort).
       const ext = await prisma.externalAccount.findFirst({
         where: { provider: 'youtube', login: platformUserId },
+        select: { userId: true },
+      });
+      userId = ext?.userId || null;
+    } else if (provider === 'trovo') {
+      const ext = await prisma.externalAccount.findUnique({
+        where: { provider_providerAccountId: { provider: 'trovo', providerAccountId: platformUserId } },
+        select: { userId: true },
+      });
+      userId = ext?.userId || null;
+    } else if (provider === 'kick') {
+      const ext = await prisma.externalAccount.findUnique({
+        where: { provider_providerAccountId: { provider: 'kick', providerAccountId: platformUserId } },
         select: { userId: true },
       });
       userId = ext?.userId || null;

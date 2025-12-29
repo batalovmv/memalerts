@@ -92,9 +92,15 @@ model Channel {
   botIntegrations              BotIntegrationSettings[]
   youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
   youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
+  trovoChatBotSubscriptions    TrovoChatBotSubscription[]
+  trovoChatBotOutboxMessages   TrovoChatBotOutboxMessage[]
+  kickChatBotSubscriptions     KickChatBotSubscription[]
+  kickChatBotOutboxMessages    KickChatBotOutboxMessage[]
   youTubeBotIntegration        YouTubeBotIntegration?
   vkVideoBotIntegration        VkVideoBotIntegration?
   twitchBotIntegration         TwitchBotIntegration?
+  trovoBotIntegration          TrovoBotIntegration?
+  kickBotIntegration           KickBotIntegration?
   entitlements                 ChannelEntitlement[]
 }
 
@@ -124,6 +130,8 @@ enum BotIntegrationProvider {
   vkplaylive
   vkvideo
   youtube
+  trovo
+  kick
 }
 
 // Per-channel bot integration toggles (survive restarts/deploys).
@@ -202,6 +210,96 @@ model VkVideoChatBotOutboxMessage {
   @@index([status, createdAt])
   @@index([channelId, status, createdAt])
   @@index([vkvideoChannelId, status, createdAt])
+  @@index([createdAt])
+}
+
+// Trovo chat bot subscriptions (per-channel, uses the streamer's linked Trovo account).
+// Each MemAlerts Channel maps to a Trovo channel id used by Trovo Chat APIs / websocket.
+model TrovoChatBotSubscription {
+  id             String   @id @default(uuid())
+  channelId      String
+  userId         String
+  trovoChannelId String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([trovoChannelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Trovo chat bot outbox for sending messages via the separate trovoChatbotRunner process.
+model TrovoChatBotOutboxMessage {
+  id             String @id @default(uuid())
+  channelId      String
+  trovoChannelId String
+  message        String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([trovoChannelId, status, createdAt])
+  @@index([createdAt])
+}
+
+// Kick chat bot subscriptions (per-channel, uses the streamer's linked Kick account).
+// Each MemAlerts Channel maps to a Kick channel id used by Kick Chat APIs / events.
+model KickChatBotSubscription {
+  id            String   @id @default(uuid())
+  channelId     String
+  userId        String
+  kickChannelId String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([kickChannelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Kick chat bot outbox for sending messages via the separate kickChatbotRunner process.
+model KickChatBotOutboxMessage {
+  id            String @id @default(uuid())
+  channelId     String
+  kickChannelId String
+  message       String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([kickChannelId, status, createdAt])
   @@index([createdAt])
 }
 
@@ -452,6 +550,10 @@ model ExternalAccount {
   globalVkVideoBotCredential GlobalVkVideoBotCredential?
   twitchBotIntegration       TwitchBotIntegration?
   globalTwitchBotCredential  GlobalTwitchBotCredential?
+  trovoBotIntegration        TrovoBotIntegration?
+  globalTrovoBotCredential   GlobalTrovoBotCredential?
+  kickBotIntegration         KickBotIntegration?
+  globalKickBotCredential    GlobalKickBotCredential?
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -580,6 +682,74 @@ model TwitchBotIntegration {
 // Global shared Twitch bot credential (single default MemAlerts bot account).
 // Linked by admin once; used as sender for Twitch chat messages when a channel has no override.
 model GlobalTwitchBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel Trovo "bot account" override.
+// If present, Trovo chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global Trovo bot credential.
+model TrovoBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared Trovo bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for Trovo chat messages when a channel has no override.
+model GlobalTrovoBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel Kick "bot account" override.
+// If present, Kick chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global Kick bot credential.
+model KickBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared Kick bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for Kick chat messages when a channel has no override.
+model GlobalKickBotCredential {
   id                String   @id @default(uuid())
   externalAccountId String   @unique
   enabled           Boolean  @default(true)

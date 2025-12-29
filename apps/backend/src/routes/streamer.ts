@@ -77,6 +77,12 @@ streamerRoutes.delete('/bots/twitch/bot', botIntegrationsController.twitchBotUnl
 streamerRoutes.get('/bots/youtube/bot', botIntegrationsController.youtubeBotStatus);
 streamerRoutes.get('/bots/youtube/bot/link', botIntegrationsController.youtubeBotLinkStart);
 streamerRoutes.delete('/bots/youtube/bot', botIntegrationsController.youtubeBotUnlink);
+streamerRoutes.get('/bots/trovo/bot', botIntegrationsController.trovoBotStatus);
+streamerRoutes.get('/bots/trovo/bot/link', botIntegrationsController.trovoBotLinkStart);
+streamerRoutes.delete('/bots/trovo/bot', botIntegrationsController.trovoBotUnlink);
+streamerRoutes.get('/bots/kick/bot', botIntegrationsController.kickBotStatus);
+streamerRoutes.get('/bots/kick/bot/link', botIntegrationsController.kickBotLinkStart);
+streamerRoutes.delete('/bots/kick/bot', botIntegrationsController.kickBotUnlink);
 streamerRoutes.patch('/bots/:provider', botIntegrationsController.patch);
 
 // Entitlements / subscription gates

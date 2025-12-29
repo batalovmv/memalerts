@@ -140,8 +140,8 @@ export const streamerBotController = {
       .toLowerCase();
     const id = String((req.params as any)?.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Bad Request', message: 'Missing id' });
-    if (provider !== 'twitch' && provider !== 'youtube' && provider !== 'vkvideo') {
-      return res.status(400).json({ error: 'Bad Request', message: 'provider must be one of: twitch, youtube, vkvideo' });
+    if (provider !== 'twitch' && provider !== 'youtube' && provider !== 'vkvideo' && provider !== 'trovo' && provider !== 'kick') {
+      return res.status(400).json({ error: 'Bad Request', message: 'provider must be one of: twitch, youtube, vkvideo, trovo, kick' });
     }
 
     try {
@@ -170,6 +170,16 @@ export const streamerBotController = {
         });
       } else if (provider === 'vkvideo') {
         row = await (prisma as any).vkVideoChatBotOutboxMessage.findFirst({
+          where: { id, channelId },
+          select,
+        });
+      } else if (provider === 'trovo') {
+        row = await (prisma as any).trovoChatBotOutboxMessage.findFirst({
+          where: { id, channelId },
+          select,
+        });
+      } else if (provider === 'kick') {
+        row = await (prisma as any).kickChatBotOutboxMessage.findFirst({
           where: { id, channelId },
           select,
         });
@@ -273,6 +283,75 @@ export const streamerBotController = {
         if (e?.code !== 'P2021') throw e;
       }
 
+      // Trovo enabled?
+      try {
+        // Optional gating by BotIntegrationSettings(provider=trovo)
+        try {
+          const gate = await (prisma as any).botIntegrationSettings.findUnique({
+            where: { channelId_provider: { channelId, provider: 'trovo' } },
+            select: { enabled: true },
+          });
+          if (gate && gate.enabled === false) {
+            // explicitly disabled by gate => treat as disabled
+          } else {
+            const subTrovo = await (prisma as any).trovoChatBotSubscription.findUnique({
+              where: { channelId },
+              select: { enabled: true, trovoChannelId: true },
+            });
+            const trovoEnabled = Boolean(subTrovo?.enabled && subTrovo?.trovoChannelId);
+            if (trovoEnabled) enabled.push('trovo');
+          }
+        } catch (e: any) {
+          // Older instances without botIntegrationSettings: ignore gate check
+          if (e?.code === 'P2021') {
+            const subTrovo = await (prisma as any).trovoChatBotSubscription.findUnique({
+              where: { channelId },
+              select: { enabled: true, trovoChannelId: true },
+            });
+            const trovoEnabled = Boolean(subTrovo?.enabled && subTrovo?.trovoChannelId);
+            if (trovoEnabled) enabled.push('trovo');
+          } else {
+            throw e;
+          }
+        }
+      } catch (e: any) {
+        if (e?.code !== 'P2021') throw e;
+      }
+
+      // Kick enabled?
+      try {
+        // Optional gating by BotIntegrationSettings(provider=kick)
+        try {
+          const gate = await (prisma as any).botIntegrationSettings.findUnique({
+            where: { channelId_provider: { channelId, provider: 'kick' } },
+            select: { enabled: true },
+          });
+          if (gate && gate.enabled === false) {
+            // explicitly disabled by gate => treat as disabled
+          } else {
+            const subKick = await (prisma as any).kickChatBotSubscription.findUnique({
+              where: { channelId },
+              select: { enabled: true, kickChannelId: true },
+            });
+            const kickEnabled = Boolean(subKick?.enabled && subKick?.kickChannelId);
+            if (kickEnabled) enabled.push('kick');
+          }
+        } catch (e: any) {
+          if (e?.code === 'P2021') {
+            const subKick = await (prisma as any).kickChatBotSubscription.findUnique({
+              where: { channelId },
+              select: { enabled: true, kickChannelId: true },
+            });
+            const kickEnabled = Boolean(subKick?.enabled && subKick?.kickChannelId);
+            if (kickEnabled) enabled.push('kick');
+          } else {
+            throw e;
+          }
+        }
+      } catch (e: any) {
+        if (e?.code !== 'P2021') throw e;
+      }
+
       if (enabled.length === 0) {
         return res.status(400).json({ error: 'Bad Request', message: 'No chat bot is enabled for this channel' });
       }
@@ -352,6 +431,88 @@ export const streamerBotController = {
         return res.json({ ok: true, provider: 'vkvideo', outbox: row });
       } catch (e: any) {
         // Feature not deployed / migrations not applied
+        if (e?.code === 'P2021') {
+          return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+        }
+        throw e;
+      }
+    }
+
+    if (provider === 'trovo') {
+      try {
+        // Optional gating by BotIntegrationSettings(provider=trovo).
+        try {
+          const gate = await (prisma as any).botIntegrationSettings.findUnique({
+            where: { channelId_provider: { channelId, provider: 'trovo' } },
+            select: { enabled: true },
+          });
+          if (gate && !gate.enabled) {
+            return res.status(400).json({ error: 'Bad Request', message: 'Trovo chat bot is not enabled for this channel' });
+          }
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+        }
+
+        const sub = await (prisma as any).trovoChatBotSubscription.findUnique({
+          where: { channelId },
+          select: { enabled: true, trovoChannelId: true },
+        });
+        if (!sub?.enabled || !sub.trovoChannelId) {
+          return res.status(400).json({ error: 'Bad Request', message: 'Trovo chat bot is not enabled for this channel' });
+        }
+
+        const row = await (prisma as any).trovoChatBotOutboxMessage.create({
+          data: {
+            channelId,
+            trovoChannelId: String(sub.trovoChannelId),
+            message,
+            status: 'pending',
+          },
+          select: { id: true, status: true, createdAt: true },
+        });
+        return res.json({ ok: true, provider: 'trovo', outbox: row });
+      } catch (e: any) {
+        if (e?.code === 'P2021') {
+          return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+        }
+        throw e;
+      }
+    }
+
+    if (provider === 'kick') {
+      try {
+        // Optional gating by BotIntegrationSettings(provider=kick).
+        try {
+          const gate = await (prisma as any).botIntegrationSettings.findUnique({
+            where: { channelId_provider: { channelId, provider: 'kick' } },
+            select: { enabled: true },
+          });
+          if (gate && !gate.enabled) {
+            return res.status(400).json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
+          }
+        } catch (e: any) {
+          if (e?.code !== 'P2021') throw e;
+        }
+
+        const sub = await (prisma as any).kickChatBotSubscription.findUnique({
+          where: { channelId },
+          select: { enabled: true, kickChannelId: true },
+        });
+        if (!sub?.enabled || !sub.kickChannelId) {
+          return res.status(400).json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
+        }
+
+        const row = await (prisma as any).kickChatBotOutboxMessage.create({
+          data: {
+            channelId,
+            kickChannelId: String(sub.kickChannelId),
+            message,
+            status: 'pending',
+          },
+          select: { id: true, status: true, createdAt: true },
+        });
+        return res.json({ ok: true, provider: 'kick', outbox: row });
+      } catch (e: any) {
         if (e?.code === 'P2021') {
           return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
         }
