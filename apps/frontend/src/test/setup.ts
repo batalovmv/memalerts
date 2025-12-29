@@ -1,21 +1,20 @@
 import '@testing-library/jest-dom/vitest';
+import { configure, prettyDOM } from '@testing-library/dom';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 
 import '@/i18n/config';
 import i18n from '@/i18n/config';
 import { server } from '@/test/msw/server';
 
-// Shorten huge Testing Library errors in CI by truncating pretty-printed DOM.
-// Keep it dependency-free: do NOT import `@testing-library/dom` directly (pnpm strict).
-const TL_DEBUG_PRINT_LIMIT = 2000;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (process as any).env = (process as any).env || {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (process as any).env.DEBUG_PRINT_LIMIT = String(TL_DEBUG_PRINT_LIMIT);
-} catch {
-  // ignore
-}
+// Keep CI logs readable: truncate huge DOM dumps from Testing Library errors.
+const TL_DOM_MAX_CHARS = 800;
+configure({
+  getElementError: (message, container) => {
+    const dom = container ? prettyDOM(container, TL_DOM_MAX_CHARS, { highlight: false }) : '';
+    const hint = dom ? `\n\nDOM (truncated to ${TL_DOM_MAX_CHARS} chars):\n${dom}` : '';
+    return new Error(`${message}${hint}`);
+  },
+});
 
 // Keep test output clean: React Router v6 prints migration warnings in console.warn.
 // We filter only that specific warning category so real warnings still surface.

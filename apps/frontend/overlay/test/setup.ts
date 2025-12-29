@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { configure, prettyDOM } from '@testing-library/dom';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 
 import { setupServer } from 'msw/node';
@@ -9,17 +10,15 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-// Keep Vitest output readable: truncate huge DOM dumps from Testing Library errors.
-// Keep it dependency-free: do NOT import `@testing-library/dom` directly (pnpm strict).
-const TL_DEBUG_PRINT_LIMIT = 2000;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (process as any).env = (process as any).env || {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (process as any).env.DEBUG_PRINT_LIMIT = String(TL_DEBUG_PRINT_LIMIT);
-} catch {
-  // ignore
-}
+// Keep CI logs readable: truncate huge DOM dumps from Testing Library errors.
+const TL_DOM_MAX_CHARS = 800;
+configure({
+  getElementError: (message, container) => {
+    const dom = container ? prettyDOM(container, TL_DOM_MAX_CHARS, { highlight: false }) : '';
+    const hint = dom ? `\n\nDOM (truncated to ${TL_DOM_MAX_CHARS} chars):\n${dom}` : '';
+    return new Error(`${message}${hint}`);
+  },
+});
 
 
 
