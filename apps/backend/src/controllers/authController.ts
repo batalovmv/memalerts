@@ -6,7 +6,11 @@ import crypto from 'crypto';
 import { logAuthEvent } from '../utils/auditLogger.js';
 import { debugLog, debugError } from '../utils/debug.js';
 import { logger } from '../utils/logger.js';
-import { fetchMyYouTubeChannelIdByAccessToken, fetchMyYouTubeChannelProfileByAccessToken } from '../utils/youtubeApi.js';
+import {
+  fetchMyYouTubeChannelIdByAccessToken,
+  fetchMyYouTubeChannelProfileByAccessToken,
+  fetchYouTubeChannelProfilePublicByChannelId,
+} from '../utils/youtubeApi.js';
 import { createOAuthState, loadAndConsumeOAuthState } from '../auth/oauthState.js';
 import { exchangeTwitchCodeForToken, fetchTwitchUser, getTwitchAuthorizeUrl } from '../auth/providers/twitch.js';
 import { exchangeYouTubeCodeForToken, fetchGoogleTokenInfo, fetchYouTubeUser, getYouTubeAuthorizeUrl } from '../auth/providers/youtube.js';
@@ -703,13 +707,14 @@ export const authController = {
         // перестанут работать после истечения access token.
         const externalUpdate: any = {
           userId: user.id,
-          displayName,
-          login,
-          avatarUrl,
-          profileUrl,
           accessToken,
           tokenExpiresAt,
           scopes,
+          // Avoid overwriting previously saved profile fields with nulls on subsequent re-link flows.
+          ...(displayName ? { displayName } : {}),
+          ...(login ? { login } : {}),
+          ...(avatarUrl ? { avatarUrl } : {}),
+          ...(profileUrl ? { profileUrl } : {}),
         };
         if (refreshToken) externalUpdate.refreshToken = refreshToken;
 
@@ -747,6 +752,11 @@ export const authController = {
               // For readonly linking we intentionally avoid OIDC profile scopes; use channel snippet instead.
               if (profile?.title) data.displayName = profile.title;
               if (profile?.avatarUrl) data.avatarUrl = profile.avatarUrl;
+              if (!data.displayName || !data.avatarUrl) {
+                const publicProfile = await fetchYouTubeChannelProfilePublicByChannelId(channelId);
+                if (!data.displayName && publicProfile?.title) data.displayName = publicProfile.title;
+                if (!data.avatarUrl && publicProfile?.avatarUrl) data.avatarUrl = publicProfile.avatarUrl;
+              }
 
               await tx.externalAccount.update({ where: { id: upserted.id }, data });
             }

@@ -2,12 +2,6 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { debugLog, debugError } from '../../utils/debug.js';
-import {
-  fetchMyYouTubeChannelProfileByAccessToken,
-  fetchYouTubeChannelProfilePublicByChannelId,
-  getValidYouTubeAccessTokenByExternalAccountId,
-} from '../../utils/youtubeApi.js';
-import { fetchVkVideoCurrentUser, getValidVkVideoAccessTokenByExternalAccountId } from '../../utils/vkvideoApi.js';
 
 function normalizeVkVideoProfileUrl(raw: string | null | undefined): string | null {
   const s = String(raw || '').trim();
@@ -16,191 +10,6 @@ function normalizeVkVideoProfileUrl(raw: string | null | undefined): string | nu
   const slug = s.replace(/^\/+/, '').replace(/^@/, '').trim();
   if (!slug) return null;
   return `https://live.vkvideo.ru/${slug}`;
-}
-
-async function getBotExternalAccountIdsForChannel(channelId: string): Promise<Set<string>> {
-  const set = new Set<string>();
-  const id = String(channelId || '').trim();
-  if (!id) return set;
-
-  try {
-    const rows = await (prisma as any).youTubeBotIntegration.findMany({ where: { channelId: id }, select: { externalAccountId: true } });
-    for (const r of rows) {
-      const extId = String((r as any)?.externalAccountId || '').trim();
-      if (extId) set.add(extId);
-    }
-  } catch (e: any) {
-    if (e?.code !== 'P2021') throw e;
-  }
-
-  try {
-    const rows = await (prisma as any).vkVideoBotIntegration.findMany({ where: { channelId: id }, select: { externalAccountId: true } });
-    for (const r of rows) {
-      const extId = String((r as any)?.externalAccountId || '').trim();
-      if (extId) set.add(extId);
-    }
-  } catch (e: any) {
-    if (e?.code !== 'P2021') throw e;
-  }
-
-  try {
-    const rows = await (prisma as any).twitchBotIntegration.findMany({ where: { channelId: id }, select: { externalAccountId: true } });
-    for (const r of rows) {
-      const extId = String((r as any)?.externalAccountId || '').trim();
-      if (extId) set.add(extId);
-    }
-  } catch (e: any) {
-    if (e?.code !== 'P2021') throw e;
-  }
-
-  return set;
-}
-
-async function bestEffortBackfillExternalAccounts(
-  externalAccounts: any[],
-  requestId: string | null,
-  botExternalAccountIds: Set<string>
-): Promise<any[]> {
-  // Avoid turning /me into a heavy endpoint: at most 2 YouTube + 2 VKVideo attempts per request, only if fields are missing.
-  let youTubeAttempts = 0;
-  let vkVideoAttempts = 0;
-
-  const updated = [...externalAccounts];
-
-  for (let i = 0; i < updated.length; i++) {
-    const a = updated[i];
-    if (botExternalAccountIds.has(String(a?.id || '').trim())) continue; // don't enrich bot sender accounts
-    const provider = String(a?.provider || '').toLowerCase();
-
-    if (provider === 'youtube' && youTubeAttempts < 2) {
-      const needs = !a?.displayName || !a?.avatarUrl || !a?.profileUrl || !a?.login;
-      if (!needs) continue;
-
-      youTubeAttempts++;
-      try {
-        const token = await getValidYouTubeAccessTokenByExternalAccountId(String(a.id || ''));
-        if (token) {
-          const profile = await fetchMyYouTubeChannelProfileByAccessToken(token);
-          const channelId = profile?.channelId || null;
-          if (channelId) {
-            const data: any = {};
-            if (!a.displayName && profile?.title) data.displayName = profile.title;
-            if (!a.avatarUrl && profile?.avatarUrl) data.avatarUrl = profile.avatarUrl;
-            if (!a.login) data.login = channelId;
-            if (!a.profileUrl) data.profileUrl = `https://www.youtube.com/channel/${channelId}`;
-
-            if (Object.keys(data).length) {
-              const row = await prisma.externalAccount.update({
-                where: { id: a.id },
-                data,
-                select: { displayName: true, login: true, avatarUrl: true, profileUrl: true, updatedAt: true },
-              });
-              updated[i] = { ...a, ...row };
-              debugLog('[DEBUG] getMe externalAccount backfilled (youtube)', { requestId, externalAccountId: a.id });
-              break; // success: don't try other YouTube rows
-            }
-          }
-        }
-
-        // Public fallback: if we already have channelId in `login`, use oEmbed to get title + thumbnail without OAuth.
-        const existingChannelId = String(a?.login || '').trim();
-        if (existingChannelId && (!a.displayName || !a.avatarUrl)) {
-          const publicProfile = await fetchYouTubeChannelProfilePublicByChannelId(existingChannelId);
-          if (publicProfile) {
-            const data: any = {};
-            if (!a.displayName && publicProfile.title) data.displayName = publicProfile.title;
-            if (!a.avatarUrl && publicProfile.avatarUrl) data.avatarUrl = publicProfile.avatarUrl;
-            if (!a.profileUrl) data.profileUrl = `https://www.youtube.com/channel/${existingChannelId}`;
-
-            if (Object.keys(data).length) {
-              const row = await prisma.externalAccount.update({
-                where: { id: a.id },
-                data,
-                select: { displayName: true, login: true, avatarUrl: true, profileUrl: true, updatedAt: true },
-              });
-              updated[i] = { ...a, ...row };
-              debugLog('[DEBUG] getMe externalAccount backfilled (youtube, public)', { requestId, externalAccountId: a.id });
-              break;
-            }
-          }
-        }
-      } catch (e: any) {
-        debugLog('[DEBUG] getMe externalAccount backfill failed (youtube)', { requestId, errorMessage: e?.message || String(e) });
-      }
-    }
-
-    if (provider === 'vkvideo' && vkVideoAttempts < 2) {
-      const needs = !a?.displayName || !a?.login || !a?.profileUrl;
-      if (!needs) continue;
-
-      vkVideoAttempts++;
-      try {
-        const token = await getValidVkVideoAccessTokenByExternalAccountId(String(a.id || ''));
-        if (!token) continue;
-
-        const currentUser = await fetchVkVideoCurrentUser({ accessToken: token });
-        if (!currentUser.ok) continue;
-
-        const root = (currentUser.data as any)?.data ?? (currentUser.data as any) ?? null;
-        const user = (root as any)?.user ?? (root as any)?.profile ?? root ?? null;
-        const channelUrlRaw = String((root as any)?.channel?.url || (user as any)?.url || '').trim() || null;
-        const channelUrl = normalizeVkVideoProfileUrl(channelUrlRaw);
-        const channelSlug = channelUrlRaw ? String(channelUrlRaw).trim().replace(/^\/+/, '').replace(/^@/, '') : null;
-        const nameFromParts = String([user?.first_name, user?.last_name].filter(Boolean).join(' ')).trim() || null;
-        const name =
-          String(user?.display_name ?? user?.displayName ?? user?.name ?? user?.full_name ?? user?.nickname ?? user?.username ?? '').trim() ||
-          nameFromParts ||
-          null;
-        const login = String(user?.login ?? user?.screen_name ?? user?.screenName ?? user?.username ?? user?.nickname ?? '').trim() || null;
-
-        const data: any = {};
-        if (!a.displayName && name) data.displayName = name;
-        if (!a.login) data.login = login || channelSlug || null;
-        if (!a.profileUrl && channelUrl) data.profileUrl = channelUrl;
-        if (!a.displayName && !data.displayName) {
-          const fallbackName = String(a?.login || data.login || channelSlug || '').trim();
-          if (fallbackName) data.displayName = fallbackName;
-        }
-
-        if (Object.keys(data).length) {
-          const row = await prisma.externalAccount.update({
-            where: { id: a.id },
-            data,
-            select: { displayName: true, login: true, avatarUrl: true, profileUrl: true, updatedAt: true },
-          });
-          updated[i] = { ...a, ...row };
-          debugLog('[DEBUG] getMe externalAccount backfilled (vkvideo)', { requestId, externalAccountId: a.id });
-          break; // success: don't try other VKVideo rows
-        }
-      } catch (e: any) {
-        debugLog('[DEBUG] getMe externalAccount backfill failed (vkvideo)', { requestId, errorMessage: e?.message || String(e) });
-      }
-    }
-
-    if (youTubeAttempts >= 2 && vkVideoAttempts >= 2) break;
-  }
-
-  // If we can derive YouTube profileUrl from stored channelId, do it without API calls.
-  for (let i = 0; i < updated.length; i++) {
-    const a = updated[i];
-    if (String(a?.provider || '').toLowerCase() !== 'youtube') continue;
-    const channelId = String(a?.login || '').trim();
-    if (!a?.profileUrl && channelId) {
-      updated[i] = { ...a, profileUrl: `https://www.youtube.com/channel/${channelId}` };
-    }
-  }
-
-  // Normalize VKVideo profileUrl if it looks like a slug.
-  for (let i = 0; i < updated.length; i++) {
-    const a = updated[i];
-    if (String(a?.provider || '').toLowerCase() !== 'vkvideo') continue;
-    const normalized = normalizeVkVideoProfileUrl(a?.profileUrl ?? null);
-    if (normalized && normalized !== a?.profileUrl) {
-      updated[i] = { ...a, profileUrl: normalized };
-    }
-  }
-
-  return updated;
 }
 
 export const getMe = async (req: AuthRequest, res: Response) => {
@@ -246,12 +55,23 @@ export const getMe = async (req: AuthRequest, res: Response) => {
     // Admin is always allowed; otherwise this reflects an active GlobalModerator grant (revokedAt IS NULL).
     const isGlobalModerator = user.role === 'admin' || (Boolean(user.globalModerator) && !user.globalModerator?.revokedAt);
 
-    const botExternalAccountIds = user.channelId ? await getBotExternalAccountIdsForChannel(user.channelId) : new Set<string>();
-    const externalAccounts = await bestEffortBackfillExternalAccounts(
-      user.externalAccounts as any[],
-      (req as any)?.requestId ?? null,
-      botExternalAccountIds
-    );
+    const externalAccounts = user.externalAccounts.map((a) => {
+      const provider = String((a as any)?.provider || '').toLowerCase();
+      if (provider === 'youtube') {
+        const channelId = String((a as any)?.login || '').trim();
+        const profileUrl = (a as any)?.profileUrl ?? null;
+        if (!profileUrl && channelId) {
+          return { ...a, profileUrl: `https://www.youtube.com/channel/${channelId}` };
+        }
+      }
+      if (provider === 'vkvideo') {
+        const profileUrl = normalizeVkVideoProfileUrl((a as any)?.profileUrl ?? null) ?? ((a as any)?.profileUrl ?? null);
+        const displayName = (a as any)?.displayName ?? null;
+        const login = (a as any)?.login ?? null;
+        return { ...a, profileUrl, displayName: displayName ?? (login ? String(login) : null) };
+      }
+      return a;
+    });
 
     const response = {
       id: user.id,
