@@ -18,7 +18,49 @@ function normalizeVkVideoProfileUrl(raw: string | null | undefined): string | nu
   return `https://live.vkvideo.ru/${slug}`;
 }
 
-async function bestEffortBackfillExternalAccounts(externalAccounts: any[], requestId: string | null): Promise<any[]> {
+async function getBotExternalAccountIdsForChannel(channelId: string): Promise<Set<string>> {
+  const set = new Set<string>();
+  const id = String(channelId || '').trim();
+  if (!id) return set;
+
+  try {
+    const rows = await (prisma as any).youTubeBotIntegration.findMany({ where: { channelId: id }, select: { externalAccountId: true } });
+    for (const r of rows) {
+      const extId = String((r as any)?.externalAccountId || '').trim();
+      if (extId) set.add(extId);
+    }
+  } catch (e: any) {
+    if (e?.code !== 'P2021') throw e;
+  }
+
+  try {
+    const rows = await (prisma as any).vkVideoBotIntegration.findMany({ where: { channelId: id }, select: { externalAccountId: true } });
+    for (const r of rows) {
+      const extId = String((r as any)?.externalAccountId || '').trim();
+      if (extId) set.add(extId);
+    }
+  } catch (e: any) {
+    if (e?.code !== 'P2021') throw e;
+  }
+
+  try {
+    const rows = await (prisma as any).twitchBotIntegration.findMany({ where: { channelId: id }, select: { externalAccountId: true } });
+    for (const r of rows) {
+      const extId = String((r as any)?.externalAccountId || '').trim();
+      if (extId) set.add(extId);
+    }
+  } catch (e: any) {
+    if (e?.code !== 'P2021') throw e;
+  }
+
+  return set;
+}
+
+async function bestEffortBackfillExternalAccounts(
+  externalAccounts: any[],
+  requestId: string | null,
+  botExternalAccountIds: Set<string>
+): Promise<any[]> {
   // Avoid turning /me into a heavy endpoint: at most 2 YouTube + 2 VKVideo attempts per request, only if fields are missing.
   let youTubeAttempts = 0;
   let vkVideoAttempts = 0;
@@ -27,6 +69,7 @@ async function bestEffortBackfillExternalAccounts(externalAccounts: any[], reque
 
   for (let i = 0; i < updated.length; i++) {
     const a = updated[i];
+    if (botExternalAccountIds.has(String(a?.id || '').trim())) continue; // don't enrich bot sender accounts
     const provider = String(a?.provider || '').toLowerCase();
 
     if (provider === 'youtube' && youTubeAttempts < 2) {
@@ -203,7 +246,12 @@ export const getMe = async (req: AuthRequest, res: Response) => {
     // Admin is always allowed; otherwise this reflects an active GlobalModerator grant (revokedAt IS NULL).
     const isGlobalModerator = user.role === 'admin' || (Boolean(user.globalModerator) && !user.globalModerator?.revokedAt);
 
-    const externalAccounts = await bestEffortBackfillExternalAccounts(user.externalAccounts as any[], (req as any)?.requestId ?? null);
+    const botExternalAccountIds = user.channelId ? await getBotExternalAccountIdsForChannel(user.channelId) : new Set<string>();
+    const externalAccounts = await bestEffortBackfillExternalAccounts(
+      user.externalAccounts as any[],
+      (req as any)?.requestId ?? null,
+      botExternalAccountIds
+    );
 
     const response = {
       id: user.id,
