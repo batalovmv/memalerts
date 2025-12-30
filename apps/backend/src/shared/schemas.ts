@@ -94,6 +94,9 @@ export const updateChannelSettingsSchema = z.object({
   overlayStyleJson: z.string().max(50_000).optional().nullable(),
   // Streamer dashboard layout (card order). Null => reset to default (unset in DB).
   dashboardCardOrder: z.array(z.string()).max(50).optional().nullable(),
+  // Boosty integration
+  boostyBlogName: z.string().min(1).max(200).optional().nullable(),
+  boostyCoinsPerSub: z.number().int().min(0).optional(),
 });
 
 export const createPromotionSchema = z.object({

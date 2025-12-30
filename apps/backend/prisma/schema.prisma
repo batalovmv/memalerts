@@ -68,6 +68,10 @@ model Channel {
   // Streamer dashboard layout (cross-device). Null => use frontend default order.
   // Stored as JSON array of card ids (strings). Normalized/validated by API.
   dashboardCardOrder            Json?    @db.JsonB
+  // Boosty integration (manual token linking; subscription sync awards coins).
+  // Streamer sets their Boosty blog name (e.g. "some-blog-name") and reward amount.
+  boostyBlogName                String?
+  boostyCoinsPerSub             Int      @default(0)
   createdAt                     DateTime @default(now())
 
   users                        User[]
@@ -539,6 +543,8 @@ model ExternalAccount {
   // OAuth tokens (optional; some providers may not return refresh tokens etc.)
   accessToken    String?
   refreshToken   String?
+  // Some providers (e.g. Boosty reverse-engineered clients) use refresh token + device id.
+  deviceId       String?
   tokenExpiresAt DateTime?
   scopes         String?
 
@@ -561,6 +567,27 @@ model ExternalAccount {
   @@index([userId])
   @@index([provider])
   @@index([providerAccountId])
+}
+
+// Dedupe table: coins granted for a Boosty subscription for a specific channel.
+// We currently grant coins once per subscription id (first time we observe it as active).
+model BoostySubscriptionReward {
+  id                   String   @id @default(uuid())
+  channelId             String
+  userId                String
+  boostyBlogName        String
+  boostySubscriptionId  String
+  coinsGranted          Int
+  createdAt             DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, boostySubscriptionId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([boostyBlogName])
+  @@index([createdAt])
 }
 
 model OAuthState {

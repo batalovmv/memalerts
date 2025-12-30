@@ -1542,6 +1542,14 @@ export const authController = {
         state,
         scopes,
       });
+    } else if (provider === 'boosty') {
+      // Boosty has no supported OAuth redirect flow in our backend.
+      // Linking is done via POST /auth/boosty/link (manual token + optional blog name).
+      const redirectUrl = getRedirectUrl(req, origin || undefined);
+      const url = new URL(`${redirectUrl}${redirectTo}`);
+      url.searchParams.set('provider', 'boosty');
+      url.searchParams.set('mode', 'manual');
+      return res.redirect(url.toString());
     } else {
       // Providers without implemented OAuth yet: boosty.
       const redirectUrl = getRedirectUrl(req);
@@ -1554,6 +1562,127 @@ export const authController = {
   handleLinkCallback: async (req: AuthRequest, res: Response) => {
     // Same handler: the state.kind determines whether this becomes login or link.
     return authController.handleCallback(req, res);
+  },
+
+  linkBoosty: async (req: AuthRequest, res: Response) => {
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const body = (req.body || {}) as any;
+    const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+    const refreshToken = typeof body.refreshToken === 'string' ? body.refreshToken.trim() : '';
+    const deviceId = typeof body.deviceId === 'string' ? body.deviceId.trim() : '';
+    const blogName = typeof body.blogName === 'string' ? body.blogName.trim() : '';
+
+    if (!accessToken && !(refreshToken && deviceId)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        errorCode: 'BOOSTY_LINK_MISSING_CREDENTIALS',
+        message: 'Provide accessToken OR (refreshToken + deviceId)',
+      });
+    }
+
+    const providerAccountId = crypto
+      .createHash('sha256')
+      .update(refreshToken && deviceId ? `${refreshToken}:${deviceId}` : accessToken)
+      .digest('hex')
+      .slice(0, 48);
+
+    // For most users we want a single Boosty account link. Update if exists, otherwise create.
+    const existing = await (prisma as any).externalAccount.findFirst({
+      where: {
+        userId: req.userId,
+        provider: 'boosty',
+        // Ensure this endpoint cannot touch bot credentials (none exist for boosty today, but keep consistent).
+        youTubeBotIntegration: { is: null },
+        globalYouTubeBotCredential: { is: null },
+        vkVideoBotIntegration: { is: null },
+        globalVkVideoBotCredential: { is: null },
+        twitchBotIntegration: { is: null },
+        globalTwitchBotCredential: { is: null },
+        trovoBotIntegration: { is: null },
+        globalTrovoBotCredential: { is: null },
+        kickBotIntegration: { is: null },
+        globalKickBotCredential: { is: null },
+      },
+      select: { id: true, providerAccountId: true },
+    });
+
+    // Prevent overwriting a different user's account if providerAccountId collides (shared unique index).
+    const collision = await (prisma as any).externalAccount.findUnique({
+      where: { provider_providerAccountId: { provider: 'boosty', providerAccountId } },
+      select: { id: true, userId: true },
+    });
+    if (collision && collision.userId !== req.userId) {
+      return res.status(409).json({
+        error: 'Conflict',
+        errorCode: 'BOOSTY_ACCOUNT_ALREADY_LINKED',
+        message: 'This Boosty credentials are already linked to a different user',
+      });
+    }
+
+    const targetId = existing?.id || collision?.id || null;
+    const account = targetId
+      ? await (prisma as any).externalAccount.update({
+          where: { id: targetId },
+          data: {
+            accessToken: accessToken || null,
+            refreshToken: refreshToken || null,
+            deviceId: deviceId || null,
+            login: blogName || undefined,
+            profileUrl: blogName ? `https://boosty.to/${encodeURIComponent(blogName)}` : undefined,
+          },
+          select: {
+            id: true,
+            provider: true,
+            providerAccountId: true,
+            displayName: true,
+            login: true,
+            avatarUrl: true,
+            profileUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : await (prisma as any).externalAccount.create({
+          data: {
+            userId: req.userId,
+            provider: 'boosty',
+            providerAccountId,
+            accessToken: accessToken || null,
+            refreshToken: refreshToken || null,
+            deviceId: deviceId || null,
+            // Best-effort: store blogName in login for UI purposes (no stable user id is available).
+            login: blogName || null,
+            profileUrl: blogName ? `https://boosty.to/${encodeURIComponent(blogName)}` : null,
+          },
+          select: {
+            id: true,
+            provider: true,
+            providerAccountId: true,
+            displayName: true,
+            login: true,
+            avatarUrl: true,
+            profileUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+    // If a streamer links Boosty and provides blogName, store it on their channel too (so rewards can target this blog).
+    const isStreamer = String(req.userRole || '').toLowerCase() === 'streamer' || String(req.userRole || '').toLowerCase() === 'admin';
+    if (isStreamer && req.channelId && blogName) {
+      try {
+        await prisma.channel.update({
+          where: { id: req.channelId },
+          data: { boostyBlogName: blogName },
+          select: { id: true },
+        });
+      } catch {
+        // ignore best-effort
+      }
+    }
+
+    return res.json({ ok: true, account });
   },
 
   listAccounts: async (req: AuthRequest, res: Response) => {

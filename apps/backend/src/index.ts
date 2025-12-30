@@ -19,6 +19,7 @@ import { startChannelDailyStatsRollupScheduler } from './jobs/channelDailyStatsR
 import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup.js';
 import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
 import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
+import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscriptionRewards.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
@@ -448,6 +449,8 @@ async function startServer() {
     startMemeDailyStatsRollupScheduler();
     // Safety: delayed purge of globally hidden MemeAssets (quarantine-based).
     startMemeAssetPurgeScheduler();
+    // Boosty: award coins for active subscriptions (manual token linking).
+    startBoostySubscriptionRewardsScheduler(io);
 
     // Optional: Twitch chat bot (collects chatters for credits overlay).
     // Enabled via env (see CHAT_BOT_* vars).

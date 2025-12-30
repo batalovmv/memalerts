@@ -488,6 +488,9 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : (channel as any).overlayShowSender,
       overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
       overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : (channel as any).overlayStyleJson,
+      boostyBlogName: (body as any).boostyBlogName !== undefined ? (body as any).boostyBlogName : (channel as any).boostyBlogName,
+      boostyCoinsPerSub:
+        (body as any).boostyCoinsPerSub !== undefined ? (body as any).boostyCoinsPerSub : (channel as any).boostyCoinsPerSub,
     };
 
     // Streamer dashboard layout (cross-device): accept array or null (reset).

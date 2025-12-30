@@ -12,6 +12,8 @@ authRoutes.get('/twitch/complete', authController.completeBetaAuth);
 // Account linking management (must be before "/:provider" routes)
 authRoutes.get('/accounts', authenticate, authController.listAccounts);
 authRoutes.delete('/accounts/:externalAccountId', authenticate, authController.unlinkAccount);
+// Manual linking for providers without OAuth redirects (Boosty).
+authRoutes.post('/boosty/link', authenticate, authController.linkBoosty);
 
 // New multi-provider endpoints
 authRoutes.get('/:provider', authController.initiateAuth);
