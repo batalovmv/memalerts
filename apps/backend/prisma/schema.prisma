@@ -72,6 +72,12 @@ model Channel {
   // Streamer sets their Boosty blog name (e.g. "some-blog-name") and reward amount.
   boostyBlogName                String?
   boostyCoinsPerSub             Int      @default(0)
+  // Legacy (initial rollout): single role id that represents subscription.
+  // Kept for backward compatibility; prefer `boostyDiscordTierRolesJson`.
+  boostyDiscordRoleId           String?
+  // Boosty via Discord roles (tiers): mapping of Boosty tier -> Discord role id in the platform guild.
+  // Stored as JSON array of objects: [{ tier: "tier1", roleId: "123" }, ...]
+  boostyDiscordTierRolesJson    Json?    @db.JsonB
   createdAt                     DateTime @default(now())
 
   users                        User[]
@@ -166,6 +172,7 @@ enum ExternalAccountProvider {
   kick
   trovo
   boosty
+  discord
 }
 
 // VK Video Live chat bot subscriptions (global bot account joins many channels).
@@ -587,6 +594,46 @@ model BoostySubscriptionReward {
   @@index([channelId])
   @@index([userId])
   @@index([boostyBlogName])
+  @@index([createdAt])
+}
+
+// Dedupe table: coins granted for a Boosty subscription detected via Discord role membership.
+// We currently grant coins once per (channel, user, roleId) when we first observe the role as present.
+model BoostyDiscordSubscriptionReward {
+  id           String   @id @default(uuid())
+  channelId    String
+  userId       String
+  discordRoleId String
+  coinsGranted Int
+  createdAt    DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, discordRoleId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([discordRoleId])
+  @@index([createdAt])
+}
+
+// V2: dedupe by (channelId, userId) regardless of tier/role, as the reward is "any active subscription".
+model BoostyDiscordSubscriptionRewardV2 {
+  id            String   @id @default(uuid())
+  channelId      String
+  userId         String
+  // Best-effort info for audit/debug
+  discordRoleId  String?
+  discordTier    String?
+  coinsGranted   Int
+  createdAt      DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
   @@index([createdAt])
 }
 

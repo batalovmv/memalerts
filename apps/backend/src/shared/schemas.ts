@@ -97,6 +97,46 @@ export const updateChannelSettingsSchema = z.object({
   // Boosty integration
   boostyBlogName: z.string().min(1).max(200).optional().nullable(),
   boostyCoinsPerSub: z.number().int().min(0).optional(),
+  // Boosty via Discord roles (tiers): mapping tier -> Discord role id.
+  // Stored in DB as JSONB array of objects [{ tier, roleId }, ...]
+  boostyDiscordTierRoles: z
+    .array(
+      z.object({
+        tier: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() : v), z.string().min(1).max(80)),
+        roleId: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().min(1).max(64)),
+      })
+    )
+    .max(50)
+    .optional()
+    .nullable(),
+}).superRefine((obj, ctx) => {
+  const items = (obj as any)?.boostyDiscordTierRoles;
+  if (!Array.isArray(items)) return;
+
+  const seenTier = new Set<string>();
+  const seenRoleId = new Set<string>();
+  for (let i = 0; i < items.length; i += 1) {
+    const tier = String(items[i]?.tier ?? '').trim().toLowerCase();
+    const roleId = String(items[i]?.roleId ?? '').trim();
+    if (!tier || !roleId) continue;
+
+    if (seenTier.has(tier)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['boostyDiscordTierRoles', i, 'tier'],
+        message: 'Tier must be unique',
+      });
+    }
+    if (seenRoleId.has(roleId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['boostyDiscordTierRoles', i, 'roleId'],
+        message: 'roleId must be unique',
+      });
+    }
+    seenTier.add(tier);
+    seenRoleId.add(roleId);
+  }
 });
 
 export const createPromotionSchema = z.object({

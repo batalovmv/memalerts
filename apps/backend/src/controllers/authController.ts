@@ -18,10 +18,12 @@ import { exchangeVkCodeForToken, fetchVkUser, getVkAuthorizeUrl } from '../auth/
 import { exchangeVkVideoCodeForToken, fetchVkVideoUser, generatePkceVerifier, getVkVideoAuthorizeUrl, pkceChallengeS256 } from '../auth/providers/vkvideo.js';
 import { exchangeTrovoCodeForToken, fetchTrovoUserInfo, getTrovoAuthorizeUrl } from '../auth/providers/trovo.js';
 import { exchangeKickCodeForToken, fetchKickUser, getKickAuthorizeUrl } from '../auth/providers/kick.js';
+import { exchangeDiscordCodeForToken, fetchDiscordUser, getDiscordAuthorizeUrl } from '../auth/providers/discord.js';
 import { fetchVkVideoCurrentUser } from '../utils/vkvideoApi.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
 import { ERROR_CODES } from '../shared/errors.js';
+import { addDiscordGuildMember } from '../utils/discordApi.js';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -695,6 +697,74 @@ export const authController = {
         login = String((u as any)?.username ?? (u as any)?.user_name ?? '').trim() || null;
         avatarUrl = String((u as any)?.avatar_url ?? (u as any)?.avatarUrl ?? '').trim() || null;
         profileUrl = login ? `https://kick.com/${encodeURIComponent(login)}` : null;
+      } else if (provider === 'discord') {
+        const clientId = process.env.DISCORD_CLIENT_ID;
+        const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+        const callbackUrl = process.env.DISCORD_CALLBACK_URL;
+        if (!clientId || !clientSecret || !callbackUrl) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=missing_oauth_env&provider=discord`);
+        }
+
+        const tokenExchange = await exchangeDiscordCodeForToken({
+          clientId,
+          clientSecret,
+          code: code as string,
+          redirectUri: callbackUrl,
+          tokenUrl: process.env.DISCORD_TOKEN_URL || undefined,
+        });
+
+        if (!tokenExchange.data?.access_token) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_token&provider=discord`);
+        }
+
+        accessToken = String(tokenExchange.data.access_token || '').trim() || null;
+        refreshToken = String(tokenExchange.data.refresh_token || '').trim() || null;
+        const expiresIn = Number(tokenExchange.data.expires_in || 0);
+        tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000) : null;
+        scopes = tokenExchange.data.scope ? String(tokenExchange.data.scope) : null;
+
+        const userFetch = await fetchDiscordUser({
+          accessToken: String(tokenExchange.data.access_token),
+          userInfoUrl: process.env.DISCORD_USERINFO_URL || undefined,
+        });
+
+        const u = userFetch.user;
+        providerAccountId = String(u?.id ?? '').trim();
+        diagProviderAccountId = providerAccountId || null;
+        if (!providerAccountId) {
+          const redirectUrl = getRedirectUrl(req, stateOrigin);
+          return res.redirect(`${redirectUrl}/?error=auth_failed&reason=no_user&provider=discord`);
+        }
+
+        const username = String(u?.username ?? '').trim() || null;
+        const globalName = String((u as any)?.global_name ?? '').trim() || null;
+        displayName = globalName || username || null;
+        login = username;
+
+        const avatar = String((u as any)?.avatar ?? '').trim() || null;
+        avatarUrl = avatar ? `https://cdn.discordapp.com/avatars/${providerAccountId}/${avatar}.png?size=256` : null;
+        profileUrl = `https://discord.com/users/${encodeURIComponent(providerAccountId)}`;
+
+        // Optional: auto-join the platform guild so we can later read roles via bot token.
+        // Requires: scope guilds.join + DISCORD_BOT_TOKEN + DISCORD_SUBSCRIPTIONS_GUILD_ID.
+        const autoJoinEnabledRaw = String(process.env.DISCORD_AUTO_JOIN_GUILD || '').toLowerCase();
+        const autoJoinEnabled = autoJoinEnabledRaw === '1' || autoJoinEnabledRaw === 'true' || autoJoinEnabledRaw === 'yes';
+        const guildId = String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
+        const botToken = String(process.env.DISCORD_BOT_TOKEN || '').trim();
+        if (autoJoinEnabled && guildId && botToken && accessToken) {
+          try {
+            await addDiscordGuildMember({
+              botToken,
+              guildId,
+              userId: providerAccountId,
+              userAccessToken: accessToken,
+            });
+          } catch {
+            // ignore best-effort
+          }
+        }
       } else {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=provider_not_supported&provider=${provider}`);
@@ -1537,6 +1607,37 @@ export const authController = {
 
       authUrl = getKickAuthorizeUrl({
         authorizeUrl,
+        clientId,
+        redirectUri: callbackUrl,
+        state,
+        scopes,
+      });
+    } else if (provider === 'discord') {
+      const clientId = process.env.DISCORD_CLIENT_ID;
+      const callbackUrl = process.env.DISCORD_CALLBACK_URL;
+      const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+      if (!clientId || !callbackUrl || !clientSecret) {
+        const redirectUrl = getRedirectUrl(req);
+        return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider }));
+      }
+
+      const { state } = await createOAuthState({
+        provider,
+        kind: 'link',
+        userId: req.userId,
+        redirectTo,
+        origin,
+      });
+
+      const scopes = ['identify'];
+      const autoJoinEnabledRaw = String(process.env.DISCORD_AUTO_JOIN_GUILD || '').toLowerCase();
+      const autoJoinEnabled = autoJoinEnabledRaw === '1' || autoJoinEnabledRaw === 'true' || autoJoinEnabledRaw === 'yes';
+      // Only request guilds.join when we actually plan to auto-add to the guild.
+      if (autoJoinEnabled && process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID && process.env.DISCORD_BOT_TOKEN) {
+        scopes.push('guilds.join');
+      }
+
+      authUrl = getDiscordAuthorizeUrl({
         clientId,
         redirectUri: callbackUrl,
         state,

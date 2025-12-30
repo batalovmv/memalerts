@@ -7,6 +7,7 @@ import * as pool from './viewer/pool.js';
 import * as stats from './viewer/stats.js';
 import * as activation from './viewer/activation.js';
 import * as preferences from './viewer/preferences.js';
+import * as boostyAccess from './viewer/boostyAccess.js';
 
 // Back-compat facade: keep `viewerController` shape stable for routes.
 export const viewerController = {
@@ -19,5 +20,6 @@ export const viewerController = {
   ...stats,
   ...activation,
   ...preferences,
+  ...boostyAccess,
 };
 

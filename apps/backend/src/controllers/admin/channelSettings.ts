@@ -491,6 +491,10 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       boostyBlogName: (body as any).boostyBlogName !== undefined ? (body as any).boostyBlogName : (channel as any).boostyBlogName,
       boostyCoinsPerSub:
         (body as any).boostyCoinsPerSub !== undefined ? (body as any).boostyCoinsPerSub : (channel as any).boostyCoinsPerSub,
+      boostyDiscordTierRolesJson:
+        (body as any).boostyDiscordTierRoles !== undefined
+          ? (body as any).boostyDiscordTierRoles
+          : (channel as any).boostyDiscordTierRolesJson,
     };
 
     // Streamer dashboard layout (cross-device): accept array or null (reset).

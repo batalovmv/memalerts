@@ -528,6 +528,8 @@ export function setupRoutes(app: Express) {
   // Router-based routes
   app.use('/auth', authRoutes);
   app.use('/webhooks', webhookRoutes);
+  // IMPORTANT: must be declared before `app.use('/channels', viewerRoutes)` because viewerRoutes contains `/:slug`.
+  app.get('/channels/:channelId/boosty-access', authenticate, requireBetaAccess, viewerController.getBoostyAccessForChannel);
   app.use('/channels', viewerRoutes);
   app.use('/submissions', submissionRoutes);
   // Panel routes:
