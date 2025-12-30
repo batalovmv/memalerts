@@ -3,6 +3,7 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { createOAuthState } from '../../auth/oauthState.js';
 import { getTrovoAuthorizeUrl } from '../../auth/providers/trovo.js';
+import { ERROR_CODES } from '../../shared/errors.js';
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
 const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/trovo', '/dashboard', '/']);
@@ -50,7 +51,19 @@ export const trovoDefaultBotController = {
     const callbackUrl = process.env.TROVO_CALLBACK_URL;
     const clientSecret = process.env.TROVO_CLIENT_SECRET;
     if (!clientId || !callbackUrl || !clientSecret) {
-      return res.status(503).json({ error: 'Service Unavailable', message: 'Trovo OAuth is not configured' });
+      return res.status(503).json({
+        errorCode: ERROR_CODES.BOT_NOT_CONFIGURED,
+        error: 'Trovo OAuth is not configured',
+        requestId: req.requestId,
+        details: {
+          provider: 'trovo',
+          missing: [
+            !clientId ? 'TROVO_CLIENT_ID' : null,
+            !clientSecret ? 'TROVO_CLIENT_SECRET' : null,
+            !callbackUrl ? 'TROVO_CALLBACK_URL' : null,
+          ].filter(Boolean),
+        },
+      });
     }
 
     const redirectTo = sanitizeRedirectTo(req.query.redirect_to);

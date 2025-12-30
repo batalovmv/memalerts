@@ -185,7 +185,9 @@
   - `youtube` (полный OAuth через Google OpenID userinfo)
   - `vk` (полный OAuth)
   - `vkvideo` (полный OAuth VK Video Live, см. `https://dev.live.vkvideo.ru/docs/main/authorization`)
-  - `kick | trovo | boosty` — пока **заглушка**: вернёт редирект обратно на `redirect_to` с `?error=auth_failed&reason=provider_not_supported&provider=<provider>`
+  - `trovo` (полный OAuth)
+  - `kick` (полный OAuth; OAuth endpoints задаются через ENV)
+  - `boosty` — не поддерживается (вернёт редирект с `reason=provider_not_supported`)
 - **Если пользователь не залогинен**: редирект на фронт с `/?error=auth_required&reason=no_session`
 - **Если вместо редиректа видите `401 Unauthorized`**:
   - Фронт отправил запрос **без cookies** → убедиться, что запрос сделан с `credentials: 'include'` (и в fetch/axios включены credentials).

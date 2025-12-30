@@ -148,6 +148,112 @@ jobs:
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 
+          # Trovo OAuth (prod)
+          if [ -n "${{ secrets.TROVO_CLIENT_ID }}" ]; then
+            KEY="TROVO_CLIENT_ID"
+            VAL="${{ secrets.TROVO_CLIENT_ID }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_CLIENT_SECRET }}" ]; then
+            KEY="TROVO_CLIENT_SECRET"
+            VAL="${{ secrets.TROVO_CLIENT_SECRET }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_CALLBACK_URL }}" ]; then
+            KEY="TROVO_CALLBACK_URL"
+            VAL="${{ secrets.TROVO_CALLBACK_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_BOT_SCOPES }}" ]; then
+            KEY="TROVO_BOT_SCOPES"
+            VAL="${{ secrets.TROVO_BOT_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_SCOPES }}" ]; then
+            KEY="TROVO_SCOPES"
+            VAL="${{ secrets.TROVO_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_TOKEN_URL }}" ]; then
+            KEY="TROVO_TOKEN_URL"
+            VAL="${{ secrets.TROVO_TOKEN_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_REFRESH_URL }}" ]; then
+            KEY="TROVO_REFRESH_URL"
+            VAL="${{ secrets.TROVO_REFRESH_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_USERINFO_URL }}" ]; then
+            KEY="TROVO_USERINFO_URL"
+            VAL="${{ secrets.TROVO_USERINFO_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
+          # Kick OAuth (prod)
+          if [ -n "${{ secrets.KICK_CLIENT_ID }}" ]; then
+            KEY="KICK_CLIENT_ID"
+            VAL="${{ secrets.KICK_CLIENT_ID }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_CLIENT_SECRET }}" ]; then
+            KEY="KICK_CLIENT_SECRET"
+            VAL="${{ secrets.KICK_CLIENT_SECRET }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_CALLBACK_URL }}" ]; then
+            KEY="KICK_CALLBACK_URL"
+            VAL="${{ secrets.KICK_CALLBACK_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_AUTHORIZE_URL }}" ]; then
+            KEY="KICK_AUTHORIZE_URL"
+            VAL="${{ secrets.KICK_AUTHORIZE_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_TOKEN_URL }}" ]; then
+            KEY="KICK_TOKEN_URL"
+            VAL="${{ secrets.KICK_TOKEN_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_REFRESH_URL }}" ]; then
+            KEY="KICK_REFRESH_URL"
+            VAL="${{ secrets.KICK_REFRESH_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_USERINFO_URL }}" ]; then
+            KEY="KICK_USERINFO_URL"
+            VAL="${{ secrets.KICK_USERINFO_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_BOT_SCOPES }}" ]; then
+            KEY="KICK_BOT_SCOPES"
+            VAL="${{ secrets.KICK_BOT_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_SCOPES }}" ]; then
+            KEY="KICK_SCOPES"
+            VAL="${{ secrets.KICK_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
           pnpm install --frozen-lockfile
           pnpm build
           pnpm prisma migrate deploy
@@ -278,6 +384,112 @@ jobs:
             else
               echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
             fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
+          # Trovo OAuth (beta; falls back to non-suffixed secrets)
+          if [ -n "${{ secrets.TROVO_CLIENT_ID_BETA || secrets.TROVO_CLIENT_ID }}" ]; then
+            KEY="TROVO_CLIENT_ID"
+            VAL="${{ secrets.TROVO_CLIENT_ID_BETA || secrets.TROVO_CLIENT_ID }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_CLIENT_SECRET_BETA || secrets.TROVO_CLIENT_SECRET }}" ]; then
+            KEY="TROVO_CLIENT_SECRET"
+            VAL="${{ secrets.TROVO_CLIENT_SECRET_BETA || secrets.TROVO_CLIENT_SECRET }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_CALLBACK_URL_BETA || secrets.TROVO_CALLBACK_URL }}" ]; then
+            KEY="TROVO_CALLBACK_URL"
+            VAL="${{ secrets.TROVO_CALLBACK_URL_BETA || secrets.TROVO_CALLBACK_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_BOT_SCOPES_BETA || secrets.TROVO_BOT_SCOPES }}" ]; then
+            KEY="TROVO_BOT_SCOPES"
+            VAL="${{ secrets.TROVO_BOT_SCOPES_BETA || secrets.TROVO_BOT_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_SCOPES_BETA || secrets.TROVO_SCOPES }}" ]; then
+            KEY="TROVO_SCOPES"
+            VAL="${{ secrets.TROVO_SCOPES_BETA || secrets.TROVO_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_TOKEN_URL_BETA || secrets.TROVO_TOKEN_URL }}" ]; then
+            KEY="TROVO_TOKEN_URL"
+            VAL="${{ secrets.TROVO_TOKEN_URL_BETA || secrets.TROVO_TOKEN_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_REFRESH_URL_BETA || secrets.TROVO_REFRESH_URL }}" ]; then
+            KEY="TROVO_REFRESH_URL"
+            VAL="${{ secrets.TROVO_REFRESH_URL_BETA || secrets.TROVO_REFRESH_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.TROVO_USERINFO_URL_BETA || secrets.TROVO_USERINFO_URL }}" ]; then
+            KEY="TROVO_USERINFO_URL"
+            VAL="${{ secrets.TROVO_USERINFO_URL_BETA || secrets.TROVO_USERINFO_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
+          # Kick OAuth (beta; falls back to non-suffixed secrets)
+          if [ -n "${{ secrets.KICK_CLIENT_ID_BETA || secrets.KICK_CLIENT_ID }}" ]; then
+            KEY="KICK_CLIENT_ID"
+            VAL="${{ secrets.KICK_CLIENT_ID_BETA || secrets.KICK_CLIENT_ID }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_CLIENT_SECRET_BETA || secrets.KICK_CLIENT_SECRET }}" ]; then
+            KEY="KICK_CLIENT_SECRET"
+            VAL="${{ secrets.KICK_CLIENT_SECRET_BETA || secrets.KICK_CLIENT_SECRET }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_CALLBACK_URL_BETA || secrets.KICK_CALLBACK_URL }}" ]; then
+            KEY="KICK_CALLBACK_URL"
+            VAL="${{ secrets.KICK_CALLBACK_URL_BETA || secrets.KICK_CALLBACK_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_AUTHORIZE_URL_BETA || secrets.KICK_AUTHORIZE_URL }}" ]; then
+            KEY="KICK_AUTHORIZE_URL"
+            VAL="${{ secrets.KICK_AUTHORIZE_URL_BETA || secrets.KICK_AUTHORIZE_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_TOKEN_URL_BETA || secrets.KICK_TOKEN_URL }}" ]; then
+            KEY="KICK_TOKEN_URL"
+            VAL="${{ secrets.KICK_TOKEN_URL_BETA || secrets.KICK_TOKEN_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_REFRESH_URL_BETA || secrets.KICK_REFRESH_URL }}" ]; then
+            KEY="KICK_REFRESH_URL"
+            VAL="${{ secrets.KICK_REFRESH_URL_BETA || secrets.KICK_REFRESH_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_USERINFO_URL_BETA || secrets.KICK_USERINFO_URL }}" ]; then
+            KEY="KICK_USERINFO_URL"
+            VAL="${{ secrets.KICK_USERINFO_URL_BETA || secrets.KICK_USERINFO_URL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_BOT_SCOPES_BETA || secrets.KICK_BOT_SCOPES }}" ]; then
+            KEY="KICK_BOT_SCOPES"
+            VAL="${{ secrets.KICK_BOT_SCOPES_BETA || secrets.KICK_BOT_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.KICK_SCOPES_BETA || secrets.KICK_SCOPES }}" ]; then
+            KEY="KICK_SCOPES"
+            VAL="${{ secrets.KICK_SCOPES_BETA || secrets.KICK_SCOPES }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 

@@ -15,6 +15,7 @@ import { getTrovoExternalAccount, getValidTrovoBotAccessToken } from '../../util
 import { getKickExternalAccount, getValidKickBotAccessToken } from '../../utils/kickApi.js';
 import { logger } from '../../utils/logger.js';
 import { hasChannelEntitlement } from '../../utils/entitlements.js';
+import { ERROR_CODES } from '../../shared/errors.js';
 
 type BotProvider = 'twitch' | 'vkplaylive' | 'youtube';
 type BotProviderV2 = BotProvider | 'vkvideo' | 'trovo' | 'kick';
@@ -217,7 +218,19 @@ export const botIntegrationsController = {
     const callbackUrl = process.env.TROVO_CALLBACK_URL;
     const clientSecret = process.env.TROVO_CLIENT_SECRET;
     if (!clientId || !callbackUrl || !clientSecret) {
-      return res.status(503).json({ error: 'Service Unavailable', message: 'Trovo OAuth is not configured' });
+      return res.status(503).json({
+        errorCode: ERROR_CODES.BOT_NOT_CONFIGURED,
+        error: 'Trovo OAuth is not configured',
+        requestId: req.requestId,
+        details: {
+          provider: 'trovo',
+          missing: [
+            !clientId ? 'TROVO_CLIENT_ID' : null,
+            !clientSecret ? 'TROVO_CLIENT_SECRET' : null,
+            !callbackUrl ? 'TROVO_CALLBACK_URL' : null,
+          ].filter(Boolean),
+        },
+      });
     }
 
     const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
@@ -309,7 +322,23 @@ export const botIntegrationsController = {
     const userInfoUrl = process.env.KICK_USERINFO_URL;
     const clientSecret = process.env.KICK_CLIENT_SECRET;
     if (!clientId || !callbackUrl || !authorizeUrl || !tokenUrl || !refreshUrl || !userInfoUrl || !clientSecret) {
-      return res.status(503).json({ error: 'Service Unavailable', message: 'Kick OAuth is not configured' });
+      return res.status(503).json({
+        errorCode: ERROR_CODES.BOT_NOT_CONFIGURED,
+        error: 'Kick OAuth is not configured',
+        requestId: req.requestId,
+        details: {
+          provider: 'kick',
+          missing: [
+            !clientId ? 'KICK_CLIENT_ID' : null,
+            !clientSecret ? 'KICK_CLIENT_SECRET' : null,
+            !callbackUrl ? 'KICK_CALLBACK_URL' : null,
+            !authorizeUrl ? 'KICK_AUTHORIZE_URL' : null,
+            !tokenUrl ? 'KICK_TOKEN_URL' : null,
+            !refreshUrl ? 'KICK_REFRESH_URL' : null,
+            !userInfoUrl ? 'KICK_USERINFO_URL' : null,
+          ].filter(Boolean),
+        },
+      });
     }
 
     const redirectTo = sanitizeRedirectTo(req.query.redirect_to);

@@ -3,6 +3,7 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { createOAuthState } from '../../auth/oauthState.js';
 import { getKickAuthorizeUrl } from '../../auth/providers/kick.js';
+import { ERROR_CODES } from '../../shared/errors.js';
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
 const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/kick', '/dashboard', '/']);
@@ -54,7 +55,23 @@ export const kickDefaultBotController = {
     const userInfoUrl = process.env.KICK_USERINFO_URL;
     const clientSecret = process.env.KICK_CLIENT_SECRET;
     if (!clientId || !callbackUrl || !authorizeUrl || !tokenUrl || !refreshUrl || !userInfoUrl || !clientSecret) {
-      return res.status(503).json({ error: 'Service Unavailable', message: 'Kick OAuth is not configured' });
+      return res.status(503).json({
+        errorCode: ERROR_CODES.BOT_NOT_CONFIGURED,
+        error: 'Kick OAuth is not configured',
+        requestId: req.requestId,
+        details: {
+          provider: 'kick',
+          missing: [
+            !clientId ? 'KICK_CLIENT_ID' : null,
+            !clientSecret ? 'KICK_CLIENT_SECRET' : null,
+            !callbackUrl ? 'KICK_CALLBACK_URL' : null,
+            !authorizeUrl ? 'KICK_AUTHORIZE_URL' : null,
+            !tokenUrl ? 'KICK_TOKEN_URL' : null,
+            !refreshUrl ? 'KICK_REFRESH_URL' : null,
+            !userInfoUrl ? 'KICK_USERINFO_URL' : null,
+          ].filter(Boolean),
+        },
+      });
     }
 
     const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
