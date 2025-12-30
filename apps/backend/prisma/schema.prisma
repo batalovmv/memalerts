@@ -112,6 +112,9 @@ model Channel {
   trovoBotIntegration          TrovoBotIntegration?
   kickBotIntegration           KickBotIntegration?
   entitlements                 ChannelEntitlement[]
+  boostySubscriptionRewards    BoostySubscriptionReward[]
+  boostyDiscordRewardsV1       BoostyDiscordSubscriptionReward[]
+  boostyDiscordRewardsV2       BoostyDiscordSubscriptionRewardV2[]
 }
 
 // Channel-scoped feature entitlements (subscription gates / feature flags).
@@ -495,6 +498,9 @@ model User {
   trovoChatBotSubscriptions   TrovoChatBotSubscription[]
   kickChatBotSubscriptions    KickChatBotSubscription[]
   wallets                     Wallet[]
+  boostySubscriptionRewards   BoostySubscriptionReward[]
+  boostyDiscordRewardsV1      BoostyDiscordSubscriptionReward[]
+  boostyDiscordRewardsV2      BoostyDiscordSubscriptionRewardV2[]
   memesCreated                Meme[]                       @relation("CreatedBy")
   memesApproved               Meme[]                       @relation("ApprovedBy")
   memeAssetsCreated           MemeAsset[]                  @relation("MemeAssetCreatedBy")
