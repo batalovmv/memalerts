@@ -102,6 +102,14 @@ function VkIcon({ className }: ServiceIconProps) {
   );
 }
 
+function BoostyIcon({ className }: ServiceIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
+      <path d="M12 2c4.4 0 8 3.6 8 8 0 3.2-1.9 6-4.7 7.3V22l-3.3-2-3.3 2v-4.7C5.9 16 4 13.2 4 10c0-4.4 3.6-8 8-8zm-2 6v4h2.2c.9 0 1.5-.6 1.5-1.5S13.1 9 12.2 9H10zm0 6v2h2.4c1.1 0 1.8-.7 1.8-1.7S13.5 12 12.4 12H10z" />
+    </svg>
+  );
+}
+
 export function AccountsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
@@ -458,6 +466,12 @@ export function AccountsSettings() {
     })();
   }, [ensureSessionOrLogin]);
 
+  // Boosty access is determined via Discord roles now; show the entry in Accounts,
+  // but route users to the new "Boosty rewards" status screen.
+  const openBoostyRewards = useCallback(() => {
+    window.location.href = '/settings?tab=rewards';
+  }, []);
+
   const services = useMemo(
     () =>
       [
@@ -498,6 +512,18 @@ export function AccountsSettings() {
           isAvailable: true,
         },
         {
+          provider: 'boosty',
+          title: t('settings.accountsServiceBoosty', { defaultValue: 'Boosty' }),
+          description: t('settings.accountsServiceBoostyHint', {
+            defaultValue: 'Используется для Boosty rewards (через Discord roles).',
+          }),
+          icon: BoostyIcon,
+          iconClassName: 'text-[#F15A24]',
+          supportsLink: true,
+          isAvailable: true,
+          onLink: openBoostyRewards,
+        },
+        {
           provider: 'kick',
           title: t('settings.accountsServiceKick', { defaultValue: 'Kick' }),
           description: t('settings.accountsServiceKickHint', {
@@ -522,7 +548,7 @@ export function AccountsSettings() {
           onLink: () => linkProvider('trovo'),
         },
       ] as const,
-    [linkProvider, linkTwitch, t]
+    [linkProvider, linkTwitch, openBoostyRewards, t]
   );
 
   const unlinkAccount = useCallback(
@@ -914,7 +940,9 @@ export function AccountsSettings() {
                   <Button variant="primary" onClick={service.onLink} disabled={!service.isAvailable}>
                     {!service.isAvailable
                       ? t('common.notAvailable', { defaultValue: 'Not available' })
-                      : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
+                      : service.provider === 'boosty'
+                        ? t('settings.boostyOpenRewardsAction', { defaultValue: 'Open' })
+                        : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
                 )}
               </div>
