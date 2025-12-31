@@ -6,7 +6,6 @@ import type { ExternalAccount } from '@/types';
 
 import { api } from '@/lib/api';
 import { linkExternalAccount, linkTwitchAccount, login } from '@/lib/auth';
-import { BoostyLinkModal } from '@/features/settings/ui/BoostyLinkModal';
 import { toApiError } from '@/shared/api/toApiError';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { useAuthQueryErrorToast } from '@/shared/auth/useAuthQueryErrorToast';
@@ -103,21 +102,12 @@ function VkIcon({ className }: ServiceIconProps) {
   );
 }
 
-function BoostyIcon({ className }: ServiceIconProps) {
-  return (
-    <svg viewBox="0 0 24 24" className={className ?? 'w-6 h-6'} aria-hidden="true" fill="currentColor">
-      <path d="M12 2c4.4 0 8 3.6 8 8 0 3.2-1.9 6-4.7 7.3V22l-3.3-2-3.3 2v-4.7C5.9 16 4 13.2 4 10c0-4.4 3.6-8 8-8zm-2 6v4h2.2c.9 0 1.5-.6 1.5-1.5S13.1 9 12.2 9H10zm0 6v2h2.4c1.1 0 1.8-.7 1.8-1.7S13.5 12 12.4 12H10z" />
-    </svg>
-  );
-}
-
 export function AccountsSettings() {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
   const dispatch = useAppDispatch();
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
   const [accountsOverride, setAccountsOverride] = useState<ExternalAccount[] | null>(null);
-  const [boostyModalOpen, setBoostyModalOpen] = useState(false);
   const [defaultTwitchBotStatus, setDefaultTwitchBotStatus] = useState<{ enabled: boolean; updatedAt?: string | null } | null>(null);
   const [defaultTwitchBotLoading, setDefaultTwitchBotLoading] = useState(false);
   const [defaultTwitchBotBusy, setDefaultTwitchBotBusy] = useState(false);
@@ -469,14 +459,6 @@ export function AccountsSettings() {
     })();
   }, [ensureSessionOrLogin]);
 
-  const linkBoosty = useCallback(() => {
-    void (async () => {
-      const ok = await ensureSessionOrLogin();
-      if (!ok) return;
-      setBoostyModalOpen(true);
-    })();
-  }, [ensureSessionOrLogin]);
-
   const linkProvider = useCallback((provider: string) => {
     // Keep dedicated Twitch link (backward compat), and use generic for others.
     void (async () => {
@@ -531,18 +513,6 @@ export function AccountsSettings() {
           isAvailable: true,
         },
         {
-          provider: 'boosty',
-          title: t('settings.accountsServiceBoosty', { defaultValue: 'Boosty' }),
-          description: t('settings.accountsServiceBoostyHint', {
-            defaultValue: 'Used for Boosty integrations.',
-          }),
-          icon: BoostyIcon,
-          iconClassName: 'text-[#F15A24]',
-          supportsLink: true,
-          isAvailable: true,
-          onLink: linkBoosty,
-        },
-        {
           provider: 'kick',
           title: t('settings.accountsServiceKick', { defaultValue: 'Kick' }),
           description: t('settings.accountsServiceKickHint', {
@@ -567,7 +537,7 @@ export function AccountsSettings() {
           onLink: () => linkProvider('trovo'),
         },
       ] as const,
-    [linkBoosty, linkProvider, linkTwitch, t]
+    [linkProvider, linkTwitch, t]
   );
 
   const unlinkAccount = useCallback(
@@ -663,13 +633,6 @@ export function AccountsSettings() {
 
   return (
     <div className="space-y-4">
-      <BoostyLinkModal
-        isOpen={boostyModalOpen}
-        onClose={() => setBoostyModalOpen(false)}
-        onLinked={async () => {
-          await refreshLinkedAccounts();
-        }}
-      />
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold dark:text-white">{t('settings.accountsTitle', { defaultValue: 'Linked accounts' })}</h2>
@@ -923,7 +886,6 @@ export function AccountsSettings() {
           const isLinked = linkedProviders.has(service.provider);
           const linkedAccount = accounts.find((a) => a.provider === service.provider) as ExternalAccount | undefined;
           const Icon = service.icon;
-          const isBoosty = service.provider === 'boosty';
           return (
             <Card key={service.provider} className="p-5 flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -943,34 +905,6 @@ export function AccountsSettings() {
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
                       {isLinked && linkedAccount?.login ? `@${linkedAccount.login}` : service.description}
                     </div>
-                    {isLinked && isBoosty ? (
-                      <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                        {linkedAccount?.login ? (
-                          <div>
-                            {t('settings.boostyAccountLabel', { defaultValue: 'Аккаунт' })}:{' '}
-                            <span className="font-mono">@{linkedAccount.login}</span>
-                          </div>
-                        ) : null}
-                        {linkedAccount?.profileUrl ? (
-                          <div>
-                            <a
-                              href={linkedAccount.profileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="underline hover:no-underline"
-                            >
-                              {t('settings.boostyOpenProfile', { defaultValue: 'Открыть профиль' })}
-                            </a>
-                          </div>
-                        ) : null}
-                        {linkedAccount?.updatedAt ? (
-                          <div>
-                            {t('settings.boostyLinkedUpdatedAt', { defaultValue: 'Последнее обновление привязки' })}:{' '}
-                            {new Date(linkedAccount.updatedAt).toLocaleString()}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </div>
@@ -981,11 +915,6 @@ export function AccountsSettings() {
                       <CheckIcon />
                       {t('settings.accountsLinked', { defaultValue: 'Connected' })}
                     </span>
-                    {isBoosty ? (
-                      <Button variant="secondary" onClick={service.onLink} disabled={unlinkingProvider === service.provider}>
-                        {t('settings.accountsRelinkAction', { defaultValue: 'Переподключить' })}
-                      </Button>
-                    ) : null}
                     <Button
                       variant="secondary"
                       onClick={() => linkedAccount && void unlinkAccount(linkedAccount)}

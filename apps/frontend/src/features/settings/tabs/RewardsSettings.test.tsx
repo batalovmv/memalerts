@@ -44,12 +44,64 @@ vi.mock('@/contexts/ChannelColorsContext', () => ({
 }));
 
 describe('RewardsSettings (integration)', () => {
+  it('renders Discord link CTA when boosty-access status=need_discord_link', async () => {
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+
+    server.use(
+      http.get('*/channels/:channelId/boosty-access', () =>
+        HttpResponse.json({
+          status: 'need_discord_link',
+          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
+        })
+      ),
+      mockTwitchRewardEligibility({ eligible: true }),
+      http.patch('*/streamer/channel/settings', () => HttpResponse.json({ ok: true })),
+    );
+
+    renderWithProviders(<RewardsSettings />, {
+      route: '/settings?tab=rewards',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    expect(await screen.findByRole('button', { name: /привязать discord/i })).toBeInTheDocument();
+  });
+
+  it('renders subscribed state when boosty-access status=subscribed', async () => {
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+
+    server.use(
+      http.get('*/channels/:channelId/boosty-access', () =>
+        HttpResponse.json({
+          status: 'subscribed',
+          matchedTier: 'T3',
+          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
+        })
+      ),
+      mockTwitchRewardEligibility({ eligible: true }),
+      http.patch('*/streamer/channel/settings', () => HttpResponse.json({ ok: true })),
+    );
+
+    renderWithProviders(<RewardsSettings />, {
+      route: '/settings?tab=rewards',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    expect(await screen.findByText(/подписка активна/i)).toBeInTheDocument();
+    expect(await screen.findByText(/t3/i)).toBeInTheDocument();
+  });
+
   it('autosaves approved meme reward via /streamer/channel/settings (payload uses numbers)', async () => {
     const userEv = userEvent.setup();
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     const bodies: unknown[] = [];
     server.use(
+      http.get('*/channels/:channelId/boosty-access', () =>
+        HttpResponse.json({
+          status: 'need_discord_link',
+          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
+        })
+      ),
       mockTwitchRewardEligibility({ eligible: true }),
       mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
     );
@@ -83,6 +135,12 @@ describe('RewardsSettings (integration)', () => {
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     server.use(
+      http.get('*/channels/:channelId/boosty-access', () =>
+        HttpResponse.json({
+          status: 'need_discord_link',
+          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
+        })
+      ),
       mockTwitchRewardEligibility({ eligible: true }),
       http.patch('*/streamer/channel/settings', () => HttpResponse.json({ error: 'Boom' }, { status: 500 })),
     );

@@ -6,6 +6,7 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { toApiError } from '@/shared/api/toApiError';
+import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, HelpTooltip, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
@@ -27,6 +28,58 @@ function getBoolean(obj: unknown, key: string): boolean | undefined {
 type BoostyTierCoinsRow = { tierKey: string; coins: string };
 type BoostyTierCoinsRowErrors = Record<number, { tierKey?: string; coins?: string }>;
 type BoostyTierCoinsErrorState = { table?: string | null; rows: BoostyTierCoinsRowErrors };
+
+type BoostyAccessStatus = 'need_discord_link' | 'need_join_guild' | 'not_subscribed' | 'subscribed';
+type BoostyAccessResponse = {
+  status: BoostyAccessStatus;
+  requiredGuild: {
+    guildId: string;
+    autoJoin: boolean;
+    name: string | null;
+    inviteUrl: string | null;
+  };
+  matchedTier: string | null;
+  matchedRoleId: string | null;
+};
+
+function normalizeBoostyAccess(raw: unknown): BoostyAccessResponse | null {
+  const r = toRecord(raw);
+  if (!r) return null;
+
+  const statusRaw = r.status;
+  const status: BoostyAccessStatus | null =
+    statusRaw === 'need_discord_link' || statusRaw === 'need_join_guild' || statusRaw === 'not_subscribed' || statusRaw === 'subscribed'
+      ? statusRaw
+      : null;
+  if (!status) return null;
+
+  const rg = toRecord(r.requiredGuild);
+  if (!rg) return null;
+  // Back-compat: backend may use `id` instead of `guildId`.
+  const guildId = typeof rg.guildId === 'string' ? rg.guildId : typeof rg.id === 'string' ? rg.id : null;
+  const autoJoin = typeof rg.autoJoin === 'boolean' ? rg.autoJoin : null;
+  if (!guildId || autoJoin === null) return null;
+
+  const asNullableString = (v: unknown): string | null => (typeof v === 'string' ? v : v === null ? null : null);
+
+  // Back-compat: matched tier/role may be nested or top-level depending on backend version.
+  const matchedTier =
+    typeof r.matchedTier === 'string' ? r.matchedTier : typeof rg.matchedTier === 'string' ? rg.matchedTier : null;
+  const matchedRoleId =
+    typeof r.matchedRoleId === 'string' ? r.matchedRoleId : typeof rg.matchedRoleId === 'string' ? rg.matchedRoleId : null;
+
+  return {
+    status,
+    requiredGuild: {
+      guildId,
+      autoJoin,
+      name: asNullableString(rg.name),
+      inviteUrl: asNullableString(rg.inviteUrl),
+    },
+    matchedTier,
+    matchedRoleId,
+  };
+}
 
 function parseIntSafe(v: string): number | null {
   const n = Number.parseInt(v, 10);
@@ -70,6 +123,9 @@ export function RewardsSettings() {
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
   const [twitchSavedPulse, setTwitchSavedPulse] = useState(false);
   const [approvedSavedPulse, setApprovedSavedPulse] = useState(false);
+  const [boostyAccess, setBoostyAccess] = useState<BoostyAccessResponse | null>(null);
+  const [boostyAccessLoading, setBoostyAccessLoading] = useState(false);
+  const [boostyAccessError, setBoostyAccessError] = useState<string | null>(null);
   const lastApprovedNonZeroRef = useRef<number>(100);
   const lastApprovedNonZeroPoolRef = useRef<number>(100);
   const saveTwitchTimerRef = useRef<number | null>(null);
@@ -79,6 +135,43 @@ export function RewardsSettings() {
   const lastSavedApprovedRef = useRef<string | null>(null);
   const lastSavedBoostyRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null);
+
+  const effectiveChannelId = user?.channelId || user?.channel?.id || null;
+
+  const refreshBoostyAccess = useCallback(async () => {
+    if (!effectiveChannelId) return;
+    if (boostyAccessLoading) return;
+    setBoostyAccessError(null);
+    setBoostyAccessLoading(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const raw = await api.get<unknown>(`/channels/${encodeURIComponent(effectiveChannelId)}/boosty-access`, { timeout: 10_000 });
+      const parsed = normalizeBoostyAccess(raw);
+      if (!parsed) {
+        throw new Error('Invalid boosty-access response');
+      }
+      setBoostyAccess(parsed);
+    } catch (e) {
+      const err = toApiError(e, t('admin.failedToLoad', { defaultValue: 'Failed to load.' }));
+      setBoostyAccessError(err.message || 'Failed to load.');
+    } finally {
+      setBoostyAccessLoading(false);
+    }
+  }, [boostyAccessLoading, effectiveChannelId, t]);
+
+  const redirectToDiscordLink = useCallback(() => {
+    const apiOrigin = typeof window !== 'undefined' ? getApiOriginForRedirect() : '';
+    if (!apiOrigin) return;
+    const url = new URL(`${apiOrigin}/auth/discord/link`);
+    url.searchParams.set('origin', window.location.origin);
+    url.searchParams.set('redirect_to', '/settings?tab=rewards');
+    window.location.href = url.toString();
+  }, []);
+
+  // Auto-refresh on entering screen.
+  useEffect(() => {
+    void refreshBoostyAccess();
+  }, [refreshBoostyAccess]);
 
   const loadRewardSettings = useCallback(async () => {
     if (!user?.channel?.slug) return;
@@ -959,6 +1052,116 @@ export function RewardsSettings() {
           </div>
 
           {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('subscription.boostyAccessTitle', { defaultValue: 'Подписка / Boosty rewards' })}
+          description={t('subscription.boostyAccessDescription', {
+            defaultValue: 'Статус доступа определяется через Discord roles. Никаких Boosty-токенов больше не нужно.',
+          })}
+          right={
+            <Button type="button" variant="secondary" onClick={() => void refreshBoostyAccess()} disabled={boostyAccessLoading}>
+              {boostyAccessLoading ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.refresh', { defaultValue: 'Проверить снова' })}
+            </Button>
+          }
+        >
+          {!effectiveChannelId ? (
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {t('subscription.boostyAccessNoChannel', { defaultValue: 'Не удалось определить channelId.' })}
+            </div>
+          ) : boostyAccess ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700 dark:text-gray-200">
+                {t('subscription.boostyAccessRequiredGuild', { defaultValue: 'Discord сервер (guildId)' })}:{' '}
+                <span className="font-mono">{boostyAccess.requiredGuild.guildId}</span>
+                {boostyAccess.requiredGuild.name ? (
+                  <span className="ml-2 text-gray-500 dark:text-gray-400">({boostyAccess.requiredGuild.name})</span>
+                ) : null}
+              </div>
+
+              {boostyAccess.status === 'need_discord_link' ? (
+                <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('subscription.boostyAccessNeedDiscordTitle', { defaultValue: 'Нужно привязать Discord' })}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    {t('subscription.boostyAccessNeedDiscordBody', { defaultValue: 'Привяжите Discord, затем мы проверим роли на сервере.' })}
+                  </div>
+                  <div className="mt-3">
+                    <Button type="button" variant="primary" onClick={redirectToDiscordLink}>
+                      {t('subscription.boostyAccessLinkDiscordCta', { defaultValue: 'Привязать Discord' })}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {boostyAccess.status === 'need_join_guild' ? (
+                <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('subscription.boostyAccessNeedJoinTitle', { defaultValue: 'Нужно быть на Discord‑сервере' })}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    {boostyAccess.requiredGuild.autoJoin
+                      ? t('subscription.boostyAccessAutoJoinHint', {
+                          defaultValue:
+                            'После привязки Discord мы попробуем добавить вас автоматически. Если не получилось — вступите по инвайту.',
+                        })
+                      : t('subscription.boostyAccessManualJoinHint', {
+                          defaultValue: 'Вступите на сервер и нажмите “Проверить снова”.',
+                        })}
+                  </div>
+                  {boostyAccess.requiredGuild.inviteUrl ? (
+                    <div className="mt-3 flex items-center gap-2">
+                      <a href={boostyAccess.requiredGuild.inviteUrl} target="_blank" rel="noreferrer">
+                        <Button type="button" variant="secondary">
+                          {t('subscription.boostyAccessJoinCta', { defaultValue: 'Вступить' })}
+                        </Button>
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                      {t('subscription.boostyAccessNoInvite', {
+                        defaultValue: 'Инвайт пока недоступен. Попросите ссылку у стримера/на сайте и затем нажмите “Проверить снова”.',
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {boostyAccess.status === 'not_subscribed' ? (
+                <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('subscription.boostyAccessNotSubscribedTitle', { defaultValue: 'Подписка не найдена' })}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    {t('subscription.boostyAccessNotSubscribedBody', {
+                      defaultValue: 'Проверьте, что вы подключили Discord в Boosty и что Boosty выдал роль на сервере.',
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {boostyAccess.status === 'subscribed' ? (
+                <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20 p-4">
+                  <div className="font-semibold text-emerald-900 dark:text-emerald-100">
+                    {t('subscription.boostyAccessSubscribedTitle', { defaultValue: 'Подписка активна' })}
+                  </div>
+                  {boostyAccess.matchedTier ? (
+                    <div className="mt-1 text-sm text-emerald-900/80 dark:text-emerald-100/80">
+                      {t('subscription.boostyAccessTier', { defaultValue: 'Tier' })}:{' '}
+                      <span className="font-mono">{boostyAccess.matchedTier}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : boostyAccessError ? (
+            <div className="text-sm text-red-600 dark:text-red-400">{boostyAccessError}</div>
+          ) : (
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {t('common.loading', { defaultValue: 'Loading…' })}
+            </div>
+          )}
         </SettingsSection>
 
         <SettingsSection
