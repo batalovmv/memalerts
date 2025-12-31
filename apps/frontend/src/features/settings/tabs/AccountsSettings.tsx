@@ -436,21 +436,6 @@ export function AccountsSettings() {
     }
   }, [t]);
 
-  const refreshLinkedAccounts = useCallback(async () => {
-    try {
-      const items = await api.get<unknown>('/auth/accounts', { timeout: 8000 });
-      const normalized = normalizeAccounts(items);
-      if (isMountedRef.current) setAccountsOverride(normalized);
-    } catch {
-      // best-effort
-    }
-    try {
-      await dispatch(fetchUser()).unwrap();
-    } catch {
-      // best-effort
-    }
-  }, [dispatch]);
-
   const linkTwitch = useCallback(() => {
     void (async () => {
       const ok = await ensureSessionOrLogin();

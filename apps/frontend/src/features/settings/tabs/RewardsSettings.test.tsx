@@ -44,10 +44,17 @@ vi.mock('@/contexts/ChannelColorsContext', () => ({
 }));
 
 describe('RewardsSettings (integration)', () => {
+  const defaultBoostyAccess = () =>
+    HttpResponse.json({
+      status: 'need_discord_link',
+      requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
+    });
+
   it('renders Discord link CTA when boosty-access status=need_discord_link', async () => {
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     server.use(
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
       http.get('*/channels/:channelId/boosty-access', () =>
         HttpResponse.json({
           status: 'need_discord_link',
@@ -70,6 +77,7 @@ describe('RewardsSettings (integration)', () => {
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     server.use(
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
       http.get('*/channels/:channelId/boosty-access', () =>
         HttpResponse.json({
           status: 'subscribed',
@@ -96,12 +104,8 @@ describe('RewardsSettings (integration)', () => {
 
     const bodies: unknown[] = [];
     server.use(
-      http.get('*/channels/:channelId/boosty-access', () =>
-        HttpResponse.json({
-          status: 'need_discord_link',
-          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
-        })
-      ),
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
+      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
       mockTwitchRewardEligibility({ eligible: true }),
       mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
     );
@@ -135,12 +139,8 @@ describe('RewardsSettings (integration)', () => {
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     server.use(
-      http.get('*/channels/:channelId/boosty-access', () =>
-        HttpResponse.json({
-          status: 'need_discord_link',
-          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
-        })
-      ),
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
+      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
       mockTwitchRewardEligibility({ eligible: true }),
       http.patch('*/streamer/channel/settings', () => HttpResponse.json({ error: 'Boom' }, { status: 500 })),
     );
