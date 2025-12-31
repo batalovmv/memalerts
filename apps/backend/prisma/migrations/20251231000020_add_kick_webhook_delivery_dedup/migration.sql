@@ -1,6 +1,20 @@
 -- Add Kick event subscription id to Channel
 ALTER TABLE "Channel" ADD COLUMN IF NOT EXISTS "kickRewardsSubscriptionId" TEXT;
 
+-- Some DBs may have been bootstrapped via `prisma db push` / partial migrations.
+-- Ensure Prisma enum type exists before referencing it.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE t.typname = 'ExternalRewardProvider' AND n.nspname = 'public'
+    ) THEN
+        CREATE TYPE "ExternalRewardProvider" AS ENUM ('kick', 'trovo', 'vkvideo');
+    END IF;
+END $$;
+
 -- Delivery-level dedupe for external webhooks (Kick retries, etc.)
 CREATE TABLE IF NOT EXISTS "ExternalWebhookDeliveryDedup" (
     "id" TEXT NOT NULL,
