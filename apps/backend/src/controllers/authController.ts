@@ -20,6 +20,7 @@ import { exchangeTrovoCodeForToken, fetchTrovoUserInfo, getTrovoAuthorizeUrl } f
 import { exchangeKickCodeForToken, fetchKickUser, getKickAuthorizeUrl } from '../auth/providers/kick.js';
 import { exchangeDiscordCodeForToken, fetchDiscordUser, getDiscordAuthorizeUrl } from '../auth/providers/discord.js';
 import { fetchVkVideoCurrentUser } from '../utils/vkvideoApi.js';
+import { BoostyApiClient } from '../utils/boostyApi.js';
 import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
 import { ERROR_CODES } from '../shared/errors.js';
@@ -1669,7 +1670,10 @@ export const authController = {
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const body = (req.body || {}) as any;
-    const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+    // UI-friendly alias: accept { token } as well as { accessToken } (existing contract).
+    const accessTokenRaw = typeof body.accessToken === 'string' ? body.accessToken : typeof body.token === 'string' ? body.token : '';
+    // Tokens are commonly pasted with trailing newlines/spaces; strip all whitespace.
+    const accessToken = accessTokenRaw ? String(accessTokenRaw).replace(/\s+/g, '') : '';
     const refreshToken = typeof body.refreshToken === 'string' ? body.refreshToken.trim() : '';
     const deviceId = typeof body.deviceId === 'string' ? body.deviceId.trim() : '';
     const blogName = typeof body.blogName === 'string' ? body.blogName.trim() : '';
@@ -1682,11 +1686,62 @@ export const authController = {
       });
     }
 
-    const providerAccountId = crypto
-      .createHash('sha256')
-      .update(refreshToken && deviceId ? `${refreshToken}:${deviceId}` : accessToken)
-      .digest('hex')
-      .slice(0, 48);
+    // Validate Boosty token immediately to keep UX snappy and avoid storing garbage credentials.
+    // Also attempt to resolve a stable Boosty user id (best-effort) for providerAccountId.
+    let stableBoostyUserId: string | null = null;
+    if (accessToken) {
+      const baseUrl = String(process.env.BOOSTY_API_BASE_URL || 'https://api.boosty.to').trim();
+      const client = new BoostyApiClient({ baseUrl, auth: { accessToken } });
+      try {
+        // Any successful response implies token is accepted; empty subscriptions is OK.
+        await client.getUserSubscriptions({ limit: 1, withFollow: false });
+        stableBoostyUserId = await client.getMyUserIdBestEffort();
+      } catch (e: any) {
+        const status = Number(e?.status || 0);
+        if (status === 401 || status === 403) {
+          return res.status(401).json({
+            error: 'Unauthorized',
+            errorCode: 'BOOSTY_INVALID_TOKEN',
+            message: 'Boosty token is invalid or expired',
+          });
+        }
+        if (status === 429) {
+          return res.status(429).json({
+            error: 'Too Many Requests',
+            errorCode: 'BOOSTY_RATE_LIMITED',
+            message: 'Too many attempts. Please wait and try again',
+          });
+        }
+        return res.status(503).json({
+          error: 'Service Unavailable',
+          errorCode: 'BOOSTY_UNAVAILABLE',
+          message: 'Boosty is unavailable. Please try again later',
+        });
+      }
+    }
+
+    // Prefer stable account id when we can resolve it from Boosty "whoami" (best-effort).
+    let stableIdFromWhoami: string | null = null;
+    if (stableBoostyUserId) stableIdFromWhoami = stableBoostyUserId;
+
+    // Otherwise, prefer stable account id when we can derive it from a JWT token payload.
+    let stableIdFromJwt: string | null = null;
+    if (accessToken) {
+      const payload = decodeJwtPayloadNoVerify(accessToken);
+      const candidate =
+        String(payload?.user_id ?? payload?.userId ?? payload?.uid ?? payload?.sub ?? payload?.id ?? '').trim();
+      if (candidate) stableIdFromJwt = candidate;
+    }
+
+    const stableId = stableIdFromWhoami ?? stableIdFromJwt;
+
+    const providerAccountId = stableId
+      ? BoostyApiClient.stableProviderAccountId(`boosty:${stableId}`)
+      : crypto
+          .createHash('sha256')
+          .update(refreshToken && deviceId ? `${refreshToken}:${deviceId}` : accessToken)
+          .digest('hex')
+          .slice(0, 48);
 
     // For most users we want a single Boosty account link. Update if exists, otherwise create.
     const existing = await (prisma as any).externalAccount.findFirst({

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normTierKey } from '../utils/tierKey.js';
 
 export const memeTypeSchema = z.enum(['image', 'gif', 'video', 'audio']);
 export const memeStatusSchema = z.enum(['pending', 'approved', 'rejected']);
@@ -97,6 +98,18 @@ export const updateChannelSettingsSchema = z.object({
   // Boosty integration
   boostyBlogName: z.string().min(1).max(200).optional().nullable(),
   boostyCoinsPerSub: z.number().int().min(0).optional(),
+  // Boosty via Boosty API (tiers): mapping tierKey -> coins.
+  // Stored in DB as JSONB array of objects [{ tierKey, coins }, ...]
+  boostyTierCoins: z
+    .array(
+      z.object({
+        tierKey: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().min(1).max(120)),
+        coins: z.number().int().min(0).max(1_000_000),
+      })
+    )
+    .max(100)
+    .optional()
+    .nullable(),
   // Boosty via Discord roles (tiers): mapping tier -> Discord role id.
   // Stored in DB as JSONB array of objects [{ tier, roleId }, ...]
   boostyDiscordTierRoles: z
@@ -110,6 +123,24 @@ export const updateChannelSettingsSchema = z.object({
     .optional()
     .nullable(),
 }).superRefine((obj, ctx) => {
+  // Validate boostyTierCoins uniqueness
+  const tierCoins = (obj as any)?.boostyTierCoins;
+  if (Array.isArray(tierCoins)) {
+    const seen = new Set<string>();
+    for (let i = 0; i < tierCoins.length; i += 1) {
+      const tierKey = normTierKey(tierCoins[i]?.tierKey);
+      if (!tierKey) continue;
+      if (seen.has(tierKey)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['boostyTierCoins', i, 'tierKey'],
+          message: `Duplicate tierKey (case-insensitive): ${tierKey}`,
+        });
+      }
+      seen.add(tierKey);
+    }
+  }
+
   const items = (obj as any)?.boostyDiscordTierRoles;
   if (!Array.isArray(items)) return;
 

@@ -72,6 +72,9 @@ model Channel {
   // Streamer sets their Boosty blog name (e.g. "some-blog-name") and reward amount.
   boostyBlogName                String?
   boostyCoinsPerSub             Int      @default(0)
+  // Boosty tiers -> coins mapping for boosty_api mode.
+  // Stored as JSON array of objects: [{ tierKey: "...", coins: 100 }, ...]
+  boostyTierCoinsJson           Json?    @db.JsonB
   // Legacy (initial rollout): single role id that represents subscription.
   // Kept for backward compatibility; prefer `boostyDiscordTierRolesJson`.
   boostyDiscordRoleId           String?
@@ -590,8 +593,12 @@ model BoostySubscriptionReward {
   userId                String
   boostyBlogName        String
   boostySubscriptionId  String
-  coinsGranted          Int
+  // Best-effort tier key observed at the time of grant (used to support upgrades via delta).
+  boostyTierKey         String?
+  // Amount already granted for this subscription (source of truth; do NOT recompute from current config).
+  coinsGranted          Int      @default(0)
   createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

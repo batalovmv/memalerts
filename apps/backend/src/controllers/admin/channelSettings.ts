@@ -491,6 +491,8 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       boostyBlogName: (body as any).boostyBlogName !== undefined ? (body as any).boostyBlogName : (channel as any).boostyBlogName,
       boostyCoinsPerSub:
         (body as any).boostyCoinsPerSub !== undefined ? (body as any).boostyCoinsPerSub : (channel as any).boostyCoinsPerSub,
+      boostyTierCoinsJson:
+        (body as any).boostyTierCoins !== undefined ? (body as any).boostyTierCoins : (channel as any).boostyTierCoinsJson,
       boostyDiscordTierRolesJson:
         (body as any).boostyDiscordTierRoles !== undefined
           ? (body as any).boostyDiscordTierRoles

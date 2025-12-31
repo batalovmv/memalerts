@@ -5,6 +5,7 @@ import { releaseAdvisoryLock, tryAcquireAdvisoryLock } from '../utils/pgAdvisory
 import { BoostyApiClient } from '../utils/boostyApi.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { fetchDiscordGuildMember } from '../utils/discordApi.js';
+import { normTierKey } from '../utils/tierKey.js';
 
 function clampInt(n: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
@@ -40,9 +41,103 @@ function pickMatchedTierRole(params: {
   return null;
 }
 
+function normalizeTierCoins(raw: any): Array<{ tierKey: string; coins: number }> {
+  // Accept both:
+  // - array: [{ tierKey, coins }, ...] (preferred)
+  // - object: { [tierKey]: coins }
+  // NOTE: This is a best-effort runtime normalizer (scheduler must be resilient to old/dirty DB configs).
+  // The admin API validation (Zod) is the strict gate that rejects duplicates case-insensitively.
+  const out: Array<{ tierKey: string; coins: number }> = [];
+  const seen = new Set<string>();
+
+  if (Array.isArray(raw)) {
+    for (const it of raw) {
+      const tierKey = normTierKey(it?.tierKey);
+      const coins = Number(it?.coins);
+      if (!tierKey) continue;
+      if (!Number.isFinite(coins) || coins < 0) continue;
+      if (seen.has(tierKey)) continue;
+      seen.add(tierKey);
+      out.push({ tierKey, coins: Math.floor(coins) });
+    }
+    return out;
+  }
+
+  if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw as Record<string, any>)) {
+      const tierKey = normTierKey(k);
+      const coins = Number(v);
+      if (!tierKey) continue;
+      if (!Number.isFinite(coins) || coins < 0) continue;
+      if (seen.has(tierKey)) continue;
+      seen.add(tierKey);
+      out.push({ tierKey, coins: Math.floor(coins) });
+    }
+  }
+
+  return out;
+}
+
+function pickCoinsForTier(params: {
+  tierKey: string | null;
+  tierCoins: Array<{ tierKey: string; coins: number }>;
+  fallbackCoins: number;
+}): number {
+  const fallback = Number.isFinite(params.fallbackCoins) ? Math.floor(params.fallbackCoins) : 0;
+  const tierKey = normTierKey(params.tierKey);
+  if (!tierKey) return fallback;
+
+  const found = params.tierCoins.find((t) => t.tierKey === tierKey);
+  return found ? found.coins : fallback;
+}
+
+function computeBoostyTierDelta(params: {
+  // Source of truth: from DB (do NOT recompute from current config)
+  coinsGranted: number;
+  // What Boosty currently reports for the subscription
+  tierKeyCurrent: string | null;
+  // What current channel config maps this tier to (or fallback)
+  targetCoins: number;
+  // Tier key stored in DB row (represents the tier we granted for)
+  tierKeyGranted: string | null;
+}): { delta: number; nextCoinsGranted: number; nextTierKeyGranted: string | null } {
+  const tierKeyGranted = normTierKey(params.tierKeyGranted) || null;
+  const tierKeyCurrent = normTierKey(params.tierKeyCurrent) || null;
+
+  const coinsGranted = Number.isFinite(params.coinsGranted) ? Math.max(0, Math.floor(params.coinsGranted)) : 0;
+  const targetCoins = Number.isFinite(params.targetCoins) ? Math.max(0, Math.floor(params.targetCoins)) : 0;
+
+  // 1) fallback-only: Boosty didn't provide a tier key.
+  // Allow only the FIRST payout; never invent a tier key.
+  if (tierKeyCurrent === null) {
+    const nextCoinsGranted = coinsGranted === 0 ? Math.max(coinsGranted, targetCoins) : coinsGranted;
+    const delta = nextCoinsGranted - coinsGranted;
+    return { delta, nextCoinsGranted, nextTierKeyGranted: null };
+  }
+
+  // 2) sameTier: hard stop (prevents retro-payments when config changes).
+  if (tierKeyGranted !== null && tierKeyGranted === tierKeyCurrent) {
+    return { delta: 0, nextCoinsGranted: coinsGranted, nextTierKeyGranted: null };
+  }
+
+  // 3) tier-change (or previously unknown tier): monotonic grant, never decrease.
+  const nextCoinsGranted = Math.max(coinsGranted, targetCoins);
+  const delta = nextCoinsGranted - coinsGranted;
+
+  return {
+    delta,
+    nextCoinsGranted,
+    // Keep boostyTierKey as "granted tier"; update it only when we actually grant extra coins.
+    nextTierKeyGranted: delta > 0 ? tierKeyCurrent : null,
+  };
+}
+
 // Test hook (no side effects)
 export const __test__pickMatchedTierRole = pickMatchedTierRole;
 export const __test__normalizeTierRoles = normalizeTierRoles;
+export const __test__normalizeTierCoins = normalizeTierCoins;
+export const __test__pickCoinsForTier = pickCoinsForTier;
+export const __test__computeBoostyTierDelta = computeBoostyTierDelta;
 
 export function startBoostySubscriptionRewardsScheduler(io: Server) {
   const intervalMsRaw = parseInt(String(process.env.BOOSTY_REWARDS_SYNC_INTERVAL_MS || ''), 10);
@@ -207,22 +302,27 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
       } else {
         const channels = await prisma.channel.findMany({
           where: {
-            boostyCoinsPerSub: { gt: 0 },
             boostyBlogName: { not: null },
+            OR: [{ boostyCoinsPerSub: { gt: 0 } }, { boostyTierCoinsJson: { not: null } }],
           } as any,
           select: {
             id: true,
             slug: true,
             boostyBlogName: true,
             boostyCoinsPerSub: true,
+            boostyTierCoinsJson: true,
           } as any,
         });
         channelsCount = (channels as any[]).length;
 
         for (const ch of channels as any[]) {
           const blogName = normBlogName(ch.boostyBlogName);
-          const coins = Number(ch.boostyCoinsPerSub || 0);
-          if (!blogName || !Number.isFinite(coins) || coins <= 0) continue;
+          const fallbackCoins = Number(ch.boostyCoinsPerSub || 0);
+          const tierCoins = normalizeTierCoins((ch as any).boostyTierCoinsJson);
+          if (!blogName) continue;
+          const hasFallback = Number.isFinite(fallbackCoins) && fallbackCoins > 0;
+          const hasTiers = tierCoins.some((t) => Number.isFinite(t.coins) && t.coins > 0);
+          if (!hasFallback && !hasTiers) continue;
 
           const accounts = await (prisma as any).externalAccount.findMany({
             where: {
@@ -268,17 +368,85 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
               String(matched.id || '').trim() ||
               BoostyApiClient.stableProviderAccountId(`${blogName}:${acc.userId}`); // best-effort fallback
 
+            const tierKey = normTierKey((matched as any).tierKey) || null;
+            const targetCoins = pickCoinsForTier({ tierKey, tierCoins, fallbackCoins });
+            // Keep backwards-compatible behavior: if config leads to 0 coins, skip.
+            if (!Number.isFinite(targetCoins) || targetCoins <= 0) continue;
+
             try {
               const result = await prisma.$transaction(async (tx) => {
-                await (tx as any).boostySubscriptionReward.create({
-                  data: {
-                    channelId: ch.id,
-                    userId: acc.userId,
-                    boostyBlogName: blogName,
-                    boostySubscriptionId: subscriptionId,
-                    coinsGranted: coins,
-                  },
+                // Concurrency safety:
+                // - We keep the instance-level advisory lock, but also lock the specific reward row.
+                // - Delta is only paid when tierKey CHANGES (prevents "config coins increased" retro-payments).
+
+                type LockedRewardRow = { id: string; coinsGranted: number; boostyTierKey: string | null } | null;
+
+                const selectLocked = async (): Promise<LockedRewardRow> => {
+                  const rows = await (tx as any).$queryRaw<
+                    Array<{ id: string; coinsGranted: number; boostyTierKey: string | null }>
+                  >`
+                    SELECT "id", "coinsGranted", "boostyTierKey"
+                    FROM "BoostySubscriptionReward"
+                    WHERE "channelId" = ${String(ch.id)}
+                      AND "userId" = ${String(acc.userId)}
+                      AND "boostySubscriptionId" = ${String(subscriptionId)}
+                    FOR UPDATE
+                  `;
+                  return rows?.[0] ?? null;
+                };
+
+                let locked = await selectLocked();
+                if (!locked) {
+                  try {
+                    await (tx as any).boostySubscriptionReward.create({
+                      data: {
+                        channelId: ch.id,
+                        userId: acc.userId,
+                        boostyBlogName: blogName,
+                        boostySubscriptionId: subscriptionId,
+                        // IMPORTANT: initialize as "nothing granted yet"; grant happens below under row lock.
+                        boostyTierKey: null,
+                        coinsGranted: 0,
+                      },
+                    });
+                    locked = await selectLocked();
+                  } catch (e: any) {
+                    // If another tx created it concurrently, fall back to locked read.
+                    const isUnique = e?.code === 'P2002' || String(e?.message || '').includes('Unique constraint failed');
+                    if (!isUnique) throw e;
+                    locked = await selectLocked();
+                  }
+                }
+
+                const granted = Number(locked?.coinsGranted || 0);
+                const grantedTierKey = normTierKey(locked?.boostyTierKey) || null;
+                const { delta, nextCoinsGranted, nextTierKeyGranted } = computeBoostyTierDelta({
+                  coinsGranted: granted,
+                  tierKeyCurrent: tierKey,
+                  targetCoins,
+                  tierKeyGranted: grantedTierKey,
                 });
+
+                // Keep row up-to-date for audit/debug.
+                // IMPORTANT: boostyTierKey is the tier we granted for (not "last seen").
+                if (locked?.id && delta > 0) {
+                  await (tx as any).boostySubscriptionReward.update({
+                    where: { id: locked.id },
+                    data: {
+                      ...(nextTierKeyGranted !== null ? { boostyTierKey: nextTierKeyGranted } : {}),
+                      ...(nextCoinsGranted !== granted ? { coinsGranted: nextCoinsGranted } : {}),
+                    },
+                    select: { id: true },
+                  });
+                }
+
+                if (delta <= 0) {
+                  const walletNoChange = await tx.wallet.findUnique({
+                    where: { userId_channelId: { userId: acc.userId, channelId: ch.id } },
+                    select: { balance: true },
+                  });
+                  return { balance: walletNoChange?.balance ?? 0, delta: 0 };
+                }
 
                 const wallet = await tx.wallet.upsert({
                   where: {
@@ -288,38 +456,40 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
                     },
                   },
                   update: {
-                    balance: { increment: coins },
+                    balance: { increment: delta },
                   },
                   create: {
                     userId: acc.userId,
                     channelId: ch.id,
-                    balance: coins,
+                    balance: delta,
                   },
                   select: { balance: true },
                 });
 
-                return wallet;
+                return { balance: wallet.balance, delta };
               });
 
-              grants += 1;
-              emitWalletUpdated(io, {
-                userId: acc.userId,
-                channelId: ch.id,
-                balance: result.balance,
-                delta: coins,
-                reason: 'boosty_subscription',
-                channelSlug: String(ch.slug || '').toLowerCase() || undefined,
-                source: 'local',
-              });
-              void relayWalletUpdatedToPeer({
-                userId: acc.userId,
-                channelId: ch.id,
-                balance: result.balance,
-                delta: coins,
-                reason: 'boosty_subscription',
-                channelSlug: String(ch.slug || '').toLowerCase() || undefined,
-                source: 'local',
-              });
+              if (result.delta > 0) {
+                grants += 1;
+                emitWalletUpdated(io, {
+                  userId: acc.userId,
+                  channelId: ch.id,
+                  balance: result.balance,
+                  delta: result.delta,
+                  reason: 'boosty_subscription',
+                  channelSlug: String(ch.slug || '').toLowerCase() || undefined,
+                  source: 'local',
+                });
+                void relayWalletUpdatedToPeer({
+                  userId: acc.userId,
+                  channelId: ch.id,
+                  balance: result.balance,
+                  delta: result.delta,
+                  reason: 'boosty_subscription',
+                  channelSlug: String(ch.slug || '').toLowerCase() || undefined,
+                  source: 'local',
+                });
+              }
             } catch (e: any) {
               // Dedup: unique constraint -> already granted.
               const isUnique = e?.code === 'P2002' || String(e?.message || '').includes('Unique constraint failed');

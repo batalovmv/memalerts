@@ -7,6 +7,8 @@ export type BoostyAuth = {
 export type BoostyUserSubscription = {
   id: string | null;
   blogName: string | null;
+  // Best-effort stable tier identifier (prefer id/uuid, fallback to slug/name).
+  tierKey: string | null;
   isActive: boolean | null;
   raw: any;
 };
@@ -46,7 +48,36 @@ function parseSubscription(raw: any): BoostyUserSubscription {
     boolOrNull(raw?.active) ??
     (typeof raw?.status === 'string' ? (raw.status.toLowerCase() === 'active' ? true : null) : null);
 
-  return { id, blogName, isActive, raw };
+  // tierKey extractor (priority: stable ids -> slugs -> names).
+  const tierKey =
+    // Common nesting variants: raw.level / raw.tier / raw.plan, and sometimes under raw.subscription.*
+    safeString(raw?.tier?.id) ||
+    safeString(raw?.level?.id) ||
+    safeString(raw?.plan?.id) ||
+    safeString(raw?.subscription?.tier?.id) ||
+    safeString(raw?.subscription?.level?.id) ||
+    safeString(raw?.subscription?.plan?.id) ||
+    safeString(raw?.tier?.uuid) ||
+    safeString(raw?.level?.uuid) ||
+    safeString(raw?.plan?.uuid) ||
+    safeString(raw?.subscription?.tier?.uuid) ||
+    safeString(raw?.subscription?.level?.uuid) ||
+    safeString(raw?.subscription?.plan?.uuid) ||
+    safeString(raw?.tier?.slug) ||
+    safeString(raw?.level?.slug) ||
+    safeString(raw?.plan?.slug) ||
+    safeString(raw?.subscription?.tier?.slug) ||
+    safeString(raw?.subscription?.level?.slug) ||
+    safeString(raw?.subscription?.plan?.slug) ||
+    safeString(raw?.tier?.name) ||
+    safeString(raw?.level?.name) ||
+    safeString(raw?.plan?.name) ||
+    safeString(raw?.subscription?.tier?.name) ||
+    safeString(raw?.subscription?.level?.name) ||
+    safeString(raw?.subscription?.plan?.name) ||
+    null;
+
+  return { id, blogName, tierKey, isActive, raw };
 }
 
 export class BoostyApiClient {
@@ -74,6 +105,35 @@ export class BoostyApiClient {
       [];
 
     return items.map(parseSubscription);
+  }
+
+  // Best-effort "whoami" to get a stable Boosty user id for providerAccountId.
+  // Boosty does not have a fully documented public API, so we try a few common endpoints and fall back gracefully.
+  async getMyUserIdBestEffort(): Promise<string | null> {
+    const candidates = ['/v1/user', '/v1/user/me', '/v1/user/profile', '/v1/user/current', '/v1/me'];
+    for (const p of candidates) {
+      const url = `${this.baseUrl}${p}`;
+      const res = await this.tryGetJson(url);
+      if (!res.ok) {
+        // If endpoint doesn't exist, keep trying.
+        if (res.status === 404) continue;
+        // If auth fails or server errors, don't block linking; just fall back to token payload.
+        continue;
+      }
+      const json = res.json;
+      const id =
+        safeString(json?.id) ||
+        safeString(json?.userId) ||
+        safeString(json?.uid) ||
+        safeString(json?.sub) ||
+        safeString(json?.user?.id) ||
+        safeString(json?.user?.userId) ||
+        safeString(json?.data?.id) ||
+        safeString(json?.data?.userId) ||
+        null;
+      if (id) return id;
+    }
+    return null;
   }
 
   static stableProviderAccountId(input: string): string {
@@ -123,6 +183,42 @@ export class BoostyApiClient {
       }
 
       return json;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async tryGetJson(url: string): Promise<{ ok: boolean; status: number; json: any | null }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const accessToken = safeString(this.auth.accessToken);
+      if (!accessToken) return { ok: false, status: 0, json: null };
+
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${accessToken}`,
+          'user-agent': 'MemAlerts/boosty (server)',
+          dnt: '1',
+          'cache-control': 'no-cache',
+          pragma: 'no-cache',
+        },
+        signal: controller.signal,
+      });
+
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+
+      return { ok: res.ok, status: res.status, json };
+    } catch {
+      return { ok: false, status: 0, json: null };
     } finally {
       clearTimeout(timeout);
     }
