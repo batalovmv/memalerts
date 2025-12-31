@@ -82,6 +82,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const userId = randomUUID();
     const channelId = randomUUID();
     const slug = `ch_${Date.now()}_b`;
+    const discordUserId = `discord_${randomUUID()}`;
 
     await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
     await prisma.channel.create({
@@ -93,7 +94,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
       } as any,
     });
     await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: 'discord_u1' } as any,
+      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
     });
 
     mockFetchJsonOnce(404, { message: 'Unknown Member' });
@@ -110,6 +111,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const userId = randomUUID();
     const channelId = randomUUID();
     const slug = `ch_${Date.now()}_c`;
+    const discordUserId = `discord_${randomUUID()}`;
 
     await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
     await prisma.channel.create({
@@ -121,7 +123,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
       } as any,
     });
     await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: 'discord_u1' } as any,
+      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
     });
 
     mockFetchJsonOnce(200, { roles: ['some_other_role'] });
@@ -138,6 +140,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const userId = randomUUID();
     const channelId = randomUUID();
     const slug = `ch_${Date.now()}_d`;
+    const discordUserId = `discord_${randomUUID()}`;
 
     await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
     await prisma.channel.create({
@@ -149,7 +152,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
       } as any,
     });
     await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: 'discord_u1' } as any,
+      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
     });
 
     mockFetchJsonOnce(200, { roles: ['role3'] });
@@ -168,6 +171,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const userId = randomUUID();
     const channelId = randomUUID();
     const slug = `ch_${Date.now()}_e`;
+    const discordUserId = `discord_${randomUUID()}`;
 
     await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
     await prisma.channel.create({
@@ -180,7 +184,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
       } as any,
     });
     await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: 'discord_u1' } as any,
+      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
     });
 
     global.fetch = vi.fn(async (url: any) => {
@@ -207,6 +211,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const userId = randomUUID();
     const channelId = randomUUID();
     const slug = `ch_${Date.now()}_f`;
+    const discordUserId = `discord_${randomUUID()}`;
 
     await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
     await prisma.channel.create({
@@ -218,7 +223,7 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
       } as any,
     });
     await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: 'discord_u1' } as any,
+      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
     });
 
     global.fetch = vi.fn(async (url: any) => {
