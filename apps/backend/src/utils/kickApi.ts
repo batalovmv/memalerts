@@ -156,6 +156,69 @@ export async function sendKickChatMessage(params: {
   }
 }
 
+const DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL = 'https://api.kick.com/public/v1/events/subscriptions';
+
+export async function listKickEventSubscriptions(params: { accessToken: string; url?: string }): Promise<{
+  ok: boolean;
+  status: number;
+  raw: any;
+  subscriptions: any[];
+}> {
+  const url = String(params.url || DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL).trim();
+  try {
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${params.accessToken}`,
+      },
+    });
+    const data = await resp.json().catch(() => null);
+    const subs = (data as any)?.data ?? (data as any)?.subscriptions ?? (data as any)?.data?.subscriptions ?? [];
+    return { ok: resp.ok, status: resp.status, raw: data, subscriptions: Array.isArray(subs) ? subs : [] };
+  } catch (e: any) {
+    return { ok: false, status: 0, raw: { error: e?.message || String(e) }, subscriptions: [] };
+  }
+}
+
+export async function createKickEventSubscription(params: {
+  accessToken: string;
+  callbackUrl: string;
+  event: string;
+  version?: string;
+  url?: string;
+}): Promise<{ ok: boolean; status: number; raw: any; subscriptionId: string | null }> {
+  const url = String(params.url || DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL).trim();
+  const body: any = {
+    event: params.event,
+    version: params.version || 'v1',
+    callback_url: params.callbackUrl,
+  };
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${params.accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => null);
+    const idRaw =
+      (data as any)?.data?.subscription_id ??
+      (data as any)?.data?.id ??
+      (data as any)?.subscription_id ??
+      (data as any)?.id ??
+      null;
+    const subscriptionId = String(idRaw || '').trim() || null;
+    return { ok: resp.ok, status: resp.status, raw: data, subscriptionId };
+  } catch (e: any) {
+    return { ok: false, status: 0, raw: { error: e?.message || String(e) }, subscriptionId: null };
+  }
+}
+
+
 
 
 

@@ -25,6 +25,9 @@ import type { ExternalAccountProvider, OAuthStateKind } from '@prisma/client';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
 import { ERROR_CODES } from '../shared/errors.js';
 import { addDiscordGuildMember } from '../utils/discordApi.js';
+import { claimPendingCoinGrantsTx } from '../rewards/pendingCoinGrants.js';
+import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
+import type { Server } from 'socket.io';
 
 // Helper function to get redirect URL based on environment and request
 const getRedirectUrl = (req?: AuthRequest, stateOrigin?: string): string => {
@@ -891,6 +894,7 @@ export const authController = {
       let botLinkSubscriptionDenied = false;
       let botLinkSubscriptionDeniedProvider: string | null = null;
       let allowPerChannelBotOverride = true;
+      const claimedWalletEvents: any[] = [];
 
       if (isBotLinkProvider && botLinkChannelId) {
         const isGlobalSentinel =
@@ -1122,6 +1126,23 @@ export const authController = {
             }
           }
         }
+
+        // Claim pending coin grants for this external identity (viewer linking flow).
+        // IMPORTANT: do NOT claim on bot_link to avoid granting coins for a bot account identity.
+        if (stateKind !== 'bot_link' && (provider === 'kick' || provider === 'trovo' || provider === 'vkvideo')) {
+          try {
+            const events = await claimPendingCoinGrantsTx({
+              tx: tx as any,
+              userId: user.id,
+              provider,
+              providerAccountId,
+            });
+            if (events.length) claimedWalletEvents.push(...events);
+          } catch (e: any) {
+            // Non-fatal: linking must succeed even if claim fails.
+            logger.warn('external_rewards.claim_failed', { provider, errorMessage: e?.message || String(e) });
+          }
+        }
       });
 
       // Reload user to reflect updated fields
@@ -1135,6 +1156,19 @@ export const authController = {
         console.error('User is null after creation/fetch');
         const redirectUrl = getRedirectUrl(req, stateOrigin);
         return res.redirect(`${redirectUrl}/?error=auth_failed&reason=user_null`);
+      }
+
+      // Emit wallet updates (if any) AFTER transaction commit.
+      if (claimedWalletEvents.length > 0) {
+        try {
+          const io: Server = req.app.get('io');
+          for (const ev of claimedWalletEvents) {
+            emitWalletUpdated(io, ev);
+            void relayWalletUpdatedToPeer(ev);
+          }
+        } catch (e: any) {
+          logger.warn('external_rewards.wallet_emit_failed', { errorMessage: e?.message || String(e) });
+        }
       }
 
       // Determine redirect URL first (needed for cookie domain and beta access check)

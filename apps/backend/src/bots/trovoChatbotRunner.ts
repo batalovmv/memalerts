@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { fetchTrovoChatToken, getTrovoExternalAccount, getValidTrovoAccessTokenByExternalAccountId, getValidTrovoBotAccessToken, sendTrovoChatMessage } from '../utils/trovoApi.js';
+import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
 
 dotenv.config();
 
@@ -196,6 +197,42 @@ function extractIncomingChat(msg: any): { userId: string; displayName: string; l
   return { userId, displayName, login, text };
 }
 
+function extractTrovoSpell(msg: any): {
+  providerAccountId: string | null;
+  amount: number;
+  currency: 'trovo_mana' | 'trovo_elixir';
+  providerEventId: string | null;
+  eventAt: Date | null;
+} | null {
+  const typeRaw = msg?.type ?? msg?.event ?? msg?.cmd ?? msg?.data?.type ?? null;
+  const typeStr = String(typeRaw ?? '').trim().toUpperCase();
+  const typeNum = Number.isFinite(Number(typeRaw)) ? Number(typeRaw) : null;
+
+  // Trovo Chat Service: spells are commonly delivered as type=5 (best-effort).
+  const isSpell = typeStr.includes('SPELL') || typeNum === 5;
+  if (!isSpell) return null;
+
+  const data = msg?.data ?? msg?.payload ?? msg?.body ?? msg;
+  const sender = data?.sender ?? data?.user ?? data?.from ?? data?.author ?? data;
+  const providerAccountId = String(sender?.user_id ?? sender?.userId ?? sender?.uid ?? sender?.id ?? data?.user_id ?? '').trim() || null;
+
+  const amountRaw = data?.amount ?? data?.value ?? data?.cost ?? data?.spell_value ?? data?.spell?.value ?? data?.spell?.cost ?? null;
+  const amount = Number.isFinite(Number(amountRaw)) ? Math.floor(Number(amountRaw)) : 0;
+
+  const currencyRaw = String(data?.currency ?? data?.spell_currency ?? data?.spell?.currency ?? data?.spell?.type ?? '').trim().toLowerCase();
+  const currency: 'trovo_mana' | 'trovo_elixir' = currencyRaw.includes('elixir') ? 'trovo_elixir' : 'trovo_mana';
+
+  const providerEventId =
+    String(data?.message_id ?? data?.eid ?? data?.id ?? data?.msg_id ?? data?.event_id ?? '').trim() || null;
+  const eventAt = (() => {
+    const ts = data?.created_at ?? data?.createdAt ?? data?.timestamp ?? msg?.timestamp ?? null;
+    const ms = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
+    return Number.isFinite(ms) ? new Date(ms) : null;
+  })();
+
+  return { providerAccountId, amount, currency, providerEventId, eventAt };
+}
+
 async function sendToTrovoChat(params: { st: ChannelState; text: string }): Promise<void> {
   const messageText = normalizeMessage(params.text);
   if (!messageText) return;
@@ -321,6 +358,50 @@ async function start() {
           // ignore
         }
         return;
+      }
+
+      // Trovo spells -> coins (best-effort parsing; does NOT create Users).
+      try {
+        const spell = extractTrovoSpell(msg);
+        if (spell?.providerAccountId && spell.amount > 0) {
+          const rawPayloadJson = JSON.stringify(msg ?? {});
+          const providerEventId =
+            spell.providerEventId ||
+            stableProviderEventId({
+              provider: 'trovo',
+              rawPayloadJson,
+              fallbackParts: [st.trovoChannelId, spell.providerAccountId, String(spell.amount), spell.currency],
+            });
+
+          const channel = await prisma.channel.findUnique({
+            where: { id: st.channelId },
+            select: { id: true, slug: true, trovoManaCoinsPerUnit: true, trovoElixirCoinsPerUnit: true } as any,
+          });
+          if (channel) {
+            const perUnit = spell.currency === 'trovo_elixir' ? Number((channel as any).trovoElixirCoinsPerUnit ?? 0) : Number((channel as any).trovoManaCoinsPerUnit ?? 0);
+            const coinsToGrant = Number.isFinite(perUnit) && perUnit > 0 ? Math.floor(spell.amount * perUnit) : 0;
+
+            await prisma.$transaction(async (tx) => {
+              await recordExternalRewardEventTx({
+                tx: tx as any,
+                provider: 'trovo',
+                providerEventId,
+                channelId: channel.id,
+                providerAccountId: spell.providerAccountId!,
+                eventType: 'trovo_spell',
+                currency: spell.currency,
+                amount: spell.amount,
+                coinsToGrant,
+                status: coinsToGrant > 0 ? 'eligible' : 'ignored',
+                reason: coinsToGrant > 0 ? null : 'trovo_spell_unconfigured',
+                eventAt: spell.eventAt,
+                rawPayloadJson,
+              });
+            });
+          }
+        }
+      } catch (e: any) {
+        logger.warn('trovo_chatbot.spell_ingest_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
       }
 
       const incoming = extractIncomingChat(msg);

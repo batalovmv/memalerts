@@ -21,6 +21,24 @@ model Channel {
   rewardCoins                   Int? // Coins granted per redemption
   // If true, coins for the Twitch channel points reward are granted only when stream is online.
   rewardOnlyWhenLive            Boolean  @default(false)
+  // Kick rewards -> coins (non-Twitch provider).
+  kickRewardEnabled             Boolean  @default(false)
+  kickRewardIdForCoins          String?
+  kickCoinPerPointRatio         Float    @default(1.0)
+  kickRewardCoins               Int?
+  kickRewardOnlyWhenLive        Boolean  @default(false)
+  // Kick webhook event subscription id (used for auto-subscribe / re-create flows).
+  kickRewardsSubscriptionId     String?
+  // Trovo spells -> coins.
+  // Interpretation: coins granted per 1 unit of the currency; 0 disables.
+  trovoManaCoinsPerUnit         Int      @default(0)
+  trovoElixirCoinsPerUnit       Int      @default(0)
+  // VKVideo channel points -> coins.
+  vkvideoRewardEnabled          Boolean  @default(false)
+  vkvideoRewardIdForCoins       String?
+  vkvideoCoinPerPointRatio      Float    @default(1.0)
+  vkvideoRewardCoins            Int?
+  vkvideoRewardOnlyWhenLive     Boolean  @default(false)
   coinIconUrl                   String? // Custom coin icon URL from Twitch reward
   primaryColor                  String? // Hex color for primary theme
   secondaryColor                String? // Hex color for secondary theme
@@ -121,6 +139,103 @@ model Channel {
   boostySubscriptionRewards    BoostySubscriptionReward[]
   boostyDiscordRewardsV1       BoostyDiscordSubscriptionReward[]
   boostyDiscordRewardsV2       BoostyDiscordSubscriptionRewardV2[]
+}
+
+enum ExternalRewardProvider {
+  kick
+  trovo
+  vkvideo
+}
+
+enum ExternalRewardEventType {
+  kick_reward_redemption
+  trovo_spell
+  vkvideo_channel_points_redemption
+}
+
+enum ExternalRewardCurrency {
+  kick_channel_points
+  trovo_mana
+  trovo_elixir
+  vkvideo_channel_points
+}
+
+enum ExternalRewardEventStatus {
+  observed
+  eligible
+  ignored
+  claimed
+  failed
+}
+
+// Append-only (mostly) ledger of external reward events that may result in MemAlerts coin grants.
+// IMPORTANT: This must NOT create new Users. Viewer identity is resolved later via account linking.
+model ExternalRewardEvent {
+  id                String                  @id @default(uuid())
+  provider          ExternalRewardProvider
+  // Unique event identifier within the provider (e.g. webhook message id / redemption id).
+  providerEventId   String
+  channelId         String
+  providerAccountId String
+  eventType         ExternalRewardEventType
+  eventAt           DateTime?
+  receivedAt        DateTime                @default(now())
+  currency          ExternalRewardCurrency
+  // Cost/value in provider currency units (e.g. channel points, mana).
+  amount            Int
+  status            ExternalRewardEventStatus @default(observed)
+  reason            String?
+  rawPayloadJson    String                  @db.Text
+  updatedAt         DateTime                @updatedAt
+
+  channel           Channel                 @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  pendingCoinGrant  PendingCoinGrant?
+  webhookDeliveries ExternalWebhookDeliveryDedup[]
+
+  @@unique([provider, providerEventId])
+  @@index([channelId])
+  @@index([provider, providerAccountId])
+  @@index([provider, status])
+  @@index([eventAt])
+  @@index([receivedAt])
+}
+
+// Delivery-level dedupe for external webhooks (e.g., Kick retries).
+// This is separate from ExternalRewardEvent dedupe (providerEventId), because providers may retry the same delivery.
+model ExternalWebhookDeliveryDedup {
+  id              String               @id @default(uuid())
+  provider        ExternalRewardProvider
+  messageId       String
+  receivedAt      DateTime             @default(now())
+  externalEventId String?
+
+  externalEvent   ExternalRewardEvent? @relation(fields: [externalEventId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, messageId])
+  @@index([receivedAt])
+}
+
+// Pending coin grants to be claimed when the viewer links their external account.
+// Exactly-once invariant is enforced by unique externalEventId + claim update guard.
+model PendingCoinGrant {
+  id             String                @id @default(uuid())
+  provider       ExternalRewardProvider
+  providerAccountId String
+  channelId      String
+  externalEventId String              @unique
+  coinsToGrant   Int
+  createdAt      DateTime             @default(now())
+  claimedAt      DateTime?
+  claimedByUserId String?
+
+  channel        Channel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  claimedBy      User?                @relation(fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  externalEvent  ExternalRewardEvent  @relation(fields: [externalEventId], references: [id], onDelete: Cascade)
+
+  @@index([provider, providerAccountId])
+  @@index([channelId])
+  @@index([claimedAt])
+  @@index([provider, providerAccountId, claimedAt])
 }
 
 // Channel-scoped feature entitlements (subscription gates / feature flags).

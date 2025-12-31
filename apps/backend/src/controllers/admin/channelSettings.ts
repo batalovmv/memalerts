@@ -20,6 +20,12 @@ import { isBetaBackend } from '../../utils/envMode.js';
 import { normalizeDashboardCardOrder } from '../../utils/dashboardCardOrder.js';
 import { channelMetaCache } from '../viewer/cache.js';
 import { nsKey, redisDel } from '../../utils/redisCache.js';
+import {
+  createKickEventSubscription,
+  getKickExternalAccount,
+  getValidKickAccessTokenByExternalAccountId,
+  listKickEventSubscriptions,
+} from '../../utils/kickApi.js';
 
 export const updateChannelSettings = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
@@ -39,6 +45,80 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
 
     if (!channel) {
       return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Kick rewards auto-subscribe (Kick Events API) when enabling kickRewardEnabled.
+    const currentKickRewardEnabled = Boolean((channel as any).kickRewardEnabled);
+    const kickRewardEnabledProvided = (body as any).kickRewardEnabled !== undefined;
+    const wantsKickRewardEnabled = kickRewardEnabledProvided ? Boolean((body as any).kickRewardEnabled) : currentKickRewardEnabled;
+    const isKickRewardToggle = kickRewardEnabledProvided && wantsKickRewardEnabled !== currentKickRewardEnabled;
+    let kickRewardsSubscriptionIdToSave: string | undefined = undefined;
+
+    if (isKickRewardToggle && wantsKickRewardEnabled) {
+      const acc = await getKickExternalAccount(userId);
+      if (!acc?.id) {
+        return res.status(400).json({
+          error: 'Kick account is not linked. Please link Kick in integrations first.',
+          errorCode: 'KICK_NOT_LINKED',
+        });
+      }
+
+      const scopes = String(acc.scopes || '')
+        .split(/\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!scopes.includes('events:subscribe')) {
+        return res.status(400).json({
+          error: 'Kick scope missing: events:subscribe. Please re-link Kick with the required permissions.',
+          errorCode: 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE',
+        });
+      }
+
+      const accessToken = await getValidKickAccessTokenByExternalAccountId(acc.id);
+      if (!accessToken) {
+        return res.status(401).json({
+          error: 'Kick access token not found/expired. Please log out and log in again to refresh your authorization.',
+          requiresReauth: true,
+          errorCode: 'KICK_ACCESS_TOKEN_MISSING',
+        });
+      }
+
+      const callbackUrl = (() => {
+        const envUrl = String(process.env.KICK_WEBHOOK_CALLBACK_URL || '').trim();
+        if (envUrl) return envUrl;
+        const domain = process.env.DOMAIN || 'twitchmemes.ru';
+        const reqHost = req.get('host') || '';
+        const allowedHosts = new Set([domain, `www.${domain}`, `beta.${domain}`]);
+        const apiBaseUrl = allowedHosts.has(reqHost) ? `https://${reqHost}` : `https://${domain}`;
+        return `${apiBaseUrl}/webhooks/kick/events`;
+      })();
+
+      const eventName = 'channel.reward.redemption.updated';
+      let subId: string | null = null;
+
+      const listed = await listKickEventSubscriptions({ accessToken });
+      if (listed.ok) {
+        const match = (listed.subscriptions || []).find((s: any) => {
+          const e = String(s?.event ?? s?.type ?? s?.name ?? '').trim().toLowerCase();
+          const cb = String(s?.callback_url ?? s?.callback ?? s?.transport?.callback ?? '').trim();
+          return e === eventName && cb === callbackUrl;
+        });
+        const idRaw = match?.id ?? match?.subscription_id ?? match?.subscriptionId ?? null;
+        subId = String(idRaw || '').trim() || null;
+      }
+
+      if (!subId) {
+        const created = await createKickEventSubscription({ accessToken, callbackUrl, event: eventName, version: 'v1' });
+        if (!created.ok || !created.subscriptionId) {
+          return res.status(502).json({
+            error: 'Failed to create Kick event subscription. Please try again.',
+            errorCode: 'KICK_SUBSCRIPTION_CREATE_FAILED',
+          });
+        }
+        subId = created.subscriptionId;
+      }
+
+      kickRewardsSubscriptionIdToSave = subId;
     }
 
     // Handle reward enable/disable
@@ -467,6 +547,37 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       rewardCoins: body.rewardCoins !== undefined ? body.rewardCoins : (channel as any).rewardCoins,
       rewardOnlyWhenLive:
         (body as any).rewardOnlyWhenLive !== undefined ? (body as any).rewardOnlyWhenLive : (channel as any).rewardOnlyWhenLive,
+      // Kick rewards -> coins
+      kickRewardEnabled: (body as any).kickRewardEnabled !== undefined ? (body as any).kickRewardEnabled : (channel as any).kickRewardEnabled,
+      kickRewardsSubscriptionId:
+        kickRewardsSubscriptionIdToSave !== undefined ? kickRewardsSubscriptionIdToSave : (channel as any).kickRewardsSubscriptionId,
+      kickRewardIdForCoins:
+        (body as any).kickRewardIdForCoins !== undefined ? (body as any).kickRewardIdForCoins : (channel as any).kickRewardIdForCoins,
+      kickCoinPerPointRatio:
+        (body as any).kickCoinPerPointRatio !== undefined ? (body as any).kickCoinPerPointRatio : (channel as any).kickCoinPerPointRatio,
+      kickRewardCoins: (body as any).kickRewardCoins !== undefined ? (body as any).kickRewardCoins : (channel as any).kickRewardCoins,
+      kickRewardOnlyWhenLive:
+        (body as any).kickRewardOnlyWhenLive !== undefined ? (body as any).kickRewardOnlyWhenLive : (channel as any).kickRewardOnlyWhenLive,
+      // Trovo spells -> coins
+      trovoManaCoinsPerUnit:
+        (body as any).trovoManaCoinsPerUnit !== undefined ? (body as any).trovoManaCoinsPerUnit : (channel as any).trovoManaCoinsPerUnit,
+      trovoElixirCoinsPerUnit:
+        (body as any).trovoElixirCoinsPerUnit !== undefined
+          ? (body as any).trovoElixirCoinsPerUnit
+          : (channel as any).trovoElixirCoinsPerUnit,
+      // VKVideo channel points -> coins
+      vkvideoRewardEnabled:
+        (body as any).vkvideoRewardEnabled !== undefined ? (body as any).vkvideoRewardEnabled : (channel as any).vkvideoRewardEnabled,
+      vkvideoRewardIdForCoins:
+        (body as any).vkvideoRewardIdForCoins !== undefined ? (body as any).vkvideoRewardIdForCoins : (channel as any).vkvideoRewardIdForCoins,
+      vkvideoCoinPerPointRatio:
+        (body as any).vkvideoCoinPerPointRatio !== undefined ? (body as any).vkvideoCoinPerPointRatio : (channel as any).vkvideoCoinPerPointRatio,
+      vkvideoRewardCoins:
+        (body as any).vkvideoRewardCoins !== undefined ? (body as any).vkvideoRewardCoins : (channel as any).vkvideoRewardCoins,
+      vkvideoRewardOnlyWhenLive:
+        (body as any).vkvideoRewardOnlyWhenLive !== undefined
+          ? (body as any).vkvideoRewardOnlyWhenLive
+          : (channel as any).vkvideoRewardOnlyWhenLive,
       submissionRewardCoins: body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : (channel as any).submissionRewardCoins,
       submissionRewardCoinsUpload:
         (body as any).submissionRewardCoinsUpload !== undefined

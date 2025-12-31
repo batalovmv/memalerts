@@ -74,6 +74,21 @@ export const updateChannelSettingsSchema = z.object({
   rewardCost: z.number().int().positive().optional().nullable(),
   rewardCoins: z.number().int().positive().optional().nullable(),
   rewardOnlyWhenLive: z.boolean().optional(),
+  // Kick rewards -> coins
+  kickRewardEnabled: z.boolean().optional(),
+  kickRewardIdForCoins: z.string().optional().nullable(),
+  kickCoinPerPointRatio: z.number().positive().optional(),
+  kickRewardCoins: z.number().int().positive().optional().nullable(),
+  kickRewardOnlyWhenLive: z.boolean().optional(),
+  // Trovo spells -> coins
+  trovoManaCoinsPerUnit: z.number().int().min(0).optional(),
+  trovoElixirCoinsPerUnit: z.number().int().min(0).optional(),
+  // VKVideo channel points -> coins
+  vkvideoRewardEnabled: z.boolean().optional(),
+  vkvideoRewardIdForCoins: z.string().optional().nullable(),
+  vkvideoCoinPerPointRatio: z.number().positive().optional(),
+  vkvideoRewardCoins: z.number().int().positive().optional().nullable(),
+  vkvideoRewardOnlyWhenLive: z.boolean().optional(),
   // Legacy single reward field (kept for back-compat).
   submissionRewardCoins: z.number().int().min(0).optional(),
   // New split fields.

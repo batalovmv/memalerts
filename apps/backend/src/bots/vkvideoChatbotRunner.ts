@@ -6,6 +6,7 @@ import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import { hasChannelEntitlement } from '../utils/entitlements.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
+import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
 import {
   fetchVkVideoChannel,
   fetchVkVideoCurrentUser,
@@ -393,6 +394,32 @@ async function start() {
 
     const senderLogin = author?.nick ? normalizeLogin(author.nick) : null;
     return { text, userId, displayName, senderLogin: senderLogin || null };
+  }
+
+  function extractVkVideoChannelPointsRedemption(pubData: any): { providerAccountId: string; amount: number; rewardId: string | null; providerEventId: string | null; eventAt: Date | null } | null {
+    const type = String(pubData?.type ?? pubData?.event ?? pubData?.name ?? '').trim().toLowerCase();
+    if (type && !type.includes('channel_points') && !type.includes('channelpoints') && !type.includes('points')) return null;
+
+    const root = pubData?.data ?? pubData ?? null;
+    const ev = root?.event ?? root?.redemption ?? root ?? null;
+
+    const providerAccountId = String(ev?.user?.id ?? ev?.viewer?.id ?? ev?.from?.id ?? ev?.user_id ?? '').trim();
+    if (!providerAccountId) return null;
+
+    const amountRaw = ev?.cost ?? ev?.amount ?? ev?.points ?? ev?.value ?? ev?.reward?.cost ?? null;
+    const amount = Number.isFinite(Number(amountRaw)) ? Math.floor(Number(amountRaw)) : 0;
+    if (amount <= 0) return null;
+
+    const rewardId = String(ev?.reward?.id ?? ev?.reward_id ?? ev?.reward?.uuid ?? '').trim() || null;
+    const providerEventId = String(ev?.id ?? ev?.redemption_id ?? ev?.event_id ?? '').trim() || null;
+
+    const eventAt = (() => {
+      const ts = ev?.created_at ?? ev?.createdAt ?? ev?.timestamp ?? root?.timestamp ?? null;
+      const ms = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
+      return Number.isFinite(ms) ? new Date(ms) : null;
+    })();
+
+    return { providerAccountId, amount, rewardId, providerEventId, eventAt };
   }
 
   async function sendToVkVideoChat(params: { vkvideoChannelId: string; text: string }): Promise<void> {
@@ -864,6 +891,137 @@ async function start() {
         onPush: (push) => {
           const vkId = wsChannelToVkvideoId.get(push.channel) || null;
           if (!vkId) return;
+          // Channel points redemption (best-effort parsing; does NOT create Users).
+          try {
+            const redemption = extractVkVideoChannelPointsRedemption(push.data);
+            if (redemption) {
+              const channelId = vkvideoIdToChannelId.get(vkId) || null;
+              if (!channelId) return;
+              const slug = vkvideoIdToSlug.get(vkId) || '';
+
+              void (async () => {
+                const rawPayloadJson = JSON.stringify(push.data ?? {});
+                const providerEventId =
+                  redemption.providerEventId ||
+                  stableProviderEventId({
+                    provider: 'vkvideo',
+                    rawPayloadJson,
+                    fallbackParts: [vkId, redemption.providerAccountId, String(redemption.amount), redemption.rewardId || ''],
+                  });
+
+                const channel = await prisma.channel.findUnique({
+                  where: { id: channelId },
+                  select: {
+                    id: true,
+                    slug: true,
+                    vkvideoRewardEnabled: true,
+                    vkvideoRewardIdForCoins: true,
+                    vkvideoCoinPerPointRatio: true,
+                    vkvideoRewardCoins: true,
+                    vkvideoRewardOnlyWhenLive: true,
+                  } as any,
+                });
+                if (!channel) return;
+
+                const enabled = Boolean((channel as any).vkvideoRewardEnabled);
+                const configuredRewardId = String((channel as any).vkvideoRewardIdForCoins || '').trim();
+                const rewardIdOk = !configuredRewardId || !redemption.rewardId || configuredRewardId === redemption.rewardId;
+
+                // Optional restriction: only when live (best-effort, keyed by MemAlerts slug).
+                if (enabled && (channel as any).vkvideoRewardOnlyWhenLive) {
+                  const snap = await getStreamDurationSnapshot(String((channel as any).slug || slug || '').toLowerCase());
+                  if (snap.status !== 'online') {
+                    await prisma.$transaction(async (tx) => {
+                      await recordExternalRewardEventTx({
+                        tx: tx as any,
+                        provider: 'vkvideo',
+                        providerEventId,
+                        channelId: channel.id,
+                        providerAccountId: redemption.providerAccountId,
+                        eventType: 'vkvideo_channel_points_redemption',
+                        currency: 'vkvideo_channel_points',
+                        amount: redemption.amount,
+                        coinsToGrant: 0,
+                        status: 'ignored',
+                        reason: 'offline',
+                        eventAt: redemption.eventAt,
+                        rawPayloadJson,
+                      });
+                    });
+                    return;
+                  }
+                }
+
+                if (!enabled) {
+                  await prisma.$transaction(async (tx) => {
+                    await recordExternalRewardEventTx({
+                      tx: tx as any,
+                      provider: 'vkvideo',
+                      providerEventId,
+                      channelId: channel.id,
+                      providerAccountId: redemption.providerAccountId,
+                      eventType: 'vkvideo_channel_points_redemption',
+                      currency: 'vkvideo_channel_points',
+                      amount: redemption.amount,
+                      coinsToGrant: 0,
+                      status: 'ignored',
+                      reason: 'vkvideo_reward_disabled',
+                      eventAt: redemption.eventAt,
+                      rawPayloadJson,
+                    });
+                  });
+                  return;
+                }
+
+                if (!rewardIdOk) {
+                  await prisma.$transaction(async (tx) => {
+                    await recordExternalRewardEventTx({
+                      tx: tx as any,
+                      provider: 'vkvideo',
+                      providerEventId,
+                      channelId: channel.id,
+                      providerAccountId: redemption.providerAccountId,
+                      eventType: 'vkvideo_channel_points_redemption',
+                      currency: 'vkvideo_channel_points',
+                      amount: redemption.amount,
+                      coinsToGrant: 0,
+                      status: 'ignored',
+                      reason: 'reward_id_mismatch',
+                      eventAt: redemption.eventAt,
+                      rawPayloadJson,
+                    });
+                  });
+                  return;
+                }
+
+                const fixedCoins = (channel as any).vkvideoRewardCoins ?? null;
+                const ratio = Number((channel as any).vkvideoCoinPerPointRatio ?? 1.0);
+                const coinsToGrant = fixedCoins ? Number(fixedCoins) : Math.floor(redemption.amount * (Number.isFinite(ratio) ? ratio : 1.0));
+
+                await prisma.$transaction(async (tx) => {
+                  await recordExternalRewardEventTx({
+                    tx: tx as any,
+                    provider: 'vkvideo',
+                    providerEventId,
+                    channelId: channel.id,
+                    providerAccountId: redemption.providerAccountId,
+                    eventType: 'vkvideo_channel_points_redemption',
+                    currency: 'vkvideo_channel_points',
+                    amount: redemption.amount,
+                    coinsToGrant,
+                    status: coinsToGrant > 0 ? 'eligible' : 'ignored',
+                    reason: coinsToGrant > 0 ? null : 'zero_coins',
+                    eventAt: redemption.eventAt,
+                    rawPayloadJson,
+                  });
+                });
+              })();
+              return;
+            }
+          } catch (e: any) {
+            logger.warn('vkvideo_chatbot.channel_points_ingest_failed', { errorMessage: e?.message || String(e) });
+          }
+
           const incoming = extractIncomingMessage(push.data);
           if (!incoming) return;
           void handleIncoming(vkId, incoming);

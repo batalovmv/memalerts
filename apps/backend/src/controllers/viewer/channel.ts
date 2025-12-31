@@ -126,6 +126,21 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       rewardCost: (channel as any).rewardCost ?? null,
       rewardCoins: (channel as any).rewardCoins ?? null,
       rewardOnlyWhenLive: (channel as any).rewardOnlyWhenLive ?? false,
+      // Kick rewards -> coins
+      kickRewardEnabled: (channel as any).kickRewardEnabled ?? false,
+      kickRewardIdForCoins: (channel as any).kickRewardIdForCoins ?? null,
+      kickCoinPerPointRatio: (channel as any).kickCoinPerPointRatio ?? 1.0,
+      kickRewardCoins: (channel as any).kickRewardCoins ?? null,
+      kickRewardOnlyWhenLive: (channel as any).kickRewardOnlyWhenLive ?? false,
+      // Trovo spells -> coins
+      trovoManaCoinsPerUnit: (channel as any).trovoManaCoinsPerUnit ?? 0,
+      trovoElixirCoinsPerUnit: (channel as any).trovoElixirCoinsPerUnit ?? 0,
+      // VKVideo channel points -> coins
+      vkvideoRewardEnabled: (channel as any).vkvideoRewardEnabled ?? false,
+      vkvideoRewardIdForCoins: (channel as any).vkvideoRewardIdForCoins ?? null,
+      vkvideoCoinPerPointRatio: (channel as any).vkvideoCoinPerPointRatio ?? 1.0,
+      vkvideoRewardCoins: (channel as any).vkvideoRewardCoins ?? null,
+      vkvideoRewardOnlyWhenLive: (channel as any).vkvideoRewardOnlyWhenLive ?? false,
       submissionRewardCoins: (channel as any).submissionRewardCoins ?? 0,
       submissionRewardOnlyWhenLive: (channel as any).submissionRewardOnlyWhenLive ?? false,
       submissionsEnabled: (channel as any).submissionsEnabled ?? true,
