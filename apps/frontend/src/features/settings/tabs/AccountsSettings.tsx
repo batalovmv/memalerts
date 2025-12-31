@@ -997,8 +997,8 @@ export function AccountsSettings() {
                     </Button>
                   </>
                 ) : (
-                  <Button variant="primary" onClick={service.onLink} disabled={service.isAvailable === false}>
-                    {service.isAvailable === false
+                  <Button variant="primary" onClick={service.onLink} disabled={!service.isAvailable}>
+                    {!service.isAvailable
                       ? t('common.notAvailable', { defaultValue: 'Not available' })
                       : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
