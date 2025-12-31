@@ -106,6 +106,8 @@ model Channel {
 
   users                        User[]
   wallets                      Wallet[]
+  externalRewardEvents         ExternalRewardEvent[]
+  pendingCoinGrants            PendingCoinGrant[]
   memes                        Meme[]
   channelMemes                 ChannelMeme[]
   submissions                  MemeSubmission[]
@@ -229,7 +231,7 @@ model PendingCoinGrant {
   claimedByUserId String?
 
   channel        Channel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  claimedBy      User?                @relation(fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  claimedBy      User?                @relation("PendingCoinGrantClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
   externalEvent  ExternalRewardEvent  @relation(fields: [externalEventId], references: [id], onDelete: Cascade)
 
   @@index([provider, providerAccountId])
@@ -619,6 +621,7 @@ model User {
   trovoChatBotSubscriptions   TrovoChatBotSubscription[]
   kickChatBotSubscriptions    KickChatBotSubscription[]
   wallets                     Wallet[]
+  pendingCoinGrantsClaimed    PendingCoinGrant[]         @relation("PendingCoinGrantClaimedBy")
   boostySubscriptionRewards   BoostySubscriptionReward[]
   boostyDiscordRewardsV1      BoostyDiscordSubscriptionReward[]
   boostyDiscordRewardsV2      BoostyDiscordSubscriptionRewardV2[]
