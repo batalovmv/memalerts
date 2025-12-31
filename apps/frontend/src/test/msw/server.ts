@@ -1,3 +1,4 @@
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 /**
@@ -6,7 +7,26 @@ import { setupServer } from 'msw/node';
  * Add handlers in individual tests via `server.use(...)` or export common handlers
  * from `src/test/msw/handlers.ts` when they appear.
  */
-export const server = setupServer();
+const corsHeaders = {
+  'access-control-allow-origin': 'http://localhost:3000',
+  'access-control-allow-credentials': 'true',
+  'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
+  'access-control-allow-headers': 'content-type,authorization',
+};
+
+/**
+ * Default handlers for endpoints that may be called from effects during mount/unmount.
+ * Keeping them in `setupServer(...)` makes them survive `server.resetHandlers()`.
+ */
+export const server = setupServer(
+  http.options('*/channels/:channelId/boosty-access', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.get('*/channels/:channelId/boosty-access', () =>
+    HttpResponse.json(
+      { status: 'need_discord_link', requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null } },
+      { headers: corsHeaders }
+    )
+  )
+);
 
 
 

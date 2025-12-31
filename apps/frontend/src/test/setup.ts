@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { configure, prettyDOM } from '@testing-library/dom';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
-import { http, HttpResponse } from 'msw';
 
 import '@/i18n/config';
 import i18n from '@/i18n/config';
@@ -37,26 +36,6 @@ try {
 // MSW: intercept network calls in tests (opt-in per test via server.use()).
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' });
-
-  // Default handlers for endpoints that may be called from effects during mount/unmount.
-  // This prevents flaky "unhandled request" failures when a request completes after a test ends
-  // and `server.resetHandlers()` has already run.
-  const corsHeaders = {
-    'access-control-allow-origin': 'http://localhost:3000',
-    'access-control-allow-credentials': 'true',
-    'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,authorization',
-  };
-
-  server.use(
-    http.options('*/channels/:channelId/boosty-access', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
-    http.get('*/channels/:channelId/boosty-access', () =>
-      HttpResponse.json(
-        { status: 'need_discord_link', requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null } },
-        { headers: corsHeaders }
-      )
-    )
-  );
 });
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
