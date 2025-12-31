@@ -126,6 +126,7 @@ export function RewardsSettings() {
   const [boostyAccess, setBoostyAccess] = useState<BoostyAccessResponse | null>(null);
   const [boostyAccessLoading, setBoostyAccessLoading] = useState(false);
   const [boostyAccessError, setBoostyAccessError] = useState<string | null>(null);
+  const [boostyAccessNeedsAuth, setBoostyAccessNeedsAuth] = useState(false);
   const boostyAccessLoadingRef = useRef(false);
   const lastApprovedNonZeroRef = useRef<number>(100);
   const lastApprovedNonZeroPoolRef = useRef<number>(100);
@@ -139,10 +140,15 @@ export function RewardsSettings() {
 
   const effectiveChannelId = user?.channelId || user?.channel?.id || null;
 
+  const startLogin = useCallback(() => {
+    login('/settings?tab=rewards');
+  }, []);
+
   const refreshBoostyAccess = useCallback(async () => {
     if (!effectiveChannelId) return;
     if (boostyAccessLoadingRef.current) return;
     boostyAccessLoadingRef.current = true;
+    setBoostyAccessNeedsAuth(false);
     setBoostyAccessError(null);
     setBoostyAccessLoading(true);
     try {
@@ -156,11 +162,13 @@ export function RewardsSettings() {
     } catch (e) {
       const err = toApiError(e, t('admin.failedToLoad', { defaultValue: 'Failed to load.' }));
       if (err.statusCode === 401) {
-        toast.error(t('auth.authRequired', { defaultValue: 'Please sign in to continue.' }));
-        login('/settings?tab=rewards');
-        return;
+        // Don't auto-redirect to Twitch login: this can cause an OAuth redirect loop
+        // when the backend session can't be established for any reason.
+        setBoostyAccessNeedsAuth(true);
+        setBoostyAccessError(t('auth.authRequired', { defaultValue: 'Please sign in to continue.' }));
+      } else {
+        setBoostyAccessError(err.message || 'Failed to load.');
       }
-      setBoostyAccessError(err.message || 'Failed to load.');
     } finally {
       boostyAccessLoadingRef.current = false;
       setBoostyAccessLoading(false);
@@ -1164,7 +1172,16 @@ export function RewardsSettings() {
               ) : null}
             </div>
           ) : boostyAccessError ? (
-            <div className="text-sm text-red-600 dark:text-red-400">{boostyAccessError}</div>
+            <div className="text-sm text-red-600 dark:text-red-400">
+              <div>{boostyAccessError}</div>
+              {boostyAccessNeedsAuth ? (
+                <div className="mt-3">
+                  <Button type="button" variant="secondary" onClick={startLogin}>
+                    {t('auth.signIn', { defaultValue: 'Sign in' })}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="text-sm text-gray-600 dark:text-gray-300">
               {t('common.loading', { defaultValue: 'Loading…' })}
