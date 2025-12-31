@@ -6,7 +6,7 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { toApiError } from '@/shared/api/toApiError';
-import { getApiOriginForRedirect } from '@/shared/auth/login';
+import { getApiOriginForRedirect, login } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, HelpTooltip, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
@@ -155,6 +155,11 @@ export function RewardsSettings() {
       setBoostyAccess(parsed);
     } catch (e) {
       const err = toApiError(e, t('admin.failedToLoad', { defaultValue: 'Failed to load.' }));
+      if (err.statusCode === 401) {
+        toast.error(t('auth.authRequired', { defaultValue: 'Please sign in to continue.' }));
+        login('/settings?tab=rewards');
+        return;
+      }
       setBoostyAccessError(err.message || 'Failed to load.');
     } finally {
       boostyAccessLoadingRef.current = false;

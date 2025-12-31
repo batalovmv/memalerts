@@ -466,12 +466,6 @@ export function AccountsSettings() {
     })();
   }, [ensureSessionOrLogin]);
 
-  // Boosty access is determined via Discord roles now; show the entry in Accounts,
-  // but route users to the new "Boosty rewards" status screen.
-  const openBoostyRewards = useCallback(() => {
-    window.location.href = '/settings?tab=rewards';
-  }, []);
-
   const services = useMemo(
     () =>
       [
@@ -521,7 +515,7 @@ export function AccountsSettings() {
           iconClassName: 'text-[#F15A24]',
           supportsLink: true,
           isAvailable: true,
-          onLink: openBoostyRewards,
+          onLink: () => linkProvider('boosty'),
         },
         {
           provider: 'kick',
@@ -548,7 +542,7 @@ export function AccountsSettings() {
           onLink: () => linkProvider('trovo'),
         },
       ] as const,
-    [linkProvider, linkTwitch, openBoostyRewards, t]
+    [linkProvider, linkTwitch, t]
   );
 
   const unlinkAccount = useCallback(
@@ -940,9 +934,7 @@ export function AccountsSettings() {
                   <Button variant="primary" onClick={service.onLink} disabled={!service.isAvailable}>
                     {!service.isAvailable
                       ? t('common.notAvailable', { defaultValue: 'Not available' })
-                      : service.provider === 'boosty'
-                        ? t('settings.boostyOpenRewardsAction', { defaultValue: 'Open' })
-                        : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
+                      : t('settings.accountsLinkAction', { defaultValue: 'Connect' })}
                   </Button>
                 )}
               </div>
