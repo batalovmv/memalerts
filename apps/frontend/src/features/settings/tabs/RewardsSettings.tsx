@@ -737,6 +737,12 @@ export function RewardsSettings() {
     const startedAt = Date.now();
     setSavingTrovoReward(true);
     try {
+      if (!trovoLinked) {
+        toast.error(
+          t('admin.trovoNotLinked', { defaultValue: 'Trovo account is not linked. Link Trovo in Settings → Accounts.' })
+        );
+        return;
+      }
       const manaRaw = String(rewardSettings.trovoManaCoinsPerUnit || '').trim();
       const elixirRaw = String(rewardSettings.trovoElixirCoinsPerUnit || '').trim();
 
@@ -896,6 +902,7 @@ export function RewardsSettings() {
   useEffect(() => {
     if (!user?.channel?.slug) return;
     if (!settingsLoadedRef.current) return;
+    if (!trovoLinked) return;
 
     const mana = parseIntSafe(String(rewardSettings.trovoManaCoinsPerUnit || '0')) ?? 0;
     const elixir = parseIntSafe(String(rewardSettings.trovoElixirCoinsPerUnit || '0')) ?? 0;
@@ -916,7 +923,7 @@ export function RewardsSettings() {
       saveTrovoTimerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rewardSettings.trovoManaCoinsPerUnit, rewardSettings.trovoElixirCoinsPerUnit, user?.channel?.slug]);
+  }, [rewardSettings.trovoManaCoinsPerUnit, rewardSettings.trovoElixirCoinsPerUnit, user?.channel?.slug, trovoLinked]);
 
   // Autosave: VKVideo reward fields (debounced)
   useEffect(() => {
