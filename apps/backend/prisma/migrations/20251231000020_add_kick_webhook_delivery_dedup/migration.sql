@@ -37,9 +37,12 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'ExternalWebhookDeliveryDedup_externalEventId_fkey'
     ) THEN
-        ALTER TABLE "ExternalWebhookDeliveryDedup"
-        ADD CONSTRAINT "ExternalWebhookDeliveryDedup_externalEventId_fkey"
-        FOREIGN KEY ("externalEventId") REFERENCES "ExternalRewardEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        -- Only add FK if ExternalRewardEvent table exists (some DBs may not have the ledger yet).
+        IF to_regclass('public."ExternalRewardEvent"') IS NOT NULL THEN
+            ALTER TABLE "ExternalWebhookDeliveryDedup"
+            ADD CONSTRAINT "ExternalWebhookDeliveryDedup_externalEventId_fkey"
+            FOREIGN KEY ("externalEventId") REFERENCES "ExternalRewardEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
     END IF;
 END $$;
 
