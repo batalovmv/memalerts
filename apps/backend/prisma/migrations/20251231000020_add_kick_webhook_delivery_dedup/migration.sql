@@ -32,8 +32,15 @@ ON "ExternalWebhookDeliveryDedup"("provider", "messageId");
 CREATE INDEX IF NOT EXISTS "ExternalWebhookDeliveryDedup_receivedAt_idx"
 ON "ExternalWebhookDeliveryDedup"("receivedAt");
 
-ALTER TABLE "ExternalWebhookDeliveryDedup"
-ADD CONSTRAINT "ExternalWebhookDeliveryDedup_externalEventId_fkey"
-FOREIGN KEY ("externalEventId") REFERENCES "ExternalRewardEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ExternalWebhookDeliveryDedup_externalEventId_fkey'
+    ) THEN
+        ALTER TABLE "ExternalWebhookDeliveryDedup"
+        ADD CONSTRAINT "ExternalWebhookDeliveryDedup_externalEventId_fkey"
+        FOREIGN KEY ("externalEventId") REFERENCES "ExternalRewardEvent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 
