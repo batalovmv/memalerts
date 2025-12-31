@@ -40,59 +40,46 @@ export async function recordExternalRewardEventTx(params: {
   const safeAmount = Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 0;
   const safeCoins = Number.isFinite(coinsToGrant) && coinsToGrant > 0 ? Math.floor(coinsToGrant) : 0;
 
-  // 1) Create (or find) event row (dedup by provider+providerEventId).
-  let externalEventId: string | null = null;
-  try {
-    const created = await (params.tx as any).externalRewardEvent.create({
-      data: {
-        provider: params.provider,
-        providerEventId,
-        channelId,
-        providerAccountId,
-        eventType: params.eventType,
-        eventAt: params.eventAt ?? null,
-        currency: params.currency,
-        amount: safeAmount,
-        status: params.status,
-        reason: params.reason ?? null,
-        rawPayloadJson: params.rawPayloadJson,
-      },
-      select: { id: true },
-    });
-    externalEventId = String(created?.id || '') || null;
-  } catch (e: any) {
-    // Unique violation => already recorded; find existing id.
-    if (e?.code === 'P2002') {
-      const existing = await (params.tx as any).externalRewardEvent.findUnique({
-        where: { provider_providerEventId: { provider: params.provider, providerEventId } },
-        select: { id: true },
-      });
-      externalEventId = String(existing?.id || '') || null;
-    } else {
-      throw e;
-    }
-  }
+  // 1) Create (or get) event row (dedup by provider+providerEventId) without raising an error.
+  // IMPORTANT: do not rely on catching P2002 inside a transaction; on Postgres it can abort the transaction (25P02).
+  const upserted = await (params.tx as any).externalRewardEvent.upsert({
+    where: { provider_providerEventId: { provider: params.provider, providerEventId } },
+    create: {
+      provider: params.provider,
+      providerEventId,
+      channelId,
+      providerAccountId,
+      eventType: params.eventType,
+      eventAt: params.eventAt ?? null,
+      currency: params.currency,
+      amount: safeAmount,
+      status: params.status,
+      reason: params.reason ?? null,
+      rawPayloadJson: params.rawPayloadJson,
+    },
+    // Keep the first-seen payload/status as-is (append-only semantics). This is a deliberate no-op update.
+    update: {},
+    select: { id: true },
+  });
+  const externalEventId = String(upserted?.id || '') || null;
 
   if (!externalEventId) return { ok: false, externalEventId: null, createdPending: false };
 
   // 2) If eligible and coins > 0 => create pending grant (exactly-once by unique externalEventId).
   if (params.status === 'eligible' && safeCoins > 0) {
-    try {
-      await (params.tx as any).pendingCoinGrant.create({
-        data: {
+    const created = await (params.tx as any).pendingCoinGrant.createMany({
+      data: [
+        {
           provider: params.provider,
           providerAccountId,
           channelId,
           externalEventId,
           coinsToGrant: safeCoins,
         },
-        select: { id: true },
-      });
-      return { ok: true, externalEventId, createdPending: true };
-    } catch (e: any) {
-      if (e?.code === 'P2002') return { ok: true, externalEventId, createdPending: false };
-      throw e;
-    }
+      ],
+      skipDuplicates: true,
+    });
+    return { ok: true, externalEventId, createdPending: (created?.count ?? 0) > 0 };
   }
 
   return { ok: true, externalEventId, createdPending: false };
