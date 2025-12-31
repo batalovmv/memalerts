@@ -126,6 +126,7 @@ export function RewardsSettings() {
   const [boostyAccess, setBoostyAccess] = useState<BoostyAccessResponse | null>(null);
   const [boostyAccessLoading, setBoostyAccessLoading] = useState(false);
   const [boostyAccessError, setBoostyAccessError] = useState<string | null>(null);
+  const boostyAccessLoadingRef = useRef(false);
   const lastApprovedNonZeroRef = useRef<number>(100);
   const lastApprovedNonZeroPoolRef = useRef<number>(100);
   const saveTwitchTimerRef = useRef<number | null>(null);
@@ -140,7 +141,8 @@ export function RewardsSettings() {
 
   const refreshBoostyAccess = useCallback(async () => {
     if (!effectiveChannelId) return;
-    if (boostyAccessLoading) return;
+    if (boostyAccessLoadingRef.current) return;
+    boostyAccessLoadingRef.current = true;
     setBoostyAccessError(null);
     setBoostyAccessLoading(true);
     try {
@@ -155,9 +157,10 @@ export function RewardsSettings() {
       const err = toApiError(e, t('admin.failedToLoad', { defaultValue: 'Failed to load.' }));
       setBoostyAccessError(err.message || 'Failed to load.');
     } finally {
+      boostyAccessLoadingRef.current = false;
       setBoostyAccessLoading(false);
     }
-  }, [boostyAccessLoading, effectiveChannelId, t]);
+  }, [effectiveChannelId, t]);
 
   const redirectToDiscordLink = useCallback(() => {
     const apiOrigin = typeof window !== 'undefined' ? getApiOriginForRedirect() : '';
