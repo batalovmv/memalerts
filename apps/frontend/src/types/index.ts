@@ -39,6 +39,7 @@ export interface ExternalAccount {
   login?: string | null;
   displayName?: string | null;
   profileImageUrl?: string | null;
+  profileUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

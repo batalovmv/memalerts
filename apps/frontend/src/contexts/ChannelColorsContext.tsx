@@ -14,6 +14,9 @@ interface ChannelData {
   slug: string;
   name: string;
   coinPerPointRatio: number;
+  boostyBlogName?: string | null;
+  boostyCoinsPerSub?: number | null;
+  boostyTierCoins?: Array<{ tierKey: string; coins: number }> | null;
   overlayMode?: 'queue' | 'simultaneous';
   overlayShowSender?: boolean;
   overlayMaxConcurrent?: number;
