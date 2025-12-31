@@ -38,6 +38,18 @@ vi.mock('@/contexts/ChannelColorsContext', () => ({
       rewardCost: null,
       rewardCoins: null,
       rewardOnlyWhenLive: false,
+      kickRewardEnabled: false,
+      kickRewardIdForCoins: null,
+      kickCoinPerPointRatio: 1,
+      kickRewardCoins: null,
+      kickRewardOnlyWhenLive: false,
+      trovoManaCoinsPerUnit: 0,
+      trovoElixirCoinsPerUnit: 0,
+      vkvideoRewardEnabled: false,
+      vkvideoRewardIdForCoins: null,
+      vkvideoCoinPerPointRatio: 1,
+      vkvideoRewardCoins: null,
+      vkvideoRewardOnlyWhenLive: false,
       submissionRewardCoins: 0,
     }),
   }),
@@ -162,6 +174,53 @@ describe('RewardsSettings (integration)', () => {
 
     const toast = (await import('react-hot-toast')).default as unknown as { error: ReturnType<typeof vi.fn> };
     expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('autosaves Kick reward via /streamer/channel/settings (payload uses numbers)', async () => {
+    const userEv = userEvent.setup();
+    const me = makeStreamerUser({
+      channelId: 'c1',
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
+      externalAccounts: [{ id: 'ea_kick', provider: 'kick' } as any],
+    });
+
+    const bodies: unknown[] = [];
+    server.use(
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
+      http.get('*/channels/:channelId/boosty-access', () =>
+        HttpResponse.json({
+          status: 'need_discord_link',
+          requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null },
+        })
+      ),
+      mockTwitchRewardEligibility({ eligible: true }),
+      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
+    );
+
+    renderWithProviders(<RewardsSettings />, {
+      route: '/settings?tab=rewards',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    const kickTitleEl = await screen.findByText(/coins reward \(kick\)|награда за монеты \(kick\)/i);
+    const section = kickTitleEl.closest('section') ?? kickTitleEl.parentElement ?? document.body;
+    const kickToggle = within(section).getByRole('checkbox') as HTMLInputElement;
+    await userEv.click(kickToggle);
+
+    const ratioLabelEl = await screen.findByText(/kickcoinperpointratio/i);
+    const ratioContainer = ratioLabelEl.closest('div') ?? ratioLabelEl.parentElement ?? document.body;
+    const ratioInput = within(ratioContainer).getByRole('textbox') as HTMLInputElement;
+    await userEv.clear(ratioInput);
+    await userEv.type(ratioInput, '2');
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 900));
+    });
+
+    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
+    const last = bodies.at(-1) as any;
+    expect(last.kickRewardEnabled).toBe(true);
+    expect(last.kickCoinPerPointRatio).toBe(2);
   });
 });
 

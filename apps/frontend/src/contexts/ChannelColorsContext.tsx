@@ -29,6 +29,22 @@ interface ChannelData {
   rewardTitle?: string | null;
   rewardCost?: number | null;
   rewardCoins?: number | null;
+  rewardOnlyWhenLive?: boolean;
+  // Kick rewards → coins
+  kickRewardEnabled?: boolean;
+  kickRewardIdForCoins?: string | null;
+  kickCoinPerPointRatio?: number;
+  kickRewardCoins?: number | null;
+  kickRewardOnlyWhenLive?: boolean;
+  // Trovo rewards → coins (enabled if per-unit > 0)
+  trovoManaCoinsPerUnit?: number;
+  trovoElixirCoinsPerUnit?: number;
+  // VKVideo rewards → coins
+  vkvideoRewardEnabled?: boolean;
+  vkvideoRewardIdForCoins?: string | null;
+  vkvideoCoinPerPointRatio?: number;
+  vkvideoRewardCoins?: number | null;
+  vkvideoRewardOnlyWhenLive?: boolean;
   // Reward coins for approved submissions (split by source kind).
   // Back-compat: older backend returns only `submissionRewardCoins`.
   submissionRewardCoinsUpload?: number;

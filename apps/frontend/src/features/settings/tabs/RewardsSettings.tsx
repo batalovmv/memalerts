@@ -93,9 +93,18 @@ export function RewardsSettings() {
   const { getChannelData, getCachedChannelData } = useChannelColors();
   // Treat undefined as "unknown" (do not block). Block only when backend explicitly says null.
   const twitchLinked = user?.channel?.twitchChannelId !== null;
+  const externalAccounts = Array.isArray(user?.externalAccounts) ? user.externalAccounts : [];
+  const linkedProviders = new Set(
+    externalAccounts.map((a) => String((a as { provider?: unknown })?.provider || '').toLowerCase()).filter(Boolean),
+  );
+  const kickLinked = linkedProviders.has('kick');
+  const trovoLinked = linkedProviders.has('trovo');
+  const vkvideoLinked = linkedProviders.has('vkvideo');
   const [twitchRewardEligible, setTwitchRewardEligible] = useState<boolean | null>(null);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [lastErrorRequestId, setLastErrorRequestId] = useState<string | null>(null);
+  const [kickLastErrorRequestId, setKickLastErrorRequestId] = useState<string | null>(null);
+  const [vkvideoLastErrorRequestId, setVkvideoLastErrorRequestId] = useState<string | null>(null);
   const [rewardSettings, setRewardSettings] = useState({
     rewardIdForCoins: '',
     rewardEnabled: false,
@@ -103,6 +112,18 @@ export function RewardsSettings() {
     rewardCost: '',
     rewardCoins: '',
     rewardOnlyWhenLive: false,
+    kickRewardEnabled: false,
+    kickRewardIdForCoins: '',
+    kickCoinPerPointRatio: '1',
+    kickRewardCoins: '',
+    kickRewardOnlyWhenLive: false,
+    trovoManaCoinsPerUnit: '0',
+    trovoElixirCoinsPerUnit: '0',
+    vkvideoRewardEnabled: false,
+    vkvideoRewardIdForCoins: '',
+    vkvideoCoinPerPointRatio: '1',
+    vkvideoRewardCoins: '',
+    vkvideoRewardOnlyWhenLive: false,
     submissionRewardCoinsUpload: '0',
     submissionRewardCoinsPool: '0',
     submissionRewardOnlyWhenLive: false,
@@ -121,8 +142,14 @@ export function RewardsSettings() {
   const [boostySavedPulse, setBoostySavedPulse] = useState(false);
   const [savingTwitchReward, setSavingTwitchReward] = useState(false);
   const [savingApprovedMemeReward, setSavingApprovedMemeReward] = useState(false);
+  const [savingKickReward, setSavingKickReward] = useState(false);
+  const [savingTrovoReward, setSavingTrovoReward] = useState(false);
+  const [savingVkvideoReward, setSavingVkvideoReward] = useState(false);
   const [twitchSavedPulse, setTwitchSavedPulse] = useState(false);
   const [approvedSavedPulse, setApprovedSavedPulse] = useState(false);
+  const [kickSavedPulse, setKickSavedPulse] = useState(false);
+  const [trovoSavedPulse, setTrovoSavedPulse] = useState(false);
+  const [vkvideoSavedPulse, setVkvideoSavedPulse] = useState(false);
   const [boostyAccess, setBoostyAccess] = useState<BoostyAccessResponse | null>(null);
   const [boostyAccessLoading, setBoostyAccessLoading] = useState(false);
   const [boostyAccessError, setBoostyAccessError] = useState<string | null>(null);
@@ -132,9 +159,15 @@ export function RewardsSettings() {
   const lastApprovedNonZeroPoolRef = useRef<number>(100);
   const saveTwitchTimerRef = useRef<number | null>(null);
   const saveApprovedTimerRef = useRef<number | null>(null);
+  const saveKickTimerRef = useRef<number | null>(null);
+  const saveTrovoTimerRef = useRef<number | null>(null);
+  const saveVkvideoTimerRef = useRef<number | null>(null);
   const saveBoostyTimerRef = useRef<number | null>(null);
   const lastSavedTwitchRef = useRef<string | null>(null);
   const lastSavedApprovedRef = useRef<string | null>(null);
+  const lastSavedKickRef = useRef<string | null>(null);
+  const lastSavedTrovoRef = useRef<string | null>(null);
+  const lastSavedVkvideoRef = useRef<string | null>(null);
   const lastSavedBoostyRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null);
 
@@ -212,6 +245,36 @@ export function RewardsSettings() {
           rewardCost: cached.rewardCost ? String(cached.rewardCost) : '',
           rewardCoins: cached.rewardCoins ? String(cached.rewardCoins) : '',
           rewardOnlyWhenLive: getBoolean(cached, 'rewardOnlyWhenLive') ?? false,
+          kickRewardEnabled: getBoolean(cached, 'kickRewardEnabled') ?? false,
+          kickRewardIdForCoins: typeof (cached as { kickRewardIdForCoins?: unknown }).kickRewardIdForCoins === 'string' ? String((cached as { kickRewardIdForCoins?: unknown }).kickRewardIdForCoins) : '',
+          kickCoinPerPointRatio:
+            typeof (cached as { kickCoinPerPointRatio?: unknown }).kickCoinPerPointRatio === 'number'
+              ? String((cached as { kickCoinPerPointRatio: number }).kickCoinPerPointRatio)
+              : '1',
+          kickRewardCoins:
+            typeof (cached as { kickRewardCoins?: unknown }).kickRewardCoins === 'number'
+              ? String((cached as { kickRewardCoins: number }).kickRewardCoins)
+              : '',
+          kickRewardOnlyWhenLive: getBoolean(cached, 'kickRewardOnlyWhenLive') ?? false,
+          trovoManaCoinsPerUnit:
+            typeof (cached as { trovoManaCoinsPerUnit?: unknown }).trovoManaCoinsPerUnit === 'number'
+              ? String((cached as { trovoManaCoinsPerUnit: number }).trovoManaCoinsPerUnit)
+              : '0',
+          trovoElixirCoinsPerUnit:
+            typeof (cached as { trovoElixirCoinsPerUnit?: unknown }).trovoElixirCoinsPerUnit === 'number'
+              ? String((cached as { trovoElixirCoinsPerUnit: number }).trovoElixirCoinsPerUnit)
+              : '0',
+          vkvideoRewardEnabled: getBoolean(cached, 'vkvideoRewardEnabled') ?? false,
+          vkvideoRewardIdForCoins: typeof (cached as { vkvideoRewardIdForCoins?: unknown }).vkvideoRewardIdForCoins === 'string' ? String((cached as { vkvideoRewardIdForCoins?: unknown }).vkvideoRewardIdForCoins) : '',
+          vkvideoCoinPerPointRatio:
+            typeof (cached as { vkvideoCoinPerPointRatio?: unknown }).vkvideoCoinPerPointRatio === 'number'
+              ? String((cached as { vkvideoCoinPerPointRatio: number }).vkvideoCoinPerPointRatio)
+              : '1',
+          vkvideoRewardCoins:
+            typeof (cached as { vkvideoRewardCoins?: unknown }).vkvideoRewardCoins === 'number'
+              ? String((cached as { vkvideoRewardCoins: number }).vkvideoRewardCoins)
+              : '',
+          vkvideoRewardOnlyWhenLive: getBoolean(cached, 'vkvideoRewardOnlyWhenLive') ?? false,
           submissionRewardCoinsUpload: String(uploadCoins ?? 0),
           submissionRewardCoinsPool: String(poolCoins ?? 0),
           submissionRewardOnlyWhenLive:
@@ -231,6 +294,48 @@ export function RewardsSettings() {
           submissionRewardCoinsPool: poolCoins ?? 0,
           submissionRewardOnlyWhenLive:
             getBoolean(cached, 'submissionRewardOnlyWhenLive') ?? false,
+        });
+        lastSavedKickRef.current = JSON.stringify({
+          kickRewardEnabled: getBoolean(cached, 'kickRewardEnabled') ?? false,
+          kickRewardIdForCoins:
+            typeof (cached as { kickRewardIdForCoins?: unknown }).kickRewardIdForCoins === 'string'
+              ? String((cached as { kickRewardIdForCoins: string }).kickRewardIdForCoins)
+              : null,
+          kickCoinPerPointRatio:
+            typeof (cached as { kickCoinPerPointRatio?: unknown }).kickCoinPerPointRatio === 'number'
+              ? (cached as { kickCoinPerPointRatio: number }).kickCoinPerPointRatio
+              : 1,
+          kickRewardCoins:
+            typeof (cached as { kickRewardCoins?: unknown }).kickRewardCoins === 'number'
+              ? (cached as { kickRewardCoins: number }).kickRewardCoins
+              : null,
+          kickRewardOnlyWhenLive: getBoolean(cached, 'kickRewardOnlyWhenLive') ?? false,
+        });
+        lastSavedTrovoRef.current = JSON.stringify({
+          trovoManaCoinsPerUnit:
+            typeof (cached as { trovoManaCoinsPerUnit?: unknown }).trovoManaCoinsPerUnit === 'number'
+              ? (cached as { trovoManaCoinsPerUnit: number }).trovoManaCoinsPerUnit
+              : 0,
+          trovoElixirCoinsPerUnit:
+            typeof (cached as { trovoElixirCoinsPerUnit?: unknown }).trovoElixirCoinsPerUnit === 'number'
+              ? (cached as { trovoElixirCoinsPerUnit: number }).trovoElixirCoinsPerUnit
+              : 0,
+        });
+        lastSavedVkvideoRef.current = JSON.stringify({
+          vkvideoRewardEnabled: getBoolean(cached, 'vkvideoRewardEnabled') ?? false,
+          vkvideoRewardIdForCoins:
+            typeof (cached as { vkvideoRewardIdForCoins?: unknown }).vkvideoRewardIdForCoins === 'string'
+              ? String((cached as { vkvideoRewardIdForCoins: string }).vkvideoRewardIdForCoins)
+              : null,
+          vkvideoCoinPerPointRatio:
+            typeof (cached as { vkvideoCoinPerPointRatio?: unknown }).vkvideoCoinPerPointRatio === 'number'
+              ? (cached as { vkvideoCoinPerPointRatio: number }).vkvideoCoinPerPointRatio
+              : 1,
+          vkvideoRewardCoins:
+            typeof (cached as { vkvideoRewardCoins?: unknown }).vkvideoRewardCoins === 'number'
+              ? (cached as { vkvideoRewardCoins: number }).vkvideoRewardCoins
+              : null,
+          vkvideoRewardOnlyWhenLive: getBoolean(cached, 'vkvideoRewardOnlyWhenLive') ?? false,
         });
         const boostyBlogName = typeof cached.boostyBlogName === 'string' ? cached.boostyBlogName : '';
         const boostyCoinsPerSub = typeof cached.boostyCoinsPerSub === 'number' ? cached.boostyCoinsPerSub : 0;
@@ -270,6 +375,36 @@ export function RewardsSettings() {
           rewardCost: channelData.rewardCost ? String(channelData.rewardCost) : '',
           rewardCoins: channelData.rewardCoins ? String(channelData.rewardCoins) : '',
           rewardOnlyWhenLive: getBoolean(channelData, 'rewardOnlyWhenLive') ?? false,
+          kickRewardEnabled: getBoolean(channelData, 'kickRewardEnabled') ?? false,
+          kickRewardIdForCoins: typeof (channelData as { kickRewardIdForCoins?: unknown }).kickRewardIdForCoins === 'string' ? String((channelData as { kickRewardIdForCoins?: unknown }).kickRewardIdForCoins) : '',
+          kickCoinPerPointRatio:
+            typeof (channelData as { kickCoinPerPointRatio?: unknown }).kickCoinPerPointRatio === 'number'
+              ? String((channelData as { kickCoinPerPointRatio: number }).kickCoinPerPointRatio)
+              : '1',
+          kickRewardCoins:
+            typeof (channelData as { kickRewardCoins?: unknown }).kickRewardCoins === 'number'
+              ? String((channelData as { kickRewardCoins: number }).kickRewardCoins)
+              : '',
+          kickRewardOnlyWhenLive: getBoolean(channelData, 'kickRewardOnlyWhenLive') ?? false,
+          trovoManaCoinsPerUnit:
+            typeof (channelData as { trovoManaCoinsPerUnit?: unknown }).trovoManaCoinsPerUnit === 'number'
+              ? String((channelData as { trovoManaCoinsPerUnit: number }).trovoManaCoinsPerUnit)
+              : '0',
+          trovoElixirCoinsPerUnit:
+            typeof (channelData as { trovoElixirCoinsPerUnit?: unknown }).trovoElixirCoinsPerUnit === 'number'
+              ? String((channelData as { trovoElixirCoinsPerUnit: number }).trovoElixirCoinsPerUnit)
+              : '0',
+          vkvideoRewardEnabled: getBoolean(channelData, 'vkvideoRewardEnabled') ?? false,
+          vkvideoRewardIdForCoins: typeof (channelData as { vkvideoRewardIdForCoins?: unknown }).vkvideoRewardIdForCoins === 'string' ? String((channelData as { vkvideoRewardIdForCoins?: unknown }).vkvideoRewardIdForCoins) : '',
+          vkvideoCoinPerPointRatio:
+            typeof (channelData as { vkvideoCoinPerPointRatio?: unknown }).vkvideoCoinPerPointRatio === 'number'
+              ? String((channelData as { vkvideoCoinPerPointRatio: number }).vkvideoCoinPerPointRatio)
+              : '1',
+          vkvideoRewardCoins:
+            typeof (channelData as { vkvideoRewardCoins?: unknown }).vkvideoRewardCoins === 'number'
+              ? String((channelData as { vkvideoRewardCoins: number }).vkvideoRewardCoins)
+              : '',
+          vkvideoRewardOnlyWhenLive: getBoolean(channelData, 'vkvideoRewardOnlyWhenLive') ?? false,
           submissionRewardCoinsUpload: String(uploadCoins ?? 0),
           submissionRewardCoinsPool: String(poolCoins ?? 0),
           submissionRewardOnlyWhenLive:
@@ -289,6 +424,48 @@ export function RewardsSettings() {
           submissionRewardCoinsPool: poolCoins ?? 0,
           submissionRewardOnlyWhenLive:
             getBoolean(channelData, 'submissionRewardOnlyWhenLive') ?? false,
+        });
+        lastSavedKickRef.current = JSON.stringify({
+          kickRewardEnabled: getBoolean(channelData, 'kickRewardEnabled') ?? false,
+          kickRewardIdForCoins:
+            typeof (channelData as { kickRewardIdForCoins?: unknown }).kickRewardIdForCoins === 'string'
+              ? String((channelData as { kickRewardIdForCoins: string }).kickRewardIdForCoins)
+              : null,
+          kickCoinPerPointRatio:
+            typeof (channelData as { kickCoinPerPointRatio?: unknown }).kickCoinPerPointRatio === 'number'
+              ? (channelData as { kickCoinPerPointRatio: number }).kickCoinPerPointRatio
+              : 1,
+          kickRewardCoins:
+            typeof (channelData as { kickRewardCoins?: unknown }).kickRewardCoins === 'number'
+              ? (channelData as { kickRewardCoins: number }).kickRewardCoins
+              : null,
+          kickRewardOnlyWhenLive: getBoolean(channelData, 'kickRewardOnlyWhenLive') ?? false,
+        });
+        lastSavedTrovoRef.current = JSON.stringify({
+          trovoManaCoinsPerUnit:
+            typeof (channelData as { trovoManaCoinsPerUnit?: unknown }).trovoManaCoinsPerUnit === 'number'
+              ? (channelData as { trovoManaCoinsPerUnit: number }).trovoManaCoinsPerUnit
+              : 0,
+          trovoElixirCoinsPerUnit:
+            typeof (channelData as { trovoElixirCoinsPerUnit?: unknown }).trovoElixirCoinsPerUnit === 'number'
+              ? (channelData as { trovoElixirCoinsPerUnit: number }).trovoElixirCoinsPerUnit
+              : 0,
+        });
+        lastSavedVkvideoRef.current = JSON.stringify({
+          vkvideoRewardEnabled: getBoolean(channelData, 'vkvideoRewardEnabled') ?? false,
+          vkvideoRewardIdForCoins:
+            typeof (channelData as { vkvideoRewardIdForCoins?: unknown }).vkvideoRewardIdForCoins === 'string'
+              ? String((channelData as { vkvideoRewardIdForCoins: string }).vkvideoRewardIdForCoins)
+              : null,
+          vkvideoCoinPerPointRatio:
+            typeof (channelData as { vkvideoCoinPerPointRatio?: unknown }).vkvideoCoinPerPointRatio === 'number'
+              ? (channelData as { vkvideoCoinPerPointRatio: number }).vkvideoCoinPerPointRatio
+              : 1,
+          vkvideoRewardCoins:
+            typeof (channelData as { vkvideoRewardCoins?: unknown }).vkvideoRewardCoins === 'number'
+              ? (channelData as { vkvideoRewardCoins: number }).vkvideoRewardCoins
+              : null,
+          vkvideoRewardOnlyWhenLive: getBoolean(channelData, 'vkvideoRewardOnlyWhenLive') ?? false,
         });
         const boostyBlogName = typeof channelData.boostyBlogName === 'string' ? channelData.boostyBlogName : '';
         const boostyCoinsPerSub = typeof channelData.boostyCoinsPerSub === 'number' ? channelData.boostyCoinsPerSub : 0;
@@ -481,6 +658,165 @@ export function RewardsSettings() {
     }
   };
 
+  const handleSaveKickReward = async () => {
+    const startedAt = Date.now();
+    setSavingKickReward(true);
+    try {
+      const { api } = await import('@/lib/api');
+
+      const enabled = !!rewardSettings.kickRewardEnabled;
+
+      // Friendly defaults when enabling.
+      const effectiveRatioStr =
+        enabled && !String(rewardSettings.kickCoinPerPointRatio || '').trim() ? '1' : rewardSettings.kickCoinPerPointRatio;
+      if (effectiveRatioStr !== rewardSettings.kickCoinPerPointRatio) {
+        setRewardSettings((p) => ({ ...p, kickCoinPerPointRatio: effectiveRatioStr }));
+      }
+
+      const ratio = parseIntSafe(String(effectiveRatioStr || '1')) ?? 1;
+      const coins = String(rewardSettings.kickRewardCoins || '').trim();
+      const rewardCoins = coins ? parseIntSafe(coins) : null;
+      const rewardIdRaw = String(rewardSettings.kickRewardIdForCoins || '').trim();
+      const rewardIdForCoins = rewardIdRaw ? rewardIdRaw : null;
+
+      await api.patch('/streamer/channel/settings', {
+        kickRewardEnabled: enabled,
+        kickRewardIdForCoins,
+        kickCoinPerPointRatio: ratio,
+        kickRewardCoins: rewardCoins,
+        kickRewardOnlyWhenLive: !!rewardSettings.kickRewardOnlyWhenLive,
+      });
+
+      lastSavedKickRef.current = JSON.stringify({
+        kickRewardEnabled: enabled,
+        kickRewardIdForCoins,
+        kickCoinPerPointRatio: ratio,
+        kickRewardCoins: rewardCoins,
+        kickRewardOnlyWhenLive: !!rewardSettings.kickRewardOnlyWhenLive,
+      });
+      setKickLastErrorRequestId(null);
+    } catch (error: unknown) {
+      const err = toApiError(error, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      setKickLastErrorRequestId(rid);
+
+      if (err.errorCode === 'KICK_NOT_LINKED') {
+        toast.error(
+          t('admin.kickNotLinked', {
+            defaultValue: 'Kick account is not linked. Link Kick in Settings → Accounts.',
+          })
+        );
+        setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
+      } else if (err.errorCode === 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE') {
+        toast.error(
+          t('admin.kickScopeMissingEventsSubscribe', {
+            defaultValue: 'Kick permissions missing: events:subscribe. Re-link Kick with the correct scopes.',
+          })
+        );
+        setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
+      } else if (err.errorCode === 'KICK_ACCESS_TOKEN_MISSING') {
+        toast.error(
+          t('admin.kickAccessTokenMissing', {
+            defaultValue: 'Kick access token is missing. Re-link Kick account.',
+          })
+        );
+        setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
+      } else {
+        toast.error(err.error || err.message);
+      }
+    } finally {
+      await ensureMinDuration(startedAt, 650);
+      setSavingKickReward(false);
+      setKickSavedPulse(true);
+      window.setTimeout(() => setKickSavedPulse(false), 700);
+    }
+  };
+
+  const handleSaveTrovoReward = async () => {
+    const startedAt = Date.now();
+    setSavingTrovoReward(true);
+    try {
+      const manaRaw = String(rewardSettings.trovoManaCoinsPerUnit || '').trim();
+      const elixirRaw = String(rewardSettings.trovoElixirCoinsPerUnit || '').trim();
+
+      const mana = parseIntSafe(manaRaw || '0') ?? 0;
+      const elixir = parseIntSafe(elixirRaw || '0') ?? 0;
+      if (!Number.isFinite(mana) || mana < 0 || !Number.isFinite(elixir) || elixir < 0) {
+        toast.error(t('admin.invalidTrovoCoinsPerUnit', { defaultValue: 'Введите корректные числа (0 или больше).' }));
+        return;
+      }
+
+      const { api } = await import('@/lib/api');
+      await api.patch('/streamer/channel/settings', {
+        trovoManaCoinsPerUnit: mana,
+        trovoElixirCoinsPerUnit: elixir,
+      });
+
+      lastSavedTrovoRef.current = JSON.stringify({
+        trovoManaCoinsPerUnit: mana,
+        trovoElixirCoinsPerUnit: elixir,
+      });
+    } catch (error: unknown) {
+      const err = toApiError(error, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+      toast.error(err.error || err.message);
+    } finally {
+      await ensureMinDuration(startedAt, 650);
+      setSavingTrovoReward(false);
+      setTrovoSavedPulse(true);
+      window.setTimeout(() => setTrovoSavedPulse(false), 700);
+    }
+  };
+
+  const handleSaveVkvideoReward = async () => {
+    const startedAt = Date.now();
+    setSavingVkvideoReward(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const enabled = !!rewardSettings.vkvideoRewardEnabled;
+
+      const effectiveRatioStr =
+        enabled && !String(rewardSettings.vkvideoCoinPerPointRatio || '').trim() ? '1' : rewardSettings.vkvideoCoinPerPointRatio;
+      if (effectiveRatioStr !== rewardSettings.vkvideoCoinPerPointRatio) {
+        setRewardSettings((p) => ({ ...p, vkvideoCoinPerPointRatio: effectiveRatioStr }));
+      }
+
+      const ratio = parseIntSafe(String(effectiveRatioStr || '1')) ?? 1;
+      const coins = String(rewardSettings.vkvideoRewardCoins || '').trim();
+      const rewardCoins = coins ? parseIntSafe(coins) : null;
+      const rewardIdRaw = String(rewardSettings.vkvideoRewardIdForCoins || '').trim();
+      const rewardIdForCoins = rewardIdRaw ? rewardIdRaw : null;
+
+      await api.patch('/streamer/channel/settings', {
+        vkvideoRewardEnabled: enabled,
+        vkvideoRewardIdForCoins: rewardIdForCoins,
+        vkvideoCoinPerPointRatio: ratio,
+        vkvideoRewardCoins: rewardCoins,
+        vkvideoRewardOnlyWhenLive: !!rewardSettings.vkvideoRewardOnlyWhenLive,
+      });
+
+      lastSavedVkvideoRef.current = JSON.stringify({
+        vkvideoRewardEnabled: enabled,
+        vkvideoRewardIdForCoins: rewardIdForCoins,
+        vkvideoCoinPerPointRatio: ratio,
+        vkvideoRewardCoins: rewardCoins,
+        vkvideoRewardOnlyWhenLive: !!rewardSettings.vkvideoRewardOnlyWhenLive,
+      });
+      setVkvideoLastErrorRequestId(null);
+    } catch (error: unknown) {
+      const err = toApiError(error, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+      const { getRequestIdFromError } = await import('@/lib/api');
+      const rid = getRequestIdFromError(error);
+      setVkvideoLastErrorRequestId(rid);
+      toast.error(err.error || err.message);
+    } finally {
+      await ensureMinDuration(startedAt, 650);
+      setSavingVkvideoReward(false);
+      setVkvideoSavedPulse(true);
+      window.setTimeout(() => setVkvideoSavedPulse(false), 700);
+    }
+  };
+
   // Autosave: Twitch reward fields (debounced)
   useEffect(() => {
     if (!user?.channel?.slug) return;
@@ -513,6 +849,112 @@ export function RewardsSettings() {
     rewardSettings.rewardCost,
     rewardSettings.rewardCoins,
     rewardSettings.rewardOnlyWhenLive,
+    user?.channel?.slug,
+  ]);
+
+  // Autosave: Kick reward fields (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const enabled = !!rewardSettings.kickRewardEnabled;
+    const ratio = parseIntSafe(String(rewardSettings.kickCoinPerPointRatio || '1')) ?? 1;
+    const coins = String(rewardSettings.kickRewardCoins || '').trim();
+    const rewardCoins = coins ? parseIntSafe(coins) : null;
+    const rewardIdRaw = String(rewardSettings.kickRewardIdForCoins || '').trim();
+    const rewardIdForCoins = rewardIdRaw ? rewardIdRaw : null;
+
+    const payload = JSON.stringify({
+      kickRewardEnabled: enabled,
+      kickRewardIdForCoins: rewardIdForCoins,
+      kickCoinPerPointRatio: ratio,
+      kickRewardCoins: rewardCoins,
+      kickRewardOnlyWhenLive: !!rewardSettings.kickRewardOnlyWhenLive,
+    });
+
+    if (payload === lastSavedKickRef.current) return;
+    if (saveKickTimerRef.current) window.clearTimeout(saveKickTimerRef.current);
+    saveKickTimerRef.current = window.setTimeout(() => {
+      void handleSaveKickReward();
+    }, 500);
+
+    return () => {
+      if (saveKickTimerRef.current) window.clearTimeout(saveKickTimerRef.current);
+      saveKickTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rewardSettings.kickRewardEnabled,
+    rewardSettings.kickRewardIdForCoins,
+    rewardSettings.kickCoinPerPointRatio,
+    rewardSettings.kickRewardCoins,
+    rewardSettings.kickRewardOnlyWhenLive,
+    user?.channel?.slug,
+  ]);
+
+  // Autosave: Trovo reward fields (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const mana = parseIntSafe(String(rewardSettings.trovoManaCoinsPerUnit || '0')) ?? 0;
+    const elixir = parseIntSafe(String(rewardSettings.trovoElixirCoinsPerUnit || '0')) ?? 0;
+
+    const payload = JSON.stringify({
+      trovoManaCoinsPerUnit: Number.isFinite(mana) ? mana : 0,
+      trovoElixirCoinsPerUnit: Number.isFinite(elixir) ? elixir : 0,
+    });
+
+    if (payload === lastSavedTrovoRef.current) return;
+    if (saveTrovoTimerRef.current) window.clearTimeout(saveTrovoTimerRef.current);
+    saveTrovoTimerRef.current = window.setTimeout(() => {
+      void handleSaveTrovoReward();
+    }, 500);
+
+    return () => {
+      if (saveTrovoTimerRef.current) window.clearTimeout(saveTrovoTimerRef.current);
+      saveTrovoTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewardSettings.trovoManaCoinsPerUnit, rewardSettings.trovoElixirCoinsPerUnit, user?.channel?.slug]);
+
+  // Autosave: VKVideo reward fields (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const enabled = !!rewardSettings.vkvideoRewardEnabled;
+    const ratio = parseIntSafe(String(rewardSettings.vkvideoCoinPerPointRatio || '1')) ?? 1;
+    const coins = String(rewardSettings.vkvideoRewardCoins || '').trim();
+    const rewardCoins = coins ? parseIntSafe(coins) : null;
+    const rewardIdRaw = String(rewardSettings.vkvideoRewardIdForCoins || '').trim();
+    const rewardIdForCoins = rewardIdRaw ? rewardIdRaw : null;
+
+    const payload = JSON.stringify({
+      vkvideoRewardEnabled: enabled,
+      vkvideoRewardIdForCoins: rewardIdForCoins,
+      vkvideoCoinPerPointRatio: ratio,
+      vkvideoRewardCoins: rewardCoins,
+      vkvideoRewardOnlyWhenLive: !!rewardSettings.vkvideoRewardOnlyWhenLive,
+    });
+
+    if (payload === lastSavedVkvideoRef.current) return;
+    if (saveVkvideoTimerRef.current) window.clearTimeout(saveVkvideoTimerRef.current);
+    saveVkvideoTimerRef.current = window.setTimeout(() => {
+      void handleSaveVkvideoReward();
+    }, 500);
+
+    return () => {
+      if (saveVkvideoTimerRef.current) window.clearTimeout(saveVkvideoTimerRef.current);
+      saveVkvideoTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rewardSettings.vkvideoRewardEnabled,
+    rewardSettings.vkvideoRewardIdForCoins,
+    rewardSettings.vkvideoCoinPerPointRatio,
+    rewardSettings.vkvideoRewardCoins,
+    rewardSettings.vkvideoRewardOnlyWhenLive,
     user?.channel?.slug,
   ]);
 
@@ -900,6 +1342,392 @@ export function RewardsSettings() {
           )}
 
           {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('admin.kickCoinsRewardTitle', { defaultValue: 'Награда за монеты (Kick)' })}
+          description={t('admin.kickCoinsRewardDescription', { defaultValue: 'Зритель активирует награду на Kick и получает монеты на сайте.' })}
+          overlay={
+            <>
+              {savingKickReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {kickSavedPulse && !savingKickReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
+            <HelpTooltip content={t('help.settings.rewards.enableKickReward', { defaultValue: 'Enable/disable Kick rewards → coins.' })}>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rewardSettings.kickRewardEnabled}
+                  disabled={savingKickReward}
+                  onChange={(e) => {
+                    const nextEnabled = e.target.checked;
+                    if (nextEnabled && !kickLinked) {
+                      toast.error(
+                        t('admin.kickNotLinked', {
+                          defaultValue: 'Kick account is not linked. Link Kick in Settings → Accounts.',
+                        })
+                      );
+                      return;
+                    }
+                    if (nextEnabled) {
+                      setRewardSettings((p) => ({
+                        ...p,
+                        kickRewardEnabled: true,
+                        kickCoinPerPointRatio: String(p.kickCoinPerPointRatio || '').trim() ? p.kickCoinPerPointRatio : '1',
+                      }));
+                      return;
+                    }
+                    setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </HelpTooltip>
+          }
+          contentClassName={rewardSettings.kickRewardEnabled ? 'space-y-4' : undefined}
+        >
+          {kickLastErrorRequestId && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 select-text">
+              {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{kickLastErrorRequestId}</span>
+            </p>
+          )}
+          {!kickLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.kickNotLinked', { defaultValue: 'Kick account is not linked. Link Kick in Settings → Accounts.' })}
+            </p>
+          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t('admin.kickRewardsPrereqHint', {
+              defaultValue: 'Важно: также нужно настроить интеграцию во вкладке Bots (kickChannelId), иначе события не будут сопоставлены с каналом.',
+            })}
+          </p>
+
+          {rewardSettings.kickRewardEnabled && (
+            <div className={savingKickReward ? 'pointer-events-none opacity-60' : ''}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('admin.rewardOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.kickRewardOnlyWhenLiveHint', {
+                      defaultValue: 'If enabled, coins are granted only when your Kick stream is live.',
+                    })}
+                  </div>
+                </div>
+                <HelpTooltip content={t('help.settings.rewards.onlyWhenLiveKick', { defaultValue: 'If enabled, Kick rewards grant coins only when live.' })}>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={rewardSettings.kickRewardOnlyWhenLive}
+                      disabled={savingKickReward}
+                      onChange={(e) => setRewardSettings((p) => ({ ...p, kickRewardOnlyWhenLive: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                  </label>
+                </HelpTooltip>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.kickRewardIdForCoins', { defaultValue: 'kickRewardIdForCoins (optional)' })}
+                </label>
+                <Input
+                  type="text"
+                  value={rewardSettings.kickRewardIdForCoins}
+                  onChange={(e) => setRewardSettings((p) => ({ ...p, kickRewardIdForCoins: e.target.value }))}
+                  placeholder={t('admin.kickRewardIdPlaceholder', { defaultValue: 'reward_123 (leave empty = any reward)' })}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.kickRewardIdHint', { defaultValue: 'If set, coins are granted only for this rewardId.' })}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.kickCoinPerPointRatio', { defaultValue: 'kickCoinPerPointRatio' })}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.kickCoinPerPointRatio}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings((p) => ({ ...p, kickCoinPerPointRatio: next }));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
+                    {t('admin.kickCoinPerPointRatioHint', { defaultValue: 'coins = points * ratio (used when kickRewardCoins is empty).' })}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.kickRewardCoins', { defaultValue: 'kickRewardCoins (optional)' })}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.kickRewardCoins}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings((p) => ({ ...p, kickRewardCoins: next }));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="(empty)"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
+                    {t('admin.kickRewardCoinsHint', { defaultValue: 'Fixed coins. If set, it overrides ratio.' })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('admin.trovoCoinsRewardTitle', { defaultValue: 'Награды за монеты (Trovo)' })}
+          description={t('admin.trovoCoinsRewardDescription', { defaultValue: 'Начисление монет за mana / elixir на Trovo.' })}
+          overlay={
+            <>
+              {savingTrovoReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {trovoSavedPulse && !savingTrovoReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+        >
+          {!trovoLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.trovoNotLinked', { defaultValue: 'Trovo account is not linked. Link Trovo in Settings → Accounts.' })}
+            </p>
+          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t('admin.trovoRewardsPrereqHint', {
+              defaultValue: 'Важно: также нужно настроить интеграцию во вкладке Bots (trovoChannelId). “Включено” считается если per-unit > 0.',
+            })}
+          </p>
+          <div className={savingTrovoReward ? 'pointer-events-none opacity-60' : ''}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.trovoManaCoinsPerUnit', { defaultValue: 'trovoManaCoinsPerUnit' })}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={rewardSettings.trovoManaCoinsPerUnit}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d]/g, '');
+                    setRewardSettings((p) => ({ ...p, trovoManaCoinsPerUnit: next }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.trovoManaCoinsPerUnitHint', { defaultValue: 'coins = mana * perUnit (0 = disable)' })}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.trovoElixirCoinsPerUnit', { defaultValue: 'trovoElixirCoinsPerUnit' })}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={rewardSettings.trovoElixirCoinsPerUnit}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d]/g, '');
+                    setRewardSettings((p) => ({ ...p, trovoElixirCoinsPerUnit: next }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.trovoElixirCoinsPerUnitHint', { defaultValue: 'coins = elixir * perUnit (0 = disable)' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('admin.vkvideoCoinsRewardTitle', { defaultValue: 'Награда за монеты (VKVideo)' })}
+          description={t('admin.vkvideoCoinsRewardDescription', { defaultValue: 'Зритель активирует награду на VKVideo и получает монеты на сайте.' })}
+          overlay={
+            <>
+              {savingVkvideoReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {vkvideoSavedPulse && !savingVkvideoReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
+            <HelpTooltip content={t('help.settings.rewards.enableVkvideoReward', { defaultValue: 'Enable/disable VKVideo rewards → coins.' })}>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rewardSettings.vkvideoRewardEnabled}
+                  disabled={savingVkvideoReward}
+                  onChange={(e) => {
+                    const nextEnabled = e.target.checked;
+                    if (nextEnabled && !vkvideoLinked) {
+                      toast.error(
+                        t('admin.vkvideoNotLinked', {
+                          defaultValue: 'VKVideo account is not linked. Link VKVideo in Settings → Accounts.',
+                        })
+                      );
+                      return;
+                    }
+                    if (nextEnabled) {
+                      setRewardSettings((p) => ({
+                        ...p,
+                        vkvideoRewardEnabled: true,
+                        vkvideoCoinPerPointRatio: String(p.vkvideoCoinPerPointRatio || '').trim() ? p.vkvideoCoinPerPointRatio : '1',
+                      }));
+                      return;
+                    }
+                    setRewardSettings((p) => ({ ...p, vkvideoRewardEnabled: false }));
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </HelpTooltip>
+          }
+          contentClassName={rewardSettings.vkvideoRewardEnabled ? 'space-y-4' : undefined}
+        >
+          {vkvideoLastErrorRequestId && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 select-text">
+              {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{vkvideoLastErrorRequestId}</span>
+            </p>
+          )}
+          {!vkvideoLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.vkvideoNotLinked', { defaultValue: 'VKVideo account is not linked. Link VKVideo in Settings → Accounts.' })}
+            </p>
+          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t('admin.vkvideoRewardsPrereqHint', {
+              defaultValue: 'Важно: также нужно настроить интеграцию во вкладке Bots (vkvideoChannelId/vkvideoChannelUrl).',
+            })}
+          </p>
+
+          {rewardSettings.vkvideoRewardEnabled && (
+            <div className={savingVkvideoReward ? 'pointer-events-none opacity-60' : ''}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('admin.rewardOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.vkvideoRewardOnlyWhenLiveHint', {
+                      defaultValue: 'If enabled, coins are granted only when your VKVideo stream is live.',
+                    })}
+                  </div>
+                </div>
+                <HelpTooltip content={t('help.settings.rewards.onlyWhenLiveVkvideo', { defaultValue: 'If enabled, VKVideo rewards grant coins only when live.' })}>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={rewardSettings.vkvideoRewardOnlyWhenLive}
+                      disabled={savingVkvideoReward}
+                      onChange={(e) => setRewardSettings((p) => ({ ...p, vkvideoRewardOnlyWhenLive: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                  </label>
+                </HelpTooltip>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.vkvideoRewardIdForCoins', { defaultValue: 'vkvideoRewardIdForCoins (optional)' })}
+                </label>
+                <Input
+                  type="text"
+                  value={rewardSettings.vkvideoRewardIdForCoins}
+                  onChange={(e) => setRewardSettings((p) => ({ ...p, vkvideoRewardIdForCoins: e.target.value }))}
+                  placeholder={t('admin.vkvideoRewardIdPlaceholder', { defaultValue: '(empty = any reward)' })}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('admin.vkvideoRewardIdHint', { defaultValue: 'If set, coins are granted only for this rewardId.' })}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.vkvideoCoinPerPointRatio', { defaultValue: 'vkvideoCoinPerPointRatio' })}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.vkvideoCoinPerPointRatio}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings((p) => ({ ...p, vkvideoCoinPerPointRatio: next }));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
+                    {t('admin.vkvideoCoinPerPointRatioHint', { defaultValue: 'coins = points * ratio (used when vkvideoRewardCoins is empty).' })}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('admin.vkvideoRewardCoins', { defaultValue: 'vkvideoRewardCoins (optional)' })}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={rewardSettings.vkvideoRewardCoins}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^\d]/g, '');
+                      setRewardSettings((p) => ({ ...p, vkvideoRewardCoins: next }));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="(empty)"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 min-h-[2.25rem]">
+                    {t('admin.vkvideoRewardCoinsHint', { defaultValue: 'Fixed coins. If set, it overrides ratio.' })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </SettingsSection>
 
         <SettingsSection
