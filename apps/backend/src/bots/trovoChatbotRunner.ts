@@ -386,7 +386,7 @@ async function start() {
                 tx: tx as any,
                 provider: 'trovo',
                 providerEventId,
-                channelId: channel.id,
+                channelId: String((channel as any).id),
                 providerAccountId: spell.providerAccountId!,
                 eventType: 'trovo_spell',
                 currency: spell.currency,
