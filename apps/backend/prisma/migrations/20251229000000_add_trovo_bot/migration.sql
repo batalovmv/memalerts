@@ -121,3 +121,5 @@ CREATE INDEX IF NOT EXISTS "GlobalTrovoBotCredential_enabled_idx" ON "GlobalTrov
 CREATE INDEX IF NOT EXISTS "GlobalTrovoBotCredential_externalAccountId_idx" ON "GlobalTrovoBotCredential"("externalAccountId");
 
 
+
+

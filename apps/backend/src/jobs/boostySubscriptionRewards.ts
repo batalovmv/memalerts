@@ -170,24 +170,28 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
       let channelsCount = 0;
 
       if (mode === 'discord_roles') {
-        const guildId = String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
+        const defaultGuildId =
+          String(process.env.DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID || '').trim() ||
+          // Legacy fallback (pre-multi-guild)
+          String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
         const botToken = String(process.env.DISCORD_BOT_TOKEN || '').trim();
-        if (!guildId || !botToken) {
+        if (!botToken) {
           logger.warn('boosty.rewards.discord_roles.missing_env', {
-            hasGuildId: Boolean(guildId),
             hasBotToken: Boolean(botToken),
           });
+          return;
         } else {
           const channels = await prisma.channel.findMany({
             where: {
               boostyCoinsPerSub: { gt: 0 },
-              boostyDiscordTierRolesJson: { not: null },
+              OR: [{ boostyDiscordTierRolesJson: { not: null } }, { boostyDiscordRoleId: { not: null } }],
             } as any,
             select: {
               id: true,
               slug: true,
               boostyCoinsPerSub: true,
               boostyDiscordTierRolesJson: true,
+              discordSubscriptionsGuildId: true,
               // Legacy column (exists in DB from initial rollout; keep fallback for old configs).
               boostyDiscordRoleId: true,
             } as any,
@@ -200,7 +204,7 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
             select: { userId: true, providerAccountId: true },
           });
 
-          // Prepare channel configs once (so we can do 1 Discord member fetch per user per run).
+          // Prepare channel configs once, grouped by guildId (so we can do 1 Discord member fetch per user per guild per run).
           const channelConfigs = (channels as any[])
             .map((ch) => {
               const coins = Number(ch.boostyCoinsPerSub || 0);
@@ -210,90 +214,107 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
                 const legacyRoleId = String(ch.boostyDiscordRoleId || '').trim();
                 if (legacyRoleId) tierRoles.push({ tier: 'default', roleId: legacyRoleId });
               }
+              const guildId = String(ch.discordSubscriptionsGuildId || '').trim() || defaultGuildId;
               return {
                 id: String(ch.id),
                 slug: String(ch.slug || '').toLowerCase(),
                 coins,
                 tierRoles,
+                guildId,
               };
             })
-            .filter((c) => Number.isFinite(c.coins) && c.coins > 0 && c.tierRoles.length > 0);
+            .filter((c) => Boolean(c.guildId) && Number.isFinite(c.coins) && c.coins > 0 && c.tierRoles.length > 0);
+          if (channelConfigs.length === 0) {
+            logger.warn('boosty.rewards.discord_roles.no_channels_configured', { channelsScanned: channelsCount, hasDefaultGuildId: Boolean(defaultGuildId) });
+            return;
+          }
 
-          for (const acc of discordAccounts as any[]) {
-            const discordUserId = String(acc.providerAccountId || '').trim();
-            if (!discordUserId) continue;
+          const byGuildId = new Map<string, Array<(typeof channelConfigs)[number]>>();
+          for (const ch of channelConfigs) {
+            const g = String((ch as any).guildId || '').trim();
+            if (!g) continue;
+            const arr = byGuildId.get(g) || [];
+            arr.push(ch);
+            byGuildId.set(g, arr);
+          }
 
-            usersChecked += 1;
-            const member = await fetchDiscordGuildMember({ botToken, guildId, userId: discordUserId });
-            const roles = member.member?.roles || [];
-            if (!Array.isArray(roles) || roles.length === 0) continue;
+          for (const [guildId, channelsForGuild] of byGuildId.entries()) {
+            for (const acc of discordAccounts as any[]) {
+              const discordUserId = String(acc.providerAccountId || '').trim();
+              if (!discordUserId) continue;
 
-            for (const ch of channelConfigs) {
-              const matched = pickMatchedTierRole({ memberRoles: roles, tierRoles: ch.tierRoles });
-              if (!matched) continue;
+              usersChecked += 1;
+              const member = await fetchDiscordGuildMember({ botToken, guildId, userId: discordUserId });
+              const roles = member.member?.roles || [];
+              if (!Array.isArray(roles) || roles.length === 0) continue;
 
-              try {
-                const result = await prisma.$transaction(async (tx) => {
-                  await (tx as any).boostyDiscordSubscriptionRewardV2.create({
-                    data: {
-                      channelId: ch.id,
-                      userId: acc.userId,
-                      discordRoleId: matched.roleId,
-                      discordTier: matched.tier,
-                      coinsGranted: ch.coins,
-                    },
-                  });
+              for (const ch of channelsForGuild) {
+                const matched = pickMatchedTierRole({ memberRoles: roles, tierRoles: ch.tierRoles });
+                if (!matched) continue;
 
-                  const wallet = await tx.wallet.upsert({
-                    where: {
-                      userId_channelId: {
+                try {
+                  const result = await prisma.$transaction(async (tx) => {
+                    await (tx as any).boostyDiscordSubscriptionRewardV2.create({
+                      data: {
+                        channelId: ch.id,
+                        userId: acc.userId,
+                        discordRoleId: matched.roleId,
+                        discordTier: matched.tier,
+                        coinsGranted: ch.coins,
+                      },
+                    });
+
+                    const wallet = await tx.wallet.upsert({
+                      where: {
+                        userId_channelId: {
+                          userId: acc.userId,
+                          channelId: ch.id,
+                        },
+                      },
+                      update: {
+                        balance: { increment: ch.coins },
+                      },
+                      create: {
                         userId: acc.userId,
                         channelId: ch.id,
+                        balance: ch.coins,
                       },
-                    },
-                    update: {
-                      balance: { increment: ch.coins },
-                    },
-                    create: {
-                      userId: acc.userId,
-                      channelId: ch.id,
-                      balance: ch.coins,
-                    },
-                    select: { balance: true },
+                      select: { balance: true },
+                    });
+
+                    return wallet;
                   });
 
-                  return wallet;
-                });
-
-                grants += 1;
-                emitWalletUpdated(io, {
-                  userId: acc.userId,
-                  channelId: ch.id,
-                  balance: result.balance,
-                  delta: ch.coins,
-                  reason: 'boosty_subscription',
-                  channelSlug: ch.slug || undefined,
-                  source: 'local',
-                });
-                void relayWalletUpdatedToPeer({
-                  userId: acc.userId,
-                  channelId: ch.id,
-                  balance: result.balance,
-                  delta: ch.coins,
-                  reason: 'boosty_subscription',
-                  channelSlug: ch.slug || undefined,
-                  source: 'local',
-                });
-              } catch (e: any) {
-                // Dedup: unique constraint -> already granted.
-                const isUnique = e?.code === 'P2002' || String(e?.message || '').includes('Unique constraint failed');
-                if (!isUnique) {
-                  logger.error('boosty.rewards.discord_roles.grant_failed', {
-                    channelId: ch.id,
+                  grants += 1;
+                  emitWalletUpdated(io, {
                     userId: acc.userId,
-                    errorMessage: e?.message,
-                    errorCode: e?.code,
+                    channelId: ch.id,
+                    balance: result.balance,
+                    delta: ch.coins,
+                    reason: 'boosty_subscription',
+                    channelSlug: ch.slug || undefined,
+                    source: 'local',
                   });
+                  void relayWalletUpdatedToPeer({
+                    userId: acc.userId,
+                    channelId: ch.id,
+                    balance: result.balance,
+                    delta: ch.coins,
+                    reason: 'boosty_subscription',
+                    channelSlug: ch.slug || undefined,
+                    source: 'local',
+                  });
+                } catch (e: any) {
+                  // Dedup: unique constraint -> already granted.
+                  const isUnique = e?.code === 'P2002' || String(e?.message || '').includes('Unique constraint failed');
+                  if (!isUnique) {
+                    logger.error('boosty.rewards.discord_roles.grant_failed', {
+                      channelId: ch.id,
+                      userId: acc.userId,
+                      errorMessage: e?.message,
+                      errorCode: e?.code,
+                    });
+                  }
                 }
               }
             }

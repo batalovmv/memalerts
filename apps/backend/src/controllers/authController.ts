@@ -749,10 +749,12 @@ export const authController = {
         profileUrl = `https://discord.com/users/${encodeURIComponent(providerAccountId)}`;
 
         // Optional: auto-join the platform guild so we can later read roles via bot token.
-        // Requires: scope guilds.join + DISCORD_BOT_TOKEN + DISCORD_SUBSCRIPTIONS_GUILD_ID.
+        // Requires: scope guilds.join + DISCORD_BOT_TOKEN + DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID (or legacy DISCORD_SUBSCRIPTIONS_GUILD_ID).
         const autoJoinEnabledRaw = String(process.env.DISCORD_AUTO_JOIN_GUILD || '').toLowerCase();
         const autoJoinEnabled = autoJoinEnabledRaw === '1' || autoJoinEnabledRaw === 'true' || autoJoinEnabledRaw === 'yes';
-        const guildId = String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
+        const guildId =
+          String(process.env.DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID || '').trim() ||
+          String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
         const botToken = String(process.env.DISCORD_BOT_TOKEN || '').trim();
         if (autoJoinEnabled && guildId && botToken && accessToken) {
           try {
@@ -1630,12 +1632,19 @@ export const authController = {
         origin,
       });
 
-      const scopes = ['identify'];
+      const scopes = String(process.env.DISCORD_JOIN_SCOPES || '')
+        .split(/[ ,+]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!scopes.includes('identify')) scopes.unshift('identify');
       const autoJoinEnabledRaw = String(process.env.DISCORD_AUTO_JOIN_GUILD || '').toLowerCase();
       const autoJoinEnabled = autoJoinEnabledRaw === '1' || autoJoinEnabledRaw === 'true' || autoJoinEnabledRaw === 'yes';
       // Only request guilds.join when we actually plan to auto-add to the guild.
-      if (autoJoinEnabled && process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID && process.env.DISCORD_BOT_TOKEN) {
-        scopes.push('guilds.join');
+      const defaultGuildId =
+        String(process.env.DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID || '').trim() ||
+        String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
+      if (autoJoinEnabled && defaultGuildId && process.env.DISCORD_BOT_TOKEN) {
+        if (!scopes.includes('guilds.join')) scopes.push('guilds.join');
       }
 
       authUrl = getDiscordAuthorizeUrl({
@@ -1668,6 +1677,15 @@ export const authController = {
 
   linkBoosty: async (req: AuthRequest, res: Response) => {
     if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const mode = String(process.env.BOOSTY_REWARDS_MODE || 'boosty_api').trim().toLowerCase();
+    if (mode === 'discord_roles') {
+      return res.status(410).json({
+        error: 'Gone',
+        errorCode: 'BOOSTY_LINK_DEPRECATED',
+        message: 'Boosty token linking is no longer supported. Please link Discord instead.',
+      });
+    }
 
     const body = (req.body || {}) as any;
     // UI-friendly alias: accept { token } as well as { accessToken } (existing contract).

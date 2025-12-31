@@ -30,6 +30,7 @@ describe('POST /auth/boosty/link', () => {
     process.env.DOMAIN = 'example.com';
     process.env.WEB_URL = 'https://example.com';
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+    process.env.BOOSTY_REWARDS_MODE = 'discord_roles';
   });
 
   afterAll(() => {
@@ -44,7 +45,20 @@ describe('POST /auth/boosty/link', () => {
     expect(res.status).toBe(401);
   });
 
-  it('400 if no credentials provided', async () => {
+  it('410 Gone when rewards mode is discord_roles (boosty token linking deprecated)', async () => {
+    const token = makeJwt({ userId: 'u1', role: 'viewer', channelId: 'c1' });
+    const res = await request(makeApp())
+      .post('/auth/boosty/link')
+      .set('Origin', 'https://example.com')
+      .set('Cookie', [`token=${encodeURIComponent(token)}`])
+      .send({});
+
+    expect(res.status).toBe(410);
+    expect(res.body?.errorCode).toBe('BOOSTY_LINK_DEPRECATED');
+  });
+
+  it('400 if no credentials provided in boosty_api mode', async () => {
+    process.env.BOOSTY_REWARDS_MODE = 'boosty_api';
     const token = makeJwt({ userId: 'u1', role: 'viewer', channelId: 'c1' });
     const res = await request(makeApp())
       .post('/auth/boosty/link')

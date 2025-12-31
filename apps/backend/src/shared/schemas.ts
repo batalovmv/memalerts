@@ -98,6 +98,9 @@ export const updateChannelSettingsSchema = z.object({
   // Boosty integration
   boostyBlogName: z.string().min(1).max(200).optional().nullable(),
   boostyCoinsPerSub: z.number().int().min(0).optional(),
+  // Discord guild where Boosty integration issues roles for this channel.
+  // null => fall back to DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID (or legacy DISCORD_SUBSCRIPTIONS_GUILD_ID).
+  discordSubscriptionsGuildId: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string().min(1).max(64)).optional().nullable(),
   // Boosty via Boosty API (tiers): mapping tierKey -> coins.
   // Stored in DB as JSONB array of objects [{ tierKey, coins }, ...]
   boostyTierCoins: z

@@ -81,6 +81,9 @@ model Channel {
   // Boosty via Discord roles (tiers): mapping of Boosty tier -> Discord role id in the platform guild.
   // Stored as JSON array of objects: [{ tier: "tier1", roleId: "123" }, ...]
   boostyDiscordTierRolesJson    Json?    @db.JsonB
+  // Subscriptions guild for Boosty rewards via Discord roles.
+  // If null, backend falls back to DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID (or legacy DISCORD_SUBSCRIPTIONS_GUILD_ID).
+  discordSubscriptionsGuildId   String?
   createdAt                     DateTime @default(now())
 
   users                        User[]

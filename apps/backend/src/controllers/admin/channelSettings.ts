@@ -497,6 +497,10 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         (body as any).boostyDiscordTierRoles !== undefined
           ? (body as any).boostyDiscordTierRoles
           : (channel as any).boostyDiscordTierRolesJson,
+      discordSubscriptionsGuildId:
+        (body as any).discordSubscriptionsGuildId !== undefined
+          ? (body as any).discordSubscriptionsGuildId
+          : (channel as any).discordSubscriptionsGuildId,
     };
 
     // Streamer dashboard layout (cross-device): accept array or null (reset).

@@ -4,7 +4,12 @@ import { prisma } from '../../lib/prisma.js';
 import { fetchDiscordGuildMember } from '../../utils/discordApi.js';
 import { logger } from '../../utils/logger.js';
 
-type BoostyAccessState = 'need_discord_link' | 'need_join_guild' | 'not_subscribed' | 'subscribed';
+type BoostyAccessStatus = 'need_discord_link' | 'need_join_guild' | 'not_subscribed' | 'subscribed';
+
+function isTruthyEnv(v: unknown): boolean {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
 
 function normalizeTierRoles(raw: any): Array<{ tier: string; roleId: string }> {
   const items = Array.isArray(raw) ? raw : [];
@@ -42,6 +47,7 @@ export async function getBoostyAccessForChannel(req: AuthRequest, res: Response)
       slug: true,
       boostyCoinsPerSub: true,
       boostyDiscordTierRolesJson: true as any,
+      discordSubscriptionsGuildId: true,
     } as any,
   });
 
@@ -49,7 +55,15 @@ export async function getBoostyAccessForChannel(req: AuthRequest, res: Response)
 
   const tierRoles = normalizeTierRoles((channel as any).boostyDiscordTierRolesJson);
   const botToken = String(process.env.DISCORD_BOT_TOKEN || '').trim();
-  const guildId = String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
+  const guildId =
+    String((channel as any).discordSubscriptionsGuildId || '').trim() ||
+    String(process.env.DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID || '').trim() ||
+    // Legacy fallback (pre-multi-guild)
+    String(process.env.DISCORD_SUBSCRIPTIONS_GUILD_ID || '').trim();
+
+  const autoJoin = isTruthyEnv(process.env.DISCORD_AUTO_JOIN_GUILD);
+  const requiredGuild = { guildId, name: null as string | null, inviteUrl: null as string | null, autoJoin };
+
   if (!botToken || !guildId) {
     return res.status(503).json({
       errorCode: 'DISCORD_INTEGRATION_NOT_CONFIGURED',
@@ -65,21 +79,33 @@ export async function getBoostyAccessForChannel(req: AuthRequest, res: Response)
   });
   const discordUserId = String((discordAccount as any)?.providerAccountId || '').trim();
   if (!discordUserId) {
-    const payload = { state: 'need_discord_link' as BoostyAccessState };
-    logger.info('boosty.access.state', { requestId: req.requestId, channelId, userId: req.userId, state: payload.state });
+    const payload = {
+      status: 'need_discord_link' as BoostyAccessStatus,
+      requiredGuild,
+      tier: null as string | null,
+      matchedTier: null as string | null,
+      matchedRoleId: null as string | null,
+    };
+    logger.info('boosty.access.state', { requestId: req.requestId, channelId, userId: req.userId, status: payload.status });
     return res.json(payload);
   }
 
   // 2) need_join_guild (not in guild)
   const member = await fetchDiscordGuildMember({ botToken, guildId, userId: discordUserId });
   if (member.status === 404 || member.status === 403) {
-    const payload = { state: 'need_join_guild' as BoostyAccessState };
+    const payload = {
+      status: 'need_join_guild' as BoostyAccessStatus,
+      requiredGuild,
+      tier: null as string | null,
+      matchedTier: null as string | null,
+      matchedRoleId: null as string | null,
+    };
     logger.info('boosty.access.state', {
       requestId: req.requestId,
       channelId,
       userId: req.userId,
       discordUserId,
-      state: payload.state,
+      status: payload.status,
       discordStatus: member.status,
     });
     return res.json(payload);
@@ -95,16 +121,28 @@ export async function getBoostyAccessForChannel(req: AuthRequest, res: Response)
   // 3) not_subscribed / subscribed
   const matched = pickMatchedTierRole({ memberRoles: member.member.roles, tierRoles });
   const payload = matched
-    ? ({ state: 'subscribed' as BoostyAccessState, matchedTier: matched.tier } as const)
-    : ({ state: 'not_subscribed' as BoostyAccessState } as const);
+    ? ({
+        status: 'subscribed' as BoostyAccessStatus,
+        requiredGuild,
+        tier: matched.tier,
+        matchedTier: matched.tier,
+        matchedRoleId: matched.roleId,
+      } as const)
+    : ({
+        status: 'not_subscribed' as BoostyAccessStatus,
+        requiredGuild,
+        tier: null,
+        matchedTier: null,
+        matchedRoleId: null,
+      } as const);
 
   logger.info('boosty.access.state', {
     requestId: req.requestId,
     channelId,
     userId: req.userId,
     discordUserId,
-    state: payload.state,
-    matchedTier: (payload as any).matchedTier ?? null,
+    status: payload.status,
+    tier: (payload as any).tier ?? null,
     configuredTiers: tierRoles.length,
   });
 

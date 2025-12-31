@@ -117,3 +117,5 @@ CREATE INDEX IF NOT EXISTS "GlobalKickBotCredential_enabled_idx" ON "GlobalKickB
 CREATE INDEX IF NOT EXISTS "GlobalKickBotCredential_externalAccountId_idx" ON "GlobalKickBotCredential"("externalAccountId");
 
 
+
+
