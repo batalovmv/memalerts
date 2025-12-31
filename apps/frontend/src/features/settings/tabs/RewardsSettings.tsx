@@ -681,7 +681,7 @@ export function RewardsSettings() {
 
       await api.patch('/streamer/channel/settings', {
         kickRewardEnabled: enabled,
-        kickRewardIdForCoins,
+        kickRewardIdForCoins: rewardIdForCoins,
         kickCoinPerPointRatio: ratio,
         kickRewardCoins: rewardCoins,
         kickRewardOnlyWhenLive: !!rewardSettings.kickRewardOnlyWhenLive,
@@ -689,7 +689,7 @@ export function RewardsSettings() {
 
       lastSavedKickRef.current = JSON.stringify({
         kickRewardEnabled: enabled,
-        kickRewardIdForCoins,
+        kickRewardIdForCoins: rewardIdForCoins,
         kickCoinPerPointRatio: ratio,
         kickRewardCoins: rewardCoins,
         kickRewardOnlyWhenLive: !!rewardSettings.kickRewardOnlyWhenLive,
