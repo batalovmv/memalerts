@@ -20,6 +20,8 @@ const corsHeaders = {
  */
 export const server = setupServer(
   // Agent/debug telemetry (used by some integration tests for snapshots/logs).
+  http.options(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.post(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),
   http.options('*/ingest/:id', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.post('*/ingest/:id', () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),
   http.options('*/channels/:channelId/boosty-access', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
