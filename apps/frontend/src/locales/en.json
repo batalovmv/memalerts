@@ -953,6 +953,8 @@
     "autoRewardsApplyCoinsByStreak": "Apply coinsByStreak",
     "twitchCoinsRewardTitle": "Coins reward (Twitch)",
     "twitchCoinsRewardDescription": "Viewers spend Twitch Channel Points and receive coins on the site.",
+    "twitchChannelPointsMappingTitle": "Twitch Channel Points: rewardId → coins",
+    "twitchChannelPointsMappingDescription": "Twitch-only mapping. Stored inside the auto-rewards JSON.",
     "kickCoinsRewardTitle": "Coins reward (Kick)",
     "kickCoinsRewardDescription": "Viewers redeem a reward on Kick and receive coins on the site.",
     "kickRewardsPrereqHint": "Important: also configure the integration in the Bots tab (kickChannelId), otherwise events cannot be matched to your channel.",

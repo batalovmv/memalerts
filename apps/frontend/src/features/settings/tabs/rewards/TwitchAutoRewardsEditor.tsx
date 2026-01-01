@@ -63,13 +63,16 @@ function base(value: TwitchAutoRewardsV1 | null): TwitchAutoRewardsV1 {
   return value ?? { v: 1 };
 }
 
+export type AutoRewardsEditorVariant = 'all' | 'noChannelPoints' | 'channelPointsOnly';
+
 export type AutoRewardsEditorProps = {
   value: TwitchAutoRewardsV1 | null;
   onChange: (next: TwitchAutoRewardsV1 | null) => void;
   disabled?: boolean;
+  variant?: AutoRewardsEditorVariant;
 };
 
-export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEditorProps) {
+export function AutoRewardsEditor({ value, onChange, disabled, variant = 'all' }: AutoRewardsEditorProps) {
   const { t } = useTranslation();
   const v = base(value);
 
@@ -107,7 +110,14 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
     chatDailyStreak: bool(v.chat?.dailyStreak?.enabled),
   };
 
-  const hasAnyEnabled = useMemo(() => Object.values(isEnabled).some(Boolean), [isEnabled]);
+  const hasAnyEnabled = useMemo(() => {
+    if (variant === 'channelPointsOnly') return isEnabled.channelPoints;
+    if (variant === 'noChannelPoints') {
+      const { channelPoints: _channelPoints, ...rest } = isEnabled;
+      return Object.values(rest).some(Boolean);
+    }
+    return Object.values(isEnabled).some(Boolean);
+  }, [isEnabled, variant]);
 
   const markDirty = () => {
     dirtyRef.current = true;
@@ -134,6 +144,142 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
   };
 
   // NOTE: Keep the UI minimal: everything is collapsed by default; user expands only what they need.
+  const showChannelPoints = variant !== 'noChannelPoints';
+
+  const channelPointsMappingBlock = (
+    <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="font-semibold text-gray-900 dark:text-white">
+            {t('admin.autoRewardsChannelPointsMapping', { defaultValue: 'Channel Points: rewardId → coins' })}
+          </div>
+          <PlatformBadges platforms={['TW']} />
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <input
+            type="checkbox"
+            checked={bool(v.channelPoints?.enabled)}
+            aria-label="Enable channel points auto reward"
+            disabled={disabled}
+            onChange={(e) => setEnabled('channelPoints', e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+        </label>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {t('admin.autoRewardsChannelPointsKeysHint', { defaultValue: 'Ключи — это reward.id из Twitch.' })}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="glass-btn bg-white/40 dark:bg-white/5"
+          onClick={() => {
+            markDirty();
+            setChannelPointsRows((p) => [...p, { key: '', value: '' }]);
+          }}
+        >
+          {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {channelPointsRows.length === 0 ? (
+          <div className="text-sm text-gray-600 dark:text-gray-300">
+            {t('admin.autoRewardsNoMappingsYet', { defaultValue: 'Пока нет сопоставлений.' })}
+          </div>
+        ) : (
+          channelPointsRows.map((row, idx) => (
+            <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto] gap-2 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">rewardId</label>
+                <Input
+                  type="text"
+                  value={row.key}
+                  onChange={(e) => {
+                    const key = e.target.value;
+                    markDirty();
+                    setChannelPointsRows((p) => p.map((r, i) => (i === idx ? { ...r, key } : r)));
+                  }}
+                  placeholder="abc123..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.autoRewardsCoinsLower', { defaultValue: 'монеты' })}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={row.value}
+                  onChange={(e) => {
+                    const valueStr = e.target.value.replace(/[^\d]/g, '');
+                    markDirty();
+                    setChannelPointsRows((p) => p.map((r, i) => (i === idx ? { ...r, value: valueStr } : r)));
+                  }}
+                  placeholder="0"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="glass-btn bg-white/40 dark:bg-white/5"
+                  onClick={() => {
+                    markDirty();
+                    setChannelPointsRows((p) => p.filter((_, i) => i !== idx));
+                  }}
+                >
+                  {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <input
+            type="checkbox"
+            checked={bool(v.channelPoints?.onlyWhenLive)}
+            disabled={disabled}
+            onChange={(e) => patch({ ...base(value), channelPoints: { ...(base(value).channelPoints ?? {}), onlyWhenLive: e.target.checked } })}
+          />
+          {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
+        </label>
+        <Button
+          type="button"
+          size="sm"
+          variant="primary"
+          onClick={() => {
+            patch({
+              ...base(value),
+              channelPoints: { ...(base(value).channelPoints ?? {}), byRewardId: recordFromRows(channelPointsRows) },
+            });
+          }}
+        >
+          {t('admin.autoRewardsApplyMappings', { defaultValue: 'Применить' })}
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (variant === 'channelPointsOnly') {
+    return (
+      <div className={disabled ? 'pointer-events-none opacity-60 space-y-3' : 'space-y-3'}>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {t('admin.autoRewardsTwitchOnlyHint', {
+            defaultValue: 'Twitch-only: channel points mapping. Stored in the same auto-rewards JSON.',
+          })}
+        </div>
+        {channelPointsMappingBlock}
+      </div>
+    );
+  }
+
   return (
     <div className={disabled ? 'pointer-events-none opacity-60 space-y-3' : 'space-y-3'}>
       <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -359,124 +505,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
         </summary>
         <div className="mt-3 space-y-4">
           {/* Channel points mapping */}
-          <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="font-semibold text-gray-900 dark:text-white">
-                  {t('admin.autoRewardsChannelPointsMapping', { defaultValue: 'Channel Points: rewardId → coins' })}
-                </div>
-                <PlatformBadges platforms={['TW']} />
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={bool(v.channelPoints?.enabled)}
-                  aria-label="Enable channel points auto reward"
-                  disabled={disabled}
-                  onChange={(e) => setEnabled('channelPoints', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {t('admin.autoRewardsChannelPointsKeysHint', { defaultValue: 'Ключи — это reward.id из Twitch.' })}
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="glass-btn bg-white/40 dark:bg-white/5"
-                onClick={() => {
-                  markDirty();
-                  setChannelPointsRows((p) => [...p, { key: '', value: '' }]);
-                }}
-              >
-                {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {channelPointsRows.length === 0 ? (
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  {t('admin.autoRewardsNoMappingsYet', { defaultValue: 'Пока нет сопоставлений.' })}
-                </div>
-              ) : (
-                channelPointsRows.map((row, idx) => (
-                  <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto] gap-2 items-end">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">rewardId</label>
-                      <Input
-                        type="text"
-                        value={row.key}
-                        onChange={(e) => {
-                          const key = e.target.value;
-                          markDirty();
-                          setChannelPointsRows((p) => p.map((r, i) => (i === idx ? { ...r, key } : r)));
-                        }}
-                        placeholder="abc123..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                        {t('admin.autoRewardsCoinsLower', { defaultValue: 'монеты' })}
-                      </label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={row.value}
-                        onChange={(e) => {
-                          const valueStr = e.target.value.replace(/[^\d]/g, '');
-                          markDirty();
-                          setChannelPointsRows((p) => p.map((r, i) => (i === idx ? { ...r, value: valueStr } : r)));
-                        }}
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="glass-btn bg-white/40 dark:bg-white/5"
-                        onClick={() => {
-                          markDirty();
-                          setChannelPointsRows((p) => p.filter((_, i) => i !== idx));
-                        }}
-                      >
-                        {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                <input
-                  type="checkbox"
-                  checked={bool(v.channelPoints?.onlyWhenLive)}
-                  disabled={disabled}
-                  onChange={(e) => patch({ ...base(value), channelPoints: { ...(base(value).channelPoints ?? {}), onlyWhenLive: e.target.checked } })}
-                />
-                {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
-              </label>
-              <Button
-                type="button"
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  patch({
-                    ...base(value),
-                    channelPoints: { ...(base(value).channelPoints ?? {}), byRewardId: recordFromRows(channelPointsRows) },
-                  });
-                }}
-              >
-                {t('admin.autoRewardsApplyMappings', { defaultValue: 'Применить' })}
-              </Button>
-            </div>
-          </div>
+          {showChannelPoints ? channelPointsMappingBlock : null}
 
           {/* Subscribe/resub/gift */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

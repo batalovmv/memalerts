@@ -971,6 +971,8 @@
     "autoRewardsApplyCoinsByStreak": "Применить coinsByStreak",
     "twitchCoinsRewardTitle": "Награда за монеты (Twitch)",
     "twitchCoinsRewardDescription": "Зритель тратит Channel Points на Twitch и получает монеты на сайте.",
+    "twitchChannelPointsMappingTitle": "Twitch Channel Points: rewardId → coins",
+    "twitchChannelPointsMappingDescription": "Twitch-only маппинг. Хранится внутри auto-rewards JSON.",
     "kickCoinsRewardTitle": "Награда за монеты (Kick)",
     "kickCoinsRewardDescription": "Зритель активирует награду на Kick и получает монеты на сайте.",
     "kickRewardsPrereqHint": "Важно: также нужно настроить интеграцию во вкладке Bots (kickChannelId), иначе события не будут сопоставлены с каналом.",

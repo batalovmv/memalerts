@@ -1387,6 +1387,7 @@ export function RewardsSettings() {
           setTwitchAutoRewardsError(null);
         }}
         disabled={savingTwitchAutoRewards || !autoRewardsLinked}
+        variant="noChannelPoints"
       />
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
         {t('admin.twitchAutoRewardsHint', {
@@ -1643,6 +1644,58 @@ export function RewardsSettings() {
           )}
 
           {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('admin.twitchChannelPointsMappingTitle', { defaultValue: 'Twitch Channel Points: rewardId → coins' })}
+          description={t('admin.twitchChannelPointsMappingDescription', {
+            defaultValue: 'Twitch-only mapping. Stored inside the auto-rewards JSON.',
+          })}
+          overlay={
+            <>
+              {savingTwitchAutoRewards && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {twitchAutoRewardsSavedPulse && !savingTwitchAutoRewards && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={savingTwitchAutoRewards || !twitchLinked}
+                onClick={() => void handleSaveTwitchAutoRewards()}
+              >
+                {t('common.save', { defaultValue: 'Save' })}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={savingTwitchAutoRewards || !twitchLinked}
+                onClick={() => {
+                  setTwitchAutoRewardsDraft(null);
+                  void handleSaveTwitchAutoRewards(null);
+                }}
+              >
+                {t('common.clear', { defaultValue: 'Clear' })}
+              </Button>
+            </div>
+          }
+        >
+          {!twitchLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+            </p>
+          )}
+          {twitchAutoRewardsError && <p className="text-sm text-rose-600 dark:text-rose-300">{twitchAutoRewardsError}</p>}
+          <AutoRewardsEditor
+            value={twitchAutoRewardsDraft}
+            onChange={(next) => {
+              setTwitchAutoRewardsDraft(next);
+              setTwitchAutoRewardsError(null);
+            }}
+            disabled={savingTwitchAutoRewards || !twitchLinked}
+            variant="channelPointsOnly"
+          />
         </SettingsSection>
 
           </>

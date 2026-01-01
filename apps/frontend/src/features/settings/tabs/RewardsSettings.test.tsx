@@ -187,6 +187,9 @@ describe('RewardsSettings (integration)', () => {
     const titleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
     const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
 
+    // Common tab should not show Twitch-only Channel Points mapping.
+    expect(within(section).queryByText(/channel points:?\s*rewardid\s*→\s*coins/i)).not.toBeInTheDocument();
+
     const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
     await userEv.click(followToggle);
 
@@ -201,6 +204,36 @@ describe('RewardsSettings (integration)', () => {
     const last = bodies.at(-1) as any;
     expect(last.twitchAutoRewards?.v).toBe(1);
     expect(last.twitchAutoRewards?.follow?.coins).toBe(10);
+  });
+
+  it('shows Channel Points mapping editor on Twitch tab (and not in Common)', async () => {
+    const userEv = userEvent.setup();
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+
+    server.use(
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
+      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
+      mockTwitchRewardEligibility({ eligible: true }),
+      http.patch('*/streamer/channel/settings', () => HttpResponse.json({ ok: true })),
+    );
+
+    renderWithProviders(<RewardsSettings />, {
+      route: '/settings?tab=rewards',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    // Twitch tab: the Channel Points mapping section is visible and scoped (no Follow toggle inside).
+    await userEv.click(await screen.findByRole('button', { name: /twitch/i }));
+    const cpTitle = await screen.findByRole('heading', { name: /twitch\s+channel\s+points:?\s*rewardid\s*→\s*coins/i });
+    const cpSection = cpTitle.closest('section') ?? cpTitle.parentElement ?? document.body;
+    expect(within(cpSection).queryByRole('checkbox', { name: /enable follow auto reward/i })).not.toBeInTheDocument();
+    expect(within(cpSection).getByText(/channel points:?\s*rewardid\s*→\s*coins/i)).toBeInTheDocument();
+
+    // Common tab: still hidden.
+    await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
+    const commonTitleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
+    const commonSection = commonTitleEl.closest('section') ?? commonTitleEl.parentElement ?? document.body;
+    expect(within(commonSection).queryByText(/channel points:?\s*rewardid\s*→\s*coins/i)).not.toBeInTheDocument();
   });
 
   it('allows editing/saving autoRewards on Kick tab when Twitch is not linked', async () => {
