@@ -648,6 +648,9 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     myNeedsChangesCount,
   ]);
 
+  const pendingApprovalsLabel = t('header.pendingApprovals', { defaultValue: 'Pending approvals' });
+  const needsChangesLabel = t('header.needsChanges', { defaultValue: 'Needs changes' });
+
   return (
     <>
       <nav className="bg-white dark:bg-gray-800 shadow-sm channel-theme-nav" style={navStyle}>
@@ -722,11 +725,16 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                         </button>
                       );
 
-                      return (
-                        <HelpTooltip content={t('help.header.requests', { defaultValue: 'Your notifications: pending approvals and memes that need changes.' })}>
-                          {btn}
-                        </HelpTooltip>
-                      );
+                      const tooltipText =
+                        showPendingIndicator && hasPendingSubmissions && hasNeedsChanges
+                          ? t('help.header.requests', {
+                              defaultValue: 'Your notifications: pending approvals and submissions that need changes.',
+                            })
+                          : showPendingIndicator && hasPendingSubmissions
+                            ? pendingApprovalsLabel
+                            : needsChangesLabel;
+
+                      return <HelpTooltip content={tooltipText}>{btn}</HelpTooltip>;
                     })()}
 
                     {showPendingIndicator && hasPendingSubmissions && hasNeedsChanges && isRequestsMenuOpen && (
@@ -745,7 +753,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                             handlePendingSubmissionsClick();
                           }}
                         >
-                          {t('header.pendingApprovals', { defaultValue: 'Pending approvals' })}{' '}
+                          {pendingApprovalsLabel}{' '}
                           <span className="text-xs text-gray-500 dark:text-gray-400">({pendingSubmissionsCount})</span>
                         </button>
 
@@ -758,7 +766,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
                             navigate('/submit?tab=needs_changes');
                           }}
                         >
-                          {t('header.needsChanges', { defaultValue: 'Needs changes' })}{' '}
+                          {needsChangesLabel}{' '}
                           <span className="text-xs text-gray-500 dark:text-gray-400">({myNeedsChangesCount})</span>
                         </button>
                       </div>

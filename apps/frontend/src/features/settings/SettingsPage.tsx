@@ -1,4 +1,5 @@
 ﻿import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -118,6 +119,12 @@ export default function SettingsPage() {
       <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 0 0-16 0" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 13a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" />
     </svg>
+  );
+
+  const GroupLabel = ({ children }: { children: ReactNode }) => (
+    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400">
+      {children}
+    </div>
   );
 
   const isMoreTabActive = ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements', 'ownerMemeAssets', 'ownerModerators'].includes(
@@ -455,6 +462,7 @@ export default function SettingsPage() {
                       focusSafely(items[nextIndex] ?? items[0]);
                     }}
                   >
+                    <GroupLabel>{t('settings.moreGroups.insightsGrowth', { defaultValue: 'Insights & growth' })}</GroupLabel>
                     <div className="px-1 py-1">
                       <button
                         onClick={() => {
@@ -491,6 +499,45 @@ export default function SettingsPage() {
                     </div>
                     <div className="border-t border-black/5 dark:border-white/10 my-1" />
 
+                    <GroupLabel>{t('settings.moreGroups.accountAccess', { defaultValue: 'Account & access' })}</GroupLabel>
+                    <div className="px-1 py-1">
+                      <button
+                        onClick={() => {
+                          setActiveTab('accounts');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
+                          activeTab === 'accounts'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                        type="button"
+                        role="menuitem"
+                      >
+                        <span className={activeTab === 'accounts' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{AccountsIcon}</span>
+                        <span className="min-w-0 truncate">{t('settings.accounts', { defaultValue: 'Accounts' })}</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setActiveTab('beta');
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
+                          activeTab === 'beta'
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                        }`}
+                        type="button"
+                        role="menuitem"
+                      >
+                        <span className={activeTab === 'beta' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{BetaIcon}</span>
+                        <span className="min-w-0 truncate">{t('admin.betaAccess')}</span>
+                      </button>
+                    </div>
+                    <div className="border-t border-black/5 dark:border-white/10 my-1" />
+
+                    <GroupLabel>{t('settings.moreGroups.adminOwner', { defaultValue: 'Admin / owner' })}</GroupLabel>
                     <div className="px-1 py-1">
                       {(user?.role === 'admin' || isStreamerAdmin) && (
                         <button
@@ -567,40 +614,6 @@ export default function SettingsPage() {
                           <span className="min-w-0 truncate">{getTabLabel('ownerModerators')}</span>
                         </button>
                       )}
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('beta');
-                          setIsMoreMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
-                          activeTab === 'beta'
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
-                        }`}
-                        type="button"
-                        role="menuitem"
-                      >
-                        <span className={activeTab === 'beta' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{BetaIcon}</span>
-                        <span className="min-w-0 truncate">{t('admin.betaAccess')}</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('accounts');
-                          setIsMoreMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
-                          activeTab === 'accounts'
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
-                        }`}
-                        type="button"
-                        role="menuitem"
-                      >
-                        <span className={activeTab === 'accounts' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{AccountsIcon}</span>
-                        <span className="min-w-0 truncate">{t('settings.accounts', { defaultValue: 'Accounts' })}</span>
-                      </button>
                     </div>
 
                     {/* walletManagement entry is rendered above once (admin OR streamer admin) */}

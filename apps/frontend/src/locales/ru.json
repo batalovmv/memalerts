@@ -288,7 +288,12 @@
     "accountsCannotUnlinkLast": "Нельзя отвязать последний привязанный аккаунт.",
     "accountsNotFound": "Аккаунт не найден или не принадлежит вам.",
     "noLinkedAccounts": "Привязанных аккаунтов пока нет.",
-    "noLinkedAccountsHint": "Привяжите хотя бы один аккаунт, чтобы не потерять доступ."
+    "noLinkedAccountsHint": "Привяжите хотя бы один аккаунт, чтобы не потерять доступ.",
+    "moreGroups": {
+      "accountAccess": "Аккаунт и доступ",
+      "insightsGrowth": "Аналитика и продвижение",
+      "adminOwner": "Админ / владелец"
+    }
   },
   "auth": {
     "login": "Войти через Twitch",
@@ -1210,8 +1215,8 @@
     "needsChangesSubmissions": "Нужно исправить: {{count}}",
     "submissionsSummary": "На одобрение: {{pending}}, нужно исправить: {{needsChanges}}",
     "submissionsMenu": "Меню заявок",
-    "pendingApprovals": "На одобрение",
-    "needsChanges": "Нужно исправить",
+    "pendingApprovals": "Ожидающие заявки",
+    "needsChanges": "Нужны правки",
     "submitMeme": "Добавить мем",
     "addCoins": "Добавить монеты",
     "coinsTooltip": "Монеты, которые вы можете обменять у вашего стримера",

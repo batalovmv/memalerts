@@ -284,7 +284,12 @@
     "accountsCannotUnlinkLast": "You can't unlink the last linked account.",
     "accountsNotFound": "Account not found or doesn't belong to you.",
     "noLinkedAccounts": "No linked accounts yet.",
-    "noLinkedAccountsHint": "Link at least one account to avoid losing access."
+    "noLinkedAccountsHint": "Link at least one account to avoid losing access.",
+    "moreGroups": {
+      "accountAccess": "Account & access",
+      "insightsGrowth": "Insights & growth",
+      "adminOwner": "Admin / owner"
+    }
   },
   "auth": {
     "login": "Log in with Twitch",
