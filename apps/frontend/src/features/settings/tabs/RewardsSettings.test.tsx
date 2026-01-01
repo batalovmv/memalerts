@@ -129,19 +129,17 @@ describe('RewardsSettings (integration)', () => {
 
     const textarea = (await screen.findByLabelText(/twitchautorewards json/i)) as HTMLTextAreaElement;
     const section = textarea.closest('section') ?? textarea.parentElement ?? document.body;
-    await userEv.clear(textarea);
-    await userEv.type(
-      textarea,
-      JSON.stringify(
-        {
-          v: 1,
-          follow: { enabled: true, coins: 10, onceEver: true, onlyWhenLive: false },
-        },
-        null,
-        2,
-      ),
-      { parseSpecialCharSequences: false },
+    const jsonText = JSON.stringify(
+      {
+        v: 1,
+        follow: { enabled: true, coins: 10, onceEver: true, onlyWhenLive: false },
+      },
+      null,
+      2,
     );
+    await userEv.clear(textarea);
+    await userEv.click(textarea);
+    await userEv.paste(textarea, jsonText);
 
     const saveBtn = within(section).getByRole('button', { name: /save/i });
     await userEv.click(saveBtn);
