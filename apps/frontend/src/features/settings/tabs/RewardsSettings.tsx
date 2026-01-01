@@ -110,9 +110,9 @@ export function RewardsSettings() {
   const kickLinked = linkedProviders.has('kick');
   const trovoLinked = linkedProviders.has('trovo');
   const vkvideoLinked = linkedProviders.has('vkvideo');
-  const [activePlatform, setActivePlatform] = useState<'twitch' | 'youtube' | 'kick' | 'vkvideo' | 'trovo' | 'submissions' | 'boosty'>(
-    'twitch',
-  );
+  const [activePlatform, setActivePlatform] = useState<
+    'common' | 'twitch' | 'youtube' | 'kick' | 'vkvideo' | 'trovo' | 'submissions' | 'boosty'
+  >('twitch');
   const [twitchRewardEligible, setTwitchRewardEligible] = useState<boolean | null>(null);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [lastErrorRequestId, setLastErrorRequestId] = useState<string | null>(null);
@@ -1337,7 +1337,7 @@ export function RewardsSettings() {
 
   const renderAutoRewardsSection = () => (
     <SettingsSection
-      title={t('admin.autoRewardsTitle', { defaultValue: 'Auto rewards (Twitch/Kick/Trovo/VKVideo)' })}
+      title={t('admin.autoRewardsTitle', { defaultValue: 'Автонаграды (Twitch/Kick/Trovo/VKVideo)' })}
       description={t('admin.twitchAutoRewardsDescription', {
         defaultValue:
           'Автоматическое начисление монет за события (Twitch/Kick/Trovo/VKVideo). Настройка хранится в виде JSON и применяется бэкендом best-effort.',
@@ -1420,6 +1420,7 @@ export function RewardsSettings() {
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {(
               [
+                { id: 'common', label: t('admin.commonRewardsTab', { defaultValue: 'Общие' }), linked: autoRewardsLinked },
                 { id: 'twitch', label: 'Twitch', linked: twitchLinked },
                 { id: 'youtube', label: 'YouTube', linked: youtubeLinked },
                 { id: 'kick', label: 'Kick', linked: kickLinked },
@@ -1451,6 +1452,12 @@ export function RewardsSettings() {
             })}
           </div>
         </div>
+
+        {activePlatform === 'common' ? (
+          <>
+            {renderAutoRewardsSection()}
+          </>
+        ) : null}
 
         {activePlatform === 'twitch' ? (
           <>
@@ -1638,7 +1645,6 @@ export function RewardsSettings() {
           {/* Removed persistent Saved label; we show overlays instead to avoid noise. */}
         </SettingsSection>
 
-        {renderAutoRewardsSection()}
           </>
         ) : null}
 
@@ -1916,7 +1922,6 @@ export function RewardsSettings() {
             </div>
           )}
         </SettingsSection>
-        {renderAutoRewardsSection()}
           </>
         ) : null}
 
@@ -1995,7 +2000,6 @@ export function RewardsSettings() {
             </div>
           </div>
         </SettingsSection>
-        {renderAutoRewardsSection()}
           </>
         ) : null}
 
@@ -2157,7 +2161,6 @@ export function RewardsSettings() {
             </div>
           )}
         </SettingsSection>
-        {renderAutoRewardsSection()}
           </>
         ) : null}
 

@@ -183,7 +183,8 @@ describe('RewardsSettings (integration)', () => {
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'save_twitchAutoRewards' });
-    const titleEl = await screen.findByRole('heading', { name: /auto rewards/i });
+    await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
+    const titleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
     const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
 
     const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
@@ -224,9 +225,9 @@ describe('RewardsSettings (integration)', () => {
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_tab_autoRewards' });
-    await userEv.click(await screen.findByRole('button', { name: /kick/i }));
+    await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
 
-    const titleEl = await screen.findByRole('heading', { name: /auto rewards/i });
+    const titleEl = await screen.findByRole('heading', { name: /(автонаграды|auto rewards)/i });
     const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
 
     const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });

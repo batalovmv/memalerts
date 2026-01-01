@@ -1,9 +1,35 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { TwitchAutoRewardsV1 } from '@/types';
 import { Button, Input } from '@/shared/ui';
 
 type KvRow = { key: string; value: string };
+
+type PlatformCode = 'TW' | 'K' | 'TR' | 'VK';
+
+const PLATFORM_TITLES: Record<PlatformCode, string> = {
+  TW: 'Twitch',
+  K: 'Kick',
+  TR: 'Trovo',
+  VK: 'VKVideo',
+};
+
+function PlatformBadges({ platforms }: { platforms: PlatformCode[] }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {platforms.map((code) => (
+        <span
+          key={code}
+          title={PLATFORM_TITLES[code]}
+          className="rounded-md bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700 dark:text-gray-200"
+        >
+          {code}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function rowsFromRecord(rec: Record<string, number> | undefined): KvRow[] {
   if (!rec) return [];
@@ -44,6 +70,7 @@ export type AutoRewardsEditorProps = {
 };
 
 export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEditorProps) {
+  const { t } = useTranslation();
   const v = base(value);
 
   const dirtyRef = useRef(false);
@@ -110,22 +137,29 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
   return (
     <div className={disabled ? 'pointer-events-none opacity-60 space-y-3' : 'space-y-3'}>
       <div className="text-xs text-gray-500 dark:text-gray-400">
-        Shared config: applies to Twitch/Kick/Trovo/VKVideo where the backend supports the event.
+        {t('admin.autoRewardsSharedConfigHint', {
+          defaultValue: 'Общая конфигурация: применяется там, где бэкенд поддерживает событие (Twitch/Kick/Trovo/VKVideo).',
+        })}
       </div>
 
       {!hasAnyEnabled ? (
         <div className="rounded-xl bg-white/30 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 text-sm text-gray-700 dark:text-gray-200">
-          All auto rewards are currently disabled. Enable the events you want below.
+          {t('admin.autoRewardsAllDisabled', { defaultValue: 'Все автонаграды сейчас отключены. Включите нужные события ниже.' })}
         </div>
       ) : null}
 
       <details className="rounded-xl bg-white/30 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4" open>
-        <summary className="cursor-pointer select-none font-semibold text-gray-900 dark:text-white">Core</summary>
+        <summary className="cursor-pointer select-none font-semibold text-gray-900 dark:text-white">
+          {t('admin.autoRewardsCore', { defaultValue: 'Основное' })}
+        </summary>
         <div className="mt-3 space-y-4">
           {/* Follow */}
           <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold text-gray-900 dark:text-white">Follow</div>
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">{t('admin.autoRewardsFollow', { defaultValue: 'Фоллоу' })}</div>
+                <PlatformBadges platforms={['TW', 'K', 'TR']} />
+              </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
@@ -140,7 +174,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Coins</label>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.autoRewardsCoins', { defaultValue: 'Монеты' })}
+                </label>
                 <Input
                   type="text"
                   inputMode="numeric"
@@ -162,7 +198,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     disabled={disabled}
                     onChange={(e) => patch({ ...base(value), follow: { ...(base(value).follow ?? {}), onceEver: e.target.checked } })}
                   />
-                  Once ever
+                  {t('admin.autoRewardsOnceEver', { defaultValue: 'Один раз за всё время' })}
                 </label>
               </div>
               <div className="flex items-end gap-2">
@@ -173,7 +209,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     disabled={disabled}
                     onChange={(e) => patch({ ...base(value), follow: { ...(base(value).follow ?? {}), onlyWhenLive: e.target.checked } })}
                   />
-                  Only when live
+                  {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                 </label>
               </div>
             </div>
@@ -182,7 +218,10 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
           {/* Raid */}
           <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold text-gray-900 dark:text-white">Raid</div>
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">{t('admin.autoRewardsRaid', { defaultValue: 'Рейд' })}</div>
+                <PlatformBadges platforms={['TW', 'TR']} />
+              </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
@@ -246,7 +285,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     disabled={disabled}
                     onChange={(e) => patch({ ...base(value), raid: { ...(base(value).raid ?? {}), onlyWhenLive: e.target.checked } })}
                   />
-                  Only when live
+                  {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                 </label>
               </div>
             </div>
@@ -255,7 +294,12 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
           {/* Chat: first message */}
           <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold text-gray-900 dark:text-white">Chat: first message</div>
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.autoRewardsChatFirstMessage', { defaultValue: 'Чат: первое сообщение' })}
+                </div>
+                <PlatformBadges platforms={['TW', 'K', 'TR', 'VK']} />
+              </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
@@ -270,7 +314,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Coins</label>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  {t('admin.autoRewardsCoins', { defaultValue: 'Монеты' })}
+                </label>
                 <Input
                   type="text"
                   inputMode="numeric"
@@ -299,7 +345,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       })
                     }
                   />
-                  Only when live
+                  {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                 </label>
               </div>
             </div>
@@ -308,12 +354,19 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
       </details>
 
       <details className="rounded-xl bg-white/30 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4">
-        <summary className="cursor-pointer select-none font-semibold text-gray-900 dark:text-white">Advanced</summary>
+        <summary className="cursor-pointer select-none font-semibold text-gray-900 dark:text-white">
+          {t('admin.autoRewardsAdvanced', { defaultValue: 'Расширенное' })}
+        </summary>
         <div className="mt-3 space-y-4">
           {/* Channel points mapping */}
           <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold text-gray-900 dark:text-white">Channel points: rewardId → coins</div>
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="font-semibold text-gray-900 dark:text-white">
+                  {t('admin.autoRewardsChannelPointsMapping', { defaultValue: 'Channel Points: rewardId → coins' })}
+                </div>
+                <PlatformBadges platforms={['TW']} />
+              </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
@@ -327,7 +380,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
               </label>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Keys are reward.id from Twitch.</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.autoRewardsChannelPointsKeysHint', { defaultValue: 'Ключи — это reward.id из Twitch.' })}
+              </div>
               <Button
                 type="button"
                 size="sm"
@@ -338,12 +393,14 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                   setChannelPointsRows((p) => [...p, { key: '', value: '' }]);
                 }}
               >
-                Add
+                {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
               </Button>
             </div>
             <div className="space-y-2">
               {channelPointsRows.length === 0 ? (
-                <div className="text-sm text-gray-600 dark:text-gray-300">No mappings yet.</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  {t('admin.autoRewardsNoMappingsYet', { defaultValue: 'Пока нет сопоставлений.' })}
+                </div>
               ) : (
                 channelPointsRows.map((row, idx) => (
                   <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto] gap-2 items-end">
@@ -361,7 +418,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">coins</label>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                        {t('admin.autoRewardsCoinsLower', { defaultValue: 'монеты' })}
+                      </label>
                       <Input
                         type="text"
                         inputMode="numeric"
@@ -386,7 +445,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                           setChannelPointsRows((p) => p.filter((_, i) => i !== idx));
                         }}
                       >
-                        Remove
+                        {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
                       </Button>
                     </div>
                   </div>
@@ -401,7 +460,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                   disabled={disabled}
                   onChange={(e) => patch({ ...base(value), channelPoints: { ...(base(value).channelPoints ?? {}), onlyWhenLive: e.target.checked } })}
                 />
-                Only when live
+                {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
               </label>
               <Button
                 type="button"
@@ -414,7 +473,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                   });
                 }}
               >
-                Apply mappings
+                {t('admin.autoRewardsApplyMappings', { defaultValue: 'Применить' })}
               </Button>
             </div>
           </div>
@@ -423,7 +482,10 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-gray-900 dark:text-white">Subscribe</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">{t('admin.autoRewardsSubscribe', { defaultValue: 'Подписка' })}</div>
+                  <PlatformBadges platforms={['TW', 'K', 'TR']} />
+                </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
@@ -438,7 +500,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Prime coins</label>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.autoRewardsPrimeCoins', { defaultValue: 'Prime монеты' })}
+                  </label>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -459,12 +523,14 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       disabled={disabled}
                       onChange={(e) => patch({ ...base(value), subscribe: { ...(base(value).subscribe ?? {}), onlyWhenLive: e.target.checked } })}
                     />
-                    Only when live
+                    {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                   </label>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <div className="text-xs text-gray-500 dark:text-gray-400">tierCoins: tierKey → coins (backend-defined keys)</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('admin.autoRewardsTierCoinsHint', { defaultValue: 'tierCoins: tierKey → coins (ключи задаёт бэкенд)' })}
+                </div>
                 <Button
                   type="button"
                   size="sm"
@@ -475,7 +541,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     setSubscribeTierRows((p) => [...p, { key: '', value: '' }]);
                   }}
                 >
-                  Add
+                  {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -513,7 +579,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                         setSubscribeTierRows((p) => p.filter((_, i) => i !== idx));
                       }}
                     >
-                      Remove
+                      {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
                     </Button>
                   </div>
                 ))}
@@ -524,13 +590,16 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                 variant="primary"
                 onClick={() => patch({ ...base(value), subscribe: { ...(base(value).subscribe ?? {}), tierCoins: recordFromRows(subscribeTierRows) } })}
               >
-                Apply tierCoins
+                {t('admin.autoRewardsApplyTierCoins', { defaultValue: 'Применить tierCoins' })}
               </Button>
             </div>
 
             <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-gray-900 dark:text-white">Resub message</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">{t('admin.autoRewardsResubMessage', { defaultValue: 'Сообщение о продлении' })}</div>
+                  <PlatformBadges platforms={['TW', 'K']} />
+                </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
@@ -545,7 +614,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Prime coins</label>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.autoRewardsPrimeCoins', { defaultValue: 'Prime монеты' })}
+                  </label>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -559,7 +630,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Bonus coins</label>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.autoRewardsBonusCoins', { defaultValue: 'Бонусные монеты' })}
+                  </label>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -580,12 +653,14 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       disabled={disabled}
                       onChange={(e) => patch({ ...base(value), resubMessage: { ...(base(value).resubMessage ?? {}), onlyWhenLive: e.target.checked } })}
                     />
-                    Only when live
+                    {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                   </label>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <div className="text-xs text-gray-500 dark:text-gray-400">tierCoins: tierKey → coins</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('admin.autoRewardsTierCoinsShortHint', { defaultValue: 'tierCoins: tierKey → coins' })}
+                </div>
                 <Button
                   type="button"
                   size="sm"
@@ -596,7 +671,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     setResubTierRows((p) => [...p, { key: '', value: '' }]);
                   }}
                 >
-                  Add
+                  {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -634,7 +709,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                         setResubTierRows((p) => p.filter((_, i) => i !== idx));
                       }}
                     >
-                      Remove
+                      {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
                     </Button>
                   </div>
                 ))}
@@ -645,7 +720,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                 variant="primary"
                 onClick={() => patch({ ...base(value), resubMessage: { ...(base(value).resubMessage ?? {}), tierCoins: recordFromRows(resubTierRows) } })}
               >
-                Apply tierCoins
+                {t('admin.autoRewardsApplyTierCoins', { defaultValue: 'Применить tierCoins' })}
               </Button>
             </div>
           </div>
@@ -654,7 +729,10 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-gray-900 dark:text-white">Gift subs</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">{t('admin.autoRewardsGiftSubs', { defaultValue: 'Подарочные подписки' })}</div>
+                  <PlatformBadges platforms={['TW', 'K', 'TR']} />
+                </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
@@ -669,7 +747,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Recipient coins</label>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                    {t('admin.autoRewardsRecipientCoins', { defaultValue: 'Монеты получателю' })}
+                  </label>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -690,12 +770,14 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       disabled={disabled}
                       onChange={(e) => patch({ ...base(value), giftSub: { ...(base(value).giftSub ?? {}), onlyWhenLive: e.target.checked } })}
                     />
-                    Only when live
+                    {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                   </label>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <div className="text-xs text-gray-500 dark:text-gray-400">giverTierCoins: tierKey → coins</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('admin.autoRewardsGiverTierCoinsHint', { defaultValue: 'giverTierCoins: tierKey → coins' })}
+                </div>
                 <Button
                   type="button"
                   size="sm"
@@ -706,7 +788,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     setGiftGiverTierRows((p) => [...p, { key: '', value: '' }]);
                   }}
                 >
-                  Add
+                  {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -744,7 +826,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                         setGiftGiverTierRows((p) => p.filter((_, i) => i !== idx));
                       }}
                     >
-                      Remove
+                      {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
                     </Button>
                   </div>
                 ))}
@@ -755,13 +837,18 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                 variant="primary"
                 onClick={() => patch({ ...base(value), giftSub: { ...(base(value).giftSub ?? {}), giverTierCoins: recordFromRows(giftGiverTierRows) } })}
               >
-                Apply giverTierCoins
+                {t('admin.autoRewardsApplyGiverTierCoins', { defaultValue: 'Применить giverTierCoins' })}
               </Button>
             </div>
 
             <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-gray-900 dark:text-white">Cheer / gifts (bits/kicks)</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('admin.autoRewardsCheer', { defaultValue: 'Cheer / подарки (bits/kicks)' })}
+                  </div>
+                  <PlatformBadges platforms={['TW', 'K']} />
+                </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
@@ -811,7 +898,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       disabled={disabled}
                       onChange={(e) => patch({ ...base(value), cheer: { ...(base(value).cheer ?? {}), onlyWhenLive: e.target.checked } })}
                     />
-                    Only when live
+                    {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
+                    {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
+                    {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                   </label>
                 </div>
               </div>
@@ -822,7 +911,12 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-gray-900 dark:text-white">Chat: message thresholds</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {t('admin.autoRewardsChatThresholds', { defaultValue: 'Чат: пороги сообщений' })}
+                  </div>
+                  <PlatformBadges platforms={['TW', 'K', 'TR', 'VK']} />
+                </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
@@ -836,7 +930,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                 </label>
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                coinsByThreshold: threshold → coins. (Thresholds array is derived from the keys.)
+                {t('admin.autoRewardsChatThresholdsHint', {
+                  defaultValue: 'coinsByThreshold: threshold → coins. (thresholds вычисляется из ключей.)',
+                })}
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div />
@@ -850,7 +946,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     setThresholdCoinsRows((p) => [...p, { key: '', value: '' }]);
                   }}
                 >
-                  Add
+                  {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -890,7 +986,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                         setThresholdCoinsRows((p) => p.filter((_, i) => i !== idx));
                       }}
                     >
-                      Remove
+                      {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
                     </Button>
                   </div>
                 ))}
@@ -908,7 +1004,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                       })
                     }
                   />
-                  Only when live
+                  {t('admin.autoRewardsOnlyWhenLive', { defaultValue: 'Только когда стрим в онлайне' })}
                 </label>
                 <Button
                   type="button"
@@ -934,14 +1030,17 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     });
                   }}
                 >
-                  Apply thresholds
+                  {t('admin.autoRewardsApplyThresholds', { defaultValue: 'Применить thresholds' })}
                 </Button>
               </div>
             </div>
 
             <div className="rounded-xl bg-white/40 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-gray-900 dark:text-white">Chat: daily streak</div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold text-gray-900 dark:text-white">{t('admin.autoRewardsChatDailyStreak', { defaultValue: 'Чат: ежедневная серия' })}</div>
+                  <PlatformBadges platforms={['TW', 'K', 'TR', 'VK']} />
+                </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
@@ -973,7 +1072,9 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <div className="text-xs text-gray-500 dark:text-gray-400">coinsByStreak: streakDay → coins</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('admin.autoRewardsChatDailyStreakHint', { defaultValue: 'coinsByStreak: streakDay → coins' })}
+                </div>
                 <Button
                   type="button"
                   size="sm"
@@ -984,7 +1085,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                     setDailyStreakRows((p) => [...p, { key: '', value: '' }]);
                   }}
                 >
-                  Add
+                  {t('admin.autoRewardsAdd', { defaultValue: 'Добавить' })}
                 </Button>
               </div>
 
@@ -1025,7 +1126,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                         setDailyStreakRows((p) => p.filter((_, i) => i !== idx));
                       }}
                     >
-                      Remove
+                      {t('admin.autoRewardsRemove', { defaultValue: 'Удалить' })}
                     </Button>
                   </div>
                 ))}
@@ -1045,7 +1146,7 @@ export function AutoRewardsEditor({ value, onChange, disabled }: AutoRewardsEdit
                   });
                 }}
               >
-                Apply coinsByStreak
+                {t('admin.autoRewardsApplyCoinsByStreak', { defaultValue: 'Применить coinsByStreak' })}
               </Button>
             </div>
           </div>
