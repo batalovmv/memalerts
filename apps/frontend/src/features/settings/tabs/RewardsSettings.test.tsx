@@ -140,6 +140,7 @@ describe('RewardsSettings (integration)', () => {
         null,
         2,
       ),
+      { parseSpecialCharSequences: false },
     );
 
     const saveBtn = within(section).getByRole('button', { name: /save/i });
