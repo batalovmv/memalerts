@@ -10,6 +10,55 @@ import { server } from '@/test/msw/server';
 import { mockStreamerChannelSettingsPatch, mockTwitchRewardEligibility } from '@/test/msw/handlers';
 import { makeStreamerUser } from '@/test/fixtures/user';
 
+// #region agent log
+const AGENT_INGEST = 'http://127.0.0.1:7245/ingest/7e3c7663-07d0-4b19-b672-242e78cd89e3';
+function agentLog(payload: { runId: string; hypothesisId: string; location: string; message: string; data?: unknown }) {
+  globalThis
+    .fetch?.(AGENT_INGEST, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'debug-session', timestamp: Date.now(), ...payload }),
+    })
+    .catch(() => {});
+}
+
+function logRewardsSnapshot(params: { runId: string; test: string }) {
+  const buttons = Array.from(document.querySelectorAll('button'))
+    .slice(0, 40)
+    .map((b) => ({
+      text: (b.textContent || '').replace(/\s+/g, ' ').trim(),
+      className: (b.getAttribute('class') || '').slice(0, 120),
+    }));
+
+  const headings = Array.from(document.querySelectorAll('h1,h2,h3'))
+    .slice(0, 40)
+    .map((h) => (h.textContent || '').replace(/\s+/g, ' ').trim());
+
+  const text = (document.body?.textContent || '').toLowerCase();
+  const contains = (s: string) => text.includes(s.toLowerCase());
+
+  agentLog({
+    runId: params.runId,
+    hypothesisId: 'H1',
+    location: 'RewardsSettings.test.tsx:agentLog:logRewardsSnapshot',
+    message: 'RewardsSettings snapshot',
+    data: {
+      test: params.test,
+      has: {
+        discord: contains('discord'),
+        boosty: contains('boosty'),
+        subscribed_ru: contains('подписка активна'),
+        autoRewards: contains('auto rewards'),
+        uploadRewardLabel: contains('reward (upload / url)'),
+        kickCoinsRewardRu: contains('награда за монеты (kick)'),
+      },
+      headings,
+      buttons,
+    },
+  });
+}
+// #endregion agent log
+
 vi.mock('react-hot-toast', () => ({
   default: {
     success: vi.fn(),
@@ -82,6 +131,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'need_discord_link' });
     expect(await screen.findByRole('button', { name: /привязать discord/i })).toBeInTheDocument();
   });
 
@@ -106,6 +156,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'subscribed' });
     expect(await screen.findByText(/подписка активна/i)).toBeInTheDocument();
     expect(await screen.findByText(/t3/i)).toBeInTheDocument();
   });
@@ -127,6 +178,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'save_twitchAutoRewards' });
     const titleEl = await screen.findByText(/auto rewards/i);
     const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
 
@@ -167,6 +219,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_tab_autoRewards' });
     await userEv.click(await screen.findByRole('button', { name: /kick/i }));
 
     const titleEl = await screen.findByText(/auto rewards/i);
@@ -206,6 +259,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'approved_meme_autosave' });
     // Change upload reward to 10 (this triggers debounced autosave).
     const uploadLabelEl = await screen.findByText(/reward \(upload \/ url\) \(coins\)/i);
     const uploadContainer = uploadLabelEl.closest('div') ?? uploadLabelEl.parentElement ?? document.body;
@@ -241,6 +295,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'approved_meme_invalid_toast' });
     const uploadLabelEl = await screen.findByText(/reward \(upload \/ url\) \(coins\)/i);
     const uploadContainer = uploadLabelEl.closest('div') ?? uploadLabelEl.parentElement ?? document.body;
     const uploadInput = within(uploadContainer).getByRole('textbox') as HTMLInputElement;
@@ -281,6 +336,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_reward_autosave' });
     const kickTitleEl = await screen.findByText(/coins reward \(kick\)|награда за монеты \(kick\)/i);
     const section = kickTitleEl.closest('section') ?? kickTitleEl.parentElement ?? document.body;
     const kickToggle = within(section).getByRole('checkbox') as HTMLInputElement;
