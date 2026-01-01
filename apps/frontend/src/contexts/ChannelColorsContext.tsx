@@ -14,6 +14,14 @@ interface ChannelData {
   slug: string;
   name: string;
   coinPerPointRatio: number;
+  // YouTube Like → coins reward (channel setting).
+  youtubeLikeRewardEnabled?: boolean;
+  youtubeLikeRewardCoins?: number;
+  youtubeLikeRewardOnlyWhenLive?: boolean;
+  // Twitch auto-rewards config (new backend can return either key).
+  // Stored in DB as Channel.twitchAutoRewardsJson; updated via PATCH /streamer/channel/settings { twitchAutoRewards }.
+  twitchAutoRewards?: unknown | null;
+  twitchAutoRewardsJson?: unknown | null;
   boostyBlogName?: string | null;
   boostyCoinsPerSub?: number | null;
   boostyTierCoins?: Array<{ tierKey: string; coins: number }> | null;

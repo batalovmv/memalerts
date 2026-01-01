@@ -110,6 +110,49 @@ describe('RewardsSettings (integration)', () => {
     expect(await screen.findByText(/t3/i)).toBeInTheDocument();
   });
 
+  it('saves twitchAutoRewards JSON via /streamer/channel/settings', async () => {
+    const userEv = userEvent.setup();
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+
+    const bodies: unknown[] = [];
+    server.use(
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
+      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
+      mockTwitchRewardEligibility({ eligible: true }),
+      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
+    );
+
+    renderWithProviders(<RewardsSettings />, {
+      route: '/settings?tab=rewards',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    const titleEl = await screen.findByText(/twitch автонаграды|twitch auto[- ]?rewards/i);
+    const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
+
+    const textarea = within(section).getByLabelText(/twitchautorewards json/i) as HTMLTextAreaElement;
+    await userEv.clear(textarea);
+    await userEv.type(
+      textarea,
+      JSON.stringify(
+        {
+          v: 1,
+          follow: { enabled: true, coins: 10, onceEver: true, onlyWhenLive: false },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const saveBtn = within(section).getByRole('button', { name: /save/i });
+    await userEv.click(saveBtn);
+
+    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
+    const last = bodies.at(-1) as any;
+    expect(last.twitchAutoRewards?.v).toBe(1);
+    expect(last.twitchAutoRewards?.follow?.coins).toBe(10);
+  });
+
   it('autosaves approved meme reward via /streamer/channel/settings (payload uses numbers)', async () => {
     const userEv = userEvent.setup();
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });

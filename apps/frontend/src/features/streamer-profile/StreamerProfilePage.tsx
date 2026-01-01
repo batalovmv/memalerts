@@ -11,6 +11,7 @@ import CoinsInfoModal from '@/components/CoinsInfoModal';
 import Header from '@/components/Header';
 import MemeCard from '@/components/MemeCard';
 import MemeModal from '@/components/MemeModal';
+import { YouTubeLikeClaimButton } from '@/components/Rewards/YouTubeLikeClaimButton';
 import SubmitModal from '@/components/SubmitModal';
 import { useSocket } from '@/contexts/SocketContext';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
@@ -29,6 +30,9 @@ interface ChannelInfo {
   slug: string;
   name: string;
   coinPerPointRatio: number;
+  youtubeLikeRewardEnabled?: boolean;
+  youtubeLikeRewardCoins?: number;
+  youtubeLikeRewardOnlyWhenLive?: boolean;
   coinIconUrl?: string | null;
   rewardTitle?: string | null;
   primaryColor?: string | null;
@@ -82,6 +86,10 @@ function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo |
     slug,
     name,
     coinPerPointRatio: typeof r.coinPerPointRatio === 'number' && Number.isFinite(r.coinPerPointRatio) ? r.coinPerPointRatio : 0,
+    youtubeLikeRewardEnabled: typeof r.youtubeLikeRewardEnabled === 'boolean' ? r.youtubeLikeRewardEnabled : undefined,
+    youtubeLikeRewardCoins:
+      typeof r.youtubeLikeRewardCoins === 'number' && Number.isFinite(r.youtubeLikeRewardCoins) ? r.youtubeLikeRewardCoins : undefined,
+    youtubeLikeRewardOnlyWhenLive: typeof r.youtubeLikeRewardOnlyWhenLive === 'boolean' ? r.youtubeLikeRewardOnlyWhenLive : undefined,
     coinIconUrl: typeof r.coinIconUrl === 'string' ? r.coinIconUrl : r.coinIconUrl === null ? null : null,
     rewardTitle: typeof r.rewardTitle === 'string' ? r.rewardTitle : r.rewardTitle === null ? null : null,
     primaryColor: typeof r.primaryColor === 'string' ? r.primaryColor : r.primaryColor === null ? null : null,
@@ -177,7 +185,13 @@ export default function StreamerProfile() {
       setMemesOffset(0);
       try {
         // Public profile must use public API as canonical source.
-        const channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        let channelInfoRaw: unknown;
+        try {
+          // Prefer authenticated channel DTO (it includes reward flags like youtubeLikeReward*).
+          channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        } catch {
+          channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        }
         const channelInfo = normalizeChannelInfo(channelInfoRaw, normalizedSlug);
         if (!channelInfo) {
           throw new Error('Channel info missing');
@@ -272,6 +286,17 @@ export default function StreamerProfile() {
 
     loadChannelData();
   }, [slug, normalizedSlug, user, navigate, t, dispatch, isAuthed, reloadNonce]);
+
+  const refreshWallet = useCallback(async () => {
+    if (!user || !channelInfo?.slug) return;
+    try {
+      const w = await api.get<Wallet>(`/channels/${channelInfo.slug}/wallet`, { timeout: 10000 });
+      setWallet(w);
+      dispatch(updateWalletBalance({ channelId: w.channelId, balance: w.balance }));
+    } catch {
+      // ignore
+    }
+  }, [channelInfo?.slug, dispatch, user]);
 
   // Realtime: submissions status updates (Socket.IO)
   useEffect(() => {
@@ -629,20 +654,29 @@ export default function StreamerProfile() {
               </div>
               {/* Submit Meme Button - only show when logged in and not owner */}
               {user && !isOwner && (
-                <HelpTooltip content={t('help.profile.submitMeme', { defaultValue: 'Submit a meme to this channel.' })}>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => setIsSubmitModalOpen(true)}
-                    leftIcon={
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    }
-                  >
-                    {t('profile.submitMeme')}
-                  </Button>
-                </HelpTooltip>
+                <div className="flex flex-col items-end gap-2">
+                  {channelInfo?.youtubeLikeRewardEnabled && (channelInfo.youtubeLikeRewardCoins ?? 0) > 0 && (
+                    <YouTubeLikeClaimButton
+                      channelSlug={channelInfo.slug}
+                      coins={channelInfo.youtubeLikeRewardCoins ?? 0}
+                      onAwarded={() => void refreshWallet()}
+                    />
+                  )}
+                  <HelpTooltip content={t('help.profile.submitMeme', { defaultValue: 'Submit a meme to this channel.' })}>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => setIsSubmitModalOpen(true)}
+                      leftIcon={
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      }
+                    >
+                      {t('profile.submitMeme')}
+                    </Button>
+                  </HelpTooltip>
+                </div>
               )}
 
               {/* Guest CTA */}

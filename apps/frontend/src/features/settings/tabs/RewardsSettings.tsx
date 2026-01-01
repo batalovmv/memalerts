@@ -8,7 +8,7 @@ import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { toApiError } from '@/shared/api/toApiError';
 import { getApiOriginForRedirect, login } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-import { Button, HelpTooltip, Input } from '@/shared/ui';
+import { Button, HelpTooltip, Input, Textarea } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 
@@ -97,6 +97,7 @@ export function RewardsSettings() {
   const linkedProviders = new Set(
     externalAccounts.map((a) => String((a as { provider?: unknown })?.provider || '').toLowerCase()).filter(Boolean),
   );
+  const youtubeLinked = linkedProviders.has('youtube');
   const kickLinked = linkedProviders.has('kick');
   const trovoLinked = linkedProviders.has('trovo');
   const vkvideoLinked = linkedProviders.has('vkvideo');
@@ -105,7 +106,11 @@ export function RewardsSettings() {
   const [lastErrorRequestId, setLastErrorRequestId] = useState<string | null>(null);
   const [kickLastErrorRequestId, setKickLastErrorRequestId] = useState<string | null>(null);
   const [vkvideoLastErrorRequestId, setVkvideoLastErrorRequestId] = useState<string | null>(null);
+  const [kickBackendUnsupported, setKickBackendUnsupported] = useState(false);
   const [rewardSettings, setRewardSettings] = useState({
+    youtubeLikeRewardEnabled: false,
+    youtubeLikeRewardCoins: '10',
+    youtubeLikeRewardOnlyWhenLive: true,
     rewardIdForCoins: '',
     rewardEnabled: false,
     rewardTitle: '',
@@ -128,6 +133,12 @@ export function RewardsSettings() {
     submissionRewardCoinsPool: '0',
     submissionRewardOnlyWhenLive: false,
   });
+  const [twitchAutoRewardsText, setTwitchAutoRewardsText] = useState('');
+  const [twitchAutoRewardsError, setTwitchAutoRewardsError] = useState<string | null>(null);
+  const [savingTwitchAutoRewards, setSavingTwitchAutoRewards] = useState(false);
+  const [twitchAutoRewardsSavedPulse, setTwitchAutoRewardsSavedPulse] = useState(false);
+  const [savingYoutubeLikeReward, setSavingYoutubeLikeReward] = useState(false);
+  const [youtubeLikeSavedPulse, setYoutubeLikeSavedPulse] = useState(false);
   const [boostySettings, setBoostySettings] = useState<{
     boostyBlogName: string;
     boostyCoinsPerSub: string;
@@ -163,12 +174,15 @@ export function RewardsSettings() {
   const saveTrovoTimerRef = useRef<number | null>(null);
   const saveVkvideoTimerRef = useRef<number | null>(null);
   const saveBoostyTimerRef = useRef<number | null>(null);
+  const saveYoutubeLikeTimerRef = useRef<number | null>(null);
   const lastSavedTwitchRef = useRef<string | null>(null);
+  const lastSavedTwitchAutoRewardsRef = useRef<string | null>(null);
   const lastSavedApprovedRef = useRef<string | null>(null);
   const lastSavedKickRef = useRef<string | null>(null);
   const lastSavedTrovoRef = useRef<string | null>(null);
   const lastSavedVkvideoRef = useRef<string | null>(null);
   const lastSavedBoostyRef = useRef<string | null>(null);
+  const lastSavedYoutubeLikeRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null);
 
   const effectiveChannelId = user?.channelId || user?.channel?.id || null;
@@ -217,6 +231,20 @@ export function RewardsSettings() {
     window.location.href = url.toString();
   }, []);
 
+  const loadTwitchAutoRewardsFromSettings = useCallback(async (): Promise<boolean> => {
+    try {
+      const { api } = await import('@/lib/api');
+      const res = await api.patch<unknown>('/streamer/channel/settings', {});
+      const rr = toRecord(res);
+      const tawRaw = rr ? (rr.twitchAutoRewardsJson ?? rr.twitchAutoRewards ?? null) : null;
+      setTwitchAutoRewardsText(tawRaw ? JSON.stringify(tawRaw, null, 2) : '');
+      lastSavedTwitchAutoRewardsRef.current = JSON.stringify(tawRaw ?? null);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Auto-refresh on entering screen.
   useEffect(() => {
     void refreshBoostyAccess();
@@ -232,6 +260,14 @@ export function RewardsSettings() {
     try {
       const cached = getCachedChannelData(user.channel.slug);
       if (cached) {
+        const loaded = await loadTwitchAutoRewardsFromSettings();
+        if (!loaded) {
+          const cachedRec = toRecord(cached);
+          const tawRaw = cachedRec ? (cachedRec.twitchAutoRewards ?? cachedRec.twitchAutoRewardsJson ?? null) : null;
+          setTwitchAutoRewardsText(tawRaw ? JSON.stringify(tawRaw, null, 2) : '');
+          lastSavedTwitchAutoRewardsRef.current = JSON.stringify(tawRaw ?? null);
+        }
+
         const legacyCoins =
           typeof cached.submissionRewardCoins === 'number' ? cached.submissionRewardCoins : 0;
         const uploadCoins =
@@ -239,6 +275,12 @@ export function RewardsSettings() {
         const poolCoins =
           typeof cached.submissionRewardCoinsPool === 'number' ? cached.submissionRewardCoinsPool : legacyCoins;
         setRewardSettings({
+          youtubeLikeRewardEnabled: getBoolean(cached, 'youtubeLikeRewardEnabled') ?? false,
+          youtubeLikeRewardCoins:
+            typeof (cached as { youtubeLikeRewardCoins?: unknown }).youtubeLikeRewardCoins === 'number'
+              ? String((cached as { youtubeLikeRewardCoins: number }).youtubeLikeRewardCoins)
+              : '10',
+          youtubeLikeRewardOnlyWhenLive: getBoolean(cached, 'youtubeLikeRewardOnlyWhenLive') ?? true,
           rewardIdForCoins: cached.rewardIdForCoins || '',
           rewardEnabled: cached.rewardEnabled || false,
           rewardTitle: cached.rewardTitle || '',
@@ -288,6 +330,14 @@ export function RewardsSettings() {
           rewardCost: cached.rewardCost ?? null,
           rewardCoins: cached.rewardCoins ?? null,
           rewardOnlyWhenLive: getBoolean(cached, 'rewardOnlyWhenLive') ?? false,
+        });
+        lastSavedYoutubeLikeRef.current = JSON.stringify({
+          youtubeLikeRewardEnabled: getBoolean(cached, 'youtubeLikeRewardEnabled') ?? false,
+          youtubeLikeRewardCoins:
+            typeof (cached as { youtubeLikeRewardCoins?: unknown }).youtubeLikeRewardCoins === 'number'
+              ? (cached as { youtubeLikeRewardCoins: number }).youtubeLikeRewardCoins
+              : 0,
+          youtubeLikeRewardOnlyWhenLive: getBoolean(cached, 'youtubeLikeRewardOnlyWhenLive') ?? true,
         });
         lastSavedApprovedRef.current = JSON.stringify({
           submissionRewardCoinsUpload: uploadCoins ?? 0,
@@ -362,6 +412,14 @@ export function RewardsSettings() {
 
       const channelData = await getChannelData(user.channel.slug);
       if (channelData) {
+        const loaded = await loadTwitchAutoRewardsFromSettings();
+        if (!loaded) {
+          const channelRec = toRecord(channelData);
+          const tawRaw = channelRec ? (channelRec.twitchAutoRewards ?? channelRec.twitchAutoRewardsJson ?? null) : null;
+          setTwitchAutoRewardsText(tawRaw ? JSON.stringify(tawRaw, null, 2) : '');
+          lastSavedTwitchAutoRewardsRef.current = JSON.stringify(tawRaw ?? null);
+        }
+
         const legacyCoins =
           typeof channelData.submissionRewardCoins === 'number' ? channelData.submissionRewardCoins : 0;
         const uploadCoins =
@@ -369,6 +427,12 @@ export function RewardsSettings() {
         const poolCoins =
           typeof channelData.submissionRewardCoinsPool === 'number' ? channelData.submissionRewardCoinsPool : legacyCoins;
         setRewardSettings({
+          youtubeLikeRewardEnabled: getBoolean(channelData, 'youtubeLikeRewardEnabled') ?? false,
+          youtubeLikeRewardCoins:
+            typeof (channelData as { youtubeLikeRewardCoins?: unknown }).youtubeLikeRewardCoins === 'number'
+              ? String((channelData as { youtubeLikeRewardCoins: number }).youtubeLikeRewardCoins)
+              : '10',
+          youtubeLikeRewardOnlyWhenLive: getBoolean(channelData, 'youtubeLikeRewardOnlyWhenLive') ?? true,
           rewardIdForCoins: channelData.rewardIdForCoins || '',
           rewardEnabled: channelData.rewardEnabled || false,
           rewardTitle: channelData.rewardTitle || '',
@@ -418,6 +482,14 @@ export function RewardsSettings() {
           rewardCost: channelData.rewardCost ?? null,
           rewardCoins: channelData.rewardCoins ?? null,
           rewardOnlyWhenLive: getBoolean(channelData, 'rewardOnlyWhenLive') ?? false,
+        });
+        lastSavedYoutubeLikeRef.current = JSON.stringify({
+          youtubeLikeRewardEnabled: getBoolean(channelData, 'youtubeLikeRewardEnabled') ?? false,
+          youtubeLikeRewardCoins:
+            typeof (channelData as { youtubeLikeRewardCoins?: unknown }).youtubeLikeRewardCoins === 'number'
+              ? (channelData as { youtubeLikeRewardCoins: number }).youtubeLikeRewardCoins
+              : 0,
+          youtubeLikeRewardOnlyWhenLive: getBoolean(channelData, 'youtubeLikeRewardOnlyWhenLive') ?? true,
         });
         lastSavedApprovedRef.current = JSON.stringify({
           submissionRewardCoinsUpload: uploadCoins ?? 0,
@@ -492,6 +564,67 @@ export function RewardsSettings() {
       settingsLoadedRef.current = null;
     }
   }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
+
+  const parseTwitchAutoRewards = useCallback(
+    (rawText: string): { value: unknown | null; displayText: string } => {
+      const text = (rawText ?? '').trim();
+      if (!text) return { value: null, displayText: '' };
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text) as unknown;
+      } catch {
+        throw new Error(t('admin.invalidJson', { defaultValue: 'Invalid JSON.' }));
+      }
+
+      const r = toRecord(parsed);
+      if (!r) {
+        throw new Error(t('admin.twitchAutoRewardsMustBeObject', { defaultValue: 'twitchAutoRewards must be a JSON object.' }));
+      }
+      if (r.v !== 1) {
+        throw new Error(t('admin.twitchAutoRewardsVersion', { defaultValue: 'twitchAutoRewards.v must be 1.' }));
+      }
+
+      return { value: parsed, displayText: JSON.stringify(parsed, null, 2) };
+    },
+    [t],
+  );
+
+  const handleSaveTwitchAutoRewards = useCallback(async (overrideText?: string) => {
+    const startedAt = Date.now();
+    setSavingTwitchAutoRewards(true);
+    try {
+      setTwitchAutoRewardsError(null);
+      const { value, displayText } = parseTwitchAutoRewards(overrideText ?? twitchAutoRewardsText);
+      const payloadStr = JSON.stringify(value ?? null);
+      if (payloadStr === lastSavedTwitchAutoRewardsRef.current) {
+        // Keep formatting stable even if user pasted minified JSON.
+        setTwitchAutoRewardsText(displayText);
+        return;
+      }
+
+      const { api } = await import('@/lib/api');
+      const res = await api.patch<unknown>('/streamer/channel/settings', {
+        twitchAutoRewards: value,
+      });
+
+      const rr = toRecord(res);
+      const savedRaw = rr ? (rr.twitchAutoRewardsJson ?? rr.twitchAutoRewards ?? value ?? null) : (value ?? null);
+      const savedStr = JSON.stringify(savedRaw ?? null);
+      lastSavedTwitchAutoRewardsRef.current = savedStr;
+      setTwitchAutoRewardsText(savedRaw ? JSON.stringify(savedRaw, null, 2) : '');
+      setLastErrorRequestId(null);
+    } catch (e) {
+      const err = toApiError(e, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+      setTwitchAutoRewardsError(err.message || 'Failed to save settings');
+      toast.error(err.message || 'Failed to save settings');
+    } finally {
+      await ensureMinDuration(startedAt, 650);
+      setSavingTwitchAutoRewards(false);
+      setTwitchAutoRewardsSavedPulse(true);
+      window.setTimeout(() => setTwitchAutoRewardsSavedPulse(false), 700);
+    }
+  }, [parseTwitchAutoRewards, t, twitchAutoRewardsText]);
 
   useEffect(() => {
     if (user?.channelId && user?.channel?.slug) {
@@ -701,6 +834,19 @@ export function RewardsSettings() {
       const rid = getRequestIdFromError(error);
       setKickLastErrorRequestId(rid);
 
+      const msg = String(err.error || '').toLowerCase();
+      if (msg.includes('kickrewardenabled') && msg.includes('does not exist')) {
+        // Backend DB is not migrated yet; prevent repeated autosaves and keep UI consistent.
+        setKickBackendUnsupported(true);
+        toast.error(
+          t('admin.kickBackendNotReady', {
+            defaultValue: 'Kick rewards are temporarily unavailable (backend database is not migrated yet).',
+          })
+        );
+        setRewardSettings((p) => ({ ...p, kickRewardEnabled: false }));
+        return;
+      }
+
       if (err.errorCode === 'KICK_NOT_LINKED') {
         toast.error(
           t('admin.kickNotLinked', {
@@ -858,10 +1004,62 @@ export function RewardsSettings() {
     user?.channel?.slug,
   ]);
 
+  // Autosave: YouTube like reward fields (debounced)
+  useEffect(() => {
+    if (!user?.channel?.slug) return;
+    if (!settingsLoadedRef.current) return;
+
+    const enabled = !!rewardSettings.youtubeLikeRewardEnabled;
+    const coins = parseIntSafe(String(rewardSettings.youtubeLikeRewardCoins || '0')) ?? 0;
+    const onlyWhenLive = !!rewardSettings.youtubeLikeRewardOnlyWhenLive;
+
+    const payload = JSON.stringify({
+      youtubeLikeRewardEnabled: enabled,
+      youtubeLikeRewardCoins: coins,
+      youtubeLikeRewardOnlyWhenLive: onlyWhenLive,
+    });
+
+    if (payload === lastSavedYoutubeLikeRef.current) return;
+    if (saveYoutubeLikeTimerRef.current) window.clearTimeout(saveYoutubeLikeTimerRef.current);
+    saveYoutubeLikeTimerRef.current = window.setTimeout(async () => {
+      const startedAt = Date.now();
+      setSavingYoutubeLikeReward(true);
+      try {
+        const { api } = await import('@/lib/api');
+        await api.patch('/streamer/channel/settings', {
+          youtubeLikeRewardEnabled: enabled,
+          youtubeLikeRewardCoins: coins,
+          youtubeLikeRewardOnlyWhenLive: onlyWhenLive,
+        });
+        lastSavedYoutubeLikeRef.current = payload;
+      } catch (error: unknown) {
+        const err = toApiError(error, t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+        toast.error(err.error || err.message);
+      } finally {
+        await ensureMinDuration(startedAt, 650);
+        setSavingYoutubeLikeReward(false);
+        setYoutubeLikeSavedPulse(true);
+        window.setTimeout(() => setYoutubeLikeSavedPulse(false), 700);
+      }
+    }, 500);
+
+    return () => {
+      if (saveYoutubeLikeTimerRef.current) window.clearTimeout(saveYoutubeLikeTimerRef.current);
+      saveYoutubeLikeTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rewardSettings.youtubeLikeRewardEnabled,
+    rewardSettings.youtubeLikeRewardCoins,
+    rewardSettings.youtubeLikeRewardOnlyWhenLive,
+    user?.channel?.slug,
+  ]);
+
   // Autosave: Kick reward fields (debounced)
   useEffect(() => {
     if (!user?.channel?.slug) return;
     if (!settingsLoadedRef.current) return;
+    if (kickBackendUnsupported) return;
 
     const enabled = !!rewardSettings.kickRewardEnabled;
     const ratio = parseIntSafe(String(rewardSettings.kickCoinPerPointRatio || '1')) ?? 1;
@@ -896,6 +1094,7 @@ export function RewardsSettings() {
     rewardSettings.kickRewardCoins,
     rewardSettings.kickRewardOnlyWhenLive,
     user?.channel?.slug,
+    kickBackendUnsupported,
   ]);
 
   // Autosave: Trovo reward fields (debounced)
@@ -1352,6 +1551,177 @@ export function RewardsSettings() {
         </SettingsSection>
 
         <SettingsSection
+          title={t('admin.youtubeLikeRewardTitle', { defaultValue: 'Награда за лайк YouTube' })}
+          description={t('admin.youtubeLikeRewardDescription', { defaultValue: 'Зритель ставит лайк на YouTube и получает монеты на сайте.' })}
+          overlay={
+            <>
+              {savingYoutubeLikeReward && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {youtubeLikeSavedPulse && !savingYoutubeLikeReward && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
+            <HelpTooltip content={t('help.settings.rewards.enableYoutubeLikeReward', { defaultValue: 'Enable/disable YouTube like → coins reward.' })}>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rewardSettings.youtubeLikeRewardEnabled}
+                  disabled={savingYoutubeLikeReward}
+                  onChange={(e) => {
+                    const nextEnabled = e.target.checked;
+                    if (nextEnabled && !youtubeLinked) {
+                      toast.error(
+                        t('admin.youtubeNotLinked', {
+                          defaultValue: 'YouTube account is not linked. Link YouTube in Settings → Accounts.',
+                        })
+                      );
+                      return;
+                    }
+                    if (nextEnabled) {
+                      setRewardSettings((p) => ({
+                        ...p,
+                        youtubeLikeRewardEnabled: true,
+                        youtubeLikeRewardCoins: String(p.youtubeLikeRewardCoins || '').trim() ? p.youtubeLikeRewardCoins : '10',
+                      }));
+                      return;
+                    }
+                    setRewardSettings((p) => ({ ...p, youtubeLikeRewardEnabled: false }));
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+              </label>
+            </HelpTooltip>
+          }
+          contentClassName={rewardSettings.youtubeLikeRewardEnabled ? 'space-y-4' : undefined}
+        >
+          {!youtubeLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.youtubeNotLinked', { defaultValue: 'YouTube account is not linked. Link YouTube in Settings → Accounts.' })}
+            </p>
+          )}
+          {rewardSettings.youtubeLikeRewardEnabled && (
+            <div className={savingYoutubeLikeReward ? 'pointer-events-none opacity-60' : ''}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('admin.rewardOnlyWhenLiveTitle', { defaultValue: 'Active only when stream is live' })}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t('admin.youtubeLikeRewardOnlyWhenLiveHint', { defaultValue: 'If enabled, reward can be claimed only while your stream is live.' })}
+                  </div>
+                </div>
+                <HelpTooltip content={t('help.settings.rewards.onlyWhenLiveYoutube', { defaultValue: 'If enabled, the reward can be claimed only when live.' })}>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={rewardSettings.youtubeLikeRewardOnlyWhenLive}
+                      disabled={savingYoutubeLikeReward}
+                      onChange={(e) => setRewardSettings((p) => ({ ...p, youtubeLikeRewardOnlyWhenLive: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                  </label>
+                </HelpTooltip>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('admin.youtubeLikeRewardCoins', { defaultValue: 'Coins' })}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={rewardSettings.youtubeLikeRewardCoins}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d]/g, '');
+                    setRewardSettings((p) => ({ ...p, youtubeLikeRewardCoins: next }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-' || e.key === '.') {
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder="10"
+                />
+              </div>
+            </div>
+          )}
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('admin.autoRewardsTitle', { defaultValue: 'Auto rewards (Twitch/Kick/Trovo/VKVideo)' })}
+          description={t('admin.twitchAutoRewardsDescription', {
+            defaultValue:
+              'Автоматическое начисление монет за события (Twitch/Kick/Trovo/VKVideo). Настройка хранится в виде JSON и применяется бэкендом best-effort.',
+          })}
+          overlay={
+            <>
+              {savingTwitchAutoRewards && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+              {twitchAutoRewardsSavedPulse && !savingTwitchAutoRewards && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
+            </>
+          }
+          right={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={savingTwitchAutoRewards || !twitchLinked}
+                onClick={() => void handleSaveTwitchAutoRewards()}
+              >
+                {t('common.save', { defaultValue: 'Save' })}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={savingTwitchAutoRewards || !twitchLinked}
+                onClick={() => void handleSaveTwitchAutoRewards('')}
+              >
+                {t('common.clear', { defaultValue: 'Clear' })}
+              </Button>
+            </div>
+          }
+        >
+          {!twitchLinked && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.twitchChannelNotLinked', { defaultValue: 'This channel is not linked to Twitch.' })}
+            </p>
+          )}
+          {twitchAutoRewardsError && <p className="text-sm text-rose-600 dark:text-rose-300">{twitchAutoRewardsError}</p>}
+          <div className={savingTwitchAutoRewards ? 'pointer-events-none opacity-60 space-y-2' : 'space-y-2'}>
+            <div>
+              <label htmlFor="twitchAutoRewardsJson" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('admin.twitchAutoRewardsJsonLabel', { defaultValue: 'twitchAutoRewards JSON (v=1)' })}
+              </label>
+              <Textarea
+                id="twitchAutoRewardsJson"
+                value={twitchAutoRewardsText}
+                onChange={(e) => {
+                  setTwitchAutoRewardsText(e.target.value);
+                  setTwitchAutoRewardsError(null);
+                }}
+                rows={12}
+                spellCheck={false}
+                placeholder={JSON.stringify(
+                  {
+                    v: 1,
+                    follow: { enabled: true, coins: 10, onceEver: true, onlyWhenLive: false },
+                    channelPoints: { enabled: true, byRewardId: { rewardId1: 100 }, onlyWhenLive: false },
+                  },
+                  null,
+                  2,
+                )}
+              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                {t('admin.twitchAutoRewardsHint', {
+                  defaultValue:
+                    'Все секции опциональны. Если enabled=false или coins/… = 0 — награда не начисляется. Twitch: channelPoints → byRewardId (reward.id). VKVideo: follow/subscribe/chat используют те же секции (subscribe.primeCoins = coins). Если channelPoints.enabled=false — остаётся legacy-настройка rewardIdForCoins.',
+                })}
+              </p>
+            </div>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
           title={t('admin.kickCoinsRewardTitle', { defaultValue: 'Награда за монеты (Kick)' })}
           description={t('admin.kickCoinsRewardDescription', { defaultValue: 'Зритель активирует награду на Kick и получает монеты на сайте.' })}
           overlay={
@@ -1369,6 +1739,14 @@ export function RewardsSettings() {
                   disabled={savingKickReward}
                   onChange={(e) => {
                     const nextEnabled = e.target.checked;
+                    if (nextEnabled && kickBackendUnsupported) {
+                      toast.error(
+                        t('admin.kickBackendNotReady', {
+                          defaultValue: 'Kick rewards are temporarily unavailable (backend database is not migrated yet).',
+                        })
+                      );
+                      return;
+                    }
                     if (nextEnabled && !kickLinked) {
                       toast.error(
                         t('admin.kickNotLinked', {
@@ -1398,6 +1776,13 @@ export function RewardsSettings() {
           {kickLastErrorRequestId && (
             <p className="text-xs text-gray-600 dark:text-gray-400 select-text">
               {t('common.errorId', { defaultValue: 'Error ID' })}: <span className="font-mono">{kickLastErrorRequestId}</span>
+            </p>
+          )}
+          {kickBackendUnsupported && (
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('admin.kickBackendNotReady', {
+                defaultValue: 'Kick rewards are temporarily unavailable (backend database is not migrated yet).',
+              })}
             </p>
           )}
           {!kickLinked && (
@@ -1637,7 +2022,8 @@ export function RewardsSettings() {
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {t('admin.vkvideoRewardsPrereqHint', {
-              defaultValue: 'Важно: также нужно настроить интеграцию во вкладке Bots (vkvideoChannelId/vkvideoChannelUrl).',
+              defaultValue:
+                'Важно: чтобы награды приходили, нужно (1) привязать VKVideo аккаунт и (2) включить бота во вкладке Bots (PATCH /streamer/bots/vkvideo { enabled: true }).',
             })}
           </p>
 

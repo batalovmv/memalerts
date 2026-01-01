@@ -1,16 +1,15 @@
-import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
 import { render, act, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, it, vi } from 'vitest';
 
 import App from './App';
 
-type Listener = (...args: any[]) => void;
+type Listener = (...args: unknown[]) => void;
 
 class FakeSocket {
   public connected = false;
   public listeners = new Map<string, Set<Listener>>();
-  public emitted: Array<{ event: string; args: any[] }> = [];
+  public emitted: Array<{ event: string; args: unknown[] }> = [];
   public disconnected = 0;
 
   on(event: string, cb: Listener) {
@@ -20,7 +19,7 @@ class FakeSocket {
     return this;
   }
 
-  emit(event: string, ...args: any[]) {
+  emit(event: string, ...args: unknown[]) {
     this.emitted.push({ event, args });
     return this;
   }
@@ -31,7 +30,7 @@ class FakeSocket {
     return this;
   }
 
-  fire(event: string, ...args: any[]) {
+  fire(event: string, ...args: unknown[]) {
     const set = this.listeners.get(event) ?? new Set();
     for (const cb of set) cb(...args);
   }
@@ -42,7 +41,7 @@ const hoisted = vi.hoisted(() => {
   const ioMock = vi.fn(() => {
     const s = new FakeSocket();
     sockets.push(s);
-    return s as any;
+    return s as unknown as object;
   });
   return { sockets, ioMock };
 });
@@ -54,8 +53,9 @@ vi.mock('socket.io-client', () => ({
 describe('overlay CreditsOverlayView (integration)', () => {
   it('renders nothing (transparent) until credits:state provides data, then renders sections', async () => {
     // JSDOM may not provide ResizeObserver; CreditsOverlayView uses it.
-    if (!(globalThis as any).ResizeObserver) {
-      (globalThis as any).ResizeObserver = class {
+    const g = globalThis as unknown as { ResizeObserver?: unknown };
+    if (!g.ResizeObserver) {
+      g.ResizeObserver = class {
         observe() {}
         disconnect() {}
         unobserve() {}

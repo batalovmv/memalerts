@@ -3257,6 +3257,12 @@ export function BotSettings() {
                   <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                     {t('admin.trovoBotIntegrationLabel', { defaultValue: 'Включить Trovo-бота для канала.' })}
                   </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    {t('admin.autoRewardsTrovoMappingHint', {
+                      defaultValue:
+                        'Auto rewards mapping (twitchAutoRewards): type 5003 → follow, 5001 → subscribe, 5005/5006 → giftSub, 5008 → raid, 0 → chat.*, 5012 используется для границ стрима (счётчики per-stream).',
+                    })}
+                  </div>
                 </div>
                 {botsLoading ? <Spinner className="h-5 w-5" /> : null}
                 <ToggleSwitch
@@ -3364,6 +3370,12 @@ export function BotSettings() {
                   <div className="font-semibold text-gray-900 dark:text-white">Kick</div>
                   <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                     {t('admin.kickBotIntegrationLabel', { defaultValue: 'Включить Kick-бота для канала.' })}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    {t('admin.autoRewardsKickMappingHint', {
+                      defaultValue:
+                        'Auto rewards mapping (twitchAutoRewards): channel.followed → follow, channel.subscription.new → subscribe, channel.subscription.renewal → resubMessage, channel.subscription.gifts → giftSub, kicks.gifted → cheer (bitsPerCoin/minBits используются как kicksPerCoin/minKicks), chat.message.sent → chat.*.',
+                    })}
                   </div>
                 </div>
                 {botsLoading ? <Spinner className="h-5 w-5" /> : null}

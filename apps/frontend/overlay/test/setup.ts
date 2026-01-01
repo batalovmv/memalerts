@@ -1,8 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { configure, prettyDOM } from '@testing-library/dom';
-import { afterAll, afterEach, beforeAll } from 'vitest';
-
 import { setupServer } from 'msw/node';
+import { afterAll, afterEach, beforeAll } from 'vitest';
 
 // Overlay tests are currently lightweight, but we still enforce "no real network".
 const server = setupServer();
