@@ -227,7 +227,8 @@ describe('RewardsSettings (integration)', () => {
     const cpTitle = await screen.findByRole('heading', { name: /twitch\s+channel\s+points:?\s*rewardid\s*→\s*coins/i });
     const cpSection = cpTitle.closest('section') ?? cpTitle.parentElement ?? document.body;
     expect(within(cpSection).queryByRole('checkbox', { name: /enable follow auto reward/i })).not.toBeInTheDocument();
-    expect(within(cpSection).getByText(/channel points:?\s*rewardid\s*→\s*coins/i)).toBeInTheDocument();
+    // Text appears both in section title and inside the editor; assert "at least one" match.
+    expect(within(cpSection).getAllByText(/channel points:?\s*rewardid\s*→\s*coins/i).length).toBeGreaterThanOrEqual(1);
 
     // Common tab: still hidden.
     await userEv.click(await screen.findByRole('button', { name: /(общие|common)/i }));
