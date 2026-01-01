@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 
 import { RewardsSettings } from './RewardsSettings';
@@ -127,22 +127,60 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
-    const textarea = (await screen.findByLabelText(/twitchautorewards json/i)) as HTMLTextAreaElement;
-    const section = textarea.closest('section') ?? textarea.parentElement ?? document.body;
-    const jsonText = JSON.stringify(
-      {
-        v: 1,
-        follow: { enabled: true, coins: 10, onceEver: true, onlyWhenLive: false },
-      },
-      null,
-      2,
-    );
-    // Use fireEvent instead of userEvent.type/paste:
-    // - type() parses `{...}` as special sequences
-    // - paste() relies on clipboardData which may be missing in some JSDOM environments
-    fireEvent.change(textarea, { target: { value: jsonText } });
+    const titleEl = await screen.findByText(/auto rewards/i);
+    const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
+
+    const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
+    await userEv.click(followToggle);
+
+    const followCoins = within(section).getByRole('textbox', { name: /follow coins/i }) as HTMLInputElement;
+    await userEv.clear(followCoins);
+    await userEv.type(followCoins, '10');
 
     const saveBtn = within(section).getByRole('button', { name: /save/i });
+    await userEv.click(saveBtn);
+
+    await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
+    const last = bodies.at(-1) as any;
+    expect(last.twitchAutoRewards?.v).toBe(1);
+    expect(last.twitchAutoRewards?.follow?.coins).toBe(10);
+  });
+
+  it('allows editing/saving autoRewards on Kick tab when Twitch is not linked', async () => {
+    const userEv = userEvent.setup();
+    const me = makeStreamerUser({
+      channelId: 'c1',
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: null } as any,
+      externalAccounts: [{ id: 'ea_kick', provider: 'kick' } as any],
+    });
+
+    const bodies: unknown[] = [];
+    server.use(
+      http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
+      http.get('*/channels/:channelId/boosty-access', defaultBoostyAccess),
+      mockTwitchRewardEligibility({ eligible: true }),
+      mockStreamerChannelSettingsPatch((b) => bodies.push(b)),
+    );
+
+    renderWithProviders(<RewardsSettings />, {
+      route: '/settings?tab=rewards',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    await userEv.click(await screen.findByRole('button', { name: /kick/i }));
+
+    const titleEl = await screen.findByText(/auto rewards/i);
+    const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
+
+    const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
+    await userEv.click(followToggle);
+
+    const followCoins = within(section).getByRole('textbox', { name: /follow coins/i }) as HTMLInputElement;
+    await userEv.clear(followCoins);
+    await userEv.type(followCoins, '10');
+
+    const saveBtn = within(section).getByRole('button', { name: /save/i });
+    expect(saveBtn).not.toBeDisabled();
     await userEv.click(saveBtn);
 
     await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));

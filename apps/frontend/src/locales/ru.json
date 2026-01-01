@@ -645,7 +645,7 @@
     "followGreetingTemplateSaved": "Шаблон сохранён.",
     "failedToSaveFollowGreetingTemplate": "Не удалось сохранить шаблон.",
     "rewardOnlyWhenLiveTitle": "Работает только когда стрим онлайн",
-    "rewardOnlyWhenLiveHint": "Если включено — награда работает только пока ваш Twitch-стрим идёт (онлайн).",
+    "rewardOnlyWhenLiveHint": "Если включено — награда работает только пока ваш стрим идёт (онлайн).",
     "streamDurationTitle": "Команда: время стрима",
     "streamDurationHint": "Команда бота, которая считает длительность стрима. «Кредит паузы» не сбрасывает таймер при коротких отключениях.",
     "streamDurationNotAvailable": "Команда времени стрима пока недоступна на этом сервере. Нужно задеплоить обновление бэкенда.",

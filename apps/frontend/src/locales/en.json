@@ -627,7 +627,7 @@
     "followGreetingTemplateSaved": "Template saved.",
     "failedToSaveFollowGreetingTemplate": "Failed to save template.",
     "rewardOnlyWhenLiveTitle": "Active only when stream is live",
-    "rewardOnlyWhenLiveHint": "When enabled, the reward works only while your Twitch stream is online.",
+    "rewardOnlyWhenLiveHint": "When enabled, the reward works only while your stream is online.",
     "streamDurationTitle": "Stream duration command",
     "streamDurationHint": "Bot command that tracks how long your stream has been live. Optional “break credit” keeps the timer running during short interruptions.",
     "streamDurationNotAvailable": "Stream duration command is not available on this server yet. Please deploy the backend update.",
