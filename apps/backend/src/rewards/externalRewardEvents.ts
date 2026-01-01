@@ -17,12 +17,32 @@ export function stableProviderEventId(params: { provider: string; rawPayloadJson
 
 export async function recordExternalRewardEventTx(params: {
   tx: Tx;
-  provider: 'kick' | 'trovo' | 'vkvideo';
+  provider: 'kick' | 'trovo' | 'vkvideo' | 'twitch';
   providerEventId: string;
   channelId: string;
   providerAccountId: string;
-  eventType: 'kick_reward_redemption' | 'trovo_spell' | 'vkvideo_channel_points_redemption';
-  currency: 'kick_channel_points' | 'trovo_mana' | 'trovo_elixir' | 'vkvideo_channel_points';
+  eventType:
+    | 'kick_reward_redemption'
+    | 'trovo_spell'
+    | 'vkvideo_channel_points_redemption'
+    | 'twitch_follow'
+    | 'twitch_subscribe'
+    | 'twitch_resub_message'
+    | 'twitch_gift_sub'
+    | 'twitch_cheer'
+    | 'twitch_raid'
+    | 'twitch_channel_points_redemption'
+    | 'twitch_chat_first_message'
+    | 'twitch_chat_messages_threshold'
+    | 'twitch_chat_daily_streak';
+  currency:
+    | 'kick_channel_points'
+    | 'trovo_mana'
+    | 'trovo_elixir'
+    | 'vkvideo_channel_points'
+    | 'twitch_channel_points'
+    | 'twitch_bits'
+    | 'twitch_units';
   amount: number;
   coinsToGrant: number;
   status: 'observed' | 'eligible' | 'ignored' | 'failed';

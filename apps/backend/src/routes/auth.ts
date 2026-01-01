@@ -15,6 +15,9 @@ authRoutes.delete('/accounts/:externalAccountId', authenticate, authController.u
 // Manual linking for providers without OAuth redirects (Boosty).
 authRoutes.post('/boosty/link', authenticate, authController.linkBoosty);
 
+// Special YouTube linking: request force-ssl scope (used for viewer activity rewards like videos.getRating).
+authRoutes.get('/youtube/link/force-ssl', authenticate, authController.initiateYouTubeForceSslLink);
+
 // New multi-provider endpoints
 authRoutes.get('/:provider', authController.initiateAuth);
 authRoutes.get('/:provider/callback', authController.handleCallback);

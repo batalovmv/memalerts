@@ -489,9 +489,16 @@ export async function createEventSubSubscriptionOfType(opts: {
   broadcasterId: string;
   webhookUrl: string;
   secret: string;
+  // Optional override for EventSub `condition` object.
+  // If omitted, defaults to { broadcaster_user_id: broadcasterId }.
+  condition?: Record<string, string>;
 }): Promise<any> {
   const accessToken = await getAppAccessToken();
   const version = String(opts.version || '1');
+  const condition =
+    opts.condition && typeof opts.condition === 'object' && Object.keys(opts.condition).length > 0
+      ? opts.condition
+      : { broadcaster_user_id: opts.broadcasterId };
 
   const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
     method: 'POST',
@@ -503,9 +510,7 @@ export async function createEventSubSubscriptionOfType(opts: {
     body: JSON.stringify({
       type: opts.type,
       version,
-      condition: {
-        broadcaster_user_id: opts.broadcasterId,
-      },
+      condition,
       transport: {
         method: 'webhook',
         callback: opts.webhookUrl,

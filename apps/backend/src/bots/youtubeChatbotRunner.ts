@@ -14,6 +14,7 @@ import {
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { getStreamDurationSnapshot, handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import { markCreditsSessionOffline } from '../realtime/creditsSessionStore.js';
+import { getYouTubeRoleTags, hasRoles, sanitizeRoleTags, type RoleMode, type RoleTag } from './youtubeRoles.js';
 
 dotenv.config();
 
@@ -202,21 +203,24 @@ type ChannelState = {
   pageToken: string | null;
   lastLiveCheckAt: number;
   lastPollAt: number;
+  nextPollAtMs?: number;
   pollInFlight: boolean;
   // Command cache
   commandsTs: number;
-  commands: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }>;
+  commands: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean; requiredRoleTags: RoleTag[]; roleMode: RoleMode }>;
   // Optional per-channel bot account override (ExternalAccount.id)
   botExternalAccountId: string | null;
 };
 
-async function refreshCommandsForChannel(channelId: string): Promise<Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }>> {
+async function refreshCommandsForChannel(
+  channelId: string
+): Promise<Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean; requiredRoleTags: RoleTag[]; roleMode: RoleMode }>> {
   try {
     let rows: any[] = [];
     try {
       rows = await (prisma as any).chatBotCommand.findMany({
         where: { channelId, enabled: true },
-        select: { triggerNormalized: true, response: true, onlyWhenLive: true },
+        select: { triggerNormalized: true, response: true, onlyWhenLive: true, requiredRoleTags: true, roleMode: true },
       });
     } catch (e: any) {
       // Back-compat for partial deploys: column might not exist yet.
@@ -230,13 +234,15 @@ async function refreshCommandsForChannel(channelId: string): Promise<Array<{ tri
       }
     }
 
-    const out: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean }> = [];
+    const out: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean; requiredRoleTags: RoleTag[]; roleMode: RoleMode }> = [];
     for (const r of rows) {
       const triggerNormalized = String((r as any)?.triggerNormalized || '').trim().toLowerCase();
       const response = String((r as any)?.response || '').trim();
       const onlyWhenLive = Boolean((r as any)?.onlyWhenLive);
       if (!triggerNormalized || !response) continue;
-      out.push({ triggerNormalized, response, onlyWhenLive });
+      const requiredRoleTags = sanitizeRoleTags((r as any)?.requiredRoleTags);
+      const roleMode: RoleMode = (r as any)?.roleMode === 'ALL' ? 'ALL' : 'ANY';
+      out.push({ triggerNormalized, response, onlyWhenLive, requiredRoleTags, roleMode });
     }
     return out;
   } catch (e: any) {
@@ -299,6 +305,7 @@ async function start() {
             pageToken: null,
             lastLiveCheckAt: 0,
             lastPollAt: 0,
+            nextPollAtMs: 0,
             pollInFlight: false,
             commandsTs: 0,
             commands: [],
@@ -384,19 +391,21 @@ async function start() {
     if (stopped) return;
     if (pollLoopInFlight) return;
     pollLoopInFlight = true;
-    const now = Date.now();
 
     try {
       for (const st of states.values()) {
         if (stopped) return;
         if (st.pollInFlight) continue;
+        const now = Date.now();
+
+        if (st.nextPollAtMs && now < st.nextPollAtMs) continue;
 
         // Keep live status fresh
         await ensureLiveChatId(st);
 
         if (!st.liveChatId) continue;
 
-        // Poll at most once per second per channel (liveChatMessages returns preferred interval).
+        // Safety throttle: at most once per second per channel.
         if (now - st.lastPollAt < 1_000) continue;
         st.lastPollAt = now;
 
@@ -405,93 +414,101 @@ async function start() {
           const accessToken = await getValidYouTubeAccessToken(st.userId);
           if (!accessToken) continue;
 
-        const resp = await listLiveChatMessages({
-          accessToken,
-          liveChatId: st.liveChatId,
-          pageToken: st.pageToken,
-          maxResults: 200,
-        });
+          const resp = await listLiveChatMessages({
+            accessToken,
+            liveChatId: st.liveChatId,
+            pageToken: st.pageToken,
+            maxResults: 200,
+          });
 
-        // First poll after (re)connect: advance token without processing backlog.
-        if (st.firstPollAfterLive) {
-          st.firstPollAfterLive = false;
-          st.pageToken = resp.nextPageToken;
-          continue;
-        }
+          const intervalRaw = Number((resp as any)?.pollingIntervalMillis);
+          const intervalMs = Number.isFinite(intervalRaw) ? Math.max(250, Math.min(30_000, Math.floor(intervalRaw))) : 1_000;
+          st.nextPollAtMs = Date.now() + intervalMs;
 
-        st.pageToken = resp.nextPageToken;
-
-        const items = resp.items || [];
-        if (items.length === 0) continue;
-
-        // Refresh command cache if needed.
-        if (!st.commandsTs || now - st.commandsTs > commandsRefreshSeconds * 1000) {
-          st.commands = await refreshCommandsForChannel(st.channelId);
-          st.commandsTs = Date.now();
-        }
-
-        for (const m of items) {
-          const authorName = String(m?.authorDetails?.displayName || '').trim();
-          const authorChannelId = String(m?.authorDetails?.channelId || '').trim();
-          if (!authorName || !authorChannelId) continue;
-
-          // Credits chatter (best-effort).
-          const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'youtube', platformUserId: authorChannelId });
-          const creditsUserId = memalertsUserId || `youtube:${authorChannelId}`;
-          for (const baseUrl of backendBaseUrls) {
-            void postInternalCreditsChatter(baseUrl, { channelSlug: st.slug, userId: creditsUserId, displayName: authorName });
+          // First poll after (re)connect: advance token without processing backlog.
+          if (st.firstPollAfterLive) {
+            st.firstPollAfterLive = false;
+            st.pageToken = resp.nextPageToken;
+            continue;
           }
 
-          // Commands: match on displayMessage (lowercased).
-          const msg = normalizeMessage(m?.snippet?.displayMessage || '');
-          const msgNorm = msg.toLowerCase();
-          if (!msgNorm) continue;
+          st.pageToken = resp.nextPageToken;
 
-          // Smart command: stream duration (same semantics as Twitch runner).
-          const cfg = st.streamDurationCfg;
-          if (cfg?.enabled && cfg.triggerNormalized === msgNorm) {
-            try {
-              const snap = await getStreamDurationSnapshot(st.slug);
-              if (cfg.onlyWhenLive && snap.status !== 'online') {
-                // ignore
-              } else {
-                const totalMinutes = snap.totalMinutes;
-                const hours = Math.floor(totalMinutes / 60);
-                const minutes = totalMinutes % 60;
-                const template = cfg.responseTemplate ?? 'Время стрима: {hours}ч {minutes}м ({totalMinutes}м)';
-                const reply = template
-                  .replace(/\{hours\}/g, String(hours))
-                  .replace(/\{minutes\}/g, String(minutes))
-                  .replace(/\{totalMinutes\}/g, String(totalMinutes))
-                  .trim();
-                if (reply) {
-                  const token = st.botExternalAccountId
-                    ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
-                    : await getValidYouTubeBotAccessToken();
-                  if (!token) throw new Error('YouTube bot token is not configured');
-                  await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: reply });
-                  continue;
+          const items = resp.items || [];
+          if (items.length === 0) continue;
+
+          // Refresh command cache if needed.
+          if (!st.commandsTs || now - st.commandsTs > commandsRefreshSeconds * 1000) {
+            st.commands = await refreshCommandsForChannel(st.channelId);
+            st.commandsTs = Date.now();
+          }
+
+          for (const m of items) {
+            const authorName = String(m?.authorDetails?.displayName || '').trim();
+            const authorChannelId = String(m?.authorDetails?.channelId || '').trim();
+            if (!authorName || !authorChannelId) continue;
+
+            const roles = getYouTubeRoleTags(m);
+
+            // Credits chatter (best-effort).
+            const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'youtube', platformUserId: authorChannelId });
+            const creditsUserId = memalertsUserId || `youtube:${authorChannelId}`;
+            for (const baseUrl of backendBaseUrls) {
+              void postInternalCreditsChatter(baseUrl, { channelSlug: st.slug, userId: creditsUserId, displayName: authorName });
+            }
+
+            // Commands: match on displayMessage (lowercased).
+            const msg = normalizeMessage(m?.snippet?.displayMessage || '');
+            const msgNorm = msg.toLowerCase();
+            if (!msgNorm) continue;
+
+            // Smart command: stream duration (same semantics as Twitch runner).
+            const cfg = st.streamDurationCfg;
+            if (cfg?.enabled && cfg.triggerNormalized === msgNorm) {
+              try {
+                const snap = await getStreamDurationSnapshot(st.slug);
+                if (cfg.onlyWhenLive && snap.status !== 'online') {
+                  // ignore
+                } else {
+                  const totalMinutes = snap.totalMinutes;
+                  const hours = Math.floor(totalMinutes / 60);
+                  const minutes = totalMinutes % 60;
+                  const template = cfg.responseTemplate ?? 'Время стрима: {hours}ч {minutes}м ({totalMinutes}м)';
+                  const reply = template
+                    .replace(/\{hours\}/g, String(hours))
+                    .replace(/\{minutes\}/g, String(minutes))
+                    .replace(/\{totalMinutes\}/g, String(totalMinutes))
+                    .trim();
+                  if (reply) {
+                    const token = st.botExternalAccountId
+                      ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+                      : await getValidYouTubeBotAccessToken();
+                    if (!token) throw new Error('YouTube bot token is not configured');
+                    await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: reply });
+                    continue;
+                  }
                 }
+              } catch (e: any) {
+                logger.warn('youtube_chatbot.stream_duration_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
               }
+            }
+
+            const match = st.commands.find((c) => c.triggerNormalized === msgNorm);
+            if (!match?.response) continue;
+            if (match.onlyWhenLive && !st.isLive) continue;
+
+            if (!hasRoles(roles, match.requiredRoleTags, match.roleMode)) continue;
+
+            try {
+              const token = st.botExternalAccountId
+                ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
+                : await getValidYouTubeBotAccessToken();
+              if (!token) throw new Error('YouTube bot token is not configured');
+              await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: match.response });
             } catch (e: any) {
-              logger.warn('youtube_chatbot.stream_duration_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+              logger.warn('youtube_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
             }
           }
-
-          const match = st.commands.find((c) => c.triggerNormalized === msgNorm);
-          if (!match?.response) continue;
-          if (match.onlyWhenLive && !st.isLive) continue;
-
-          try {
-            const token = st.botExternalAccountId
-              ? await getValidYouTubeAccessTokenByExternalAccountId(st.botExternalAccountId)
-              : await getValidYouTubeBotAccessToken();
-            if (!token) throw new Error('YouTube bot token is not configured');
-            await sendLiveChatMessage({ accessToken: token, liveChatId: st.liveChatId, messageText: match.response });
-          } catch (e: any) {
-            logger.warn('youtube_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
-          }
-        }
         } catch (e: any) {
           logger.warn('youtube_chatbot.poll_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
         } finally {

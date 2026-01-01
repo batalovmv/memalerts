@@ -66,6 +66,100 @@ export const updateMemeSchema = z.object({
   durationMs: z.number().int().positive().optional(),
 });
 
+const twitchCoinsSchema = z.number().int().min(0).max(1_000_000);
+const twitchTierCoinsMapSchema = z.record(z.string().min(1).max(16), twitchCoinsSchema).optional();
+
+// Twitch auto rewards settings (stored in Channel.twitchAutoRewardsJson as JSONB).
+// Frontend-owned config: keep schema permissive but bounded.
+export const twitchAutoRewardsSchema = z
+  .object({
+    v: z.number().int().min(1).max(1).default(1),
+    follow: z
+      .object({
+        enabled: z.boolean().optional(),
+        coins: twitchCoinsSchema.optional(),
+        onceEver: z.boolean().optional().default(true),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    subscribe: z
+      .object({
+        enabled: z.boolean().optional(),
+        tierCoins: twitchTierCoinsMapSchema,
+        primeCoins: twitchCoinsSchema.optional(),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    resubMessage: z
+      .object({
+        enabled: z.boolean().optional(),
+        tierCoins: twitchTierCoinsMapSchema,
+        primeCoins: twitchCoinsSchema.optional(),
+        bonusCoins: twitchCoinsSchema.optional(),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    giftSub: z
+      .object({
+        enabled: z.boolean().optional(),
+        giverTierCoins: twitchTierCoinsMapSchema,
+        recipientCoins: twitchCoinsSchema.optional(),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    cheer: z
+      .object({
+        enabled: z.boolean().optional(),
+        bitsPerCoin: z.number().int().min(1).max(100_000).optional(),
+        minBits: z.number().int().min(1).max(1_000_000).optional(),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    raid: z
+      .object({
+        enabled: z.boolean().optional(),
+        baseCoins: twitchCoinsSchema.optional(),
+        coinsPerViewer: z.number().int().min(0).max(100_000).optional(),
+        minViewers: z.number().int().min(0).max(1_000_000).optional(),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    channelPoints: z
+      .object({
+        enabled: z.boolean().optional(),
+        byRewardId: z.record(z.string().min(1).max(128), twitchCoinsSchema).optional(),
+        onlyWhenLive: z.boolean().optional(),
+      })
+      .optional(),
+    chat: z
+      .object({
+        firstMessage: z
+          .object({
+            enabled: z.boolean().optional(),
+            coins: twitchCoinsSchema.optional(),
+            onlyWhenLive: z.boolean().optional(),
+          })
+          .optional(),
+        messageThresholds: z
+          .object({
+            enabled: z.boolean().optional(),
+            thresholds: z.array(z.number().int().min(1).max(100_000)).max(20).optional(),
+            coinsByThreshold: z.record(z.string().min(1).max(16), twitchCoinsSchema).optional(),
+            onlyWhenLive: z.boolean().optional(),
+          })
+          .optional(),
+        dailyStreak: z
+          .object({
+            enabled: z.boolean().optional(),
+            coinsPerDay: twitchCoinsSchema.optional(),
+            coinsByStreak: z.record(z.string().min(1).max(16), twitchCoinsSchema).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 export const updateChannelSettingsSchema = z.object({
   rewardIdForCoins: z.string().optional().nullable(),
   coinPerPointRatio: z.number().positive().optional(),
@@ -89,6 +183,13 @@ export const updateChannelSettingsSchema = z.object({
   vkvideoCoinPerPointRatio: z.number().positive().optional(),
   vkvideoRewardCoins: z.number().int().positive().optional().nullable(),
   vkvideoRewardOnlyWhenLive: z.boolean().optional(),
+  // YouTube "like stream" -> coins
+  youtubeLikeRewardEnabled: z.boolean().optional(),
+  youtubeLikeRewardCoins: z.number().int().min(0).optional(),
+  youtubeLikeRewardOnlyWhenLive: z.boolean().optional(),
+  // Twitch auto rewards (frontend-configured JSONB).
+  // null clears config.
+  twitchAutoRewards: twitchAutoRewardsSchema.optional().nullable(),
   // Legacy single reward field (kept for back-compat).
   submissionRewardCoins: z.number().int().min(0).optional(),
   // New split fields.
@@ -252,6 +353,71 @@ export const twitchFollowEventSchema = z.object({
   broadcaster_user_name: z.string(),
   followed_at: z.string(),
 });
+
+// EventSub: channel.subscribe (v1)
+export const twitchSubscribeEventSchema = z
+  .object({
+    broadcaster_user_id: z.string(),
+    broadcaster_user_login: z.string().optional(),
+    broadcaster_user_name: z.string().optional(),
+    user_id: z.string(),
+    user_login: z.string().optional(),
+    user_name: z.string(),
+    tier: z.string().optional(),
+    is_gift: z.boolean().optional(),
+    is_prime: z.boolean().optional(),
+  })
+  .passthrough();
+
+// EventSub: channel.subscription.message (v1)
+export const twitchSubscriptionMessageEventSchema = z
+  .object({
+    broadcaster_user_id: z.string(),
+    user_id: z.string(),
+    user_name: z.string(),
+    tier: z.string().optional(),
+    message: z
+      .object({
+        text: z.string().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+// EventSub: channel.subscription.gift (v1)
+export const twitchSubscriptionGiftEventSchema = z
+  .object({
+    broadcaster_user_id: z.string(),
+    user_id: z.string().optional().nullable(), // gifter (may be absent for anonymous)
+    user_name: z.string().optional().nullable(),
+    tier: z.string().optional(),
+    total: z.number().int().optional(),
+    is_anonymous: z.boolean().optional(),
+    recipient_user_id: z.string().optional().nullable(),
+    recipient_user_name: z.string().optional().nullable(),
+  })
+  .passthrough();
+
+// EventSub: channel.cheer (v1)
+export const twitchCheerEventSchema = z
+  .object({
+    broadcaster_user_id: z.string(),
+    user_id: z.string().optional().nullable(),
+    user_name: z.string().optional().nullable(),
+    bits: z.number().int(),
+    is_anonymous: z.boolean().optional(),
+  })
+  .passthrough();
+
+// EventSub: channel.raid (v1)
+export const twitchRaidEventSchema = z
+  .object({
+    from_broadcaster_user_id: z.string(),
+    from_broadcaster_user_name: z.string().optional(),
+    to_broadcaster_user_id: z.string(),
+    viewer_count: z.number().int(),
+  })
+  .passthrough();
 
 // Viewer UI preferences (cross-device, per-user)
 export const userPreferencesSchema = z.object({

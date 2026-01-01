@@ -343,8 +343,21 @@ export async function fetchVkVideoUserRolesOnChannel(params: {
     return { ok: false, status: 0, roleIds: [], data: null, error: 'VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE is not configured' };
   }
 
+  const hasChannelPlaceholder = /\{channelId\}|\{channelUrl\}/.test(templateRaw);
+  const hasUserPlaceholder = /\{userId\}/.test(templateRaw);
+  if (!hasChannelPlaceholder || !hasUserPlaceholder) {
+    return {
+      ok: false,
+      status: 0,
+      roleIds: [],
+      data: null,
+      error: 'VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE must include {channelId} (or {channelUrl}) and {userId} placeholders',
+    };
+  }
+
   const url = templateRaw
-    .replace(/\{channelId\}/g, encodeURIComponent(String(params.vkvideoChannelId)))
+    // Back-compat: accept {channelUrl} placeholder name too.
+    .replace(/\{channelId\}|\{channelUrl\}/g, encodeURIComponent(String(params.vkvideoChannelId)))
     .replace(/\{userId\}/g, encodeURIComponent(String(params.vkvideoUserId)));
 
   try {
@@ -376,6 +389,87 @@ export async function fetchVkVideoUserRolesOnChannel(params: {
     logger.warn('vkvideo.channel_roles_user.fetch_failed', { errorMessage: e?.message || String(e) });
     return { ok: false, status: 0, roleIds: [], data: null, error: e?.message || String(e) };
   }
+}
+
+export async function fetchVkVideoChannelPointBalance(params: {
+  accessToken: string;
+  channelUrl: string;
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; balance: any | null; currency: any | null; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, balance: null, currency: null, data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+  const url = new URL(`${apiBaseUrl}/v1/channel_point`);
+  url.searchParams.set('channel_url', String(params.channelUrl));
+
+  const r = await vkvideoGetJson({ accessToken: params.accessToken, url: url.toString() });
+  if (!r.ok) return { ok: false, status: r.status, balance: null, currency: null, data: r.data, error: r.error };
+
+  const root = r.data?.data ?? r.data ?? null;
+  const balance = root?.balance ?? null;
+  const currency = root?.currency ?? root?.channel_point ?? null;
+  return { ok: true, status: r.status, balance, currency, data: r.data, error: null };
+}
+
+export async function fetchVkVideoChannelPointRewards(params: {
+  accessToken: string;
+  channelUrl: string;
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; rewards: any[]; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, rewards: [], data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+  const url = new URL(`${apiBaseUrl}/v1/channel_point/rewards`);
+  url.searchParams.set('channel_url', String(params.channelUrl));
+
+  const r = await vkvideoGetJson({ accessToken: params.accessToken, url: url.toString() });
+  if (!r.ok) return { ok: false, status: r.status, rewards: [], data: r.data, error: r.error };
+
+  const root = r.data?.data ?? r.data ?? null;
+  const rewards =
+    (Array.isArray(root?.rewards) ? root.rewards : null) ?? (Array.isArray(root) ? root : null) ?? (Array.isArray(root?.items) ? root.items : []);
+  return { ok: true, status: r.status, rewards, data: r.data, error: null };
+}
+
+export async function activateVkVideoChannelReward(params: {
+  accessToken: string;
+  channelUrl: string;
+  rewardId: string;
+  message?: string | null;
+  apiBaseUrl?: string | null;
+}): Promise<{ ok: boolean; status: number; data: any; error: string | null }> {
+  const apiBaseUrl = (params.apiBaseUrl ?? guessVkVideoApiBaseUrl())?.replace(/\/+$/g, '') || null;
+  if (!apiBaseUrl) {
+    return { ok: false, status: 0, data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
+  }
+
+  const url = new URL(`${apiBaseUrl}/v1/channel_point/reward/activate`);
+  url.searchParams.set('channel_url', String(params.channelUrl));
+
+  const rewardId = String(params.rewardId || '').trim();
+  if (!rewardId) return { ok: false, status: 0, data: null, error: 'missing_reward_id' };
+
+  const messageText = String(params.message ?? '').trim();
+  const body = {
+    reward: {
+      id: rewardId,
+      ...(messageText
+        ? {
+            message: {
+              parts: [
+                {
+                  text: { content: messageText },
+                },
+              ],
+            },
+          }
+        : {}),
+    },
+  };
+
+  return await vkvideoPostJson({ accessToken: params.accessToken, url: url.toString(), body });
 }
 
 

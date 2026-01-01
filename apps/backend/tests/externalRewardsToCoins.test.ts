@@ -99,6 +99,53 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
     });
     expect(wallet2?.balance).toBe(250);
   });
+
+  it('supports non-native eventType mapping for trovo (e.g. follow uses twitch_* eventType)', async () => {
+    const channel = await prisma.channel.create({
+      data: {
+        slug: `ch_${rand()}`,
+        name: `Channel ${rand()}`,
+      },
+      select: { id: true },
+    });
+
+    const user = await prisma.user.create({
+      data: { displayName: `User ${rand()}`, role: 'viewer', hasBetaAccess: false },
+      select: { id: true },
+    });
+
+    const providerAccountId = `trovo_user_${rand()}`;
+    const providerEventId = `trovo_evt_${rand()}`;
+
+    await prisma.$transaction(async (tx) => {
+      await recordExternalRewardEventTx({
+        tx: tx as any,
+        provider: 'trovo',
+        providerEventId,
+        channelId: channel.id,
+        providerAccountId,
+        eventType: 'twitch_follow',
+        currency: 'twitch_units',
+        amount: 1,
+        coinsToGrant: 77,
+        status: 'eligible',
+        reason: null,
+        eventAt: new Date(),
+        rawPayloadJson: JSON.stringify({ id: providerEventId }),
+      });
+    });
+
+    const pendingCount = await (prisma as any).pendingCoinGrant.count({
+      where: { provider: 'trovo', providerAccountId, channelId: channel.id },
+    });
+    expect(pendingCount).toBe(1);
+
+    const events1 = await prisma.$transaction(async (tx) => {
+      return await claimPendingCoinGrantsTx({ tx: tx as any, userId: user.id, provider: 'trovo', providerAccountId });
+    });
+    expect(events1).toHaveLength(1);
+    expect(events1[0].delta).toBe(77);
+  });
 });
 
 

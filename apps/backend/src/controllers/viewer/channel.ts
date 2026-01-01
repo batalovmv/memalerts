@@ -141,6 +141,10 @@ export const getChannelBySlug = async (req: any, res: Response) => {
       vkvideoCoinPerPointRatio: (channel as any).vkvideoCoinPerPointRatio ?? 1.0,
       vkvideoRewardCoins: (channel as any).vkvideoRewardCoins ?? null,
       vkvideoRewardOnlyWhenLive: (channel as any).vkvideoRewardOnlyWhenLive ?? false,
+      // YouTube "like stream" -> coins
+      youtubeLikeRewardEnabled: (channel as any).youtubeLikeRewardEnabled ?? false,
+      youtubeLikeRewardCoins: (channel as any).youtubeLikeRewardCoins ?? 0,
+      youtubeLikeRewardOnlyWhenLive: (channel as any).youtubeLikeRewardOnlyWhenLive ?? false,
       submissionRewardCoins: (channel as any).submissionRewardCoins ?? 0,
       submissionRewardOnlyWhenLive: (channel as any).submissionRewardOnlyWhenLive ?? false,
       submissionsEnabled: (channel as any).submissionsEnabled ?? true,

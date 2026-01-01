@@ -90,6 +90,30 @@ function scheduleEmitCreditsState(io: Server | undefined, slug: string): void {
   emitStateBySlug.set(s, st);
 }
 
+export async function ingestCreditsChatter(params: {
+  io?: Server;
+  channelSlug: string;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+}): Promise<{ ok: true; ignored?: true }> {
+  const slug = toSlug(params.channelSlug);
+  const userId = String(params.userId || '').trim();
+  const displayName = String(params.displayName || '').trim();
+  const avatarUrl = params.avatarUrl ?? null;
+  if (!slug || !userId || !displayName) return { ok: true, ignored: true };
+
+  const { channelId, reconnectWindowMinutes } = await getChannelContextBySlug(slug);
+  if (channelId) {
+    const ignore = await shouldIgnoreCreditsChatter({ channelId, creditsUserId: userId, displayName });
+    if (ignore) return { ok: true, ignored: true };
+  }
+
+  await addCreditsChatter(slug, userId, displayName, avatarUrl, reconnectWindowMinutes);
+  scheduleEmitCreditsState(params.io, slug);
+  return { ok: true };
+}
+
 export const creditsInternalController = {
   chatter: async (req: Request, res: Response) => {
     if (!isLocalRequest(req) || !isInternal(req)) return res.status(404).json({ error: 'Not Found' });
@@ -100,25 +124,15 @@ export const creditsInternalController = {
     const avatarUrl = (req.body as any)?.avatarUrl ?? null;
     if (!slug || !userId || !displayName) return res.status(400).json({ error: 'Bad Request' });
 
-    const { channelId, reconnectWindowMinutes } = await getChannelContextBySlug(slug);
-
-    if (channelId) {
-      const ignore = await shouldIgnoreCreditsChatter({ channelId, creditsUserId: userId, displayName });
-      if (ignore) return res.json({ ok: true, ignored: true });
-    }
-
-    await addCreditsChatter(slug, userId, displayName, avatarUrl, reconnectWindowMinutes);
-
     // Best-effort: push fresh state to connected overlays immediately.
+    let io: Server | undefined = undefined;
     try {
-      const io: Server | undefined = (req.app as any)?.get?.('io');
-      if (io) {
-        scheduleEmitCreditsState(io, slug);
-      }
+      io = (req.app as any)?.get?.('io');
     } catch {
       // ignore
     }
-    return res.json({ ok: true });
+    const r = await ingestCreditsChatter({ io, channelSlug: slug, userId, displayName, avatarUrl });
+    return res.json(r);
   },
 
   donor: async (req: Request, res: Response) => {

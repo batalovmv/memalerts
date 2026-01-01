@@ -461,6 +461,10 @@ export function setupRoutes(app: Express) {
   app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
   app.get('/memes', authenticate, requireBetaAccess, viewerController.getMemes);
 
+  // Viewer rewards
+  // POST /rewards/youtube/like/claim  body: { channelSlug: string; videoId?: string }
+  app.post('/rewards/youtube/like/claim', authenticate, requireBetaAccess, viewerController.claimYouTubeLikeReward);
+
   // Public on production; gated on beta (auth + requireBetaAccess)
   app.get('/channels/:slug', (req, res) => {
     if (isBetaDomain(req)) {

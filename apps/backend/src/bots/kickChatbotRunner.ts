@@ -3,7 +3,14 @@ import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
-import { getKickExternalAccount, getValidKickAccessTokenByExternalAccountId, getValidKickBotAccessToken, sendKickChatMessage } from '../utils/kickApi.js';
+import {
+  createKickEventSubscription,
+  getKickExternalAccount,
+  getValidKickAccessTokenByExternalAccountId,
+  getValidKickBotAccessToken,
+  listKickEventSubscriptions,
+  sendKickChatMessage,
+} from '../utils/kickApi.js';
 
 dotenv.config();
 
@@ -165,6 +172,18 @@ function parseKickChatPollUrlTemplate(): string | null {
   return tpl || null;
 }
 
+function resolveKickWebhookCallbackUrl(): string | null {
+  const envUrl = String(process.env.KICK_WEBHOOK_CALLBACK_URL || '').trim();
+  if (envUrl) return envUrl;
+
+  const domain = String(process.env.DOMAIN || '').trim();
+  if (!domain) return null;
+
+  const port = String(process.env.PORT || '3001').trim();
+  const base = port === '3002' ? `https://beta.${domain}` : `https://${domain}`;
+  return `${base}/webhooks/kick/events`;
+}
+
 function interpolateTemplate(tpl: string, vars: Record<string, string>): string {
   let out = tpl;
   for (const [k, v] of Object.entries(vars)) {
@@ -208,11 +227,19 @@ async function sendToKickChat(params: { st: ChannelState; text: string }) {
 
   const resp = await sendKickChatMessage({
     accessToken: token,
+    // NOTE: Kick Dev API expects numeric broadcaster_user_id when sending type="user".
+    // In our DB we store this as kickChannelId (string) for historical reasons.
     kickChannelId: params.st.kickChannelId,
     content: messageText,
     sendChatUrl: sendUrl,
   });
-  if (!resp.ok) throw new Error(`Kick send chat failed (${resp.status})`);
+  if (!resp.ok) {
+    const err: any = new Error(`Kick send chat failed (${resp.status})`);
+    err.kickStatus = resp.status;
+    err.retryAfterSeconds = resp.retryAfterSeconds;
+    err.raw = resp.raw;
+    throw err;
+  }
 }
 
 async function start() {
@@ -285,6 +312,80 @@ async function start() {
     }
   };
 
+  const ensureKickEventSubscriptions = async () => {
+    if (stopped) return;
+    if (states.size === 0) return;
+
+    const callbackUrl = resolveKickWebhookCallbackUrl();
+    if (!callbackUrl) return;
+
+    // Keep this list conservative: events we can ingest for credits/commands and auto rewards.
+    // Subscriptions are created per streamer Kick OAuth token.
+    const EVENT_NAMES = [
+      'chat.message.sent',
+      'channel.followed',
+      'channel.subscription.new',
+      'channel.subscription.renewal',
+      'channel.subscription.gifts',
+      'kicks.gifted',
+      'livestream.status.updated',
+      // Channel rewards -> coins (handled by kickWebhookController; may still be gated by channel settings).
+      'channel.reward.redemption.updated',
+    ];
+
+    const byUserId = new Map<string, { accessToken: string; subs: any[] } | null>();
+    for (const st of states.values()) {
+      const userId = String(st.userId || '').trim();
+      if (!userId || byUserId.has(userId)) continue;
+
+      const acc = await getKickExternalAccount(userId);
+      if (!acc?.id) {
+        byUserId.set(userId, null);
+        continue;
+      }
+      const token = await getValidKickAccessTokenByExternalAccountId(acc.id);
+      if (!token) {
+        byUserId.set(userId, null);
+        continue;
+      }
+
+      const listed = await listKickEventSubscriptions({ accessToken: token });
+      if (!listed.ok) {
+        byUserId.set(userId, { accessToken: token, subs: [] });
+        continue;
+      }
+      byUserId.set(userId, { accessToken: token, subs: listed.subscriptions || [] });
+    }
+
+    for (const st of states.values()) {
+      const userId = String(st.userId || '').trim();
+      if (!userId) continue;
+      const ctx = byUserId.get(userId) || null;
+      if (!ctx) continue;
+
+      for (const eventName of EVENT_NAMES) {
+        const want = String(eventName || '').trim().toLowerCase();
+        if (!want) continue;
+
+        const hasSub =
+          (ctx.subs || []).find((s: any) => {
+            const e = String(s?.event ?? s?.type ?? s?.name ?? '').trim().toLowerCase();
+            const cb = String(s?.callback_url ?? s?.callback ?? s?.transport?.callback ?? '').trim();
+            return e === want && cb === callbackUrl;
+          }) != null;
+
+        if (hasSub) continue;
+
+        const created = await createKickEventSubscription({ accessToken: ctx.accessToken, callbackUrl, event: want, version: 'v1' });
+        if (!created.ok) {
+          logger.warn('kick_chatbot.events_subscription_create_failed', { channelId: st.channelId, event: want, status: created.status });
+        } else {
+          logger.info('kick_chatbot.events_subscription_created', { channelId: st.channelId, event: want, subscriptionId: created.subscriptionId });
+        }
+      }
+    }
+  };
+
   const refreshCommands = async () => {
     if (stopped) return;
     if (commandsRefreshing) return;
@@ -328,6 +429,8 @@ async function start() {
   const MAX_OUTBOX_BATCH = 25;
   const MAX_SEND_ATTEMPTS = 3;
   const PROCESSING_STALE_MS = 60_000;
+  const BASE_BACKOFF_MS = 1_000;
+  const MAX_BACKOFF_MS = 60_000;
 
   const processOutboxOnce = async () => {
     if (stopped) return;
@@ -338,11 +441,15 @@ async function start() {
       const channelIds = Array.from(states.keys());
       const staleBefore = new Date(Date.now() - PROCESSING_STALE_MS);
 
+      const now = new Date();
       const rows = await (prisma as any).kickChatBotOutboxMessage.findMany({
-        where: { channelId: { in: channelIds }, OR: [{ status: 'pending' }, { status: 'processing', processingAt: { lt: staleBefore } }] },
+        where: {
+          channelId: { in: channelIds },
+          OR: [{ status: 'pending', nextAttemptAt: { lte: now } }, { status: 'processing', processingAt: { lt: staleBefore } }],
+        },
         orderBy: { createdAt: 'asc' },
         take: MAX_OUTBOX_BATCH,
-        select: { id: true, channelId: true, kickChannelId: true, message: true, status: true, attempts: true },
+        select: { id: true, channelId: true, kickChannelId: true, message: true, status: true, attempts: true, nextAttemptAt: true },
       });
       if (!rows.length) return;
 
@@ -362,19 +469,32 @@ async function start() {
           await sendToKickChat({ st, text: String(r.message || '') });
           await (prisma as any).kickChatBotOutboxMessage.update({
             where: { id: r.id },
-            data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1 },
+            data: { status: 'sent', sentAt: new Date(), attempts: (r.attempts || 0) + 1, nextAttemptAt: new Date() },
           });
         } catch (e: any) {
           const nextAttempts = (r.attempts || 0) + 1;
           const lastError = e?.message || String(e);
           const shouldFail = nextAttempts >= MAX_SEND_ATTEMPTS;
+          const status = Number(e?.kickStatus ?? e?.status ?? 0) || 0;
+          const retryAfterSeconds = Number(e?.retryAfterSeconds ?? 0) || 0;
+          const expBackoff = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * Math.pow(2, Math.min(10, Math.max(0, nextAttempts - 1))));
+          const backoffMs = retryAfterSeconds > 0 ? Math.min(MAX_BACKOFF_MS, retryAfterSeconds * 1000) : expBackoff;
+          const nextAttemptAt = new Date(Date.now() + backoffMs);
           await (prisma as any).kickChatBotOutboxMessage.update({
             where: { id: r.id },
             data: shouldFail
-              ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError }
-              : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError },
+              ? { status: 'failed', failedAt: new Date(), attempts: nextAttempts, lastError, nextAttemptAt: new Date() }
+              : { status: 'pending', processingAt: null, attempts: nextAttempts, lastError, nextAttemptAt },
           });
-          logger.warn('kick_chatbot.outbox_send_failed', { channelId: st.channelId, outboxId: r.id, attempts: nextAttempts, errorMessage: lastError });
+          logger.warn('kick_chatbot.outbox_send_failed', {
+            channelId: st.channelId,
+            outboxId: r.id,
+            attempts: nextAttempts,
+            errorMessage: lastError,
+            status,
+            retryAfterSeconds: retryAfterSeconds > 0 ? retryAfterSeconds : null,
+            backoffMs,
+          });
         }
       }
     } finally {
@@ -478,7 +598,9 @@ async function start() {
   await prisma.$connect();
   await syncSubscriptions();
   await refreshCommands();
+  await ensureKickEventSubscriptions();
   setInterval(() => void syncSubscriptions(), syncSeconds * 1000);
+  setInterval(() => void ensureKickEventSubscriptions(), syncSeconds * 1000);
   setInterval(() => void refreshCommands(), commandsRefreshSeconds * 1000);
   setInterval(() => void processOutboxOnce(), outboxPollMs);
   setInterval(() => void ingestChatOnce(), ingestPollMs);

@@ -180,6 +180,23 @@ export async function getStreamDurationSnapshot(channelSlug: string): Promise<{ 
   return { status: meta.status, totalMinutes };
 }
 
+export async function getStreamSessionSnapshot(channelSlug: string): Promise<{ status: 'online' | 'offline'; totalMinutes: number; sessionId: string | null }> {
+  const slug = normalizeSlug(channelSlug);
+  if (!slug) return { status: 'offline', totalMinutes: 0, sessionId: null };
+
+  const now = Date.now();
+  const meta = await readMeta(slug);
+  if (!meta) return { status: 'offline', totalMinutes: 0, sessionId: null };
+
+  let totalMs = meta.accumMs;
+  if (meta.status === 'online' && meta.lastOnlineAt) {
+    totalMs += Math.max(0, now - meta.lastOnlineAt);
+  }
+
+  const totalMinutes = Math.floor(Math.max(0, totalMs) / 60_000);
+  return { status: meta.status, totalMinutes, sessionId: meta.sessionId || null };
+}
+
 
 
 

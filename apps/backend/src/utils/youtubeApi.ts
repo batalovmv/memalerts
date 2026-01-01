@@ -657,6 +657,19 @@ export async function fetchActiveLiveChatIdByVideoId(params: { accessToken: stri
   return liveChatId || null;
 }
 
+export type YouTubeVideoRating = 'like' | 'dislike' | 'none' | 'unspecified';
+
+export async function getYouTubeVideoRating(params: { accessToken: string; videoId: string }): Promise<YouTubeVideoRating> {
+  type Resp = { items?: Array<{ videoId?: string; rating?: string }> };
+  const url = new URL('https://www.googleapis.com/youtube/v3/videos/getRating');
+  url.searchParams.set('id', params.videoId);
+
+  const data = await youtubeGetJson<Resp>({ accessToken: params.accessToken, url: url.toString() });
+  const rating = String(data?.items?.[0]?.rating || '').trim().toLowerCase();
+  if (rating === 'like' || rating === 'dislike' || rating === 'none' || rating === 'unspecified') return rating;
+  return 'unspecified';
+}
+
 export type YouTubeLiveChatMessage = {
   id: string;
   snippet?: {

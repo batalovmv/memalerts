@@ -12,6 +12,7 @@ import {
   getChannelRewards,
   getAuthenticatedTwitchUser,
   createEventSubSubscription,
+  createEventSubSubscriptionOfType,
   getEventSubSubscriptions,
   deleteEventSubSubscription,
 } from '../../utils/twitchApi.js';
@@ -578,6 +579,21 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
         (body as any).vkvideoRewardOnlyWhenLive !== undefined
           ? (body as any).vkvideoRewardOnlyWhenLive
           : (channel as any).vkvideoRewardOnlyWhenLive,
+      // YouTube "like stream" -> coins
+      youtubeLikeRewardEnabled:
+        (body as any).youtubeLikeRewardEnabled !== undefined
+          ? (body as any).youtubeLikeRewardEnabled
+          : (channel as any).youtubeLikeRewardEnabled,
+      youtubeLikeRewardCoins:
+        (body as any).youtubeLikeRewardCoins !== undefined ? (body as any).youtubeLikeRewardCoins : (channel as any).youtubeLikeRewardCoins,
+      youtubeLikeRewardOnlyWhenLive:
+        (body as any).youtubeLikeRewardOnlyWhenLive !== undefined
+          ? (body as any).youtubeLikeRewardOnlyWhenLive
+          : (channel as any).youtubeLikeRewardOnlyWhenLive,
+      // Twitch auto rewards (frontend-configured JSONB).
+      // NOTE: Prisma typings may lag during staged deploys; keep this as `any` assignment.
+      twitchAutoRewardsJson:
+        (body as any).twitchAutoRewards !== undefined ? (body as any).twitchAutoRewards : (channel as any).twitchAutoRewardsJson,
       submissionRewardCoins: body.submissionRewardCoins !== undefined ? body.submissionRewardCoins : (channel as any).submissionRewardCoins,
       submissionRewardCoinsUpload:
         (body as any).submissionRewardCoinsUpload !== undefined
@@ -629,6 +645,103 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       where: { id: channelId },
       data: updateData,
     });
+
+    // Best-effort: ensure Twitch EventSub subscriptions for enabled Twitch auto rewards.
+    // Do NOT fail channel settings update if Twitch permissions are missing / subscription creation fails.
+    try {
+      const cfg = (updateData as any).twitchAutoRewardsJson ?? null;
+      const broadcasterId = String((updatedChannel as any)?.twitchChannelId || (channel as any)?.twitchChannelId || '').trim();
+      if (cfg && broadcasterId && process.env.TWITCH_EVENTSUB_SECRET) {
+        const domain = process.env.DOMAIN || 'twitchmemes.ru';
+        const reqHost = req.get('host') || '';
+        const allowedHosts = new Set([domain, `www.${domain}`, `beta.${domain}`]);
+        const apiBaseUrl = allowedHosts.has(reqHost) ? `https://${reqHost}` : `https://${domain}`;
+        const webhookUrl = `${apiBaseUrl}/webhooks/twitch/eventsub`;
+
+        const wantTypes: Array<{ type: string; version: string; condition: Record<string, string> }> = [];
+
+        const followEnabled = Boolean((cfg as any)?.follow?.enabled) && Number((cfg as any)?.follow?.coins ?? 0) > 0;
+        const subEnabled = Boolean((cfg as any)?.subscribe?.enabled);
+        const resubEnabled = Boolean((cfg as any)?.resubMessage?.enabled);
+        const giftEnabled = Boolean((cfg as any)?.giftSub?.enabled);
+        const cheerEnabled = Boolean((cfg as any)?.cheer?.enabled);
+        const raidEnabled = Boolean((cfg as any)?.raid?.enabled);
+        const channelPointsEnabled = Boolean((cfg as any)?.channelPoints?.enabled);
+        const chatEnabled =
+          Boolean((cfg as any)?.chat?.firstMessage?.enabled) ||
+          Boolean((cfg as any)?.chat?.messageThresholds?.enabled) ||
+          Boolean((cfg as any)?.chat?.dailyStreak?.enabled);
+
+        if (followEnabled) {
+          // Follow EventSub v2 requires moderator_user_id; broadcaster can act as moderator for own channel.
+          wantTypes.push({
+            type: 'channel.follow',
+            version: '2',
+            condition: { broadcaster_user_id: broadcasterId, moderator_user_id: broadcasterId },
+          });
+        }
+        if (subEnabled) wantTypes.push({ type: 'channel.subscribe', version: '1', condition: { broadcaster_user_id: broadcasterId } });
+        if (resubEnabled) wantTypes.push({ type: 'channel.subscription.message', version: '1', condition: { broadcaster_user_id: broadcasterId } });
+        if (giftEnabled) wantTypes.push({ type: 'channel.subscription.gift', version: '1', condition: { broadcaster_user_id: broadcasterId } });
+        if (cheerEnabled) wantTypes.push({ type: 'channel.cheer', version: '1', condition: { broadcaster_user_id: broadcasterId } });
+        if (raidEnabled) {
+          // We want incoming raids: condition uses to_broadcaster_user_id.
+          wantTypes.push({ type: 'channel.raid', version: '1', condition: { to_broadcaster_user_id: broadcasterId } });
+        }
+        if (channelPointsEnabled) {
+          wantTypes.push({
+            type: 'channel.channel_points_custom_reward_redemption.add',
+            version: '1',
+            condition: { broadcaster_user_id: broadcasterId },
+          });
+        }
+        if (chatEnabled) {
+          // Chat rewards are per-stream; rely on stream.online/offline to establish session boundaries.
+          wantTypes.push({ type: 'stream.online', version: '1', condition: { broadcaster_user_id: broadcasterId } });
+          wantTypes.push({ type: 'stream.offline', version: '1', condition: { broadcaster_user_id: broadcasterId } });
+        }
+
+        if (wantTypes.length) {
+          const existing = await getEventSubSubscriptions(broadcasterId);
+          const subs = Array.isArray(existing?.data) ? existing.data : [];
+
+          const relevant = subs.filter(
+            (s: any) =>
+              wantTypes.some((w) => w.type === s?.type) &&
+              (s.status === 'enabled' || s.status === 'webhook_callback_verification_pending' || s.status === 'authorization_revoked')
+          );
+
+          // Delete mismatched callbacks so we can re-register deterministically.
+          const mismatched = relevant.filter((s: any) => s?.transport?.callback !== webhookUrl);
+          for (const s of mismatched) {
+            try {
+              await deleteEventSubSubscription(s.id);
+            } catch {
+              // ignore
+            }
+          }
+
+          for (const w of wantTypes) {
+            const has = relevant.some((s: any) => s?.type === w.type && s?.transport?.callback === webhookUrl);
+            if (has) continue;
+            try {
+              await createEventSubSubscriptionOfType({
+                type: w.type,
+                version: w.version,
+                broadcasterId,
+                webhookUrl,
+                secret: process.env.TWITCH_EVENTSUB_SECRET!,
+                condition: w.condition,
+              } as any);
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
 
     // Invalidate cached public channel metadata (used by /channels/:slug?includeMemes=false).
     // This prevents stale dashboardCardOrder/branding settings after updates.

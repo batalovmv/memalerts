@@ -7,6 +7,9 @@ import { handleStreamOffline, handleStreamOnline } from '../realtime/streamDurat
 import { hasChannelEntitlement } from '../utils/entitlements.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
+import { claimPendingCoinGrantsTx } from '../rewards/pendingCoinGrants.js';
+import { getRedisClient } from '../utils/redisClient.js';
+import { nsKey } from '../utils/redisCache.js';
 import {
   fetchVkVideoChannel,
   fetchVkVideoCurrentUser,
@@ -24,6 +27,15 @@ dotenv.config();
 function parseIntSafe(v: any, def: number): number {
   const n = Number.parseInt(String(v ?? ''), 10);
   return Number.isFinite(n) ? n : def;
+}
+
+function utcDayKey(d: Date): string {
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function utcDayKeyYesterday(d: Date): string {
+  const x = new Date(d.getTime() - 24 * 60 * 60 * 1000);
+  return utcDayKey(x);
 }
 
 function normalizeSlug(v: string): string {
@@ -357,6 +369,10 @@ async function start() {
   const vkvideoIdToChannelUrl = new Map<string, string>();
   const vkvideoIdToLastLiveStreamId = new Map<string, string | null>();
 
+  // Auto rewards config (reuses Channel.twitchAutoRewardsJson; see twitchChatBot.ts).
+  const autoRewardsByChannelId = new Map<string, { ts: number; cfg: any | null }>();
+  const AUTO_REWARDS_CACHE_MS = 30_000;
+
   // Pubsub connection per MemAlerts channelId (uses streamer's VKVideo OAuth token).
   const pubsubByChannelId = new Map<string, VkVideoPubSubClient>();
   const pubsubCtxByChannelId = new Map<
@@ -378,6 +394,16 @@ async function start() {
     return chunks.join(' ').trim();
   }
 
+  function extractFirstMentionIdFromParts(parts: any): string | null {
+    if (!Array.isArray(parts)) return null;
+    for (const p of parts) {
+      const id = p?.mention?.id ?? null;
+      const s = String(id ?? '').trim();
+      if (s) return s;
+    }
+    return null;
+  }
+
   function extractIncomingMessage(pubData: any): { text: string; userId: string; displayName: string; senderLogin: string | null } | null {
     // pubData may be either {type,data} or directly some message-like object.
     const root = pubData?.data ?? pubData ?? null;
@@ -394,6 +420,41 @@ async function start() {
 
     const senderLogin = author?.nick ? normalizeLogin(author.nick) : null;
     return { text, userId, displayName, senderLogin: senderLogin || null };
+  }
+
+  function extractVkVideoFollowOrSubscriptionAlert(pubData: any): {
+    kind: 'follow' | 'subscribe';
+    providerAccountId: string;
+    providerEventId: string | null;
+    eventAt: Date | null;
+  } | null {
+    const type = String(pubData?.type ?? pubData?.event ?? pubData?.name ?? '').trim().toLowerCase();
+    if (!type) return null;
+
+    const isFollow = type.includes('follow');
+    const isSub = type.includes('subscription') || type.includes('subscribe') || type.includes('sub');
+    if (!isFollow && !isSub) return null;
+
+    const root = pubData?.data ?? pubData ?? null;
+    const ev = root?.event ?? root?.data ?? root ?? null;
+
+    const maybeMsg = ev?.message ?? ev?.chat_message ?? ev ?? null;
+    const parts = maybeMsg?.parts ?? ev?.parts ?? root?.parts ?? root?.message?.parts ?? null;
+
+    const providerAccountId = String(
+      ev?.user?.id ?? ev?.viewer?.id ?? ev?.from?.id ?? ev?.user_id ?? extractFirstMentionIdFromParts(parts) ?? ''
+    ).trim();
+    if (!providerAccountId) return null;
+
+    const providerEventId = String(ev?.id ?? ev?.event_id ?? ev?.message_id ?? root?.id ?? '').trim() || null;
+
+    const eventAt = (() => {
+      const ts = ev?.created_at ?? ev?.createdAt ?? ev?.timestamp ?? root?.timestamp ?? null;
+      const ms = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
+      return Number.isFinite(ms) ? new Date(ms) : null;
+    })();
+
+    return { kind: isFollow ? 'follow' : 'subscribe', providerAccountId, providerEventId, eventAt };
   }
 
   function extractVkVideoChannelPointsRedemption(pubData: any): { providerAccountId: string; amount: number; rewardId: string | null; providerEventId: string | null; eventAt: Date | null } | null {
@@ -635,6 +696,183 @@ async function start() {
     for (const baseUrl of backendBaseUrls) {
       void postInternalCreditsChatter(baseUrl, { channelSlug: slug, userId: creditsUserId, displayName: incoming.displayName });
     }
+
+    // Auto rewards: chat activity (reuses Channel.twitchAutoRewardsJson.chat config).
+    try {
+      const cached = autoRewardsByChannelId.get(channelId) || null;
+      const cfg = cached?.cfg ?? null;
+      const chatCfg = (cfg as any)?.chat ?? null;
+      if (!chatCfg) return;
+
+      const redis = await getRedisClient();
+      const now = new Date();
+      const day = utcDayKey(now);
+      const yesterday = utcDayKeyYesterday(now);
+
+      const streamId = vkvideoIdToLastLiveStreamId.get(vkvideoChannelId) || null;
+      const isOnline = Boolean(streamId);
+
+      const award = async (params: {
+        providerEventId: string;
+        eventType: 'twitch_chat_first_message' | 'twitch_chat_messages_threshold' | 'twitch_chat_daily_streak';
+        amount: number;
+        coins: number;
+        rawMeta: any;
+      }) => {
+        const coins = Number.isFinite(params.coins) ? Math.floor(params.coins) : 0;
+        if (coins <= 0) return;
+
+        const linkedUserId = memalertsUserId || null;
+        await prisma.$transaction(async (tx: any) => {
+          await recordExternalRewardEventTx({
+            tx: tx as any,
+            provider: 'vkvideo',
+            providerEventId: params.providerEventId,
+            channelId,
+            providerAccountId: incoming.userId,
+            eventType: params.eventType,
+            currency: 'twitch_units',
+            amount: params.amount,
+            coinsToGrant: coins,
+            status: 'eligible',
+            reason: null,
+            eventAt: now,
+            rawPayloadJson: JSON.stringify(params.rawMeta ?? {}),
+          });
+
+          // If user already linked, claim immediately (no realtime emit here; runner is out-of-process).
+          if (linkedUserId) {
+            await claimPendingCoinGrantsTx({
+              tx: tx as any,
+              userId: linkedUserId,
+              provider: 'vkvideo',
+              providerAccountId: incoming.userId,
+            });
+          }
+        });
+      };
+
+      // Daily streak: award once per day on first chat message.
+      const streakCfg = (chatCfg as any)?.dailyStreak ?? null;
+      if (streakCfg?.enabled) {
+        // Prefer Redis for cross-restart stability; fallback to DB-only dedupe with "best-effort streak=1".
+        let nextStreak = 1;
+        if (redis) {
+          const k = nsKey('vkvideo_auto_rewards', `streak:${channelId}:${incoming.userId}`);
+          const raw = await redis.get(k);
+          let lastDate: string | null = null;
+          let streak = 0;
+          try {
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              lastDate = typeof (parsed as any)?.lastDate === 'string' ? (parsed as any).lastDate : null;
+              streak = Number.isFinite(Number((parsed as any)?.streak)) ? Math.floor(Number((parsed as any).streak)) : 0;
+            }
+          } catch {
+            lastDate = null;
+            streak = 0;
+          }
+
+          if (lastDate !== day) {
+            nextStreak = lastDate === yesterday ? Math.max(1, streak + 1) : 1;
+            await redis.set(k, JSON.stringify({ lastDate: day, streak: nextStreak }), { EX: 90 * 24 * 60 * 60 });
+          } else {
+            nextStreak = 0; // already handled today
+          }
+        } else {
+          // No redis: we can still award once per day using providerEventId dedupe, but streak can't be tracked reliably.
+          nextStreak = 1;
+        }
+
+        if (nextStreak > 0) {
+          const coinsByStreak = (streakCfg as any)?.coinsByStreak ?? null;
+          const coins =
+            coinsByStreak && typeof coinsByStreak === 'object'
+              ? Number((coinsByStreak as any)[String(nextStreak)] ?? 0)
+              : Number((streakCfg as any)?.coinsPerDay ?? 0);
+
+          const providerEventId = stableProviderEventId({
+            provider: 'vkvideo',
+            rawPayloadJson: '{}',
+            fallbackParts: ['chat_daily_streak', channelId, incoming.userId, day],
+          });
+          await award({
+            providerEventId,
+            eventType: 'twitch_chat_daily_streak',
+            amount: nextStreak,
+            coins,
+            rawMeta: { kind: 'vkvideo_chat_daily_streak', channelSlug: slug, vkvideoUserId: incoming.userId, day, streak: nextStreak },
+          });
+        }
+      }
+
+      // First message per stream: award once per user per stream session.
+      const firstCfg = (chatCfg as any)?.firstMessage ?? null;
+      if (firstCfg?.enabled) {
+        const onlyWhenLive = (firstCfg as any)?.onlyWhenLive === undefined ? true : Boolean((firstCfg as any).onlyWhenLive);
+        if (!onlyWhenLive || isOnline) {
+          const sid = String(streamId || '').trim();
+          if (sid) {
+            if (redis) {
+              const k = nsKey('vkvideo_auto_rewards', `first:${channelId}:${sid}:${incoming.userId}`);
+              const ok = await redis.set(k, '1', { NX: true, EX: 48 * 60 * 60 });
+              if (ok === 'OK') {
+                const providerEventId = stableProviderEventId({
+                  provider: 'vkvideo',
+                  rawPayloadJson: '{}',
+                  fallbackParts: ['chat_first_message', channelId, sid, incoming.userId],
+                });
+                await award({
+                  providerEventId,
+                  eventType: 'twitch_chat_first_message',
+                  amount: 1,
+                  coins: Number((firstCfg as any)?.coins ?? 0),
+                  rawMeta: { kind: 'vkvideo_chat_first_message', channelSlug: slug, vkvideoUserId: incoming.userId, streamId: sid },
+                });
+              }
+            } else {
+              // Without Redis we skip (too spammy without dedupe across restarts).
+            }
+          }
+        }
+      }
+
+      // Message count thresholds per stream.
+      const thrCfg = (chatCfg as any)?.messageThresholds ?? null;
+      if (thrCfg?.enabled) {
+        const onlyWhenLive = (thrCfg as any)?.onlyWhenLive === undefined ? true : Boolean((thrCfg as any).onlyWhenLive);
+        if (!onlyWhenLive || isOnline) {
+          const sid = String(streamId || '').trim();
+          if (sid && redis) {
+            const kCount = nsKey('vkvideo_auto_rewards', `msgcount:${channelId}:${sid}:${incoming.userId}`);
+            const n = await redis.incr(kCount);
+            if (n === 1) await redis.expire(kCount, 48 * 60 * 60);
+
+            const thresholds = Array.isArray((thrCfg as any)?.thresholds) ? (thrCfg as any).thresholds : [];
+            const hit = thresholds.some((t: any) => Number.isFinite(Number(t)) && Math.floor(Number(t)) === n);
+            if (hit) {
+              const coinsByThreshold = (thrCfg as any)?.coinsByThreshold ?? null;
+              const coins = coinsByThreshold && typeof coinsByThreshold === 'object' ? Number((coinsByThreshold as any)[String(n)] ?? 0) : 0;
+              const providerEventId = stableProviderEventId({
+                provider: 'vkvideo',
+                rawPayloadJson: '{}',
+                fallbackParts: ['chat_messages_threshold', channelId, sid, incoming.userId, String(n)],
+              });
+              await award({
+                providerEventId,
+                eventType: 'twitch_chat_messages_threshold',
+                amount: n,
+                coins,
+                rawMeta: { kind: 'vkvideo_chat_messages_threshold', channelSlug: slug, vkvideoUserId: incoming.userId, streamId: sid, count: n },
+              });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      // Never fail credits/commands flow because of auto rewards.
+      logger.warn('vkvideo_chatbot.auto_rewards_failed', { errorMessage: e?.message || String(e) });
+    }
   };
 
   const refreshCommands = async () => {
@@ -694,7 +932,7 @@ async function start() {
       try {
         const chRows = await (prisma as any).channel.findMany({
           where: { id: { in: channelIds } },
-          select: { id: true, streamDurationCommandJson: true },
+          select: { id: true, streamDurationCommandJson: true, twitchAutoRewardsJson: true },
         });
         const byId = new Map<string, any>();
         for (const r of chRows) {
@@ -705,6 +943,7 @@ async function start() {
         for (const id of channelIds) {
           const raw = String(byId.get(id)?.streamDurationCommandJson || '').trim();
           streamDurationCfgByChannelId.set(id, { ts: now, cfg: raw ? parseStreamDurationCfg(raw) : null });
+          autoRewardsByChannelId.set(id, { ts: now, cfg: byId.get(id)?.twitchAutoRewardsJson ?? null });
         }
       } catch (e: any) {
         if (e?.code !== 'P2022') logger.warn('vkvideo_chatbot.stream_duration_cfg_refresh_failed', { errorMessage: e?.message || String(e) });
@@ -849,8 +1088,12 @@ async function start() {
       const wsChannels: string[] = [];
       const chatCh = String(chInfo.webSocketChannels?.chat || '').trim();
       const limitedChatCh = String(chInfo.webSocketChannels?.limited_chat || '').trim();
+      const infoCh = String(chInfo.webSocketChannels?.info || '').trim();
+      const pointsCh = String(chInfo.webSocketChannels?.channel_points || '').trim();
       if (chatCh) wsChannels.push(chatCh);
       if (limitedChatCh && limitedChatCh !== chatCh) wsChannels.push(limitedChatCh);
+      if (infoCh && infoCh !== chatCh && infoCh !== limitedChatCh) wsChannels.push(infoCh);
+      if (pointsCh && pointsCh !== chatCh && pointsCh !== limitedChatCh && pointsCh !== infoCh) wsChannels.push(pointsCh);
 
       if (wsChannels.length === 0) {
         logger.warn('vkvideo_chatbot.no_chat_ws_channels', { channelId: s.channelId, vkvideoChannelId: s.vkvideoChannelId });
@@ -891,6 +1134,116 @@ async function start() {
         onPush: (push) => {
           const vkId = wsChannelToVkvideoId.get(push.channel) || null;
           if (!vkId) return;
+
+          // VKVideo follow/subscription alerts (best-effort parsing; does NOT create Users).
+          try {
+            const alert = extractVkVideoFollowOrSubscriptionAlert(push.data);
+            if (alert) {
+              const channelId = vkvideoIdToChannelId.get(vkId) || null;
+              if (!channelId) return;
+              const slug = vkvideoIdToSlug.get(vkId) || '';
+
+              void (async () => {
+                const rawPayloadJson = JSON.stringify(push.data ?? {});
+                const cfg = autoRewardsByChannelId.get(channelId)?.cfg ?? null;
+                const rule = alert.kind === 'follow' ? (cfg as any)?.follow ?? null : (cfg as any)?.subscribe ?? null;
+                const enabled = Boolean(rule?.enabled);
+                const coins =
+                  alert.kind === 'follow'
+                    ? Math.floor(Number(rule?.coins ?? 0))
+                    : Math.floor(Number(rule?.primeCoins ?? 0)); // VKVideo has no tier info; use primeCoins as a single-value knob.
+                const onlyWhenLive = Boolean(rule?.onlyWhenLive);
+                const onceEver = alert.kind === 'follow' ? (rule?.onceEver === undefined ? true : Boolean(rule?.onceEver)) : true;
+
+                const providerEventId =
+                  alert.providerEventId ||
+                  (onceEver
+                    ? stableProviderEventId({ provider: 'vkvideo', rawPayloadJson: '{}', fallbackParts: [alert.kind, channelId, alert.providerAccountId] })
+                    : stableProviderEventId({
+                        provider: 'vkvideo',
+                        rawPayloadJson,
+                        fallbackParts: [alert.kind, vkId, alert.providerAccountId, String(alert.eventAt?.getTime?.() || '')],
+                      }));
+
+                if (!enabled || coins <= 0) {
+                  await prisma.$transaction(async (tx) => {
+                    await recordExternalRewardEventTx({
+                      tx: tx as any,
+                      provider: 'vkvideo',
+                      providerEventId,
+                      channelId,
+                      providerAccountId: alert.providerAccountId,
+                      eventType: alert.kind === 'follow' ? 'twitch_follow' : 'twitch_subscribe',
+                      currency: 'twitch_units',
+                      amount: 1,
+                      coinsToGrant: 0,
+                      status: 'ignored',
+                      reason: enabled ? 'zero_coins' : 'auto_rewards_disabled',
+                      eventAt: alert.eventAt,
+                      rawPayloadJson,
+                    });
+                  });
+                  return;
+                }
+
+                if (onlyWhenLive) {
+                  const snap = await getStreamDurationSnapshot(String(slug || '').toLowerCase());
+                  if (snap.status !== 'online') {
+                    await prisma.$transaction(async (tx) => {
+                      await recordExternalRewardEventTx({
+                        tx: tx as any,
+                        provider: 'vkvideo',
+                        providerEventId,
+                        channelId,
+                        providerAccountId: alert.providerAccountId,
+                        eventType: alert.kind === 'follow' ? 'twitch_follow' : 'twitch_subscribe',
+                        currency: 'twitch_units',
+                        amount: 1,
+                        coinsToGrant: 0,
+                        status: 'ignored',
+                        reason: 'offline',
+                        eventAt: alert.eventAt,
+                        rawPayloadJson,
+                      });
+                    });
+                    return;
+                  }
+                }
+
+                const linkedUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'vkvideo', platformUserId: alert.providerAccountId });
+                await prisma.$transaction(async (tx) => {
+                  await recordExternalRewardEventTx({
+                    tx: tx as any,
+                    provider: 'vkvideo',
+                    providerEventId,
+                    channelId,
+                    providerAccountId: alert.providerAccountId,
+                    eventType: alert.kind === 'follow' ? 'twitch_follow' : 'twitch_subscribe',
+                    currency: 'twitch_units',
+                    amount: 1,
+                    coinsToGrant: coins,
+                    status: 'eligible',
+                    reason: null,
+                    eventAt: alert.eventAt,
+                    rawPayloadJson,
+                  });
+
+                  if (linkedUserId) {
+                    await claimPendingCoinGrantsTx({
+                      tx: tx as any,
+                      userId: linkedUserId,
+                      provider: 'vkvideo',
+                      providerAccountId: alert.providerAccountId,
+                    });
+                  }
+                });
+              })();
+              return;
+            }
+          } catch (e: any) {
+            logger.warn('vkvideo_chatbot.follow_sub_ingest_failed', { errorMessage: e?.message || String(e) });
+          }
+
           // Channel points redemption (best-effort parsing; does NOT create Users).
           try {
             const redemption = extractVkVideoChannelPointsRedemption(push.data);
@@ -998,6 +1351,8 @@ async function start() {
                 const ratio = Number((channel as any).vkvideoCoinPerPointRatio ?? 1.0);
                 const coinsToGrant = fixedCoins ? Number(fixedCoins) : Math.floor(redemption.amount * (Number.isFinite(ratio) ? ratio : 1.0));
 
+                const linkedUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'vkvideo', platformUserId: redemption.providerAccountId });
+
                 await prisma.$transaction(async (tx) => {
                   await recordExternalRewardEventTx({
                     tx: tx as any,
@@ -1014,6 +1369,16 @@ async function start() {
                     eventAt: redemption.eventAt,
                     rawPayloadJson,
                   });
+
+                  // If viewer already linked, claim immediately (no realtime emit here; runner is out-of-process).
+                  if (linkedUserId && coinsToGrant > 0) {
+                    await claimPendingCoinGrantsTx({
+                      tx: tx as any,
+                      userId: linkedUserId,
+                      provider: 'vkvideo',
+                      providerAccountId: redemption.providerAccountId,
+                    });
+                  }
                 });
               })();
               return;

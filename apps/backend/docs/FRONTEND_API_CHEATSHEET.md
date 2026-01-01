@@ -42,6 +42,9 @@
   - `coinPerPointRatio`
   - `rewardIdForCoins`, `rewardEnabled`, `rewardTitle`, `rewardCost`, `rewardCoins`
   - `rewardOnlyWhenLive` (boolean, default `false`) — начислять coins за Twitch reward только когда стрим онлайн
+  - `youtubeLikeRewardEnabled` (boolean, default `false`)
+  - `youtubeLikeRewardCoins` (int, default `0`)
+  - `youtubeLikeRewardOnlyWhenLive` (boolean, default `false`)
   - `submissionRewardCoins`
   - `submissionRewardOnlyWhenLive` (boolean, default `false`) — начислять coins за approved submission только когда стрим онлайн
   - `coinIconUrl`
@@ -74,6 +77,22 @@
   - `channel`: `{ id, slug, name } | null`
   - `wallets`: array wallet rows
   - `externalAccounts`: array привязанных аккаунтов (см. `/auth/accounts`)
+
+### POST `/rewards/youtube/like/claim`
+- **Auth**: `authenticate + requireBetaAccess`
+- **Body**:
+  - `channelSlug` (string, required)
+  - `videoId` (string, optional) — если не передан, бэкенд попробует определить текущий live `videoId`
+- **Response**: `{ status: string, ... }`
+  - `status`:
+    - `disabled` — фича выключена/coins=0
+    - `need_youtube_link` — у пользователя нет YouTube ExternalAccount
+    - `need_relink_scopes` — нужен `youtube.force-ssl` (см. `GET /auth/youtube/link/force-ssl`)
+    - `not_live` — не удалось определить текущий live `videoId` (или onlyWhenLive=true и videoId не совпал)
+    - `cooldown` — слишком частые проверки
+    - `not_liked` — лайка нет
+    - `already_awarded` — уже начислено за этот `videoId`
+    - `awarded` — начислено (в ответе будет `coinsGranted`, `balance`)
 
 ### GET `/me/preferences`
 - **Auth**: `authenticate + requireBetaAccess`

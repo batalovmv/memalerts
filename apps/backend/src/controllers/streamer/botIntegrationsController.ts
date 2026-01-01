@@ -12,7 +12,7 @@ import { getTrovoAuthorizeUrl, fetchTrovoUserInfo } from '../../auth/providers/t
 import { getKickAuthorizeUrl, fetchKickUser } from '../../auth/providers/kick.js';
 import { extractVkVideoChannelIdFromUrl, fetchVkVideoCurrentUser, getVkVideoExternalAccount, getValidVkVideoBotAccessToken } from '../../utils/vkvideoApi.js';
 import { getTrovoExternalAccount, getValidTrovoBotAccessToken } from '../../utils/trovoApi.js';
-import { getKickExternalAccount, getValidKickBotAccessToken } from '../../utils/kickApi.js';
+import { createKickEventSubscription, getKickExternalAccount, getValidKickAccessTokenByExternalAccountId, getValidKickBotAccessToken, listKickEventSubscriptions } from '../../utils/kickApi.js';
 import { logger } from '../../utils/logger.js';
 import { hasChannelEntitlement } from '../../utils/entitlements.js';
 import { ERROR_CODES } from '../../shared/errors.js';
@@ -1234,6 +1234,66 @@ export const botIntegrationsController = {
         if (enabled) {
           if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
           if (!kickChannelId) return res.status(400).json({ error: 'Bad Request', message: 'Missing kickChannelId' });
+
+          // Ensure Kick Events subscription exists for chat.message.sent (event-driven chat ingest).
+          const acc = await getKickExternalAccount(req.userId);
+          if (!acc?.id) {
+            return res.status(400).json({
+              error: 'Kick account is not linked. Please link Kick in integrations first.',
+              errorCode: 'KICK_NOT_LINKED',
+            });
+          }
+          const scopes = String((acc as any).scopes || '')
+            .split(/\s+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (!scopes.includes('events:subscribe')) {
+            return res.status(400).json({
+              error: 'Kick scope missing: events:subscribe. Please re-link Kick with the required permissions.',
+              errorCode: 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE',
+            });
+          }
+          const accessToken = await getValidKickAccessTokenByExternalAccountId(acc.id);
+          if (!accessToken) {
+            return res.status(401).json({
+              error: 'Kick access token not found/expired. Please log out and log in again to refresh your authorization.',
+              requiresReauth: true,
+              errorCode: 'KICK_ACCESS_TOKEN_MISSING',
+            });
+          }
+
+          const callbackUrl = (() => {
+            const envUrl = String(process.env.KICK_WEBHOOK_CALLBACK_URL || '').trim();
+            if (envUrl) return envUrl;
+            const domain = process.env.DOMAIN || 'twitchmemes.ru';
+            const reqHost = req.get('host') || '';
+            const allowedHosts = new Set([domain, `www.${domain}`, `beta.${domain}`]);
+            const apiBaseUrl = allowedHosts.has(reqHost) ? `https://${reqHost}` : `https://${domain}`;
+            return `${apiBaseUrl}/webhooks/kick/events`;
+          })();
+
+          const eventName = 'chat.message.sent';
+          let hasSub = false;
+          const listed = await listKickEventSubscriptions({ accessToken });
+          if (listed.ok) {
+            hasSub =
+              (listed.subscriptions || []).find((s: any) => {
+                const e = String(s?.event ?? s?.type ?? s?.name ?? '').trim().toLowerCase();
+                const cb = String(s?.callback_url ?? s?.callback ?? s?.transport?.callback ?? '').trim();
+                return e === eventName && cb === callbackUrl;
+              }) != null;
+          }
+          if (!hasSub) {
+            const created = await createKickEventSubscription({ accessToken, callbackUrl, event: eventName, version: 'v1' });
+            if (!created.ok) {
+              logger.warn('kick.bot_subscription_create_failed', { status: created.status, channelId });
+              return res.status(502).json({
+                error: 'Failed to create Kick event subscription. Please try again.',
+                errorCode: 'KICK_SUBSCRIPTION_CREATE_FAILED',
+              });
+            }
+          }
+
           await (prisma as any).kickChatBotSubscription.upsert({
             where: { channelId },
             create: { channelId, userId: req.userId, kickChannelId, enabled: true },

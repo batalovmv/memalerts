@@ -176,6 +176,47 @@ export const authController = {
     return res.redirect(authUrl);
   },
 
+  // Special YouTube link flow to request stronger scopes (force-ssl) for viewer-side activity rewards (e.g. videos.getRating).
+  // This keeps the default /auth/youtube/link minimal (youtube.readonly) for streamers.
+  initiateYouTubeForceSslLink: async (req: AuthRequest, res: Response) => {
+    if (!req.userId) {
+      const redirectUrl = getRedirectUrl(req);
+      return res.redirect(`${redirectUrl}/?error=auth_required&reason=no_session`);
+    }
+
+    const clientId = process.env.YOUTUBE_CLIENT_ID;
+    const callbackUrl = process.env.YOUTUBE_CALLBACK_URL;
+    if (!clientId || !callbackUrl || !process.env.YOUTUBE_CLIENT_SECRET) {
+      const redirectUrl = getRedirectUrl(req);
+      const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
+      return res.redirect(buildRedirectWithError(redirectUrl, redirectTo, { error: 'auth_failed', reason: 'missing_oauth_env', provider: 'youtube' }));
+    }
+
+    const redirectTo = sanitizeRedirectTo(req.query.redirect_to);
+    const origin = (req.query.origin as string) || null;
+
+    const { state } = await createOAuthState({
+      provider: 'youtube',
+      kind: 'link',
+      userId: req.userId,
+      redirectTo,
+      origin,
+    });
+
+    // For viewer activity rewards we need user-scoped permissions for videos.getRating.
+    // Include `openid` to reliably get a stable Google account id ("sub") in callback.
+    const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl', 'openid'];
+    const authUrl = getYouTubeAuthorizeUrl({
+      clientId,
+      redirectUri: callbackUrl,
+      state,
+      scopes,
+      includeGrantedScopes: true,
+    });
+
+    return res.redirect(authUrl);
+  },
+
   initiateTwitchAuth: (req: AuthRequest, res: Response) => {
     // Backward-compatible alias for older frontend URLs: /auth/twitch
     (req.params as any).provider = 'twitch';
@@ -1129,7 +1170,7 @@ export const authController = {
 
         // Claim pending coin grants for this external identity (viewer linking flow).
         // IMPORTANT: do NOT claim on bot_link to avoid granting coins for a bot account identity.
-        if (stateKind !== 'bot_link' && (provider === 'kick' || provider === 'trovo' || provider === 'vkvideo')) {
+        if (stateKind !== 'bot_link' && (provider === 'kick' || provider === 'trovo' || provider === 'vkvideo' || provider === 'twitch')) {
           try {
             const events = await claimPendingCoinGrantsTx({
               tx: tx as any,

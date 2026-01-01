@@ -3,9 +3,12 @@ import WebSocket from 'ws';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
-import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
+import { getStreamDurationSnapshot, getStreamSessionSnapshot, handleStreamOffline, handleStreamOnline } from '../realtime/streamDurationStore.js';
 import { fetchTrovoChatToken, getTrovoExternalAccount, getValidTrovoAccessTokenByExternalAccountId, getValidTrovoBotAccessToken, sendTrovoChatMessage } from '../utils/trovoApi.js';
 import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
+import { claimPendingCoinGrantsTx } from '../rewards/pendingCoinGrants.js';
+import { getRedisClient } from '../utils/redisClient.js';
+import { nsKey } from '../utils/redisCache.js';
 
 dotenv.config();
 
@@ -27,6 +30,31 @@ function normalizeLogin(v: any): string {
     .trim()
     .toLowerCase()
     .replace(/^@+/, '');
+}
+
+function safeNum(n: any): number {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function readTierCoins(map: any, tier: string): number {
+  if (!map || typeof map !== 'object') return 0;
+  const key = String(tier || '').trim();
+  const v = (map as any)[key];
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+function utcDayKey(d: Date): string {
+  const yy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function utcDayKeyYesterday(d: Date): string {
+  const prev = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - 24 * 60 * 60 * 1000);
+  return utcDayKey(prev);
 }
 
 async function postInternalCreditsChatter(baseUrl: string, payload: { channelSlug: string; userId: string; displayName: string }) {
@@ -152,6 +180,9 @@ type ChannelState = {
   ws: WebSocket | null;
   wsToken: string | null;
   wsConnected: boolean;
+  wsAuthNonce: string | null;
+  wsPingTimer: NodeJS.Timeout | null;
+  wsPingGapSeconds: number;
   lastConnectAt: number;
   // Optional per-channel bot account override (ExternalAccount.id)
   botExternalAccountId: string | null;
@@ -170,67 +201,97 @@ function parseTrovoChatWsUrl(): string {
   return String(process.env.TROVO_CHAT_WS_URL || '').trim() || 'wss://open-chat.trovo.live/chat';
 }
 
-function extractIncomingChat(msg: any): { userId: string; displayName: string; login: string | null; text: string } | null {
-  // Best-effort parsing: Trovo chat service JSON schemas may vary between versions.
-  const type = String(msg?.type ?? msg?.event ?? msg?.cmd ?? '').trim().toUpperCase();
-  const data = msg?.data ?? msg?.payload ?? msg?.body ?? msg;
-
-  // Prefer explicit chat-like types
-  const isChatLike = type.includes('CHAT') || type.includes('MESSAGE') || type.includes('MSG');
-  if (!isChatLike && type) {
-    // ignore other types (PING, ACK, etc.)
-    return null;
-  }
-
-  const root = data?.chat ?? data?.message ?? data ?? null;
-  const sender = root?.sender ?? root?.user ?? root?.from ?? root?.author ?? root?.senderInfo ?? root;
-
-  const userId = String(sender?.user_id ?? sender?.userId ?? sender?.uid ?? sender?.id ?? root?.user_id ?? root?.userId ?? '').trim();
-  const displayNameRaw = String(sender?.nick_name ?? sender?.nickname ?? sender?.display_name ?? sender?.displayName ?? sender?.name ?? '').trim();
-  const loginRaw = String(sender?.user_name ?? sender?.username ?? sender?.login ?? '').trim();
-
-  const text = normalizeMessage(root?.content ?? root?.text ?? root?.message ?? root?.msg ?? '');
-  if (!userId || !text) return null;
-
-  const displayName = displayNameRaw || loginRaw || userId;
-  const login = loginRaw ? normalizeLogin(loginRaw) : null;
-  return { userId, displayName, login, text };
+function makeTrovoNonce(): string {
+  // Must be present in AUTH and PING (Trovo Chat Service echoes it back in RESPONSE/PONG).
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function extractTrovoSpell(msg: any): {
+function extractIncomingChats(msg: any): Array<{ userId: string; displayName: string; login: string | null; text: string; rawChat: any }> {
+  // Trovo official shape:
+  // { "type":"CHAT", "channel_info": {...}, "data": { "eid":"...", "chats":[ { content, nick_name, user_name, uid/sender_id, type, ... } ] } }
+  const t = String(msg?.type ?? '').trim().toUpperCase();
+  if (t !== 'CHAT') return [];
+
+  const chats = Array.isArray(msg?.data?.chats) ? msg.data.chats : [];
+  if (chats.length === 0) return [];
+
+  const out: Array<{ userId: string; displayName: string; login: string | null; text: string; rawChat: any }> = [];
+  for (const chat of chats) {
+    const userId = String(chat?.uid ?? chat?.sender_id ?? '').trim();
+    const displayNameRaw = String(chat?.nick_name ?? '').trim();
+    const loginRaw = String(chat?.user_name ?? '').trim();
+    const text = normalizeMessage(chat?.content ?? '');
+    if (!userId || !text) continue;
+
+    const displayName = displayNameRaw || loginRaw || userId;
+    const login = loginRaw ? normalizeLogin(loginRaw) : null;
+    out.push({ userId, displayName, login, text, rawChat: chat });
+  }
+  return out;
+}
+
+function extractTrovoSpellFromChat(params: {
+  envelope: any;
+  chat: any;
+}): {
   providerAccountId: string | null;
   amount: number;
   currency: 'trovo_mana' | 'trovo_elixir';
   providerEventId: string | null;
   eventAt: Date | null;
 } | null {
-  const typeRaw = msg?.type ?? msg?.event ?? msg?.cmd ?? msg?.data?.type ?? null;
-  const typeStr = String(typeRaw ?? '').trim().toUpperCase();
-  const typeNum = Number.isFinite(Number(typeRaw)) ? Number(typeRaw) : null;
-
-  // Trovo Chat Service: spells are commonly delivered as type=5 (best-effort).
-  const isSpell = typeStr.includes('SPELL') || typeNum === 5;
+  const chatType = Number.isFinite(Number(params.chat?.type)) ? Number(params.chat?.type) : null;
+  const isSpell = chatType === 5 || chatType === 5009;
   if (!isSpell) return null;
 
-  const data = msg?.data ?? msg?.payload ?? msg?.body ?? msg;
-  const sender = data?.sender ?? data?.user ?? data?.from ?? data?.author ?? data;
-  const providerAccountId = String(sender?.user_id ?? sender?.userId ?? sender?.uid ?? sender?.id ?? data?.user_id ?? '').trim() || null;
+  const providerAccountId = String(params.chat?.uid ?? params.chat?.sender_id ?? '').trim() || null;
 
-  const amountRaw = data?.amount ?? data?.value ?? data?.cost ?? data?.spell_value ?? data?.spell?.value ?? data?.spell?.cost ?? null;
-  const amount = Number.isFinite(Number(amountRaw)) ? Math.floor(Number(amountRaw)) : 0;
+  // Trovo spells examples often use JSON-string content like: {"gift":"Winner","num":1}
+  let amount = 1;
+  try {
+    const parsed = JSON.parse(String(params.chat?.content ?? ''));
+    const num = (parsed as any)?.num;
+    if (Number.isFinite(Number(num))) amount = Math.max(1, Math.floor(Number(num)));
+  } catch {
+    // keep default=1
+  }
 
-  const currencyRaw = String(data?.currency ?? data?.spell_currency ?? data?.spell?.currency ?? data?.spell?.type ?? '').trim().toLowerCase();
-  const currency: 'trovo_mana' | 'trovo_elixir' = currencyRaw.includes('elixir') ? 'trovo_elixir' : 'trovo_mana';
+  // Currency is not reliably documented in CHAT schema; keep best-effort heuristic for now.
+  const contentDataStr = (() => {
+    try {
+      return JSON.stringify(params.chat?.content_data ?? params.chat?.contentData ?? params.chat?.data ?? null) || '';
+    } catch {
+      return '';
+    }
+  })()
+    .toLowerCase()
+    .trim();
+  const currency: 'trovo_mana' | 'trovo_elixir' = contentDataStr.includes('elixir') ? 'trovo_elixir' : 'trovo_mana';
 
   const providerEventId =
-    String(data?.message_id ?? data?.eid ?? data?.id ?? data?.msg_id ?? data?.event_id ?? '').trim() || null;
+    String(params.chat?.eid ?? params.chat?.id ?? params.chat?.msg_id ?? params.envelope?.data?.eid ?? '').trim() || null;
+
   const eventAt = (() => {
-    const ts = data?.created_at ?? data?.createdAt ?? data?.timestamp ?? msg?.timestamp ?? null;
-    const ms = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
-    return Number.isFinite(ms) ? new Date(ms) : null;
+    const ts = params.chat?.send_time ?? params.chat?.sendTime ?? params.chat?.timestamp ?? null;
+    const n = Number(ts);
+    if (Number.isFinite(n)) {
+      const ms = n < 1e12 ? n * 1000 : n;
+      return new Date(ms);
+    }
+    const parsed = Date.parse(String(ts || ''));
+    return Number.isFinite(parsed) ? new Date(parsed) : null;
   })();
 
   return { providerAccountId, amount, currency, providerEventId, eventAt };
+}
+
+function extractGapSeconds(msg: any): number | null {
+  const n = Number(msg?.data?.gap ?? msg?.gap ?? null);
+  if (!Number.isFinite(n)) return null;
+  // guardrails
+  if (n < 5) return 5;
+  if (n > 120) return 120;
+  return Math.floor(n);
 }
 
 async function sendToTrovoChat(params: { st: ChannelState; text: string }): Promise<void> {
@@ -253,7 +314,15 @@ async function sendToTrovoChat(params: { st: ChannelState; text: string }): Prom
     sendChatUrl: process.env.TROVO_SEND_CHAT_URL || undefined,
   });
   if (!resp.ok) {
-    throw new Error(`Trovo send chat failed (${resp.status})`);
+    const hint =
+      resp.status === 401 || resp.status === 403
+        ? ' Trovo selected-channel send requires scopes: bot=chat_send_self AND target channel=send_to_my_channel.'
+        : '';
+    const rawMsg = (() => {
+      const msg = resp.raw?.message ?? resp.raw?.error ?? resp.raw?.status_message ?? resp.raw?.data?.message ?? null;
+      return msg ? ` raw=${String(msg)}` : '';
+    })();
+    throw new Error(`Trovo send chat failed (${resp.status}).${hint}${rawMsg}`);
   }
 }
 
@@ -276,6 +345,27 @@ async function start() {
   const wsUrl = parseTrovoChatWsUrl();
 
   const states = new Map<string, ChannelState>(); // channelId -> state
+
+  // Auto rewards config (reuses Channel.twitchAutoRewardsJson, like VKVideo).
+  const autoRewardsByChannelId = new Map<string, { ts: number; cfg: any | null }>();
+  const AUTO_REWARDS_CACHE_MS = 60_000;
+
+  async function getAutoRewardsConfig(channelId: string): Promise<any | null> {
+    const id = String(channelId || '').trim();
+    if (!id) return null;
+    const now = Date.now();
+    const cached = autoRewardsByChannelId.get(id);
+    if (cached && now - cached.ts < AUTO_REWARDS_CACHE_MS) return cached.cfg ?? null;
+    try {
+      const ch = await prisma.channel.findUnique({ where: { id }, select: { twitchAutoRewardsJson: true } as any });
+      const cfg = (ch as any)?.twitchAutoRewardsJson ?? null;
+      autoRewardsByChannelId.set(id, { ts: now, cfg });
+      return cfg ?? null;
+    } catch {
+      autoRewardsByChannelId.set(id, { ts: now, cfg: null });
+      return null;
+    }
+  }
 
   let stopped = false;
   let syncInFlight = false;
@@ -319,16 +409,20 @@ async function start() {
       if (st.ws === ws) {
         st.ws = null;
         st.wsConnected = false;
+        st.wsAuthNonce = null;
+        if (st.wsPingTimer) {
+          clearInterval(st.wsPingTimer);
+          st.wsPingTimer = null;
+        }
       }
     };
 
     ws.on('open', () => {
       try {
-        ws.send(JSON.stringify({ type: 'AUTH', data: { token: st.wsToken } }));
-        // Best-effort subscribe/join the channel chat (protocol differences across versions).
-        ws.send(JSON.stringify({ type: 'JOIN', data: { channel_id: st.trovoChannelId } }));
-        ws.send(JSON.stringify({ type: 'SUBSCRIBE', data: { channel_id: st.trovoChannelId } }));
-        st.wsConnected = true;
+        const nonce = makeTrovoNonce();
+        st.wsAuthNonce = nonce;
+        // Official Trovo Chat Service AUTH requires nonce.
+        ws.send(JSON.stringify({ type: 'AUTH', nonce, data: { token: st.wsToken } }));
       } catch (e: any) {
         logger.warn('trovo_chatbot.ws_auth_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
         try {
@@ -349,8 +443,53 @@ async function start() {
       }
       if (!msg) return;
 
-      // Best-effort ping handling
-      const t = String(msg?.type ?? msg?.event ?? '').trim().toUpperCase();
+      const t = String(msg?.type ?? '').trim().toUpperCase();
+
+      const ensurePingTimer = (gapSeconds: number | null) => {
+        const nextGap = gapSeconds ?? st.wsPingGapSeconds ?? 30;
+        st.wsPingGapSeconds = nextGap;
+        if (st.wsPingTimer) clearInterval(st.wsPingTimer);
+        st.wsPingTimer = setInterval(() => {
+          if (stopped) return;
+          if (st.ws !== ws) return;
+          if (!st.wsConnected) return;
+          try {
+            ws.send(JSON.stringify({ type: 'PING', nonce: makeTrovoNonce() }));
+          } catch {
+            // ignore
+          }
+        }, Math.max(5, nextGap) * 1000);
+      };
+
+      // AUTH response (nonce must match)
+      if (t === 'RESPONSE') {
+        const nonce = String(msg?.nonce ?? '').trim();
+        if (nonce && st.wsAuthNonce && nonce === st.wsAuthNonce) {
+          const ok = msg?.data?.ok ?? msg?.ok ?? null;
+          const err = msg?.data?.error ?? msg?.error ?? msg?.message ?? null;
+          if (ok === false || err) {
+            logger.warn('trovo_chatbot.ws_auth_rejected', { channelId: st.channelId, error: err || 'auth_failed' });
+            try {
+              ws.close();
+            } catch {
+              // ignore
+            }
+            return;
+          }
+          st.wsConnected = true;
+          ensurePingTimer(extractGapSeconds(msg) ?? 30);
+        }
+        return;
+      }
+
+      // Official heartbeat: client sends PING, server responds with PONG (may include next gap).
+      if (t === 'PONG') {
+        const gap = extractGapSeconds(msg);
+        if (gap) ensurePingTimer(gap);
+        return;
+      }
+
+      // Backward-compat: if server sends PING, reply PONG (but primary heartbeat is client-initiated).
       if (t === 'PING') {
         try {
           ws.send(JSON.stringify({ type: 'PONG' }));
@@ -360,68 +499,519 @@ async function start() {
         return;
       }
 
-      // Trovo spells -> coins (best-effort parsing; does NOT create Users).
-      try {
-        const spell = extractTrovoSpell(msg);
-        if (spell?.providerAccountId && spell.amount > 0) {
-          const rawPayloadJson = JSON.stringify(msg ?? {});
-          const providerEventId =
-            spell.providerEventId ||
-            stableProviderEventId({
-              provider: 'trovo',
-              rawPayloadJson,
-              fallbackParts: [st.trovoChannelId, spell.providerAccountId, String(spell.amount), spell.currency],
-            });
+      if (t !== 'CHAT') return;
+      const chats = Array.isArray(msg?.data?.chats) ? msg.data.chats : [];
+      if (chats.length === 0) return;
 
-          const channel = await prisma.channel.findUnique({
-            where: { id: st.channelId },
-            select: { id: true, slug: true, trovoManaCoinsPerUnit: true, trovoElixirCoinsPerUnit: true } as any,
-          });
-          if (channel) {
-            const perUnit = spell.currency === 'trovo_elixir' ? Number((channel as any).trovoElixirCoinsPerUnit ?? 0) : Number((channel as any).trovoManaCoinsPerUnit ?? 0);
-            const coinsToGrant = Number.isFinite(perUnit) && perUnit > 0 ? Math.floor(spell.amount * perUnit) : 0;
+      for (const chat of chats) {
+        const chatType = Number.isFinite(Number(chat?.type)) ? Number(chat?.type) : null;
 
-            await prisma.$transaction(async (tx) => {
-              await recordExternalRewardEventTx({
-                tx: tx as any,
-                provider: 'trovo',
-                providerEventId,
-                channelId: String((channel as any).id),
-                providerAccountId: spell.providerAccountId!,
-                eventType: 'trovo_spell',
-                currency: spell.currency,
-                amount: spell.amount,
-                coinsToGrant,
-                status: coinsToGrant > 0 ? 'eligible' : 'ignored',
-                reason: coinsToGrant > 0 ? null : 'trovo_spell_unconfigured',
-                eventAt: spell.eventAt,
-                rawPayloadJson,
-              });
-            });
+        // Trovo "stream on/off" (bot-only) can establish stream session boundaries for per-stream chat rewards.
+        if (chatType === 5012) {
+          try {
+            const raw = String(chat?.content ?? chat?.msg ?? chat?.message ?? '').trim().toLowerCase();
+            const isOnline = raw.includes('online') || raw.includes('start') || raw.includes('live') || raw === '1';
+            const isOffline = raw.includes('offline') || raw.includes('end') || raw.includes('stop') || raw === '0';
+            if (isOnline) await handleStreamOnline(st.slug, 60);
+            if (isOffline) await handleStreamOffline(st.slug);
+          } catch {
+            // ignore
           }
+          continue;
         }
-      } catch (e: any) {
-        logger.warn('trovo_chatbot.spell_ingest_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
-      }
 
-      const incoming = extractIncomingChat(msg);
-      if (!incoming) return;
+        // Trovo spells -> coins (parsed from CHAT.data.chats[]; does NOT create Users).
+        try {
+          const spell = extractTrovoSpellFromChat({ envelope: msg, chat });
+          if (spell?.providerAccountId && spell.amount > 0) {
+            const rawPayloadJson = JSON.stringify({ envelope: msg ?? {}, chat: chat ?? {} });
+            const providerEventId =
+              spell.providerEventId ||
+              stableProviderEventId({
+                provider: 'trovo',
+                rawPayloadJson,
+                fallbackParts: [st.trovoChannelId, spell.providerAccountId, String(spell.amount), spell.currency],
+              });
 
-      // Commands
-      const msgNorm = normalizeMessage(incoming.text).toLowerCase();
-      if (msgNorm) {
-        const match = st.commands.find((c) => c.triggerNormalized === msgNorm);
-        if (match?.response) {
-          const allowedUsers = match.allowedUsers || [];
-          if (allowedUsers.length > 0) {
-            const senderLogin = incoming.login || '';
-            if (!senderLogin || !allowedUsers.includes(senderLogin)) {
-              // Not allowed
-            } else {
-              if (match.onlyWhenLive) {
-                const snap = await getStreamDurationSnapshot(st.slug);
-                if (snap.status !== 'online') {
-                  // ignore
+            const channel = await prisma.channel.findUnique({
+              where: { id: st.channelId },
+              select: { id: true, slug: true, trovoManaCoinsPerUnit: true, trovoElixirCoinsPerUnit: true } as any,
+            });
+            if (channel) {
+              const perUnit =
+                spell.currency === 'trovo_elixir'
+                  ? Number((channel as any).trovoElixirCoinsPerUnit ?? 0)
+                  : Number((channel as any).trovoManaCoinsPerUnit ?? 0);
+              const coinsToGrant = Number.isFinite(perUnit) && perUnit > 0 ? Math.floor(spell.amount * perUnit) : 0;
+
+              await prisma.$transaction(async (tx) => {
+                await recordExternalRewardEventTx({
+                  tx: tx as any,
+                  provider: 'trovo',
+                  providerEventId,
+                  channelId: String((channel as any).id),
+                  providerAccountId: spell.providerAccountId!,
+                  eventType: 'trovo_spell',
+                  currency: spell.currency,
+                  amount: spell.amount,
+                  coinsToGrant,
+                  status: coinsToGrant > 0 ? 'eligible' : 'ignored',
+                  reason: coinsToGrant > 0 ? null : 'trovo_spell_unconfigured',
+                  eventAt: spell.eventAt,
+                  rawPayloadJson,
+                });
+              });
+            }
+            continue; // don't treat spells as normal chat commands
+          }
+        } catch (e: any) {
+          logger.warn('trovo_chatbot.spell_ingest_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+        }
+
+        // Trovo auto rewards from chat event types (follow/sub/gifts/raid) + chat activity.
+        try {
+          const cfg = await getAutoRewardsConfig(st.channelId);
+          if (cfg && typeof cfg === 'object') {
+            const channelCfg: any = cfg;
+            const eventAt = (() => {
+              const ts = chat?.send_time ?? chat?.sendTime ?? chat?.timestamp ?? null;
+              const n = Number(ts);
+              if (Number.isFinite(n)) return new Date((n < 1e12 ? n * 1000 : n) as any);
+              const parsed = Date.parse(String(ts || ''));
+              return Number.isFinite(parsed) ? new Date(parsed) : new Date();
+            })();
+
+            const providerAccountId = String(chat?.uid ?? chat?.sender_id ?? '').trim() || null;
+
+            const recordAndMaybeClaim = async (params: {
+              providerEventId: string;
+              providerAccountId: string;
+              eventType:
+                | 'twitch_follow'
+                | 'twitch_subscribe'
+                | 'twitch_resub_message'
+                | 'twitch_gift_sub'
+                | 'twitch_raid'
+                | 'twitch_chat_first_message'
+                | 'twitch_chat_messages_threshold'
+                | 'twitch_chat_daily_streak';
+              currency: 'twitch_units';
+              amount: number;
+              coinsToGrant: number;
+              status: 'eligible' | 'ignored';
+              reason?: string | null;
+              rawMeta: any;
+            }) => {
+              const coins = Number.isFinite(params.coinsToGrant) ? Math.floor(params.coinsToGrant) : 0;
+              await prisma.$transaction(async (tx: any) => {
+                await recordExternalRewardEventTx({
+                  tx: tx as any,
+                  provider: 'trovo',
+                  providerEventId: params.providerEventId,
+                  channelId: st.channelId,
+                  providerAccountId: params.providerAccountId,
+                  eventType: params.eventType,
+                  currency: params.currency,
+                  amount: params.amount,
+                  coinsToGrant: coins,
+                  status: params.status,
+                  reason: params.reason ?? null,
+                  eventAt,
+                  rawPayloadJson: JSON.stringify(params.rawMeta ?? {}),
+                });
+
+                const linkedUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'trovo', platformUserId: params.providerAccountId });
+                if (linkedUserId && params.status === 'eligible' && coins > 0) {
+                  await claimPendingCoinGrantsTx({
+                    tx: tx as any,
+                    userId: linkedUserId,
+                    provider: 'trovo',
+                    providerAccountId: params.providerAccountId,
+                  });
+                }
+              });
+            };
+
+            // Follow (5003)
+            if (chatType === 5003 && providerAccountId) {
+              const rule = (channelCfg as any)?.follow ?? null;
+              const enabled = Boolean(rule?.enabled);
+              const coins = Math.floor(safeNum(rule?.coins ?? 0));
+              const onceEver = rule?.onceEver === undefined ? true : Boolean(rule?.onceEver);
+              const onlyWhenLive = Boolean(rule?.onlyWhenLive);
+
+              if (!enabled || coins <= 0) {
+                await recordAndMaybeClaim({
+                  providerEventId: onceEver
+                    ? stableProviderEventId({ provider: 'trovo', rawPayloadJson: '{}', fallbackParts: ['follow', st.channelId, providerAccountId] })
+                    : `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:follow`,
+                  providerAccountId,
+                  eventType: 'twitch_follow',
+                  currency: 'twitch_units',
+                  amount: 1,
+                  coinsToGrant: 0,
+                  status: 'ignored',
+                  reason: enabled ? 'zero_coins' : 'auto_rewards_disabled',
+                  rawMeta: { kind: 'trovo_follow', channelSlug: st.slug, trovoUserId: providerAccountId },
+                });
+              } else {
+                if (onlyWhenLive) {
+                  const snap = await getStreamDurationSnapshot(st.slug);
+                  if (snap.status !== 'online') {
+                    await recordAndMaybeClaim({
+                      providerEventId: onceEver
+                        ? stableProviderEventId({ provider: 'trovo', rawPayloadJson: '{}', fallbackParts: ['follow', st.channelId, providerAccountId] })
+                        : `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:follow`,
+                      providerAccountId,
+                      eventType: 'twitch_follow',
+                      currency: 'twitch_units',
+                      amount: 1,
+                      coinsToGrant: 0,
+                      status: 'ignored',
+                      reason: 'offline',
+                      rawMeta: { kind: 'trovo_follow', channelSlug: st.slug, trovoUserId: providerAccountId },
+                    });
+                  } else {
+                    await recordAndMaybeClaim({
+                      providerEventId: onceEver
+                        ? stableProviderEventId({ provider: 'trovo', rawPayloadJson: '{}', fallbackParts: ['follow', st.channelId, providerAccountId] })
+                        : `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:follow`,
+                      providerAccountId,
+                      eventType: 'twitch_follow',
+                      currency: 'twitch_units',
+                      amount: 1,
+                      coinsToGrant: coins,
+                      status: 'eligible',
+                      reason: null,
+                      rawMeta: { kind: 'trovo_follow', channelSlug: st.slug, trovoUserId: providerAccountId },
+                    });
+                  }
+                } else {
+                  await recordAndMaybeClaim({
+                    providerEventId: onceEver
+                      ? stableProviderEventId({ provider: 'trovo', rawPayloadJson: '{}', fallbackParts: ['follow', st.channelId, providerAccountId] })
+                      : `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:follow`,
+                    providerAccountId,
+                    eventType: 'twitch_follow',
+                    currency: 'twitch_units',
+                    amount: 1,
+                    coinsToGrant: coins,
+                    status: 'eligible',
+                    reason: null,
+                    rawMeta: { kind: 'trovo_follow', channelSlug: st.slug, trovoUserId: providerAccountId },
+                  });
+                }
+              }
+              continue;
+            }
+
+            // Subscription (5001)
+            if (chatType === 5001 && providerAccountId) {
+              const rule = (channelCfg as any)?.subscribe ?? null;
+              if (rule?.enabled) {
+                const onlyWhenLive = Boolean(rule?.onlyWhenLive);
+                if (!onlyWhenLive || (await getStreamDurationSnapshot(st.slug)).status === 'online') {
+                  const tier = String((chat as any)?.sub_lv ?? (chat as any)?.sub_tier ?? (chat as any)?.tier ?? '1000').trim() || '1000';
+                  const coins = readTierCoins((rule as any)?.tierCoins, tier);
+                  if (coins > 0) {
+                    await recordAndMaybeClaim({
+                      providerEventId: `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:sub`,
+                      providerAccountId,
+                      eventType: 'twitch_subscribe',
+                      currency: 'twitch_units',
+                      amount: 1,
+                      coinsToGrant: coins,
+                      status: 'eligible',
+                      reason: null,
+                      rawMeta: { kind: 'trovo_subscribe', channelSlug: st.slug, trovoUserId: providerAccountId, tier },
+                    });
+                  }
+                }
+              }
+              continue;
+            }
+
+            // Gift subs (5005/5006)
+            if ((chatType === 5005 || chatType === 5006) && providerAccountId) {
+              const rule = (channelCfg as any)?.giftSub ?? null;
+              if (rule?.enabled) {
+                const onlyWhenLive = Boolean(rule?.onlyWhenLive);
+                if (!onlyWhenLive || (await getStreamDurationSnapshot(st.slug)).status === 'online') {
+                  let count = 1;
+                  try {
+                    const parsed = JSON.parse(String(chat?.content ?? ''));
+                    const num = (parsed as any)?.num ?? (parsed as any)?.count ?? (parsed as any)?.total ?? null;
+                    if (Number.isFinite(Number(num))) count = Math.max(1, Math.floor(Number(num)));
+                  } catch {
+                    // ignore
+                  }
+
+                  const tier = String((chat as any)?.sub_lv ?? (chat as any)?.sub_tier ?? (chat as any)?.tier ?? '1000').trim() || '1000';
+                  const giverCoinsPerOne = readTierCoins((rule as any)?.giverTierCoins, tier);
+                  const giverCoins = giverCoinsPerOne > 0 ? giverCoinsPerOne * count : 0;
+                  const recipientCoins = Math.floor(safeNum((rule as any)?.recipientCoins ?? 0));
+
+                  if (giverCoins > 0) {
+                    await recordAndMaybeClaim({
+                      providerEventId: `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:gift_giver`,
+                      providerAccountId,
+                      eventType: 'twitch_gift_sub',
+                      currency: 'twitch_units',
+                      amount: count,
+                      coinsToGrant: giverCoins,
+                      status: 'eligible',
+                      reason: null,
+                      rawMeta: { kind: 'trovo_gift_sub_giver', channelSlug: st.slug, trovoUserId: providerAccountId, tier, count },
+                    });
+                  }
+
+                  // Recipients are not reliably present in Trovo chat schema; ignore unless we can parse explicit uid list.
+                  if (recipientCoins > 0) {
+                    // best-effort: try content_data.users[].
+                    const recRaw = (chat as any)?.content_data?.users ?? (chat as any)?.contentData?.users ?? [];
+                    const recArr = Array.isArray(recRaw) ? recRaw : [];
+                    for (const u of recArr) {
+                      const rid = String((u as any)?.uid ?? (u as any)?.id ?? '').trim();
+                      if (!rid) continue;
+                      await recordAndMaybeClaim({
+                        providerEventId: `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:gift_recipient:${rid}`,
+                        providerAccountId: rid,
+                        eventType: 'twitch_gift_sub',
+                        currency: 'twitch_units',
+                        amount: 1,
+                        coinsToGrant: recipientCoins,
+                        status: 'eligible',
+                        reason: null,
+                        rawMeta: { kind: 'trovo_gift_sub_recipient', channelSlug: st.slug, trovoUserId: rid },
+                      });
+                    }
+                  }
+                }
+              }
+              continue;
+            }
+
+            // Raid (5008)
+            if (chatType === 5008 && providerAccountId) {
+              const rule = (channelCfg as any)?.raid ?? null;
+              if (rule?.enabled) {
+                const onlyWhenLive = Boolean(rule?.onlyWhenLive);
+                if (!onlyWhenLive || (await getStreamDurationSnapshot(st.slug)).status === 'online') {
+                  const baseCoins = Math.floor(safeNum((rule as any)?.baseCoins ?? 0));
+                  const perViewer = Math.floor(safeNum((rule as any)?.coinsPerViewer ?? 0));
+                  const viewers = Math.max(0, Math.floor(safeNum((chat as any)?.viewer_count ?? (chat as any)?.viewers ?? 0)));
+                  const minViewers = Math.floor(safeNum((rule as any)?.minViewers ?? 0));
+                  if (minViewers <= 0 || viewers >= minViewers) {
+                    const coins = baseCoins + Math.max(0, perViewer) * viewers;
+                    if (coins > 0) {
+                      await recordAndMaybeClaim({
+                        providerEventId: `${String(chat?.eid ?? msg?.data?.eid ?? 'evt')}:raid`,
+                        providerAccountId,
+                        eventType: 'twitch_raid',
+                        currency: 'twitch_units',
+                        amount: viewers,
+                        coinsToGrant: coins,
+                        status: 'eligible',
+                        reason: null,
+                        rawMeta: { kind: 'trovo_raid', channelSlug: st.slug, trovoUserId: providerAccountId, viewers },
+                      });
+                    }
+                  }
+                }
+              }
+              continue;
+            }
+
+            // Chat activity rewards (type 0 messages).
+            if (chatType === 0 && providerAccountId) {
+              const chatCfg = (channelCfg as any)?.chat ?? null;
+              if (chatCfg && typeof chatCfg === 'object') {
+                const redis = await getRedisClient();
+                if (redis) {
+                  const now = new Date();
+                  const day = utcDayKey(now);
+                  const yesterday = utcDayKeyYesterday(now);
+                  const session = await getStreamSessionSnapshot(st.slug);
+                  const isOnline = session.status === 'online' && !!session.sessionId;
+
+                  const award = async (params: {
+                    providerEventId: string;
+                    eventType: 'twitch_chat_first_message' | 'twitch_chat_messages_threshold' | 'twitch_chat_daily_streak';
+                    amount: number;
+                    coins: number;
+                    rawMeta: any;
+                  }) => {
+                    const coins = Number.isFinite(params.coins) ? Math.floor(params.coins) : 0;
+                    if (coins <= 0) return;
+                    await recordAndMaybeClaim({
+                      providerEventId: params.providerEventId,
+                      providerAccountId,
+                      eventType: params.eventType,
+                      currency: 'twitch_units',
+                      amount: params.amount,
+                      coinsToGrant: coins,
+                      status: 'eligible',
+                      reason: null,
+                      rawMeta: params.rawMeta,
+                    });
+                  };
+
+                  // Daily streak: award once per day on first chat message.
+                  const streakCfg = (chatCfg as any)?.dailyStreak ?? null;
+                  if (streakCfg?.enabled) {
+                    const k = nsKey('trovo_auto_rewards', `streak:${st.channelId}:${providerAccountId}`);
+                    const raw = await redis.get(k);
+                    let lastDate: string | null = null;
+                    let streak = 0;
+                    try {
+                      if (raw) {
+                        const parsed = JSON.parse(raw);
+                        lastDate = typeof (parsed as any)?.lastDate === 'string' ? (parsed as any).lastDate : null;
+                        streak = Number.isFinite(Number((parsed as any)?.streak)) ? Math.floor(Number((parsed as any).streak)) : 0;
+                      }
+                    } catch {
+                      lastDate = null;
+                      streak = 0;
+                    }
+
+                    if (lastDate !== day) {
+                      const nextStreak = lastDate === yesterday ? Math.max(1, streak + 1) : 1;
+                      await redis.set(k, JSON.stringify({ lastDate: day, streak: nextStreak }), { EX: 90 * 24 * 60 * 60 });
+
+                      const coinsByStreak = (streakCfg as any)?.coinsByStreak ?? null;
+                      const coins =
+                        coinsByStreak && typeof coinsByStreak === 'object'
+                          ? Number((coinsByStreak as any)[String(nextStreak)] ?? 0)
+                          : Number((streakCfg as any)?.coinsPerDay ?? 0);
+
+                      const providerEventId = stableProviderEventId({
+                        provider: 'trovo',
+                        rawPayloadJson: '{}',
+                        fallbackParts: ['chat_daily_streak', st.channelId, providerAccountId, day],
+                      });
+                      await award({
+                        providerEventId,
+                        eventType: 'twitch_chat_daily_streak',
+                        amount: nextStreak,
+                        coins,
+                        rawMeta: { kind: 'trovo_chat_daily_streak', channelSlug: st.slug, trovoUserId: providerAccountId, day, streak: nextStreak },
+                      });
+                    }
+                  }
+
+                  // First message per stream: award once per user per stream session.
+                  const firstCfg = (chatCfg as any)?.firstMessage ?? null;
+                  if (firstCfg?.enabled) {
+                    const onlyWhenLive = (firstCfg as any)?.onlyWhenLive === undefined ? true : Boolean((firstCfg as any).onlyWhenLive);
+                    if (!onlyWhenLive || isOnline) {
+                      const sid = String(session.sessionId || '').trim();
+                      if (sid) {
+                        const k = nsKey('trovo_auto_rewards', `first:${st.channelId}:${sid}:${providerAccountId}`);
+                        const ok = await redis.set(k, '1', { NX: true, EX: 48 * 60 * 60 });
+                        if (ok === 'OK') {
+                          const providerEventId = stableProviderEventId({
+                            provider: 'trovo',
+                            rawPayloadJson: '{}',
+                            fallbackParts: ['chat_first_message', st.channelId, sid, providerAccountId],
+                          });
+                          await award({
+                            providerEventId,
+                            eventType: 'twitch_chat_first_message',
+                            amount: 1,
+                            coins: Number((firstCfg as any)?.coins ?? 0),
+                            rawMeta: { kind: 'trovo_chat_first_message', channelSlug: st.slug, trovoUserId: providerAccountId, sessionId: sid },
+                          });
+                        }
+                      }
+                    }
+                  }
+
+                  // Message count thresholds per stream.
+                  const thrCfg = (chatCfg as any)?.messageThresholds ?? null;
+                  if (thrCfg?.enabled) {
+                    const onlyWhenLive = (thrCfg as any)?.onlyWhenLive === undefined ? true : Boolean((thrCfg as any).onlyWhenLive);
+                    if (!onlyWhenLive || isOnline) {
+                      const sid = String(session.sessionId || '').trim();
+                      if (sid) {
+                        const kCount = nsKey('trovo_auto_rewards', `msgcount:${st.channelId}:${sid}:${providerAccountId}`);
+                        const n = await redis.incr(kCount);
+                        if (n === 1) await redis.expire(kCount, 48 * 60 * 60);
+
+                        const thresholds = Array.isArray((thrCfg as any)?.thresholds) ? (thrCfg as any).thresholds : [];
+                        const hit = thresholds.some((t: any) => Number.isFinite(Number(t)) && Math.floor(Number(t)) === n);
+                        if (hit) {
+                          const coinsByThreshold = (thrCfg as any)?.coinsByThreshold ?? null;
+                          const coins =
+                            coinsByThreshold && typeof coinsByThreshold === 'object' ? Number((coinsByThreshold as any)[String(n)] ?? 0) : 0;
+                          const providerEventId = stableProviderEventId({
+                            provider: 'trovo',
+                            rawPayloadJson: '{}',
+                            fallbackParts: ['chat_messages_threshold', st.channelId, sid, providerAccountId, String(n)],
+                          });
+                          await award({
+                            providerEventId,
+                            eventType: 'twitch_chat_messages_threshold',
+                            amount: n,
+                            coins,
+                            rawMeta: { kind: 'trovo_chat_messages_threshold', channelSlug: st.slug, trovoUserId: providerAccountId, sessionId: sid, count: n },
+                          });
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e: any) {
+          logger.warn('trovo_chatbot.auto_rewards_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+        }
+
+        // Normal chat message
+        const incomingList = extractIncomingChats({ type: 'CHAT', data: { chats: [chat] } });
+        for (const incoming of incomingList) {
+          // Commands
+          const msgNorm = normalizeMessage(incoming.text).toLowerCase();
+          if (msgNorm) {
+            const match = st.commands.find((c) => c.triggerNormalized === msgNorm);
+            if (match?.response) {
+              const allowedUsers = match.allowedUsers || [];
+              if (allowedUsers.length > 0) {
+                const senderLogin = incoming.login || '';
+                if (!senderLogin || !allowedUsers.includes(senderLogin)) {
+                  // Not allowed
+                } else {
+                  if (match.onlyWhenLive) {
+                    const snap = await getStreamDurationSnapshot(st.slug);
+                    if (snap.status !== 'online') {
+                      // ignore
+                    } else {
+                      try {
+                        await sendToTrovoChat({ st, text: match.response });
+                      } catch (e: any) {
+                        logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+                      }
+                    }
+                  } else {
+                    try {
+                      await sendToTrovoChat({ st, text: match.response });
+                    } catch (e: any) {
+                      logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+                    }
+                  }
+                }
+              } else {
+                if (match.onlyWhenLive) {
+                  const snap = await getStreamDurationSnapshot(st.slug);
+                  if (snap.status !== 'online') {
+                    // ignore
+                  } else {
+                    try {
+                      await sendToTrovoChat({ st, text: match.response });
+                    } catch (e: any) {
+                      logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
+                    }
+                  }
                 } else {
                   try {
                     await sendToTrovoChat({ st, text: match.response });
@@ -429,42 +1019,17 @@ async function start() {
                     logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
                   }
                 }
-              } else {
-                try {
-                  await sendToTrovoChat({ st, text: match.response });
-                } catch (e: any) {
-                  logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
-                }
-              }
-            }
-          } else {
-            if (match.onlyWhenLive) {
-              const snap = await getStreamDurationSnapshot(st.slug);
-              if (snap.status !== 'online') {
-                // ignore
-              } else {
-                try {
-                  await sendToTrovoChat({ st, text: match.response });
-                } catch (e: any) {
-                  logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
-                }
-              }
-            } else {
-              try {
-                await sendToTrovoChat({ st, text: match.response });
-              } catch (e: any) {
-                logger.warn('trovo_chatbot.command_reply_failed', { channelId: st.channelId, errorMessage: e?.message || String(e) });
               }
             }
           }
-        }
-      }
 
-      // Credits: chatter event
-      const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'trovo', platformUserId: incoming.userId });
-      const creditsUserId = memalertsUserId || `trovo:${incoming.userId}`;
-      for (const baseUrl of backendBaseUrls) {
-        void postInternalCreditsChatter(baseUrl, { channelSlug: st.slug, userId: creditsUserId, displayName: incoming.displayName });
+          // Credits: chatter event
+          const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'trovo', platformUserId: incoming.userId });
+          const creditsUserId = memalertsUserId || `trovo:${incoming.userId}`;
+          for (const baseUrl of backendBaseUrls) {
+            void postInternalCreditsChatter(baseUrl, { channelSlug: st.slug, userId: creditsUserId, displayName: incoming.displayName });
+          }
+        }
       }
     });
 
@@ -476,6 +1041,11 @@ async function start() {
     const ws = st.ws;
     st.ws = null;
     st.wsConnected = false;
+    st.wsAuthNonce = null;
+    if (st.wsPingTimer) {
+      clearInterval(st.wsPingTimer);
+      st.wsPingTimer = null;
+    }
     if (!ws) return;
     try {
       ws.close();
@@ -523,6 +1093,9 @@ async function start() {
             ws: null,
             wsToken: null,
             wsConnected: false,
+            wsAuthNonce: null,
+            wsPingTimer: null,
+            wsPingGapSeconds: 30,
             lastConnectAt: 0,
             botExternalAccountId: overrides.get(s.channelId) || null,
             commandsTs: 0,

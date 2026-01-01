@@ -39,6 +39,13 @@ model Channel {
   vkvideoCoinPerPointRatio      Float    @default(1.0)
   vkvideoRewardCoins            Int?
   vkvideoRewardOnlyWhenLive     Boolean  @default(false)
+  // YouTube "like stream" -> coins (viewer claim).
+  youtubeLikeRewardEnabled      Boolean  @default(false)
+  youtubeLikeRewardCoins        Int      @default(0)
+  youtubeLikeRewardOnlyWhenLive Boolean  @default(false)
+  // Twitch "auto rewards" (follows/subs/bits/raids/chat activity etc). Stored as JSONB object.
+  // Null/empty => disabled (frontend-configured).
+  twitchAutoRewardsJson         Json?    @db.JsonB
   coinIconUrl                   String? // Custom coin icon URL from Twitch reward
   primaryColor                  String? // Hex color for primary theme
   secondaryColor                String? // Hex color for secondary theme
@@ -143,16 +150,53 @@ model Channel {
   boostyDiscordRewardsV2       BoostyDiscordSubscriptionRewardV2[]
 }
 
+// Dedupe table: coins granted for a "liked live stream video" claim.
+// Exactly-once invariant: one grant per (channel, user, videoId).
+model YouTubeLikeRewardClaim {
+  id            String   @id @default(uuid())
+  channelId      String
+  userId         String
+  videoId        String
+  coinsGranted   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastCheckedAt  DateTime?
+  lastRating     String?
+  lastError      String?  @db.Text
+  awardedAt      DateTime?
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, videoId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([videoId])
+  @@index([awardedAt])
+  @@index([lastCheckedAt])
+}
+
 enum ExternalRewardProvider {
   kick
   trovo
   vkvideo
+  twitch
 }
 
 enum ExternalRewardEventType {
   kick_reward_redemption
   trovo_spell
   vkvideo_channel_points_redemption
+  twitch_follow
+  twitch_subscribe
+  twitch_resub_message
+  twitch_gift_sub
+  twitch_cheer
+  twitch_raid
+  twitch_channel_points_redemption
+  twitch_chat_first_message
+  twitch_chat_messages_threshold
+  twitch_chat_daily_streak
 }
 
 enum ExternalRewardCurrency {
@@ -160,6 +204,9 @@ enum ExternalRewardCurrency {
   trovo_mana
   trovo_elixir
   vkvideo_channel_points
+  twitch_channel_points
+  twitch_bits
+  twitch_units
 }
 
 enum ExternalRewardEventStatus {
@@ -425,6 +472,8 @@ model KickChatBotOutboxMessage {
   status    String  @default("pending") // pending | processing | sent | failed
   attempts  Int     @default(0)
   lastError String? @db.Text
+  // Simple backoff scheduling for retries (e.g., after 429 Too Many Requests).
+  nextAttemptAt DateTime @default(now())
 
   processingAt DateTime?
   sentAt       DateTime?
@@ -434,7 +483,7 @@ model KickChatBotOutboxMessage {
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
-  @@index([status, createdAt])
+  @@index([status, nextAttemptAt, createdAt])
   @@index([channelId, status, createdAt])
   @@index([kickChannelId, status, createdAt])
   @@index([createdAt])

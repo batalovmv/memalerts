@@ -10,7 +10,7 @@ type Tx = Omit<
 export async function claimPendingCoinGrantsTx(params: {
   tx: Tx;
   userId: string;
-  provider: 'kick' | 'trovo' | 'vkvideo';
+  provider: 'kick' | 'trovo' | 'vkvideo' | 'twitch';
   providerAccountId: string;
 }): Promise<WalletUpdatedEvent[]> {
   const userId = String(params.userId || '').trim();

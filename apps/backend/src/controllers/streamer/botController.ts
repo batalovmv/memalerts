@@ -873,6 +873,8 @@ export const streamerBotController = {
           broadcasterId: channel.twitchChannelId,
           webhookUrl,
           secret: process.env.TWITCH_EVENTSUB_SECRET!,
+            // Follow v2 requires moderator_user_id; broadcaster can act as moderator for own channel.
+            condition: { broadcaster_user_id: channel.twitchChannelId, moderator_user_id: channel.twitchChannelId },
         });
       }
     } catch {

@@ -133,11 +133,22 @@ export async function sendKickChatMessage(params: {
   kickChannelId: string;
   content: string;
   sendChatUrl: string;
-}): Promise<{ ok: boolean; status: number; raw: any }> {
-  // Endpoint is configured by ENV because Kick API surface may change.
+}): Promise<{ ok: boolean; status: number; raw: any; retryAfterSeconds: number | null }> {
+  // Kick Dev API (Chat → Post Chat Message) expects:
+  // POST https://api.kick.com/public/v1/chat
+  // Body: { type: "user"|"bot", content, broadcaster_user_id? }
+  // To target a specific channel, we send as "user" and set broadcaster_user_id.
+  const broadcasterUserId = Number.parseInt(String(params.kickChannelId || '').trim(), 10);
+  if (!Number.isFinite(broadcasterUserId) || broadcasterUserId <= 0) {
+    return { ok: false, status: 400, raw: { error: 'Invalid kickChannelId (expected numeric broadcaster_user_id)' }, retryAfterSeconds: null };
+  }
+
+  const contentRaw = String(params.content || '').trim();
+  const content = contentRaw.length > 500 ? contentRaw.slice(0, 500) : contentRaw;
   const body = {
-    channel_id: params.kickChannelId,
-    content: params.content,
+    broadcaster_user_id: broadcasterUserId,
+    content,
+    type: 'user',
   };
   try {
     const resp = await fetch(params.sendChatUrl, {
@@ -150,9 +161,15 @@ export async function sendKickChatMessage(params: {
       body: JSON.stringify(body),
     });
     const data = await resp.json().catch(() => null);
-    return { ok: resp.ok, status: resp.status, raw: data };
+    const retryAfterSeconds = (() => {
+      const h = String(resp.headers.get('retry-after') || '').trim();
+      if (!h) return null;
+      const n = Number.parseInt(h, 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })();
+    return { ok: resp.ok, status: resp.status, raw: data, retryAfterSeconds };
   } catch (e: any) {
-    return { ok: false, status: 0, raw: { error: e?.message || String(e) } };
+    return { ok: false, status: 0, raw: { error: e?.message || String(e) }, retryAfterSeconds: null };
   }
 }
 

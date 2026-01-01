@@ -94,6 +94,28 @@ ENV (минимум для запуска):
   - Для этого на сервере должен быть настроен `YOUTUBE_BOT_REFRESH_TOKEN` (бот‑аккаунт с scope `youtube.force-ssl`).
 - YouTube может отправлять сообщения **только когда есть активный live chat**. Если стрим оффлайн — аутбокс будет ретраиться и затем помечаться `failed` (“No active live chat”).
 
+### 2.1 YouTube “like stream” reward (coins)
+
+Назначение: **автонаграда/клейм** монет за лайк текущей трансляции YouTube.
+
+Сущности/настройки:
+- `Channel.youtubeLikeRewardEnabled` (boolean)
+- `Channel.youtubeLikeRewardCoins` (int)
+- `Channel.youtubeLikeRewardOnlyWhenLive` (boolean)
+- дедуп: `YouTubeLikeRewardClaim` (one grant per `(channelId,userId,videoId)`)
+
+OAuth (ВАЖНО):
+- Для `videos.getRating` нужен user-scoped доступ **минимум**:
+  - `https://www.googleapis.com/auth/youtube.force-ssl`
+- Для получения такого scope используйте отдельный старт линковки:
+  - `GET /auth/youtube/link/force-ssl` (далее callback стандартный: `/auth/youtube/link/callback`)
+
+Claim endpoint:
+- `POST /rewards/youtube/like/claim` body `{ channelSlug, videoId? }`
+  - если `videoId` не передан — бэкенд попробует взять текущий live `videoId` стримера через `YouTubeChatBotSubscription`
+  - ответ: `{ status: ... }`, где status один из:
+    - `disabled | need_youtube_link | need_relink_scopes | not_live | cooldown | not_liked | already_awarded | awarded | failed`
+
 ## 3) VKVideo bot (runner)
 
 Файлы:
