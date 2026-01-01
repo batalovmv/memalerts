@@ -185,12 +185,17 @@ export default function StreamerProfile() {
       setMemesOffset(0);
       try {
         // Public profile must use public API as canonical source.
+        // When unauthenticated, avoid hitting the authed endpoint (it can 401 and also triggers CORS preflights in tests).
         let channelInfoRaw: unknown;
-        try {
-          // Prefer authenticated channel DTO (it includes reward flags like youtubeLikeReward*).
-          channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
-        } catch {
+        if (!isAuthed) {
           channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+        } else {
+          try {
+            // Prefer authenticated channel DTO (it includes reward flags like youtubeLikeReward*).
+            channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+          } catch {
+            channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+          }
         }
         const channelInfo = normalizeChannelInfo(channelInfoRaw, normalizedSlug);
         if (!channelInfo) {

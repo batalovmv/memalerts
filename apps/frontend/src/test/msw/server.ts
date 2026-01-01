@@ -25,7 +25,10 @@ export const server = setupServer(
       { status: 'need_discord_link', requiredGuild: { id: 'g1', autoJoin: true, name: null, inviteUrl: null } },
       { headers: corsHeaders }
     )
-  )
+  ),
+  // Some API clients trigger CORS preflights even for GETs; keep tests strict without spurious unhandled OPTIONS.
+  http.options(/\/channels\/[^/]+(\?.*)?$/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.options(/\/public\/channels\/[^/]+(\?.*)?$/, () => new HttpResponse(null, { status: 204, headers: corsHeaders }))
 );
 
 

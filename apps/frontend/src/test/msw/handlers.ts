@@ -79,7 +79,10 @@ export function mockModerationQuarantineOk(assert?: (data: { id: string; reason:
 }
 
 export function mockChannel(slug: string, data: Record<string, unknown>) {
-  return http.get(`*/channels/${encodeURIComponent(slug)}`, () => HttpResponse.json(data));
+  return http.get('*/channels/:slug', ({ params }) => {
+    if (String(params.slug ?? '') !== slug) return new HttpResponse(null, { status: 404 });
+    return HttpResponse.json(data);
+  });
 }
 
 export function mockPublicChannel(slug: string, data: Record<string, unknown>) {

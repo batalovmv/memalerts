@@ -127,10 +127,8 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
-    const titleEl = await screen.findByText(/twitch автонаграды|twitch auto[- ]?rewards/i);
-    const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
-
-    const textarea = within(section).getByLabelText(/twitchautorewards json/i) as HTMLTextAreaElement;
+    const textarea = (await screen.findByLabelText(/twitchautorewards json/i)) as HTMLTextAreaElement;
+    const section = textarea.closest('section') ?? textarea.parentElement ?? document.body;
     await userEv.clear(textarea);
     await userEv.type(
       textarea,

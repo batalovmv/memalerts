@@ -7,7 +7,7 @@ import { Routes, Route } from 'react-router-dom';
 import StreamerProfilePage from './StreamerProfilePage';
 import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
-import { mockChannelWallet, mockPublicChannel, mockPublicChannelMemes, mockPublicChannelMemesSearch } from '@/test/msw/handlers';
+import { mockChannel, mockChannelWallet, mockPublicChannel, mockPublicChannelMemes, mockPublicChannelMemesSearch } from '@/test/msw/handlers';
 import { makeMeme } from '@/test/fixtures/memes';
 import { makeViewerUser } from '@/test/fixtures/user';
 
@@ -131,6 +131,13 @@ describe('StreamerProfilePage (integration)', () => {
     const walletCalls: URL[] = [];
 
     server.use(
+      mockChannel(slug, {
+        id: 'c1',
+        slug,
+        name: 'Test Channel',
+        coinPerPointRatio: 1,
+        stats: { memesCount: 0, usersCount: 0 },
+      }),
       mockPublicChannel(slug, {
         id: 'c1',
         slug,
