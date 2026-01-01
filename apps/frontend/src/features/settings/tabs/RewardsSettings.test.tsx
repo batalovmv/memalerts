@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 
 import { RewardsSettings } from './RewardsSettings';
@@ -137,9 +137,10 @@ describe('RewardsSettings (integration)', () => {
       null,
       2,
     );
-    await userEv.clear(textarea);
-    await userEv.click(textarea);
-    await userEv.paste(textarea, jsonText);
+    // Use fireEvent instead of userEvent.type/paste:
+    // - type() parses `{...}` as special sequences
+    // - paste() relies on clipboardData which may be missing in some JSDOM environments
+    fireEvent.change(textarea, { target: { value: jsonText } });
 
     const saveBtn = within(section).getByRole('button', { name: /save/i });
     await userEv.click(saveBtn);
