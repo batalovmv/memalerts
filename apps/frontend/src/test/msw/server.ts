@@ -19,6 +19,9 @@ const corsHeaders = {
  * Keeping them in `setupServer(...)` makes them survive `server.resetHandlers()`.
  */
 export const server = setupServer(
+  // Agent/debug telemetry (used by some integration tests for snapshots/logs).
+  http.options('*/ingest/:id', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
+  http.post('*/ingest/:id', () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),
   http.options('*/channels/:channelId/boosty-access', () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.get('*/channels/:channelId/boosty-access', () =>
     HttpResponse.json(

@@ -112,6 +112,7 @@ describe('RewardsSettings (integration)', () => {
     });
 
   it('renders Discord link CTA when boosty-access status=need_discord_link', async () => {
+    const userEv = userEvent.setup();
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     server.use(
@@ -131,11 +132,13 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    await userEv.click(await screen.findByRole('button', { name: /boosty/i }));
     logRewardsSnapshot({ runId: 'pre-fix', test: 'need_discord_link' });
-    expect(await screen.findByRole('button', { name: /привязать discord/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /(привязать discord|link discord)/i })).toBeInTheDocument();
   });
 
   it('renders subscribed state when boosty-access status=subscribed', async () => {
+    const userEv = userEvent.setup();
     const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
 
     server.use(
@@ -156,8 +159,9 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    await userEv.click(await screen.findByRole('button', { name: /boosty/i }));
     logRewardsSnapshot({ runId: 'pre-fix', test: 'subscribed' });
-    expect(await screen.findByText(/подписка активна/i)).toBeInTheDocument();
+    expect(await screen.findByText(/подписка активна|subscription active/i)).toBeInTheDocument();
     expect(await screen.findByText(/t3/i)).toBeInTheDocument();
   });
 
@@ -179,7 +183,7 @@ describe('RewardsSettings (integration)', () => {
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'save_twitchAutoRewards' });
-    const titleEl = await screen.findByText(/auto rewards/i);
+    const titleEl = await screen.findByRole('heading', { name: /auto rewards/i });
     const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
 
     const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
@@ -222,7 +226,7 @@ describe('RewardsSettings (integration)', () => {
     logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_tab_autoRewards' });
     await userEv.click(await screen.findByRole('button', { name: /kick/i }));
 
-    const titleEl = await screen.findByText(/auto rewards/i);
+    const titleEl = await screen.findByRole('heading', { name: /auto rewards/i });
     const section = titleEl.closest('section') ?? titleEl.parentElement ?? document.body;
 
     const followToggle = within(section).getByRole('checkbox', { name: /enable follow auto reward/i });
@@ -259,6 +263,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    await userEv.click(await screen.findByRole('button', { name: /(заявки|submissions)/i }));
     logRewardsSnapshot({ runId: 'pre-fix', test: 'approved_meme_autosave' });
     // Change upload reward to 10 (this triggers debounced autosave).
     const uploadLabelEl = await screen.findByText(/reward \(upload \/ url\) \(coins\)/i);
@@ -295,6 +300,7 @@ describe('RewardsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
+    await userEv.click(await screen.findByRole('button', { name: /(заявки|submissions)/i }));
     logRewardsSnapshot({ runId: 'pre-fix', test: 'approved_meme_invalid_toast' });
     const uploadLabelEl = await screen.findByText(/reward \(upload \/ url\) \(coins\)/i);
     const uploadContainer = uploadLabelEl.closest('div') ?? uploadLabelEl.parentElement ?? document.body;
@@ -337,6 +343,7 @@ describe('RewardsSettings (integration)', () => {
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_reward_autosave' });
+    await userEv.click(await screen.findByRole('button', { name: /kick/i }));
     const kickTitleEl = await screen.findByText(/coins reward \(kick\)|награда за монеты \(kick\)/i);
     const section = kickTitleEl.closest('section') ?? kickTitleEl.parentElement ?? document.body;
     const kickToggle = within(section).getByRole('checkbox') as HTMLInputElement;
