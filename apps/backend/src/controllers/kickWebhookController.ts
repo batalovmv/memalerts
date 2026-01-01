@@ -388,6 +388,7 @@ export const kickWebhookController = {
         // Map Kick channel -> MemAlerts Channel via KickChatBotSubscription (already configured by streamer).
         const sub = await (tx as any).kickChatBotSubscription.findFirst({
           where: { kickChannelId: chat.kickChannelId, enabled: true },
+          orderBy: { createdAt: 'desc' },
           select: { channelId: true, channel: { select: { slug: true } } },
         });
         const channelId = String((sub as any)?.channelId || '').trim() || null;
@@ -700,6 +701,7 @@ export const kickWebhookController = {
         // Map Kick channel -> MemAlerts Channel via KickChatBotSubscription (already configured by streamer).
         const sub = await (tx as any).kickChatBotSubscription.findFirst({
           where: { kickChannelId, enabled: true },
+          orderBy: { createdAt: 'desc' },
           select: { channelId: true, channel: { select: { slug: true, twitchAutoRewardsJson: true, streamDurationCommandJson: true } } },
         });
         const channelId = String((sub as any)?.channelId || '').trim();
@@ -1042,6 +1044,7 @@ export const kickWebhookController = {
       // Map Kick channel -> MemAlerts Channel via KickChatBotSubscription (already configured by streamer).
       const sub = await (tx as any).kickChatBotSubscription.findFirst({
         where: { kickChannelId: parsed.kickChannelId, enabled: true },
+        orderBy: { createdAt: 'desc' },
         select: { channelId: true },
       });
       if (!sub?.channelId) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'channel_not_mapped' } };
