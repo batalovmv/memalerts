@@ -26,7 +26,7 @@ export async function extractAudioToMp3(args: {
       .audioFrequency(16000)
       .outputOptions(['-b:a 64k'])
       .on('end', () => resolve(out))
-      .on('error', (err) => reject(err))
+      .on('error', (err: NodeJS.ErrnoException) => reject(err))
       .save(out);
   });
 }
