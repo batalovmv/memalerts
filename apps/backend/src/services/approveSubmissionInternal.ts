@@ -34,6 +34,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       status: true,
       memeAssetId: true,
       aiAutoDescription: true,
+      aiAutoTagNamesJson: true,
     },
   });
 
@@ -60,10 +61,14 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   const tagNames = Array.isArray(resolved.tagNames) ? resolved.tagNames : [];
   const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
 
-  const searchText =
+  const aiAutoDescription =
     typeof (submission as any).aiAutoDescription === 'string'
-      ? String((submission as any).aiAutoDescription).trim().slice(0, 4000) || null
+      ? String((submission as any).aiAutoDescription).trim().slice(0, 2000) || null
       : null;
+
+  const searchText = aiAutoDescription ? aiAutoDescription.slice(0, 4000) : null;
+
+  const aiAutoTagNamesJson = (submission as any).aiAutoTagNamesJson ?? null;
 
   const memeData: any = {
     channelId: submission.channelId,
@@ -120,6 +125,8 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       status: 'approved',
       title: submission.title,
       searchText,
+      aiAutoDescription,
+      aiAutoTagNamesJson,
       priceCoins: resolved.priceCoins,
       addedByUserId: submission.submitterUserId || null,
       approvedByUserId,
@@ -130,6 +137,8 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       status: 'approved',
       title: submission.title,
       searchText,
+      aiAutoDescription,
+      aiAutoTagNamesJson,
       priceCoins: resolved.priceCoins,
       approvedByUserId,
       approvedAt: new Date(),

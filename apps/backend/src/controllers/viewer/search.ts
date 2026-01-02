@@ -153,6 +153,83 @@ export const searchMemes = async (req: any, res: Response) => {
         legacyMemeId: true,
         memeAssetId: true,
         title: true,
+        searchText: true,
+        aiAutoDescription: true,
+        aiAutoTagNamesJson: true,
+        priceCoins: true,
+        status: true,
+        createdAt: true,
+        memeAsset: {
+          select: {
+            type: true,
+            fileUrl: true,
+            fileHash: true,
+            durationMs: true,
+            createdBy: { select: { id: true, displayName: true } },
+          },
+        },
+      },
+    });
+
+    const items = rows.map((r) => toChannelMemeListItemDto(req, targetChannelId!, r as any));
+
+    // Cache non-personalized responses (best-effort) using the existing search cache mechanism.
+    try {
+      const body = JSON.stringify(items);
+      const etag = makeEtagFromString(body);
+      const cacheKey = (req as any).__searchCacheKey as string | undefined;
+      if (cacheKey) {
+        searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+        if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+      }
+      res.setHeader('ETag', etag);
+      if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+      return res.type('application/json').send(body);
+    } catch {
+      return res.json(items);
+    }
+  }
+
+  // Channel search mode (returns the same DTO as listing, but filters by q against title + hidden searchText).
+  // This is the mode where AI description should help search without being displayed.
+  const isChannelSearchMode =
+    !!targetChannelId &&
+    !favoritesEnabled &&
+    !!qStr &&
+    !tagsStr &&
+    minPrice === undefined &&
+    maxPrice === undefined &&
+    (sortByStr === 'createdAt' || sortByStr === 'priceCoins');
+
+  if (isChannelSearchMode) {
+    const orderBy =
+      sortByStr === 'priceCoins'
+        ? [{ priceCoins: sortOrderStr }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
+        : [{ createdAt: sortOrderStr }, { id: 'desc' as const }];
+
+    const where: any = { channelId: targetChannelId!, status: 'approved', deletedAt: null };
+    where.OR = [
+      { title: { contains: qStr, mode: 'insensitive' } },
+      { searchText: { contains: qStr, mode: 'insensitive' } },
+    ];
+    if (includeUploaderEnabled) {
+      where.OR.push({ memeAsset: { createdBy: { displayName: { contains: qStr, mode: 'insensitive' } } } });
+    }
+
+    const rows = await prisma.channelMeme.findMany({
+      where,
+      orderBy: orderBy as any,
+      take: parsedLimit,
+      skip: parsedOffset,
+      select: {
+        id: true,
+        legacyMemeId: true,
+        memeAssetId: true,
+        title: true,
+        searchText: true,
+        aiAutoDescription: true,
+        aiAutoTagNamesJson: true,
         priceCoins: true,
         status: true,
         createdAt: true,
@@ -194,8 +271,6 @@ export const searchMemes = async (req: any, res: Response) => {
     if (qStr) {
       const or: any[] = [
         { title: { contains: qStr, mode: 'insensitive' } },
-        // Hidden search-only text (includes AI description when present).
-        { searchText: { contains: qStr, mode: 'insensitive' } },
         { tags: { some: { tag: { name: { contains: qStr.toLowerCase(), mode: 'insensitive' } } } } },
       ];
       if (String(includeUploader || '') === '1') {

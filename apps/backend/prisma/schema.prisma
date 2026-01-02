@@ -1130,6 +1130,9 @@ model ChannelMeme {
   // Hidden search-only text (not returned in DTOs). Used to include AI-generated description in search.
   // Keep null/empty if not available; do not display to end-users.
   searchText String? @db.VarChar(4000)
+  // Hidden AI metadata for moderation/quality control (returned only when explicitly requested by admin/streamer).
+  aiAutoTagNamesJson Json?
+  aiAutoDescription  String? @db.VarChar(2000)
   priceCoins Int
 
   addedByUserId    String?
