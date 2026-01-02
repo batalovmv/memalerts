@@ -89,6 +89,28 @@ interface CachedResponse<T = unknown> {
 const responseCache = new Map<string, CachedResponse<unknown>>();
 const RESPONSE_CACHE_TTL = 60_000; // 60 seconds
 
+function looksLikeSpaHtml(data: unknown): boolean {
+  if (typeof data !== 'string') return false;
+  const head = data.slice(0, 256).toLowerCase();
+  return head.includes('<!doctype html') || head.includes('<html');
+}
+
+function shouldRetryPublicViaApiPrefix(config: AxiosRequestConfig): boolean {
+  const url = config.url;
+  if (typeof url !== 'string') return false;
+  if (!url.startsWith('/public/')) return false;
+  if (url.startsWith('/api/public/')) return false;
+  // Only auto-retry when baseURL is same-origin (empty string).
+  const base = axiosInstance.defaults.baseURL;
+  if (typeof base === 'string' && base !== '') return false;
+  return true;
+}
+
+function withApiPrefix(url: string): string {
+  if (url.startsWith('/api/')) return url;
+  return `/api${url}`;
+}
+
 // Generate a unique key for a request
 function getRequestKey(config: AxiosRequestConfig): string {
   const method = config.method?.toUpperCase() || 'GET';
@@ -215,10 +237,6 @@ export const api: CustomAxiosInstance = {
       // Create new request
       const promise: Promise<T> = axiosInstance.request<unknown>(config)
         .then((response: AxiosResponse<unknown>) => {
-          // Remove from pending immediately after completion.
-          // Dedup is meant only for in-flight requests; keeping resolved entries causes stale reuse.
-          pendingRequests.delete(requestKey);
-
           // Handle conditional GET with 304 by serving cached JSON when available.
           if (response.status === 304) {
             const cached = responseCache.get(requestKey);
@@ -240,15 +258,27 @@ export const api: CustomAxiosInstance = {
               return r.data as T;
             });
           } else {
+            // If API proxy is misconfigured, /public/* may hit SPA fallback and return HTML.
+            // Retry once via /api prefix (common nginx convention) to reach backend.
+            if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaApiPrefix(config)) {
+              const retryConfig: AxiosRequestConfig = { ...config, url: withApiPrefix(String(config.url)) };
+              return axiosInstance.request<unknown>(retryConfig).then((r) => {
+                responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+                return r.data as T;
+              });
+            }
             responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
           }
 
           return response.data as T;
         })
         .catch((error: unknown) => {
-          // Remove from pending on error
-          pendingRequests.delete(requestKey);
           throw error;
+        })
+        .finally(() => {
+          // Remove from pending immediately after completion.
+          // Dedup is meant only for in-flight requests; keeping resolved entries causes stale reuse.
+          pendingRequests.delete(requestKey);
         });
       
       pendingRequests.set(requestKey, {
@@ -284,9 +314,6 @@ export const api: CustomAxiosInstance = {
     
     const promise: Promise<T> = axiosInstance.request<unknown>(requestConfig)
       .then((response: AxiosResponse<unknown>) => {
-        // Remove from pending immediately after completion.
-        pendingRequests.delete(requestKey);
-
         if (response.status === 304) {
           const cached = responseCache.get(requestKey);
           if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL) {
@@ -306,14 +333,23 @@ export const api: CustomAxiosInstance = {
             return r.data as T;
           });
         } else {
+          if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaApiPrefix(requestConfig)) {
+            const retryConfig: AxiosRequestConfig = { ...requestConfig, url: withApiPrefix(url) };
+            return axiosInstance.request<unknown>(retryConfig).then((r) => {
+              responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+              return r.data as T;
+            });
+          }
           responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
         }
 
         return response.data as T;
       })
       .catch((error: unknown) => {
-        pendingRequests.delete(requestKey);
         throw error;
+      })
+      .finally(() => {
+        pendingRequests.delete(requestKey);
       });
     
     pendingRequests.set(requestKey, {

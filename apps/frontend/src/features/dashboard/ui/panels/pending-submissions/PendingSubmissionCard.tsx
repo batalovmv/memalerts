@@ -53,6 +53,7 @@ export function PendingSubmissionCard(props: {
     !!aiAutoDescription ||
     !!aiTranscript ||
     !!aiError;
+  const shouldShowAiToggle = hasAi || submission.status === 'pending';
 
   const decisionVariant = aiDecision === 'low' ? 'success' : aiDecision === 'medium' ? 'warning' : aiDecision === 'high' ? 'danger' : 'neutral';
   const statusVariant =
@@ -166,7 +167,7 @@ export function PendingSubmissionCard(props: {
                   ) : null}
                 </div>
 
-                {hasAi ? (
+                {shouldShowAiToggle ? (
                   <div className="mt-3">
                     <button
                       type="button"
@@ -185,6 +186,12 @@ export function PendingSubmissionCard(props: {
                           {aiDecision ? <Pill variant={decisionVariant}>AI: {aiDecision}</Pill> : null}
                           {aiRisk !== null ? <Pill variant="neutral">risk: {aiRisk.toFixed(2)}</Pill> : null}
                         </div>
+
+                        {!aiStatus && aiLabels.length === 0 && aiAutoTags.length === 0 && !aiAutoDescription && !aiTranscript && !aiError ? (
+                          <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">
+                            {t('submissions.aiNoDataYet', { defaultValue: 'AI: данных пока нет (в обработке). Обнови через 30–60с.' })}
+                          </div>
+                        ) : null}
 
                         {aiStatus && aiStatus !== 'done' && aiLabels.length === 0 && aiAutoTags.length === 0 && !aiAutoDescription && !aiTranscript && !aiError ? (
                           <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">
