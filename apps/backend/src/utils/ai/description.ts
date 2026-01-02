@@ -1,4 +1,4 @@
-export function makeAutoDescription(args: { transcript?: string | null; labels?: string[] }): string | null {
+export function makeAutoDescription(args: { title?: string | null; transcript?: string | null; labels?: string[] }): string | null {
   const t = String(args.transcript || '').trim();
   const lines = t
     .split(/[.!?]\s+/g)
@@ -18,7 +18,11 @@ export function makeAutoDescription(args: { transcript?: string | null; labels?:
       : '';
 
   const parts = [first, second].filter(Boolean);
-  if (parts.length === 0 && !labelHint) return null;
+  if (parts.length === 0 && !labelHint) {
+    // Fallback: use title as a stable, non-empty search hint when no transcript/labels are available.
+    const title = String(args.title || '').trim();
+    return title ? title.slice(0, 2000) : null;
+  }
   const base = parts.length > 0 ? parts.join('. ') : 'Видео без распознанной речи.';
   return labelHint ? `${base}. Метки: ${labelHint}.` : base;
 }

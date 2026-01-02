@@ -13,6 +13,8 @@ import fs from 'fs';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
 import { debugLog } from '../../utils/debug.js';
 import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
+import { generateTagNames } from '../../utils/ai/tagging.js';
+import { makeAutoDescription } from '../../utils/ai/description.js';
 
 async function safeUnlink(filePath: string): Promise<void> {
   try {
@@ -207,6 +209,10 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           fileUrl: true,
           fileHash: true,
           durationMs: true,
+          aiStatus: true,
+          aiAutoDescription: true,
+          aiAutoTagNamesJson: true,
+          aiSearchText: true,
           purgeRequestedAt: true,
           purgedAt: true,
         },
@@ -278,6 +284,40 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             select: { id: true, legacyMemeId: true, memeAssetId: true },
           });
 
+          // Guarantee AI metadata for owner restore (best-effort, deterministic fallback).
+          const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
+          const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
+          const aiDesc = String((existingAsset as any).aiStatus) === 'done' ? ((existingAsset as any).aiAutoDescription ?? null) : fallbackDesc;
+          const aiTagsJson = String((existingAsset as any).aiStatus) === 'done' ? ((existingAsset as any).aiAutoTagNamesJson ?? null) : fallbackTags;
+          const aiSearchText =
+            String((existingAsset as any).aiStatus) === 'done'
+              ? ((existingAsset as any).aiSearchText ?? (aiDesc ? String(aiDesc).slice(0, 4000) : null))
+              : (aiDesc ? String(aiDesc).slice(0, 4000) : null);
+
+          try {
+            await prisma.memeAsset.updateMany({
+              where: { id: existingAsset.id, aiStatus: { not: 'done' } as any },
+              data: {
+                aiStatus: 'done',
+                aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
+                aiAutoTagNamesJson: aiTagsJson,
+                aiSearchText,
+                aiCompletedAt: new Date(),
+              } as any,
+            });
+          } catch {
+            // ignore
+          }
+
+          await prisma.channelMeme.update({
+            where: { id: restored.id },
+            data: {
+              aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
+              aiAutoTagNamesJson: aiTagsJson,
+              searchText: aiSearchText,
+            } as any,
+          });
+
           const legacyData: any = {
             channelId,
             title: body.title,
@@ -314,9 +354,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             });
           }
 
-          // Enqueue AI analysis for owner bypass (best-effort).
-          // AI pipeline is driven by MemeSubmission records; for direct approvals we create an "approved" submission
-          // so the AI job can fill ChannelMeme.searchText + aiAuto* asynchronously.
+          // Keep a submission row for audit/back-compat (AI already guaranteed above).
           try {
             if (existingAsset.fileUrl) {
               await prisma.memeSubmission.create({
@@ -331,7 +369,9 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
                   memeAssetId: existingAsset.id,
                   fileHash: existingAsset.fileHash ?? null,
                   durationMs: Number.isFinite(existingAsset.durationMs as any) && existingAsset.durationMs > 0 ? existingAsset.durationMs : null,
-                  aiStatus: 'pending',
+                  aiStatus: 'done',
+                  aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
+                  aiAutoTagNamesJson: aiTagsJson,
                 } as any,
               });
             }
@@ -510,8 +550,42 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
         throw e;
       }
 
-      // Enqueue AI analysis for owner bypass (best-effort).
-      // This allows includeAi=1 to start returning aiAuto* after the AI job completes.
+      // Guarantee AI metadata for owner bypass (best-effort, deterministic fallback).
+      const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
+      const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
+      const aiDesc = fallbackDesc;
+      const aiTagsJson = fallbackTags;
+      const aiSearchText = aiDesc ? String(aiDesc).slice(0, 4000) : null;
+
+      try {
+        await prisma.memeAsset.updateMany({
+          where: { id: memeAssetId!, aiStatus: { not: 'done' } as any },
+          data: {
+            aiStatus: 'done',
+            aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
+            aiAutoTagNamesJson: aiTagsJson,
+            aiSearchText,
+            aiCompletedAt: new Date(),
+          } as any,
+        });
+      } catch {
+        // ignore
+      }
+
+      try {
+        await prisma.channelMeme.updateMany({
+          where: { id: channelMemeId! },
+          data: {
+            aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
+            aiAutoTagNamesJson: aiTagsJson,
+            searchText: aiSearchText,
+          } as any,
+        });
+      } catch {
+        // ignore
+      }
+
+      // Keep a submission row for audit/back-compat.
       try {
         await prisma.memeSubmission.create({
           data: {
@@ -527,7 +601,9 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             durationMs: durationMs > 0 ? durationMs : null,
             mimeType: req.file?.mimetype || null,
             fileSizeBytes: Number.isFinite(req.file?.size as any) ? req.file.size : null,
-            aiStatus: 'pending',
+            aiStatus: 'done',
+            aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
+            aiAutoTagNamesJson: aiTagsJson,
           } as any,
         });
       } catch {
@@ -567,6 +643,23 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       mimeType: req.file.mimetype || null,
       fileSizeBytes: Number.isFinite(req.file.size) ? req.file.size : null,
     };
+
+    // Dedup AI: if this upload is a duplicate (same fileHash) and pool already has AI, reuse it immediately.
+    try {
+      if (fileHash) {
+        const aiAsset = await prisma.memeAsset.findFirst({
+          where: { fileHash, aiStatus: 'done' },
+          select: { aiAutoDescription: true, aiAutoTagNamesJson: true },
+        });
+        if (aiAsset) {
+          submissionData.aiStatus = 'done';
+          submissionData.aiAutoDescription = aiAsset.aiAutoDescription ?? null;
+          submissionData.aiAutoTagNamesJson = (aiAsset as any).aiAutoTagNamesJson ?? null;
+        }
+      }
+    } catch {
+      // ignore
+    }
 
     // Only add tags if we have tagIds (and table exists)
     if (tagIds.length > 0) {

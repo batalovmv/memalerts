@@ -299,7 +299,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   }
 
   // Persist AI results on submission.
-  const autoDescription = makeAutoDescription({ transcript, labels });
+  const autoDescription = makeAutoDescription({ title: submission.title, transcript, labels });
   await prisma.memeSubmission.update({
     where: { id: submissionId },
     data: {
