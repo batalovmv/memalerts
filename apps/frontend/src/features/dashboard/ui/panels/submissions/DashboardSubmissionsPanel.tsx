@@ -11,7 +11,9 @@ import type { Submission } from '@/types';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
 import { resolveMediaUrl } from '@/lib/urls';
 import { cn } from '@/shared/lib/cn';
+import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { Button, IconButton, Modal, Pill, Spinner, Tooltip } from '@/shared/ui';
+import { useAppSelector } from '@/store/hooks';
 
 export type SubmissionsPanelTab = 'pending' | 'mine';
 
@@ -67,10 +69,12 @@ export function DashboardSubmissionsPanel({
   onClose,
 }: DashboardSubmissionsPanelProps) {
   const { t } = useTranslation();
-  const [previewModal, setPreviewModal] = useState<{ open: boolean; src: string; title: string }>(() => ({
+  const { user } = useAppSelector((s) => s.auth);
+  const [previewModal, setPreviewModal] = useState<{ open: boolean; src: string; title: string; submission?: Submission | null }>(() => ({
     open: false,
     src: '',
     title: '',
+    submission: null,
   }));
 
   const pendingSubmissions = useMemo(() => submissions.filter((s) => s.status === 'pending'), [submissions]);
@@ -216,7 +220,7 @@ export function DashboardSubmissionsPanel({
                   submission={submission}
                   resolveMediaUrl={resolveMedia}
                   onOpenPreview={(data) => {
-                    setPreviewModal({ open: true, src: data.src, title: data.title });
+                    setPreviewModal({ open: true, src: data.src, title: data.title, submission });
                   }}
                   onApprove={onApprove}
                   onNeedsChanges={onNeedsChanges}
@@ -362,7 +366,7 @@ export function DashboardSubmissionsPanel({
 
       <Modal
         isOpen={previewModal.open}
-        onClose={() => setPreviewModal({ open: false, src: '', title: '' })}
+        onClose={() => setPreviewModal({ open: false, src: '', title: '', submission: null })}
         ariaLabel={t('submissions.preview', { defaultValue: 'Submission preview' })}
         contentClassName="max-w-4xl"
       >
@@ -375,7 +379,7 @@ export function DashboardSubmissionsPanel({
               type="button"
               variant="secondary"
               aria-label={t('common.close', { defaultValue: 'Close' })}
-              onClick={() => setPreviewModal({ open: false, src: '', title: '' })}
+              onClick={() => setPreviewModal({ open: false, src: '', title: '', submission: null })}
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -387,6 +391,58 @@ export function DashboardSubmissionsPanel({
           <div className="mt-4 rounded-xl overflow-hidden bg-black/90 ring-1 ring-black/10 dark:ring-white/10">
             <video src={previewModal.src} controls autoPlay playsInline className="w-full max-h-[70vh] object-contain" />
           </div>
+
+          {(() => {
+            const s = previewModal.submission;
+            if (!s) return null;
+            const aiStatus = s.aiStatus ?? null;
+            const aiAutoTags = Array.isArray(s.aiAutoTagNamesJson) ? s.aiAutoTagNamesJson.filter((x) => typeof x === 'string') : [];
+            const aiAutoDescription = typeof s.aiAutoDescription === 'string' ? s.aiAutoDescription : '';
+            const canSeeAiDescription = canViewSubmissionAiDescription(user);
+            const showProcessing = aiStatus && aiStatus !== 'done' && aiAutoTags.length === 0 && !aiAutoDescription;
+
+            if (!aiStatus && aiAutoTags.length === 0 && !aiAutoDescription) return null;
+
+            return (
+              <section className="mt-4 rounded-xl bg-black/5 dark:bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">AI</div>
+                  {aiStatus ? <Pill variant={aiStatus === 'done' ? 'success' : aiStatus === 'failed' || aiStatus === 'failed_final' ? 'danger' : 'primary'} size="sm">AI {aiStatus}</Pill> : null}
+                </div>
+
+                {showProcessing ? (
+                  <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                    {t('submissions.aiProcessing', { defaultValue: 'AI: в обработке…' })}
+                  </div>
+                ) : null}
+
+                {aiAutoTags.length > 0 ? (
+                  <div className="mt-3">
+                    <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {t('submissions.aiAutoTags', { defaultValue: 'AI теги' })}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {aiAutoTags.slice(0, 40).map((tag) => (
+                        <Pill key={tag} variant="primary" size="sm">
+                          {tag}
+                        </Pill>
+                      ))}
+                      {aiAutoTags.length > 40 ? <Pill variant="neutral" size="sm">+{aiAutoTags.length - 40}</Pill> : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {aiAutoDescription && canSeeAiDescription ? (
+                  <div className="mt-3">
+                    <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {t('submissions.aiAutoDescription', { defaultValue: 'AI описание' })}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{aiAutoDescription}</div>
+                  </div>
+                ) : null}
+              </section>
+            );
+          })()}
         </div>
       </Modal>
     </section>

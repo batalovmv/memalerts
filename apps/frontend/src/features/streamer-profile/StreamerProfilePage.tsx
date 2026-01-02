@@ -731,6 +731,9 @@ export default function StreamerProfile() {
               />
             )}
           </div>
+          <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+            {t('search.aiHint', { defaultValue: 'Search includes tags and hidden AI description.' })}
+          </div>
 
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             <HelpTooltip

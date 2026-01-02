@@ -79,15 +79,18 @@ export const createSubmission = createAsyncThunk<
 
 export const approveSubmission = createAsyncThunk<
   void,
-  { submissionId: string; priceCoins: number; durationMs?: number },
+  { submissionId: string; priceCoins: number; durationMs?: number; tags?: string[] },
   { rejectValue: ApiError }
 >(
   'submissions/approveSubmission',
-  async ({ submissionId, priceCoins, durationMs }, { rejectWithValue }) => {
+  async ({ submissionId, priceCoins, durationMs, tags }, { rejectWithValue }) => {
     try {
       const payload: Record<string, unknown> = { priceCoins };
       if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs > 0) {
         payload.durationMs = durationMs;
+      }
+      if (Array.isArray(tags) && tags.length > 0) {
+        payload.tags = tags;
       }
       await api.post(`/streamer/submissions/${submissionId}/approve`, payload);
     } catch (error: unknown) {

@@ -3,25 +3,43 @@ import { useTranslation } from 'react-i18next';
 
 import { XIcon } from './icons';
 
-import { Button, IconButton, Input, Modal } from '@/shared/ui';
+import TagInput from '@/components/TagInput';
+import type { Submission } from '@/types';
+import { Button, IconButton, Input, Modal, Pill } from '@/shared/ui';
 
 export type ApproveSubmissionModalProps = {
   isOpen: boolean;
+  submission?: Submission | null;
   priceCoins: string;
   onPriceCoinsChange: (next: string) => void;
+  tags: string[];
+  onTagsChange: (next: string[]) => void;
   onClose: () => void;
   onApprove: () => void | Promise<void>;
 };
 
 export function ApproveSubmissionModal({
   isOpen,
+  submission,
   priceCoins,
   onPriceCoinsChange,
+  tags,
+  onTagsChange,
   onClose,
   onApprove,
 }: ApproveSubmissionModalProps) {
   const { t } = useTranslation();
   const titleId = useId();
+
+  const aiDecision = submission?.aiDecision ?? null;
+  const aiStatus = submission?.aiStatus ?? null;
+  const aiAutoTags = Array.isArray(submission?.aiAutoTagNamesJson)
+    ? (submission?.aiAutoTagNamesJson as unknown[]).filter((x) => typeof x === 'string') as string[]
+    : [];
+
+  const decisionVariant = aiDecision === 'low' ? 'success' : aiDecision === 'medium' ? 'warning' : aiDecision === 'high' ? 'danger' : 'neutral';
+  const statusVariant =
+    aiStatus === 'done' ? 'success' : aiStatus === 'pending' || aiStatus === 'processing' ? 'primary' : aiStatus === 'failed' || aiStatus === 'failed_final' ? 'danger' : 'neutral';
 
   return (
     <Modal
@@ -43,6 +61,19 @@ export function ApproveSubmissionModal({
       </div>
 
       <div className="p-5 space-y-4">
+        {(aiDecision || aiStatus) ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {aiDecision ? <Pill variant={decisionVariant}>AI: {aiDecision}</Pill> : null}
+            {aiStatus ? <Pill variant={statusVariant}>AI {aiStatus}</Pill> : null}
+          </div>
+        ) : null}
+
+        {aiDecision === 'high' ? (
+          <div className="rounded-lg bg-rose-500/10 ring-1 ring-rose-500/20 p-3 text-sm text-rose-800 dark:text-rose-200">
+            {t('submissions.aiHighApproveWarning', { defaultValue: 'Скорее всего approve будет запрещён (карантин/пурж MemeAsset).' })}
+          </div>
+        ) : null}
+
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
@@ -58,6 +89,28 @@ export function ApproveSubmissionModal({
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
           </p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('submit.tags', { defaultValue: 'Tags (optional)' })}
+          </label>
+          <TagInput
+            tags={tags}
+            onChange={onTagsChange}
+            placeholder={t('submit.addTags', { defaultValue: 'Add tags to help categorize your meme...' })}
+          />
+          {tags.length === 0 && aiAutoTags.length > 0 ? (
+            <div className="pt-1 text-xs text-gray-600 dark:text-gray-300">
+              <div className="mb-2">
+                {t('submissions.aiSuggestedTags', { defaultValue: 'AI предложил теги:' })}{' '}
+                <span className="font-semibold">{aiAutoTags.join(', ')}</span>
+              </div>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onTagsChange(aiAutoTags)}>
+                {t('submissions.fillTagsFromAi', { defaultValue: 'Заполнить из AI' })}
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex gap-3 pt-1">

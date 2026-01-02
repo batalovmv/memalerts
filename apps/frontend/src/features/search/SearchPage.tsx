@@ -122,6 +122,9 @@ export default function Search() {
                 className="text-lg px-4 py-3"
               />
             </HelpTooltip>
+            <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+              {t('search.aiHint', { defaultValue: 'Search includes tags and hidden AI description.' })}
+            </div>
           </div>
 
           {/* Filters */}
