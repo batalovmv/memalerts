@@ -34,6 +34,17 @@ describe('AI moderation core building blocks', () => {
       select: { id: true, fileHash: true },
     });
 
+    // Meme.fileHash has a FK to FileHash.hash in this project.
+    await prisma.fileHash.create({
+      data: {
+        hash: submission.fileHash,
+        filePath: '/uploads/memes/dummy.mp4',
+        referenceCount: 1,
+        fileSize: BigInt(1),
+        mimeType: 'video/mp4',
+      },
+    });
+
     const first = await prisma.$transaction(async (tx) => {
       return await approveSubmissionInternal({
         tx: tx as any,
