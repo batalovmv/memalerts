@@ -265,6 +265,24 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       const mediumT = Math.max(0, Math.min(1, Number(process.env.AI_MODERATION_MEDIUM_THRESHOLD ?? 0.4)));
       const highT = Math.max(0, Math.min(1, Number(process.env.AI_MODERATION_HIGH_THRESHOLD ?? 0.7)));
       decision = riskScore >= highT ? 'high' : riskScore >= mediumT ? 'medium' : 'low';
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      // OpenAI can be region-blocked from certain VPS locations (403 unsupported_country_region_territory).
+      // In that case, do NOT retry forever: fall back to heuristic and mark the submission done.
+      if (msg.includes('unsupported_country_region_territory') || msg.startsWith('openai_http_403') || msg === 'OPENAI_API_KEY_not_set') {
+        const heuristic = computeKeywordHeuristic(String(submission.title || ''), submission.notes);
+        decision = heuristic.decision;
+        riskScore = heuristic.riskScore;
+        labels = heuristic.labels;
+        const tagRes = generateTagNames({ title: submission.title, transcript: null, labels });
+        autoTags = heuristic.tagNames.length > 0 ? heuristic.tagNames : tagRes.tagNames;
+        reason = 'ai:openai_unavailable';
+        modelVersions.pipelineVersion = 'v1-keyword-heuristic';
+        modelVersions.openaiError = msg.slice(0, 500);
+        transcript = null;
+      } else {
+        throw e;
+      }
     } finally {
       // Cleanup tmp directory best-effort.
       try {
