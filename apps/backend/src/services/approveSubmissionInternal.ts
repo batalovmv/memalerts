@@ -32,7 +32,6 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       title: true,
       type: true,
       status: true,
-      sourceKind: true,
       memeAssetId: true,
     },
   });
@@ -41,9 +40,9 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 
   // Idempotency: one submission -> one approve.
   if (submission.status === 'approved') {
-    // Best-effort: try to return an existing legacy meme for backward compatible responses.
+    // Best-effort: return an existing legacy meme for backward compatible responses.
     let legacy: any | null = null;
-    let memeAssetId: string | null = submission.memeAssetId ?? null;
+    const memeAssetId: string | null = submission.memeAssetId ?? null;
     let channelMemeId: string | null = null;
 
     if (memeAssetId) {
@@ -63,7 +62,6 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   const tagNames = Array.isArray(resolved.tagNames) ? resolved.tagNames : [];
   const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
 
-  // Create legacy Meme (kept for back-compat).
   const memeData: any = {
     channelId: submission.channelId,
     title: submission.title,
@@ -152,7 +150,6 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     select: { id: true },
   });
 
-  // Mark submission approved + persist memeAssetId for idempotency and future lookups.
   await tx.memeSubmission.update({
     where: { id: submissionId },
     data: { status: 'approved', memeAssetId },
