@@ -194,6 +194,8 @@ export const searchMemes = async (req: any, res: Response) => {
     if (qStr) {
       const or: any[] = [
         { title: { contains: qStr, mode: 'insensitive' } },
+        // Hidden search-only text (includes AI description when present).
+        { searchText: { contains: qStr, mode: 'insensitive' } },
         { tags: { some: { tag: { name: { contains: qStr.toLowerCase(), mode: 'insensitive' } } } } },
       ];
       if (String(includeUploader || '') === '1') {

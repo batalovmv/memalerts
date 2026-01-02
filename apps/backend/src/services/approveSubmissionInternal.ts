@@ -33,6 +33,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       type: true,
       status: true,
       memeAssetId: true,
+      aiAutoDescription: true,
     },
   });
 
@@ -58,6 +59,11 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 
   const tagNames = Array.isArray(resolved.tagNames) ? resolved.tagNames : [];
   const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
+
+  const searchText =
+    typeof (submission as any).aiAutoDescription === 'string'
+      ? String((submission as any).aiAutoDescription).trim().slice(0, 4000) || null
+      : null;
 
   const memeData: any = {
     channelId: submission.channelId,
@@ -113,6 +119,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       legacyMemeId: legacyMeme.id,
       status: 'approved',
       title: submission.title,
+      searchText,
       priceCoins: resolved.priceCoins,
       addedByUserId: submission.submitterUserId || null,
       approvedByUserId,
@@ -122,6 +129,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       legacyMemeId: legacyMeme.id,
       status: 'approved',
       title: submission.title,
+      searchText,
       priceCoins: resolved.priceCoins,
       approvedByUserId,
       approvedAt: new Date(),

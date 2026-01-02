@@ -1127,6 +1127,9 @@ model ChannelMeme {
 
   // Channel-specific fields
   title      String
+  // Hidden search-only text (not returned in DTOs). Used to include AI-generated description in search.
+  // Keep null/empty if not available; do not display to end-users.
+  searchText String? @db.VarChar(4000)
   priceCoins Int
 
   addedByUserId    String?

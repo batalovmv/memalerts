@@ -281,6 +281,8 @@ export const searchPublicChannelMemes = async (req: any, res: Response) => {
   if (q) {
     where.OR = [
       { title: { contains: q, mode: 'insensitive' } },
+      // Hidden search-only text (includes AI description when present).
+      { searchText: { contains: q, mode: 'insensitive' } },
       { memeAsset: { createdBy: { displayName: { contains: q, mode: 'insensitive' } } } },
     ];
   }
