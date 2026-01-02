@@ -309,7 +309,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          # Need full history for BEFORE..AFTER diff and for scanning commit messages in the push range.
+          fetch-depth: 0
 
       - name: Decide whether to deploy (force or relevant changes)
         id: decide
