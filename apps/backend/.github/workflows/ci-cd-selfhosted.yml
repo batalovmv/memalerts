@@ -149,6 +149,16 @@ jobs:
             fi
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
+          if [ -n "${{ secrets.OPENAI_ASR_MODEL }}" ]; then
+            KEY="OPENAI_ASR_MODEL"
+            VAL="${{ secrets.OPENAI_ASR_MODEL }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
+              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
+            else
+              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+            fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
           if [ -n "${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}" ]; then
             KEY="VKVIDEO_PUBSUB_REFRESH_SECONDS"
             VAL="${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}"
@@ -392,6 +402,16 @@ jobs:
           if [ -n "${{ secrets.OPENAI_API_KEY_BETA || secrets.OPENAI_API_KEY }}" ]; then
             KEY="OPENAI_API_KEY"
             VAL="${{ secrets.OPENAI_API_KEY_BETA || secrets.OPENAI_API_KEY }}"
+            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
+              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
+            else
+              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+            fi
+            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+          if [ -n "${{ secrets.OPENAI_ASR_MODEL_BETA || secrets.OPENAI_ASR_MODEL }}" ]; then
+            KEY="OPENAI_ASR_MODEL"
+            VAL="${{ secrets.OPENAI_ASR_MODEL_BETA || secrets.OPENAI_ASR_MODEL }}"
             if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
               sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
             else
