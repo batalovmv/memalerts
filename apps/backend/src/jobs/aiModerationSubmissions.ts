@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { releaseAdvisoryLock, tryAcquireAdvisoryLock } from '../utils/pgAdvisoryLock.js';
 import { approveSubmissionInternal } from '../services/approveSubmissionInternal.js';
 import { validatePathWithinDirectory } from '../utils/pathSecurity.js';
+import { Prisma } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
 import { extractAudioToMp3 } from '../utils/ai/extractAudio.js';
@@ -188,15 +189,17 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   });
 
   if (existingAsset) {
+    const tagNamesJson =
+      existingAsset.aiAutoTagNamesJson === null ? Prisma.DbNull : (existingAsset.aiAutoTagNamesJson as Prisma.InputJsonValue);
     await prisma.memeSubmission.update({
       where: { id: submissionId },
       data: {
         aiStatus: 'done',
         aiDecision: null,
         aiRiskScore: null,
-        aiLabelsJson: null,
+        aiLabelsJson: Prisma.DbNull,
         aiTranscript: null,
-        aiAutoTagNamesJson: existingAsset.aiAutoTagNamesJson ?? null,
+        aiAutoTagNamesJson: tagNamesJson,
         aiAutoDescription: existingAsset.aiAutoDescription ?? null,
         aiModelVersionsJson: { pipelineVersion: 'v3-reuse-memeasset' } as any,
         aiCompletedAt: now,
@@ -210,7 +213,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       where: { channelId: submission.channelId, memeAssetId: assetId },
       data: {
         aiAutoDescription: existingAsset.aiAutoDescription ?? null,
-        aiAutoTagNamesJson: existingAsset.aiAutoTagNamesJson ?? null,
+        aiAutoTagNamesJson: tagNamesJson,
         searchText: existingAsset.aiSearchText ?? (existingAsset.aiAutoDescription ? String(existingAsset.aiAutoDescription).slice(0, 4000) : null),
       },
     });
@@ -359,6 +362,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   const autoApproveEnabled = parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
   if (autoApproveEnabled && decision === 'low') {
     if (!isAllowedPublicFileUrl(fileUrl)) return;
+    if (durationMs === null) return;
     const submitter = await prisma.user.findUnique({
       where: { id: submission.submitterUserId },
       select: { role: true },
