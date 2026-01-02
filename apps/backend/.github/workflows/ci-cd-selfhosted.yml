@@ -317,16 +317,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Force deploy if commit message contains "deploy" or "[deploy]"
-          MSG="${{ github.event.head_commit.message }}"
-          if echo "$MSG" | grep -Eiq '(^|\\s)\\[?deploy\\]?($|\\s)'; then
-            echo "Force deploy requested by commit message."
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          # Force deploy if ANY pushed commit message contains "deploy" or "[deploy]"
+          # (head_commit.message is not always reliable when multiple commits are pushed at once)
+          if [ -n "${{ github.event.head_commit.message }}" ] && echo "${{ github.event.head_commit.message }}" | grep -Eiq '(^|\\s)\\[?deploy\\]?($|\\s)'; then
+            echo "Force deploy requested by head commit message."
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          BEFORE="${{ github.event.before }}"
-          AFTER="${{ github.sha }}"
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            if git log --format=%B "$BEFORE..$AFTER" | grep -Eiq '(^|\\s)\\[?deploy\\]?($|\\s)'; then
+              echo "Force deploy requested by commit message in push range."
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
 
           # If before is empty (first commit) just proceed.
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then

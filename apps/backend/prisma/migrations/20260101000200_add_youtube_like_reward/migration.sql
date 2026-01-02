@@ -38,3 +38,4 @@ CREATE INDEX IF NOT EXISTS "YouTubeLikeRewardClaim_awardedAt_idx" ON "YouTubeLik
 CREATE INDEX IF NOT EXISTS "YouTubeLikeRewardClaim_lastCheckedAt_idx" ON "YouTubeLikeRewardClaim"("lastCheckedAt");
 
 
+

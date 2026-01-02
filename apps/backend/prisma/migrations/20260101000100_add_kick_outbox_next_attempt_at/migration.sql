@@ -7,3 +7,4 @@ CREATE INDEX IF NOT EXISTS "KickChatBotOutboxMessage_status_nextAttemptAt_create
 ON "KickChatBotOutboxMessage" ("status", "nextAttemptAt", "createdAt");
 
 
+
