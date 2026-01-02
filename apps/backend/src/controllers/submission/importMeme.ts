@@ -254,6 +254,29 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             });
           }
 
+          // Enqueue AI analysis for owner bypass (best-effort).
+          try {
+            if (existingAsset.fileUrl) {
+              await prisma.memeSubmission.create({
+                data: {
+                  channelId: String(channelId),
+                  submitterUserId: req.userId!,
+                  title: body.title,
+                  type: existingAsset.type,
+                  fileUrlTemp: existingAsset.fileUrl,
+                  sourceKind: 'upload',
+                  status: 'approved',
+                  memeAssetId: existingAsset.id,
+                  fileHash: existingAsset.fileHash ?? null,
+                  durationMs: Number.isFinite(existingAsset.durationMs as any) && existingAsset.durationMs > 0 ? existingAsset.durationMs : null,
+                  aiStatus: 'pending',
+                } as any,
+              });
+            }
+          } catch {
+            // ignore
+          }
+
           return res.status(201).json({
             ...(legacy as any),
             isDirectApproval: true,
@@ -406,6 +429,27 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           });
         }
         throw e;
+      }
+
+      // Enqueue AI analysis for owner bypass (best-effort).
+      try {
+        await prisma.memeSubmission.create({
+          data: {
+            channelId: String(channelId),
+            submitterUserId: req.userId!,
+            title: body.title,
+            type: 'video',
+            fileUrlTemp: finalFilePath!,
+            sourceKind: 'upload',
+            status: 'approved',
+            memeAssetId,
+            fileHash,
+            durationMs: durationMsSafe > 0 ? durationMsSafe : null,
+            aiStatus: 'pending',
+          } as any,
+        });
+      } catch {
+        // ignore
       }
 
       return res.status(201).json({

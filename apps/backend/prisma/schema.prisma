@@ -1084,6 +1084,14 @@ model MemeAsset {
   createdByUserId String?
   createdAt       DateTime @default(now())
 
+  // Global AI metadata (per unique asset / fileHash).
+  // Used to avoid re-running analysis on duplicates and to instantly provide tags/description on pool adoption.
+  aiStatus           String   @default("pending") // pending|done
+  aiAutoTagNamesJson Json?
+  aiAutoDescription  String?  @db.VarChar(2000)
+  aiSearchText       String?  @db.VarChar(4000)
+  aiCompletedAt      DateTime?
+
   // Pool moderation (does not affect already-added channel memes; only hides from pool listing)
   poolVisibility     String    @default("visible") // visible | hidden
   poolHiddenAt       DateTime?

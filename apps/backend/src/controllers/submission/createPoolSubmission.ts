@@ -94,6 +94,10 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         fileUrl: true,
         fileHash: true,
         durationMs: true,
+        aiStatus: true,
+        aiAutoDescription: true,
+        aiAutoTagNamesJson: true,
+        aiSearchText: true,
         poolVisibility: true,
         purgeRequestedAt: true,
         purgedAt: true,
@@ -141,6 +145,13 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       const defaultPrice = (channel as any).defaultPriceCoins ?? 100;
       const now = new Date();
 
+      const aiDescription = asset.aiStatus === 'done' ? (asset.aiAutoDescription ?? null) : null;
+      const aiTagsJson = asset.aiStatus === 'done' ? ((asset as any).aiAutoTagNamesJson ?? null) : null;
+      const aiSearchText =
+        asset.aiStatus === 'done'
+          ? (asset.aiSearchText ?? (aiDescription ? String(aiDescription).slice(0, 4000) : null))
+          : null;
+
       const cm = await prisma.channelMeme.upsert({
         where: { channelId_memeAssetId: { channelId: body.channelId, memeAssetId: asset.id } },
         create: {
@@ -148,6 +159,9 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
           memeAssetId: asset.id,
           status: 'approved',
           title: body.title,
+          searchText: aiSearchText,
+          aiAutoDescription: aiDescription,
+          aiAutoTagNamesJson: aiTagsJson,
           priceCoins: defaultPrice,
           addedByUserId: userId,
           approvedByUserId: userId,
@@ -157,6 +171,9 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
           status: 'approved',
           deletedAt: null,
           title: body.title,
+          searchText: aiSearchText,
+          aiAutoDescription: aiDescription,
+          aiAutoTagNamesJson: aiTagsJson,
           priceCoins: defaultPrice,
           approvedByUserId: userId,
           approvedAt: now,

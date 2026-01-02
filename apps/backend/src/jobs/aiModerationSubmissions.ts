@@ -149,7 +149,7 @@ async function upsertQuarantineAsset(opts: {
   });
 }
 
-async function processOneSubmission(submissionId: string): Promise<void> {
+export async function processOneSubmission(submissionId: string): Promise<void> {
   const now = new Date();
 
   const submission = await prisma.memeSubmission.findUnique({
@@ -158,6 +158,7 @@ async function processOneSubmission(submissionId: string): Promise<void> {
       id: true,
       channelId: true,
       submitterUserId: true,
+      memeAssetId: true,
       title: true,
       notes: true,
       status: true,
@@ -171,13 +172,50 @@ async function processOneSubmission(submissionId: string): Promise<void> {
   });
 
   if (!submission) return;
-  if (submission.status !== 'pending') return;
+  if (submission.status !== 'pending' && submission.status !== 'approved') return;
   if (String(submission.sourceKind || '').toLowerCase() !== 'upload') return;
 
   const fileHash = submission.fileHash ? String(submission.fileHash) : null;
-  const durationMs = Number.isFinite(submission.durationMs as any) ? (submission.durationMs as number) : null;
-  if (!fileHash || !durationMs) {
-    throw new Error('missing_filehash_or_duration');
+  const durationMs =
+    Number.isFinite(submission.durationMs as any) && (submission.durationMs as number) > 0 ? (submission.durationMs as number) : null;
+  if (!fileHash) throw new Error('missing_filehash');
+
+  // Global dedup: if this exact fileHash already has AI results in MemeAsset, reuse them
+  // (skip rerunning analysis for duplicates).
+  const existingAsset = await prisma.memeAsset.findFirst({
+    where: { fileHash, aiStatus: 'done' },
+    select: { id: true, aiAutoDescription: true, aiAutoTagNamesJson: true, aiSearchText: true },
+  });
+
+  if (existingAsset) {
+    await prisma.memeSubmission.update({
+      where: { id: submissionId },
+      data: {
+        aiStatus: 'done',
+        aiDecision: null,
+        aiRiskScore: null,
+        aiLabelsJson: null,
+        aiTranscript: null,
+        aiAutoTagNamesJson: existingAsset.aiAutoTagNamesJson ?? null,
+        aiAutoDescription: existingAsset.aiAutoDescription ?? null,
+        aiModelVersionsJson: { pipelineVersion: 'v3-reuse-memeasset' } as any,
+        aiCompletedAt: now,
+        aiError: null,
+        aiNextRetryAt: null,
+      },
+    });
+
+    const assetId = submission.memeAssetId ?? existingAsset.id;
+    await prisma.channelMeme.updateMany({
+      where: { channelId: submission.channelId, memeAssetId: assetId },
+      data: {
+        aiAutoDescription: existingAsset.aiAutoDescription ?? null,
+        aiAutoTagNamesJson: existingAsset.aiAutoTagNamesJson ?? null,
+        searchText: existingAsset.aiSearchText ?? (existingAsset.aiAutoDescription ? String(existingAsset.aiAutoDescription).slice(0, 4000) : null),
+      },
+    });
+
+    return;
   }
 
   // Validate fileUrlTemp / resolve local path if needed (best-effort).
@@ -244,7 +282,7 @@ async function processOneSubmission(submissionId: string): Promise<void> {
   }
 
   // MEDIUM/HIGH: create/update stub asset and hide/quarantine ASAP.
-  if (decision !== 'low') {
+  if (decision !== 'low' && durationMs !== null) {
     const quarantineDays = clampInt(parseInt(String(process.env.AI_QUARANTINE_DAYS || ''), 10), 0, 365, 14);
     const publicFileUrl = fileUrl && isAllowedPublicFileUrl(fileUrl) ? String(fileUrl) : null;
     if (!publicFileUrl) {
@@ -261,6 +299,7 @@ async function processOneSubmission(submissionId: string): Promise<void> {
   }
 
   // Persist AI results on submission.
+  const autoDescription = makeAutoDescription({ transcript, labels });
   await prisma.memeSubmission.update({
     where: { id: submissionId },
     data: {
@@ -270,13 +309,51 @@ async function processOneSubmission(submissionId: string): Promise<void> {
       aiLabelsJson: labels,
       aiTranscript: transcript ? String(transcript).slice(0, 50000) : null,
       aiAutoTagNamesJson: autoTags,
-      aiAutoDescription: makeAutoDescription({ transcript, labels }),
+      aiAutoDescription: autoDescription,
       aiModelVersionsJson: modelVersions as any,
       aiCompletedAt: now,
       aiError: null,
       aiNextRetryAt: null,
     },
   });
+
+  // Persist AI results globally on MemeAsset (per fileHash) when possible.
+  const aiSearchText = autoDescription ? String(autoDescription).slice(0, 4000) : null;
+  const assetToUpdate =
+    submission.memeAssetId ??
+    (
+      await prisma.memeAsset.findFirst({
+        where: { fileHash },
+        select: { id: true },
+      })
+    )?.id ??
+    null;
+
+  if (assetToUpdate) {
+    await prisma.memeAsset.update({
+      where: { id: assetToUpdate },
+      data: {
+        aiStatus: 'done',
+        aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
+        aiAutoTagNamesJson: autoTags,
+        aiSearchText,
+        aiCompletedAt: now,
+      },
+    });
+  }
+
+  // Best-effort: copy AI fields into ChannelMeme so includeAi=1 and channel search (searchText) work
+  // even when a submission was approved directly (owner bypass) before AI finished.
+  if (submission.memeAssetId) {
+    await prisma.channelMeme.updateMany({
+      where: { channelId: submission.channelId, memeAssetId: submission.memeAssetId },
+      data: {
+        aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
+        aiAutoTagNamesJson: autoTags,
+        searchText: aiSearchText,
+      },
+    });
+  }
 
   // Optional: LOW auto-approve (viewer uploads only), guarded by env flag.
   const autoApproveEnabled = parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
@@ -376,7 +453,7 @@ export function startAiModerationScheduler() {
 
       const candidates = await prisma.memeSubmission.findMany({
         where: {
-          status: 'pending',
+          status: { in: ['pending', 'approved'] },
           sourceKind: 'upload',
           OR: [
             { aiStatus: 'pending' },
@@ -411,7 +488,7 @@ export function startAiModerationScheduler() {
         const claim = await prisma.memeSubmission.updateMany({
           where: {
             id: c.id,
-            status: 'pending',
+            status: { in: ['pending', 'approved'] },
             sourceKind: 'upload',
             OR: [
               { aiStatus: 'pending' },

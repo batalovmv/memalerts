@@ -116,6 +116,23 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       })
     ).id;
 
+  // Best-effort: persist AI results globally on MemeAsset so future duplicates/pool adoptions can reuse them.
+  // (Do not overwrite if already marked done.)
+  try {
+    await tx.memeAsset.updateMany({
+      where: { id: memeAssetId, aiStatus: { not: 'done' } as any },
+      data: {
+        aiStatus: 'done',
+        aiAutoDescription,
+        aiAutoTagNamesJson,
+        aiSearchText: searchText,
+        aiCompletedAt: new Date(),
+      } as any,
+    });
+  } catch {
+    // ignore (back-compat if column missing on older DBs)
+  }
+
   const cm = await tx.channelMeme.upsert({
     where: { channelId_memeAssetId: { channelId: submission.channelId, memeAssetId } },
     create: {

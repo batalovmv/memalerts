@@ -314,6 +314,31 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             });
           }
 
+          // Enqueue AI analysis for owner bypass (best-effort).
+          // AI pipeline is driven by MemeSubmission records; for direct approvals we create an "approved" submission
+          // so the AI job can fill ChannelMeme.searchText + aiAuto* asynchronously.
+          try {
+            if (existingAsset.fileUrl) {
+              await prisma.memeSubmission.create({
+                data: {
+                  channelId: String(channelId),
+                  submitterUserId: req.userId!,
+                  title: body.title,
+                  type: existingAsset.type,
+                  fileUrlTemp: existingAsset.fileUrl,
+                  sourceKind: 'upload',
+                  status: 'approved',
+                  memeAssetId: existingAsset.id,
+                  fileHash: existingAsset.fileHash ?? null,
+                  durationMs: Number.isFinite(existingAsset.durationMs as any) && existingAsset.durationMs > 0 ? existingAsset.durationMs : null,
+                  aiStatus: 'pending',
+                } as any,
+              });
+            }
+          } catch {
+            // ignore
+          }
+
           return res.status(201).json({
             ...(legacy as any),
             isDirectApproval: true,
@@ -483,6 +508,30 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           });
         }
         throw e;
+      }
+
+      // Enqueue AI analysis for owner bypass (best-effort).
+      // This allows includeAi=1 to start returning aiAuto* after the AI job completes.
+      try {
+        await prisma.memeSubmission.create({
+          data: {
+            channelId: String(channelId),
+            submitterUserId: req.userId!,
+            title: body.title,
+            type: 'video',
+            fileUrlTemp: finalFilePath,
+            sourceKind: 'upload',
+            status: 'approved',
+            memeAssetId,
+            fileHash,
+            durationMs: durationMs > 0 ? durationMs : null,
+            mimeType: req.file?.mimetype || null,
+            fileSizeBytes: Number.isFinite(req.file?.size as any) ? req.file.size : null,
+            aiStatus: 'pending',
+          } as any,
+        });
+      } catch {
+        // ignore
       }
 
       // Log file upload
