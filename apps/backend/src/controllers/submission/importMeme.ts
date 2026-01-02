@@ -220,37 +220,18 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             select: { id: true, legacyMemeId: true, memeAssetId: true },
           });
 
-          // Guarantee AI metadata for owner restore (best-effort, deterministic fallback).
+          // Fast fallback for owner restore (so includeAi=1 is non-null immediately),
+          // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
           const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
           const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
-          const aiDesc = String((existingAsset as any).aiStatus) === 'done' ? ((existingAsset as any).aiAutoDescription ?? null) : fallbackDesc;
-          const aiTagsJson = String((existingAsset as any).aiStatus) === 'done' ? ((existingAsset as any).aiAutoTagNamesJson ?? null) : fallbackTags;
-          const aiSearchText =
-            String((existingAsset as any).aiStatus) === 'done'
-              ? ((existingAsset as any).aiSearchText ?? (aiDesc ? String(aiDesc).slice(0, 4000) : null))
-              : (aiDesc ? String(aiDesc).slice(0, 4000) : null);
-
-          try {
-            await prisma.memeAsset.updateMany({
-              where: { id: existingAsset.id, aiStatus: { not: 'done' } as any },
-              data: {
-                aiStatus: 'done',
-                aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
-                aiAutoTagNamesJson: aiTagsJson,
-                aiSearchText,
-                aiCompletedAt: new Date(),
-              } as any,
-            });
-          } catch {
-            // ignore
-          }
+          const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
           await prisma.channelMeme.update({
             where: { id: restored.id },
             data: {
-              aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
-              aiAutoTagNamesJson: aiTagsJson,
-              searchText: aiSearchText,
+              aiAutoDescription: fallbackDesc ? String(fallbackDesc).slice(0, 2000) : null,
+              aiAutoTagNamesJson: fallbackTags,
+              searchText: fallbackSearchText,
             } as any,
           });
 
@@ -290,7 +271,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             });
           }
 
-          // Keep a submission row for audit/back-compat (AI already guaranteed above).
+          // Create a submission row to drive AI pipeline (real analysis is async).
           try {
             if (existingAsset.fileUrl) {
               await prisma.memeSubmission.create({
@@ -305,9 +286,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
                   memeAssetId: existingAsset.id,
                   fileHash: existingAsset.fileHash ?? null,
                   durationMs: Number.isFinite(existingAsset.durationMs as any) && existingAsset.durationMs > 0 ? existingAsset.durationMs : null,
-                  aiStatus: 'done',
-                  aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
-                  aiAutoTagNamesJson: aiTagsJson,
+                  aiStatus: 'pending',
                 } as any,
               });
             }
@@ -469,42 +448,26 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         throw e;
       }
 
-      // Guarantee AI metadata for owner bypass (best-effort, deterministic fallback).
+      // Fast fallback for owner bypass (so includeAi=1 is non-null immediately),
+      // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
       const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
       const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
-      const aiDesc = fallbackDesc;
-      const aiTagsJson = fallbackTags;
-      const aiSearchText = aiDesc ? String(aiDesc).slice(0, 4000) : null;
-
-      try {
-        await prisma.memeAsset.updateMany({
-          where: { id: memeAssetId!, aiStatus: { not: 'done' } as any },
-          data: {
-            aiStatus: 'done',
-            aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
-            aiAutoTagNamesJson: aiTagsJson,
-            aiSearchText,
-            aiCompletedAt: new Date(),
-          } as any,
-        });
-      } catch {
-        // ignore
-      }
+      const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
       try {
         await prisma.channelMeme.updateMany({
           where: { id: channelMemeId! },
           data: {
-            aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
-            aiAutoTagNamesJson: aiTagsJson,
-            searchText: aiSearchText,
+            aiAutoDescription: fallbackDesc ? String(fallbackDesc).slice(0, 2000) : null,
+            aiAutoTagNamesJson: fallbackTags,
+            searchText: fallbackSearchText,
           } as any,
         });
       } catch {
         // ignore
       }
 
-      // Keep a submission row for audit/back-compat.
+      // Create a submission row to drive AI pipeline (real analysis is async).
       try {
         await prisma.memeSubmission.create({
           data: {
@@ -518,9 +481,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             memeAssetId,
             fileHash,
             durationMs: durationMsSafe > 0 ? durationMsSafe : null,
-            aiStatus: 'done',
-            aiAutoDescription: aiDesc ? String(aiDesc).slice(0, 2000) : null,
-            aiAutoTagNamesJson: aiTagsJson,
+            aiStatus: 'pending',
           } as any,
         });
       } catch {
