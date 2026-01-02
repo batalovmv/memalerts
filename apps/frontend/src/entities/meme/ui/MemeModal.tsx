@@ -105,6 +105,7 @@ export default function MemeModal({
 
   const videoUrl = resolveMediaUrl(currentMeme.fileUrl);
   const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
+  const hasAiFields = 'aiAutoDescription' in currentMeme || 'aiAutoTagNames' in currentMeme;
   const aiTags = Array.isArray(currentMeme.aiAutoTagNames) ? currentMeme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
   const aiDesc = typeof currentMeme.aiAutoDescription === 'string' ? currentMeme.aiAutoDescription : '';
   const canViewAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
@@ -446,7 +447,7 @@ export default function MemeModal({
             )}
           </div>
 
-          {canViewAi && hasAi ? (
+          {canViewAi && (hasAi || hasAiFields) ? (
             <section className="rounded-xl bg-black/5 dark:bg-white/5 p-4" aria-label="AI">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-bold text-gray-900 dark:text-white">AI</div>
@@ -456,6 +457,12 @@ export default function MemeModal({
                   </Pill>
                 ) : null}
               </div>
+
+              {!hasAi ? (
+                <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                  {t('memeModal.aiPending', { defaultValue: 'AI: данных пока нет (ещё в обработке или не записалось).' })}
+                </div>
+              ) : null}
 
               {aiDesc.trim() ? (
                 <div className="mt-3">

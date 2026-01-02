@@ -39,8 +39,9 @@ export function MemeCardView({
   onTouchStart,
   onKeyDown,
 }: MemeCardViewProps) {
-  const aiTags = Array.isArray((meme as Meme).aiAutoTagNames) ? (meme as Meme).aiAutoTagNames!.filter((x) => typeof x === 'string') : [];
-  const aiDesc = typeof (meme as Meme).aiAutoDescription === 'string' ? ((meme as Meme).aiAutoDescription as string) : '';
+  const hasAiFields = 'aiAutoDescription' in meme || 'aiAutoTagNames' in meme;
+  const aiTags = Array.isArray(meme.aiAutoTagNames) ? meme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
+  const aiDesc = typeof meme.aiAutoDescription === 'string' ? meme.aiAutoDescription : '';
   const aiDescFirstLine = aiDesc.trim().split('\n')[0]?.slice(0, 120) || '';
   const hasAi = aiTags.length > 0 || !!aiDesc.trim();
 
@@ -93,7 +94,7 @@ export function MemeCardView({
           </div>
         )}
 
-        {hasAi ? (
+        {hasAi || hasAiFields ? (
           <div className="absolute top-2 left-2 z-30 flex flex-col gap-1">
             {aiTags.length > 0 ? (
               <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
@@ -106,6 +107,10 @@ export function MemeCardView({
                   AI desc
                 </span>
               </Tooltip>
+            ) : hasAiFields ? (
+              <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
+                AI: pending
+              </span>
             ) : null}
           </div>
         ) : null}
