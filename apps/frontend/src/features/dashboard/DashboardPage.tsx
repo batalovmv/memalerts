@@ -228,6 +228,7 @@ export default function DashboardPage() {
     submissionId: null,
   });
   const [priceCoins, setPriceCoins] = useState('100');
+  const [approveTags, setApproveTags] = useState<string[]>([]);
   const [rejectReason, setRejectReason] = useState('');
   const [needsChangesPreset, setNeedsChangesPreset] = useState<{ badTitle: boolean; noTags: boolean; other: boolean }>({
     badTitle: false,
@@ -752,9 +753,16 @@ export default function DashboardPage() {
       return;
     }
     try {
-      await dispatch(approveSubmission({ submissionId: approveModal.submissionId, priceCoins: parsed })).unwrap();
+      await dispatch(
+        approveSubmission({
+          submissionId: approveModal.submissionId,
+          priceCoins: parsed,
+          tags: approveTags.length > 0 ? approveTags : undefined,
+        }),
+      ).unwrap();
       toast.success(t('admin.approve', { defaultValue: 'Approve' }));
       setApproveModal({ open: false, submissionId: null });
+      setApproveTags([]);
       dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
     } catch {
       toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
@@ -1524,9 +1532,15 @@ export default function DashboardPage() {
 
       <ApproveSubmissionModal
         isOpen={approveModal.open}
+        submission={submissions.find((s) => s.id === approveModal.submissionId) || null}
         priceCoins={priceCoins}
         onPriceCoinsChange={setPriceCoins}
-        onClose={() => setApproveModal({ open: false, submissionId: null })}
+        tags={approveTags}
+        onTagsChange={setApproveTags}
+        onClose={() => {
+          setApproveModal({ open: false, submissionId: null });
+          setApproveTags([]);
+        }}
         onApprove={handleApprove}
       />
 
