@@ -1166,6 +1166,26 @@ model MemeSubmission {
   notes           String?
   status          String // pending, approved, rejected
   moderatorNotes  String?
+  // Upload metadata (best-effort; required for AI and better moderation UX).
+  fileHash      String? @db.VarChar(64)
+  durationMs    Int?
+  mimeType      String? @db.VarChar(64)
+  fileSizeBytes Int?
+
+  // AI moderation pipeline state (best-effort; safe defaults for backfill).
+  aiStatus           String   @default("pending") // pending|processing|done|failed|failed_final
+  aiDecision         String?  @db.VarChar(16)     // low|medium|high
+  aiRiskScore        Float?
+  aiLabelsJson       Json?
+  aiTranscript       String?  @db.VarChar(50000)
+  aiAutoTagNamesJson Json?
+  aiAutoDescription  String?  @db.VarChar(2000)
+  aiModelVersionsJson Json?
+  aiCompletedAt      DateTime?
+  aiRetryCount       Int      @default(0)
+  aiLastTriedAt      DateTime?
+  aiNextRetryAt      DateTime?
+  aiError            String?  @db.Text
   // Number of times the submitter resubmitted this submission after "needs_changes".
   // Used to enforce a small iteration limit for scale (prevents infinite loops).
   revision        Int      @default(0)
@@ -1181,6 +1201,8 @@ model MemeSubmission {
   @@index([submitterUserId])
   @@index([memeAssetId])
   @@index([sourceKind])
+  @@index([fileHash])
+  @@index([status, sourceKind, aiStatus, aiNextRetryAt, createdAt])
 }
 
 model Redemption {

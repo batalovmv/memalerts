@@ -4,6 +4,7 @@ import type { Server } from 'socket.io';
 import { prisma } from '../../lib/prisma.js';
 import { approveSubmissionSchema, needsChangesSubmissionSchema, rejectSubmissionSchema } from '../../shared/index.js';
 import { getOrCreateTags } from '../../utils/tags.js';
+import { approveSubmissionInternal } from '../../services/approveSubmissionInternal.js';
 import {
   calculateFileHash,
   decrementFileHashReference,
@@ -224,9 +225,20 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
             submission = await tx.memeSubmission.findUnique({
               where: { id },
             });
-            // Add empty tags array to match expected structure
+            // Back-compat: Some deployments may not have MemeSubmissionTag table.
+            // Keep approve flow working, but best-effort load tags when possible.
             if (submission) {
               submission.tags = [];
+              try {
+                submission.tags = await (tx as any).memeSubmissionTag.findMany({
+                  where: { submissionId: id },
+                  include: { tag: { select: { name: true } } },
+                });
+              } catch (err: any) {
+                // Best-effort: never fail approve because tags couldn't be loaded.
+                // Common case: table missing (P2021). Other errors are tolerated too.
+                submission.tags = [];
+              }
             }
           } catch (error: any) {
             console.error('Error fetching submission:', error);
@@ -430,7 +442,9 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
               ? body.tags
               : submission.tags && Array.isArray(submission.tags) && submission.tags.length > 0
                 ? submission.tags.map((st: any) => st.tag?.name || st.tag).filter(Boolean)
-                : [];
+                : Array.isArray(submission?.aiAutoTagNamesJson)
+                  ? (submission.aiAutoTagNamesJson as any[]).filter((t) => typeof t === 'string' && t.length > 0)
+                  : [];
 
           let tagIds: string[] = [];
           if (tagNames.length > 0) {
@@ -470,186 +484,66 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
           // Use channel default price or body price
           const priceCoins = body.priceCoins || defaultPrice;
 
-          // Update submission
+          // Create approved meme + dual-write via shared internal helper (keeps AI auto-approve consistent).
+          let approved: any;
           try {
-            await tx.memeSubmission.update({
-              where: { id },
-              data: {
-                status: 'approved',
-              },
-            });
-          } catch (error: any) {
-            console.error('Error updating submission status:', error);
-            throw new Error('Failed to update submission status');
-          }
-
-          // Create meme with tags (only if we have tagIds)
-          const memeData: any = {
-            channelId: submission.channelId,
-            title: submission.title,
-            type: submission.type,
-            fileUrl: finalFileUrl,
-            fileHash: fileHash, // Store hash for deduplication tracking
-            durationMs,
-            priceCoins,
-            status: 'approved',
-            createdByUserId: submission.submitterUserId,
-            approvedByUserId: req.userId!,
-          };
-
-          // Only add tags if we have tagIds
-          if (tagIds.length > 0) {
-            memeData.tags = {
-              create: tagIds.map((tagId) => ({
-                tagId,
-              })),
-            };
-          }
-
-          try {
-            debugLog('[DEBUG] Creating meme in transaction', {
+            const res = await approveSubmissionInternal({
+              tx,
               submissionId: id,
-              channelId: submission.channelId,
-              hasTags: tagIds.length > 0,
-              fileUrl: finalFileUrl,
-            });
-
-            const meme = await tx.meme.create({
-              data: memeData,
-              include: {
-                createdBy: {
-                  select: {
-                    id: true,
-                    displayName: true,
-                    channel: {
-                      select: {
-                        slug: true,
-                      },
-                    },
-                  },
-                },
-                ...(tagIds.length > 0
-                  ? {
-                      tags: {
-                        include: {
-                          tag: true,
-                        },
-                      },
-                    }
-                  : {}),
+              approvedByUserId: req.userId || null,
+              resolved: {
+                finalFileUrl,
+                fileHash,
+                durationMs,
+                priceCoins,
+                tagNames,
               },
             });
-
-            debugLog('[DEBUG] Meme created successfully', { submissionId: id, memeId: meme.id });
-
-            // Dual-write: create global MemeAsset + ChannelMeme for the shared pool.
-            // Important: pool visibility moderation is handled on MemeAsset level; creating it here is safe.
-            try {
-              const existingAsset =
-                fileHash
-                  ? await tx.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
-                  : await tx.memeAsset.findFirst({
-                      where: { fileHash: null, fileUrl: finalFileUrl, type: submission.type, durationMs },
-                      select: { id: true },
-                    });
-
-              const assetId =
-                existingAsset?.id ??
-                (
-                  await tx.memeAsset.create({
-                    data: {
-                      type: submission.type,
-                      fileUrl: finalFileUrl,
-                      fileHash,
-                      durationMs,
-                      createdByUserId: submission.submitterUserId || null,
-                    },
-                    select: { id: true },
-                  })
-                ).id;
-
-              await tx.channelMeme.upsert({
-                where: { channelId_memeAssetId: { channelId: submission.channelId, memeAssetId: assetId } },
-                create: {
-                  channelId: submission.channelId,
-                  memeAssetId: assetId,
-                  legacyMemeId: meme.id,
-                  status: 'approved',
-                  title: submission.title,
-                  priceCoins,
-                  addedByUserId: submission.submitterUserId || null,
-                  approvedByUserId: req.userId!,
-                  approvedAt: new Date(),
-                },
-                update: {
-                  legacyMemeId: meme.id,
-                  status: 'approved',
-                  title: submission.title,
-                  priceCoins,
-                  approvedByUserId: req.userId!,
-                  approvedAt: new Date(),
-                  deletedAt: null,
-                },
-              });
-            } catch (e) {
-              // Do not fail approval if pool dual-write fails (backfill can reconcile later).
-              console.warn('[approveSubmission] Dual-write to MemeAsset/ChannelMeme failed (ignored):', (e as any)?.message);
-            }
-
-            // Reward submitter for approved submission (per-channel setting)
-            // Only if enabled (>0) and submitter is not the moderator approving.
-            // Policy: reward is granted ALWAYS (no online check) for both upload/url and pool.
-            if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
-              const updatedWallet = await tx.wallet.upsert({
-                where: {
-                  userId_channelId: {
-                    userId: submission.submitterUserId,
-                    channelId: submission.channelId,
-                  },
-                },
-                create: {
-                  userId: submission.submitterUserId,
-                  channelId: submission.channelId,
-                  balance: rewardForApproval,
-                },
-                update: {
-                  balance: { increment: rewardForApproval },
-                },
-                select: {
-                  balance: true,
-                },
-              });
-
-              submissionRewardEvent = {
-                userId: submission.submitterUserId,
-                channelId: submission.channelId,
-                balance: updatedWallet.balance,
-                delta: rewardForApproval,
-                reason: 'submission_approved_reward',
-                channelSlug: channel?.slug,
-              };
-            }
-
-            return meme;
+            approved = res.legacyMeme;
           } catch (error: any) {
-            debugLog('[DEBUG] Error creating meme', {
+            debugLog('[DEBUG] Error in approveSubmissionInternal', {
               submissionId: id,
               errorMessage: error?.message,
               errorName: error?.name,
-              errorCode: error instanceof PrismaClientKnownRequestError ? error.code : undefined,
             });
-            console.error('Error creating meme:', error);
-            // Check if it's a constraint violation or other Prisma error
-            if (error instanceof PrismaClientKnownRequestError) {
-              if (error.code === 'P2002') {
-                throw new Error('Meme with this data already exists');
-              }
-              if (error.code === 'P2003') {
-                throw new Error('Invalid reference in meme data');
-              }
-            }
-            throw new Error('Failed to create meme');
+            throw error;
           }
+
+          // Reward submitter for approved submission (per-channel setting)
+          // Only if enabled (>0) and submitter is not the moderator approving.
+          // Policy: reward is granted ALWAYS (no online check) for both upload/url and pool.
+          if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
+            const updatedWallet = await tx.wallet.upsert({
+              where: {
+                userId_channelId: {
+                  userId: submission.submitterUserId,
+                  channelId: submission.channelId,
+                },
+              },
+              create: {
+                userId: submission.submitterUserId,
+                channelId: submission.channelId,
+                balance: rewardForApproval,
+              },
+              update: {
+                balance: { increment: rewardForApproval },
+              },
+              select: {
+                balance: true,
+              },
+            });
+
+            submissionRewardEvent = {
+              userId: submission.submitterUserId,
+              channelId: submission.channelId,
+              balance: updatedWallet.balance,
+              delta: rewardForApproval,
+              reason: 'submission_approved_reward',
+              channelSlug: channel?.slug,
+            };
+          }
+
+          return approved;
         },
         {
           timeout: 30000, // 30 second timeout for transaction

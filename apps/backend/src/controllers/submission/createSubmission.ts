@@ -512,6 +512,11 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       notes: body.notes || null,
       status: 'pending',
       sourceKind: 'upload',
+      // Best-effort metadata for moderation/AI (no extra heavy work here).
+      fileHash,
+      durationMs: effectiveDurationMs !== null ? Math.max(0, Math.min(effectiveDurationMs, 15000)) : null,
+      mimeType: req.file.mimetype || null,
+      fileSizeBytes: Number.isFinite(req.file.size) ? req.file.size : null,
     };
 
     // Only add tags if we have tagIds (and table exists)
@@ -558,6 +563,10 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             notes: body.notes || null,
             status: 'pending',
             sourceKind: 'upload',
+            fileHash,
+            durationMs: effectiveDurationMs ?? null,
+            mimeType: req.file.mimetype || null,
+            fileSizeBytes: Number.isFinite(req.file.size) ? req.file.size : null,
           },
         });
       } else {

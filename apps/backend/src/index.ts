@@ -20,6 +20,8 @@ import { startTopStats30dRollupScheduler } from './jobs/channelTopStats30dRollup
 import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.js';
 import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
 import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscriptionRewards.js';
+import { startAiModerationScheduler } from './jobs/aiModerationSubmissions.js';
+import { startPendingSubmissionFilesCleanupScheduler } from './jobs/cleanupPendingSubmissionFiles.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
@@ -451,6 +453,10 @@ async function startServer() {
     startMemeAssetPurgeScheduler();
     // Boosty: award coins for active subscriptions (manual token linking).
     startBoostySubscriptionRewardsScheduler(io);
+    // Optional: AI moderation for upload submissions (disabled by default; guarded by env).
+    startAiModerationScheduler();
+    // Safety: cleanup pending submissions that exceeded AI retry/retention window (avoid disk bloat).
+    startPendingSubmissionFilesCleanupScheduler();
 
     // Optional: Twitch chat bot (collects chatters for credits overlay).
     // Enabled via env (see CHAT_BOT_* vars).
