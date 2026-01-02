@@ -558,10 +558,11 @@ server {
         proxy_cookie_path / /;
     }
     
-    # Static files (uploads) - serve from production uploads directory
-    # Beta and production share the same database, so they should share the same uploads
+    # Static files (uploads)
+    # IMPORTANT: In shared DB mode, local uploads are NOT automatically shared across instances.
+    # Beta must serve its own uploads directory unless you use shared storage (S3/R2/MinIO) or a shared UPLOAD_DIR.
     location /uploads/ {
-        alias /opt/memalerts-backend/uploads/;
+        alias /opt/memalerts-backend-beta/uploads/;
         expires 1y;
         add_header Cache-Control "public, immutable";
         # Add CORS headers - allow only specific domains (production and beta)

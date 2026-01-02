@@ -63,6 +63,19 @@ for raw in lines:
     out.append(line + "\n")
 
 new_text = "".join(out)
+
+# Fix beta uploads alias (Cloudflare/NGINX static) to point at beta backend directory.
+# Scope this to the beta section so we don't touch production uploads.
+marker = "# Beta domain:"
+idx = new_text.find(marker)
+if idx != -1:
+    prod_part = new_text[:idx]
+    beta_part = new_text[idx:]
+    beta_part = beta_part.replace(
+        "alias /opt/memalerts-backend/uploads/;",
+        "alias /opt/memalerts-backend-beta/uploads/;",
+    )
+    new_text = prod_part + beta_part
 if new_text == text:
     print("No changes needed (already patched).")
 else:
