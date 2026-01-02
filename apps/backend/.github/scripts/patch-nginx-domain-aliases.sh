@@ -64,6 +64,14 @@ for raw in lines:
 
 new_text = "".join(out)
 
+# Fix HTTP->HTTPS redirects to preserve the requested host.
+# Nginx uses the first name in `server_name` for $server_name, which can redirect beta.twitchmemes.ru
+# to beta.twitchalerts.ru unintentionally. Using $host preserves the incoming Host header.
+new_text = new_text.replace(
+    "return 301 https://$server_name$request_uri;",
+    "return 301 https://$host$request_uri;",
+)
+
 # Fix beta uploads alias (Cloudflare/NGINX static) to point at beta backend directory.
 # Scope this to the beta section so we don't touch production uploads.
 marker = "# Beta domain:"

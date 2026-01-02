@@ -162,7 +162,7 @@ if [ "$USE_CLOUDFLARE_CERT" = true ]; then
 server {
     listen 80;
     server_name $DOMAIN www.$DOMAIN;
-    return 301 https://\$server_name\$request_uri;
+    return 301 https://\$host\$request_uri;
 }
 
 server {
@@ -390,7 +390,7 @@ server {
 server {
     listen 80;
     server_name $BETA_DOMAIN;
-    return 301 https://\$server_name\$request_uri;
+    return 301 https://\$host\$request_uri;
 }
 
 server {
