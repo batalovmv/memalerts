@@ -19,6 +19,17 @@ describe('AI moderation dedup via MemeAsset (fileHash)', () => {
 
     const fileHash = `hash_${rand()}`;
 
+    // MemeAsset.fileHash has a FK to FileHash.hash in this project.
+    await prisma.fileHash.create({
+      data: {
+        hash: fileHash,
+        filePath: `/uploads/memes/${rand()}.webm`,
+        referenceCount: 1,
+        fileSize: BigInt(1),
+        mimeType: 'video/webm',
+      },
+    });
+
     const asset = await prisma.memeAsset.create({
       data: {
         type: 'video',

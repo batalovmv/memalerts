@@ -28,6 +28,17 @@ describe('AI moderation backfill into ChannelMeme', () => {
 
     const fileHash = `hash_${rand()}`;
 
+    // MemeAsset.fileHash has a FK to FileHash.hash in this project.
+    await prisma.fileHash.create({
+      data: {
+        hash: fileHash,
+        filePath: fileUrl,
+        referenceCount: 1,
+        fileSize: BigInt(5),
+        mimeType: 'video/webm',
+      },
+    });
+
     const memeAsset = await prisma.memeAsset.create({
       data: {
         type: 'video',

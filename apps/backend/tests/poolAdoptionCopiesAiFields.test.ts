@@ -39,11 +39,24 @@ describe('Pool owner adoption', () => {
       select: { id: true },
     });
 
+    const fileHash = `hash_${rand()}`;
+    const fileUrl = `/uploads/memes/${rand()}.webm`;
+    // MemeAsset.fileHash has a FK to FileHash.hash in this project.
+    await prisma.fileHash.create({
+      data: {
+        hash: fileHash,
+        filePath: fileUrl,
+        referenceCount: 1,
+        fileSize: BigInt(1),
+        mimeType: 'video/webm',
+      },
+    });
+
     const asset = await prisma.memeAsset.create({
       data: {
         type: 'video',
-        fileUrl: `/uploads/memes/${rand()}.webm`,
-        fileHash: `hash_${rand()}`,
+        fileUrl,
+        fileHash,
         durationMs: 1000,
         createdByUserId: streamerB.id,
         poolVisibility: 'visible',
