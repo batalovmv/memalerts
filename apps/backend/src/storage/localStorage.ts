@@ -18,6 +18,21 @@ function getUploadsRootDir(): string {
   return path.resolve(process.cwd(), uploadDir);
 }
 
+async function safeMoveFile(src: string, dst: string): Promise<void> {
+  await fs.promises.mkdir(path.dirname(dst), { recursive: true });
+  try {
+    await fs.promises.rename(src, dst);
+  } catch (e: any) {
+    // Cross-device move fallback (e.g. temp dir on different mount).
+    if (e?.code === 'EXDEV') {
+      await fs.promises.copyFile(src, dst);
+      await safeUnlink(src);
+      return;
+    }
+    throw e;
+  }
+}
+
 export class LocalStorageProvider implements StorageProvider {
   kind: 'local' = 'local';
 
@@ -26,8 +41,7 @@ export class LocalStorageProvider implements StorageProvider {
     const publicPath = `/uploads/memes/${args.hash}${args.extWithDot}`;
     const permanentPath = path.join(permanentDir, `${args.hash}${args.extWithDot}`);
 
-    await fs.promises.mkdir(permanentDir, { recursive: true });
-    await fs.promises.rename(args.tempFilePath, permanentPath).catch((err) => {
+    await safeMoveFile(args.tempFilePath, permanentPath).catch((err) => {
       if ((err as any)?.code === 'ENOENT') throw new Error('Temp file not found');
       throw err;
     });

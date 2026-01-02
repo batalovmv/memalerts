@@ -165,7 +165,9 @@ export async function findOrCreateFileHash(
               attemptedAbsPath: abs,
               errorMessage: e?.message || String(e),
             });
-            // Fall back to legacy behavior below.
+            // Do NOT silently fall back: it would return an existingPath that still 404s on this instance.
+            // Keep the temp file for debugging / manual recovery.
+            throw new Error(`Local dedup repair failed for hash=${hash}; expectedPath=${existingPath}`);
           }
         }
       }

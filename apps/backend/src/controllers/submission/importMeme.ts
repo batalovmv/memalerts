@@ -472,7 +472,9 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             submitterUserId: req.userId!,
             title: body.title,
             type: 'video',
-            fileUrlTemp: body.sourceUrl,
+            // Keep fileUrlTemp as local stored path (same as the main path),
+            // so approve/AI jobs can validate it and /uploads works.
+            fileUrlTemp: finalFilePath ?? body.sourceUrl,
             sourceUrl: body.sourceUrl,
             sourceKind: 'url',
             notes: body.notes || null,
