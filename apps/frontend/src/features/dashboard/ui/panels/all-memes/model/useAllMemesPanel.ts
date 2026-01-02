@@ -5,6 +5,7 @@ import type { Meme } from '@/types';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
+import { useAppSelector } from '@/store/hooks';
 
 export type AllMemesSearchScope = 'content' | 'contentAndUploader';
 export type AllMemesSortBy = 'createdAt' | 'priceCoins';
@@ -12,6 +13,7 @@ export type AllMemesSortOrder = 'asc' | 'desc';
 
 export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; includeFileHash?: boolean }) {
   const { isOpen, channelId, includeFileHash } = params;
+  const { user } = useAppSelector((s) => s.auth);
 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 250);
@@ -66,8 +68,13 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     p.set('sortOrder', filters.sortOrder);
     p.set('limit', String(limit));
     if (includeFileHash) p.set('includeFileHash', '1');
+    // Optional AI enrichment (admin / channel owner only).
+    // Backend enforces permissions; UI gates to avoid leaking intent and wasted bytes.
+    const canIncludeAi =
+      !!user && (user.role === 'admin' || (user.role === 'streamer' && !!user.channelId && user.channelId === channelId));
+    if (canIncludeAi) p.set('includeAi', '1');
     return p;
-  }, [channelId, filters, limit, includeFileHash]);
+  }, [channelId, filters, limit, includeFileHash, user]);
 
   const loadPage = async (offset: number) => {
     const p = new URLSearchParams(paramsBase);

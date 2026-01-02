@@ -96,6 +96,12 @@ export interface Meme {
   channelId?: string;
   deletedAt?: string | null;
   tags?: Array<{ tag: Tag }>;
+  /**
+   * Optional AI enrichment for channel memes (only when requesting /channels/memes/search with includeAi=1
+   * and the current user has access).
+   */
+  aiAutoDescription?: string | null;
+  aiAutoTagNames?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: {

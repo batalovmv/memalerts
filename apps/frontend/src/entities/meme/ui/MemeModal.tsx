@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
-import { Button, HelpTooltip, Input, Textarea } from '@/shared/ui';
+import { Button, HelpTooltip, Input, Pill, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
@@ -105,6 +105,10 @@ export default function MemeModal({
 
   const videoUrl = resolveMediaUrl(currentMeme.fileUrl);
   const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
+  const aiTags = Array.isArray(currentMeme.aiAutoTagNames) ? currentMeme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
+  const aiDesc = typeof currentMeme.aiAutoDescription === 'string' ? currentMeme.aiAutoDescription : '';
+  const canViewAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
+  const hasAi = aiTags.length > 0 || !!aiDesc.trim();
 
   const statusLabel = (() => {
     const s = (currentMeme.status || '').toLowerCase();
@@ -441,6 +445,44 @@ export default function MemeModal({
               </h2>
             )}
           </div>
+
+          {canViewAi && hasAi ? (
+            <section className="rounded-xl bg-black/5 dark:bg-white/5 p-4" aria-label="AI">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-bold text-gray-900 dark:text-white">AI</div>
+                {aiTags.length > 0 ? (
+                  <Pill variant="neutral" size="sm">
+                    AI tags: {aiTags.length}
+                  </Pill>
+                ) : null}
+              </div>
+
+              {aiDesc.trim() ? (
+                <div className="mt-3">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">AI description</div>
+                  <div className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{aiDesc}</div>
+                </div>
+              ) : null}
+
+              {aiTags.length > 0 ? (
+                <div className="mt-3">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">AI tags</div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {aiTags.slice(0, 30).map((tag) => (
+                      <Pill key={tag} variant="primary" size="sm">
+                        {tag}
+                      </Pill>
+                    ))}
+                    {aiTags.length > 30 ? (
+                      <Pill variant="neutral" size="sm">
+                        +{aiTags.length - 30}
+                      </Pill>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           {isEditing && mode === 'admin' ? (
             <form onSubmit={handleSave} className="space-y-4" aria-label="Edit meme form">

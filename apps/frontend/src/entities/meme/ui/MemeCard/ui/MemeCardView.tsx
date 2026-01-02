@@ -2,6 +2,7 @@ import type { Meme } from '@/types';
 import type { RefObject } from 'react';
 
 import { cn } from '@/shared/lib/cn';
+import { Tooltip } from '@/shared/ui';
 
 export type MemeCardViewProps = {
   meme: Meme;
@@ -38,6 +39,11 @@ export function MemeCardView({
   onTouchStart,
   onKeyDown,
 }: MemeCardViewProps) {
+  const aiTags = Array.isArray((meme as Meme).aiAutoTagNames) ? (meme as Meme).aiAutoTagNames!.filter((x) => typeof x === 'string') : [];
+  const aiDesc = typeof (meme as Meme).aiAutoDescription === 'string' ? ((meme as Meme).aiAutoDescription as string) : '';
+  const aiDescFirstLine = aiDesc.trim().split('\n')[0]?.slice(0, 120) || '';
+  const hasAi = aiTags.length > 0 || !!aiDesc.trim();
+
   return (
     <article
       ref={setCardEl}
@@ -86,6 +92,23 @@ export function MemeCardView({
             <p className="text-sm font-medium truncate px-2">{meme.title}</p>
           </div>
         )}
+
+        {hasAi ? (
+          <div className="absolute top-2 left-2 z-30 flex flex-col gap-1">
+            {aiTags.length > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
+                AI tags: {aiTags.length}
+              </span>
+            ) : null}
+            {aiDesc.trim() ? (
+              <Tooltip delayMs={250} content={aiDescFirstLine || 'AI description'}>
+                <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
+                  AI desc
+                </span>
+              </Tooltip>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </article>
   );
