@@ -6,6 +6,8 @@ import { validatePathWithinDirectory } from '../utils/pathSecurity.js';
 import { Prisma } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { extractAudioToMp3 } from '../utils/ai/extractAudio.js';
 import { transcribeAudioOpenAI } from '../utils/ai/openaiAsr.js';
 import { moderateTextOpenAI } from '../utils/ai/openaiTextModeration.js';
@@ -37,6 +39,48 @@ function isAllowedPublicFileUrl(p: string): boolean {
     return s.startsWith(base) || s === s3Base;
   }
   return false;
+}
+
+async function downloadPublicFileToDisk(opts: { url: string; destPath: string; maxBytes: number }): Promise<void> {
+  const { url, destPath, maxBytes } = opts;
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`download_http_${res.status}:${txt || res.statusText}`);
+  }
+
+  const len = Number(res.headers.get('content-length') || '0');
+  if (len && Number.isFinite(len) && len > maxBytes) {
+    throw new Error('download_too_large');
+  }
+
+  await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+  const ws = fs.createWriteStream(destPath);
+  let seen = 0;
+
+  try {
+    // Node 18+: Response.body is a web ReadableStream; convert it to Node stream.
+    const rs = Readable.fromWeb(res.body as any);
+    rs.on('data', (chunk) => {
+      seen += Buffer.byteLength(chunk);
+      if (seen > maxBytes) {
+        rs.destroy(new Error('download_too_large'));
+      }
+    });
+    await pipeline(rs, ws);
+  } catch (e) {
+    try {
+      ws.destroy();
+    } catch {
+      // ignore
+    }
+    try {
+      await fs.promises.rm(destPath, { force: true });
+    } catch {
+      // ignore
+    }
+    throw e;
+  }
 }
 
 function computeKeywordHeuristic(title: string, notes: string | null | undefined): {
@@ -243,12 +287,31 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   const modelVersions: any = { pipelineVersion: 'v2-openai-asr-moderation' };
 
   const openaiEnabled = !!String(process.env.OPENAI_API_KEY || '').trim();
-  if (openaiEnabled && localPath) {
+  if (openaiEnabled && (localPath || (fileUrl && isAllowedPublicFileUrl(fileUrl)))) {
     // Temporary working directory (cleaned up in finally).
     const tmpDir = path.join(process.cwd(), 'uploads', 'temp', `ai-${submissionId}`);
     let audioPath: string | null = null;
+    let inputPath: string | null = null;
     try {
-      audioPath = await extractAudioToMp3({ inputVideoPath: localPath, outputDir: tmpDir, baseName: 'audio' });
+      if (localPath) {
+        inputPath = localPath;
+      } else {
+        // Public URL case (e.g. S3): download to tmp first, then run ffmpeg locally.
+        // Safety: restricted by isAllowedPublicFileUrl() to /uploads/* or S3_PUBLIC_BASE_URL.
+        const ext = (() => {
+          try {
+            return path.extname(new URL(fileUrl).pathname) || '.mp4';
+          } catch {
+            return '.mp4';
+          }
+        })();
+        inputPath = path.join(tmpDir, `input${ext}`);
+        const maxBytes = clampInt(parseInt(String(process.env.AI_DOWNLOAD_MAX_BYTES || ''), 10), 1_000_000, 200_000_000, 60_000_000);
+        await downloadPublicFileToDisk({ url: fileUrl, destPath: inputPath, maxBytes });
+        modelVersions.download = { maxBytes, source: 'public_url' };
+      }
+
+      audioPath = await extractAudioToMp3({ inputVideoPath: inputPath, outputDir: tmpDir, baseName: 'audio' });
       const asr = await transcribeAudioOpenAI({ audioFilePath: audioPath });
       transcript = asr.transcript;
       modelVersions.asrModel = asr.model;
@@ -476,7 +539,7 @@ export function startAiModerationScheduler() {
       const candidates = await prisma.memeSubmission.findMany({
         where: {
           status: { in: ['pending', 'approved'] },
-          sourceKind: 'upload',
+          sourceKind: { in: ['upload', 'url'] },
           OR: [
             { aiStatus: 'pending' },
             { aiStatus: 'failed', OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }] },
@@ -511,7 +574,7 @@ export function startAiModerationScheduler() {
           where: {
             id: c.id,
             status: { in: ['pending', 'approved'] },
-            sourceKind: 'upload',
+            sourceKind: { in: ['upload', 'url'] },
             OR: [
               { aiStatus: 'pending' },
               { aiStatus: 'failed', OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }] },
