@@ -428,9 +428,10 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 
   // Best-effort: copy AI fields into ChannelMeme so includeAi=1 and channel search (searchText) work
   // even when a submission was approved directly (owner bypass) before AI finished.
-  if (submission.memeAssetId) {
+  const assetIdForChannelMeme = submission.memeAssetId ?? assetToUpdate;
+  if (assetIdForChannelMeme) {
     await prisma.channelMeme.updateMany({
-      where: { channelId: submission.channelId, memeAssetId: submission.memeAssetId },
+      where: { channelId: submission.channelId, memeAssetId: assetIdForChannelMeme },
       data: {
         aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
         aiAutoTagNamesJson: autoTags,
