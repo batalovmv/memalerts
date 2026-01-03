@@ -1,10 +1,9 @@
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import path from 'path';
 import fs from 'fs';
+import { configureFfmpegPaths } from '../media/configureFfmpeg.js';
 
-// Ensure ffmpeg is configured (same pattern as videoValidator).
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+configureFfmpegPaths();
 
 async function ensureDir(dir: string): Promise<void> {
   await fs.promises.mkdir(dir, { recursive: true });

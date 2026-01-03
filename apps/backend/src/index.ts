@@ -22,7 +22,6 @@ import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
 import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscriptionRewards.js';
 import { startAiModerationScheduler } from './jobs/aiModerationSubmissions.js';
 import { startPendingSubmissionFilesCleanupScheduler } from './jobs/cleanupPendingSubmissionFiles.js';
-import { startMemeAssetAudioNormalizationScheduler } from './jobs/normalizeMemeAssetAudio.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 
@@ -457,7 +456,6 @@ async function startServer() {
     // Optional: AI moderation for upload submissions (disabled by default; guarded by env).
     startAiModerationScheduler();
     // Optional: normalize audio for playback (site + OBS). Disabled by default; guarded by env.
-    startMemeAssetAudioNormalizationScheduler();
     // Safety: cleanup pending submissions that exceeded AI retry/retention window (avoid disk bloat).
     startPendingSubmissionFilesCleanupScheduler();
 

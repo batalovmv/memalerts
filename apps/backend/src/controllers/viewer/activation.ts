@@ -127,7 +127,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
     // between stored slugs, older clients, and token-based overlay joins.
     const channelSlug = String(channel.slug || '').toLowerCase();
     const overlayType = channelMeme ? channelMeme.memeAsset.type : legacyMeme!.type;
-    const overlayFileUrl = channelMeme ? ((channelMeme.memeAsset as any).playFileUrl ?? channelMeme.memeAsset.fileUrl) : legacyMeme!.fileUrl;
+    const overlayFileUrl = channelMeme ? channelMeme.memeAsset.fileUrl : legacyMeme!.fileUrl;
     const overlayDurationMs = channelMeme ? channelMeme.memeAsset.durationMs : legacyMeme!.durationMs;
     const overlayTitle = channelMeme ? channelMeme.title : legacyMeme!.title;
     io.to(`channel:${channelSlug}`).emit('activation:new', {

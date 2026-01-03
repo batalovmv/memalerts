@@ -1,10 +1,9 @@
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import fs from 'fs';
 import path from 'path';
+import { configureFfmpegPaths } from '../media/configureFfmpeg.js';
 
-// Keep ffmpeg config consistent with extractAudio.
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+configureFfmpegPaths();
 
 async function ensureDir(dir: string): Promise<void> {
   await fs.promises.mkdir(dir, { recursive: true });

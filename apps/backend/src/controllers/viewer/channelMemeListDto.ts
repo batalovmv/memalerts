@@ -70,7 +70,6 @@ export function toChannelMemeListItemDto(
     memeAsset: {
       type: string;
       fileUrl: string | null;
-      playFileUrl?: string | null;
       fileHash?: string | null;
       durationMs: number;
       createdBy?: { id: string; displayName: string } | null;
@@ -88,7 +87,7 @@ export function toChannelMemeListItemDto(
     memeAssetId: row.memeAssetId,
     title: row.title,
     type: row.memeAsset.type,
-    fileUrl: (row.memeAsset.playFileUrl ?? row.memeAsset.fileUrl) ?? null,
+    fileUrl: row.memeAsset.fileUrl ?? null,
     durationMs: row.memeAsset.durationMs,
     priceCoins: row.priceCoins,
     status: row.status,
