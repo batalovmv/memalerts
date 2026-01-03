@@ -130,6 +130,10 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
 
     const body = createSubmissionSchema.parse(bodyData);
 
+    const titleInput = typeof (body as any).title === 'string' ? String((body as any).title).trim() : '';
+    // DB requires non-empty title; if user omitted, use a safe placeholder and let AI replace it later.
+    const finalTitle = titleInput || 'Мем';
+
     // Ensure type is video
     if (body.type !== 'video') {
       return res.status(400).json({ error: 'Only video type is allowed' });
@@ -276,7 +280,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             data: {
               status: 'approved',
               deletedAt: null,
-              title: body.title,
+              title: finalTitle,
               priceCoins: defaultPrice,
               approvedByUserId: req.userId!,
               approvedAt: now,
@@ -286,8 +290,8 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
 
           // Fast fallback for owner restore (so includeAi=1 is non-null immediately),
           // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
-          const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
-          const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
+          const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
+          const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
           const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
           await prisma.channelMeme.update({
@@ -301,7 +305,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
 
           const legacyData: any = {
             channelId,
-            title: body.title,
+            title: finalTitle,
             type: existingAsset.type,
             fileUrl: existingAsset.fileUrl,
             fileHash: existingAsset.fileHash,
@@ -342,7 +346,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
                 data: {
                   channelId: String(channelId),
                   submitterUserId: req.userId!,
-                  title: body.title,
+                  title: finalTitle,
                   type: existingAsset.type,
                   fileUrlTemp: existingAsset.fileUrl,
                   sourceKind: 'upload',
@@ -401,7 +405,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
       // Create meme directly with approved status
       const memeData: any = {
         channelId,
-        title: body.title,
+        title: finalTitle,
         type: 'video',
         fileUrl: finalFilePath,
         durationMs, // Use real duration or 0
@@ -449,7 +453,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           meme = await prisma.meme.create({
             data: {
               channelId,
-              title: body.title,
+              title: finalTitle,
               type: 'video',
               fileUrl: finalFilePath,
               durationMs, // Use real duration or 0
@@ -499,7 +503,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             memeAssetId,
             legacyMemeId: meme?.id || null,
             status: 'approved',
-            title: body.title,
+            title: finalTitle,
             priceCoins: defaultPrice,
             addedByUserId: req.userId!,
             approvedByUserId: req.userId!,
@@ -508,7 +512,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           update: {
             legacyMemeId: meme?.id || null,
             status: 'approved',
-            title: body.title,
+            title: finalTitle,
             priceCoins: defaultPrice,
             approvedByUserId: req.userId!,
             approvedAt: new Date(),
@@ -531,8 +535,8 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
 
       // Fast fallback for owner bypass (so includeAi=1 is non-null immediately),
       // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
-      const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
-      const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
+      const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
+      const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
       const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
       try {
@@ -554,7 +558,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           data: {
             channelId: String(channelId),
             submitterUserId: req.userId!,
-            title: body.title,
+            title: finalTitle,
             type: 'video',
             fileUrlTemp: finalFilePath,
             sourceKind: 'upload',
@@ -592,7 +596,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
     const submissionData: any = {
       channelId,
       submitterUserId: req.userId!,
-      title: body.title,
+      title: finalTitle,
       type: 'video', // Force video type
       fileUrlTemp: finalFilePath, // Use deduplicated file path
       notes: body.notes || null,
@@ -660,7 +664,7 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           data: {
             channelId,
             submitterUserId: req.userId!,
-            title: body.title,
+            title: finalTitle,
             type: 'video',
             fileUrlTemp: `/uploads/${req.file.filename}`,
             notes: body.notes || null,

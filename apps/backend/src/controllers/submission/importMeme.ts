@@ -76,6 +76,10 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
   try {
     const body = importMemeSchema.parse(req.body);
 
+    const titleInput = typeof (body as any).title === 'string' ? String((body as any).title).trim() : '';
+    // DB requires non-empty title; if user omitted, use a safe placeholder and let AI replace it later.
+    const finalTitle = titleInput || 'Мем';
+
     // Validate URL is from memalerts.com or cdns.memealerts.com
     const isValidUrl = body.sourceUrl.includes('memalerts.com') || body.sourceUrl.includes('cdns.memealerts.com');
     if (!isValidUrl) {
@@ -212,7 +216,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             data: {
               status: 'approved',
               deletedAt: null,
-              title: body.title,
+              title: finalTitle,
               priceCoins: defaultPrice,
               approvedByUserId: req.userId!,
               approvedAt: now,
@@ -222,8 +226,8 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
           // Fast fallback for owner restore (so includeAi=1 is non-null immediately),
           // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
-          const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
-          const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
+          const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
+          const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
           const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
           await prisma.channelMeme.update({
@@ -237,7 +241,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
           const legacyData: any = {
             channelId,
-            title: body.title,
+            title: finalTitle,
             type: existingAsset.type,
             fileUrl: existingAsset.fileUrl,
             fileHash: existingAsset.fileHash,
@@ -278,7 +282,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
                 data: {
                   channelId: String(channelId),
                   submitterUserId: req.userId!,
-                  title: body.title,
+                  title: finalTitle,
                   type: existingAsset.type,
                   fileUrlTemp: existingAsset.fileUrl,
                   sourceKind: 'upload',
@@ -331,7 +335,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
       const memeCreateData: any = {
         channelId,
-        title: body.title,
+        title: finalTitle,
         type: 'video',
         fileUrl: finalFilePath,
         fileHash,
@@ -369,7 +373,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           meme = await prisma.meme.create({
             data: {
               channelId,
-              title: body.title,
+              title: finalTitle,
               type: 'video',
               fileUrl: finalFilePath,
               fileHash,
@@ -419,7 +423,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
             memeAssetId,
             legacyMemeId: meme?.id || null,
             status: 'approved',
-            title: body.title,
+            title: finalTitle,
             priceCoins: defaultPrice,
             addedByUserId: req.userId!,
             approvedByUserId: req.userId!,
@@ -428,7 +432,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           update: {
             legacyMemeId: meme?.id || null,
             status: 'approved',
-            title: body.title,
+            title: finalTitle,
             priceCoins: defaultPrice,
             approvedByUserId: req.userId!,
             approvedAt: new Date(),
@@ -450,8 +454,8 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
       // Fast fallback for owner bypass (so includeAi=1 is non-null immediately),
       // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
-      const fallbackDesc = makeAutoDescription({ title: body.title, transcript: null, labels: [] });
-      const fallbackTags = generateTagNames({ title: body.title, transcript: null, labels: [] }).tagNames;
+      const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
+      const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
       const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
       try {
@@ -473,7 +477,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           data: {
             channelId: String(channelId),
             submitterUserId: req.userId!,
-            title: body.title,
+            title: finalTitle,
             type: 'video',
             fileUrlTemp: finalFilePath!,
             sourceKind: 'upload',
@@ -503,7 +507,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
     const submissionData: any = {
       channelId,
       submitterUserId: req.userId!,
-      title: body.title,
+      title: finalTitle,
       type: 'video', // Imported memes are treated as video
       fileUrlTemp: finalFilePath, // Local path (deduped)
       sourceUrl: body.sourceUrl,
@@ -550,7 +554,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
           data: {
             channelId,
             submitterUserId: req.userId!,
-            title: body.title,
+            title: finalTitle,
             type: 'video',
             // Keep fileUrlTemp as local stored path (same as the main path),
             // so approve/AI jobs can validate it and /uploads works.

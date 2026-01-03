@@ -1087,6 +1087,7 @@ model MemeAsset {
   // Global AI metadata (per unique asset / fileHash).
   // Used to avoid re-running analysis on duplicates and to instantly provide tags/description on pool adoption.
   aiStatus           String   @default("pending") // pending|done
+  aiAutoTitle        String?  @db.VarChar(200)
   aiAutoTagNamesJson Json?
   aiAutoDescription  String?  @db.VarChar(2000)
   aiSearchText       String?  @db.VarChar(4000)

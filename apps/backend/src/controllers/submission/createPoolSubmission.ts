@@ -59,7 +59,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       userId,
       channelId: body.channelId,
       memeAssetId: body.memeAssetId,
-      hasTitle: !!body.title,
+      hasTitle: typeof (body as any).title === 'string' ? String((body as any).title).trim().length > 0 : false,
       hasNotes: !!body.notes,
       tagsCount: Array.isArray(body.tags) ? body.tags.length : null,
     });
@@ -95,6 +95,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         fileHash: true,
         durationMs: true,
         aiStatus: true,
+        aiAutoTitle: true,
         aiAutoDescription: true,
         aiAutoTagNamesJson: true,
         aiSearchText: true,
@@ -115,6 +116,10 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
     }
     if (!asset.fileUrl) return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
+
+    const titleInput = typeof (body as any).title === 'string' ? String((body as any).title).trim() : '';
+    // If user omitted title, use asset AI title if available; otherwise fallback placeholder.
+    const finalTitle = titleInput || (asset.aiAutoTitle ? String(asset.aiAutoTitle).slice(0, 80) : 'Мем');
 
     // If already adopted in this channel -> error for frontend handling.
     const existing = await prisma.channelMeme.findUnique({
@@ -151,6 +156,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         asset.aiStatus === 'done'
           ? (asset.aiSearchText ?? (aiDescription ? String(aiDescription).slice(0, 4000) : null))
           : null;
+      // ChannelMeme.title is channel-scoped and editable. Use user title when provided; otherwise prefer AI title for convenience.
 
       const cm = await prisma.channelMeme.upsert({
         where: { channelId_memeAssetId: { channelId: body.channelId, memeAssetId: asset.id } },
@@ -158,7 +164,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
           channelId: body.channelId,
           memeAssetId: asset.id,
           status: 'approved',
-          title: body.title,
+          title: finalTitle,
           searchText: aiSearchText,
           aiAutoDescription: aiDescription,
           aiAutoTagNamesJson: aiTagsJson,
@@ -170,7 +176,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         update: {
           status: 'approved',
           deletedAt: null,
-          title: body.title,
+          title: finalTitle,
           searchText: aiSearchText,
           aiAutoDescription: aiDescription,
           aiAutoTagNamesJson: aiTagsJson,
@@ -184,7 +190,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       // Bugfix: if we restored ChannelMeme but legacy Meme was previously soft-deleted, the response must NOT return deletedAt/status=deleted.
       const legacyData: any = {
         channelId: body.channelId,
-        title: body.title,
+        title: finalTitle,
         type: asset.type,
         fileUrl: asset.fileUrl,
         fileHash: asset.fileHash,
@@ -237,7 +243,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       data: {
         channelId: body.channelId,
         submitterUserId: userId,
-        title: body.title,
+        title: finalTitle,
         type: asset.type,
         // fileUrlTemp is only for local uploads; keep non-null for legacy back-compat.
         fileUrlTemp: '',

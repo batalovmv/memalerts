@@ -116,6 +116,13 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       })
     ).id;
 
+  // Prefer AI-generated title if already available on the asset (dedup/pool reuse).
+  const assetForTitle = await tx.memeAsset.findUnique({
+    where: { id: memeAssetId },
+    select: { aiAutoTitle: true },
+  });
+  const channelTitle = assetForTitle?.aiAutoTitle ? String(assetForTitle.aiAutoTitle).slice(0, 80) : submission.title;
+
   // Best-effort: persist AI results globally on MemeAsset so future duplicates/pool adoptions can reuse them.
   // (Do not overwrite if already marked done.)
   try {
@@ -140,7 +147,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       memeAssetId,
       legacyMemeId: legacyMeme.id,
       status: 'approved',
-      title: submission.title,
+      title: channelTitle,
       searchText,
       aiAutoDescription,
       aiAutoTagNamesJson,
@@ -152,7 +159,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     update: {
       legacyMemeId: legacyMeme.id,
       status: 'approved',
-      title: submission.title,
+      title: channelTitle,
       searchText,
       aiAutoDescription,
       aiAutoTagNamesJson,

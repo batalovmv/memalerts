@@ -13,6 +13,8 @@ import { transcribeAudioOpenAI } from '../utils/ai/openaiAsr.js';
 import { moderateTextOpenAI } from '../utils/ai/openaiTextModeration.js';
 import { generateTagNames } from '../utils/ai/tagging.js';
 import { makeAutoDescription } from '../utils/ai/description.js';
+import { extractFramesJpeg } from '../utils/ai/extractFrames.js';
+import { generateMemeMetadataOpenAI } from '../utils/ai/openaiMemeMetadata.js';
 import { auditLog } from '../utils/auditLogger.js';
 
 type AiModerationDecision = 'low' | 'medium' | 'high';
@@ -218,7 +220,10 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 
   if (!submission) return;
   if (submission.status !== 'pending' && submission.status !== 'approved') return;
-  if (String(submission.sourceKind || '').toLowerCase() !== 'upload') return;
+  {
+    const sk = String(submission.sourceKind || '').toLowerCase();
+    if (sk !== 'upload' && sk !== 'url') return;
+  }
 
   const fileHash = submission.fileHash ? String(submission.fileHash) : null;
   const durationMs =
@@ -229,7 +234,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   // (skip rerunning analysis for duplicates).
   const existingAsset = await prisma.memeAsset.findFirst({
     where: { fileHash, aiStatus: 'done' },
-    select: { id: true, aiAutoDescription: true, aiAutoTagNamesJson: true, aiSearchText: true },
+    select: { id: true, aiAutoTitle: true, aiAutoDescription: true, aiAutoTagNamesJson: true, aiSearchText: true },
   });
 
   if (existingAsset) {
@@ -262,6 +267,14 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       },
     });
 
+    // Only set title if user hasn't edited it (still equals original submission.title).
+    if (existingAsset.aiAutoTitle) {
+      await prisma.channelMeme.updateMany({
+        where: { channelId: submission.channelId, memeAssetId: assetId, title: submission.title },
+        data: { title: String(existingAsset.aiAutoTitle).slice(0, 80) },
+      });
+    }
+
     return;
   }
 
@@ -283,6 +296,8 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   let labels: string[] = [];
   let autoTags: string[] = [];
   let transcript: string | null = null;
+  let aiTitle: string | null = null;
+  let metaDescription: string | null = null;
   let reason = 'ai:keyword_fallback';
   const modelVersions: any = { pipelineVersion: 'v2-openai-asr-moderation' };
 
@@ -322,9 +337,40 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       riskScore = Math.max(riskScore, mod.riskScore);
       reason = mod.flagged ? 'ai:text_flagged' : 'ai:text_ok';
 
-      const tagRes = generateTagNames({ title: submission.title, transcript, labels });
-      if (tagRes.lowConfidence) labels = [...labels, 'low_confidence'];
-      autoTags = tagRes.tagNames;
+      const maxTags = clampInt(parseInt(String(process.env.AI_TAG_LIMIT || ''), 10), 1, 20, 8);
+
+      // Vision + metadata generation (title/tags/description).
+      const metaEnabled = parseBool(process.env.AI_METADATA_ENABLED ?? '1');
+      if (metaEnabled) {
+        const visionEnabled = parseBool(process.env.AI_VISION_ENABLED ?? '1');
+        let frames: string[] = [];
+        if (visionEnabled && inputPath) {
+          const maxFrames = clampInt(parseInt(String(process.env.AI_VISION_MAX_FRAMES || ''), 10), 1, 12, 8);
+          const stepSeconds = clampInt(parseInt(String(process.env.AI_VISION_STEP_SECONDS || ''), 10), 1, 10, 2);
+          frames = await extractFramesJpeg({ inputVideoPath: inputPath, outputDir: tmpDir, maxFrames, stepSeconds, width: 512 });
+          modelVersions.vision = { maxFrames, stepSeconds };
+        }
+
+        const meta = await generateMemeMetadataOpenAI({
+          titleHint: submission.title,
+          transcript,
+          labels,
+          framePaths: frames,
+          maxTags,
+        });
+        modelVersions.metadataModel = meta.model;
+        aiTitle = meta.title;
+        autoTags = meta.tags;
+        metaDescription = meta.description;
+      }
+
+      // Fallback tags (if metadata generation is disabled or returned empty tags).
+      if (!autoTags || autoTags.length === 0) {
+        const tagRes = generateTagNames({ title: submission.title, transcript, labels, maxTags });
+        if (tagRes.lowConfidence) labels = [...labels, 'low_confidence'];
+        autoTags = tagRes.tagNames;
+      }
+
       const mediumT = Math.max(0, Math.min(1, Number(process.env.AI_MODERATION_MEDIUM_THRESHOLD ?? 0.4)));
       const highT = Math.max(0, Math.min(1, Number(process.env.AI_MODERATION_HIGH_THRESHOLD ?? 0.7)));
       decision = riskScore >= highT ? 'high' : riskScore >= mediumT ? 'medium' : 'low';
@@ -337,7 +383,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
         decision = heuristic.decision;
         riskScore = heuristic.riskScore;
         labels = heuristic.labels;
-        const tagRes = generateTagNames({ title: submission.title, transcript: null, labels });
+        const tagRes = generateTagNames({ title: submission.title, transcript: null, labels, maxTags: 6 });
         autoTags = heuristic.tagNames.length > 0 ? heuristic.tagNames : tagRes.tagNames;
         reason = 'ai:openai_unavailable';
         modelVersions.pipelineVersion = 'v1-keyword-heuristic';
@@ -359,7 +405,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     decision = heuristic.decision;
     riskScore = heuristic.riskScore;
     labels = heuristic.labels;
-    const tagRes = generateTagNames({ title: submission.title, transcript: null, labels });
+    const tagRes = generateTagNames({ title: submission.title, transcript: null, labels, maxTags: 6 });
     autoTags = heuristic.tagNames.length > 0 ? heuristic.tagNames : tagRes.tagNames;
     reason = heuristic.reason;
     modelVersions.pipelineVersion = 'v1-keyword-heuristic';
@@ -383,7 +429,18 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   }
 
   // Persist AI results on submission.
-  const autoDescription = makeAutoDescription({ title: submission.title, transcript, labels });
+  // Description: detailed, can include transcript text (but limited by 2000 chars field).
+  const baseDescription = metaDescription ?? makeAutoDescription({ title: submission.title, transcript, labels });
+  const transcriptText = transcript ? String(transcript).slice(0, 50000) : null;
+  const autoDescription = (() => {
+    const base = baseDescription ? String(baseDescription).trim() : '';
+    const t = transcriptText ? String(transcriptText).trim() : '';
+    if (!t) return base ? base.slice(0, 2000) : null;
+    const prefix = base ? `${base}\n\nТранскрипт:\n` : `Транскрипт:\n`;
+    const room = 2000 - prefix.length;
+    if (room <= 0) return prefix.slice(0, 2000);
+    return (prefix + t.slice(0, room)).slice(0, 2000);
+  })();
   await prisma.memeSubmission.update({
     where: { id: submissionId },
     data: {
@@ -391,7 +448,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       aiDecision: decision,
       aiRiskScore: riskScore,
       aiLabelsJson: labels,
-      aiTranscript: transcript ? String(transcript).slice(0, 50000) : null,
+      aiTranscript: transcriptText,
       aiAutoTagNamesJson: autoTags,
       aiAutoDescription: autoDescription,
       aiModelVersionsJson: modelVersions as any,
@@ -402,7 +459,17 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   });
 
   // Persist AI results globally on MemeAsset (per fileHash) when possible.
-  const aiSearchText = autoDescription ? String(autoDescription).slice(0, 4000) : null;
+  const aiSearchText = (() => {
+    const parts = [
+      aiTitle ? String(aiTitle) : submission.title ? String(submission.title) : '',
+      Array.isArray(autoTags) && autoTags.length > 0 ? autoTags.join(' ') : '',
+      autoDescription ? String(autoDescription) : '',
+    ]
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    const merged = parts.join('\n');
+    return merged ? merged.slice(0, 4000) : null;
+  })();
   const assetToUpdate =
     submission.memeAssetId ??
     (
@@ -418,6 +485,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       where: { id: assetToUpdate },
       data: {
         aiStatus: 'done',
+        aiAutoTitle: aiTitle ? String(aiTitle).slice(0, 80) : null,
         aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
         aiAutoTagNamesJson: autoTags,
         aiSearchText,
@@ -438,6 +506,14 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
         searchText: aiSearchText,
       },
     });
+
+    // Only set title if user hasn't edited it (still equals original submission.title).
+    if (aiTitle) {
+      await prisma.channelMeme.updateMany({
+        where: { channelId: submission.channelId, memeAssetId: assetIdForChannelMeme, title: submission.title },
+        data: { title: String(aiTitle).slice(0, 80) },
+      });
+    }
   }
 
   // Optional: LOW auto-approve (viewer uploads only), guarded by env flag.

@@ -10,7 +10,8 @@ export const userRoleSchema = z.enum(['viewer', 'streamer', 'admin']);
 export const createSubmissionSchema = z.object({
   title: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim() : v),
-    z.string().min(1).max(200)
+    // Title can be omitted; we will auto-generate later (AI) and use a safe placeholder meanwhile.
+    z.string().max(200).optional().default('')
   ),
   type: z.literal('video'), // Only video allowed
   notes: z.string().max(500).optional().nullable(),
@@ -20,7 +21,8 @@ export const createSubmissionSchema = z.object({
 export const importMemeSchema = z.object({
   title: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim() : v),
-    z.string().min(1).max(200)
+    // Title can be omitted; we will auto-generate later (AI) and use a safe placeholder meanwhile.
+    z.string().max(200).optional().default('')
   ),
   sourceUrl: z.string().url(), // URL from memalerts.com
   notes: z.string().max(500).optional().nullable(),
@@ -34,7 +36,8 @@ export const createPoolSubmissionSchema = z.object({
   // We still require a non-empty title in DB, so provide a safe default.
   title: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim() : v),
-    z.string().min(1).max(200).optional().default('Untitled')
+    // Allow omitted/empty; controller will decide: user-provided title > asset aiAutoTitle > safe placeholder.
+    z.string().max(200).optional().default('')
   ),
   notes: z.string().max(500).optional().nullable(),
   tags: z.array(z.string().min(1).max(50)).optional().default([]),
