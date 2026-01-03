@@ -95,6 +95,24 @@ function looksLikeSpaHtml(data: unknown): boolean {
   return head.includes('<!doctype html') || head.includes('<html');
 }
 
+function stripApiSuffix(baseUrl: string): string | null {
+  const b = (baseUrl || '').trim();
+  if (!b) return null;
+  const normalized = b.endsWith('/') ? b.slice(0, -1) : b;
+  if (!normalized.toLowerCase().endsWith('/api')) return null;
+  return normalized.slice(0, -4) || '';
+}
+
+function shouldRetryPublicViaNoApiSuffix(config: AxiosRequestConfig): boolean {
+  const url = config.url;
+  if (typeof url !== 'string') return false;
+  if (!url.startsWith('/public/')) return false;
+  const base = (config.baseURL ?? axiosInstance.defaults.baseURL) as unknown;
+  if (typeof base !== 'string') return false;
+  const stripped = stripApiSuffix(base);
+  return stripped !== null;
+}
+
 function shouldRetryPublicViaApiPrefix(config: AxiosRequestConfig): boolean {
   const url = config.url;
   if (typeof url !== 'string') return false;
@@ -260,6 +278,17 @@ export const api: CustomAxiosInstance = {
           } else {
             // If API proxy is misconfigured, /public/* may hit SPA fallback and return HTML.
             // Retry once via /api prefix (common nginx convention) to reach backend.
+            if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaNoApiSuffix(config)) {
+              const base = String((config.baseURL ?? axiosInstance.defaults.baseURL) || '');
+              const stripped = stripApiSuffix(base);
+              if (stripped !== null) {
+                const retryConfig: AxiosRequestConfig = { ...config, baseURL: stripped, url: String(config.url) };
+                return axiosInstance.request<unknown>(retryConfig).then((r) => {
+                  responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+                  return r.data as T;
+                });
+              }
+            }
             if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaApiPrefix(config)) {
               const retryConfig: AxiosRequestConfig = { ...config, url: withApiPrefix(String(config.url)) };
               return axiosInstance.request<unknown>(retryConfig).then((r) => {
@@ -333,6 +362,17 @@ export const api: CustomAxiosInstance = {
             return r.data as T;
           });
         } else {
+          if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaNoApiSuffix(requestConfig)) {
+            const base = String((requestConfig.baseURL ?? axiosInstance.defaults.baseURL) || '');
+            const stripped = stripApiSuffix(base);
+            if (stripped !== null) {
+              const retryConfig: AxiosRequestConfig = { ...requestConfig, baseURL: stripped, url };
+              return axiosInstance.request<unknown>(retryConfig).then((r) => {
+                responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+                return r.data as T;
+              });
+            }
+          }
           if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaApiPrefix(requestConfig)) {
             const retryConfig: AxiosRequestConfig = { ...requestConfig, url: withApiPrefix(url) };
             return axiosInstance.request<unknown>(retryConfig).then((r) => {

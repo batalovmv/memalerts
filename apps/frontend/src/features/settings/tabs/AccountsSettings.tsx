@@ -167,7 +167,13 @@ export function AccountsSettings() {
     () => (accountsOverride ? accountsOverride : normalizeAccounts(user?.externalAccounts)),
     [accountsOverride, user?.externalAccounts]
   );
-  const linkedProviders = useMemo(() => new Set(accounts.map((a) => a.provider)), [accounts]);
+  const linkedProviders = useMemo(() => {
+    const s = new Set(accounts.map((a) => a.provider));
+    // We only support Twitch login; if user is authenticated, Twitch must be considered linked.
+    // Backend may omit twitch from /auth/accounts for the primary login identity.
+    if (user) s.add('twitch');
+    return s;
+  }, [accounts, user]);
 
   // After OAuth callback user returns to /settings/accounts. Refresh linked accounts from backend.
   useEffect(() => {
