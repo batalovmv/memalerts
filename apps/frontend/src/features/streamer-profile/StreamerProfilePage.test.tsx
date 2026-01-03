@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { act, screen, waitFor } from '@testing-library/react';
 import { Routes, Route } from 'react-router-dom';
+import { http, HttpResponse } from 'msw';
 
 import StreamerProfilePage from './StreamerProfilePage';
 import { renderWithProviders } from '@/test/test-utils';
@@ -121,6 +122,39 @@ describe('StreamerProfilePage (integration)', () => {
     // Clicking favorites while logged out should open auth required modal
     await user.click(screen.getByRole('button', { name: /my favorites/i }));
     expect(await screen.findByTestId('auth-required-modal-open')).toBeInTheDocument();
+  });
+
+  it('guest: falls back to /channels/* when /public/* returns SPA HTML (misconfigured proxy)', async () => {
+    const slug = 'testchannel';
+    const html = '<!doctype html><html><head></head><body><div id="root"></div></body></html>';
+
+    server.use(
+      // Simulate SPA fallback on public endpoints (200 + HTML).
+      http.get('*/public/channels/:slug', ({ params }) => {
+        if (String(params.slug ?? '') !== slug) return new HttpResponse(null, { status: 404 });
+        return HttpResponse.text(html, { status: 200 });
+      }),
+      http.get('*/public/channels/:slug/memes', () => {
+        return HttpResponse.text(html, { status: 200 });
+      }),
+      // But /channels/* works (common nginx config: proxies /channels but not /public).
+      mockChannel(slug, {
+        id: 'c1',
+        slug,
+        name: 'Test Channel',
+        coinPerPointRatio: 1,
+        stats: { memesCount: 1, usersCount: 2 },
+      }),
+      http.get('*/channels/:slug/memes', () => {
+        return HttpResponse.json([makeMeme({ id: 'm1', title: 'First meme', channelId: 'c1' })]);
+      }),
+    );
+
+    renderWithProviders(<TestRoutes />, { route: `/channel/${slug}` });
+
+    expect(await screen.findByRole('heading', { name: /test channel/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /available memes/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /meme:first meme/i })).toBeInTheDocument();
   });
 
   it('authed viewer (not owner): shows "Submit meme" button and opens SubmitModal on click; wallet is requested if missing', async () => {

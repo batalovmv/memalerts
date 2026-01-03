@@ -452,7 +452,7 @@
     "title": "Добавить мем",
     "uploadVideo": "Загрузить видео",
     "import": "Импортировать с memalerts.com",
-    "titleLabel": "Название",
+    "titleLabel": "Название (необязательно)",
     "videoFile": "Видео файл",
     "onlyVideos": "Разрешены только видео файлы",
     "maxDuration": "Максимум 15 секунд",

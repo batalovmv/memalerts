@@ -435,7 +435,7 @@
     "title": "Submit a Meme",
     "uploadVideo": "Upload Video",
     "import": "Import from memalerts.com",
-    "titleLabel": "Title",
+    "titleLabel": "Title (optional)",
     "videoFile": "Video File",
     "onlyVideos": "Only video files are allowed",
     "maxDuration": "Maximum 15 seconds",

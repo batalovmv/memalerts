@@ -59,6 +59,12 @@ function toRecord(v: unknown): Record<string, unknown> | null {
   return v as Record<string, unknown>;
 }
 
+function looksLikeSpaHtml(data: unknown): boolean {
+  if (typeof data !== 'string') return false;
+  const head = data.slice(0, 256).toLowerCase();
+  return head.includes('<!doctype html') || head.includes('<html');
+}
+
 function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo | null {
   const r = toRecord(raw);
   if (!r) return null;
@@ -189,6 +195,11 @@ export default function StreamerProfile() {
         let channelInfoRaw: unknown;
         if (!isAuthed) {
           channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+          // Some deployments proxy /channels/* but accidentally serve SPA fallback for /public/*.
+          // If we got HTML, retry via /channels/* as a compatibility fallback.
+          if (looksLikeSpaHtml(channelInfoRaw)) {
+            channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+          }
         } else {
           try {
             // Prefer authenticated channel DTO (it includes reward flags like youtubeLikeReward*).
@@ -221,9 +232,16 @@ export default function StreamerProfile() {
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
           const channelSlugForApi = channelInfo.slug || normalizedSlug;
-          const resp = canIncludeFileHash
-            ? await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 })
-            : await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+          let resp: unknown;
+          if (canIncludeFileHash) {
+            resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+          } else {
+            resp = await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+            // Same compatibility fallback as channel info: /public/* may return SPA HTML.
+            if (looksLikeSpaHtml(resp)) {
+              resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+            }
+          }
           const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
@@ -364,9 +382,15 @@ export default function StreamerProfile() {
       if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
       const channelSlugForApi = (channelInfo.slug || normalizedSlug).trim();
-      const resp = canIncludeFileHash
-        ? await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 })
-        : await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+      let resp: unknown;
+      if (canIncludeFileHash) {
+        resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+      } else {
+        resp = await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+        if (looksLikeSpaHtml(resp)) {
+          resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
+        }
+      }
       const newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
       
       if (newMemes.length > 0) {

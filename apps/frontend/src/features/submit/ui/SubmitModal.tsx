@@ -426,19 +426,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('submit.titleLabel')}
-            </label>
-            <HelpTooltip content={t('help.submitModal.title', { defaultValue: 'Name of the meme in the channel. Viewers will see this title.' })}>
-              <Input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </HelpTooltip>
-          </div>
-
           {mode === 'upload' ? (
             <div role="tabpanel" id="submit-modal-panel-upload" aria-labelledby="submit-modal-tab-upload">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -495,6 +482,19 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
               </div>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('submit.titleLabel')}
+            </label>
+            <HelpTooltip content={t('help.submitModal.title', { defaultValue: 'Name of the meme in the channel. Viewers will see this title.' })}>
+              <Input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+            </HelpTooltip>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('submit.tags')}</label>
