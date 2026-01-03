@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 
 import { AccountsSettings } from './AccountsSettings';
@@ -61,11 +61,14 @@ describe('AccountsSettings (integration)', () => {
       preloadedState: { auth: { user: me, loading: false, error: null } } as any,
     });
 
-    // Linked indicator should show.
-    expect(await screen.findByText(/connected/i)).toBeInTheDocument();
+    // Linked indicator should show for the YouTube row.
+    const ytLogin = await screen.findByText(/@myyt/i);
+    const ytCard = ytLogin.closest('.surface') as HTMLElement | null;
+    expect(ytCard).not.toBeNull();
+    expect(within(ytCard!).getByText(/connected/i)).toBeInTheDocument();
 
     // Disconnect (confirm -> delete).
-    await userEv.click(screen.getByRole('button', { name: /disconnect/i }));
+    await userEv.click(within(ytCard!).getByRole('button', { name: /disconnect/i }));
 
     await waitFor(() => expect(deleteAssert).toHaveBeenCalledWith({ id: 'acc_yt' }));
     await waitFor(() => expect(meCalls).toBeGreaterThanOrEqual(1));
