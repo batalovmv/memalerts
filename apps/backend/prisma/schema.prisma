@@ -1078,6 +1078,8 @@ model MemeAsset {
   id         String  @id @default(uuid())
   type       String // image, gif, video, audio (currently video-only for submissions)
   fileUrl    String?
+  // Preferred playback URL (e.g. audio-normalized derivative). If null, clients should use fileUrl.
+  playFileUrl String?
   fileHash   String? // SHA-256 hash for deduplication (preferred)
   durationMs Int
 
@@ -1092,6 +1094,14 @@ model MemeAsset {
   aiAutoDescription  String?  @db.VarChar(2000)
   aiSearchText       String?  @db.VarChar(4000)
   aiCompletedAt      DateTime?
+
+  // Audio normalization for playback (site + OBS). Done once per unique asset and reused via playFileUrl.
+  audioNormStatus      String   @default("pending") // pending|processing|done|failed|failed_final
+  audioNormRetryCount  Int      @default(0)
+  audioNormLastTriedAt DateTime?
+  audioNormNextRetryAt DateTime?
+  audioNormError       String?  @db.Text
+  audioNormCompletedAt DateTime?
 
   // Pool moderation (does not affect already-added channel memes; only hides from pool listing)
   poolVisibility     String    @default("visible") // visible | hidden

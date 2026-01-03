@@ -55,7 +55,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     memeAssetId: r.memeAssetId,
     title: r.title,
     type: r.memeAsset.type,
-    fileUrl: r.memeAsset.fileUrl,
+    fileUrl: (r.memeAsset as any).playFileUrl ?? r.memeAsset.fileUrl,
     durationMs: r.memeAsset.durationMs,
     priceCoins: r.priceCoins,
     status: r.status,
