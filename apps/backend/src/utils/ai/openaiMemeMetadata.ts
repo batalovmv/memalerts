@@ -22,7 +22,11 @@ function sanitizeTitle(raw: unknown): string | null {
   const t = normSpace(String(raw ?? ''));
   if (!t) return null;
   // Keep titles short and UI-friendly.
-  return t.slice(0, 80);
+  const short = t.slice(0, 80);
+  const low = short.toLowerCase();
+  // Reject placeholders / non-informative titles.
+  if (low === 'мем' || low === 'meme' || low === 'untitled' || low === 'без названия') return null;
+  return short;
 }
 
 function sanitizeTags(raw: unknown, maxTags: number): string[] {
@@ -36,6 +40,7 @@ function sanitizeTags(raw: unknown, maxTags: number): string[] {
       .replace(/^#+/, '')
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_\-\u0400-\u04FF]+/g, '');
+    if (cleaned === 'мем' || cleaned === 'meme') continue;
     if (cleaned.length < 2 || cleaned.length > 24) continue;
     if (!out.includes(cleaned)) out.push(cleaned);
     if (out.length >= maxTags) break;
@@ -81,6 +86,7 @@ export async function generateMemeMetadataOpenAI(args: {
     '',
     'Требования:',
     '- title: короткое (до 60-80 символов), описывает СМЫСЛ мема и визуальный контекст, НЕ цитата из аудио.',
+    "- Никогда не используй плейсхолдеры вроде 'Мем', 'Untitled', 'Без названия'.",
     '- tags: массив из 3-' + String(maxTags) + ' поисковых тегов (короткие, 1 слово или snake_case, без мусора, без полного текста речи).',
     '- description: подробное описание, можно 2-6 предложений; отдельно учти, что видно на экране и что сказано/происходит.',
     '',

@@ -131,8 +131,9 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
     const body = createSubmissionSchema.parse(bodyData);
 
     const titleInput = typeof (body as any).title === 'string' ? String((body as any).title).trim() : '';
+    const userProvidedTitle = titleInput.length > 0;
     // DB requires non-empty title; if user omitted, use a safe placeholder and let AI replace it later.
-    const finalTitle = titleInput || 'Мем';
+    const finalTitle = userProvidedTitle ? titleInput : 'Мем';
 
     // Ensure type is video
     if (body.type !== 'video') {
@@ -290,8 +291,8 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
 
           // Fast fallback for owner restore (so includeAi=1 is non-null immediately),
           // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
-          const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
-          const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
+          const fallbackDesc = userProvidedTitle ? makeAutoDescription({ title: finalTitle, transcript: null, labels: [] }) : null;
+          const fallbackTags = userProvidedTitle ? generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames : [];
           const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
           await prisma.channelMeme.update({
@@ -535,8 +536,8 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
 
       // Fast fallback for owner bypass (so includeAi=1 is non-null immediately),
       // but keep aiStatus=pending so the real AI job (OpenAI) can overwrite with better data.
-      const fallbackDesc = makeAutoDescription({ title: finalTitle, transcript: null, labels: [] });
-      const fallbackTags = generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames;
+      const fallbackDesc = userProvidedTitle ? makeAutoDescription({ title: finalTitle, transcript: null, labels: [] }) : null;
+      const fallbackTags = userProvidedTitle ? generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames : [];
       const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
       try {
