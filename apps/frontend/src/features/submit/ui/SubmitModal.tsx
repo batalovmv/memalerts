@@ -144,7 +144,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
       try {
         const formDataToSend = new FormData();
         formDataToSend.append('file', file);
-        formDataToSend.append('title', formData.title);
+        const titleToSend = formData.title.trim();
+        if (titleToSend) {
+          formDataToSend.append('title', titleToSend);
+        }
         formDataToSend.append('type', 'video'); // Only video allowed
         // Add tags as JSON string (backend will parse it)
         if (formData.tags && formData.tags.length > 0) {
@@ -253,12 +256,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
       setLoading(true);
       try {
         const { api } = await import('@/lib/api');
-        const respData = await api.post<Record<string, unknown>>('/submissions/import', {
-          title: formData.title,
+        const payload: Record<string, unknown> = {
           sourceUrl: formData.sourceUrl,
-          tags: formData.tags,
           ...(channelId && { channelId }), // Add channelId if provided
-        });
+        };
+        const titleToSend = formData.title.trim();
+        if (titleToSend) payload.title = titleToSend;
+        if (Array.isArray(formData.tags) && formData.tags.length > 0) payload.tags = formData.tags;
+
+        const respData = await api.post<Record<string, unknown>>('/submissions/import', payload);
         const d = respData as Record<string, unknown> | null;
         const respStatus = typeof d?.status === 'string' ? d.status : null;
         const isDirectApproval = d?.isDirectApproval === true;
@@ -429,7 +435,6 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
               />
             </HelpTooltip>
           </div>

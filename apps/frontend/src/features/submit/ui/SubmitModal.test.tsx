@@ -158,7 +158,7 @@ describe('SubmitModal (integration)', () => {
     );
 
     // Fill title
-    const titleInput = container.querySelector('input[type="text"][required]') as HTMLInputElement;
+    const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement;
     expect(titleInput).toBeTruthy();
     await userEv.type(titleInput, 'Test meme');
 
@@ -212,7 +212,7 @@ describe('SubmitModal (integration)', () => {
       },
     );
 
-    const titleInput = container.querySelector('input[type="text"][required]') as HTMLInputElement;
+    const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement;
     await userEv.type(titleInput, 'Test meme');
     const fileInput = container.querySelector('input[type="file"][required]') as HTMLInputElement;
     const file = new File([new Uint8Array([1, 2, 3])], 'test.webm', { type: 'video/webm' });
@@ -255,9 +255,6 @@ describe('SubmitModal (integration)', () => {
     // Switch to import mode.
     await userEv.click(screen.getByRole('tab', { name: /import/i }));
 
-    const titleInput = container.querySelector('input[type="text"][required]') as HTMLInputElement;
-    await userEv.type(titleInput, 'Import test');
-
     const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;
     expect(urlInput).toBeTruthy();
     await userEv.type(urlInput, 'https://example.com/not-allowed.webm');
@@ -293,7 +290,7 @@ describe('SubmitModal (integration)', () => {
 
     await userEv.click(screen.getByRole('tab', { name: /import/i }));
 
-    const titleInput = container.querySelector('input[type="text"][required]') as HTMLInputElement;
+    const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement;
     await userEv.type(titleInput, 'Import test');
 
     const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;
@@ -317,6 +314,43 @@ describe('SubmitModal (integration)', () => {
     postSpy.mockRestore();
   });
 
+  it('import by URL: omits title in payload when empty', async () => {
+    const userEv = userEvent.setup();
+    const onClose = vi.fn();
+    const me = makeStreamerUser({ id: 'u1', channelId: 'c1' });
+
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as any);
+
+    const { container } = renderWithProviders(
+      <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
+      {
+        route: '/dashboard',
+        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      },
+    );
+
+    await userEv.click(screen.getByRole('tab', { name: /import/i }));
+
+    const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;
+    await userEv.type(urlInput, 'https://cdns.memealerts.com/p/x/alert_orig.webm');
+
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      fireEvent.submit(form);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalled());
+    const call = postSpy.mock.calls.find((c) => c[0] === '/submissions/import');
+    expect(call).toBeTruthy();
+    const payload = (call?.[1] as Record<string, unknown>) || {};
+    expect(payload).toHaveProperty('sourceUrl');
+    expect(payload).toHaveProperty('channelId', 'c1');
+    expect(payload).not.toHaveProperty('title');
+
+    postSpy.mockRestore();
+  });
+
   it('import by URL: retry after error keeps user input (title/url/tags)', async () => {
     const userEv = userEvent.setup();
     const onClose = vi.fn();
@@ -337,7 +371,7 @@ describe('SubmitModal (integration)', () => {
 
     await userEv.click(screen.getByRole('tab', { name: /import/i }));
 
-    const titleInput = container.querySelector('input[type="text"][required]') as HTMLInputElement;
+    const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement;
     await userEv.type(titleInput, 'Retry title');
 
     const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;

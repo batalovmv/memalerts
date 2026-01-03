@@ -87,7 +87,7 @@ export default function PoolPage() {
   const [offset, setOffset] = useState(0);
   const limit = 30;
 
-  const [pendingAdd, setPendingAdd] = useState<null | { memeAssetId: string; title: string }>(null);
+  const [pendingAdd, setPendingAdd] = useState<null | { memeAssetId: string }>(null);
   const [pendingAddTitle, setPendingAddTitle] = useState('');
 
   const canLoadMore = useMemo(() => items.length === 0 || items.length % limit === 0, [items.length]);
@@ -139,11 +139,15 @@ export default function PoolPage() {
     void loadPage(0, false);
   }, [authRequired, loadPage, user]);
 
-  const runAdd = async (memeAssetId: string, title: string) => {
+  const runAdd = async (memeAssetId: string, title: string | null) => {
     try {
       if (submittingAssetId) return;
       setSubmittingAssetId(memeAssetId);
-      const resp = await createPoolSubmission({ memeAssetId, title, channelId: submitChannelId! });
+      const resp = await createPoolSubmission({
+        memeAssetId,
+        channelId: submitChannelId!,
+        ...(title ? { title } : {}),
+      });
       const r = (resp && typeof resp === 'object' ? (resp as Record<string, unknown>) : null) || null;
       const isDirect = r?.isDirectApproval === true;
       toast.success(
@@ -210,9 +214,8 @@ export default function PoolPage() {
 
     // Channel title is channel-specific; ask for it (prefill sampleTitle if present).
     const suggested = (typeof m.sampleTitle === 'string' && m.sampleTitle.trim()) ? m.sampleTitle.trim() : '';
-    const initial = suggested || t('pool.untitled', { defaultValue: 'Untitled' });
-    setPendingAdd({ memeAssetId, title: initial });
-    setPendingAddTitle(initial);
+    setPendingAdd({ memeAssetId });
+    setPendingAddTitle(suggested);
   };
 
   return (
@@ -359,11 +362,7 @@ export default function PoolPage() {
         onClose={() => setPendingAdd(null)}
         onConfirm={() => {
           if (!pendingAdd) return;
-          const title = pendingAddTitle.trim();
-          if (!title) {
-            toast.error(t('pool.addTitleRequired', { defaultValue: 'Please enter a title.' }));
-            return;
-          }
+          const title = pendingAddTitle.trim() || null;
           void runAdd(pendingAdd.memeAssetId, title);
           setPendingAdd(null);
           setIsMemeModalOpen(false);

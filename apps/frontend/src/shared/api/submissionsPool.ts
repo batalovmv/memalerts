@@ -2,7 +2,7 @@ import { api } from '@/lib/api';
 
 export type CreatePoolSubmissionInput = {
   memeAssetId: string;
-  title: string;
+  title?: string;
   channelId: string;
   notes?: string;
   tags?: string[];
@@ -12,7 +12,7 @@ export async function createPoolSubmission(input: CreatePoolSubmissionInput): Pr
   const params = new URLSearchParams();
   params.set('channelId', input.channelId);
   params.set('memeAssetId', input.memeAssetId);
-  params.set('title', input.title);
+  if (typeof input.title === 'string' && input.title.trim()) params.set('title', input.title.trim());
   if (typeof input.notes === 'string' && input.notes.trim()) params.set('notes', input.notes.trim());
   if (Array.isArray(input.tags)) {
     for (const tag of input.tags) {
