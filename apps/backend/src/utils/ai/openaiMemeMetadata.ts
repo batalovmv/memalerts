@@ -18,6 +18,52 @@ function normSpace(s: string): string {
   return String(s || '').replace(/\s+/g, ' ').trim();
 }
 
+const RU_STOP = new Set(
+  [
+    'когда',
+    'если',
+    'а',
+    'и',
+    'или',
+    'но',
+    'что',
+    'это',
+    'вот',
+    'как',
+    'ты',
+    'вы',
+    'я',
+    'он',
+    'она',
+    'они',
+    'мы',
+    'в',
+    'во',
+    'на',
+    'по',
+    'за',
+    'под',
+    'про',
+    'у',
+    'от',
+    'для',
+    'не',
+    'нет',
+  ].map((s) => s.toLowerCase())
+);
+
+function shortenTitleWords(raw: string, maxWords: number): string {
+  const words = normSpace(raw)
+    .split(' ')
+    .map((w) => w.trim())
+    .filter(Boolean);
+
+  const meaningful = words.filter((w) => !RU_STOP.has(w.toLowerCase()));
+  const base = meaningful.length >= 2 ? meaningful : words;
+
+  return base.slice(0, Math.max(1, maxWords)).join(' ');
+}
+
 function sanitizeTitle(raw: unknown): string | null {
   const t = normSpace(String(raw ?? ''));
   if (!t) return null;
@@ -26,7 +72,9 @@ function sanitizeTitle(raw: unknown): string | null {
   const low = short.toLowerCase();
   // Reject placeholders / non-informative titles.
   if (low === 'мем' || low === 'meme' || low === 'untitled' || low === 'без названия') return null;
-  return short;
+  // Enforce short meme-like titles (3-4 words).
+  const compact = shortenTitleWords(short, 4);
+  return compact.slice(0, 80);
 }
 
 function sanitizeTags(raw: unknown, maxTags: number): string[] {
@@ -73,8 +121,9 @@ export async function generateMemeMetadataOpenAI(args: {
   if (!apiKey) throw new Error('OPENAI_API_KEY_not_set');
 
   const model = args.model || String(process.env.OPENAI_MEME_METADATA_MODEL || '').trim() || 'gpt-4o-mini';
-  const maxTags = clampInt(parseInt(String(args.maxTags ?? process.env.AI_TAG_LIMIT ?? ''), 10), 1, 20, 8);
+  const maxTags = clampInt(parseInt(String(args.maxTags ?? process.env.AI_TAG_LIMIT ?? ''), 10), 1, 20, 5);
   const frames = Array.isArray(args.framePaths) ? args.framePaths.slice(0, 10) : [];
+  const hasFrames = frames.length > 0;
 
   const transcript = String(args.transcript || '').trim();
   const transcriptForPrompt = transcript ? transcript.slice(0, 8000) : '';
@@ -85,10 +134,13 @@ export async function generateMemeMetadataOpenAI(args: {
     'Верни СТРОГО JSON объект с ключами: title, tags, description.',
     '',
     'Требования:',
-    '- title: короткое (до 60-80 символов), описывает СМЫСЛ мема и визуальный контекст, НЕ цитата из аудио.',
+    '- title: короткое (3-4 слова), выражает суть мема, НЕ цитата из аудио и НЕ длинное предложение.',
     "- Никогда не используй плейсхолдеры вроде 'Мем', 'Untitled', 'Без названия'.",
-    '- tags: массив из 3-' + String(maxTags) + ' поисковых тегов (короткие, 1 слово или snake_case, без мусора, без полного текста речи).',
-    '- description: подробное описание, можно 2-6 предложений; отдельно учти, что видно на экране и что сказано/происходит.',
+    '- tags: массив из 3-' + String(maxTags) + ' поисковых тегов (короткие, 1 слово или snake_case, без мусора, НЕ слова из каждой реплики).',
+    '- description: НЕ выдумывай. Опиши только то, что следует из входных данных.',
+    hasFrames
+      ? '- description: 1-3 предложения: что на экране (если видно), и что происходит по аудио.'
+      : '- description: 1-3 предложения ТОЛЬКО по аудио-транскрипту (у тебя НЕТ кадров, визуал НЕ анализируешь).',
     '',
     'Язык: русский. Теги: можно рус/англ, но коротко и поисково.',
   ].join('\n');

@@ -327,7 +327,10 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       }
 
       audioPath = await extractAudioToMp3({ inputVideoPath: inputPath, outputDir: tmpDir, baseName: 'audio' });
-      const asr = await transcribeAudioOpenAI({ audioFilePath: audioPath });
+      const asrLanguageEnv = String(process.env.OPENAI_ASR_LANGUAGE || '').trim();
+      const asrLanguageAuto = /[а-яё]/i.test(String(submission.title || '')) ? 'ru' : '';
+      const asrLanguage = asrLanguageEnv || asrLanguageAuto || undefined;
+      const asr = await transcribeAudioOpenAI({ audioFilePath: audioPath, language: asrLanguage });
       transcript = asr.transcript;
       modelVersions.asrModel = asr.model;
 
@@ -337,7 +340,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
       riskScore = Math.max(riskScore, mod.riskScore);
       reason = mod.flagged ? 'ai:text_flagged' : 'ai:text_ok';
 
-      const maxTags = clampInt(parseInt(String(process.env.AI_TAG_LIMIT || ''), 10), 1, 20, 8);
+      const maxTags = clampInt(parseInt(String(process.env.AI_TAG_LIMIT || ''), 10), 1, 20, 5);
 
       // Vision + metadata generation (title/tags/description).
       const metaEnabled = parseBool(process.env.AI_METADATA_ENABLED ?? '1');
