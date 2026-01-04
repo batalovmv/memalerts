@@ -549,7 +549,8 @@ export default function DashboardPage() {
           const slug = user?.channel?.slug;
           if (slug) {
             const data = await api.get<{ submissionsEnabled?: boolean; submissionsOnlyWhenLive?: boolean }>(`/channels/${slug}`, {
-              params: { includeMemes: false },
+              params: { includeMemes: false, _ts: Date.now() },
+              headers: { 'Cache-Control': 'no-store' },
             });
             if (typeof data?.submissionsEnabled === 'boolean') setSubmissionsEnabled(data.submissionsEnabled);
             if (typeof data?.submissionsOnlyWhenLive === 'boolean') setSubmissionsOnlyWhenLive(data.submissionsOnlyWhenLive);
@@ -577,8 +578,33 @@ export default function DashboardPage() {
         );
         if (resp?.memeCatalogMode === 'channel' || resp?.memeCatalogMode === 'pool_all') {
           setMemeCatalogMode(resp.memeCatalogMode);
+          toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
+          return;
         }
-        toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
+
+        // Some backends return `{ ok: true }` or omit the field. Verify via canonical channel DTO.
+        const slug = user?.channel?.slug;
+        if (!slug) {
+          toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
+          return;
+        }
+        const data = await api.get<{ memeCatalogMode?: 'channel' | 'pool_all' | null }>(`/channels/${slug}`, {
+          params: { includeMemes: false, _ts: Date.now() },
+          headers: { 'Cache-Control': 'no-store' },
+        });
+        const serverMode = data?.memeCatalogMode;
+        if (serverMode === 'channel' || serverMode === 'pool_all') {
+          setMemeCatalogMode(serverMode);
+          if (serverMode === nextMode) {
+            toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
+          } else {
+            toast.error(t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+            if (prev === 'channel' || prev === 'pool_all') setMemeCatalogMode(prev);
+          }
+        } else {
+          toast.error(t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+          if (prev === 'channel' || prev === 'pool_all') setMemeCatalogMode(prev);
+        }
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { error?: string } } };
         toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
@@ -588,7 +614,8 @@ export default function DashboardPage() {
           const slug = user?.channel?.slug;
           if (slug) {
             const data = await api.get<{ memeCatalogMode?: 'channel' | 'pool_all' }>(`/channels/${slug}`, {
-              params: { includeMemes: false },
+              params: { includeMemes: false, _ts: Date.now() },
+              headers: { 'Cache-Control': 'no-store' },
             });
             if (data?.memeCatalogMode === 'channel' || data?.memeCatalogMode === 'pool_all') setMemeCatalogMode(data.memeCatalogMode);
           }
