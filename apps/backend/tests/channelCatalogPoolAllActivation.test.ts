@@ -84,8 +84,15 @@ describe('channel catalog mode: pool_all', () => {
     // Channel page should list pool assets (id is MemeAsset.id in pool_all mode)
     const listRes = await request(makeApp()).get(`/channels/${channel.slug}`).set('Host', 'example.com');
     expect(listRes.status).toBe(200);
+    expect(listRes.body?.memeCatalogMode).toBe('pool_all');
     expect(Array.isArray(listRes.body?.memes)).toBe(true);
     expect(listRes.body.memes?.some((m: any) => m.id === asset.id)).toBe(true);
+
+    // includeMemes=false should still include channel meta + memeCatalogMode (used by UI)
+    const metaRes = await request(makeApp()).get(`/channels/${channel.slug}?includeMemes=false`).set('Host', 'example.com');
+    expect(metaRes.status).toBe(200);
+    expect(metaRes.body?.memeCatalogMode).toBe('pool_all');
+    expect(metaRes.body?.memes).toBeUndefined();
 
     const token = makeJwt({ userId: viewer.id, role: 'viewer', channelId: null });
     const actRes = await request(makeApp())
