@@ -24,6 +24,10 @@ interface MemeModalProps {
   walletBalance?: number;
 }
 
+function resolveViewMode(mode: MemeModalProps['mode']): 'admin' | 'viewer' {
+  return mode ?? 'admin';
+}
+
 export default function MemeModal({
   meme,
   isOpen,
@@ -38,7 +42,7 @@ export default function MemeModal({
   const { user } = useAppSelector((s) => s.auth);
   const userId = user?.id;
   // Keep mode as a union to avoid tsc-prod narrowing it to a literal and rejecting comparisons (TS2367).
-  const viewMode: 'admin' | 'viewer' = mode ?? 'admin';
+  const viewMode = resolveViewMode(mode);
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
@@ -263,7 +267,7 @@ export default function MemeModal({
   const overlayClassName = 'items-center bg-black/75';
 
   const contentClassName = isViewerStickerPopup
-    ? 'p-0 bg-black text-white max-w-6xl max-h-[90vh] overflow-hidden flex flex-col rounded-none sm:rounded-2xl shadow-xl ring-1 ring-white/10'
+    ? 'p-0 text-white max-w-6xl max-h-[90vh] overflow-hidden flex flex-col rounded-none sm:rounded-2xl shadow-xl ring-1 ring-white/10 bg-black/35 backdrop-blur-xl'
     : 'bg-white dark:bg-gray-800 rounded-xl max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row';
 
   return (
@@ -393,10 +397,10 @@ export default function MemeModal({
             {/* Info Section - Right */}
             <aside
               ref={rightPanelRef}
-              className="w-full md:w-96 border-t md:border-t-0 md:border-l border-white/10 bg-black/35 backdrop-blur-md overflow-y-auto relative"
+              className="w-full md:w-96 border-t md:border-t-0 md:border-l border-white/10 bg-black/25 backdrop-blur-md relative flex flex-col min-h-0 flex-1 md:flex-none"
               aria-label="Meme information"
             >
-              <div className="p-5 md:p-6 flex flex-col min-h-full">
+              <div className="p-5 md:p-6 flex-1 overflow-y-auto min-h-0">
                 <div className="space-y-4">
                   <h2 id="meme-modal-title" className="text-2xl font-bold text-white">
                     {currentMeme.title}
@@ -413,32 +417,31 @@ export default function MemeModal({
                 </div>
               </div>
 
-                <div className="mt-auto pt-4 border-t border-white/10">
-                  <Button
-                    type="button"
-                    onClick={handleActivate}
-                    disabled={!canActivate && !isGuestViewer}
-                    variant="primary"
-                    className="w-full"
-                  >
-                    {isGuestViewer
-                      ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
-                      : walletBalance === undefined
-                        ? t('common.loading', { defaultValue: 'Loading…' })
-                        : walletBalance < (currentMeme.priceCoins || 0)
-                          ? t('memeModal.insufficientCoins', {
-                              defaultValue: 'Insufficient coins (need {{price}})',
-                              price: currentMeme.priceCoins,
-                            })
-                          : t('dashboard.activate', { defaultValue: 'Activate' })}
-                  </Button>
+              <div className="p-5 md:p-6 border-t border-white/10 bg-black/30 backdrop-blur-md">
+                <Button
+                  type="button"
+                  onClick={handleActivate}
+                  disabled={!canActivate && !isGuestViewer}
+                  variant="primary"
+                  className="w-full"
+                >
+                  {isGuestViewer
+                    ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
+                    : walletBalance === undefined
+                      ? t('common.loading', { defaultValue: 'Loading…' })
+                      : walletBalance < (currentMeme.priceCoins || 0)
+                        ? t('memeModal.insufficientCoins', {
+                            defaultValue: 'Insufficient coins (need {{price}})',
+                            price: currentMeme.priceCoins,
+                          })
+                        : t('dashboard.activate', { defaultValue: 'Activate' })}
+                </Button>
 
-                  {walletBalance !== undefined ? (
-                    <p className="text-sm text-white/60 mt-2 text-center">
-                      {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
-                    </p>
-                  ) : null}
-                </div>
+                {walletBalance !== undefined ? (
+                  <p className="text-sm text-white/60 mt-2 text-center">
+                    {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
+                  </p>
+                ) : null}
               </div>
             </aside>
           </div>
