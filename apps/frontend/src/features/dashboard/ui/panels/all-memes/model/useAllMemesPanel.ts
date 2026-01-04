@@ -74,11 +74,9 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     return p;
   }, [channelId, filters, limit, includeFileHash, user]);
 
-  const loadPage = async (offset: number, q: string, _scope: AllMemesSearchScope) => {
+  const loadPage = async (offset: number) => {
     const p = new URLSearchParams(paramsBase);
     p.set('offset', String(offset));
-    const qt = q.trim();
-    if (qt) p.set('q', qt);
     return await api.get<Meme[]>(`/channels/memes/search?${p.toString()}`);
   };
 
@@ -88,7 +86,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     setLoading(true);
     setHasMore(true);
     try {
-      const first = await loadPage(0, debouncedQuery, searchScope);
+      const first = await loadPage(0);
       setItems(first);
       setHasMore(first.length === limit);
     } catch {
@@ -99,12 +97,62 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, paramsBase.toString(), limit, debouncedQuery, searchScope]);
+  }, [isOpen, paramsBase.toString(), limit]);
+
+  const memes = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return items;
+
+    return items.filter((m) => {
+      const title = (m.title || '').toLowerCase();
+      const aiDesc = typeof m.aiAutoDescription === 'string' ? m.aiAutoDescription.toLowerCase() : '';
+      const manualTags = Array.isArray(m.tags) ? m.tags.map((x) => x?.tag?.name).filter((x) => typeof x === 'string') as string[] : [];
+      const aiTags = Array.isArray(m.aiAutoTagNames) ? m.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
+      const tagsJoined = [...manualTags, ...aiTags].join(' ').toLowerCase();
+
+      // NOTE: Description is always AI-generated (aiAutoDescription), but keep title/tags as well.
+      // We intentionally do NOT filter by uploader here to avoid leaking extra data and to match the requirement.
+      return title.includes(q) || tagsJoined.includes(q) || aiDesc.includes(q);
+    });
+  }, [items, debouncedQuery]);
 
   // Reset + load first page when panel opens or filters change
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // When searching, progressively load more pages so search works across the whole library
+  // (instead of only the already-loaded portion).
+  useEffect(() => {
+    if (!isOpen) return;
+    const q = debouncedQuery.trim();
+    if (!q) return;
+    if (!hasMore) return;
+    if (loading || loadingMore) return;
+    if (error) return;
+
+    let cancelled = false;
+    setLoadingMore(true);
+    void (async () => {
+      try {
+        const next = await loadPage(items.length);
+        if (cancelled) return;
+        setItems((prev) => [...prev, ...next]);
+        setHasMore(next.length === limit);
+      } catch {
+        if (cancelled) return;
+        setHasMore(false);
+        setError('failed');
+      } finally {
+        if (cancelled) return;
+        setLoadingMore(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, error, hasMore, isOpen, items.length, limit, loading, loadingMore, paramsBase.toString()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll
   useEffect(() => {
@@ -122,7 +170,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
             setLoadingMore(true);
             void (async () => {
               try {
-                const next = await loadPage(items.length, debouncedQuery, searchScope);
+                const next = await loadPage(items.length);
                 setItems((prev) => [...prev, ...next]);
                 setHasMore(next.length === limit);
               } catch {
@@ -150,7 +198,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     setSearchScope,
     filters,
     setFilters,
-    memes: items,
+    memes,
     loading,
     loadingMore,
     hasMore,
