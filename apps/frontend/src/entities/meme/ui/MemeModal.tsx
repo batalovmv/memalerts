@@ -757,35 +757,6 @@ export default function MemeModal({
                 )}
               </div>
 
-              {/* Activate button for viewer mode */}
-              {viewMode === 'viewer' && (
-                <div className="pt-4 border-t border-black/5 dark:border-white/10">
-                  <Button
-                    type="button"
-                    onClick={handleActivate}
-                    disabled={!canActivate && !isGuestViewer}
-                    variant="primary"
-                    className="w-full"
-                  >
-                    {isGuestViewer
-                      ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
-                      : walletBalance === undefined
-                        ? t('common.loading', { defaultValue: 'Loading…' })
-                        : walletBalance < (currentMeme.priceCoins || 0)
-                          ? t('memeModal.insufficientCoins', {
-                              defaultValue: 'Insufficient coins (need {{price}})',
-                              price: currentMeme.priceCoins,
-                            })
-                          : t('dashboard.activate', { defaultValue: 'Activate' })}
-                  </Button>
-                  {walletBalance !== undefined && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
-                      {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
-                    </p>
-                  )}
-                </div>
-              )}
-
               {/* Delete button for admin mode */}
               {viewMode === 'admin' && isOwner && !isEditing && (
                 <div className="pt-4 border-t border-black/5 dark:border-white/10">
