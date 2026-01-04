@@ -37,6 +37,11 @@ export default function MemeModal({
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
   const userId = user?.id;
+
+  const MUTED_STORAGE_KEY = 'memalerts:memeModalMuted';
+  const VOLUME_STORAGE_KEY = 'memalerts:memeModalVolume';
+  const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1);
+
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
@@ -47,14 +52,34 @@ export default function MemeModal({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(() => {
     try {
-      return window.localStorage.getItem('memalerts:memeModalMuted') === '1';
+      return window.localStorage.getItem(MUTED_STORAGE_KEY) === '1';
     } catch {
       return false;
+    }
+  });
+  const [volume, setVolume] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem(VOLUME_STORAGE_KEY);
+      if (!raw) return 1;
+      const parsed = Number.parseFloat(raw);
+      return clamp01(parsed);
+    } catch {
+      return 1;
     }
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const lastNonZeroVolumeRef = useRef<number>(1);
+
+  const persistAudioToLocalStorage = (nextMuted: boolean, nextVolume: number) => {
+    try {
+      window.localStorage.setItem(MUTED_STORAGE_KEY, nextMuted ? '1' : '0');
+      window.localStorage.setItem(VOLUME_STORAGE_KEY, String(nextVolume));
+    } catch {
+      // ignore
+    }
+  };
 
   // Update currentMeme when meme prop changes
   useEffect(() => {
@@ -74,6 +99,17 @@ export default function MemeModal({
     if (videoRef.current) videoRef.current.muted = isMuted;
   }, [isOpen, currentMeme?.id, isMuted]);
 
+  // Sync volume onto the element as soon as the meme changes / modal opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (videoRef.current) videoRef.current.volume = clamp01(volume);
+  }, [isOpen, currentMeme?.id, volume]);
+
+  // Keep last non-zero volume to restore when toggling mute.
+  useEffect(() => {
+    if (volume > 0) lastNonZeroVolumeRef.current = volume;
+  }, [volume]);
+
   // Backend-first mute hydration (when logged in).
   useEffect(() => {
     if (!userId) return;
@@ -81,12 +117,26 @@ export default function MemeModal({
     (async () => {
       const prefs = await getUserPreferences();
       if (cancelled) return;
-      if (typeof prefs?.memeModalMuted === 'boolean') setIsMuted(prefs.memeModalMuted);
+      if (typeof prefs?.memeModalVolume === 'number') {
+        const v = clamp01(prefs.memeModalVolume);
+        setVolume(v);
+        setIsMuted(v === 0);
+        if (v > 0) lastNonZeroVolumeRef.current = v;
+        persistAudioToLocalStorage(v === 0, v);
+        return;
+      }
+      if (typeof prefs?.memeModalMuted === 'boolean') {
+        setIsMuted(prefs.memeModalMuted);
+        const nextVolume = prefs.memeModalMuted ? 0 : clamp01(volume);
+        if (!prefs.memeModalMuted && nextVolume > 0) lastNonZeroVolumeRef.current = nextVolume;
+        setVolume(nextVolume);
+        persistAudioToLocalStorage(prefs.memeModalMuted, nextVolume);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId]); // intentionally not depending on volume to avoid re-hydration loops
 
   // Auto-play video when modal opens
   useEffect(() => {
@@ -152,19 +202,36 @@ export default function MemeModal({
 
   const handleMute = () => {
     if (videoRef.current) {
-      const next = !isMuted;
-      videoRef.current.muted = next;
-      setIsMuted(next);
-      if (user) {
-        void patchUserPreferences({ memeModalMuted: next });
-      } else {
-        try {
-          window.localStorage.setItem('memalerts:memeModalMuted', next ? '1' : '0');
-        } catch {
-          // ignore
-        }
-      }
+      const nextMuted = !isMuted;
+      if (nextMuted && volume > 0) lastNonZeroVolumeRef.current = volume;
+      const nextVolume = nextMuted ? 0 : clamp01(lastNonZeroVolumeRef.current || 1);
+
+      if (!nextMuted && nextVolume > 0) lastNonZeroVolumeRef.current = nextVolume;
+      videoRef.current.muted = nextMuted;
+      videoRef.current.volume = nextVolume;
+
+      setIsMuted(nextMuted);
+      setVolume(nextVolume);
+      persistAudioToLocalStorage(nextMuted, nextVolume);
+
+      if (user) void patchUserPreferences({ memeModalMuted: nextMuted, memeModalVolume: nextVolume });
     }
+  };
+
+  const handleVolumeChange = (nextRaw: number) => {
+    const nextVolume = clamp01(nextRaw);
+    const nextMuted = nextVolume === 0;
+    if (nextVolume > 0) lastNonZeroVolumeRef.current = nextVolume;
+
+    if (videoRef.current) {
+      videoRef.current.volume = nextVolume;
+      videoRef.current.muted = nextMuted;
+    }
+
+    setVolume(nextVolume);
+    setIsMuted(nextMuted);
+    persistAudioToLocalStorage(nextMuted, nextVolume);
+    if (user) void patchUserPreferences({ memeModalMuted: nextMuted, memeModalVolume: nextVolume });
   };
 
   const handleEdit = () => {
@@ -339,6 +406,20 @@ export default function MemeModal({
               </svg>
             )}
           </button>
+
+          <label className="flex items-center">
+            <span className="sr-only">{t('common.volume', { defaultValue: 'Громкость' })}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => handleVolumeChange(Number(e.target.value))}
+              className="w-28 accent-white"
+              aria-label={t('common.volume', { defaultValue: 'Громкость' })}
+            />
+          </label>
         </div>
       </section>
 

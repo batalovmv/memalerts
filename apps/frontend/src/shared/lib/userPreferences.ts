@@ -6,6 +6,7 @@ export type UserPreferences = {
   theme?: ThemePreference;
   autoplayMemesEnabled?: boolean;
   memeModalMuted?: boolean;
+  memeModalVolume?: number; // 0..1
   coinsInfoSeen?: boolean;
 };
 
@@ -19,12 +20,20 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object';
 }
 
+function clamp01(n: number): number {
+  if (Number.isNaN(n)) return 1;
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
+}
+
 function normalize(raw: unknown): UserPreferences {
   if (!isRecord(raw)) return {};
   const out: UserPreferences = {};
   if (raw.theme === 'light' || raw.theme === 'dark') out.theme = raw.theme;
   if (typeof raw.autoplayMemesEnabled === 'boolean') out.autoplayMemesEnabled = raw.autoplayMemesEnabled;
   if (typeof raw.memeModalMuted === 'boolean') out.memeModalMuted = raw.memeModalMuted;
+  if (typeof raw.memeModalVolume === 'number') out.memeModalVolume = clamp01(raw.memeModalVolume);
   if (typeof raw.coinsInfoSeen === 'boolean') out.coinsInfoSeen = raw.coinsInfoSeen;
   return out;
 }
