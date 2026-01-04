@@ -48,6 +48,12 @@ describe('channel catalog mode: pool_all', () => {
       select: { id: true },
     });
 
+    // Give viewer enough balance to activate (otherwise expect 400 Insufficient balance).
+    await prisma.wallet.create({
+      data: { userId: viewer.id, channelId: channel.id, balance: 1000 },
+      select: { id: true },
+    });
+
     const fileHash = `hash_${rand()}`;
     const fileUrl = `/uploads/memes/${rand()}.webm`;
     await prisma.fileHash.create({
