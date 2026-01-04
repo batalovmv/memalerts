@@ -606,8 +606,15 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 }
 
 export function startAiModerationScheduler() {
-  const enabled = parseBool(process.env.AI_MODERATION_ENABLED);
-  if (!enabled) return;
+  const enabledRaw = process.env.AI_MODERATION_ENABLED;
+  const enabled = parseBool(enabledRaw);
+  if (!enabled) {
+    logger.info('ai_moderation.scheduler.disabled', {
+      aiModerationEnabled: enabledRaw ?? null,
+      reason: 'env_flag_off',
+    });
+    return;
+  }
 
   const intervalMs = clampInt(parseInt(String(process.env.AI_MODERATION_INTERVAL_MS || ''), 10), 1_000, 60 * 60_000, 30_000);
   const initialDelayMs = clampInt(parseInt(String(process.env.AI_MODERATION_INITIAL_DELAY_MS || ''), 10), 0, 60 * 60_000, 15_000);
@@ -621,6 +628,27 @@ export function startAiModerationScheduler() {
     30 * 60_000,
     5 * 60_000
   );
+  const openaiApiKeySet = !!String(process.env.OPENAI_API_KEY || '').trim();
+  const metaEnabled = parseBool(process.env.AI_METADATA_ENABLED ?? '1');
+  const visionEnabled = parseBool(process.env.AI_VISION_ENABLED ?? '1');
+
+  logger.info('ai_moderation.scheduler.enabled', {
+    intervalMs,
+    initialDelayMs,
+    batch,
+    stuckMs,
+    maxRetries,
+    perSubmissionTimeoutMs,
+    openaiApiKeySet,
+    metaEnabled,
+    visionEnabled,
+    uploadStorage: process.env.UPLOAD_STORAGE || 'local',
+    uploadDir: process.env.UPLOAD_DIR || './uploads',
+    s3PublicBaseUrlConfigured: !!String(process.env.S3_PUBLIC_BASE_URL || '').trim(),
+  });
+  if (!openaiApiKeySet) {
+    logger.warn('ai_moderation.openai.disabled', { reason: 'OPENAI_API_KEY_not_set' });
+  }
 
   let running = false;
   const lockId = 421399n;
