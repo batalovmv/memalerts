@@ -229,7 +229,6 @@ export default function StreamerProfile() {
         setMemesLoading(true);
         try {
           const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
-          let resp: unknown;
           // Canonical listing endpoint: respects channel listing mode (Channel.memeCatalogMode).
           // This is required so "pool_all" channels show the global pool on the public page.
           const listParams = new URLSearchParams();
@@ -239,7 +238,7 @@ export default function StreamerProfile() {
           listParams.set('sortBy', 'createdAt');
           listParams.set('sortOrder', 'desc');
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
-          resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, { timeout: 15000 });
+          const resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, { timeout: 15000 });
 
           const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
           setMemes(memes);
