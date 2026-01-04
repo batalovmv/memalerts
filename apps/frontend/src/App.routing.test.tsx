@@ -32,6 +32,21 @@ vi.mock('./pages/StreamerProfile', () => ({
 vi.mock('./pages/PostLogin', () => ({ default: () => <div>PostLoginPage</div> }));
 
 describe('App routing (integration)', () => {
+  it('does not redirect from /dashboard while auth is still loading', async () => {
+    sessionStorage.setItem('memalerts:viewer:home', '/search?sortBy=createdAt&sortOrder=desc&limit=50');
+
+    renderWithProviders(<App />, {
+      route: '/dashboard',
+      preloadedState: {
+        auth: { user: null, loading: true, error: null },
+      } as any,
+    });
+
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    expect(screen.queryByText('SearchPage')).not.toBeInTheDocument();
+    expect(screen.queryByText('DashboardPage')).not.toBeInTheDocument();
+  });
+
   it('redirects viewer from /dashboard to viewerHome (sessionStorage)', async () => {
     sessionStorage.setItem('memalerts:viewer:home', '/channel/test-channel');
 
