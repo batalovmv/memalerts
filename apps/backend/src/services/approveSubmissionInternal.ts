@@ -23,6 +23,22 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 }> {
   const { tx, submissionId, approvedByUserId, resolved } = args;
 
+  const buildAiSearchText = (args: {
+    title: string | null | undefined;
+    tagNames: string[];
+    description: string | null | undefined;
+  }): string | null => {
+    const parts = [
+      args.title ? String(args.title) : '',
+      Array.isArray(args.tagNames) && args.tagNames.length > 0 ? args.tagNames.join(' ') : '',
+      args.description ? String(args.description) : '',
+    ]
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    const merged = parts.join('\n');
+    return merged ? merged.slice(0, 4000) : null;
+  };
+
   const submission = await tx.memeSubmission.findUnique({
     where: { id: submissionId },
     select: {
@@ -66,9 +82,11 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       ? String((submission as any).aiAutoDescription).trim().slice(0, 2000) || null
       : null;
 
-  const searchText = aiAutoDescription ? aiAutoDescription.slice(0, 4000) : null;
-
   const aiAutoTagNamesJson = (submission as any).aiAutoTagNamesJson ?? null;
+  const aiAutoTags =
+    Array.isArray(aiAutoTagNamesJson) && aiAutoTagNamesJson.every((t) => typeof t === 'string')
+      ? (aiAutoTagNamesJson as string[])
+      : [];
 
   const memeData: any = {
     channelId: submission.channelId,
@@ -123,6 +141,15 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   });
   const channelTitle = assetForTitle?.aiAutoTitle ? String(assetForTitle.aiAutoTitle).slice(0, 80) : submission.title;
 
+  // Keep AI search text consistent with `aiModerationSubmissions.ts`:
+  // title + (AI tags + applied tags) + AI description.
+  const mergedTagNames = Array.from(new Set([...(aiAutoTags || []), ...(tagNames || [])])).filter(Boolean);
+  const aiSearchText = buildAiSearchText({
+    title: channelTitle,
+    tagNames: mergedTagNames,
+    description: aiAutoDescription,
+  });
+
   // Best-effort: persist AI results globally on MemeAsset so future duplicates/pool adoptions can reuse them.
   // (Do not overwrite if already marked done.)
   try {
@@ -132,7 +159,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
         aiStatus: 'done',
         aiAutoDescription,
         aiAutoTagNamesJson,
-        aiSearchText: searchText,
+        aiSearchText,
         aiCompletedAt: new Date(),
       } as any,
     });
@@ -148,7 +175,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       legacyMemeId: legacyMeme.id,
       status: 'approved',
       title: channelTitle,
-      searchText,
+      searchText: aiSearchText,
       aiAutoDescription,
       aiAutoTagNamesJson,
       priceCoins: resolved.priceCoins,
@@ -160,7 +187,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       legacyMemeId: legacyMeme.id,
       status: 'approved',
       title: channelTitle,
-      searchText,
+      searchText: aiSearchText,
       aiAutoDescription,
       aiAutoTagNamesJson,
       priceCoins: resolved.priceCoins,

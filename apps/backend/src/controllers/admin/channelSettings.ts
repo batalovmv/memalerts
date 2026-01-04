@@ -615,6 +615,7 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : (channel as any).overlayShowSender,
       overlayMaxConcurrent: body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : (channel as any).overlayMaxConcurrent,
       overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : (channel as any).overlayStyleJson,
+      memeCatalogMode: (body as any).memeCatalogMode !== undefined ? (body as any).memeCatalogMode : (channel as any).memeCatalogMode,
       boostyBlogName: (body as any).boostyBlogName !== undefined ? (body as any).boostyBlogName : (channel as any).boostyBlogName,
       boostyCoinsPerSub:
         (body as any).boostyCoinsPerSub !== undefined ? (body as any).boostyCoinsPerSub : (channel as any).boostyCoinsPerSub,
@@ -645,6 +646,13 @@ export const updateChannelSettings = async (req: AuthRequest, res: Response) => 
       where: { id: channelId },
       data: updateData,
     });
+
+    // Changing meme catalog impacts public channel page payloads; clear cached meta.
+    if ((body as any).memeCatalogMode !== undefined) {
+      channelMetaCache.delete(String((channel as any)?.slug || '').trim().toLowerCase());
+      void redisDel(nsKey('channel_meta', String((channel as any)?.slug || '').trim().toLowerCase()));
+      void redisDel(nsKey('public_channel_meta', String((channel as any)?.slug || '').trim().toLowerCase()));
+    }
 
     // Best-effort: ensure Twitch EventSub subscriptions for enabled Twitch auto rewards.
     // Do NOT fail channel settings update if Twitch permissions are missing / subscription creation fails.

@@ -92,6 +92,7 @@ export const getPublicChannelBySlug = async (req: any, res: Response) => {
   }
 
   const owner = (channel as any).users?.[0] || null;
+  const memeCatalogMode = String((channel as any).memeCatalogMode || 'channel');
 
   const response: any = {
     id: channel.id,
@@ -118,37 +119,104 @@ export const getPublicChannelBySlug = async (req: any, res: Response) => {
   };
 
   if (includeMemes) {
-    const rows = await prisma.channelMeme.findMany({
-      where: { channelId: channel.id, status: 'approved', deletedAt: null },
-      orderBy: orderBy as any,
-      take: memesLimit,
-      skip: memesOffset,
-      select: {
-        id: true,
-        legacyMemeId: true,
-        memeAssetId: true,
-        title: true,
-        priceCoins: true,
-        status: true,
-        createdAt: true,
-        memeAsset: {
-          select: {
-            type: true,
-            fileUrl: true,
-            durationMs: true,
-            createdBy: { select: { id: true, displayName: true } },
+    if (memeCatalogMode === 'pool_all') {
+      const poolWhere: any = {
+        poolVisibility: 'visible',
+        purgedAt: null,
+        fileUrl: { not: null },
+        NOT: {
+          channelMemes: {
+            some: {
+              channelId: channel.id,
+              OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+            },
           },
         },
-      },
-    });
+      };
 
-    response.memes = rows.map((r) => toPublicChannelMemeListItemDto(channel.id, r as any));
-    response.memesPage = {
-      limit: memesLimit,
-      offset: memesOffset,
-      returned: Array.isArray(response.memes) ? response.memes.length : 0,
-      total: (channel as any)._count.channelMemes,
-    };
+      const poolCount = await prisma.memeAsset.count({ where: poolWhere });
+      response.stats.memesCount = poolCount;
+
+      const rows = await prisma.memeAsset.findMany({
+        where: poolWhere,
+        orderBy: { createdAt: sortOrder },
+        take: memesLimit,
+        skip: memesOffset,
+        select: {
+          id: true,
+          type: true,
+          fileUrl: true,
+          durationMs: true,
+          createdAt: true,
+          aiAutoTitle: true,
+          createdBy: { select: { id: true, displayName: true } },
+          channelMemes: {
+            where: { channelId: channel.id, status: 'approved', deletedAt: null },
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { title: true, priceCoins: true },
+          },
+        },
+      });
+
+      const defaultPriceCoins = Number.isFinite((channel as any).defaultPriceCoins) ? (channel as any).defaultPriceCoins : 100;
+      response.memes = rows.map((r: any) => {
+        const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+        const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+        const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+        return {
+          id: r.id,
+          channelId: channel.id,
+          channelMemeId: r.id,
+          memeAssetId: r.id,
+          title,
+          type: r.type,
+          fileUrl: r.fileUrl ?? null,
+          durationMs: r.durationMs,
+          priceCoins,
+          createdAt: r.createdAt,
+          createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+        };
+      });
+      response.memesPage = {
+        limit: memesLimit,
+        offset: memesOffset,
+        returned: Array.isArray(response.memes) ? response.memes.length : 0,
+        total: poolCount,
+      };
+    } else {
+      const rows = await prisma.channelMeme.findMany({
+        where: { channelId: channel.id, status: 'approved', deletedAt: null },
+        orderBy: orderBy as any,
+        take: memesLimit,
+        skip: memesOffset,
+        select: {
+          id: true,
+          legacyMemeId: true,
+          memeAssetId: true,
+          title: true,
+          priceCoins: true,
+          status: true,
+          createdAt: true,
+          memeAsset: {
+            select: {
+              type: true,
+              fileUrl: true,
+              durationMs: true,
+              createdBy: { select: { id: true, displayName: true } },
+            },
+          },
+        },
+      });
+
+      response.memes = rows.map((r) => toPublicChannelMemeListItemDto(channel.id, r as any));
+      response.memesPage = {
+        limit: memesLimit,
+        offset: memesOffset,
+        returned: Array.isArray(response.memes) ? response.memes.length : 0,
+        total: (channel as any)._count.channelMemes,
+      };
+    }
   }
 
   if (!includeMemes && canCacheMeta) {
@@ -202,35 +270,94 @@ export const getPublicChannelMemes = async (req: any, res: Response) => {
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: 'insensitive' } },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, memeCatalogMode: true, defaultPriceCoins: true },
   });
   if (!channel) return res.status(404).json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
 
-  const rows = await prisma.channelMeme.findMany({
-    where: { channelId: channel.id, status: 'approved', deletedAt: null },
-    orderBy: orderBy as any,
-    take: limit,
-    skip: offset,
-    select: {
-      id: true,
-      legacyMemeId: true,
-      memeAssetId: true,
-      title: true,
-      priceCoins: true,
-      status: true,
-      createdAt: true,
-      memeAsset: {
-        select: {
-          type: true,
-          fileUrl: true,
-          durationMs: true,
-          createdBy: { select: { id: true, displayName: true } },
+  const memeCatalogMode = String((channel as any).memeCatalogMode || 'channel');
+  let memes: any[] = [];
+
+  if (memeCatalogMode === 'pool_all') {
+    const poolWhere: any = {
+      poolVisibility: 'visible',
+      purgedAt: null,
+      fileUrl: { not: null },
+      NOT: {
+        channelMemes: {
+          some: {
+            channelId: channel.id,
+            OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+          },
         },
       },
-    },
-  });
+    };
+    const rows = await prisma.memeAsset.findMany({
+      where: poolWhere,
+      orderBy: { createdAt: sortOrder },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        type: true,
+        fileUrl: true,
+        durationMs: true,
+        createdAt: true,
+        aiAutoTitle: true,
+        createdBy: { select: { id: true, displayName: true } },
+        channelMemes: {
+          where: { channelId: channel.id, status: 'approved', deletedAt: null },
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { title: true, priceCoins: true },
+        },
+      },
+    });
+    const defaultPriceCoins = Number.isFinite((channel as any).defaultPriceCoins) ? (channel as any).defaultPriceCoins : 100;
+    memes = rows.map((r: any) => {
+      const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+      const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+      const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+      return {
+        id: r.id,
+        channelId: channel.id,
+        channelMemeId: r.id,
+        memeAssetId: r.id,
+        title,
+        type: r.type,
+        fileUrl: r.fileUrl ?? null,
+        durationMs: r.durationMs,
+        priceCoins,
+        createdAt: r.createdAt,
+        createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+      };
+    });
+  } else {
+    const rows = await prisma.channelMeme.findMany({
+      where: { channelId: channel.id, status: 'approved', deletedAt: null },
+      orderBy: orderBy as any,
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        legacyMemeId: true,
+        memeAssetId: true,
+        title: true,
+        priceCoins: true,
+        status: true,
+        createdAt: true,
+        memeAsset: {
+          select: {
+            type: true,
+            fileUrl: true,
+            durationMs: true,
+            createdBy: { select: { id: true, displayName: true } },
+          },
+        },
+      },
+    });
 
-  const memes = rows.map((r) => toPublicChannelMemeListItemDto(channel.id, r as any));
+    memes = rows.map((r) => toPublicChannelMemeListItemDto(channel.id, r as any));
+  }
 
   try {
     const body = JSON.stringify(memes);
@@ -246,6 +373,7 @@ export const getPublicChannelMemes = async (req: any, res: Response) => {
 // GET /public/channels/:slug/memes/search?q&limit&offset&sortBy&sortOrder
 // NOTE: public search is implemented against ChannelMeme.title (and optionally uploader displayName)
 // to avoid leaking internal fields from legacy Meme search responses.
+// `ChannelMeme.searchText` is a hidden, search-only field that may include AI-generated title/tags/description.
 export const searchPublicChannelMemes = async (req: any, res: Response) => {
   const slug = String(req.params.slug || '').trim();
   const q = String(req.query.q || '').trim().slice(0, 100);
@@ -273,45 +401,113 @@ export const searchPublicChannelMemes = async (req: any, res: Response) => {
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: 'insensitive' } },
-    select: { id: true },
+    select: { id: true, memeCatalogMode: true, defaultPriceCoins: true },
   });
   if (!channel) return res.status(404).json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
 
-  const where: any = { channelId: channel.id, status: 'approved', deletedAt: null };
-  if (q) {
-    where.OR = [
-      { title: { contains: q, mode: 'insensitive' } },
-      // Hidden search-only text (includes AI description when present).
-      { searchText: { contains: q, mode: 'insensitive' } },
-      { memeAsset: { createdBy: { displayName: { contains: q, mode: 'insensitive' } } } },
-    ];
-  }
+  const memeCatalogMode = String((channel as any).memeCatalogMode || 'channel');
+  let items: any[] = [];
 
-  const rows = await prisma.channelMeme.findMany({
-    where,
-    orderBy: orderBy as any,
-    take: limit,
-    skip: offset,
-    select: {
-      id: true,
-      legacyMemeId: true,
-      memeAssetId: true,
-      title: true,
-      priceCoins: true,
-      status: true,
-      createdAt: true,
-      memeAsset: {
-        select: {
-          type: true,
-          fileUrl: true,
-          durationMs: true,
-          createdBy: { select: { id: true, displayName: true } },
+  if (memeCatalogMode === 'pool_all') {
+    const where: any = {
+      poolVisibility: 'visible',
+      purgedAt: null,
+      fileUrl: { not: null },
+      NOT: {
+        channelMemes: {
+          some: {
+            channelId: channel.id,
+            OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+          },
         },
       },
-    },
-  });
+    };
+    if (q) {
+      where.OR = [
+        { aiAutoTitle: { contains: q, mode: 'insensitive' } },
+        { aiSearchText: { contains: q, mode: 'insensitive' } },
+        { channelMemes: { some: { title: { contains: q, mode: 'insensitive' } } } },
+        { createdBy: { displayName: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
 
-  const items = rows.map((r) => toPublicChannelMemeListItemDto(channel.id, r as any));
+    const rows = await prisma.memeAsset.findMany({
+      where,
+      orderBy: { createdAt: sortOrder },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        type: true,
+        fileUrl: true,
+        durationMs: true,
+        createdAt: true,
+        aiAutoTitle: true,
+        createdBy: { select: { id: true, displayName: true } },
+        channelMemes: {
+          where: { channelId: channel.id, status: 'approved', deletedAt: null },
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { title: true, priceCoins: true },
+        },
+      },
+    });
+    const defaultPriceCoins = Number.isFinite((channel as any).defaultPriceCoins) ? (channel as any).defaultPriceCoins : 100;
+    items = rows.map((r: any) => {
+      const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+      const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+      const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+      return {
+        id: r.id,
+        channelId: channel.id,
+        channelMemeId: r.id,
+        memeAssetId: r.id,
+        title,
+        type: r.type,
+        fileUrl: r.fileUrl ?? null,
+        durationMs: r.durationMs,
+        priceCoins,
+        createdAt: r.createdAt,
+        createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+      };
+    });
+  } else {
+    const where: any = { channelId: channel.id, status: 'approved', deletedAt: null };
+    if (q) {
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        // Hidden search-only text (includes AI description when present).
+        { searchText: { contains: q, mode: 'insensitive' } },
+        { memeAsset: { createdBy: { displayName: { contains: q, mode: 'insensitive' } } } },
+      ];
+    }
+
+    const rows = await prisma.channelMeme.findMany({
+      where,
+      orderBy: orderBy as any,
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        legacyMemeId: true,
+        memeAssetId: true,
+        title: true,
+        priceCoins: true,
+        status: true,
+        createdAt: true,
+        memeAsset: {
+          select: {
+            type: true,
+            fileUrl: true,
+            durationMs: true,
+            createdBy: { select: { id: true, displayName: true } },
+          },
+        },
+      },
+    });
+
+    items = rows.map((r) => toPublicChannelMemeListItemDto(channel.id, r as any));
+  }
   try {
     const body = JSON.stringify(items);
     const etag = makeEtagFromString(body);

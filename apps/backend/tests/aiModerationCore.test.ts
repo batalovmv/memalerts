@@ -30,6 +30,7 @@ describe('AI moderation core building blocks', () => {
         fileHash: `hash_${rand()}`,
         durationMs: 1000,
         aiAutoTagNamesJson: ['cat', 'funny'],
+        aiAutoDescription: 'A funny cat meme about something',
       } as any,
       select: { id: true, fileHash: true },
     });
@@ -81,6 +82,24 @@ describe('AI moderation core building blocks', () => {
 
     const cms = await prisma.channelMeme.findMany({ where: { channelId: channel.id } });
     expect(cms.length).toBe(1);
+
+    const cm = await prisma.channelMeme.findFirst({
+      where: { channelId: channel.id },
+      select: { title: true, searchText: true, aiAutoDescription: true, aiAutoTagNamesJson: true, memeAssetId: true },
+    });
+    expect(cm?.title).toBe('Some meme');
+    expect(typeof cm?.searchText).toBe('string');
+    expect(String(cm?.searchText || '')).toContain('Some meme');
+    expect(String(cm?.searchText || '')).toContain('cat');
+    expect(String(cm?.searchText || '')).toContain('funny');
+    expect(String(cm?.searchText || '')).toContain('A funny cat meme');
+
+    const asset = cm?.memeAssetId ? await prisma.memeAsset.findUnique({ where: { id: cm.memeAssetId } }) : null;
+    expect(typeof asset?.aiSearchText).toBe('string');
+    expect(String(asset?.aiSearchText || '')).toContain('Some meme');
+    expect(String(asset?.aiSearchText || '')).toContain('cat');
+    expect(String(asset?.aiSearchText || '')).toContain('funny');
+    expect(String(asset?.aiSearchText || '')).toContain('A funny cat meme');
   });
 
   it('cleanupPendingSubmissionFilesOnce marks old failed pending submissions as failed_final and decrements FileHash ref', async () => {

@@ -212,6 +212,8 @@ export const updateChannelSettingsSchema = z.object({
   overlayShowSender: z.boolean().optional(),
   overlayMaxConcurrent: z.number().int().min(1).max(5).optional(),
   overlayStyleJson: z.string().max(50_000).optional().nullable(),
+  // Meme catalog mode (what users can browse/activate on channel page)
+  memeCatalogMode: z.enum(['channel', 'pool_all']).optional(),
   // Streamer dashboard layout (card order). Null => reset to default (unset in DB).
   dashboardCardOrder: z.array(z.string()).max(50).optional().nullable(),
   // Boosty integration

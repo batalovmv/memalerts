@@ -110,6 +110,7 @@ export const getChannelBySlug = async (req: any, res: Response) => {
     }
 
     const owner = (channel as any).users?.[0] || null;
+    const memeCatalogMode = String((channel as any).memeCatalogMode || 'channel');
     const rawDashboardCardOrder = (channel as any).dashboardCardOrder ?? null;
     const dashboardCardOrder = rawDashboardCardOrder === null ? null : normalizeDashboardCardOrder(rawDashboardCardOrder);
     const response: any = {
@@ -170,40 +171,112 @@ export const getChannelBySlug = async (req: any, res: Response) => {
 
     // Only include memes if includeMemes is true
     if (includeMemes) {
-      // IMPORTANT: Channel-scoped visibility source of truth is ChannelMeme (status=approved, deletedAt=null).
-      // This prevents "resurrection" if legacy Meme rows exist for back-compat.
-      const rows = await prisma.channelMeme.findMany({
-        where: { channelId: channel.id, status: 'approved', deletedAt: null },
-        orderBy: orderBy as any,
-        take: memesLimit,
-        skip: memesOffset,
-        select: {
-          id: true,
-          legacyMemeId: true,
-          memeAssetId: true,
-          title: true,
-          priceCoins: true,
-          status: true,
-          createdAt: true,
-          memeAsset: {
-            select: {
-              type: true,
-              fileUrl: true,
-              fileHash: true,
-              durationMs: true,
-              createdBy: { select: { id: true, displayName: true } },
+      if (memeCatalogMode === 'pool_all') {
+        const poolWhere: any = {
+          poolVisibility: 'visible',
+          purgedAt: null,
+          fileUrl: { not: null },
+          // If streamer disabled/deleted this asset for their channel, hide it even in pool_all mode.
+          NOT: {
+            channelMemes: {
+              some: {
+                channelId: channel.id,
+                OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+              },
             },
           },
-        },
-      });
+        };
 
-      response.memes = rows.map((r) => toChannelMemeListItemDto(req, channel.id, r as any));
-      response.memesPage = {
-        limit: memesLimit,
-        offset: memesOffset,
-        returned: Array.isArray(response.memes) ? response.memes.length : 0,
-        total: (channel as any)._count.channelMemes,
-      };
+        const poolCount = await prisma.memeAsset.count({ where: poolWhere });
+        response.stats.memesCount = poolCount;
+
+        const rows = await prisma.memeAsset.findMany({
+          where: poolWhere,
+          orderBy: { createdAt: sortOrder },
+          take: memesLimit,
+          skip: memesOffset,
+          select: {
+            id: true,
+            type: true,
+            fileUrl: true,
+            fileHash: true,
+            durationMs: true,
+            createdAt: true,
+            aiAutoTitle: true,
+            createdBy: { select: { id: true, displayName: true } },
+            channelMemes: {
+              where: { channelId: channel.id, status: 'approved', deletedAt: null },
+              take: 1,
+              orderBy: { createdAt: 'desc' },
+              select: { title: true, priceCoins: true },
+            },
+          },
+        });
+
+        const defaultPriceCoins = Number.isFinite((channel as any).defaultPriceCoins) ? (channel as any).defaultPriceCoins : 100;
+        response.memes = rows.map((r: any) => {
+          const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+          const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+          const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+          return {
+            id: r.id, // pool mode: use MemeAsset.id (activation accepts it with channelSlug/channelId)
+            channelId: channel.id,
+            channelMemeId: r.id, // virtual
+            memeAssetId: r.id,
+            title,
+            type: r.type,
+            fileUrl: r.fileUrl ?? null,
+            durationMs: r.durationMs,
+            priceCoins,
+            status: 'approved',
+            deletedAt: null,
+            createdAt: r.createdAt,
+            createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+            fileHash: null,
+          };
+        });
+        response.memesPage = {
+          limit: memesLimit,
+          offset: memesOffset,
+          returned: Array.isArray(response.memes) ? response.memes.length : 0,
+          total: poolCount,
+        };
+      } else {
+        // IMPORTANT: Channel-scoped visibility source of truth is ChannelMeme (status=approved, deletedAt=null).
+        // This prevents "resurrection" if legacy Meme rows exist for back-compat.
+        const rows = await prisma.channelMeme.findMany({
+          where: { channelId: channel.id, status: 'approved', deletedAt: null },
+          orderBy: orderBy as any,
+          take: memesLimit,
+          skip: memesOffset,
+          select: {
+            id: true,
+            legacyMemeId: true,
+            memeAssetId: true,
+            title: true,
+            priceCoins: true,
+            status: true,
+            createdAt: true,
+            memeAsset: {
+              select: {
+                type: true,
+                fileUrl: true,
+                fileHash: true,
+                durationMs: true,
+                createdBy: { select: { id: true, displayName: true } },
+              },
+            },
+          },
+        });
+
+        response.memes = rows.map((r) => toChannelMemeListItemDto(req, channel.id, r as any));
+        response.memesPage = {
+          limit: memesLimit,
+          offset: memesOffset,
+          returned: Array.isArray(response.memes) ? response.memes.length : 0,
+          total: (channel as any)._count.channelMemes,
+        };
+      }
     }
 
     if (!includeMemes && canCacheMeta) {
@@ -346,39 +419,103 @@ export const getChannelMemesPublic = async (req: any, res: Response) => {
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: 'insensitive' } },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, memeCatalogMode: true, defaultPriceCoins: true },
   });
 
   if (!channel) {
     return res.status(404).json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
   }
 
-  // IMPORTANT: channel-scoped visibility must follow ChannelMeme, not legacy Meme.
-  // This prevents deleted/disabled channel memes from "resurrecting" via legacy reads.
-  const rows = await prisma.channelMeme.findMany({
-    where: {
-      channelId: channel.id,
-      status: 'approved',
-      deletedAt: null,
-    },
-    include: {
-      memeAsset: {
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              displayName: true,
+  const memeCatalogMode = String((channel as any).memeCatalogMode || 'channel');
+  let memes: any[] = [];
+
+  if (memeCatalogMode === 'pool_all') {
+    const poolWhere: any = {
+      poolVisibility: 'visible',
+      purgedAt: null,
+      fileUrl: { not: null },
+      NOT: {
+        channelMemes: {
+          some: {
+            channelId: channel.id,
+            OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+          },
+        },
+      },
+    };
+
+    const rows = await prisma.memeAsset.findMany({
+      where: poolWhere,
+      orderBy: { createdAt: sortOrder },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        type: true,
+        fileUrl: true,
+        durationMs: true,
+        createdAt: true,
+        aiAutoTitle: true,
+        createdBy: { select: { id: true, displayName: true } },
+        channelMemes: {
+          where: { channelId: channel.id, status: 'approved', deletedAt: null },
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { title: true, priceCoins: true },
+        },
+      },
+    });
+
+    const defaultPriceCoins = Number.isFinite((channel as any).defaultPriceCoins) ? (channel as any).defaultPriceCoins : 100;
+    memes = rows.map((r: any) => {
+      const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+      const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+      const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+      return {
+        id: r.id,
+        channelId: channel.id,
+        channelMemeId: r.id,
+        memeAssetId: r.id,
+        title,
+        type: r.type,
+        fileUrl: r.fileUrl ?? null,
+        durationMs: r.durationMs,
+        priceCoins,
+        status: 'approved',
+        deletedAt: null,
+        createdAt: r.createdAt,
+        createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+        fileHash: null,
+      };
+    });
+  } else {
+    // IMPORTANT: channel-scoped visibility must follow ChannelMeme, not legacy Meme.
+    // This prevents deleted/disabled channel memes from "resurrecting" via legacy reads.
+    const rows = await prisma.channelMeme.findMany({
+      where: {
+        channelId: channel.id,
+        status: 'approved',
+        deletedAt: null,
+      },
+      include: {
+        memeAsset: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                displayName: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: orderBy as any,
-    take: limit,
-    skip: offset,
-  });
+      orderBy: orderBy as any,
+      take: limit,
+      skip: offset,
+    });
 
-  const memes = rows.map((r) => toChannelMemeListItemDto(req, channel.id, r as any));
+    memes = rows.map((r) => toChannelMemeListItemDto(req, channel.id, r as any));
+  }
 
   try {
     const body = JSON.stringify(memes);

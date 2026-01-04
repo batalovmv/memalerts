@@ -133,7 +133,7 @@
   - prod: public, **optional auth** (для `favorites=1`)
   - beta: `authenticate + requireBetaAccess`
 - **Query**:
-  - `q` — поиск по title/tags (+ uploader если `includeUploader=1`)
+- `q` — поиск по title/tags (+ uploader если `includeUploader=1`) и по AI-анализу (title/tags/description, через скрытое поле searchText)
   - `tags` — строка `tag1,tag2` (имена тегов)
   - `channelId` или `channelSlug` (фильтр)
   - `minPrice`, `maxPrice`
@@ -162,6 +162,12 @@
 ### POST `/memes/:id/activate`
 - **Auth**: `authenticate + requireBetaAccess`
 - **Body**: нет (id берётся из URL)
+- **id может быть**:
+  - `ChannelMeme.id` (предпочтительно)
+  - legacy `Meme.id` (back-compat)
+  - `MemeAsset.id` (если у канала включён режим каталога `pool_all`; тогда нужно передать контекст канала)
+- **Query (только для `MemeAsset.id`)**:
+  - `channelSlug` или `channelId` (обязательно)
 - **Response**:
   - `{ activation, wallet, originalPrice, finalPrice, discountApplied, isFree }`
   - `activation`: `{ id, channelId, userId, memeId, coinsSpent, status: "queued", createdAt }`

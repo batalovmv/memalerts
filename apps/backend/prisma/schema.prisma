@@ -51,6 +51,10 @@ model Channel {
   secondaryColor                String? // Hex color for secondary theme
   accentColor                   String? // Hex color for accent
   defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
+  // Which meme catalog is visible/usable on the channel page:
+  // - "channel": only approved ChannelMeme items (current behavior)
+  // - "pool_all": entire global pool (MemeAsset) becomes available for the channel
+  memeCatalogMode               String   @default("channel")
   // Legacy: Coins granted to submitter when their submission is approved (kept for back-compat).
   submissionRewardCoins         Int      @default(0)
   // New: Separate rewards (upload/url vs pool import).

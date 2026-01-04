@@ -45,6 +45,16 @@ export const searchMemes = async (req: any, res: Response) => {
     targetChannelId = channelId as string;
   }
 
+  // Channel catalog mode (needed for pool_all behavior).
+  const targetChannel =
+    targetChannelId
+      ? await prisma.channel.findUnique({
+          where: { id: targetChannelId },
+          select: { id: true, memeCatalogMode: true, defaultPriceCoins: true, slug: true },
+        })
+      : null;
+  const memeCatalogMode = String((targetChannel as any)?.memeCatalogMode || 'channel');
+
   // Build where clause
   const where: any = {
     status: 'approved',
@@ -138,6 +148,83 @@ export const searchMemes = async (req: any, res: Response) => {
     (sortByStr === 'createdAt' || sortByStr === 'priceCoins');
 
   if (isChannelListingMode) {
+    if (memeCatalogMode === 'pool_all') {
+      const poolWhere: any = {
+        poolVisibility: 'visible',
+        purgedAt: null,
+        fileUrl: { not: null },
+        NOT: {
+          channelMemes: {
+            some: {
+              channelId: targetChannelId!,
+              OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+            },
+          },
+        },
+      };
+
+      const rows = await prisma.memeAsset.findMany({
+        where: poolWhere,
+        orderBy: { createdAt: sortOrderStr },
+        take: parsedLimit,
+        skip: parsedOffset,
+        select: {
+          id: true,
+          type: true,
+          fileUrl: true,
+          durationMs: true,
+          createdAt: true,
+          aiAutoTitle: true,
+          createdBy: { select: { id: true, displayName: true } },
+          channelMemes: {
+            where: { channelId: targetChannelId!, status: 'approved', deletedAt: null },
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { title: true, priceCoins: true },
+          },
+        },
+      });
+
+      const defaultPriceCoins = Number.isFinite((targetChannel as any)?.defaultPriceCoins) ? (targetChannel as any).defaultPriceCoins : 100;
+      const items = rows.map((r: any) => {
+        const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+        const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+        const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+        return {
+          id: r.id,
+          channelId: targetChannelId!,
+          channelMemeId: r.id,
+          memeAssetId: r.id,
+          title,
+          type: r.type,
+          fileUrl: r.fileUrl ?? null,
+          durationMs: r.durationMs,
+          priceCoins,
+          status: 'approved',
+          deletedAt: null,
+          createdAt: r.createdAt,
+          createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+          fileHash: null,
+        };
+      });
+
+      try {
+        const body = JSON.stringify(items);
+        const etag = makeEtagFromString(body);
+        const cacheKey = (req as any).__searchCacheKey as string | undefined;
+        if (cacheKey) {
+          searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+          if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+          void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+        }
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        return res.type('application/json').send(body);
+      } catch {
+        return res.json(items);
+      }
+    }
+
     const orderBy =
       sortByStr === 'priceCoins'
         ? [{ priceCoins: sortOrderStr }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
@@ -191,6 +278,111 @@ export const searchMemes = async (req: any, res: Response) => {
     }
   }
 
+  // Pool-all filter mode (channel-scoped, supports tags and/or q).
+  const isPoolAllChannelFilterMode =
+    !!targetChannelId &&
+    memeCatalogMode === 'pool_all' &&
+    !favoritesEnabled &&
+    (!!qStr || !!tagsStr) &&
+    minPrice === undefined &&
+    maxPrice === undefined &&
+    (sortByStr === 'createdAt' || sortByStr === 'priceCoins');
+
+  if (isPoolAllChannelFilterMode) {
+    const poolWhere: any = {
+      poolVisibility: 'visible',
+      purgedAt: null,
+      fileUrl: { not: null },
+      NOT: {
+        channelMemes: {
+          some: {
+            channelId: targetChannelId!,
+            OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+          },
+        },
+      },
+    };
+
+    const and: any[] = [];
+    const tagNames = parseTagNames(tags);
+    for (const t of tagNames) {
+      and.push({ aiSearchText: { contains: t, mode: 'insensitive' } });
+    }
+    if (and.length > 0) poolWhere.AND = and;
+
+    if (qStr) {
+      poolWhere.OR = [
+        { aiAutoTitle: { contains: qStr, mode: 'insensitive' } },
+        { aiSearchText: { contains: qStr, mode: 'insensitive' } },
+        { channelMemes: { some: { title: { contains: qStr, mode: 'insensitive' } } } },
+      ];
+      if (includeUploaderEnabled) {
+        poolWhere.OR.push({ createdBy: { displayName: { contains: qStr, mode: 'insensitive' } } });
+      }
+    }
+
+    const rows = await prisma.memeAsset.findMany({
+      where: poolWhere,
+      orderBy: { createdAt: sortOrderStr },
+      take: parsedLimit,
+      skip: parsedOffset,
+      select: {
+        id: true,
+        type: true,
+        fileUrl: true,
+        durationMs: true,
+        createdAt: true,
+        aiAutoTitle: true,
+        createdBy: { select: { id: true, displayName: true } },
+        channelMemes: {
+          where: { channelId: targetChannelId!, status: 'approved', deletedAt: null },
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { title: true, priceCoins: true },
+        },
+      },
+    });
+
+    const defaultPriceCoins = Number.isFinite((targetChannel as any)?.defaultPriceCoins) ? (targetChannel as any).defaultPriceCoins : 100;
+    const items = rows.map((r: any) => {
+      const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+      const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+      const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+      return {
+        id: r.id,
+        channelId: targetChannelId!,
+        channelMemeId: r.id,
+        memeAssetId: r.id,
+        title,
+        type: r.type,
+        fileUrl: r.fileUrl ?? null,
+        durationMs: r.durationMs,
+        priceCoins,
+        status: 'approved',
+        deletedAt: null,
+        createdAt: r.createdAt,
+        createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+        fileHash: null,
+      };
+    });
+
+    try {
+      const body = JSON.stringify(items);
+      const etag = makeEtagFromString(body);
+      const cacheKey = (req as any).__searchCacheKey as string | undefined;
+      if (cacheKey) {
+        searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+        if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+        void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+      }
+      res.setHeader('ETag', etag);
+      if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+      return res.type('application/json').send(body);
+    } catch {
+      return res.json(items);
+    }
+  }
+
   // Channel search mode (returns the same DTO as listing, but filters by q against title + hidden searchText).
   // This is the mode where AI description should help search without being displayed.
   const isChannelSearchMode =
@@ -203,6 +395,91 @@ export const searchMemes = async (req: any, res: Response) => {
     (sortByStr === 'createdAt' || sortByStr === 'priceCoins');
 
   if (isChannelSearchMode) {
+    if (memeCatalogMode === 'pool_all') {
+      const where: any = {
+        poolVisibility: 'visible',
+        purgedAt: null,
+        fileUrl: { not: null },
+        NOT: {
+          channelMemes: {
+            some: {
+              channelId: targetChannelId!,
+              OR: [{ status: { not: 'approved' } }, { deletedAt: { not: null } }],
+            },
+          },
+        },
+      };
+      where.OR = [
+        { aiAutoTitle: { contains: qStr, mode: 'insensitive' } },
+        { aiSearchText: { contains: qStr, mode: 'insensitive' } },
+        { channelMemes: { some: { title: { contains: qStr, mode: 'insensitive' } } } },
+      ];
+      if (includeUploaderEnabled) {
+        where.OR.push({ createdBy: { displayName: { contains: qStr, mode: 'insensitive' } } });
+      }
+
+      const rows = await prisma.memeAsset.findMany({
+        where,
+        orderBy: { createdAt: sortOrderStr },
+        take: parsedLimit,
+        skip: parsedOffset,
+        select: {
+          id: true,
+          type: true,
+          fileUrl: true,
+          durationMs: true,
+          createdAt: true,
+          aiAutoTitle: true,
+          createdBy: { select: { id: true, displayName: true } },
+          channelMemes: {
+            where: { channelId: targetChannelId!, status: 'approved', deletedAt: null },
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { title: true, priceCoins: true },
+          },
+        },
+      });
+
+      const defaultPriceCoins = Number.isFinite((targetChannel as any)?.defaultPriceCoins) ? (targetChannel as any).defaultPriceCoins : 100;
+      const items = rows.map((r: any) => {
+        const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
+        const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
+        const priceCoins = Number.isFinite(ch?.priceCoins) ? ch.priceCoins : defaultPriceCoins;
+        return {
+          id: r.id,
+          channelId: targetChannelId!,
+          channelMemeId: r.id,
+          memeAssetId: r.id,
+          title,
+          type: r.type,
+          fileUrl: r.fileUrl ?? null,
+          durationMs: r.durationMs,
+          priceCoins,
+          status: 'approved',
+          deletedAt: null,
+          createdAt: r.createdAt,
+          createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+          fileHash: null,
+        };
+      });
+
+      try {
+        const body = JSON.stringify(items);
+        const etag = makeEtagFromString(body);
+        const cacheKey = (req as any).__searchCacheKey as string | undefined;
+        if (cacheKey) {
+          searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+          if (searchCache.size > SEARCH_CACHE_MAX) searchCache.clear();
+          void redisSetStringEx(nsKey('search', cacheKey), Math.ceil(getSearchCacheMs() / 1000), body);
+        }
+        res.setHeader('ETag', etag);
+        if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+        return res.type('application/json').send(body);
+      } catch {
+        return res.json(items);
+      }
+    }
+
     const orderBy =
       sortByStr === 'priceCoins'
         ? [{ priceCoins: sortOrderStr }, { createdAt: 'desc' as const }, { id: 'desc' as const }]
