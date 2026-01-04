@@ -582,29 +582,9 @@ export default function DashboardPage() {
           return;
         }
 
-        // Some backends return `{ ok: true }` or omit the field. Verify via canonical channel DTO.
-        const slug = user?.channel?.slug;
-        if (!slug) {
-          toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
-          return;
-        }
-        const data = await api.get<{ memeCatalogMode?: 'channel' | 'pool_all' | null }>(`/channels/${slug}`, {
-          params: { includeMemes: false, _ts: Date.now() },
-          headers: { 'Cache-Control': 'no-store' },
-        });
-        const serverMode = data?.memeCatalogMode;
-        if (serverMode === 'channel' || serverMode === 'pool_all') {
-          setMemeCatalogMode(serverMode);
-          if (serverMode === nextMode) {
-            toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
-          } else {
-            toast.error(t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
-            if (prev === 'channel' || prev === 'pool_all') setMemeCatalogMode(prev);
-          }
-        } else {
-          toast.error(t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
-          if (prev === 'channel' || prev === 'pool_all') setMemeCatalogMode(prev);
-        }
+        // Back-compat: some environments return `{ ok: true }` or omit the field.
+        // Keep optimistic value and report success; next page load will reflect canonical server state.
+        toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { error?: string } } };
         toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
