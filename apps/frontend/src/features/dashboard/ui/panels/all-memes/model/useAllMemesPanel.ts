@@ -136,16 +136,17 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     void (async () => {
       try {
         const next = await loadPage(items.length);
-        if (cancelled) return;
-        setItems((prev) => [...prev, ...next]);
-        setHasMore(next.length === limit);
+        if (!cancelled) {
+          setItems((prev) => [...prev, ...next]);
+          setHasMore(next.length === limit);
+        }
       } catch {
-        if (cancelled) return;
-        setHasMore(false);
-        setError('failed');
+        if (!cancelled) {
+          setHasMore(false);
+          setError('failed');
+        }
       } finally {
-        if (cancelled) return;
-        setLoadingMore(false);
+        if (!cancelled) setLoadingMore(false);
       }
     })();
 
