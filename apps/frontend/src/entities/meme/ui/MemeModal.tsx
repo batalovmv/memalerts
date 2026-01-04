@@ -37,6 +37,8 @@ export default function MemeModal({
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
   const userId = user?.id;
+  // Keep mode as a union to avoid tsc-prod narrowing it to a literal and rejecting comparisons (TS2367).
+  const viewMode: 'admin' | 'viewer' = mode ?? 'admin';
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
@@ -110,7 +112,7 @@ export default function MemeModal({
   const hasAiFields = 'aiAutoDescription' in currentMeme || 'aiAutoTagNames' in currentMeme;
   const aiTags = Array.isArray(currentMeme.aiAutoTagNames) ? currentMeme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
   const aiDesc = typeof currentMeme.aiAutoDescription === 'string' ? currentMeme.aiAutoDescription : '';
-  const canViewAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
+  const canViewAi = viewMode === 'admin' && (!!isOwner || user?.role === 'admin');
   const hasAi = aiTags.length > 0 || !!aiDesc.trim();
 
   const statusLabel = (() => {
@@ -249,14 +251,14 @@ export default function MemeModal({
   };
 
   const canActivate =
-    mode === 'viewer' &&
+    viewMode === 'viewer' &&
     onActivate &&
     walletBalance !== undefined &&
     currentMeme &&
     walletBalance >= currentMeme.priceCoins;
-  const isGuestViewer = mode === 'viewer' && onActivate && walletBalance === undefined;
+  const isGuestViewer = viewMode === 'viewer' && onActivate && walletBalance === undefined;
 
-  const isViewerStickerPopup = mode === 'viewer';
+  const isViewerStickerPopup = viewMode === 'viewer';
 
   const overlayClassName = 'items-center bg-black/75';
 
@@ -533,7 +535,7 @@ export default function MemeModal({
           >
             {/* Action buttons in top right corner */}
             <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-              {mode === 'admin' && isOwner && (
+              {viewMode === 'admin' && isOwner && (
                 <div className="flex gap-2">
               <HelpTooltip
                 content={
@@ -616,7 +618,7 @@ export default function MemeModal({
         <div className="p-5 md:p-6 space-y-5 md:space-y-6 pt-16">
           {/* Title */}
           <div>
-            {isEditing && mode === 'admin' ? (
+            {isEditing && viewMode === 'admin' ? (
               <Input
                 type="text"
                 value={formData.title}
@@ -675,7 +677,7 @@ export default function MemeModal({
             </section>
           ) : null}
 
-          {isEditing && mode === 'admin' ? (
+          {isEditing && viewMode === 'admin' ? (
             <form onSubmit={handleSave} className="space-y-4" aria-label="Edit meme form">
               <div>
                 <label htmlFor="meme-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -711,7 +713,7 @@ export default function MemeModal({
                     {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: currentMeme.priceCoins })}
                   </div>
                 </div>
-                {mode === 'admin' && (
+                {viewMode === 'admin' && (
                   <>
                     <div>
                       <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
@@ -752,7 +754,7 @@ export default function MemeModal({
               </div>
 
               {/* Activate button for viewer mode */}
-              {mode === 'viewer' && (
+              {viewMode === 'viewer' && (
                 <div className="pt-4 border-t border-black/5 dark:border-white/10">
                   <Button
                     type="button"
@@ -781,7 +783,7 @@ export default function MemeModal({
               )}
 
               {/* Delete button for admin mode */}
-              {mode === 'admin' && isOwner && !isEditing && (
+              {viewMode === 'admin' && isOwner && !isEditing && (
                 <div className="pt-4 border-t border-black/5 dark:border-white/10">
                   <Button type="button" variant="danger" className="w-full" onClick={handleDelete} disabled={loading}>
                     {loading ? t('common.loading', { defaultValue: 'Loading…' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
