@@ -256,26 +256,13 @@ export default function MemeModal({
     walletBalance >= currentMeme.priceCoins;
   const isGuestViewer = mode === 'viewer' && onActivate && walletBalance === undefined;
 
-  const isViewerEdgeToEdge = mode === 'viewer';
+  const isViewerStickerPopup = mode === 'viewer';
 
-  const overlayClassName = isViewerEdgeToEdge
-    ? 'p-0 items-stretch sm:items-stretch bg-black/75'
-    : 'items-center bg-black/75';
+  const overlayClassName = 'items-center bg-black/75';
 
-  const contentClassName = isViewerEdgeToEdge
-    ? 'w-full h-full max-w-none max-h-none overflow-hidden flex flex-col md:flex-row rounded-none shadow-none ring-0 bg-white dark:bg-gray-800'
+  const contentClassName = isViewerStickerPopup
+    ? 'p-0 bg-black text-white max-w-6xl max-h-[90vh] overflow-hidden flex flex-col rounded-none sm:rounded-2xl shadow-xl ring-1 ring-white/10'
     : 'bg-white dark:bg-gray-800 rounded-xl max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row';
-
-  const handleViewerBackdropMouseDownCapture = (e: React.MouseEvent) => {
-    if (!isViewerEdgeToEdge) return;
-    const target = e.target;
-    if (!(target instanceof Node)) return;
-
-    if (rightPanelRef.current?.contains(target)) return;
-    if (controlsRef.current?.contains(target)) return;
-
-    onClose();
-  };
 
   return (
     <Modal
@@ -287,98 +274,267 @@ export default function MemeModal({
       overlayClassName={overlayClassName}
       contentClassName={contentClassName}
     >
-      <div className="contents" onMouseDownCapture={handleViewerBackdropMouseDownCapture}>
-      {/* Video Section - Left */}
-      <section
-        className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto overflow-hidden"
-        aria-label="Video player"
-      >
-        {/* Blurred background to avoid black bars on vertical videos */}
-        <video
-          src={videoUrl}
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
-          preload="auto"
-          aria-hidden="true"
-        />
-        <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+      {isViewerStickerPopup ? (
+        <div className="flex flex-col h-full">
+          {/* Top bar */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-black/60 backdrop-blur-md border-b border-white/10">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className="h-8 w-8 rounded-full bg-white/10 ring-1 ring-white/10 flex items-center justify-center text-xs font-bold text-white/80"
+                aria-hidden="true"
+              >
+                {(creatorName || 'U').slice(0, 1).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white truncate">{creatorName}</div>
+              </div>
+            </div>
 
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          muted={isMuted}
-          loop
-          playsInline
-          className="relative z-10 w-full h-full object-contain"
-          preload="auto"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onError={() => {
-            toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
-          }}
-          aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
-        />
+            <HelpTooltip content={t('help.memeModal.close', { defaultValue: 'Close.' })}>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-10 w-10 rounded-full bg-white/10 hover:bg-white/15 active:bg-white/20 ring-1 ring-white/10 text-white flex items-center justify-center transition-colors"
+                aria-label={t('common.close', { defaultValue: 'Close' })}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </HelpTooltip>
+          </div>
 
-        {/* Custom Video Controls */}
-        <div
-          ref={controlsRef}
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2"
-        >
-          <button
-            type="button"
-            onClick={handlePlayPause}
-            className="text-white hover:text-gray-300 transition-colors"
-            aria-label={
-              isPlaying
-                ? t('common.pause', { defaultValue: 'Пауза' })
-                : t('common.play', { defaultValue: 'Воспроизвести' })
-            }
-            aria-pressed={isPlaying}
-          >
-            {isPlaying ? (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={handleMute}
-            className="text-white hover:text-gray-300 transition-colors"
-            aria-label={
-              isMuted ? t('common.soundOn', { defaultValue: 'Со звуком' }) : t('common.mute', { defaultValue: 'Без звука' })
-            }
-            aria-pressed={isMuted}
-          >
-            {isMuted ? (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-              </svg>
-            )}
-          </button>
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+            {/* Video Section - Left */}
+            <section
+              className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto overflow-hidden"
+              aria-label="Video player"
+            >
+              {/* Blurred background to avoid black bars on vertical videos */}
+              <video
+                src={videoUrl}
+                muted
+                loop
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
+                preload="auto"
+                aria-hidden="true"
+              />
+              <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                muted={isMuted}
+                loop
+                playsInline
+                className="relative z-10 w-full h-full object-contain"
+                preload="auto"
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onError={() => {
+                  toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
+                }}
+                aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
+              />
+
+              {/* Custom Video Controls */}
+              <div
+                ref={controlsRef}
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2"
+              >
+                <button
+                  type="button"
+                  onClick={handlePlayPause}
+                  className="text-white hover:text-gray-300 transition-colors"
+                  aria-label={
+                    isPlaying
+                      ? t('common.pause', { defaultValue: 'Пауза' })
+                      : t('common.play', { defaultValue: 'Воспроизвести' })
+                  }
+                  aria-pressed={isPlaying}
+                >
+                  {isPlaying ? (
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMute}
+                  className="text-white hover:text-gray-300 transition-colors"
+                  aria-label={
+                    isMuted
+                      ? t('common.soundOn', { defaultValue: 'Со звуком' })
+                      : t('common.mute', { defaultValue: 'Без звука' })
+                  }
+                  aria-pressed={isMuted}
+                >
+                  {isMuted ? (
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </section>
+
+            {/* Info Section - Right */}
+            <aside
+              ref={rightPanelRef}
+              className="w-full md:w-96 border-t md:border-t-0 md:border-l border-white/10 bg-black/35 backdrop-blur-md overflow-y-auto relative"
+              aria-label="Meme information"
+            >
+              <div className="p-5 md:p-6 flex flex-col min-h-full">
+                <div className="space-y-4">
+                  <h2 id="meme-modal-title" className="text-2xl font-bold text-white">
+                    {currentMeme.title}
+                  </h2>
+
+                  <div>
+                    <div className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-1">
+                      {t('memeModal.price', { defaultValue: 'Price' })}
+                    </div>
+                    <div className="text-lg font-semibold text-accent">
+                      {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: currentMeme.priceCoins })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto pt-4 border-t border-white/10">
+                  <Button
+                    type="button"
+                    onClick={handleActivate}
+                    disabled={!canActivate && !isGuestViewer}
+                    variant="primary"
+                    className="w-full"
+                  >
+                    {isGuestViewer
+                      ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
+                      : walletBalance === undefined
+                        ? t('common.loading', { defaultValue: 'Loading…' })
+                        : walletBalance < (currentMeme.priceCoins || 0)
+                          ? t('memeModal.insufficientCoins', {
+                              defaultValue: 'Insufficient coins (need {{price}})',
+                              price: currentMeme.priceCoins,
+                            })
+                          : t('dashboard.activate', { defaultValue: 'Activate' })}
+                  </Button>
+
+                  {walletBalance !== undefined ? (
+                    <p className="text-sm text-white/60 mt-2 text-center">
+                      {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
-      </section>
+      ) : (
+        <div className="contents">
+          {/* Video Section - Left */}
+          <section
+            className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto overflow-hidden"
+            aria-label="Video player"
+          >
+            {/* Blurred background to avoid black bars on vertical videos */}
+            <video
+              src={videoUrl}
+              muted
+              loop
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
+              preload="auto"
+              aria-hidden="true"
+            />
+            <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
 
-      {/* Info Section - Right */}
-      <aside
-        ref={rightPanelRef}
-        className="w-full md:w-80 border-t md:border-t-0 border-black/5 dark:border-white/10 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative"
-        aria-label="Meme information"
-      >
-        {/* Action buttons in top right corner */}
-        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-          {mode === 'admin' && isOwner && (
-            <div className="flex gap-2">
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              muted={isMuted}
+              loop
+              playsInline
+              className="relative z-10 w-full h-full object-contain"
+              preload="auto"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onError={() => {
+                toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
+              }}
+              aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
+            />
+
+            {/* Custom Video Controls */}
+            <div
+              ref={controlsRef}
+              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2"
+            >
+              <button
+                type="button"
+                onClick={handlePlayPause}
+                className="text-white hover:text-gray-300 transition-colors"
+                aria-label={
+                  isPlaying
+                    ? t('common.pause', { defaultValue: 'Пауза' })
+                    : t('common.play', { defaultValue: 'Воспроизвести' })
+                }
+                aria-pressed={isPlaying}
+              >
+                {isPlaying ? (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleMute}
+                className="text-white hover:text-gray-300 transition-colors"
+                aria-label={
+                  isMuted
+                    ? t('common.soundOn', { defaultValue: 'Со звуком' })
+                    : t('common.mute', { defaultValue: 'Без звука' })
+                }
+                aria-pressed={isMuted}
+              >
+                {isMuted ? (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </section>
+
+          {/* Info Section - Right */}
+          <aside
+            ref={rightPanelRef}
+            className="w-full md:w-80 border-t md:border-t-0 border-black/5 dark:border-white/10 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative"
+            aria-label="Meme information"
+          >
+            {/* Action buttons in top right corner */}
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+              {mode === 'admin' && isOwner && (
+                <div className="flex gap-2">
               <HelpTooltip
                 content={
                   isEditing
@@ -441,21 +597,21 @@ export default function MemeModal({
                   </button>
                 </HelpTooltip>
               )}
+                </div>
+              )}
+              <HelpTooltip content={t('help.memeModal.close', { defaultValue: 'Close.' })}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  aria-label={t('common.close', { defaultValue: 'Close' })}
+                >
+                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </HelpTooltip>
             </div>
-          )}
-          <HelpTooltip content={t('help.memeModal.close', { defaultValue: 'Close.' })}>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
-              aria-label={t('common.close', { defaultValue: 'Close' })}
-            >
-              <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </HelpTooltip>
-        </div>
 
         <div className="p-5 md:p-6 space-y-5 md:space-y-6 pt-16">
           {/* Title */}
@@ -636,6 +792,8 @@ export default function MemeModal({
           )}
         </div>
       </aside>
+        </div>
+      )}
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog
@@ -675,7 +833,6 @@ export default function MemeModal({
         confirmButtonClass="bg-red-600 hover:bg-red-700"
         isLoading={loading}
       />
-      </div>
     </Modal>
   );
 }
