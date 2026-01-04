@@ -31,6 +31,21 @@ function parseBool(raw: unknown): boolean {
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  if (!Number.isFinite(ms) || ms <= 0) return await p;
+  let t: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<T>((_, reject) => {
+        t = setTimeout(() => reject(new Error(`${label}_timeout_${ms}`)), ms);
+      }),
+    ]);
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
 function isAllowedPublicFileUrl(p: string): boolean {
   const s = String(p || '').trim();
   if (!s) return false;
@@ -599,6 +614,13 @@ export function startAiModerationScheduler() {
   const batch = clampInt(parseInt(String(process.env.AI_MODERATION_BATCH || ''), 10), 1, 500, 25);
   const stuckMs = clampInt(parseInt(String(process.env.AI_MODERATION_STUCK_MS || ''), 10), 5_000, 7 * 24 * 60 * 60_000, 10 * 60_000);
   const maxRetries = clampInt(parseInt(String(process.env.AI_MAX_RETRIES || ''), 10), 0, 50, 5);
+  // Safety: ensure a single stuck submission cannot stall the whole scheduler indefinitely.
+  const perSubmissionTimeoutMs = clampInt(
+    parseInt(String(process.env.AI_PER_SUBMISSION_TIMEOUT_MS || ''), 10),
+    5_000,
+    30 * 60_000,
+    5 * 60_000
+  );
 
   let running = false;
   const lockId = 421399n;
@@ -671,7 +693,7 @@ export function startAiModerationScheduler() {
         claimed += 1;
 
         try {
-          await processOneSubmission(c.id);
+          await withTimeout(processOneSubmission(c.id), perSubmissionTimeoutMs, 'ai_submission');
           processed += 1;
 
           // Best-effort: detect auto-approve by checking submission status.

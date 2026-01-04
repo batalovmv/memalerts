@@ -5,6 +5,19 @@ import { configureFfmpegPaths } from '../media/configureFfmpeg.js';
 
 configureFfmpegPaths();
 
+function clampInt(n: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  if (n < min) return min;
+  if (n > max) return max;
+  return Math.floor(n);
+}
+
+function getAiFfmpegTimeoutMs(): number {
+  const raw = parseInt(String(process.env.AI_FFMPEG_TIMEOUT_MS || ''), 10);
+  // Default: 90s (ffmpeg should be fast for short clips, but allow some headroom on loaded VPS).
+  return clampInt(raw, 1_000, 10 * 60_000, 90_000);
+}
+
 async function ensureDir(dir: string): Promise<void> {
   await fs.promises.mkdir(dir, { recursive: true });
 }
@@ -18,6 +31,7 @@ export async function extractAudioToMp3(args: {
   const out = path.join(args.outputDir, `${args.baseName}.mp3`);
 
   return await new Promise<string>((resolve, reject) => {
+    const timeoutMs = getAiFfmpegTimeoutMs();
     const enableLoudnorm = String(process.env.AI_AUDIO_LOUDNORM || '').trim() === '1';
     // Reasonable defaults for speech-heavy short clips.
     // If you need different targets, override via env.
@@ -37,9 +51,24 @@ export async function extractAudioToMp3(args: {
       cmd.audioFilters([loudnorm]);
     }
 
+    const timer = setTimeout(() => {
+      try {
+        cmd.kill('SIGKILL');
+      } catch {
+        // ignore
+      }
+      reject(new Error(`ffmpeg_timeout_${timeoutMs}`));
+    }, timeoutMs);
+
     cmd
-      .on('end', () => resolve(out))
-      .on('error', (err: NodeJS.ErrnoException) => reject(err))
+      .on('end', () => {
+        clearTimeout(timer);
+        resolve(out);
+      })
+      .on('error', (err: NodeJS.ErrnoException) => {
+        clearTimeout(timer);
+        reject(err);
+      })
       .save(out);
   });
 }
