@@ -90,9 +90,8 @@ Deploy кладёт статику:
 
 ### 2) Promotion в production (main) через CI/CD
 1) Убедитесь, что нужный коммит уже в `main` и beta проверена.
-2) Создаёте **`beta-<version>`** тег на этот коммит (см. `deploy-dev.md`). Это “жёсткая метка”, что версия реально ушла в beta и именно её можно промоутить.
-3) Создаёте тег вида **`prod-*`** (например `prod-1.0.10`) **строго на тот же коммит** и пушите тег (см. `deploy-prod.md`, там есть guard).
-4) Запустится workflow и job **Deploy to VPS (Production)**.
+2) Увеличиваете версию (`pnpm version patch --no-git-tag-version`), пушите в `main`, и создаёте тег вида **`prod-*`** (например `prod-1.0.10`) на этот коммит (см. `deploy-prod.md`).
+3) Запустится workflow и job **Deploy to VPS (Production)**.
    - Если включён manual approval в `production` environment — подтверждаете деплой.
 
 Почему это “не ломает”:

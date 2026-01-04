@@ -1,44 +1,37 @@
 # deploy-prod
 
-Жёсткое правило: **prod деплоится только из той же версии, которая уже ушла в beta**.
-Технически это фиксируется тегом `beta-<version>` (см. `deploy-dev.md`).
-
 > Не совершать других действий, строго и кратко.
-
-```bash
-cd "/mnt/c/Users/LOTAS/Desktop/Memalerts/memalerts-frontend"
-```
-
-```bash
-git fetch origin main --tags --prune
-```
 
 ```bash
 git switch main
 ```
 
 ```bash
-git pull --ff-only origin main
+git pull
 ```
 
 ```bash
-git status
+pnpm version patch --no-git-tag-version
 ```
 
 ```bash
-node scripts/deploy/guard-prod-from-beta.mjs
+git add package.json
 ```
 
 ```bash
-VERSION=$(node -p "require('./package.json').version")
+git commit -m "prod: bump version"
 ```
 
 ```bash
-git tag -a "prod-$VERSION" -m "prod $VERSION"
+git tag prod-$(node -p "require('./package.json').version")
 ```
 
 ```bash
-git push origin "prod-$VERSION"
+git push origin main
+```
+
+```bash
+git push origin prod-$(node -p "require('./package.json').version")
 ```
 
 
