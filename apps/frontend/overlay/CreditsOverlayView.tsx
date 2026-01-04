@@ -303,7 +303,11 @@ export default function CreditsOverlayView() {
       padding: `${resolved.contentPadTop}px ${resolved.contentPadRight}px ${resolved.contentPadBottom}px ${resolved.contentPadLeft}px`,
       display: 'grid',
       gap: resolved.sectionGapPx,
-      animation: `memalertsCreditsScroll ${scrollDurationSec}s linear ${resolved.loop ? 'infinite' : '1'}`,
+      // Avoid mixing shorthand `animation` with longhand `animationDelay` (React warns in tests).
+      animationName: 'memalertsCreditsScroll',
+      animationDuration: `${scrollDurationSec}s`,
+      animationTimingFunction: 'linear',
+      animationIterationCount: resolved.loop ? 'infinite' : '1',
       animationDelay: resolved.startDelayMs > 0 ? `${resolved.startDelayMs}ms` : undefined,
       willChange: 'transform',
       textAlign: resolved.textAlign,
@@ -326,7 +330,11 @@ export default function CreditsOverlayView() {
     const totalMs = Math.max(0, Math.round(scrollDurationSec * 1000));
     const delayMs = Math.max(0, totalMs - resolved.endFadeMs + resolved.startDelayMs);
     return {
-      animation: `memalertsCreditsFadeOut ${resolved.endFadeMs}ms ease forwards`,
+      animationName: 'memalertsCreditsFadeOut',
+      animationDuration: `${resolved.endFadeMs}ms`,
+      animationTimingFunction: 'ease',
+      animationFillMode: 'forwards',
+      animationIterationCount: '1',
       animationDelay: `${delayMs}ms`,
     };
   }, [resolved.endFadeMs, resolved.loop, resolved.startDelayMs, scrollDurationSec]);

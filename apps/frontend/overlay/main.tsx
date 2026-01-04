@@ -13,7 +13,10 @@ async function bootstrap() {
 
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <BrowserRouter basename={import.meta.env.PROD ? '/overlay' : undefined}>
+      <BrowserRouter
+        basename={import.meta.env.PROD ? '/overlay' : undefined}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <App />
       </BrowserRouter>
     </React.StrictMode>

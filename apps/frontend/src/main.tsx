@@ -41,7 +41,7 @@ async function bootstrap() {
   createRoot(rootElement!).render(
     <StrictMode>
       <Provider store={store}>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ThemeProvider>
             <ChannelColorsProvider>
               <HelpModeProvider>

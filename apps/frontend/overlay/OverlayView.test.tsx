@@ -56,7 +56,7 @@ describe('overlay OverlayView (integration)', () => {
     hoisted.ioMock.mockClear();
 
     render(
-      <MemoryRouter initialEntries={['/t/tok_1?demo=1']}>
+      <MemoryRouter initialEntries={['/t/tok_1?demo=1']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <App />
       </MemoryRouter>,
     );
@@ -69,7 +69,7 @@ describe('overlay OverlayView (integration)', () => {
     hoisted.ioMock.mockClear();
 
     render(
-      <MemoryRouter initialEntries={['/t/tok_1']}>
+      <MemoryRouter initialEntries={['/t/tok_1']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <App />
       </MemoryRouter>,
     );
@@ -90,7 +90,7 @@ describe('overlay OverlayView (integration)', () => {
     hoisted.ioMock.mockClear();
 
     render(
-      <MemoryRouter initialEntries={['/my-channel']}>
+      <MemoryRouter initialEntries={['/my-channel']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <App />
       </MemoryRouter>,
     );
@@ -111,7 +111,7 @@ describe('overlay OverlayView (integration)', () => {
     hoisted.ioMock.mockClear();
 
     const r = render(
-      <MemoryRouter initialEntries={['/t/tok_1']}>
+      <MemoryRouter initialEntries={['/t/tok_1']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <App />
       </MemoryRouter>,
     );

@@ -66,7 +66,7 @@ describe('overlay CreditsOverlayView (integration)', () => {
     hoisted.ioMock.mockClear();
 
     render(
-      <MemoryRouter initialEntries={['/credits/t/tok_1']}>
+      <MemoryRouter initialEntries={['/credits/t/tok_1']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <App />
       </MemoryRouter>,
     );
