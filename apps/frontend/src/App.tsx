@@ -31,7 +31,7 @@ const PostLogin = lazy(() => import('./pages/PostLogin'));
 
 function App() {
   const dispatch = useAppDispatch();
-  const { user, loading: authLoading } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth);
   const [betaChecked, setBetaChecked] = useState(false);
   const [betaHasAccess, setBetaHasAccess] = useState<boolean>(true);
   const location = useLocation();
@@ -204,39 +204,11 @@ function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/post-login" element={<PostLogin />} />
-              <Route
-                path="/dashboard"
-                element={
-                  authLoading ? (
-                    <div className="min-h-[50vh] flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
-                      <Spinner className="h-5 w-5" />
-                      <span>Loading…</span>
-                    </div>
-                  ) : uiMode === 'viewer' ? (
-                    <Navigate to={viewerHome} replace />
-                  ) : (
-                    <Dashboard />
-                  )
-                }
-              />
+              <Route path="/dashboard" element={uiMode === 'viewer' ? <Navigate to={viewerHome} replace /> : <Dashboard />} />
               <Route path="/channel/:slug" element={<StreamerProfile />} />
               <Route path="/submit" element={<Submit />} />
               <Route path="/settings/*" element={<Admin />} />
-              <Route
-                path="/admin"
-                element={
-                  authLoading ? (
-                    <div className="min-h-[50vh] flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
-                      <Spinner className="h-5 w-5" />
-                      <span>Loading…</span>
-                    </div>
-                  ) : uiMode === 'viewer' ? (
-                    <Navigate to={viewerHome} replace />
-                  ) : (
-                    <AdminRedirect />
-                  )
-                }
-              />
+              <Route path="/admin" element={uiMode === 'viewer' ? <Navigate to={viewerHome} replace /> : <AdminRedirect />} />
               <Route path="/search" element={<Search />} />
               <Route path="/pool" element={<Pool />} />
               <Route path="/moderation" element={<Moderation />} />

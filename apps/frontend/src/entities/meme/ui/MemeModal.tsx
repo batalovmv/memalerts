@@ -55,8 +55,6 @@ export default function MemeModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const rightPanelRef = useRef<HTMLElement>(null);
-  const controlsRef = useRef<HTMLDivElement>(null);
 
   // Update currentMeme when meme prop changes
   useEffect(() => {
@@ -256,27 +254,6 @@ export default function MemeModal({
     walletBalance >= currentMeme.priceCoins;
   const isGuestViewer = mode === 'viewer' && onActivate && walletBalance === undefined;
 
-  const isViewerEdgeToEdge = mode === 'viewer';
-
-  const overlayClassName = isViewerEdgeToEdge
-    ? 'p-0 items-stretch sm:items-stretch bg-black/75'
-    : 'items-center bg-black/75';
-
-  const contentClassName = isViewerEdgeToEdge
-    ? 'w-full h-full max-w-none max-h-none overflow-hidden flex flex-col md:flex-row rounded-none shadow-none ring-0 bg-white dark:bg-gray-800'
-    : 'bg-white dark:bg-gray-800 rounded-xl max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row';
-
-  const handleViewerBackdropMouseDownCapture = (e: React.MouseEvent) => {
-    if (!isViewerEdgeToEdge) return;
-    const target = e.target;
-    if (!(target instanceof Node)) return;
-
-    if (rightPanelRef.current?.contains(target)) return;
-    if (controlsRef.current?.contains(target)) return;
-
-    onClose();
-  };
-
   return (
     <Modal
       isOpen={isOpen}
@@ -284,10 +261,9 @@ export default function MemeModal({
       ariaLabelledBy="meme-modal-title"
       closeOnEsc
       useGlass={false}
-      overlayClassName={overlayClassName}
-      contentClassName={contentClassName}
+      overlayClassName="items-center bg-black/75"
+      contentClassName="bg-white dark:bg-gray-800 rounded-xl max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row"
     >
-      <div className="contents" onMouseDownCapture={handleViewerBackdropMouseDownCapture}>
       {/* Video Section - Left */}
       <section
         className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto overflow-hidden"
@@ -322,10 +298,7 @@ export default function MemeModal({
         />
 
         {/* Custom Video Controls */}
-        <div
-          ref={controlsRef}
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2"
-        >
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2">
           <button
             type="button"
             onClick={handlePlayPause}
@@ -371,7 +344,6 @@ export default function MemeModal({
 
       {/* Info Section - Right */}
       <aside
-        ref={rightPanelRef}
         className="w-full md:w-80 border-t md:border-t-0 border-black/5 dark:border-white/10 bg-gray-50 dark:bg-gray-900 overflow-y-auto relative"
         aria-label="Meme information"
       >
@@ -675,7 +647,6 @@ export default function MemeModal({
         confirmButtonClass="bg-red-600 hover:bg-red-700"
         isLoading={loading}
       />
-      </div>
     </Modal>
   );
 }

@@ -51,9 +51,8 @@ Deploy кладёт статику:
 - beta: `/opt/memalerts-frontend-beta/dist` и `/opt/memalerts-frontend-beta/overlay/dist`
 
 Важно:
-- Workflow **не управляет** nginx конфигом (не перезаписывает `/etc/nginx/sites-available/*`) — он только делает `nginx -t` и `reload`.
-- Поэтому корректность `server_name`/`root` в nginx — ответственность конфигурации сервера.
-- Критично для beta: домен `beta.twitchmemes.ru` должен быть перечислен в `server_name` beta-виртхоста (иначе запросы могут попасть в prod server и отдавать prod `dist`).
+- Workflow пытается запускать nginx setup‑скрипт из backend репозитория: `/opt/memalerts-backend/.github/scripts/setup-nginx-full.sh`
+- Если backend ещё не задеплоен/скрипта нет — deploy упадёт (это ожидаемо; порядок деплоя важен).
 
 ## Promotion strategy (рекомендовано)
 1) Работаете в `main` → автоматически деплоится beta (job `deploy-beta`).
@@ -91,8 +90,7 @@ Deploy кладёт статику:
 
 ### 2) Promotion в production (main) через CI/CD
 1) Убедитесь, что нужный коммит уже в `main` и beta проверена.
-2) Создаёте тег вида **`prod-*`** **на тот же коммит**, который уже задеплоен в beta (т.е. текущий `HEAD` ветки `main` после успешного beta smoke-check).
-3) Чтобы избежать конфликтов “tag already exists”, используйте уникальный suffix (например timestamp).
+2) Создаёте тег вида **`prod-*`** (например `prod-1.0.10`) на этот коммит и пушите тег.
 3) Запустится workflow и job **Deploy to VPS (Production)**.
    - Если включён manual approval в `production` environment — подтверждаете деплой.
 
@@ -122,10 +120,6 @@ Deploy кладёт статику:
 Самый быстрый путь без ручных ssh-правок:
 1) В GitHub откатить `main` на предыдущий стабильный коммит (revert merge commit).
 2) Пуш в `main` запустит workflow и задеплоит предыдущую версию.
-
-Альтернатива (точечный rollback production через CI/CD):
-1) Найдите commit/tag, который нужно вернуть.
-2) Создайте **новый** тег `prod-*` на этот commit и запушьте тег (это запустит prod deploy).
 
 Если нужно точечно “переехать” только конфигом (редкий случай):
 - проверьте, не сломаны ли значения `UPLOADS_BASE_URL` / `DOMAIN` в secrets (runtime config влияет без пересборки только через `config.json`).
