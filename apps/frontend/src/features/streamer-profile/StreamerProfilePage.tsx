@@ -29,6 +29,7 @@ interface ChannelInfo {
   id: string;
   slug: string;
   name: string;
+  memeCatalogMode?: 'channel' | 'pool_all';
   coinPerPointRatio: number;
   youtubeLikeRewardEnabled?: boolean;
   youtubeLikeRewardCoins?: number;
@@ -74,6 +75,9 @@ function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo |
   const slug = typeof r.slug === 'string' && r.slug.trim() ? r.slug.trim() : fallbackSlug;
   if (!id || !name) return null;
 
+  const memeCatalogMode =
+    r.memeCatalogMode === 'pool_all' || r.memeCatalogMode === 'channel' ? (r.memeCatalogMode as 'pool_all' | 'channel') : undefined;
+
   const ownerRaw = toRecord(r.owner);
   const owner = ownerRaw
     ? {
@@ -91,6 +95,7 @@ function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo |
     id,
     slug,
     name,
+    memeCatalogMode,
     coinPerPointRatio: typeof r.coinPerPointRatio === 'number' && Number.isFinite(r.coinPerPointRatio) ? r.coinPerPointRatio : 0,
     youtubeLikeRewardEnabled: typeof r.youtubeLikeRewardEnabled === 'boolean' ? r.youtubeLikeRewardEnabled : undefined,
     youtubeLikeRewardCoins:
@@ -480,7 +485,14 @@ export default function StreamerProfile() {
     }
 
     try {
-      await dispatch(activateMeme(memeId)).unwrap();
+      const mode = channelInfo?.memeCatalogMode;
+      await dispatch(
+        activateMeme(
+          mode === 'pool_all'
+            ? { id: memeId, channelSlug: channelInfo?.slug || normalizedSlug }
+            : { id: memeId },
+        ),
+      ).unwrap();
       toast.success(t('toast.memeActivated'));
       
       // Wallet balance will be updated via Socket.IO automatically

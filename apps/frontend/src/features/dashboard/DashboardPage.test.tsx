@@ -537,6 +537,53 @@ describe('DashboardPage (integration)', () => {
     expect(patchCalls.some((b: any) => b && b.submissionsEnabled === false)).toBe(true);
   });
 
+  it('submissions control: toggles meme catalog mode via PATCH /streamer/channel/settings', async () => {
+    const userEv = userEvent.setup();
+    const user = makeStreamerUser();
+
+    const patchCalls: unknown[] = [];
+    server.use(
+      mockChannel(user.channel!.slug, {
+        stats: { memesCount: 0 },
+        submissionsEnabled: true,
+        submissionsOnlyWhenLive: false,
+        memeCatalogMode: 'channel',
+        dashboardCardOrder: null,
+      }),
+      mockStreamerBots([]),
+      mockStreamerSubmissions({ items: [], total: 0 }),
+      mockMySubmissions([]),
+      http.patch('*/streamer/channel/settings', async ({ request }) => {
+        patchCalls.push(await request.json());
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+
+    renderWithProviders(<DashboardPage />, {
+      route: '/dashboard',
+      preloadedState: { auth: { user, loading: false, error: null } } as any,
+    });
+
+    // Open submissions control expandable card.
+    const submissionsTitles = await screen.findAllByText(/^submissions$/i);
+    const submissionsCardTitle = submissionsTitles.find((el) => !!el.closest('[role="button"]')) ?? null;
+    expect(submissionsCardTitle).toBeTruthy();
+    const submissionsCard = submissionsCardTitle!.closest('[role="button"]') as HTMLElement | null;
+    expect(submissionsCard).toBeTruthy();
+    await userEv.click(submissionsCard!);
+
+    // Toggle should be OFF initially (channel-only).
+    const catalogToggle = screen.getByRole('checkbox', { name: /show all pool memes on channel page/i });
+    expect(catalogToggle).not.toBeChecked();
+
+    await userEv.click(catalogToggle);
+
+    expect(patchCalls.length).toBeGreaterThanOrEqual(1);
+    expect(patchCalls.some((b: any) => b && b.memeCatalogMode === 'pool_all')).toBe(true);
+  });
+
   it('submissions control: rotates link and renders returned links + status', async () => {
     const userEv = userEvent.setup();
     const user = makeStreamerUser();

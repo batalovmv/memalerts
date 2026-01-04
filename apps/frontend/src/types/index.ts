@@ -1,5 +1,7 @@
 export type UserRole = 'viewer' | 'streamer' | 'admin';
 
+export type MemeCatalogMode = 'channel' | 'pool_all';
+
 export interface Wallet {
   id: string;
   userId: string;
@@ -12,6 +14,12 @@ export interface Channel {
   id: string;
   slug: string;
   name: string;
+  /**
+   * Which meme catalog is shown on the public channel page.
+   * - channel: only channel-approved memes (ChannelMeme)
+   * - pool_all: full global pool (MemeAsset); activation requires channelSlug/channelId context
+   */
+  memeCatalogMode?: MemeCatalogMode;
   /**
    * Twitch broadcaster id if the channel is linked to Twitch.
    * When null/undefined, Twitch-only features must be disabled in UI.

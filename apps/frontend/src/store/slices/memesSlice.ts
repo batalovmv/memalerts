@@ -31,14 +31,24 @@ export const fetchMemes = createAsyncThunk<
   }
 });
 
+export type ActivateMemeInput = {
+  /** ChannelMeme.id (normal mode) OR MemeAsset.id (pool_all mode) */
+  id: string;
+  /** Required for pool_all mode (backend will create ChannelMeme if needed) */
+  channelSlug?: string;
+  /** Alternative to channelSlug */
+  channelId?: string;
+};
+
 export const activateMeme = createAsyncThunk<
   void,
-  string,
+  ActivateMemeInput,
   { rejectValue: ApiError }
->('memes/activateMeme', async (memeOrChannelMemeId, { rejectWithValue }) => {
+>('memes/activateMeme', async ({ id, channelSlug, channelId }, { rejectWithValue }) => {
   try {
     // Backend accepts both legacy Meme.id and ChannelMeme.id.
-    await api.post(`/memes/${memeOrChannelMemeId}/activate`);
+    const params = channelSlug ? { channelSlug } : channelId ? { channelId } : undefined;
+    await api.post(`/memes/${id}/activate`, undefined, params ? { params } : undefined);
   } catch (error: unknown) {
     return rejectWithValue(toApiError(error, 'Failed to activate meme'));
   }

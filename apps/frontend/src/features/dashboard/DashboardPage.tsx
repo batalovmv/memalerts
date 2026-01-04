@@ -248,6 +248,8 @@ export default function DashboardPage() {
   const [submissionsEnabled, setSubmissionsEnabled] = useState<boolean | null>(null);
   const [submissionsOnlyWhenLive, setSubmissionsOnlyWhenLive] = useState<boolean | null>(null);
   const [savingSubmissionsSettings, setSavingSubmissionsSettings] = useState<null | 'enabled' | 'onlyWhenLive'>(null);
+  const [memeCatalogMode, setMemeCatalogMode] = useState<null | 'channel' | 'pool_all'>(null);
+  const [savingMemeCatalogMode, setSavingMemeCatalogMode] = useState(false);
   const [submissionsControl, setSubmissionsControl] = useState<null | { revealable: boolean; token?: string; links?: SubmissionsControlLinks; message?: string }>(
     null
   );
@@ -460,6 +462,7 @@ export default function DashboardPage() {
           stats?: { memesCount?: number };
           submissionsEnabled?: boolean;
           submissionsOnlyWhenLive?: boolean;
+          memeCatalogMode?: 'channel' | 'pool_all' | null;
           dashboardCardOrder?: string[] | null;
         }>(`/channels/${slug}`, {
           // Avoid stale cached channel settings after a recent PATCH (CDN/proxy/browser caches).
@@ -470,6 +473,8 @@ export default function DashboardPage() {
         if (typeof count === 'number') setMemesCount(count);
         if (typeof data?.submissionsEnabled === 'boolean') setSubmissionsEnabled(data.submissionsEnabled);
         if (typeof data?.submissionsOnlyWhenLive === 'boolean') setSubmissionsOnlyWhenLive(data.submissionsOnlyWhenLive);
+        if (data?.memeCatalogMode === 'pool_all' || data?.memeCatalogMode === 'channel') setMemeCatalogMode(data.memeCatalogMode);
+        else setMemeCatalogMode('channel');
         if (data?.dashboardCardOrder === null) {
           setDashboardCardOrder(DEFAULT_DASHBOARD_ORDER);
         } else if (Array.isArray(data?.dashboardCardOrder)) {
@@ -557,6 +562,44 @@ export default function DashboardPage() {
       }
     },
     [savingSubmissionsSettings, t, user?.channel?.slug, user?.channelId]
+  );
+
+  const saveMemeCatalogMode = useCallback(
+    async (nextMode: 'channel' | 'pool_all') => {
+      if (!user?.channelId) return;
+      if (savingMemeCatalogMode) return;
+      const prev = memeCatalogMode;
+      try {
+        setSavingMemeCatalogMode(true);
+        const resp = await api.patch<{ memeCatalogMode?: 'channel' | 'pool_all' }>(
+          '/streamer/channel/settings',
+          { memeCatalogMode: nextMode },
+        );
+        if (resp?.memeCatalogMode === 'channel' || resp?.memeCatalogMode === 'pool_all') {
+          setMemeCatalogMode(resp.memeCatalogMode);
+        }
+        toast.success(t('dashboard.memeCatalogMode.saved', { defaultValue: 'Saved' }));
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+        if (prev === 'channel' || prev === 'pool_all') setMemeCatalogMode(prev);
+        // Re-fetch best-effort to resync.
+        try {
+          const slug = user?.channel?.slug;
+          if (slug) {
+            const data = await api.get<{ memeCatalogMode?: 'channel' | 'pool_all' }>(`/channels/${slug}`, {
+              params: { includeMemes: false },
+            });
+            if (data?.memeCatalogMode === 'channel' || data?.memeCatalogMode === 'pool_all') setMemeCatalogMode(data.memeCatalogMode);
+          }
+        } catch {
+          // ignore
+        }
+      } finally {
+        setSavingMemeCatalogMode(false);
+      }
+    },
+    [memeCatalogMode, savingMemeCatalogMode, t, user?.channel?.slug, user?.channelId],
   );
 
   const refreshSubmissionsControlStatus = useCallback(
@@ -1280,6 +1323,38 @@ export default function DashboardPage() {
                               void saveSubmissionSettings({ submissionsOnlyWhenLive: next }, 'onlyWhenLive');
                             }}
                           />
+                        </div>
+
+                        <div className="pt-4 border-t border-black/5 dark:border-white/10">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="font-medium text-gray-900 dark:text-white">
+                                {t('dashboard.memeCatalogMode.title', { defaultValue: 'Каталог мемов на публичной странице' })}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {t('dashboard.memeCatalogMode.hint', {
+                                  defaultValue:
+                                    'Выберите, что будет показываться на странице канала: только ваши одобренные мемы или весь пул.',
+                                })}
+                              </div>
+                            </div>
+                            <ToggleSwitch
+                              checked={memeCatalogMode === 'pool_all'}
+                              busy={savingMemeCatalogMode}
+                              disabled={memeCatalogMode === null}
+                              ariaLabel={t('dashboard.memeCatalogMode.toggleAria', { defaultValue: 'Show all pool memes on channel page' })}
+                              onChange={(next) => {
+                                const nextMode = next ? 'pool_all' : 'channel';
+                                setMemeCatalogMode(nextMode);
+                                void saveMemeCatalogMode(nextMode);
+                              }}
+                            />
+                          </div>
+                          <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                            {memeCatalogMode === 'pool_all'
+                              ? t('dashboard.memeCatalogMode.state.poolAll', { defaultValue: 'Сейчас: весь пул (пользователи могут активировать любой мем).' })
+                              : t('dashboard.memeCatalogMode.state.channelOnly', { defaultValue: 'Сейчас: только мои одобренные мемы.' })}
+                          </div>
                         </div>
 
                         <div className="pt-4 border-t border-black/5 dark:border-white/10">
