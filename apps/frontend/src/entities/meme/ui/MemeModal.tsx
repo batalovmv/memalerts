@@ -38,7 +38,7 @@ export default function MemeModal({
   const { user } = useAppSelector((s) => s.auth);
   const userId = user?.id;
   // Keep mode as a union to avoid tsc-prod narrowing it to a literal and rejecting comparisons (TS2367).
-  const viewMode = (mode ?? 'admin') as 'admin' | 'viewer';
+  let viewMode: 'admin' | 'viewer' = mode ?? 'admin';
   const [isEditing, setIsEditing] = useState(false);
   const [currentMeme, setCurrentMeme] = useState<Meme | null>(meme);
   const [formData, setFormData] = useState({
