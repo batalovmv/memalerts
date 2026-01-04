@@ -60,10 +60,8 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     p.set('channelId', channelId);
     // IMPORTANT:
     // To keep the dashboard "All memes" list identical to the public channel listing,
-    // we MUST use the backend "channel listing mode" for /channels/memes/search.
+    // we MUST use the backend channel listing mode for /channels/memes/search.
     // That mode reads ChannelMeme (approved + not deleted) and returns the canonical DTO.
-    // Passing params like q/includeUploader/tags/popularity may switch the backend into
-    // legacy search mode (legacy Meme), producing a different shape and mismatched set.
     p.set('sortBy', filters.sortBy);
     p.set('sortOrder', filters.sortOrder);
     p.set('limit', String(limit));
@@ -76,9 +74,11 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     return p;
   }, [channelId, filters, limit, includeFileHash, user]);
 
-  const loadPage = async (offset: number) => {
+  const loadPage = async (offset: number, q: string, _scope: AllMemesSearchScope) => {
     const p = new URLSearchParams(paramsBase);
     p.set('offset', String(offset));
+    const qt = q.trim();
+    if (qt) p.set('q', qt);
     return await api.get<Meme[]>(`/channels/memes/search?${p.toString()}`);
   };
 
@@ -88,7 +88,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     setLoading(true);
     setHasMore(true);
     try {
-      const first = await loadPage(0);
+      const first = await loadPage(0, debouncedQuery, searchScope);
       setItems(first);
       setHasMore(first.length === limit);
     } catch {
@@ -99,20 +99,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, paramsBase.toString(), limit]);
-
-  const memes = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((m) => {
-      const title = (m.title || '').toLowerCase();
-      const uploader = (m.createdBy?.displayName || '').toLowerCase();
-      if (searchScope === 'contentAndUploader') {
-        return title.includes(q) || uploader.includes(q);
-      }
-      return title.includes(q);
-    });
-  }, [items, debouncedQuery, searchScope]);
+  }, [isOpen, paramsBase.toString(), limit, debouncedQuery, searchScope]);
 
   // Reset + load first page when panel opens or filters change
   useEffect(() => {
@@ -135,7 +122,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
             setLoadingMore(true);
             void (async () => {
               try {
-                const next = await loadPage(items.length);
+                const next = await loadPage(items.length, debouncedQuery, searchScope);
                 setItems((prev) => [...prev, ...next]);
                 setHasMore(next.length === limit);
               } catch {
@@ -163,7 +150,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     setSearchScope,
     filters,
     setFilters,
-    memes,
+    memes: items,
     loading,
     loadingMore,
     hasMore,

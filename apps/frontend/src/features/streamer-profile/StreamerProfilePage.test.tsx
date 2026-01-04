@@ -8,7 +8,7 @@ import { http, HttpResponse } from 'msw';
 import StreamerProfilePage from './StreamerProfilePage';
 import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
-import { mockChannel, mockChannelWallet, mockPublicChannel, mockPublicChannelMemes, mockPublicChannelMemesSearch } from '@/test/msw/handlers';
+import { mockChannel, mockChannelMemesSearch, mockChannelWallet, mockPublicChannel } from '@/test/msw/handlers';
 import { makeMeme } from '@/test/fixtures/memes';
 import { makeViewerUser } from '@/test/fixtures/user';
 
@@ -103,8 +103,7 @@ describe('StreamerProfilePage (integration)', () => {
         coinPerPointRatio: 1,
         stats: { memesCount: 1, usersCount: 2 },
       }),
-      mockPublicChannelMemes([makeMeme({ id: 'm1', title: 'First meme', channelId: 'c1' })], (u) => memesCalls.push(u)),
-      mockPublicChannelMemesSearch([], () => {}),
+      mockChannelMemesSearch([makeMeme({ id: 'm1', title: 'First meme', channelId: 'c1' })], (u) => memesCalls.push(u)),
     );
 
     renderWithProviders(<TestRoutes />, { route: `/channel/${slug}` });
@@ -118,6 +117,7 @@ describe('StreamerProfilePage (integration)', () => {
     await waitFor(() => expect(memesCalls.length).toBeGreaterThanOrEqual(1));
     expect(memesCalls[0]!.searchParams.get('limit')).toBe('40');
     expect(memesCalls[0]!.searchParams.get('offset')).toBe('0');
+    expect(memesCalls[0]!.searchParams.get('channelId')).toBe('c1');
 
     // Clicking favorites while logged out should open auth required modal
     await user.click(screen.getByRole('button', { name: /my favorites/i }));
@@ -134,9 +134,6 @@ describe('StreamerProfilePage (integration)', () => {
         if (String(params.slug ?? '') !== slug) return new HttpResponse(null, { status: 404 });
         return HttpResponse.text(html, { status: 200 });
       }),
-      http.get('*/public/channels/:slug/memes', () => {
-        return HttpResponse.text(html, { status: 200 });
-      }),
       // But /channels/* works (common nginx config: proxies /channels but not /public).
       mockChannel(slug, {
         id: 'c1',
@@ -145,9 +142,7 @@ describe('StreamerProfilePage (integration)', () => {
         coinPerPointRatio: 1,
         stats: { memesCount: 1, usersCount: 2 },
       }),
-      http.get('*/channels/:slug/memes', () => {
-        return HttpResponse.json([makeMeme({ id: 'm1', title: 'First meme', channelId: 'c1' })]);
-      }),
+      mockChannelMemesSearch([makeMeme({ id: 'm1', title: 'First meme', channelId: 'c1' })]),
     );
 
     renderWithProviders(<TestRoutes />, { route: `/channel/${slug}` });
@@ -179,7 +174,7 @@ describe('StreamerProfilePage (integration)', () => {
         coinPerPointRatio: 1,
         stats: { memesCount: 0, usersCount: 0 },
       }),
-      mockPublicChannelMemes([], () => {}),
+      mockChannelMemesSearch([], () => {}),
       mockChannelWallet({ id: 'w1', userId: 'u1', channelId: 'c1', balance: 123 }, (u) => walletCalls.push(u)),
     );
 
@@ -209,8 +204,7 @@ describe('StreamerProfilePage (integration)', () => {
         coinPerPointRatio: 1,
         stats: { memesCount: 0, usersCount: 0 },
       }),
-      mockPublicChannelMemes([], () => {}),
-      mockPublicChannelMemesSearch([makeMeme({ id: 'm1', title: 'Searched meme', channelId: 'c1' })], (u) => searchCalls.push(u)),
+      mockChannelMemesSearch([makeMeme({ id: 'm1', title: 'Searched meme', channelId: 'c1' })], (u) => searchCalls.push(u)),
     );
 
     renderWithProviders(<TestRoutes />, { route: `/channel/${slug}` });
@@ -225,6 +219,7 @@ describe('StreamerProfilePage (integration)', () => {
 
     await waitFor(() => expect(searchCalls.length).toBe(1));
     expect(searchCalls[0]!.searchParams.get('q')).toBe('abc');
+    expect(searchCalls[0]!.searchParams.get('channelId')).toBe('c1');
     expect(await screen.findByRole('button', { name: /meme:searched meme/i })).toBeInTheDocument();
   });
 });

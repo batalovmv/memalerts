@@ -229,24 +229,18 @@ export default function StreamerProfile() {
         setMemesLoading(true);
         try {
           const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
+          let resp: unknown;
+          // Canonical listing endpoint: respects channel listing mode (Channel.memeCatalogMode).
+          // This is required so "pool_all" channels show the global pool on the public page.
           const listParams = new URLSearchParams();
+          listParams.set('channelId', channelInfo.id);
           listParams.set('limit', String(MEMES_PER_PAGE));
           listParams.set('offset', '0');
           listParams.set('sortBy', 'createdAt');
           listParams.set('sortOrder', 'desc');
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+          resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, { timeout: 15000 });
 
-          const channelSlugForApi = channelInfo.slug || normalizedSlug;
-          let resp: unknown;
-          if (canIncludeFileHash) {
-            resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
-          } else {
-            resp = await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
-            // Same compatibility fallback as channel info: /public/* may return SPA HTML.
-            if (looksLikeSpaHtml(resp)) {
-              resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
-            }
-          }
           const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
           setMemes(memes);
           setHasMore(memes.length === MEMES_PER_PAGE);
@@ -380,22 +374,14 @@ export default function StreamerProfile() {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
       const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
       const listParams = new URLSearchParams();
+      listParams.set('channelId', channelInfo.id);
       listParams.set('limit', String(MEMES_PER_PAGE));
       listParams.set('offset', String(nextOffset));
       listParams.set('sortBy', 'createdAt');
       listParams.set('sortOrder', 'desc');
       if (canIncludeFileHash) listParams.set('includeFileHash', '1');
 
-      const channelSlugForApi = (channelInfo.slug || normalizedSlug).trim();
-      let resp: unknown;
-      if (canIncludeFileHash) {
-        resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
-      } else {
-        resp = await api.get<unknown>(`/public/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
-        if (looksLikeSpaHtml(resp)) {
-          resp = await api.get<unknown>(`/channels/${channelSlugForApi}/memes?${listParams.toString()}`, { timeout: 15000 });
-        }
-      }
+      const resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, { timeout: 15000 });
       const newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
       
       if (newMemes.length > 0) {
@@ -458,14 +444,29 @@ export default function StreamerProfile() {
         params.set('sortBy', 'createdAt');
         params.set('sortOrder', 'desc');
 
-        const memesResp = myFavorites
-          ? await api.get<unknown>(`/channels/memes/search?${(() => {
-              const p = new URLSearchParams(params);
-              p.set('channelSlug', normalizedSlug);
-              p.set('favorites', '1');
-              return p.toString();
-            })()}`)
-          : await api.get<unknown>(`/public/channels/${normalizedSlug}/memes/search?${params.toString()}`);
+        let memesResp: unknown;
+        if (myFavorites) {
+          memesResp = await api.get<unknown>(`/channels/memes/search?${(() => {
+            const p = new URLSearchParams(params);
+            p.set('channelSlug', normalizedSlug);
+            p.set('favorites', '1');
+            return p.toString();
+          })()}`);
+        } else {
+          const searchParams = new URLSearchParams(params);
+          if (channelInfo?.id) searchParams.set('channelId', channelInfo.id);
+
+          // Prefer canonical endpoint (it respects Channel.memeCatalogMode), but keep a public fallback for guests.
+          try {
+            memesResp = await api.get<unknown>(`/channels/memes/search?${searchParams.toString()}`);
+          } catch {
+            memesResp = await api.get<unknown>(`/public/channels/${normalizedSlug}/memes/search?${params.toString()}`);
+            // Some deployments proxy /channels/* but accidentally serve SPA fallback for /public/*.
+            if (looksLikeSpaHtml(memesResp)) {
+              memesResp = await api.get<unknown>(`/channels/memes/search?${searchParams.toString()}`);
+            }
+          }
+        }
         const memes = Array.isArray(memesResp) ? (memesResp as Meme[]) : [];
         setSearchResults(memes);
       } catch (error: unknown) {
@@ -476,7 +477,7 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
+  }, [channelInfo?.id, debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
