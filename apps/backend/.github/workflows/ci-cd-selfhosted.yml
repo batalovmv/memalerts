@@ -212,6 +212,20 @@ jobs:
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 
+          # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
+          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          case "$AI_ENABLED_NORM" in
+            1|true|yes|on)
+              if ! grep -qE '^OPENAI_API_KEY=.+$' "$APP_DIR/.env"; then
+                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
+                exit 1
+              fi
+              ;;
+            *)
+              ;;
+          esac
+
           # Trovo OAuth (prod)
           if [ -n "${{ secrets.TROVO_CLIENT_ID }}" ]; then
             KEY="TROVO_CLIENT_ID"
@@ -328,17 +342,60 @@ jobs:
           pm2 save
 
           echo "Waiting for healthcheck on :3001 ..."
+          HEALTH_OK=0
           for i in $(seq 1 30); do
             if curl -fsS --max-time 2 http://127.0.0.1:3001/health >/dev/null; then
-              echo "✅ Production deployed"
-              exit 0
+              HEALTH_OK=1
+              break
             fi
             sleep 2
           done
 
-          echo "❌ Healthcheck failed (production). Recent logs:"
-          pm2 logs "$PM2_NAME" --lines 120 --nostream || true
-          exit 1
+          if [ "$HEALTH_OK" != "1" ]; then
+            echo "❌ Healthcheck failed (production). Recent logs:"
+            pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+            exit 1
+          fi
+
+          echo "Checking AI moderation scheduler startup (production)..."
+          LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+          for i in $(seq 1 25); do
+            if [ -f "$LOG_FILE" ] && grep -qE 'ai_moderation\.scheduler\.(enabled|disabled)' "$LOG_FILE"; then
+              break
+            fi
+            sleep 1
+          done
+          if [ ! -f "$LOG_FILE" ]; then
+            echo "❌ PM2 log file not found: $LOG_FILE"
+            pm2 logs "$PM2_NAME" --lines 200 --nostream || true
+            exit 1
+          fi
+
+          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if grep -qE 'ai_moderation\.scheduler\.enabled' "$LOG_FILE"; then
+            echo "✅ AI moderation scheduler started (production)"
+          else
+            case "$AI_ENABLED_NORM" in
+              1|true|yes|on)
+                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but scheduler did NOT start (no ai_moderation.scheduler.enabled in logs)"
+                echo "Recent scheduler logs:"
+                grep -nE 'ai_moderation\.scheduler\.' "$LOG_FILE" | tail -n 30 || true
+                exit 1
+                ;;
+              *)
+                echo "ℹ️ AI moderation is disabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+                ;;
+            esac
+          fi
+
+          if grep -qE 'ai_moderation\.openai\.disabled' "$LOG_FILE"; then
+            echo "⚠️ OpenAI pipeline is disabled/unavailable (production). See logs for reason."
+            grep -nE 'ai_moderation\.openai\.disabled' "$LOG_FILE" | tail -n 5 || true
+          fi
+
+          echo "✅ Production deployed"
+          exit 0
 
   deploy-beta:
     name: Deploy beta on VPS (self-hosted)
@@ -500,6 +557,20 @@ jobs:
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 
+          # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
+          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          case "$AI_ENABLED_NORM" in
+            1|true|yes|on)
+              if ! grep -qE '^OPENAI_API_KEY=.+$' "$APP_DIR/.env"; then
+                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
+                exit 1
+              fi
+              ;;
+            *)
+              ;;
+          esac
+
           # Trovo OAuth (beta; falls back to non-suffixed secrets)
           if [ -n "${{ secrets.TROVO_CLIENT_ID_BETA || secrets.TROVO_CLIENT_ID }}" ]; then
             KEY="TROVO_CLIENT_ID"
@@ -616,16 +687,59 @@ jobs:
           pm2 save
 
           echo "Waiting for healthcheck on :3002 ..."
+          HEALTH_OK=0
           for i in $(seq 1 30); do
             if curl -fsS --max-time 2 http://127.0.0.1:3002/health >/dev/null; then
-              echo "✅ Beta deployed"
-              exit 0
+              HEALTH_OK=1
+              break
             fi
             sleep 2
           done
 
-          echo "❌ Healthcheck failed (beta). Recent logs:"
-          pm2 logs "$PM2_NAME" --lines 120 --nostream || true
-          exit 1
+          if [ "$HEALTH_OK" != "1" ]; then
+            echo "❌ Healthcheck failed (beta). Recent logs:"
+            pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+            exit 1
+          fi
+
+          echo "Checking AI moderation scheduler startup (beta)..."
+          LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+          for i in $(seq 1 25); do
+            if [ -f "$LOG_FILE" ] && grep -qE 'ai_moderation\.scheduler\.(enabled|disabled)' "$LOG_FILE"; then
+              break
+            fi
+            sleep 1
+          done
+          if [ ! -f "$LOG_FILE" ]; then
+            echo "❌ PM2 log file not found: $LOG_FILE"
+            pm2 logs "$PM2_NAME" --lines 200 --nostream || true
+            exit 1
+          fi
+
+          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if grep -qE 'ai_moderation\.scheduler\.enabled' "$LOG_FILE"; then
+            echo "✅ AI moderation scheduler started (beta)"
+          else
+            case "$AI_ENABLED_NORM" in
+              1|true|yes|on)
+                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but scheduler did NOT start (no ai_moderation.scheduler.enabled in logs)"
+                echo "Recent scheduler logs:"
+                grep -nE 'ai_moderation\.scheduler\.' "$LOG_FILE" | tail -n 30 || true
+                exit 1
+                ;;
+              *)
+                echo "ℹ️ AI moderation is disabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+                ;;
+            esac
+          fi
+
+          if grep -qE 'ai_moderation\.openai\.disabled' "$LOG_FILE"; then
+            echo "⚠️ OpenAI pipeline is disabled/unavailable (beta). See logs for reason."
+            grep -nE 'ai_moderation\.openai\.disabled' "$LOG_FILE" | tail -n 5 || true
+          fi
+
+          echo "✅ Beta deployed"
+          exit 0
 
 
