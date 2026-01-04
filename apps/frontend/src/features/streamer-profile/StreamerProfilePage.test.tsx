@@ -190,7 +190,7 @@ describe('StreamerProfilePage (integration)', () => {
     await waitFor(() => expect(walletCalls.length).toBe(1));
   });
 
-  it('search inside channel page: typing triggers debounced public search endpoint', async () => {
+  it('search inside channel page: typing triggers debounced search request', async () => {
     const user = userEvent.setup();
     const slug = 'testchannel';
 
@@ -217,9 +217,12 @@ describe('StreamerProfilePage (integration)', () => {
       await new Promise((r) => setTimeout(r, 600));
     });
 
-    await waitFor(() => expect(searchCalls.length).toBe(1));
-    expect(searchCalls[0]!.searchParams.get('q')).toBe('abc');
-    expect(searchCalls[0]!.searchParams.get('channelId')).toBe('c1');
+    // Note: the page also loads the initial memes list via the same endpoint.
+    // Assert specifically on the debounced search request (q=abc).
+    await waitFor(() => expect(searchCalls.some((u) => u.searchParams.get('q') === 'abc')).toBe(true));
+    const qCall = searchCalls.find((u) => u.searchParams.get('q') === 'abc')!;
+    expect(qCall.searchParams.get('q')).toBe('abc');
+    expect(qCall.searchParams.get('channelId')).toBe('c1');
     expect(await screen.findByRole('button', { name: /meme:searched meme/i })).toBeInTheDocument();
   });
 });
