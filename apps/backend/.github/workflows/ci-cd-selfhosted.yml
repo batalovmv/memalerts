@@ -98,7 +98,7 @@ jobs:
           # We need origin/main to validate that production release is cut from beta HEAD.
           fetch-depth: 0
 
-      - name: Guard: production tag must point to beta (main) HEAD
+      - name: "Guard: production tag must point to beta (main) HEAD"
         shell: bash
         run: |
           set -euo pipefail
