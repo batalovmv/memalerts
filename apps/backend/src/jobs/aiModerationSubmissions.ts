@@ -19,6 +19,14 @@ import { auditLog } from '../utils/auditLogger.js';
 
 type AiModerationDecision = 'low' | 'medium' | 'high';
 
+function tryExtractSha256FromUploadsPath(fileUrlOrPath: string | null | undefined): string | null {
+  const s = String(fileUrlOrPath || '');
+  // Typical local path: /uploads/memes/<sha256>.<ext>
+  // We only trust a strict 64-hex prefix to avoid false positives.
+  const m = s.match(/\/uploads\/memes\/([a-f0-9]{64})(?:\.[a-z0-9]+)?$/i);
+  return m ? m[1]!.toLowerCase() : null;
+}
+
 function clampInt(n: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
   if (n < min) return min;
@@ -240,7 +248,19 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     if (sk !== 'upload' && sk !== 'url') return;
   }
 
-  const fileHash = submission.fileHash ? String(submission.fileHash) : null;
+  // Some historical / URL-imported submissions might have fileHash missing (hashing timeout / older code).
+  // Best-effort: recover it from fileUrlTemp when it looks like /uploads/memes/<sha256>.<ext>.
+  let fileHash = submission.fileHash ? String(submission.fileHash) : null;
+  if (!fileHash) {
+    const recovered = tryExtractSha256FromUploadsPath(submission.fileUrlTemp);
+    if (recovered) {
+      fileHash = recovered;
+      await prisma.memeSubmission.update({
+        where: { id: submissionId },
+        data: { fileHash: recovered },
+      });
+    }
+  }
   const durationMs =
     Number.isFinite(submission.durationMs as any) && (submission.durationMs as number) > 0 ? (submission.durationMs as number) : null;
   if (!fileHash) throw new Error('missing_filehash');
