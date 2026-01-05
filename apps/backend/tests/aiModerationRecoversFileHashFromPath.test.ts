@@ -19,6 +19,34 @@ describe('AI moderation recovers fileHash from fileUrlTemp when missing', () => 
 
     const sha = '5ac5120e3b9ace2f3447444b42250a74a2925bcc75361b7a28f1d238b0191669';
 
+    // MemeAsset.fileHash has a FK to FileHash.hash in this project.
+    await prisma.fileHash.create({
+      data: {
+        hash: sha,
+        filePath: `/uploads/memes/${sha}.webm`,
+        referenceCount: 1,
+        fileSize: BigInt(1),
+        mimeType: 'video/webm',
+      },
+    });
+
+    // Ensure processOneSubmission can reuse global AI metadata without needing the file on disk.
+    await prisma.memeAsset.create({
+      data: {
+        type: 'video',
+        fileUrl: `/uploads/memes/${sha}.webm`,
+        fileHash: sha,
+        durationMs: 1234,
+        poolVisibility: 'visible',
+        aiStatus: 'done',
+        aiAutoDescription: 'GLOBAL_AI_DESC',
+        aiAutoTagNamesJson: ['global_tag_1'] as any,
+        aiSearchText: 'GLOBAL_AI_SEARCH',
+        aiCompletedAt: new Date(),
+      } as any,
+      select: { id: true },
+    });
+
     const submission = await prisma.memeSubmission.create({
       data: {
         channelId: channel.id,
@@ -40,11 +68,12 @@ describe('AI moderation recovers fileHash from fileUrlTemp when missing', () => 
 
     const updated = await prisma.memeSubmission.findUnique({
       where: { id: submission.id },
-      select: { fileHash: true, aiError: true },
+      select: { fileHash: true, aiError: true, aiStatus: true },
     });
 
     expect(updated?.fileHash).toBe(sha);
     expect(updated?.aiError).not.toBe('missing_filehash');
+    expect(updated?.aiStatus).toBe('done');
   });
 });
 
