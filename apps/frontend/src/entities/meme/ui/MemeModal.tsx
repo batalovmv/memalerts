@@ -544,12 +544,13 @@ export default function MemeModal({
                 ) : null}
               </div>
 
+              <div className="mt-2">
+                <AiRegenerateButton meme={currentMeme} show={canRegenerateAi} />
+              </div>
+
               {!hasAi ? (
                 <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
                   {t('memeModal.aiPending', { defaultValue: 'AI: данных пока нет (ещё в обработке или не записалось).' })}
-                  <div className="mt-2">
-                    <AiRegenerateButton meme={currentMeme} show={canRegenerateAi} />
-                  </div>
                 </div>
               ) : null}
 
