@@ -11,6 +11,7 @@ import { channelResolveController } from '../controllers/owner/channelResolveCon
 import { memeAssetModerationController } from '../controllers/owner/memeAssetModerationController.js';
 import { moderatorsController } from '../controllers/owner/moderatorsController.js';
 import { ownerResolveLimiter } from '../middleware/rateLimit.js';
+import { aiStatusController } from '../controllers/owner/aiStatusController.js';
 
 // Owner-only API (role: admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -67,5 +68,8 @@ ownerRoutes.post('/meme-assets/:id/restore', memeAssetModerationController.resto
 ownerRoutes.get('/moderators', moderatorsController.list);
 ownerRoutes.post('/moderators/:userId/grant', moderatorsController.grant);
 ownerRoutes.post('/moderators/:userId/revoke', moderatorsController.revoke);
+
+// AI scheduler status (admin-only)
+ownerRoutes.get('/ai/status', aiStatusController.status);
 
 

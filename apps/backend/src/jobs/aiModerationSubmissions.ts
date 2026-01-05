@@ -20,6 +20,37 @@ import { calculateFileHash } from '../utils/fileHash.js';
 
 type AiModerationDecision = 'low' | 'medium' | 'high';
 
+type AiModerationRunStats = {
+  claimed: number;
+  processed: number;
+  failed: number;
+  durationMs: number;
+};
+
+type AiModerationSchedulerStatus = {
+  enabled: boolean;
+  disabledReason: string | null;
+  openaiApiKeySet: boolean;
+  intervalMs: number | null;
+  lastRunStartedAt: string | null;
+  lastRunCompletedAt: string | null;
+  lastRunStats: AiModerationRunStats | null;
+};
+
+const aiSchedulerStatus: AiModerationSchedulerStatus = {
+  enabled: false,
+  disabledReason: null,
+  openaiApiKeySet: false,
+  intervalMs: null,
+  lastRunStartedAt: null,
+  lastRunCompletedAt: null,
+  lastRunStats: null,
+};
+
+export function getAiModerationSchedulerStatus(): AiModerationSchedulerStatus {
+  return { ...aiSchedulerStatus, lastRunStats: aiSchedulerStatus.lastRunStats ? { ...aiSchedulerStatus.lastRunStats } : null };
+}
+
 function tryExtractSha256FromUploadsPath(fileUrlOrPath: string | null | undefined): string | null {
   const s = String(fileUrlOrPath || '');
   // Typical local path: /uploads/memes/<sha256>.<ext>
@@ -744,6 +775,10 @@ export function startAiModerationScheduler() {
     disabledReason = enabled ? 'enabled_by_default' : 'env_flag_missing';
   }
 
+  aiSchedulerStatus.enabled = enabled;
+  aiSchedulerStatus.disabledReason = enabled ? null : disabledReason;
+  aiSchedulerStatus.openaiApiKeySet = openaiApiKeySet;
+
   if (!enabled) {
     logger.info('ai_moderation.scheduler.disabled', {
       aiModerationEnabled: enabledRaw ?? null,
@@ -756,6 +791,7 @@ export function startAiModerationScheduler() {
   }
 
   const intervalMs = clampInt(parseInt(String(process.env.AI_MODERATION_INTERVAL_MS || ''), 10), 1_000, 60 * 60_000, 30_000);
+  aiSchedulerStatus.intervalMs = intervalMs;
   const initialDelayMs = clampInt(parseInt(String(process.env.AI_MODERATION_INITIAL_DELAY_MS || ''), 10), 0, 60 * 60_000, 15_000);
   const batch = clampInt(parseInt(String(process.env.AI_MODERATION_BATCH || ''), 10), 1, 500, 25);
   const stuckMs = clampInt(parseInt(String(process.env.AI_MODERATION_STUCK_MS || ''), 10), 5_000, 7 * 24 * 60 * 60_000, 10 * 60_000);
@@ -795,6 +831,9 @@ export function startAiModerationScheduler() {
     if (running) return;
     running = true;
     const startedAt = Date.now();
+    aiSchedulerStatus.lastRunStartedAt = new Date(startedAt).toISOString();
+    aiSchedulerStatus.lastRunCompletedAt = null;
+    aiSchedulerStatus.lastRunStats = null;
     let locked = false;
 
     try {
@@ -896,11 +935,27 @@ export function startAiModerationScheduler() {
         autoApproved,
         durationMs: Date.now() - startedAt,
       });
+
+      aiSchedulerStatus.lastRunCompletedAt = new Date().toISOString();
+      aiSchedulerStatus.lastRunStats = {
+        claimed,
+        processed,
+        failed,
+        durationMs: Date.now() - startedAt,
+      };
     } catch (e: any) {
       logger.error('ai_moderation.submissions.failed', {
         errorMessage: e?.message,
         durationMs: Date.now() - startedAt,
       });
+
+      aiSchedulerStatus.lastRunCompletedAt = new Date().toISOString();
+      aiSchedulerStatus.lastRunStats = {
+        claimed: 0,
+        processed: 0,
+        failed: 1,
+        durationMs: Date.now() - startedAt,
+      };
     } finally {
       if (locked) await releaseAdvisoryLock(lockId);
       running = false;

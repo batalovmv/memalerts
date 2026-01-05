@@ -113,3 +113,4 @@ describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant 
 
 
 
+

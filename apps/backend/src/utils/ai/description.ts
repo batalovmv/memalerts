@@ -21,7 +21,7 @@ export function makeAutoDescription(args: { title?: string | null; transcript?: 
   if (parts.length === 0 && !labelHint) {
     // Fallback: use title as a stable, non-empty search hint when no transcript/labels are available.
     const title = String(args.title || '').trim();
-    return title ? title.slice(0, 2000) : null;
+    return title ? title.slice(0, 2000) : 'Видео без распознанной речи.';
   }
   const base = parts.length > 0 ? parts.join('. ') : 'Видео без распознанной речи.';
   return labelHint ? `${base}. Метки: ${labelHint}.` : base;

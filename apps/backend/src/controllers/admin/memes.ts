@@ -11,6 +11,9 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'Channel ID required' });
   }
 
+  const includeAiRaw = String((req.query as any).includeAi ?? '').toLowerCase();
+  const includeAi = includeAiRaw === '1' || includeAiRaw === 'true' || includeAiRaw === 'yes' || includeAiRaw === 'on';
+
   // Perf: add safe pagination + lightweight selection to avoid unbounded payloads/joins.
   // Back-compat: response shape remains an array. Use headers for paging metadata.
   const clampInt = (n: number, min: number, max: number, fallback: number): number => {
@@ -116,12 +119,24 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
       status: true,
       deletedAt: true,
       createdAt: true,
+      ...(includeAi
+        ? {
+            aiAutoDescription: true,
+            aiAutoTagNamesJson: true,
+          }
+        : {}),
       memeAsset: {
         select: {
           id: true,
           type: true,
           fileUrl: true,
           durationMs: true,
+          ...(includeAi
+            ? {
+                aiStatus: true,
+                aiAutoTitle: true,
+              }
+            : {}),
           createdBy: {
             select: {
               id: true,
@@ -154,6 +169,14 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     createdAt: r.createdAt,
     createdBy: r.memeAsset.createdBy,
     approvedBy: r.approvedBy,
+    ...(includeAi
+      ? {
+          aiAutoDescription: (r as any).aiAutoDescription ?? null,
+          aiAutoTagNames: Array.isArray((r as any).aiAutoTagNamesJson) ? ((r as any).aiAutoTagNamesJson as string[]) : null,
+          aiStatus: (r as any).memeAsset?.aiStatus ?? null,
+          aiAutoTitle: (r as any).memeAsset?.aiAutoTitle ?? null,
+        }
+      : {}),
   }));
 
   let hasMore = false;

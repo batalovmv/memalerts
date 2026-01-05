@@ -5,6 +5,7 @@ import { streamerBotController } from '../controllers/streamer/botController.js'
 import { botIntegrationsController } from '../controllers/streamer/botIntegrationsController.js';
 import { streamerEntitlementsController } from '../controllers/streamer/entitlementsController.js';
 import { submissionsControlController } from '../controllers/streamer/submissionsControlController.js';
+import { aiRegenerateController } from '../controllers/streamer/aiRegenerateController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -22,6 +23,7 @@ streamerRoutes.post('/submissions/:id/needs-changes', adminController.needsChang
 streamerRoutes.get('/memes', adminController.getMemes);
 streamerRoutes.patch('/memes/:id', adminController.updateMeme);
 streamerRoutes.delete('/memes/:id', adminController.deleteMeme);
+streamerRoutes.post('/memes/:id/ai/regenerate', aiRegenerateController.regenerate);
 
 // Channel settings + rewards
 streamerRoutes.patch('/channel/settings', adminController.updateChannelSettings);
