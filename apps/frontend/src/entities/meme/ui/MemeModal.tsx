@@ -13,6 +13,7 @@ import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
 
+import { AiRegenerateButton } from './AiRegenerateButton';
 interface MemeModalProps {
   meme: Meme | null;
   isOpen: boolean;
@@ -160,6 +161,7 @@ export default function MemeModal({
   const aiDesc = typeof currentMeme.aiAutoDescription === 'string' ? currentMeme.aiAutoDescription : '';
   const canViewAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
   const hasAi = aiTags.length > 0 || !!aiDesc.trim();
+  const canRegenerateAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
 
   const statusLabel = (() => {
     const s = (currentMeme.status || '').toLowerCase();
@@ -542,6 +544,9 @@ export default function MemeModal({
               {!hasAi ? (
                 <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
                   {t('memeModal.aiPending', { defaultValue: 'AI: данных пока нет (ещё в обработке или не записалось).' })}
+                  <div className="mt-2">
+                    <AiRegenerateButton meme={currentMeme} show={canRegenerateAi} />
+                  </div>
                 </div>
               ) : null}
 

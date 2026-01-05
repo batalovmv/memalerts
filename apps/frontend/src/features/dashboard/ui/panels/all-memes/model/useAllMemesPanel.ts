@@ -1,15 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { Meme } from '@/types';
+import type { Meme, MemeStatus } from '@/types';
 
 import { useDebounce } from '@/hooks/useDebounce';
-import { api } from '@/lib/api';
+import { apiGetWithMeta } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { useAppSelector } from '@/store/hooks';
 
-export type AllMemesSearchScope = 'content' | 'contentAndUploader';
-export type AllMemesSortBy = 'createdAt' | 'priceCoins';
 export type AllMemesSortOrder = 'asc' | 'desc';
+export type AllMemesStatusFilter = 'all' | MemeStatus;
+
+function parseBoolHeader(v: unknown): boolean | null {
+  if (typeof v === 'boolean') return v;
+  if (typeof v !== 'string') return null;
+  const s = v.trim().toLowerCase();
+  if (s === '1' || s === 'true' || s === 'yes') return true;
+  if (s === '0' || s === 'false' || s === 'no') return false;
+  return null;
+}
+
+function parseNumberHeader(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v !== 'string') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; includeFileHash?: boolean }) {
   const { isOpen, channelId, includeFileHash } = params;
@@ -17,9 +32,8 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 250);
-  const [searchScope, setSearchScope] = useState<AllMemesSearchScope>('content');
-  const [filters, setFilters] = useState<{ sortBy: AllMemesSortBy; sortOrder: AllMemesSortOrder }>({
-    sortBy: 'createdAt',
+  const [filters, setFilters] = useState<{ status: AllMemesStatusFilter; sortOrder: AllMemesSortOrder }>({
+    status: 'all',
     sortOrder: 'desc',
   });
 
@@ -29,6 +43,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const limit = 40;
@@ -57,14 +72,11 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
 
   const paramsBase = useMemo(() => {
     const p = new URLSearchParams();
-    p.set('channelId', channelId);
-    // IMPORTANT:
-    // To keep the dashboard "All memes" list identical to the public channel listing,
-    // we MUST use the backend channel listing mode for /channels/memes/search.
-    // That mode reads ChannelMeme (approved + not deleted) and returns the canonical DTO.
-    p.set('sortBy', filters.sortBy);
     p.set('sortOrder', filters.sortOrder);
     p.set('limit', String(limit));
+    const q = debouncedQuery.trim();
+    if (q) p.set('q', q.slice(0, 100));
+    if (filters.status !== 'all') p.set('status', filters.status);
     if (includeFileHash) p.set('includeFileHash', '1');
     // Optional AI enrichment (admin / channel owner only).
     // Backend enforces permissions; UI gates to avoid leaking intent and wasted bytes.
@@ -72,12 +84,13 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
       !!user && (user.role === 'admin' || (user.role === 'streamer' && !!user.channelId && user.channelId === channelId));
     if (canIncludeAi) p.set('includeAi', '1');
     return p;
-  }, [channelId, filters, limit, includeFileHash, user]);
+  }, [channelId, debouncedQuery, filters, limit, includeFileHash, user]);
 
-  const loadPage = async (offset: number) => {
+  const loadPage = async (offset: number, opts?: { includeTotal?: boolean }) => {
     const p = new URLSearchParams(paramsBase);
     p.set('offset', String(offset));
-    return await api.get<Meme[]>(`/channels/memes/search?${p.toString()}`);
+    if (opts?.includeTotal) p.set('includeTotal', '1');
+    return await apiGetWithMeta<Meme[]>(`/streamer/memes?${p.toString()}`);
   };
 
   const reload = useCallback(async () => {
@@ -86,74 +99,28 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     setLoading(true);
     setHasMore(true);
     try {
-      const first = await loadPage(0);
-      setItems(first);
-      setHasMore(first.length === limit);
+      const first = await loadPage(0, { includeTotal: true });
+      setItems(first.data);
+      const hm = parseBoolHeader(first.meta.headers['x-has-more']);
+      setHasMore(hm ?? first.data.length === limit);
+      setTotalCount(parseNumberHeader(first.meta.headers['x-total-count']));
     } catch {
       setItems([]);
       setHasMore(false);
       setError('failed');
+      setTotalCount(null);
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, paramsBase.toString(), limit]);
 
-  const memes = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return items;
-
-    return items.filter((m) => {
-      const title = (m.title || '').toLowerCase();
-      const aiDesc = typeof m.aiAutoDescription === 'string' ? m.aiAutoDescription.toLowerCase() : '';
-      const manualTags = Array.isArray(m.tags) ? m.tags.map((x) => x?.tag?.name).filter((x) => typeof x === 'string') as string[] : [];
-      const aiTags = Array.isArray(m.aiAutoTagNames) ? m.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
-      const tagsJoined = [...manualTags, ...aiTags].join(' ').toLowerCase();
-
-      // NOTE: Description is always AI-generated (aiAutoDescription), but keep title/tags as well.
-      // We intentionally do NOT filter by uploader here to avoid leaking extra data and to match the requirement.
-      return title.includes(q) || tagsJoined.includes(q) || aiDesc.includes(q);
-    });
-  }, [items, debouncedQuery]);
+  const memes = useMemo(() => items, [items]);
 
   // Reset + load first page when panel opens or filters change
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  // When searching, progressively load more pages so search works across the whole library
-  // (instead of only the already-loaded portion).
-  useEffect(() => {
-    if (!isOpen) return;
-    const q = debouncedQuery.trim();
-    if (!q) return;
-    if (!hasMore) return;
-    if (loading || loadingMore) return;
-    if (error) return;
-
-    let cancelled = false;
-    setLoadingMore(true);
-    void (async () => {
-      try {
-        const next = await loadPage(items.length);
-        if (!cancelled) {
-          setItems((prev) => [...prev, ...next]);
-          setHasMore(next.length === limit);
-        }
-      } catch {
-        if (!cancelled) {
-          setHasMore(false);
-          setError('failed');
-        }
-      } finally {
-        if (!cancelled) setLoadingMore(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedQuery, error, hasMore, isOpen, items.length, limit, loading, loadingMore, paramsBase.toString()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll
   useEffect(() => {
@@ -172,8 +139,9 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
             void (async () => {
               try {
                 const next = await loadPage(items.length);
-                setItems((prev) => [...prev, ...next]);
-                setHasMore(next.length === limit);
+                setItems((prev) => [...prev, ...next.data]);
+                const hm = parseBoolHeader(next.meta.headers['x-has-more']);
+                setHasMore(hm ?? next.data.length === limit);
               } catch {
                 setHasMore(false);
                 setError('failed');
@@ -195,8 +163,6 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
   return {
     query,
     setQuery,
-    searchScope,
-    setSearchScope,
     filters,
     setFilters,
     memes,
@@ -207,6 +173,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     loadMoreRef,
     limit,
     reload,
+    totalCount,
   };
 }
 

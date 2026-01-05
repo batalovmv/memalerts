@@ -1,17 +1,16 @@
 import { useTranslation } from 'react-i18next';
 
-import type { AllMemesSearchScope, AllMemesSortBy, AllMemesSortOrder } from '../model/useAllMemesPanel';
+import type { AllMemesSortOrder, AllMemesStatusFilter } from '../model/useAllMemesPanel';
 
 import { HelpTooltip, Input, Select } from '@/shared/ui';
 
 export type AllMemesControlsProps = {
   query: string;
   onQueryChange: (v: string) => void;
-  searchScope: AllMemesSearchScope;
-  onSearchScopeChange: (v: AllMemesSearchScope) => void;
-  sortBy: AllMemesSortBy;
+  status: AllMemesStatusFilter;
+  onStatusChange: (v: AllMemesStatusFilter) => void;
   sortOrder: AllMemesSortOrder;
-  onSortChange: (sortBy: AllMemesSortBy, sortOrder: AllMemesSortOrder) => void;
+  onSortOrderChange: (v: AllMemesSortOrder) => void;
 };
 
 export function AllMemesControls(props: AllMemesControlsProps) {
@@ -31,23 +30,24 @@ export function AllMemesControls(props: AllMemesControlsProps) {
 
         <HelpTooltip content={t('help.memes.sort', { defaultValue: 'Choose how to sort the list.' })}>
           <Select
-            value={`${props.sortBy}:${props.sortOrder}`}
-            onChange={(e) => {
-              const [sortBy, sortOrder] = e.target.value.split(':') as [AllMemesSortBy, AllMemesSortOrder];
-              props.onSortChange(sortBy, sortOrder);
-            }}
+            value={props.sortOrder}
+            onChange={(e) => props.onSortOrderChange(e.target.value as AllMemesSortOrder)}
           >
-            <option value="createdAt:desc">{t('search.sortNewest', 'Newest')}</option>
-            <option value="createdAt:asc">{t('search.sortOldest', 'Oldest')}</option>
-            <option value="priceCoins:desc">{t('search.sortPriceHigh', 'Price: high')}</option>
-            <option value="priceCoins:asc">{t('search.sortPriceLow', 'Price: low')}</option>
+            <option value="desc">{t('search.sortNewest', 'Newest')}</option>
+            <option value="asc">{t('search.sortOldest', 'Oldest')}</option>
           </Select>
         </HelpTooltip>
 
-        <HelpTooltip content={t('help.memes.searchScope', { defaultValue: 'Choose what fields the search uses.' })}>
-          <Select value={props.searchScope} onChange={(e) => props.onSearchScopeChange(e.target.value as AllMemesSearchScope)}>
-            <option value="content">{t('search.scopeContent', 'Search: title')}</option>
-            <option value="contentAndUploader">{t('search.scopeContentUploader', 'Search: title + uploader nick')}</option>
+        <HelpTooltip content={t('help.memes.filterStatus', { defaultValue: 'Filter memes by status.' })}>
+          <Select value={props.status} onChange={(e) => props.onStatusChange(e.target.value as AllMemesStatusFilter)}>
+            <option value="all">{t('search.statusAll', 'All statuses')}</option>
+            <option value="approved">{t('search.statusApproved', 'Approved')}</option>
+            <option value="pending">{t('search.statusPending', 'Pending')}</option>
+            <option value="rejected">{t('search.statusRejected', 'Rejected')}</option>
+            <option value="disabled">{t('search.statusDisabled', 'Disabled')}</option>
+            <option value="deleted">{t('search.statusDeleted', 'Deleted')}</option>
+            <option value="inactive">{t('search.statusInactive', 'Inactive')}</option>
+            <option value="active">{t('search.statusActive', 'Active')}</option>
           </Select>
         </HelpTooltip>
       </div>

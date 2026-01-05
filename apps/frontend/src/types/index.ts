@@ -98,6 +98,11 @@ export interface Meme {
   type: MemeType;
   fileUrl: string;
   fileHash?: string | null;
+  /**
+   * Optional link to the underlying MemeAsset (when backend includes it in streamer/channel DTOs).
+   * Useful for AI cooldown scope and dedup.
+   */
+  memeAssetId?: string | null;
   priceCoins: number;
   durationMs: number;
   status?: MemeStatus;
@@ -110,6 +115,14 @@ export interface Meme {
    */
   aiAutoDescription?: string | null;
   aiAutoTagNames?: string[] | null;
+  /**
+   * Optional AI pipeline status for channel memes (additive; backend may omit).
+   */
+  aiStatus?: SubmissionAiStatus | null;
+  /**
+   * Optional AI title proposal (additive; backend may omit).
+   */
+  aiAutoTitle?: string | null;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: {

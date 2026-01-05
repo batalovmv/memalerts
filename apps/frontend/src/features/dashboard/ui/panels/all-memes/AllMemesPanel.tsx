@@ -39,7 +39,7 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
                 {t('common.loading')}
               </span>
             ) : (
-              `${vm.memes.length}`
+              `${vm.memes.length}${typeof vm.totalCount === 'number' ? ` / ${vm.totalCount}` : ''}`
             )}
           </span>
         }
@@ -50,11 +50,10 @@ export function AllMemesPanel({ isOpen, channelId, autoplayPreview, onClose, onS
         <AllMemesControls
           query={vm.query}
           onQueryChange={vm.setQuery}
-          searchScope={vm.searchScope}
-          onSearchScopeChange={vm.setSearchScope}
-          sortBy={vm.filters.sortBy}
+          status={vm.filters.status}
+          onStatusChange={(status) => vm.setFilters({ ...vm.filters, status })}
           sortOrder={vm.filters.sortOrder}
-          onSortChange={(sortBy, sortOrder) => vm.setFilters({ sortBy, sortOrder })}
+          onSortOrderChange={(sortOrder) => vm.setFilters({ ...vm.filters, sortOrder })}
         />
 
         <AllMemesGrid

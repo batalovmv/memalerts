@@ -7,7 +7,7 @@ import { http, HttpResponse } from 'msw';
 import DashboardPage from './DashboardPage';
 import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
-import { mockChannel, mockChannelMemesSearch, mockMySubmissions, mockStreamerBots, mockStreamerSubmissions } from '@/test/msw/handlers';
+import { mockChannel, mockMySubmissions, mockStreamerBots, mockStreamerMemes, mockStreamerSubmissions } from '@/test/msw/handlers';
 import { makeStreamerUser } from '@/test/fixtures/user';
 import { makeMeme } from '@/test/fixtures/memes';
 
@@ -115,7 +115,7 @@ describe('DashboardPage (integration)', () => {
       mockStreamerBots([]),
       mockStreamerSubmissions({ items: [], total: 0 }),
       mockMySubmissions([]),
-      mockChannelMemesSearch([]),
+      mockStreamerMemes({ items: [], hasMore: false, totalCount: 0 }),
     );
 
     // Avoid mobile scroll side effects.
@@ -136,7 +136,7 @@ describe('DashboardPage (integration)', () => {
     expect(panel).toHaveClass('hidden');
   });
 
-  it('all memes: renders real MemeCard items from /channels/memes/search', async () => {
+  it('all memes: renders real MemeCard items from /streamer/memes', async () => {
     const userEv = userEvent.setup();
     const user = makeStreamerUser();
 
@@ -145,7 +145,11 @@ describe('DashboardPage (integration)', () => {
       mockStreamerBots([]),
       mockStreamerSubmissions({ items: [], total: 0 }),
       mockMySubmissions([]),
-      mockChannelMemesSearch([makeMeme({ id: 'm1', title: 'First meme', channelId: user.channel!.id })]),
+      mockStreamerMemes({
+        items: [makeMeme({ id: 'm1', title: 'First meme', channelId: user.channel!.id })],
+        hasMore: false,
+        totalCount: 1,
+      }),
     );
 
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
@@ -162,7 +166,7 @@ describe('DashboardPage (integration)', () => {
     expect(await screen.findByRole('button', { name: /meme:\s*first meme/i }, { timeout: 3000 })).toBeInTheDocument();
   });
 
-  it('all memes: renders empty state when /channels/memes/search returns []', async () => {
+  it('all memes: renders empty state when /streamer/memes returns []', async () => {
     const userEv = userEvent.setup();
     const user = makeStreamerUser();
     server.use(
@@ -170,7 +174,7 @@ describe('DashboardPage (integration)', () => {
       mockStreamerBots([]),
       mockStreamerSubmissions({ items: [], total: 0 }),
       mockMySubmissions([]),
-      mockChannelMemesSearch([]),
+      mockStreamerMemes({ items: [], hasMore: false, totalCount: 0 }),
     );
 
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
@@ -185,7 +189,7 @@ describe('DashboardPage (integration)', () => {
     expect(await screen.findByText(/no memes/i)).toBeInTheDocument();
   });
 
-  it('all memes: shows error + retry when /channels/memes/search fails, then succeeds after retry', async () => {
+  it('all memes: shows error + retry when /streamer/memes fails, then succeeds after retry', async () => {
     const userEv = userEvent.setup();
     const user = makeStreamerUser();
 
@@ -195,7 +199,7 @@ describe('DashboardPage (integration)', () => {
       mockStreamerBots([]),
       mockStreamerSubmissions({ items: [], total: 0 }),
       mockMySubmissions([]),
-      http.get('*/channels/memes/search*', () => {
+      http.get('*/streamer/memes*', () => {
         calls += 1;
         if (calls === 1) return HttpResponse.json({ error: 'nope' }, { status: 500 });
         return HttpResponse.json([makeMeme({ id: 'm1', title: 'Recovered meme', channelId: user.channel!.id })]);
@@ -228,7 +232,7 @@ describe('DashboardPage (integration)', () => {
       mockStreamerBots([]),
       mockStreamerSubmissions({ items: [], total: 0 }),
       mockMySubmissions([]),
-      http.get('*/channels/memes/search*', ({ request }) => {
+      http.get('*/streamer/memes*', ({ request }) => {
         const url = new URL(request.url);
         const offset = Number(url.searchParams.get('offset') || 0);
         offsets.push(offset);
@@ -242,7 +246,9 @@ describe('DashboardPage (integration)', () => {
         }
 
         if (offset === 40) {
-          return HttpResponse.json([makeMeme({ id: 'm_last', title: 'Meme 40', channelId: user.channel!.id })]);
+          return HttpResponse.json([makeMeme({ id: 'm_last', title: 'Meme 40', channelId: user.channel!.id })], {
+            headers: { 'x-has-more': 'false' },
+          });
         }
 
         return HttpResponse.json([]);

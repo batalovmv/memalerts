@@ -98,6 +98,7 @@ export function AllMemesGrid({
             onClick={() => onSelectMeme(meme)}
             isOwner={true}
             previewMode={autoplayPreview}
+            showAiAnalysis={true}
           />
         </HelpTooltip>
       ))}

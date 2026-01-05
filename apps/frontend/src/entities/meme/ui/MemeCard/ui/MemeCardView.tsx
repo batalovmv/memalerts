@@ -1,8 +1,14 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
 import type { Meme } from '@/types';
 import type { RefObject } from 'react';
 
 import { cn } from '@/shared/lib/cn';
 import { Tooltip } from '@/shared/ui';
+import { useAppSelector } from '@/store/hooks';
+
+import { AiRegenerateButton } from '../../AiRegenerateButton';
 
 export type MemeCardViewProps = {
   meme: Meme;
@@ -12,6 +18,7 @@ export type MemeCardViewProps = {
   isHovered: boolean;
   shouldLoadMedia: boolean;
   videoMuted: boolean;
+  showAiAnalysis?: boolean;
   setCardEl: (node: HTMLElement | null) => void;
   videoRef: RefObject<HTMLVideoElement>;
   onMouseEnter: () => void;
@@ -30,6 +37,7 @@ export function MemeCardView({
   isHovered,
   shouldLoadMedia,
   videoMuted,
+  showAiAnalysis,
   setCardEl,
   videoRef,
   onMouseEnter,
@@ -39,11 +47,19 @@ export function MemeCardView({
   onTouchStart,
   onKeyDown,
 }: MemeCardViewProps) {
+  const { t } = useTranslation();
+  const [aiOpen, setAiOpen] = useState(false);
+  const { user } = useAppSelector((s) => s.auth);
+
   const hasAiFields = 'aiAutoDescription' in meme || 'aiAutoTagNames' in meme;
   const aiTags = Array.isArray(meme.aiAutoTagNames) ? meme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
   const aiDesc = typeof meme.aiAutoDescription === 'string' ? meme.aiAutoDescription : '';
   const aiDescFirstLine = aiDesc.trim().split('\n')[0]?.slice(0, 120) || '';
   const hasAi = aiTags.length > 0 || !!aiDesc.trim();
+
+  const canRegenerateAi =
+    !!user &&
+    (user.role === 'admin' || (user.role === 'streamer' && !!user.channelId && !!meme.channelId && user.channelId === meme.channelId));
 
   return (
     <article
@@ -115,6 +131,79 @@ export function MemeCardView({
           </div>
         ) : null}
       </div>
+
+      {showAiAnalysis && (hasAi || hasAiFields) ? (
+        <div className="px-3 py-3 border-t border-black/5 dark:border-white/10">
+          <button
+            type="button"
+            className="text-xs font-semibold text-gray-700 dark:text-gray-200 hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setAiOpen((v) => !v);
+            }}
+            onMouseDown={(e) => {
+              // Prevent card click audio-unmute handler from triggering when toggling AI.
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            aria-expanded={aiOpen}
+          >
+            {aiOpen
+              ? t('submissions.aiHide', { defaultValue: 'Скрыть AI анализ' })
+              : t('submissions.aiShow', { defaultValue: 'Показать AI анализ' })}
+          </button>
+
+          {aiOpen ? (
+            <div className="mt-2 rounded-lg bg-black/5 dark:bg-white/5 p-3 text-sm text-gray-800 dark:text-gray-200">
+              {!hasAi ? (
+                <div className="text-xs text-gray-700 dark:text-gray-300">
+                  {t('submissions.aiNoDataYet', { defaultValue: 'AI: данных пока нет (в обработке). Обнови через 30–60с.' })}
+                  <div className="mt-2">
+                    <AiRegenerateButton meme={meme} show={canRegenerateAi} />
+                  </div>
+                </div>
+              ) : null}
+
+              {aiDesc.trim() ? (
+                <div className="mt-2">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    {t('submissions.aiAutoDescription', { defaultValue: 'AI описание' })}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{aiDesc}</div>
+                </div>
+              ) : null}
+
+              {aiTags.length > 0 ? (
+                <div className="mt-2">
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    {t('submissions.aiAutoTags', { defaultValue: 'AI теги' })}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {aiTags.slice(0, 20).map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-full bg-primary/15 text-primary-700 dark:text-primary-200 ring-1 ring-primary/20 text-[11px] font-semibold px-2 py-0.5"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                    {aiTags.length > 20 ? (
+                      <span className="inline-flex items-center rounded-full bg-black/5 dark:bg-white/10 text-gray-700 dark:text-gray-200 ring-1 ring-black/10 dark:ring-white/10 text-[11px] font-semibold px-2 py-0.5">
+                        +{aiTags.length - 20}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }

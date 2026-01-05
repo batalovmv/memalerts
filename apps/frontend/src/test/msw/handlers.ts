@@ -429,6 +429,24 @@ export function mockChannelMemesSearch(payload: unknown, onCall?: (url: URL) => 
   });
 }
 
+export function mockStreamerMemes(opts: {
+  items: unknown;
+  hasMore?: boolean;
+  totalCount?: number;
+  onCall?: (url: URL) => void;
+}) {
+  return http.get('*/streamer/memes*', ({ request }) => {
+    const url = new URL(request.url);
+    opts.onCall?.(url);
+    return HttpResponse.json(opts.items, {
+      headers: {
+        ...(typeof opts.hasMore === 'boolean' ? { 'x-has-more': String(opts.hasMore) } : {}),
+        ...(typeof opts.totalCount === 'number' ? { 'x-total-count': String(opts.totalCount) } : {}),
+      },
+    });
+  });
+}
+
 export function mockCreateSubmission(response: Record<string, unknown>, onCall?: () => void) {
   return http.post('*/submissions', async () => {
     onCall?.();
