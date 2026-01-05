@@ -274,12 +274,11 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   const fileUrl = submission.fileUrlTemp ? String(submission.fileUrlTemp) : '';
   const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads');
   let localPath: string | null = null;
+  let localFileExists = false;
   if (fileUrl.startsWith('/uploads/')) {
     const rel = fileUrl.replace(/^\/uploads\//, '');
     localPath = validatePathWithinDirectory(rel, uploadsRoot);
-    if (!fs.existsSync(localPath)) {
-      throw new Error('missing_file_on_disk');
-    }
+    localFileExists = fs.existsSync(localPath);
   }
 
   // Some historical / URL-imported submissions might have fileHash missing (hashing timeout / older code).
@@ -297,6 +296,9 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   }
   // If still missing and we have a local file, compute hash now (this makes AI resilient to upload-time hash timeouts).
   if (!fileHash && localPath) {
+    if (!localFileExists) {
+      throw new Error('missing_file_on_disk');
+    }
     const hashTimeoutMs = clampInt(
       parseInt(String(process.env.AI_FILEHASH_TIMEOUT_MS || ''), 10),
       5_000,
@@ -360,6 +362,12 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     }
 
     return;
+  }
+
+  // If the submission points at a local /uploads/* path but the file is missing on disk,
+  // fail and let the scheduler retry. (But dedup above must still work even if the file is gone.)
+  if (fileUrl.startsWith('/uploads/') && localPath && !localFileExists) {
+    throw new Error('missing_file_on_disk');
   }
 
   // Try “real” AI pipeline when possible; otherwise fall back to deterministic keyword heuristic.

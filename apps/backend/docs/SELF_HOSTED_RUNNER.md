@@ -1,81 +1,81 @@
-# Self-hosted runner (VPS) — чтобы почти не тратить GitHub minutes
+# Self-hosted runner (VPS) — to spend almost no GitHub minutes
 
-Цель: перенести деплой (и при желании CI) на **self-hosted runner** на VPS, чтобы GitHub Actions выполнялись на вашей машине и **не списывали GitHub minutes**.
+Goal: move deployment (and optionally CI) to a **self-hosted runner** on your VPS, so GitHub Actions runs on your machine and **does not consume GitHub minutes**.
 
-В репозитории для этого есть workflow: `.github/workflows/ci-cd-selfhosted.yml`.
+This repo includes a workflow for that: `.github/workflows/ci-cd-selfhosted.yml`.
 
-## 1) Подготовка VPS (один раз)
+## 1) Prepare the VPS (one-time)
 
-- Убедитесь, что есть директории:
+- Make sure these directories exist:
   - `/opt/memalerts-backend` (production)
   - `/opt/memalerts-backend-beta` (beta)
-- В каждой директории должен быть свой `.env`:
-  - production: cookie `token`, **свой** `JWT_SECRET`
-  - beta: cookie `token_beta`, **другой** `JWT_SECRET` (изоляция окружений)
+- Each directory must have its own `.env`:
+  - production: cookie `token`, **its own** `JWT_SECRET`
+  - beta: cookie `token_beta`, a **different** `JWT_SECRET` (environment isolation)
 
-Важно: workflow **не синхронизирует `.env`** (он исключён из `rsync`). На VPS `.env` должен существовать заранее.
+Important: the workflow **does not sync `.env`** (it’s excluded from `rsync`). The `.env` must already exist on the VPS.
 
-Также на VPS должны быть установлены:
+The VPS must also have installed:
 
-- `node` (workflow использует Node **20**)
+- `node` (the workflow uses Node **20**)
 - `pnpm`
 - `pm2`
 - `rsync`
-- `docker` (тесты в workflow поднимают `postgres:16` как service)
+- `docker` (workflow tests start `postgres:16` as a service)
 
-И runner-пользователь должен уметь запускать Docker без `sudo` (обычно: добавить в группу `docker`).
+And the runner user must be able to run Docker without `sudo` (typically: add the user to the `docker` group).
 
-## 2) Установка GitHub Actions Runner на VPS
+## 2) Install GitHub Actions Runner on the VPS
 
-Делайте это на VPS под пользователем `deploy` (или другим, у которого есть доступ к `/opt/*`).
+Do this on the VPS as user `deploy` (or another user that has access to `/opt/*`).
 
-1) В GitHub: **Settings → Actions → Runners → New self-hosted runner**  
-Выберите Linux x64 и следуйте инструкциям GitHub (они дадут актуальную ссылку/токен).
+1) In GitHub: **Settings → Actions → Runners → New self-hosted runner**  
+Choose Linux x64 and follow GitHub’s instructions (they will provide the current download URL/token).
 
-2) Важно про лейблы  
-Workflow ожидает runner с лейблами:
+2) Labels matter  
+The workflow expects a runner with these labels:
 
 - `self-hosted`
 - `linux`
 - `x64`
 - `memalerts-vps`
 
-Лейбл `memalerts-vps` добавляется при конфигурации runner (флаг `--labels memalerts-vps`).
+The `memalerts-vps` label is added during runner configuration (flag `--labels memalerts-vps`).
 
-## 3) Права (rsync + /opt)
+## 3) Permissions (`rsync` + `/opt`)
 
-`ci-cd-selfhosted.yml` синхронизирует код в `/opt/...` через `sudo rsync`.
+`ci-cd-selfhosted.yml` syncs code into `/opt/...` via `sudo rsync`.
 
-Нужно, чтобы runner-пользователь мог выполнять `sudo` без пароля для `rsync` (или для всех команд, если вы уже так настроили deploy):
+The runner user must be able to run `sudo` without a password for `rsync` (or for all commands, if you already configured deploy that way):
 
 ```bash
 sudo visudo -f /etc/sudoers.d/deploy
 ```
 
-Добавьте строку (пример):
+Add a line (example):
 
 ```text
 deploy ALL=(ALL) NOPASSWD: /usr/bin/rsync
 ```
 
-Если планируете пользоваться опцией `[nginx-full]` (см. ниже), дополнительно понадобится разрешить запуск `.github/scripts/setup-nginx-full.sh` через `sudo`.
+If you plan to use the `[nginx-full]` option (see below), you’ll also need to allow running `.github/scripts/setup-nginx-full.sh` via `sudo`.
 
-Альтернатива “простая, но широкая” (в репозитории есть скрипт `.github/scripts/configure-sudo.sh`) — разрешить `NOPASSWD: ALL` для `deploy`. Это удобнее, но **менее безопасно**.
+A simpler-but-broader alternative (the repo has `.github/scripts/configure-sudo.sh`) is to allow `NOPASSWD: ALL` for `deploy`. It’s more convenient, but **less secure**.
 
-## 4) Что теперь будет происходить
+## 4) What will happen now
 
-- **pull request в `main`** → workflow прогонит **tests на self-hosted runner** (Docker + Postgres)
-- **push в `main`** → workflow прогонит tests и затем деплоит **beta** (порт 3002)
-  - деплой **может быть пропущен**, если в пуше нет “релевантных” изменений (см. `ci-cd-selfhosted.yml`)
-  - **форсить деплой** можно:
-    - вручную через `workflow_dispatch` с `force_deploy=true`
-    - или коммит‑сообщением с маркером `deploy` / `[deploy]`
-- **tag `prod-*`** → workflow прогонит tests и затем деплоит **production** (порт 3001)
-  - есть guard: **prod tag обязан указывать на текущий `origin/main` HEAD** (чтобы не деплоить “старее, чем beta”)
+- **pull request into `main`** → the workflow runs **tests on the self-hosted runner** (Docker + Postgres)
+- **push to `main`** → the workflow runs tests and then deploys **beta** (port 3002)
+  - the deploy **may be skipped** if there are no “relevant” changes in the push (see `ci-cd-selfhosted.yml`)
+  - you can **force a deploy**:
+    - manually via `workflow_dispatch` with `force_deploy=true`
+    - or by including `deploy` / `[deploy]` in the commit message
+- **tag `prod-*`** → the workflow runs tests and then deploys **production** (port 3001)
+  - there is a guard: the **prod tag must point to the current `origin/main` HEAD** (so you don’t deploy something “older than beta”)
 
-### Как зарелизить production (через тег)
+### How to release production (via tag)
 
-На локальной машине:
+On your local machine:
 
 ```bash
 git switch main && git pull
@@ -83,14 +83,14 @@ git tag prod-2026-01-05
 git push origin prod-2026-01-05
 ```
 
-### Опционально: “nuclear” nginx
+### Optional: “nuclear” nginx
 
-Если в `head_commit.message` есть маркер `[nginx-full]`, beta‑деплой выполнит:
+If `head_commit.message` contains the `[nginx-full]` marker, the beta deploy will run:
 
 - `sudo bash .github/scripts/setup-nginx-full.sh <domain> 3001 3002`
 
-Это **опасная операция** (переписывает nginx конфиги). Использовать только когда осознанно хотите полностью перестроить nginx на VPS.
+This is a **dangerous operation** (it rewrites nginx configs). Use it only when you explicitly want to fully rebuild nginx on the VPS.
 
-Примечание: в текущей конфигурации единственный workflow — `ci-cd-selfhosted.yml`, поэтому и PR checks, и деплой — на self-hosted runner.
+Note: in the current setup there is only one workflow — `ci-cd-selfhosted.yml` — so both PR checks and deployment run on the self-hosted runner.
 
 

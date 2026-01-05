@@ -1,71 +1,71 @@
-## Тесты MemAlerts Backend (что именно мы проверяем)
+## MemAlerts Backend Tests (what exactly we verify)
 
-Этот проект чаще “ломается” не из‑за мелких утилит, а из‑за **инвариантов безопасности / маршрутизации**. Поэтому тесты в первую очередь фиксируют:
+This project tends to “break” not because of small utilities, but because of **security / routing invariants**. That’s why the tests primarily lock down:
 
-- **beta/prod изоляцию**: домены/origins, выбор cookie (`token` vs `token_beta`), поведение auth на beta-домене.
-- **CSRF границы**: CSRF включён для `POST/PUT/PATCH/DELETE`, но есть строгие исключения:
+- **beta/prod isolation**: domains/origins, cookie selection (`token` vs `token_beta`), auth behavior on the beta domain.
+- **CSRF boundaries**: CSRF is enabled for `POST/PUT/PATCH/DELETE`, but there are strict exceptions:
   - `/internal/*` (internal relay, localhost-only)
-  - `/webhooks/*` (Twitch EventSub и др. вебхуки — HMAC вместо CSRF)
+  - `/webhooks/*` (Twitch EventSub and other webhooks — HMAC instead of CSRF)
   - `/health`
   - `/auth/twitch*` (backward-compatible auth callback flow)
   - `/public/*`
-  - нюанс: в production допускается `POST /auth/logout` без `Origin`, **только если** `Sec-Fetch-Site` = `same-site|same-origin` (см. `src/middleware/csrf.ts`).
-- **internal relay**: `/internal/*` доступен только с localhost и требует заголовок `x-memalerts-internal`.
-- **Socket.IO комнаты/права**: `join:overlay`, `join:channel`, `join:user`, а также инвариант приватности — `wallet:updated` **только** в `user:{id}`.
+  - nuance: in production, `POST /auth/logout` is allowed without `Origin` **only if** `Sec-Fetch-Site` = `same-site|same-origin` (see `src/middleware/csrf.ts`).
+- **internal relay**: `/internal/*` is accessible only from localhost and requires the `x-memalerts-internal` header.
+- **Socket.IO rooms/permissions**: `join:overlay`, `join:channel`, `join:user`, plus a privacy invariant — `wallet:updated` **only** to `user:{id}`.
 
-Большинство файлов в `tests/*.test.ts` как раз названы по этим инвариантам (CSRF, internal relay, socket join, beta gating и т.д.).
+Most files in `tests/*.test.ts` are named after these invariants (CSRF, internal relay, socket join, beta gating, etc.).
 
-## Быстрый запуск тестов локально
+## Quick local test run
 
-Тесты **не используют** ваш обычный `DATABASE_URL`. Для безопасности нужен отдельный base-url:
+Tests **do not use** your regular `DATABASE_URL`. For safety, you must provide a separate base URL:
 
-- `TEST_DATABASE_URL_BASE` — базовый URL к тестовой БД (без `?schema=`).
+- `TEST_DATABASE_URL_BASE` — base URL for the test DB (without `?schema=`).
 
-Поднять Postgres можно через `docker-compose.test.yml` (порт **5433**):
+You can start Postgres via `docker-compose.test.yml` (port **5433**):
 
 ```bash
 docker compose -f docker-compose.test.yml up -d
 ```
 
-Запуск тестов:
+Run tests:
 
 ```bash
 TEST_DATABASE_URL_BASE="postgresql://postgres:postgres@localhost:5433/memalerts_test" pnpm test
 ```
 
-Watch-режим:
+Watch mode:
 
 ```bash
 TEST_DATABASE_URL_BASE="postgresql://postgres:postgres@localhost:5433/memalerts_test" pnpm test:watch
 ```
 
-## Как устроена тестовая БД
+## How the test DB works
 
-- Тесты используют **реальный Postgres**.
-- На каждый прогон создаётся **уникальная schema** (`TEST_SCHEMA=test_<uuid>`), затем выполняется:
-  - `pnpm prisma db push --accept-data-loss` по текущему `prisma/schema.prisma` (см. `tests/globalSetup.ts`).
-- После прогона schema удаляется (`DROP SCHEMA ... CASCADE`).
+- Tests use **real Postgres**.
+- For each run, a **unique schema** is created (`TEST_SCHEMA=test_<uuid>`), then the following is executed:
+  - `pnpm prisma db push --accept-data-loss` using the current `prisma/schema.prisma` (see `tests/globalSetup.ts`).
+- After the run, the schema is dropped (`DROP SCHEMA ... CASCADE`).
 
-Это даёт изоляцию без необходимости пересоздавать весь контейнер.
+This provides isolation without having to recreate the whole container.
 
-Почему `db push`, а не `migrate`:
+Why `db push` instead of `migrate`:
 
-- История миграций в этом репозитории **не гарантированно “replayable с нуля”** (есть миграции, рассчитанные на pre-existing tables), а для тестов нужна детерминированная сборка схемы “из текущего Prisma schema”.
+- The migration history in this repo is **not guaranteed to be “replayable from scratch”** (some migrations assume pre-existing tables), while tests need a deterministic schema built “from the current Prisma schema”.
 
-Полезно для отладки:
+Useful for debugging:
 
-- **`TEST_SCHEMA`** можно задать вручную, чтобы переиспользовать одну и ту же schema на несколько прогонов.
-- `vitest.config.ts` автоматически генерирует `TEST_SCHEMA` и подставляет `process.env.DATABASE_URL` с `?schema=...`.
+- **`TEST_SCHEMA`** can be set manually to reuse the same schema across multiple runs.
+- `vitest.config.ts` automatically generates `TEST_SCHEMA` and sets `process.env.DATABASE_URL` with `?schema=...`.
 
 ## CI (self-hosted runner)
 
-Тесты гоняются в self-hosted workflow: `.github/workflows/ci-cd-selfhosted.yml`.
+Tests run in the self-hosted workflow: `.github/workflows/ci-cd-selfhosted.yml`.
 
-- Job `test` поднимает Postgres как service (порт **5433**) и выставляет:
+- The `test` job starts Postgres as a service (port **5433**) and sets:
   - `NODE_ENV=test`
   - `TEST_DATABASE_URL_BASE=postgresql://postgres:postgres@localhost:5433/memalerts_test`
-- Затем выполняется `pnpm test:ci` (это `vitest run`).
+- Then it runs `pnpm test:ci` (which is `vitest run`).
 
-Деплой beta/prod в этом workflow зависит от успешного прохождения тестов.
+Beta/prod deployment in this workflow depends on tests passing successfully.
 
 

@@ -1,185 +1,185 @@
-# MemAlerts Backend — боты и чат‑интеграции (Twitch / YouTube / VKVideo / Trovo / Kick)
+# MemAlerts Backend — bots and chat integrations (Twitch / YouTube / VKVideo / Trovo / Kick)
 
-Этот документ — “шпаргалка по ботам” для разработчиков: **как включать**, **как работает**, **как запускать воркеры**, **какие ENV нужны**, **как дебажить**.
+This document is a developer cheat-sheet for bots: **how to enable**, **how it works**, **how to run workers**, **which ENV vars are required**, and **how to debug**.
 
-## TL;DR (главное)
+## TL;DR (the essentials)
 
-- **Есть два слоя:**
-  - **интеграции/подписки** (какие каналы слушаем, где брать сообщения) — включаются стримером через `PATCH /streamer/bots/:provider`, сохраняются в БД;
-  - **sender identity** (от чьего имени бот пишет в чат) — либо **global default bot** (настраивает owner/admin), либо **per‑channel custom bot** (override для канала, требует entitlement `custom_bot`).
-- **Воркеры — отдельные процессы** (кроме legacy “inline credits bot” в API):
+- **There are two layers:**
+  - **integrations/subscriptions** (which channels we listen to, where messages come from) — enabled by the streamer via `PATCH /streamer/bots/:provider`, persisted in the DB;
+  - **sender identity** (which account the bot uses to *send* messages) — either a **global default bot** (configured by owner/admin) or a **per-channel custom bot** (channel override; requires the `custom_bot` entitlement).
+- **Workers are separate processes** (except the legacy “inline credits bot” inside the API):
   - Twitch runner: `pnpm build && pnpm start:chatbot`
   - YouTube runner: `pnpm build && pnpm start:youtube-chatbot`
   - VKVideo runner: `pnpm build && pnpm start:vkvideo-chatbot`
   - Trovo runner: `pnpm build && pnpm start:trovo-chatbot`
   - Kick runner: `pnpm build && pnpm start:kick-chatbot`
-- **Ключевой паттерн**: API пишет состояние в БД (togg’лы/подписки/команды/outbox), воркеры **периодически синкаются** с БД и исполняют.
-- **Multi‑instance (prod+beta на одном VPS)**: воркеры шлют “credits chatter” события через internal relay на все инстансы из `CHATBOT_BACKEND_BASE_URLS`.
+- **Core pattern**: the API writes state to the DB (toggles/subscriptions/commands/outbox); workers **periodically sync** from the DB and execute.
+- **Multi-instance (prod + beta on the same VPS)**: workers send “credits chatter” events via internal relay to all instances listed in `CHATBOT_BACKEND_BASE_URLS`.
 
-## 1) API: управление из панели стримера
+## 1) API: streamer dashboard controls
 
-### 1.1 Тумблеры интеграций (provider gates + подписки)
+### 1.1 Integration toggles (provider gates + subscriptions)
 
-- `GET /streamer/bots` → список `{ provider, enabled, updatedAt }` для: `twitch | vkvideo | youtube | trovo | kick`
+- `GET /streamer/bots` → returns `{ provider, enabled, updatedAt }` for: `twitch | vkvideo | youtube | trovo | kick`
 - `PATCH /streamer/bots/:provider` body `{ enabled: boolean, ...providerSpecific }`
-  - **twitch**: требует `Channel.twitchChannelId` (канал привязан к Twitch)
-  - **youtube**: требует привязанный YouTube у пользователя и успешное определение `youtubeChannelId` (возможен `412 YOUTUBE_RELINK_REQUIRED`)
-  - **vkvideo**: требует `vkvideoChannelUrl` (может быть автодетект через VKVideo `current_user`, но при нескольких каналах нужно передать явно)
-  - **trovo**: нужен `trovoChannelId` (можно передать явно или дать API попытаться определить по привязке)
-  - **kick**: нужен `kickChannelId` (можно передать явно или дать API попытаться определить по привязке); при включении API также убеждается, что есть Kick Events subscription на `chat.message.sent`
-- `GET /streamer/bots/vkvideo/candidates` → `{ items: [{ url, vkvideoChannelId }] }` (помогает фронту автозаполнить URL для VKVideo)
+  - **twitch**: requires `Channel.twitchChannelId` (channel is linked to Twitch)
+  - **youtube**: requires the user’s YouTube account to be linked and successful resolution of `youtubeChannelId` (may return `412 YOUTUBE_RELINK_REQUIRED`)
+  - **vkvideo**: requires `vkvideoChannelUrl` (can be auto-detected via VKVideo `current_user`, but when multiple channels exist it must be passed explicitly)
+  - **trovo**: needs `trovoChannelId` (can be passed explicitly or the API can try to infer it from the linked account)
+  - **kick**: needs `kickChannelId` (can be passed explicitly or inferred); when enabling, the API also ensures there is a Kick Events subscription for `chat.message.sent`
+- `GET /streamer/bots/vkvideo/candidates` → `{ items: [{ url, vkvideoChannelId }] }` (helps the frontend auto-fill VKVideo URL)
 
-### 1.2 Custom bot sender (per‑channel override, требует entitlement `custom_bot`)
+### 1.2 Custom bot sender (per-channel override; requires entitlement `custom_bot`)
 
-Эти эндпоинты настраивают **каким аккаунтом** бот будет **писать** в чат для конкретного канала (override).
+These endpoints configure **which account** the bot uses to **send** chat messages for a specific channel (override).
 
-- `GET /streamer/bots/:provider/bot` → статус override (и `lockedBySubscription`)
-- `GET /streamer/bots/:provider/bot/link` → старт OAuth линковки bot‑аккаунта для этого канала
-- `DELETE /streamer/bots/:provider/bot` → убрать override (вернуться к глобальному default bot)
+- `GET /streamer/bots/:provider/bot` → override status (and `lockedBySubscription`)
+- `GET /streamer/bots/:provider/bot/link` → start OAuth linking for a bot account for this channel
+- `DELETE /streamer/bots/:provider/bot` → remove override (go back to the global default bot)
 
-Провайдеры: `twitch | youtube | vkvideo | trovo | kick`.
+Providers: `twitch | youtube | vkvideo | trovo | kick`.
 
-Важно:
-- Линковка bot‑аккаунтов **не должна** “отлинковываться” через `DELETE /auth/accounts/:externalAccountId` — это заблокировано, API вернёт 409 с подсказкой нужного endpoint.
+Important:
+- Linking bot accounts **must not** be “unlinked” via `DELETE /auth/accounts/:externalAccountId` — this is blocked; the API returns 409 with guidance to use the correct endpoint.
 
-### 1.3 Команды и “say” (API → outbox)
+### 1.3 Commands and “say” (API → outbox)
 
-#### Команды (CRUD)
+#### Commands (CRUD)
 
-Команды хранятся в `ChatBotCommand` и используются разными воркерами.
+Commands are stored in `ChatBotCommand` and are used by multiple workers.
 
 - `GET /streamer/bot/commands`
 - `POST /streamer/bot/commands`
 - `PATCH /streamer/bot/commands/:id`
 - `DELETE /streamer/bot/commands/:id`
 
-Поля (то, что реально поддерживает API сейчас):
+Fields (what the API actually supports right now):
 - `trigger`, `response`, `enabled`, `onlyWhenLive`
-- `allowedUsers` — список twitch‑логинов (lowercase, можно с `@`)
-- `allowedRoles` — роли Twitch: `vip | moderator | subscriber | follower` (но `follower` пока **не резолвится** из IRC tags)
-- `vkvideoAllowedRoleIds` — VKVideo role ids (используются VKVideo раннером)
+- `allowedUsers` — list of Twitch logins (lowercase; may include `@`)
+- `allowedRoles` — Twitch roles: `vip | moderator | subscriber | follower` (but `follower` is **not resolved** from IRC tags yet)
+- `vkvideoAllowedRoleIds` — VKVideo role ids (used by the VKVideo runner)
 
-Платформенные нюансы:
-- Twitch: **работает** `allowedUsers` и роли `vip/moderator/subscriber` (см. ограничение про `follower`).
-- VKVideo: **работает** `allowedUsers` и `vkvideoAllowedRoleIds` (через VKVideo roles API, либо через `VKVIDEO_ROLE_STUBS_JSON`).
-- Trovo/Kick: сейчас **по сути работает только** `allowedUsers` (allowedRoles сохраняются, но не являются полноценной платформенной моделью ролей).
-- YouTube: на текущий момент role‑gating через этот API не является стабильным контрактом; ориентируйтесь на `trigger/response/onlyWhenLive`.
+Platform nuances:
+- Twitch: `allowedUsers` and roles `vip/moderator/subscriber` **work** (see limitation about `follower`).
+- VKVideo: `allowedUsers` and `vkvideoAllowedRoleIds` **work** (via VKVideo roles API, or via `VKVIDEO_ROLE_STUBS_JSON`).
+- Trovo/Kick: currently **only** `allowedUsers` is effectively enforced (`allowedRoles` are stored but are not a complete platform role model).
+- YouTube: role-gating via this API is not a stable contract yet; rely on `trigger/response/onlyWhenLive`.
 
-#### “Сказать сообщение в чат” (outbox)
+#### “Say a message in chat” (outbox)
 
 `POST /streamer/bot/say` body:
-- `{ message: string }` — по умолчанию отправит в единственный включённый чат‑провайдер (или Twitch для back‑compat)
+- `{ message: string }` — by default sends to the only enabled chat provider (or Twitch for backwards compatibility)
 - `{ provider: "twitch"|"youtube"|"vkvideo"|"trovo"|"kick", message: string }`
 
-Важно:
-- Если включено **несколько** ботов, `provider` **нужно** передать явно — иначе API вернёт 400 с `enabledProviders`.
-- Статус доставки можно проверить: `GET /streamer/bot/outbox/:provider/:id`.
+Important:
+- If **multiple** bots are enabled, you **must** pass `provider` explicitly — otherwise the API returns 400 with `enabledProviders`.
+- You can check delivery status via `GET /streamer/bot/outbox/:provider/:id`.
 
-### 1.4 Bot settings (смежные фичи)
+### 1.4 Bot settings (adjacent features)
 
 - **Follow greetings (Twitch EventSub)**:
   - `GET /streamer/bot/follow-greetings`
   - `POST /streamer/bot/follow-greetings/enable|disable`
   - `PATCH /streamer/bot/follow-greetings`
-- **Smart command: “время стрима”** (общая конфигурация на `Channel.streamDurationCommandJson`):
+- **Smart command: “stream duration”** (shared config stored in `Channel.streamDurationCommandJson`):
   - `GET /streamer/bot/stream-duration`
   - `PATCH /streamer/bot/stream-duration`
 
-### 1.5 Legacy endpoints (остались для совместимости)
+### 1.5 Legacy endpoints (kept for compatibility)
 
-- `POST /streamer/bot/enable|disable` — старый Twitch‑тумблер через `ChatBotSubscription`.
-  - В новых интеграциях предпочитайте `PATCH /streamer/bots/twitch`.
+- `POST /streamer/bot/enable|disable` — legacy Twitch toggle via `ChatBotSubscription`.
+  - For new integrations, prefer `PATCH /streamer/bots/twitch`.
 
-## 2) Owner/Admin: global default bot (общий sender для всех каналов)
+## 2) Owner/Admin: global default bot (shared sender for all channels)
 
-Это настройка “глобального” bot‑аккаунта, от имени которого воркеры **пишут** в чат, если нет per‑channel override.
+This configures the “global” bot account that workers use to **send** chat messages when there is no per-channel override.
 
-Эндпоинты (admin‑only):
+Endpoints (admin-only):
 - `GET /owner/bots/{provider}/default/status`
 - `GET /owner/bots/{provider}/default/link`
 - `DELETE /owner/bots/{provider}/default`
 
 `provider`: `twitch | youtube | vkvideo | trovo | kick`.
 
-Примечание: у YouTube также остаётся back‑compat fallback через ENV `YOUTUBE_BOT_REFRESH_TOKEN` (если DB‑credential не настроен).
+Note: for YouTube there is still a backwards-compat fallback via ENV `YOUTUBE_BOT_REFRESH_TOKEN` (if the DB credential is not configured).
 
-## 3) Воркеры (runner’ы) и их ENV
+## 3) Workers (runners) and their ENV
 
-Общее для всех воркеров:
-- `DATABASE_URL` (через Prisma)
-- `CHATBOT_BACKEND_BASE_URLS` — список baseUrl’ов инстансов для internal relay, например `http://127.0.0.1:3001,http://127.0.0.1:3002`
-  - воркеры постят credits chatter в `POST /internal/credits/chatter` с заголовком `x-memalerts-internal: credits-event`
+Common for all workers:
+- `DATABASE_URL` (via Prisma)
+- `CHATBOT_BACKEND_BASE_URLS` — list of instance base URLs for internal relay, e.g. `http://127.0.0.1:3001,http://127.0.0.1:3002`
+  - workers post credits chatter to `POST /internal/credits/chatter` with header `x-memalerts-internal: credits-event`
 
 ### 3.1 Twitch runner (global)
 
-- **Файл**: `src/bots/chatbotRunner.ts` (dist: `dist/bots/chatbotRunner.js`)
-- **Запуск**: `pnpm build && pnpm start:chatbot`
-- **Что делает**:
-  - подключается к Twitch IRC (`tmi.js`)
-  - join/part по `ChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=twitch)`)
-  - отвечает на `ChatBotCommand` + smart “время стрима”
-  - доставляет `ChatBotOutboxMessage` (API складывает через `/streamer/bot/say`)
-  - шлёт credits chatter в internal relay
-  - поддерживает per‑channel sender override: `TwitchBotIntegration` (если канал entitled `custom_bot`)
-- **ENV (минимум)**:
+- **File**: `src/bots/chatbotRunner.ts` (dist: `dist/bots/chatbotRunner.js`)
+- **Run**: `pnpm build && pnpm start:chatbot`
+- **What it does**:
+  - connects to Twitch IRC (`tmi.js`)
+  - join/part based on `ChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=twitch)`)
+  - responds to `ChatBotCommand` + the smart “stream duration” command
+  - delivers `ChatBotOutboxMessage` (the API enqueues via `/streamer/bot/say`)
+  - sends credits chatter via internal relay
+  - supports per-channel sender override via `TwitchBotIntegration` (only if the channel is entitled `custom_bot`)
+- **ENV (minimum)**:
   - `CHATBOT_BACKEND_BASE_URLS`
   - `CHAT_BOT_LOGIN`
-  - для legacy fallback токена (если global default bot не настроен в БД):
-    - `CHAT_BOT_USER_ID` **или** `CHAT_BOT_TWITCH_USER_ID` (или поиск по `CHAT_BOT_LOGIN` в БД)
-- **Таймеры**:
+  - legacy fallback for sender token (if global default bot is not configured in DB):
+    - `CHAT_BOT_USER_ID` **or** `CHAT_BOT_TWITCH_USER_ID` (or lookup by `CHAT_BOT_LOGIN` in DB)
+- **Timers**:
   - `CHATBOT_SYNC_SECONDS`, `CHATBOT_OUTBOX_POLL_MS`, `CHATBOT_COMMANDS_REFRESH_SECONDS`
 
 ### 3.2 YouTube runner
 
-- **Файл**: `src/bots/youtubeChatbotRunner.ts`
-- **Запуск**: `pnpm build && pnpm start:youtube-chatbot`
-- **Что делает**:
-  - синкает `YouTubeChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=youtube)`)
-  - проверяет LIVE (live video + activeLiveChatId), поллит live chat messages
-  - шлёт credits chatter
-  - отвечает на команды + smart “время стрима”
-  - доставляет `YouTubeChatBotOutboxMessage`
-  - пишет в чат либо глобальным ботом, либо per‑channel override (YouTubeBotIntegration, только если `custom_bot`)
-- **ENV (минимум)**:
+- **File**: `src/bots/youtubeChatbotRunner.ts`
+- **Run**: `pnpm build && pnpm start:youtube-chatbot`
+- **What it does**:
+  - syncs `YouTubeChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=youtube)`)
+  - checks LIVE (live video + `activeLiveChatId`) and polls live chat messages
+  - sends credits chatter
+  - responds to commands + the smart “stream duration” command
+  - delivers `YouTubeChatBotOutboxMessage`
+  - sends chat messages either via global default bot, or per-channel override (`YouTubeBotIntegration`, only if `custom_bot`)
+- **ENV (minimum)**:
   - `CHATBOT_BACKEND_BASE_URLS`
-  - YouTube OAuth для линковок/токенов в БД: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_CALLBACK_URL`
-  - отправка сообщений: рекомендуется настроить global default bot через `/owner/bots/youtube/default/link`
+  - YouTube OAuth for linking / DB tokens: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_CALLBACK_URL`
+  - sending messages: recommended to configure the global default bot via `/owner/bots/youtube/default/link`
     - fallback: `YOUTUBE_BOT_REFRESH_TOKEN` (legacy)
-- **Важно**:
-  - YouTube может отправлять сообщения **только когда есть активный live chat**. Если стрим оффлайн — outbox ретраится и затем станет `failed` (“No active live chat”).
+- **Important**:
+  - YouTube can send messages **only when there is an active live chat**. If the stream is offline, the outbox will retry and eventually become `failed` (“No active live chat”).
 
 ### 3.3 VKVideo runner
 
-- **Файлы**: `src/bots/vkvideoChatbotRunner.ts`, `src/bots/vkvideoPubsubClient.ts`
-- **Запуск**: `pnpm build && pnpm start:vkvideo-chatbot`
-- **Что делает**:
-  - синкает `VkVideoChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=vkvideo)`)
-  - подключается к VKVideo pubsub (Centrifugo v4 / protocol v2), слушает chat/limited_chat/info/channel_points
-  - шлёт credits chatter
-  - отвечает на команды + smart “время стрима”
-  - доставляет `VkVideoChatBotOutboxMessage`
-  - использует `vkvideoAllowedRoleIds` (реальные роли через VKVideo roles API или заглушки)
-- **ENV (минимум)**:
+- **Files**: `src/bots/vkvideoChatbotRunner.ts`, `src/bots/vkvideoPubsubClient.ts`
+- **Run**: `pnpm build && pnpm start:vkvideo-chatbot`
+- **What it does**:
+  - syncs `VkVideoChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=vkvideo)`)
+  - connects to VKVideo pubsub (Centrifugo v4 / protocol v2), listens to `chat/limited_chat/info/channel_points`
+  - sends credits chatter
+  - responds to commands + the smart “stream duration” command
+  - delivers `VkVideoChatBotOutboxMessage`
+  - enforces `vkvideoAllowedRoleIds` (real roles via VKVideo roles API or stubs)
+- **ENV (minimum)**:
   - `VKVIDEO_CHAT_BOT_ENABLED=1`
   - `CHATBOT_BACKEND_BASE_URLS`
-  - VKVideo DevAPI baseUrl (используется в `utils/vkvideoApi.ts`): `VKVIDEO_API_BASE_URL` (или legacy `VKVIDEO_USERINFO_URL`)
-- **Опционально**:
-  - `VKVIDEO_PUBSUB_WS_URL` (по умолчанию dev pubsub)
-  - `VKVIDEO_PUBSUB_REFRESH_SECONDS` (рекомендуется 600+)
-  - `VKVIDEO_ROLE_STUBS_JSON` (заглушки ролей, см. ниже)
+  - VKVideo DevAPI baseUrl (used in `utils/vkvideoApi.ts`): `VKVIDEO_API_BASE_URL` (or legacy `VKVIDEO_USERINFO_URL`)
+- **Optional**:
+  - `VKVIDEO_PUBSUB_WS_URL` (defaults to dev pubsub)
+  - `VKVIDEO_PUBSUB_REFRESH_SECONDS` (recommended 600+)
+  - `VKVIDEO_ROLE_STUBS_JSON` (role stubs, see below)
   - `VKVIDEO_USER_ROLES_CACHE_TTL_MS`
 
-#### VKVIDEO_ROLE_STUBS_JSON (заглушки ролей)
+#### VKVIDEO_ROLE_STUBS_JSON (role stubs)
 
-Используется для role‑gating команд по `ChatBotCommand.vkvideoAllowedRoleIds`, если реальные роли недоступны/нестабильны.
+Used for command role-gating via `ChatBotCommand.vkvideoAllowedRoleIds` if real roles are unavailable/unstable.
 
-Формат:
-- верхний ключ: `<vkvideoChannelId>`
-- внутри: mapping “кто” → список строк‑roleId (произвольные)
+Format:
+- top-level key: `<vkvideoChannelId>`
+- inside: mapping “who” → list of string roleIds (arbitrary)
   - `login:<senderLogin>` — lowercase
   - `user:<vkvideoUserId>` — VKVideo user id
 
-Пример:
+Example:
 
 ```json
 {
@@ -193,53 +193,53 @@
 
 ### 3.4 Trovo runner
 
-- **Файл**: `src/bots/trovoChatbotRunner.ts`
-- **Запуск**: `pnpm build && pnpm start:trovo-chatbot`
-- **Что делает**:
-  - синкает `TrovoChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=trovo)`)
-  - читает чат через WebSocket (использует токен стримера), отвечает/шлёт outbox через global/per‑channel bot token
-  - шлёт credits chatter
-- **ENV (минимум)**:
+- **File**: `src/bots/trovoChatbotRunner.ts`
+- **Run**: `pnpm build && pnpm start:trovo-chatbot`
+- **What it does**:
+  - syncs `TrovoChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=trovo)`)
+  - reads chat via WebSocket (uses the streamer token), replies/sends outbox via global/per-channel bot token
+  - sends credits chatter
+- **ENV (minimum)**:
   - `CHATBOT_BACKEND_BASE_URLS`
-  - `TROVO_CLIENT_ID` (и обычно `TROVO_CLIENT_SECRET`, `TROVO_CALLBACK_URL` для линковок)
-  - `TROVO_CHAT_BOT_ENABLED` (если `0|false|off` — воркер выйдет)
-- **Опционально**:
+  - `TROVO_CLIENT_ID` (and usually `TROVO_CLIENT_SECRET`, `TROVO_CALLBACK_URL` for linking)
+  - `TROVO_CHAT_BOT_ENABLED` (if `0|false|off` — the worker exits)
+- **Optional**:
   - `TROVO_CHAT_WS_URL`, `TROVO_CHAT_TOKEN_URL`, `TROVO_SEND_CHAT_URL`
   - `TROVO_CHATBOT_SYNC_SECONDS`, `TROVO_CHATBOT_OUTBOX_POLL_MS`, `TROVO_CHATBOT_COMMANDS_REFRESH_SECONDS`
 
 ### 3.5 Kick runner
 
-- **Файл**: `src/bots/kickChatbotRunner.ts`
-- **Запуск**: `pnpm build && pnpm start:kick-chatbot`
-- **Что делает**:
-  - синкает `KickChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=kick)`)
-  - обеспечивает наличие Kick event subscriptions (на стороне Kick) на вебхук `POST /webhooks/kick/events`
-  - отправляет сообщения в чат (global/per‑channel bot token), обрабатывает outbox
-  - шлёт credits chatter
-  - (опционально) может поллить чат по `KICK_CHAT_POLL_URL_TEMPLATE` как fallback/дополнение
-- **ENV (минимум)**:
+- **File**: `src/bots/kickChatbotRunner.ts`
+- **Run**: `pnpm build && pnpm start:kick-chatbot`
+- **What it does**:
+  - syncs `KickChatBotSubscription(enabled=true)` (+ optional gate `BotIntegrationSettings(provider=kick)`)
+  - ensures Kick event subscriptions (on Kick side) exist for webhook `POST /webhooks/kick/events`
+  - sends chat messages (global/per-channel bot token) and processes outbox
+  - sends credits chatter
+  - (optional) can poll chat via `KICK_CHAT_POLL_URL_TEMPLATE` as a fallback/addition
+- **ENV (minimum)**:
   - `CHATBOT_BACKEND_BASE_URLS`
   - `KICK_SEND_CHAT_URL`
-  - `KICK_CHAT_BOT_ENABLED` (если `0|false|off` — воркер выйдет)
-  - для корректного callback URL: `DOMAIN` (или явный `KICK_WEBHOOK_CALLBACK_URL`)
-- **Опционально**:
-  - `KICK_CHAT_POLL_URL_TEMPLATE` (шаблон URL для поллинга, переменные `{channelId}`, `{cursor}`)
+  - `KICK_CHAT_BOT_ENABLED` (if `0|false|off` — the worker exits)
+  - for correct callback URL: `DOMAIN` (or explicit `KICK_WEBHOOK_CALLBACK_URL`)
+- **Optional**:
+  - `KICK_CHAT_POLL_URL_TEMPLATE` (poll URL template; variables `{channelId}`, `{cursor}`)
   - `KICK_CHATBOT_SYNC_SECONDS`, `KICK_CHATBOT_OUTBOX_POLL_MS`, `KICK_CHATBOT_COMMANDS_REFRESH_SECONDS`, `KICK_CHATBOT_INGEST_POLL_MS`
 
-## 4) Диагностика (быстрые чек‑листы)
+## 4) Diagnostics (quick checklists)
 
-### “/streamer/bots возвращает 404 Feature not available”
+### “/streamer/bots returns 404 Feature not available”
 
-На этом инстансе ещё не применены миграции/таблицы (Prisma `P2021`). Фронт должен показать “фича недоступна”.
+Migrations/tables are not applied on this instance yet (Prisma `P2021`). The frontend should show “feature not available”.
 
-### Бот “не отвечает” / “не пишет в чат”
+### Bot “doesn’t respond” / “doesn’t send chat messages”
 
-- **Проверить включение**: `GET /streamer/bots` → нужный `provider.enabled=true`
-- **Проверить sender identity**:
-  - глобальный бот: `GET /owner/bots/{provider}/default/status`
-  - per‑channel override: `GET /streamer/bots/{provider}/bot` (и entitlement `custom_bot`)
-- **Проверить воркер**: он запущен и видит `CHATBOT_BACKEND_BASE_URLS`
-- **Проверить outbox**:
-  - отправить `/streamer/bot/say`, затем `GET /streamer/bot/outbox/:provider/:id`
-- **YouTube специфично**: канал должен быть в LIVE, иначе отправка/ответы могут быть невозможны (outbox → “No active live chat”).
-- **VKVideo специфично**: в подписке должен быть `vkvideoChannelUrl`, и в логах не должно быть `subscription_missing_channel_url` / `websocket_token_failed`.
+- **Check enabled**: `GET /streamer/bots` → ensure `provider.enabled=true`
+- **Check sender identity**:
+  - global bot: `GET /owner/bots/{provider}/default/status`
+  - per-channel override: `GET /streamer/bots/{provider}/bot` (and entitlement `custom_bot`)
+- **Check the worker**: it’s running and sees `CHATBOT_BACKEND_BASE_URLS`
+- **Check outbox**:
+  - send `/streamer/bot/say`, then `GET /streamer/bot/outbox/:provider/:id`
+- **YouTube specific**: the channel must be LIVE, otherwise sending/replies may be impossible (outbox → “No active live chat”).
+- **VKVideo specific**: the subscription must have `vkvideoChannelUrl`, and logs should not contain `subscription_missing_channel_url` / `websocket_token_failed`.
