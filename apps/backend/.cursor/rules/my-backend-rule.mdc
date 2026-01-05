@@ -25,7 +25,7 @@ Goal: ship backend changes **fast and safely** without breaking invariants (beta
 - **Don’t read huge files end-to-end** (especially `docs/FRONTEND_API_CHEATSHEET.md`) — use `offset/limit` and only the needed section.
 - **Don’t touch `dist/*`** — change `src/*`, then run `pnpm build`.
 - **Keep diffs minimal**: avoid “drive-by refactors”.
-- **Treat `tests/*.test.ts` as contracts**: file names map to invariants we must not break.
+- **Treat `tests/*.test.ts` as contracts**: file names map to invariants we must not break (but tests are executed only during deploy/CI).
 
 ---
 
@@ -104,7 +104,7 @@ Goal: ship backend changes **fast and safely** without breaking invariants (beta
   - `ARCHITECTURE.md` (flows + principles)
   - `DEVELOPMENT.md` (local setup + performance knobs)
   - `DEPLOYMENT.md` and `docs/DEPLOY_DEV.md` (real deploy triggers)
-  - `docs/TESTING.md` (how to run tests + what invariants they lock).
+  - `docs/TESTING.md` (what invariants tests lock; tests run during deploy/CI only).
 
 ---
 
@@ -156,7 +156,11 @@ If beta and prod share a DB (`shared`), migrations must be **backward-compatible
 - Build: `pnpm build`
 - Start: `pnpm start`
 - Prisma: `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:studio`
-- Tests: see `docs/TESTING.md` (`TEST_DATABASE_URL_BASE`, Postgres via `docker-compose.test.yml` on 5433).
+ 
+### Terminal usage (important)
+
+- The agent must **not** run terminal commands unless the user explicitly asks.
+- **All tests run only during deploy/CI** (do not run tests locally unless explicitly requested).
 
 ---
 

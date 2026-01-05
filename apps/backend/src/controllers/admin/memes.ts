@@ -135,6 +135,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
             ? {
                 aiStatus: true,
                 aiAutoTitle: true,
+                aiCompletedAt: true,
               }
             : {}),
           createdBy: {
@@ -154,6 +155,65 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
       },
     },
   });
+
+  // Best-effort: attach the latest AI submission metadata (pipelineVersion, timestamps, error).
+  // This helps debug why aiStatus is 'done' (e.g. heuristic vs reuse vs OpenAI) without exposing the whole queue API.
+  const latestAiByAssetId: Map<
+    string,
+    {
+      submissionId: string;
+      aiStatus: string;
+      aiCompletedAt: Date | null;
+      aiLastTriedAt: Date | null;
+      aiRetryCount: number;
+      aiError: string | null;
+      aiPipelineVersion: string | null;
+    }
+  > = new Map();
+  if (includeAi) {
+    const assetIds = Array.from(new Set(rows.map((r: any) => r?.memeAsset?.id).filter(Boolean)));
+    if (assetIds.length > 0) {
+      try {
+        const subs = await prisma.memeSubmission.findMany({
+          where: {
+            channelId,
+            memeAssetId: { in: assetIds },
+            sourceKind: { in: ['upload', 'url'] },
+          } as any,
+          orderBy: { createdAt: 'desc' },
+          distinct: ['memeAssetId'],
+          select: {
+            id: true,
+            memeAssetId: true,
+            aiStatus: true,
+            aiCompletedAt: true,
+            aiLastTriedAt: true,
+            aiRetryCount: true,
+            aiError: true,
+            aiModelVersionsJson: true,
+          },
+        });
+
+        for (const s of subs as any[]) {
+          const mv = (s?.aiModelVersionsJson ?? null) as any;
+          const pipelineVersion = mv && typeof mv === 'object' ? (typeof mv.pipelineVersion === 'string' ? mv.pipelineVersion : null) : null;
+          if (s?.memeAssetId) {
+            latestAiByAssetId.set(String(s.memeAssetId), {
+              submissionId: String(s.id),
+              aiStatus: String(s.aiStatus || ''),
+              aiCompletedAt: s.aiCompletedAt ?? null,
+              aiLastTriedAt: s.aiLastTriedAt ?? null,
+              aiRetryCount: Number.isFinite(s.aiRetryCount as any) ? Number(s.aiRetryCount) : 0,
+              aiError: s.aiError ? String(s.aiError) : null,
+              aiPipelineVersion: pipelineVersion,
+            });
+          }
+        }
+      } catch {
+        // ignore (back-compat if column/table missing on older DBs)
+      }
+    }
+  }
 
   const memes = rows.map((r) => ({
     id: r.id, // channelMemeId (new)
@@ -175,6 +235,22 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
           aiAutoTagNames: Array.isArray((r as any).aiAutoTagNamesJson) ? ((r as any).aiAutoTagNamesJson as string[]) : null,
           aiStatus: (r as any).memeAsset?.aiStatus ?? null,
           aiAutoTitle: (r as any).memeAsset?.aiAutoTitle ?? null,
+          aiCompletedAt: (r as any).memeAsset?.aiCompletedAt ? new Date((r as any).memeAsset.aiCompletedAt).toISOString() : null,
+          aiLastSubmission: (() => {
+            const assetId = String((r as any).memeAsset?.id || '');
+            if (!assetId) return null;
+            const last = latestAiByAssetId.get(assetId);
+            if (!last) return null;
+            return {
+              id: last.submissionId,
+              aiStatus: last.aiStatus || null,
+              aiPipelineVersion: last.aiPipelineVersion,
+              aiRetryCount: last.aiRetryCount,
+              aiLastTriedAt: last.aiLastTriedAt ? new Date(last.aiLastTriedAt).toISOString() : null,
+              aiCompletedAt: last.aiCompletedAt ? new Date(last.aiCompletedAt).toISOString() : null,
+              aiErrorShort: last.aiError ? String(last.aiError).slice(0, 500) : null,
+            };
+          })(),
         }
       : {}),
   }));
