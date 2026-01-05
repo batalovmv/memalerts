@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { Meme } from '@/types';
 
+import { regenerateMemeAi } from '@/shared/api/streamerMemes';
 import { AiRegenerateButton } from './AiRegenerateButton';
 
 vi.mock('react-hot-toast', () => ({
@@ -36,6 +37,7 @@ describe('AiRegenerateButton', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -59,6 +61,46 @@ describe('AiRegenerateButton', () => {
   it('does not render when aiAutoDescription is present', () => {
     render(<AiRegenerateButton meme={makeMeme({ channelId: 'c1', aiAutoDescription: 'ok' })} show />);
     expect(screen.queryByRole('button', { name: /ai regenerate/i })).toBeNull();
+  });
+
+  it('renders when aiAutoDescription duplicates title (after normalization)', () => {
+    const createdAt = new Date(Date.now() - 6 * 60_000).toISOString();
+    render(
+      <AiRegenerateButton
+        meme={makeMeme({ createdAt, channelId: 'c1', title: 'Test!', aiAutoDescription: '   test  ' })}
+        show
+      />,
+    );
+    expect(screen.getByRole('button', { name: /ai regenerate/i })).toBeInTheDocument();
+  });
+
+  it('renders when aiAutoDescription is a known placeholder', () => {
+    const createdAt = new Date(Date.now() - 6 * 60_000).toISOString();
+    render(<AiRegenerateButton meme={makeMeme({ createdAt, channelId: 'c1', aiAutoDescription: 'meme' })} show />);
+    expect(screen.getByRole('button', { name: /ai regenerate/i })).toBeInTheDocument();
+  });
+
+  it('calls regenerate endpoint with channelMemeId (not legacy id) when available', async () => {
+    const createdAt = new Date(Date.now() - 6 * 60_000).toISOString();
+    render(
+      <AiRegenerateButton
+        meme={makeMeme({
+          createdAt,
+          channelId: 'c1',
+          id: 'legacy-meme-id',
+          channelMemeId: 'channel-meme-id',
+          aiAutoDescription: null,
+        })}
+        show
+      />,
+    );
+
+    const btn = screen.getByRole('button', { name: /^ai regenerate$/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(regenerateMemeAi).toHaveBeenCalledWith('channel-meme-id');
+    });
   });
 });
 

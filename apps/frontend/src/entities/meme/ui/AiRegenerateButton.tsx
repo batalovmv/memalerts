@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import type { Meme } from '@/types';
 
 import { regenerateMemeAi, getErrorCodeFromError, getRetryAfterSecondsFromError } from '@/shared/api/streamerMemes';
+import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button } from '@/shared/ui';
 
@@ -37,8 +38,13 @@ export function AiRegenerateButton({ meme, show = true }: AiRegenerateButtonProp
   const [submitting, setSubmitting] = useState(false);
 
   const key = useMemo(() => getRegenerateKey(meme), [meme]);
+  // IMPORTANT: backend endpoint expects ChannelMeme.id (exposed as `channelMemeId` in DTOs).
+  // `getMemePrimaryId` prefers `channelMemeId` when present, but may fall back for older backends.
   const primaryId = getMemePrimaryId(meme);
-  const aiDesc = typeof meme.aiAutoDescription === 'string' ? meme.aiAutoDescription : '';
+  const aiDescEffectivelyEmpty = useMemo(
+    () => isEffectivelyEmptyAiDescription(meme.aiAutoDescription, meme.title),
+    [meme.aiAutoDescription, meme.title],
+  );
 
   const createdAtMs = useMemo(() => {
     if (!meme.createdAt) return null;
@@ -71,7 +77,7 @@ export function AiRegenerateButton({ meme, show = true }: AiRegenerateButtonProp
 
   if (!show) return null;
   if (!key) return null;
-  if (aiDesc.trim()) return null;
+  if (!aiDescEffectivelyEmpty) return null;
 
   return (
     <Button

@@ -9,14 +9,9 @@ export interface MemeCardProps {
   onClick: () => void;
   isOwner?: boolean;
   previewMode?: MemeCardPreviewMode;
-  /**
-   * Show expandable AI analysis (description + AI tags) inside the card.
-   * Keep disabled by default to avoid changing public/pool layouts.
-   */
-  showAiAnalysis?: boolean;
 }
 
-export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound', showAiAnalysis }: MemeCardProps) {
+export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
   const mediaUrl = getMemeMediaUrl(meme);
   const vm = useMemeCard({ meme, mediaUrl, previewMode, onClick });
 
@@ -29,7 +24,6 @@ export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound', showAi
       isHovered={vm.isHovered}
       shouldLoadMedia={vm.shouldLoadMedia}
       videoMuted={vm.getVideoMuted()}
-      showAiAnalysis={showAiAnalysis}
       setCardEl={vm.setCardEl}
       videoRef={vm.videoRef}
       onMouseEnter={vm.onMouseEnter}

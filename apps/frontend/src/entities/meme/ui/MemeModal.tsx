@@ -7,6 +7,7 @@ import type { Meme } from '@/types';
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
+import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Button, HelpTooltip, Input, Pill, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
@@ -160,7 +161,9 @@ export default function MemeModal({
   const aiTags = Array.isArray(currentMeme.aiAutoTagNames) ? currentMeme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
   const aiDesc = typeof currentMeme.aiAutoDescription === 'string' ? currentMeme.aiAutoDescription : '';
   const canViewAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
-  const hasAi = aiTags.length > 0 || !!aiDesc.trim();
+  const aiDescEffectivelyEmpty = isEffectivelyEmptyAiDescription(currentMeme.aiAutoDescription, currentMeme.title);
+  const hasAiDesc = !!aiDesc.trim() && !aiDescEffectivelyEmpty;
+  const hasAi = aiTags.length > 0 || hasAiDesc;
   const canRegenerateAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
 
   const statusLabel = (() => {
@@ -550,7 +553,7 @@ export default function MemeModal({
                 </div>
               ) : null}
 
-              {aiDesc.trim() ? (
+              {hasAiDesc ? (
                 <div className="mt-3">
                   <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">AI description</div>
                   <div className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{aiDesc}</div>
