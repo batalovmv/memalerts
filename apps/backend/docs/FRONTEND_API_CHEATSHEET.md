@@ -10,12 +10,16 @@
   - prod: `token`
   - beta: `token_beta` (изолирован от prod)
   - На фронте **всегда** делайте запросы с `credentials: 'include'`.
+- **Public vs "public"**:
+  - **`/channels/*`** — “канальные” эндпоинты, на **prod** они публичные, а на **beta** — gated (см. ниже).
+  - **`/public/*`** — гостевые read/control эндпоинты с “санитизированными” DTO. Они **доступны гостям и на prod, и на beta** (важно для публичных страниц и внешних интеграций).
 - **Beta cookie key selection (важно для 401)**:
   - `/auth/:provider/link` защищён `authenticate`, и 401 будет, если backend не увидит правильную cookie.
   - На **beta-инстансе** backend ожидает **`token_beta`** (и может принимать fallback `token` только для совместимости).
   - Beta/Prod определяется не только по `Host`, но и по **инстансу** (например `PORT=3002`, `DOMAIN` с `beta.`, или `INSTANCE=beta`) — это защищает от случаев, когда фронт ходит в beta API через общий proxy/upstream.
 - **CSRF**: для `POST/PUT/PATCH/DELETE` в production **обязателен** `Origin`/`Referer` из разрешённых origin (CORS).  
-  Исключения: `/internal/*`, `/webhooks/*`, `/health` (OAuth endpoints обычно `GET`, поэтому CSRF на них не применяется).
+  Исключения: `/internal/*`, `/webhooks/*`, `/health`, `/public/*`, `/auth/twitch*`.  
+  Примечание: `POST /auth/logout` остаётся под CSRF (в prod), но разрешён без `Origin` только в узком случае, когда браузер явно помечает запрос как same-site (`Sec-Fetch-Site: same-origin|same-site`).
 - **Uploads**: статика доступна по `GET /uploads/...` (файлы, которые вернул `fileUrl`/`fileUrlTemp`).
 - **Enums** (см. `src/shared/schemas.ts`):
   - `SubmissionStatus`: `pending | needs_changes | approved | rejected`
@@ -28,7 +32,49 @@
 ### GET `/health`
 - **Auth**: нет
 - **Response**:
-  - `{ "status": "ok" }`
+  - `{ "status": "ok", "build": { name, version, deployTrigger }, "instance": { port, domain, instance } }`
+
+### Public guest read API (работает и на prod, и на beta)
+
+### GET `/public/channels/:slug`
+- **Auth**: optional (`optionalAuthenticate`)
+- **Query**:
+  - `includeMemes` (`true|false`, default `false`)
+  - `limit`, `offset` — пагинация, если `includeMemes=true`
+  - `sortBy`: `createdAt | priceCoins` (default `createdAt`)
+  - `sortOrder`: `asc | desc` (default `desc`)
+- **Response**: “публичное” DTO канала (без внутренних полей), включает:
+  - `id`, `slug`, `name`
+  - `coinIconUrl`, `primaryColor`, `secondaryColor`, `accentColor`
+  - `rewardTitle`, `rewardOnlyWhenLive`
+  - `submissionRewardCoins`, `submissionRewardOnlyWhenLive`
+  - `submissionsEnabled`, `submissionsOnlyWhenLive`
+  - `owner`: `{ id, displayName, profileImageUrl } | null`
+  - `stats`: `{ memesCount, usersCount }`
+  - если `includeMemes=true`: `memes` + `memesPage` (аналогично `GET /channels/:slug`)
+
+### GET `/public/channels/:slug/memes`
+- **Auth**: optional
+- **Query**: `limit` (default 30), `offset` (default 0), `sortBy`, `sortOrder`
+- **Response**: array мемов (catalog зависит от `memeCatalogMode`; см. `GET /channels/:slug`)
+
+### GET `/public/channels/:slug/memes/search`
+- **Auth**: optional
+- **Query**: `q`, `limit`, `offset`, `sortBy`, `sortOrder`
+- **Response**: array “санитизированных” мемов (без приватных полей)
+
+### Public token-based control (StreamDeck / StreamerBot)
+
+Эти эндпоинты **не используют auth cookies** и защищены **per-channel secret token** (query `token`).
+
+### GET `/public/submissions/status?token=...`
+- **Response**: `{ ok: true, submissions: { enabled: boolean, onlyWhenLive: boolean } }`
+
+### POST `/public/submissions/enable?token=...`
+### POST `/public/submissions/disable?token=...`
+### POST `/public/submissions/toggle?token=...`
+- **Response**: `{ ok: true, submissions: { enabled: boolean, onlyWhenLive: boolean } }`
+- **Realtime side-effects**: в `channel:{slugLower}` эмитится `submissions:status { enabled, onlyWhenLive }`
 
 ### GET `/channels/:slug`
 - **Auth**:
@@ -39,22 +85,31 @@
   - `limit`, `offset` — пагинация мемов, если `includeMemes=true`
 - **Response**:
   - `id`, `slug`, `name`
+  - `memeCatalogMode`: `"channel" | "pool_all"`
   - `coinPerPointRatio`
   - `rewardIdForCoins`, `rewardEnabled`, `rewardTitle`, `rewardCost`, `rewardCoins`
   - `rewardOnlyWhenLive` (boolean, default `false`) — начислять coins за Twitch reward только когда стрим онлайн
+  - **Kick rewards**: `kickRewardEnabled`, `kickRewardIdForCoins`, `kickCoinPerPointRatio`, `kickRewardCoins`, `kickRewardOnlyWhenLive`
+  - **Trovo spells**: `trovoManaCoinsPerUnit`, `trovoElixirCoinsPerUnit`
+  - **VKVideo rewards**: `vkvideoRewardEnabled`, `vkvideoRewardIdForCoins`, `vkvideoCoinPerPointRatio`, `vkvideoRewardCoins`, `vkvideoRewardOnlyWhenLive`
   - `youtubeLikeRewardEnabled` (boolean, default `false`)
   - `youtubeLikeRewardCoins` (int, default `0`)
   - `youtubeLikeRewardOnlyWhenLive` (boolean, default `false`)
   - `submissionRewardCoins`
   - `submissionRewardOnlyWhenLive` (boolean, default `false`) — начислять coins за approved submission только когда стрим онлайн
+  - `submissionsEnabled` (boolean, default `true`)
+  - `submissionsOnlyWhenLive` (boolean, default `false`)
   - `coinIconUrl`
   - `primaryColor`, `secondaryColor`, `accentColor`
   - `overlayMode`, `overlayShowSender`, `overlayMaxConcurrent`
+  - `dashboardCardOrder` (array string | null) — порядок карточек в dashboard (если `null` — дефолт)
   - `createdAt`
   - `owner`: `{ id, displayName, profileImageUrl } | null`
   - `stats`: `{ memesCount, usersCount }`
   - если `includeMemes=true`:
-    - `memes`: array `{ id,title,type,fileUrl,durationMs,priceCoins,createdAt }`
+    - `memes`: array
+      - режим `"channel"`: `{ id,title,type,fileUrl,durationMs,priceCoins,createdAt }` (id = `ChannelMeme.id`)
+      - режим `"pool_all"`: `{ id, channelMemeId, memeAssetId, title, type, fileUrl, durationMs, priceCoins, createdAt }` (id = `MemeAsset.id`)
     - `memesPage`: `{ limit, offset, returned, total }`
 
 ### GET `/channels/:slug/memes`
@@ -62,8 +117,9 @@
   - prod: public
   - beta: `authenticate + requireBetaAccess`
 - **Query**: `limit` (default 30), `offset` (default 0)
-- **Response**: array мемов (approved) с `createdBy`:
-  - `{ id, channelId, title, type, fileUrl, durationMs, priceCoins, status, createdAt, createdBy: { id, displayName } }`
+- **Response**: array мемов (catalog зависит от `memeCatalogMode`):
+  - режим `"channel"`: `{ id, channelId, title, type, fileUrl, durationMs, priceCoins, status, createdAt, createdBy: { id, displayName } }` (id = `ChannelMeme.id`)
+  - режим `"pool_all"`: `{ id, channelId, channelMemeId, memeAssetId, title, type, fileUrl, durationMs, priceCoins, createdAt, createdBy }` (id = `MemeAsset.id`)
 
 ### GET `/channels/:slug/wallet`
 - **Auth**: `authenticate + requireBetaAccess`
@@ -73,7 +129,8 @@
 ### GET `/me`
 - **Auth**: `authenticate + requireBetaAccess`
 - **Response**:
-  - `{ id, displayName, profileImageUrl, role, channelId, channel, wallets, externalAccounts }`
+  - `{ id, displayName, profileImageUrl, role, isGlobalModerator, channelId, channel, wallets, externalAccounts }`
+  - `isGlobalModerator`: boolean (true для `admin` или для активного global moderator grant)
   - `channel`: `{ id, slug, name } | null`
   - `wallets`: array wallet rows
   - `externalAccounts`: array привязанных аккаунтов (см. `/auth/accounts`)
@@ -125,15 +182,16 @@
 - **Query**:
   - `channelSlug` **или** `channelId` (если не передать — 400)
   - `limit`, `offset` (опционально)
-- **Response**: array мемов (approved, `deletedAt=null`) с `createdBy`:
-  - `{ id, channelId, title, type, fileUrl, durationMs, priceCoins, status, createdAt, createdBy: { id, displayName } }`
+- **Response**: array мемов канала (approved, `deletedAt=null`) с `createdBy`:
+  - `{ id, channelMemeId, memeAssetId, title, type, fileUrl, durationMs, priceCoins, status, createdAt, createdBy }`
+  - `id` — back-compat (legacy `Meme.id` если есть, иначе `ChannelMeme.id`)
 
 ### GET `/channels/memes/search`
 - **Auth**:
   - prod: public, **optional auth** (для `favorites=1`)
   - beta: `authenticate + requireBetaAccess`
 - **Query**:
-- `q` — поиск по title/tags (+ uploader если `includeUploader=1`) и по AI-анализу (title/tags/description, через скрытое поле searchText)
+- `q` — поиск (режим зависит от наличия `channelId|channelSlug` и от `memeCatalogMode`)
   - `tags` — строка `tag1,tag2` (имена тегов)
   - `channelId` или `channelSlug` (фильтр)
   - `minPrice`, `maxPrice`
@@ -142,9 +200,20 @@
   - `includeUploader=1` (для dashboard-поиска по uploader)
   - `favorites=1` (возвращает “любимое” пользователя — требует auth и channelId/slug)
   - `limit` (дефолт 50, зажат env), `offset`
-- **Response**: array мемов (approved) с:
-  - `createdBy`, `tags: [{ tag: { id, name } }]`
-  - `_count.activations` (для popularity)
+- **Response**: **2 режима ответа** (это важно для фронта):
+  - **Channel listing/search DTO (предпочтительно для витрины канала)**:
+    - когда `channelId|channelSlug` указан и запрос соответствует “листингу/поиску канала”
+    - response item: `{ id, channelId, channelMemeId, memeAssetId, title, type, fileUrl, durationMs, priceCoins, status, deletedAt: null, createdAt, createdBy }`
+    - при `memeCatalogMode="pool_all"` item строится по `MemeAsset` (id = `MemeAsset.id`, `channelMemeId` виртуальный)
+  - **Legacy Meme search DTO (для popularity/глобального поиска/сложных фильтров)**:
+    - response item: `Meme` (approved) с `createdBy`, `tags: [{ tag: { id, name } }]` и `_count.activations` (для popularity)
+
+### GET `/memes/pool`
+- **Auth**:
+  - prod: public
+  - beta: `authenticate + requireBetaAccess`
+- **Query**: `q` (optional), `limit` (default 50), `offset` (default 0)
+- **Response**: array `{ id, type, fileUrl, durationMs, createdAt, usageCount, sampleTitle, samplePriceCoins }`
 
 ### GET `/memes/stats`
 - **Auth**:
@@ -208,11 +277,12 @@
 - **Поддерживаемые provider (link)**:
   - `twitch` (полный OAuth)
   - `youtube` (полный OAuth через Google OpenID userinfo)
+  - `discord` (полный OAuth; нужен для Boosty Discord roles / auto-join)
   - `vk` (полный OAuth)
   - `vkvideo` (полный OAuth VK Video Live, см. `https://dev.live.vkvideo.ru/docs/main/authorization`)
   - `trovo` (полный OAuth)
   - `kick` (полный OAuth; OAuth endpoints задаются через ENV)
-  - `boosty` — не поддерживается (вернёт редирект с `reason=provider_not_supported`)
+  - `boosty` — **manual режим** (редиректнёт на фронт с `provider=boosty&mode=manual`, дальше линковка делается через `POST /auth/boosty/link`)
 - **Если пользователь не залогинен**: редирект на фронт с `/?error=auth_required&reason=no_session`
 - **Если вместо редиректа видите `401 Unauthorized`**:
   - Фронт отправил запрос **без cookies** → убедиться, что запрос сделан с `credentials: 'include'` (и в fetch/axios включены credentials).
@@ -227,6 +297,11 @@
   - На сервере должен быть настроен `YOUTUBE_BOT_REFRESH_TOKEN` (бот‑аккаунт с `youtube.force-ssl`).
 - Если пользователь привязал YouTube раньше и scope не был выдан — нужно **перелинковать YouTube** (через `GET /auth/youtube/link`).
 
+### GET `/auth/youtube/link/force-ssl`
+- **Auth**: `authenticate + requireBetaAccess`
+- **Назначение**: запросить доп. scope `youtube.force-ssl` (нужно для viewer rewards вроде `POST /rewards/youtube/like/claim`)
+- **Response**: редирект на Google OAuth (как обычный `/auth/youtube/link`, но с расширенными scope)
+
 ### GET `/auth/:provider/link/callback`
 - **Auth**: нет (OAuth callback)
 - **Response**: редирект на фронт (cookie не меняет)  
@@ -235,7 +310,23 @@
 ### GET `/auth/accounts`
 - **Auth**: `authenticate + requireBetaAccess`
 - **Response**:
-  - `{ accounts: ExternalAccount[] }`
+  - `{ accounts: ExternalAccount[] }`, где `ExternalAccount` содержит (минимум):
+    - `id`, `provider`, `providerAccountId`
+    - `displayName`, `login`, `avatarUrl`, `profileUrl`
+    - `createdAt`, `updatedAt`
+
+### POST `/auth/boosty/link`
+- **Auth**: `authenticate + requireBetaAccess`
+- **Body (JSON)**:
+  - `accessToken` (string) **или** `token` (string alias)
+  - альтернативно: `refreshToken` + `deviceId`
+  - `blogName` (optional) — для UI/профильной ссылки
+- **Response**: linked `ExternalAccount` (provider=`boosty`)
+- **Ошибки** (частые):
+  - `410 BOOSTY_LINK_DEPRECATED` — если включён режим rewards через Discord роли
+  - `400 BOOSTY_LINK_MISSING_CREDENTIALS`
+  - `401 BOOSTY_INVALID_TOKEN`
+  - `409 BOOSTY_ACCOUNT_ALREADY_LINKED`
 
 ### DELETE `/auth/accounts/:externalAccountId`
 - **Auth**: `authenticate + requireBetaAccess`
@@ -262,7 +353,7 @@
 - **Content-Type**: `multipart/form-data`
 - **Form fields**:
   - `file` (обязательно): video
-  - `title` (string, 1..200)
+  - `title` (string, 0..200; можно не передавать/передать пустым — сервер подставит placeholder и позже заменит AI)
   - `type`: строго `"video"`
   - `notes` (string до 500, optional)
   - `tags` (optional): **JSON-string** массива строк (например `["cat","lol"]`)
@@ -270,7 +361,12 @@
   - `channelId` (optional): если не передать — берётся `req.channelId` из JWT
 - **Response (2 варианта)**:
   - если отправляет владелец канала (`streamer/admin` и `req.channelId === channelId`): вернёт **Meme** (approved) + `isDirectApproval: true`
+    - дополнительно: `channelMemeId`, `memeAssetId`, `deletedAt: null`
   - иначе: вернёт **MemeSubmission** (status `pending`)
+- **Ошибки** (частые):
+  - `403 SUBMISSIONS_DISABLED` / `403 SUBMISSIONS_OFFLINE`
+  - `409 ALREADY_IN_CHANNEL` (если этот asset уже есть в канале)
+  - `413 VIDEO_TOO_LONG` (duration > 15s)
 
 ### POST `/submissions/import`
 - **Body (JSON)**:
@@ -279,9 +375,19 @@
   - `channelId` можно передать в body/query (иначе из JWT)
 - **Response**: `MemeSubmission` (status `pending`, `sourceUrl` заполнен)
 
+### POST `/submissions/pool`
+- **Body (JSON)**: `{ channelId, memeAssetId, title?, notes?, tags? }`
+- **Назначение**: “взять” мем из **глобального пула** в конкретный канал через сабмишен (на модерацию).
+- **Response (2 варианта)**:
+  - если отправляет владелец канала (`streamer/admin` и `req.channelId === channelId`): вернёт **Meme** (approved) + `isDirectApproval: true` + `sourceKind="pool"` + `channelMemeId`, `memeAssetId`
+  - иначе: `MemeSubmission` (status `pending`, `sourceKind="pool"`, `memeAssetId`, `sourceUrl` будет ссылкой на asset)
+- **Ошибки**:
+  - `404 MEME_ASSET_NOT_FOUND` (asset hidden/quarantined/purged или нет fileUrl)
+  - `409 ALREADY_IN_CHANNEL`
+
 ### GET `/submissions` и GET `/submissions/mine`
 - **Response**: array сабмишенов пользователя:
-  - `{ id, channelId, submitterUserId, title, type, fileUrlTemp, sourceUrl, notes, status, moderatorNotes, revision, createdAt, tags }`
+  - `{ id, channelId, submitterUserId, title, type, fileUrlTemp, sourceUrl, sourceKind, memeAssetId, notes, status, moderatorNotes, revision, createdAt, tags }`
   - `tags`: array `{ tag: { id, name } }`
 
 ### POST `/submissions/:id/resubmit`
@@ -358,6 +464,11 @@
   - `{ eligible: true|false|null, broadcasterType, checkedBroadcasterId, reason? }`
   - на beta может добавлять `debug`
 
+### Public control links (StreamDeck / StreamerBot)
+
+- **GET `/streamer/submissions-control/link`** → `{ url, token, rotatedAt? }` (token-based public control, см. `/public/submissions/*`)
+- **POST `/streamer/submissions-control/link/rotate`** → `{ url, token }`
+
 ### Promotions
 - **GET `/streamer/promotions`** → array promotions (или `[]` если таблицы нет/timeout)
 - **POST `/streamer/promotions`** body: `{ name, discountPercent, startDate, endDate }` (ISO datetime)
@@ -387,6 +498,10 @@
 
 ### OBS Credits Overlay
 - **GET `/streamer/credits/token`** → `{ token, creditsStyleJson }`
+- **GET `/streamer/credits/state`** → `{ chatters, donors }`
+- **GET `/streamer/credits/reconnect-window`** → `{ creditsReconnectWindowMinutes }`
+- **GET `/streamer/credits/ignored-chatters`** → `{ items: string[] }`
+- **POST `/streamer/credits/ignored-chatters`** body `{ items: string[] }` → `{ ok: true, items }`
 - **POST `/streamer/credits/settings`** body: `{ creditsStyleJson: string }` (можно пустую строку → очистка) → `{ ok, creditsStyleJson }`
 - **POST `/streamer/credits/token/rotate`** → `{ token }`
 - **POST `/streamer/credits/reset`** → `{ ok: true }`
@@ -401,6 +516,7 @@
   - `{ provider: "youtube", message }` → отправляет в **YouTube** (если YouTube bot включён для канала)
   - `{ provider: "vkvideo", message }` → отправляет в **VKVideo** (если VKVideo bot включён для канала)
   - response: `{ ok, outbox: { id, status, createdAt } }`
+- **GET `/streamer/bot/outbox/:provider/:id`** → `{ id, provider, status, createdAt, updatedAt, lastError? }`
 - **Twitch-only guard**:
   - если `Channel.twitchChannelId == null`, то `enable/disable` и follow-greetings enable вернут `400`:
     - `{ error: "Bad Request", message: "This channel is not linked to Twitch" }`
@@ -419,7 +535,8 @@
 - **GET `/streamer/bot/subscription`** → `{ enabled }` (если подписки нет — `enabled: false`)
 
 ### Bot integrations (панель стримера)
-- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkvideo"|"youtube", enabled, updatedAt }] }`
+- **GET `/streamer/bots`** → `{ items: [{ provider: "twitch"|"vkvideo"|"youtube"|"trovo"|"kick", enabled, updatedAt }] }`
+- **GET `/streamer/bots/vkvideo/candidates`** → `{ items: [{ id, name, profileUrl? }] }` (если VKVideo аккаунт привязан и у юзера несколько каналов)
 - **PATCH `/streamer/bots/:provider`** → `{ ok: true }`
   - body для всех провайдеров: `{ enabled: boolean }`
   - **дополнительно для `provider="vkvideo"` при `enabled=true`** нужно передать `vkvideoChannelId`:
@@ -440,12 +557,16 @@
 - **GET `/streamer/bots/twitch/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
 - **GET `/streamer/bots/youtube/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
 - **GET `/streamer/bots/vkvideo/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
+- **GET `/streamer/bots/trovo/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
+- **GET `/streamer/bots/kick/bot`** → `{ enabled, externalAccountId, updatedAt, lockedBySubscription }`
   - `externalAccountId`: привязанный sender account (если есть).
   - `lockedBySubscription=true`: привязка существует, но **использование override запрещено** (нет entitlement `custom_bot`). UI должен показать “Заблокировано подпиской” и предлагать оплату/апгрейд.
 
 - **GET `/streamer/bots/twitch/bot/link`** → redirect на OAuth для привязки override
 - **GET `/streamer/bots/youtube/bot/link`** → redirect на OAuth для привязки override
 - **GET `/streamer/bots/vkvideo/bot/link`** → redirect на OAuth для привязки override
+- **GET `/streamer/bots/trovo/bot/link`** → redirect на OAuth для привязки override
+- **GET `/streamer/bots/kick/bot/link`** → redirect на OAuth для привязки override
   - **Если нет подписки/entitlement**: вернёт `403` JSON:
     - `{ error: "Forbidden", code: "SUBSCRIPTION_REQUIRED", message }`
   - UX: не делать “слепой” `window.location.href` без preflight — иначе пользователь увидит сырой JSON.
@@ -453,6 +574,8 @@
 - **DELETE `/streamer/bots/twitch/bot`** → `{ ok: true }` (unlink override)
 - **DELETE `/streamer/bots/youtube/bot`** → `{ ok: true }` (unlink override)
 - **DELETE `/streamer/bots/vkvideo/bot`** → `{ ok: true }` (unlink override)
+- **DELETE `/streamer/bots/trovo/bot`** → `{ ok: true }` (unlink override)
+- **DELETE `/streamer/bots/kick/bot`** → `{ ok: true }` (unlink override)
 
 Примечание про OAuth callback (bot_link):
 - Если в процессе `bot_link` попытались применить per-channel override без entitlement, backend **не создаст/не обновит** `*BotIntegration` и вернёт редирект на фронт с:
@@ -511,12 +634,50 @@
 - **Body (JSON)**: `{ amount: number }` (может быть + или -; итоговый баланс не может стать < 0)
 - **Response**: обновлённый wallet (с `user`, `channel`)
 
+### Default bot credentials (admin-only, global shared sender)
+
+- **GET `/owner/bots/youtube/default/status`** → `{ enabled, externalAccountId, updatedAt }`
+- **GET `/owner/bots/youtube/default/link`** → redirect на OAuth
+- **DELETE `/owner/bots/youtube/default`** → `{ ok: true }`
+
+- **GET `/owner/bots/vkvideo/default/status`** → `{ enabled, externalAccountId, updatedAt }`
+- **GET `/owner/bots/vkvideo/default/link`** → redirect на OAuth
+- **DELETE `/owner/bots/vkvideo/default`** → `{ ok: true }`
+
+- **GET `/owner/bots/twitch/default/status`** → `{ enabled, externalAccountId, updatedAt }`
+- **GET `/owner/bots/twitch/default/link`** → redirect на OAuth
+- **DELETE `/owner/bots/twitch/default`** → `{ ok: true }`
+
+- **GET `/owner/bots/trovo/default/status`** → `{ enabled, externalAccountId, updatedAt }`
+- **GET `/owner/bots/trovo/default/link`** → redirect на OAuth
+- **DELETE `/owner/bots/trovo/default`** → `{ ok: true }`
+
+- **GET `/owner/bots/kick/default/status`** → `{ enabled, externalAccountId, updatedAt }`
+- **GET `/owner/bots/kick/default/link`** → redirect на OAuth
+- **DELETE `/owner/bots/kick/default`** → `{ ok: true }`
+
 ### Channel entitlements (admin-only)
 Назначение: вручную включать/выключать subscription-gated фичи для канала (пока нет платёжки/Stripe webhooks).
 
 - **GET `/owner/entitlements/custom-bot?channelId=...`** → `{ channelId, key, enabled, expiresAt, source, active, updatedAt, createdAt }`
 - **POST `/owner/entitlements/custom-bot/grant`** body: `{ channelId, expiresAt?, source? }` → `{ ok, channelId, key, active, expiresAt, source }`
 - **POST `/owner/entitlements/custom-bot/revoke`** body: `{ channelId }` → `{ ok, channelId, key, active }`
+- **GET `/owner/channels/resolve?provider=...&externalId=...`** → `{ ok, channelId, channelSlug, provider }`
+- **POST `/owner/entitlements/custom-bot/grant-by-provider`** body: `{ provider, externalId, expiresAt?, source? }` → `{ ok, channelId, ... }`
+
+### Global meme pool moderation (admin-only)
+
+- **GET `/owner/meme-assets`** → `{ items, total }` (фильтры/paging зависят от UI)
+- **POST `/owner/meme-assets/:id/hide`** → `{ ok: true }` (скрыть asset из глобального пула)
+- **POST `/owner/meme-assets/:id/unhide`** → `{ ok: true }`
+- **POST `/owner/meme-assets/:id/purge`** → `{ ok: true }` (quarantine/purge, удаление ассета на уровне пула)
+- **POST `/owner/meme-assets/:id/restore`** → `{ ok: true }`
+
+### Global moderators (admin-only)
+
+- **GET `/owner/moderators`** → `{ items: [...] }`
+- **POST `/owner/moderators/:userId/grant`** → `{ ok: true }`
+- **POST `/owner/moderators/:userId/revoke`** → `{ ok: true }`
 
 ## Beta access (`/beta/*` и `/owner/beta/*`)
 

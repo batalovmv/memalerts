@@ -2,274 +2,205 @@
 alwaysApply: true
 ---
 
-### MemAlerts Backend — рабочее правило для агентов (обязательно к соблюдению)
+### MemAlerts Backend — agent rules (required)
 
-Этот репозиторий — backend API для MemAlerts: multi‑provider OAuth (Twitch + линковка YouTube/VK), мем‑сабмишены/модерация, экономика (кошельки), realtime через Socket.IO (meme overlay для OBS + credits overlay + live‑обновления).
+Goal: ship backend changes **fast and safely** without breaking invariants (beta/prod isolation, CSRF boundaries, internal relay, realtime privacy), while **saving tokens** (less “blind reading”, more targeted search and minimal diffs).
 
-### Доступ к серверу (VPS)
+---
 
-Агенты **всегда** могут иметь доступ к серверу по SSH:
+### TL;DR: what this repo is
 
-- **SSH**: `ssh deploy@155.212.172.136`
-- На VPS обычно два инстанса:
-  - **production**: порт **3001**, директория `/opt/memalerts-backend`, PM2 процесс `memalerts-api`
-  - **beta**: порт **3002**, директория `/opt/memalerts-backend-beta`, PM2 процесс `memalerts-api-beta`
+- **Backend API**: Express + TypeScript (ESM) → `tsc` builds into `dist/` (**never edit `dist/*` by hand**).
+- **Realtime**: Socket.IO (OBS overlays + dashboard/live updates).
+- **DB**: PostgreSQL via Prisma.
+- **Uploads**: video submissions, SHA‑256 dedup (`FileHash`) + storage `local` or `s3`.
 
-Полезные команды на VPS (если нужно):
+---
 
-- **статус**: `pm2 status`
-- **логи**: `pm2 logs memalerts-api --lines 200` / `pm2 logs memalerts-api-beta --lines 200`
-- **рестарт**: `pm2 restart memalerts-api` / `pm2 restart memalerts-api-beta`
+### How to work “cheap” on tokens (very important)
 
-### TL;DR архитектура
+- **Find the entry point via search first**:
+  - for exact strings/symbols: `grep` (then `read_file` a small slice).
+  - for “where is this implemented?”: `codebase_search`, then narrow down to a file.
+- **Don’t read huge files end-to-end** (especially `docs/FRONTEND_API_CHEATSHEET.md`) — use `offset/limit` and only the needed section.
+- **Don’t touch `dist/*`** — change `src/*`, then run `pnpm build`.
+- **Keep diffs minimal**: avoid “drive-by refactors”.
+- **Treat `tests/*.test.ts` as contracts**: file names map to invariants we must not break.
 
-- **HTTP API**: Express (`src/index.ts`, `src/routes/*`, `src/controllers/*`)
-- **Realtime**: Socket.IO (`src/socket/index.ts`) + (опционально) Redis adapter (`src/socket/redisAdapter.ts`) + мосты между инстансами (`src/realtime/*`)
-- **DB**: PostgreSQL через Prisma (`prisma/schema.prisma`, `src/lib/prisma.ts`)
-- **Uploads**: local `uploads/` или S3‑совместимое хранилище (`src/storage/*`) + дедуп по SHA‑256 (`FileHash`)
+---
 
-### Стек/рантайм
+### Critical invariants (do not break)
 
-- **Node.js**: 18+ (в CI используется 20)
-- **pnpm**
-- **TypeScript, ESM**: `"type": "module"`, сборка `tsc` → `dist/`
+#### 1) beta ↔ prod isolation (cookies + secrets + origins)
 
-### Основные команды
+- **Cookie name**:
+  - prod: `token`
+  - beta: `token_beta`
+- **JWT secret**: `process.env.JWT_SECRET` **must differ** between beta and prod (separate `.env` on the VPS).
+- **Beta detection**: never rely only on `Host` (nginx/proxy can rewrite). See:
+  - `src/middleware/auth.ts` (`isBetaDomain`, chooses `token_beta`)
+  - `src/middleware/csrf.ts` (allowed origins compute “beta instance” via `DOMAIN/PORT/INSTANCE`)
+  - `src/socket/index.ts` (socket cookie selection via host/domain).
 
-- **dev**: `pnpm dev` (tsx watch `src/index.ts`)
-- **build**: `pnpm build` (tsc → `dist/`)
-- **start**: `pnpm start` (node `dist/index.js`)
-- **start:chatbot**: `pnpm build && pnpm start:chatbot` (node `dist/bots/chatbotRunner.js`)
-- **Prisma**:
-  - `pnpm db:migrate` (dev миграции)
-  - `pnpm prisma migrate deploy` (на сервере, в CI)
-  - `pnpm db:seed`, `pnpm db:studio`
+#### 2) CSRF boundaries
 
-### Структура проекта (куда смотреть)
+- CSRF is enabled for **POST/PUT/PATCH/DELETE**.
+- Explicit exceptions (must stay):
+  - `/internal/*` (localhost-only relay)
+  - `/webhooks/*` (signatures instead of CSRF)
+  - `/health`
+  - `/auth/twitch*` (backward-compatible)
+  - `/public/*` (guest read/control)
+- UX nuance: `POST /auth/logout` may pass without `Origin` **only if** `Sec-Fetch-Site` = `same-site|same-origin`.
+- Code: `src/middleware/csrf.ts`.
 
-- **`src/index.ts`**: поднятие Express/Socket.IO, CORS/Helmet/CSRF, timeouts, `setupRoutes`, `setupSocketIO`
-- **`src/routes/index.ts`**: главная карта роутов + beta‑gating + internal relay endpoints (+ credits)
-- **`src/controllers/`**:
-  - viewer: `src/controllers/viewer/*` (публичные/юзерские эндпоинты)
-  - admin/streamer/owner: `src/controllers/admin/*` + `src/routes/streamer.ts`, `src/routes/owner.ts`
-  - submissions: `src/controllers/submission/*`
-  - webhooks: `src/controllers/webhookController.ts` (Twitch EventSub)
-- **`src/controllers/internal/creditsInternal.ts`**: internal‑эндпоинты для credits overlay (localhost only)
-- **`src/middleware/`**: `auth`, `betaAccess`, `csrf`, `rateLimit`, `requestContext`, `upload`, `errorHandler`
-- **`src/socket/index.ts`**: правила join комнат, overlay token (meme/credits), user rooms, ack
-- **`src/realtime/*`**:
-  - `walletBridge.ts`: `wallet:updated` (только user room!)
-  - `submissionBridge.ts`: submission events (+ relay to peer)
-- **`src/realtime/credits*`**: credits overlay state/ticker/store
-- **`prisma/schema.prisma`**: модель данных + индексы/уникальности
-- **`DEPLOYMENT.md`** и **`.github/workflows/ci-cd.yml`**: CI/CD, окружения, порты, пути, секреты
+#### 3) Internal relay (prod ↔ beta on the same VPS)
 
-### Окружения: production vs beta (КРИТИЧНО)
-
-Проект держит **два инстанса на одном VPS**: prod (3001) и beta (3002).
-
-- **Изоляция CORS/Origins**:
-  - `src/index.ts` вычисляет allowed origins, чтобы beta не принимала prod frontend и наоборот.
-- **Изоляция auth cookies**:
-  - На **beta** используется отдельная cookie: **`token_beta`**.
-  - На **prod** используется cookie: **`token`**.
-- **JWT секреты должны отличаться** между beta и prod.
-  - Код верифицирует JWT через `process.env.JWT_SECRET`, поэтому **на VPS для beta и prod должны быть разные значения `JWT_SECRET`** (в разных `.env`).
-
-Не ломать это: любые изменения в доменах/портах/WEB_URL должны сохранять разделение окружений.
-
-### Обязательные ENV переменные (минимум для старта)
-
-- **`DATABASE_URL`**
-- **`JWT_SECRET`**
-- **`TWITCH_CLIENT_ID`**
-- **`TWITCH_CLIENT_SECRET`**
-- **`TWITCH_EVENTSUB_SECRET`**
-
-Рекомендуемые:
-
-- **`WEB_URL`**, **`OVERLAY_URL`** (CORS)
-- **`DOMAIN`**, **`TWITCH_CALLBACK_URL`**
-- **`RATE_LIMIT_WHITELIST_IPS`** (для доверенных IP)
-- **`DEBUG_LOGS`** (включать только на beta при необходимости)
-- **`REDIS_URL`** + `RATE_LIMIT_REDIS=1` (если нужен общий rate‑limit store и Socket.IO scaling)
-- **`UPLOAD_STORAGE=local|s3`** + `S3_*` (если uploads должны храниться в S3‑совместимом storage)
-- **`CHAT_BOT_*` / `CHATBOT_*`** (если используется credits overlay и сбор чаттеров)
-
-См. `ENV.example`, `DEVELOPMENT.md`, `.github/workflows/ci-cd.yml`.
-
-### HTTP роуты (краткая карта)
-
-- **Public**:
-  - `GET /health`
-  - `GET /overlay/credits/t/:token` (OBS browser source: credits overlay HTML)
-  - `GET /channels/:slug` (prod public, beta gated)
-  - `GET /channels/:slug/memes` (prod public, beta gated)
-  - `GET /channels/memes/search` (prod public + optional auth, beta gated)
-  - `GET /memes/stats` (prod public + optional auth, beta gated)
-- **Viewer (auth)**:
-  - `GET /me`
-  - `GET /me/preferences` / `PATCH /me/preferences`
-  - `GET /wallet`
-  - `GET /memes`
-  - `GET /channels/:slug/wallet`
-  - `POST /memes/:id/activate`
-- **Submissions**: `POST /submissions` и др. (см. `src/routes/submissions.ts`)
-- **Streamer panel** (монтируется как `authenticate + requireBetaAccess`):
-  - `/streamer/*` и дополнительно `requireRole('streamer','admin')`
-- **Owner-only**:
-  - `/owner/*` и дополнительно `requireRole('admin')`
-- **Webhooks**:
-  - `POST /webhooks/twitch/eventsub` (HMAC, без CSRF)
-- **Auth (multi-provider)**:
-  - `GET /auth/twitch` + `GET /auth/twitch/callback` (backward-compatible)
-  - `GET /auth/:provider` / `GET /auth/:provider/callback`
-  - `GET /auth/:provider/link` / `GET /auth/:provider/link/callback`
-  - `GET /auth/accounts` / `DELETE /auth/accounts/:externalAccountId`
-  - `POST /auth/logout`
-- **Beta access**:
-  - роуты из `src/routes/beta.ts` (смонтированы в корень)
-  - user:
-    - `POST /beta/request` (запросить доступ)
-    - `GET /beta/status` (статус)
-  - admin (все требуют `authenticate + requireRole('admin')`):
-    - `GET /owner/beta/requests`
-    - `POST /owner/beta/requests/:id/approve|reject`
-    - `GET /owner/beta/users` / `GET /owner/beta/users/revoked`
-    - `POST /owner/beta/users/:userId/revoke|restore`
-
-### Middleware инварианты (безопасность)
-
-- **`requestContext`**: генерит `requestId`, добавляет `X-Request-Id`, логирует запросы (sampling + slow/5xx).
-- **`csrfProtection`**:
-  - защищает **POST/PUT/PATCH/DELETE**
-  - **исключения**: `/internal/*`, `/webhooks/*`, `/health`, `/auth/twitch*`
-- **`globalLimiter`** + точечные лимитеры:
-  - `activateMemeLimiter` (1 запрос / 3 сек)
-  - `uploadLimiter` (per-user если auth, иначе per-IP; лимитер может быть Redis-backed)
-- **`requireBetaAccess`**:
-  - применяется только на beta домене
-  - кеш на 5 минут в памяти
-  - пропускает `/me`, `/beta/*` и `/auth/*` (для логина/линковки)
-
-### Realtime / Socket.IO (комнаты и события)
-
-**Комнаты:**
-
-- **`channel:{slugLower}`**: overlay (OBS: meme/credits) и стримерская панель для одного канала
-- **`user:{userId}`**: персональные события пользователя (например, кошелек)
-
-**Join события (клиент → сервер):**
-
-- **`join:overlay`** `{ token }`:
-  - token — JWT с `kind='overlay'|'credits'`, `channelId`, (optional `channelSlug`), `tv` (token rotation version)
-  - сервер подтягивает актуальный `slug` и конфиг из DB (токены переживают смену slug)
-  - при несовпадении `tv` с `overlayTokenVersion`/`creditsTokenVersion` — join отклоняется (токен “ротирован”)
-  - после join сервер шлёт **`overlay:config`** (meme overlay) или **`credits:config` + `credits:state`** (credits overlay) только в сокет overlay
-- **`join:channel`** `(channelSlug)`:
-  - только для authenticated `streamer/admin`
-  - сервер проверяет, что slug совпадает с каналом пользователя
-- **`join:user`** `(userId)`:
-  - разрешено только если `userId === auth.userId`
-
-**Server → clients события:**
-
-- **`activation:new`** (в `channel:{slugLower}`): приходит overlay (мем к проигрыванию)
-- **`overlay:config`**:
-  - отправляется overlay‑сокету при `join:overlay`
-  - также может эмититься в `channel:{slugLower}` при изменении настроек канала (чтобы OBS не требовал перезагрузку)
-- **`credits:config`** / **`credits:state`**:
-  - отправляется credits overlay‑сокету при `join:overlay` с `kind='credits'`
-  - state также может пушиться internal‑эндпоинтами (см. ниже)
-- **`wallet:updated`** (в `user:{userId}`): обновление кошелька
-- **`submission:*`**:
-  - `submission:created|approved|rejected|needs_changes|resubmitted`
-  - эмитится в `channel:{slugLower}` и (опционально) в `user:{id}` для заинтересованных пользователей
-
-**КРИТИЧНО про приватность кошелька:**
-
-- `wallet:updated` **НЕЛЬЗЯ** эмитить в `channel:*` (утечка баланса, дубликаты для клиентов).
-  - см. `src/realtime/walletBridge.ts` (комментарий-инвариант).
-
-**Нормализация slug:**
-
-- Всегда используем `slug.toLowerCase()` для имени комнаты `channel:{slugLower}`.
-  - см. `activateMeme` и `emitSubmissionEvent`.
-
-### Внутренний relay между prod ↔ beta (на одном VPS)
-
-Назначение: если пользователь подключен к другому инстансу (например, открыт beta фронт, а событие создалось на prod), событие зеркалится.
-
-- **эндпоинты**:
+- Endpoints:
   - `POST /internal/wallet-updated`
   - `POST /internal/submission-event`
   - `POST /internal/credits/chatter`
   - `POST /internal/credits/donor`
-- **требования безопасности**:
-  - запрос должен идти с localhost (`127.0.0.1`/`::1`)
-  - должен содержать заголовок `x-memalerts-internal` со значением:
-    - `wallet-updated` или `submission-event`
-    - для credits: `credits-event`
-- **никогда не публиковать наружу** (nginx не должен проксировать эти пути).
+- **Security requirements** (do not weaken):
+  - source must be **localhost** (`127.0.0.1` / `::1`) → `isLocalhostAddress`
+  - header `x-memalerts-internal`:
+    - `wallet-updated` (see `src/realtime/walletBridge.ts`)
+    - `submission-event` (see `src/realtime/submissionBridge.ts`)
+    - credits: `credits-event` (see `src/controllers/internal/creditsInternal.ts`)
+- External clients must get **404**, and nginx **must not proxy** `/internal/*`.
+- Entry point: `src/routes/index.ts`.
 
-### Uploads / сабмишены (инварианты безопасности и UX)
+#### 4) Wallet privacy in realtime
 
-- Сабмишены в текущей реализации — **только video**.
-- Лимиты (сервер):
-  - размер: **≤ 50MB**
-  - длительность: **≤ 15s** (сервер пытается определить через ffprobe; может fallback на client‑duration)
-- Защита:
-  - magic bytes validation (`validateFileContent`) против spoofing MIME
-  - path traversal защита (`validatePathWithinDirectory`)
-  - дедуп файлов по SHA‑256 (`FileHash`) + referenceCount
+- `wallet:updated` must be emitted **only** to room `user:{userId}`.
+- Never emit to `channel:*` (leaks balances + duplicates for clients in both rooms).
+- Code: `src/realtime/walletBridge.ts`.
+
+#### 5) Slug normalization for channel rooms
+
+- Room name is always `channel:${slug.toLowerCase()}`.
+- Code: `src/socket/index.ts`, `src/realtime/submissionBridge.ts` (and activation flow in controllers).
+
+---
+
+### System map: where to look (fast anchors)
+
+- **Bootstrapping**: `src/index.ts` (Express/Socket.IO, middleware, timeouts).
+- **Routes**:
+  - `src/routes/index.ts` — health, `/public/*`, credits overlay HTML, internal relay endpoints, debug endpoints.
+  - `src/routes/auth.ts`, `src/routes/viewer.ts`, `src/routes/submissions.ts`, `src/routes/streamer.ts`, `src/routes/owner.ts`, `src/routes/webhooks.ts`, `src/routes/beta.ts`.
+- **Auth / OAuth**:
+  - `src/middleware/auth.ts` (JWT cookie selection + beta detection).
+  - `src/controllers/authController.ts` (multi-provider login/linking; redirect allowlist; **do NOT `include: { channel: true }`** — migrations may lag; see comment).
+  - `src/auth/providers/*` (twitch/youtube/vk/vkvideo/trovo/kick/discord).
+- **CSRF**: `src/middleware/csrf.ts`.
+- **Socket.IO**: `src/socket/index.ts`:
+  - `join:channel` (streamer/admin only, slug must match authenticated user’s channel)
+  - `join:user` (only if `userId === auth.userId`)
+  - `join:overlay` (overlay JWT only, with token rotation `tv`).
+- **Realtime bridges**: `src/realtime/*` (`walletBridge.ts`, `submissionBridge.ts`, credits state/store/ticker).
+- **DB/Prisma**: `prisma/schema.prisma`, `src/lib/prisma.ts`.
+- **Docs (source of truth)**:
+  - `ARCHITECTURE.md` (flows + principles)
+  - `DEVELOPMENT.md` (local setup + performance knobs)
+  - `DEPLOYMENT.md` and `docs/DEPLOY_DEV.md` (real deploy triggers)
+  - `docs/TESTING.md` (how to run tests + what invariants they lock).
+
+---
+
+### API “quick map” (most important)
+
+- **Health**: `GET /health`
+- **Public guest API (available to guests on BOTH prod and beta)**:
+  - `GET /public/channels/:slug`
+  - `GET /public/channels/:slug/memes`
+  - `GET /public/channels/:slug/memes/search`
+  - token-based control: `GET/POST /public/submissions/*` (protected by query `token`, not cookies)
+- **Legacy public (note: beta gating depends on domain/instance)**:
+  - `GET /channels/:slug`, `GET /channels/:slug/memes`, `GET /channels/memes/search`, `GET /memes/stats`
+- **Viewer (auth)**: `GET /me`, `GET/PATCH /me/preferences`, `GET /wallet`, `GET /memes`, `POST /memes/:id/activate`, `GET /channels/:slug/wallet`
+- **Submissions**: `POST /submissions` etc.
+- **Streamer**: `/streamer/*` (role `streamer|admin`)
+- **Owner**: `/owner/*` (role `admin`)
+- **Webhooks**: `/webhooks/*`
+
+Full spec is `docs/FRONTEND_API_CHEATSHEET.md`, but agents must **not** read it fully — only the relevant endpoint section.
+
+---
+
+### Uploads / submissions: security and performance
+
+- Submissions currently: **video only**.
+- Limits: size ≤ 50MB; duration ≤ 15s (ffprobe, may fallback to client duration).
+- Security: magic-bytes validation + path traversal guards + SHA‑256 dedup (`FileHash`).
+- Heavy-work concurrency guards (important under load): `VIDEO_FFPROBE_CONCURRENCY`, `FILE_HASH_CONCURRENCY` (see `ENV.example`, `DEVELOPMENT.md`).
 - Storage:
-  - `UPLOAD_STORAGE=local` → физически в `UPLOAD_DIR` (по умолчанию `./uploads`) + раздача через `GET /uploads/*`
-  - `UPLOAD_STORAGE=s3` → загрузка в S3, `FileHash.filePath` хранит публичный URL (см. `S3_PUBLIC_BASE_URL`)
-- Owner bypass:
-  - если `req.channelId === target channelId` и роль `streamer/admin`, то submission может авто‑approved (создаётся `Meme` напрямую).
+  - `UPLOAD_STORAGE=local` → `UPLOAD_DIR=./uploads` (VPS typically serves via nginx).
+  - `UPLOAD_STORAGE=s3` → `FileHash.filePath` is a public URL (`S3_PUBLIC_BASE_URL` + key).
 
-### Webhooks / Twitch EventSub (инварианты)
+---
 
-- `POST /webhooks/twitch/eventsub`
-- HMAC проверка:
-  - signature headers обязательны
-  - timestamp должен быть в окне 10 минут
-- Challenge verification: `webhook_callback_verification_pending` → вернуть `challenge`
-- Дедуп: `Redemption` уникален по `twitchRedemptionId`
+### Prisma migrations (shared DB): expand/contract
 
-### Модель данных (самое важное из Prisma)
+If beta and prod share a DB (`shared`), migrations must be **backward-compatible** until release:
 
-- **Channel**: slug (unique), twitchChannelId (unique), настройки meme overlay + token rotation (`overlayTokenVersion`), настройки credits overlay (`creditsStyleJson`, `creditsTokenVersion`, `creditsReconnectWindowMinutes`)
-- **User**: роль `viewer|streamer|admin`, `hasBetaAccess`
-- **Wallet**: уникальность `(userId, channelId)`, баланс integer
-- **Meme**: status `pending|approved|rejected`, `fileHash` (для дедуп)
-- **MemeSubmission**: status `pending|approved|rejected|needs_changes`, `revision` (лимит ресабмитов)
-- **MemeActivation**: queue/play/done/failed + индексы под stats/search
-- **FileHash**: хранит физический путь и referenceCount
-- **BetaAccess**: заявки на доступ (в коде реально используются статусы `pending|approved|rejected|revoked`)
+- **Expand (ok)**: `ADD COLUMN NULL`, new tables, additive indexes.
+- **Contract (only after release)**: drop/rename/type changes.
+- Guard in repo: `pnpm migrations:check` (see `DEVELOPMENT.md`).
 
-### Деплой/релизы (как не сломать прод)
+---
 
-- Ветки:
-  - `main` → **beta**
-  - `develop` → **production**
-- CI/CD: `.github/workflows/ci-cd.yml`
-  - копирует код на VPS, ставит deps, билдит, делает `prisma migrate deploy`, перезапускает PM2
-- Миграции:
-  - при shared DB режиме beta/prod могут смотреть в одну БД → миграции должны быть **обратно‑совместимыми (expand/contract)**.
-  - внимательно читать `DEPLOYMENT.md` перед схемными изменениями.
+### Local commands
 
-### Логи/диагностика
+- Dev: `pnpm dev`
+- Build: `pnpm build`
+- Start: `pnpm start`
+- Prisma: `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:studio`
+- Tests: see `docs/TESTING.md` (`TEST_DATABASE_URL_BASE`, Postgres via `docker-compose.test.yml` on 5433).
 
-- Логи структурированные JSON: `src/utils/logger.ts`
-- Debug‑логи только opt-in: `DEBUG_LOGS=1`
-  - при включении появляется временный эндпоинт `GET /debug-ip` (не включать на production).
+---
 
-### Правила для изменений (чтобы PR приняли и ничего не взорвалось)
+### Deploy + VPS (ops, when needed)
 
-- **Не ломать изоляцию beta/prod** (CORS, cookie, JWT secrets).
-- **Не делать sync FS в горячих путях** (см. `DEVELOPMENT.md`/архитектуру).
-- **Держать транзакции короткими**: не делать внешние вызовы внутри `prisma.$transaction`.
-- **Wallet события** — только в `user:{id}`.
-- **Везде нормализовать slug** для комнат и событий.
-- **Не открывать /internal/** наружу и не ослаблять проверку localhost + internal header.
+#### Access
+
+- SSH: `ssh deploy@155.212.172.136`
+
+#### Instances
+
+- production: port **3001**, `/opt/memalerts-backend`, PM2 `memalerts-api`
+- beta: port **3002**, `/opt/memalerts-backend-beta`, PM2 `memalerts-api-beta`
+
+#### Deploy triggers (source of truth)
+
+- beta: **push to `main`** → deploy to 3002 (see `docs/DEPLOY_DEV.md`, `DEPLOYMENT.md`).
+- production: **push tag `prod-*`** → deploy to 3001 (see `docs/DEPLOY_DEV.md`).
+
+#### PM2 (quick)
+
+- status: `pm2 status`
+- logs: `pm2 logs memalerts-api --lines 200` / `pm2 logs memalerts-api-beta --lines 200`
+- restart: `pm2 restart memalerts-api` / `pm2 restart memalerts-api-beta`
+
+#### `.env` on VPS
+
+- `.env` lives at `/opt/memalerts-backend/.env` and `/opt/memalerts-backend-beta/.env` and is **not** rsync’ed by deploy.
+- Beta/prod secrets (especially `JWT_SECRET`) must be **different**.
+
+---
+
+### Debug endpoints (opt-in only, never on production)
+
+- `DEBUG_LOGS=1` enables `GET /debug-ip` (see `src/routes/index.ts`)
+- `DEBUG_AUTH=1` (or `DEBUG_LOGS=1`) enables `GET /debug-auth` (never returns tokens)
+
+---
+
+### Mini checklist before any change
+
+- Am I affecting **beta/prod isolation** (cookie/origins/JWT)?
+- Am I changing **CSRF exceptions** (`/public/*`, `/internal/*`, `/webhooks/*`)?
+- Am I weakening **localhost-only** + `x-memalerts-internal` for `/internal/*`?
+- Am I breaking **wallet privacy** (`wallet:updated` only to `user:{id}`)?
+- Am I normalizing `slug` (`toLowerCase`) in channel rooms/events?
+- If migrations are involved: **expand/contract**, no destructive SQL in shared DB mode.

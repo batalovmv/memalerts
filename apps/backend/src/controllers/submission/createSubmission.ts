@@ -15,6 +15,7 @@ import { debugLog } from '../../utils/debug.js';
 import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
 import { generateTagNames } from '../../utils/ai/tagging.js';
 import { makeAutoDescription } from '../../utils/ai/description.js';
+import { logger } from '../../utils/logger.js';
 
 async function safeUnlink(filePath: string): Promise<void> {
   try {
@@ -359,8 +360,14 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
                 } as any,
               });
             }
-          } catch {
-            // ignore
+          } catch (e: any) {
+            logger.warn('submission.ai.enqueue_failed', {
+              requestId: (req as any).requestId ?? null,
+              userId: req.userId ?? null,
+              channelId: String(channelId),
+              reason: 'memeSubmission_create_failed',
+              errorMessage: e?.message || String(e),
+            });
           }
 
           return res.status(201).json({
@@ -572,8 +579,14 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             aiStatus: 'pending',
           } as any,
         });
-      } catch {
-        // ignore
+      } catch (e: any) {
+        logger.warn('submission.ai.enqueue_failed', {
+          requestId: (req as any).requestId ?? null,
+          userId: req.userId ?? null,
+          channelId: String(channelId),
+          reason: 'memeSubmission_create_failed',
+          errorMessage: e?.message || String(e),
+        });
       }
 
       // Log file upload

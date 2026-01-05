@@ -33,6 +33,22 @@ function parseBool(raw: unknown): boolean {
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
+function fnv1a32(input: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function computeAiSchedulerLockId(): bigint {
+  const base = 421399n;
+  const key = `${process.env.INSTANCE || ''}|${process.cwd()}`;
+  const h = fnv1a32(key);
+  return base + BigInt(h % 100000);
+}
+
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   if (!Number.isFinite(ms) || ms <= 0) return await p;
   let t: NodeJS.Timeout | null = null;
@@ -73,7 +89,7 @@ async function main() {
     perSubmissionTimeoutMs,
   });
 
-  const lockId = 421399n;
+  const lockId = computeAiSchedulerLockId();
   const locked = await tryAcquireAdvisoryLock(lockId);
   if (!locked) {
     logger.warn('ai_analysis.lock_failed', { reason: 'another_process_running' });

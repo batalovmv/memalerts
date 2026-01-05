@@ -16,6 +16,7 @@ import { makeAutoDescription } from '../utils/ai/description.js';
 import { extractFramesJpeg } from '../utils/ai/extractFrames.js';
 import { generateMemeMetadataOpenAI } from '../utils/ai/openaiMemeMetadata.js';
 import { auditLog } from '../utils/auditLogger.js';
+import { calculateFileHash } from '../utils/fileHash.js';
 
 type AiModerationDecision = 'low' | 'medium' | 'high';
 
@@ -37,6 +38,27 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
 function parseBool(raw: unknown): boolean {
   const v = String(raw ?? '').toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+function fnv1a32(input: string): number {
+  // Deterministic, fast hash for advisory-lock partitioning (NOT crypto).
+  let h = 0x811c9dc5; // offset basis
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    // h *= 16777619 (FNV prime) but in 32-bit.
+    h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function computeAiSchedulerLockId(): bigint {
+  // Important for shared-DB beta+prod: do NOT use a single global lock across all instances.
+  // Otherwise one instance can starve the other, and with local uploads it may not have the files.
+  const base = 421399n;
+  const key = `${process.env.INSTANCE || ''}|${process.cwd()}`;
+  const h = fnv1a32(key);
+  // Keep it close to base to reduce the chance of colliding with other unrelated locks.
+  return base + BigInt(h % 100000);
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -248,6 +270,18 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     if (sk !== 'upload' && sk !== 'url') return;
   }
 
+  // Validate fileUrlTemp / resolve local path if needed (best-effort).
+  const fileUrl = submission.fileUrlTemp ? String(submission.fileUrlTemp) : '';
+  const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads');
+  let localPath: string | null = null;
+  if (fileUrl.startsWith('/uploads/')) {
+    const rel = fileUrl.replace(/^\/uploads\//, '');
+    localPath = validatePathWithinDirectory(rel, uploadsRoot);
+    if (!fs.existsSync(localPath)) {
+      throw new Error('missing_file_on_disk');
+    }
+  }
+
   // Some historical / URL-imported submissions might have fileHash missing (hashing timeout / older code).
   // Best-effort: recover it from fileUrlTemp when it looks like /uploads/memes/<sha256>.<ext>.
   let fileHash = submission.fileHash ? String(submission.fileHash) : null;
@@ -260,6 +294,21 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
         data: { fileHash: recovered },
       });
     }
+  }
+  // If still missing and we have a local file, compute hash now (this makes AI resilient to upload-time hash timeouts).
+  if (!fileHash && localPath) {
+    const hashTimeoutMs = clampInt(
+      parseInt(String(process.env.AI_FILEHASH_TIMEOUT_MS || ''), 10),
+      5_000,
+      10 * 60_000,
+      2 * 60_000
+    );
+    const computed = await withTimeout(calculateFileHash(localPath), hashTimeoutMs, 'ai_filehash');
+    fileHash = computed;
+    await prisma.memeSubmission.update({
+      where: { id: submissionId },
+      data: { fileHash: computed },
+    });
   }
   const durationMs =
     Number.isFinite(submission.durationMs as any) && (submission.durationMs as number) > 0 ? (submission.durationMs as number) : null;
@@ -311,18 +360,6 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     }
 
     return;
-  }
-
-  // Validate fileUrlTemp / resolve local path if needed (best-effort).
-  const fileUrl = submission.fileUrlTemp ? String(submission.fileUrlTemp) : '';
-  const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads');
-  let localPath: string | null = null;
-  if (fileUrl.startsWith('/uploads/')) {
-    const rel = fileUrl.replace(/^\/uploads\//, '');
-    localPath = validatePathWithinDirectory(rel, uploadsRoot);
-    if (!fs.existsSync(localPath)) {
-      throw new Error('missing_file_on_disk');
-    }
   }
 
   // Try “real” AI pipeline when possible; otherwise fall back to deterministic keyword heuristic.
@@ -691,7 +728,7 @@ export function startAiModerationScheduler() {
   }
 
   let running = false;
-  const lockId = 421399n;
+  const lockId = computeAiSchedulerLockId();
 
   const runOnce = async () => {
     if (running) return;

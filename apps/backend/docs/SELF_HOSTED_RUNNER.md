@@ -10,10 +10,20 @@
   - `/opt/memalerts-backend` (production)
   - `/opt/memalerts-backend-beta` (beta)
 - В каждой директории должен быть свой `.env`:
-  - production: cookie `token`, `JWT_SECRET`
-  - beta: cookie `token_beta`, **отдельный** `JWT_SECRET` (и прочая изоляция окружений)
+  - production: cookie `token`, **свой** `JWT_SECRET`
+  - beta: cookie `token_beta`, **другой** `JWT_SECRET` (изоляция окружений)
 
-Также нужны `pm2`, `node`, `pnpm` на VPS (как у вас сейчас для обычного деплоя).
+Важно: workflow **не синхронизирует `.env`** (он исключён из `rsync`). На VPS `.env` должен существовать заранее.
+
+Также на VPS должны быть установлены:
+
+- `node` (workflow использует Node **20**)
+- `pnpm`
+- `pm2`
+- `rsync`
+- `docker` (тесты в workflow поднимают `postgres:16` как service)
+
+И runner-пользователь должен уметь запускать Docker без `sudo` (обычно: добавить в группу `docker`).
 
 ## 2) Установка GitHub Actions Runner на VPS
 
@@ -48,11 +58,39 @@ sudo visudo -f /etc/sudoers.d/deploy
 deploy ALL=(ALL) NOPASSWD: /usr/bin/rsync
 ```
 
+Если планируете пользоваться опцией `[nginx-full]` (см. ниже), дополнительно понадобится разрешить запуск `.github/scripts/setup-nginx-full.sh` через `sudo`.
+
+Альтернатива “простая, но широкая” (в репозитории есть скрипт `.github/scripts/configure-sudo.sh`) — разрешить `NOPASSWD: ALL` для `deploy`. Это удобнее, но **менее безопасно**.
+
 ## 4) Что теперь будет происходить
 
-- **push в `main`** → self-hosted workflow деплоит **beta** (порт 3002)
-- **tag `prod-*`** → self-hosted workflow деплоит **production** (порт 3001)
+- **pull request в `main`** → workflow прогонит **tests на self-hosted runner** (Docker + Postgres)
+- **push в `main`** → workflow прогонит tests и затем деплоит **beta** (порт 3002)
+  - деплой **может быть пропущен**, если в пуше нет “релевантных” изменений (см. `ci-cd-selfhosted.yml`)
+  - **форсить деплой** можно:
+    - вручную через `workflow_dispatch` с `force_deploy=true`
+    - или коммит‑сообщением с маркером `deploy` / `[deploy]`
+- **tag `prod-*`** → workflow прогонит tests и затем деплоит **production** (порт 3001)
+  - есть guard: **prod tag обязан указывать на текущий `origin/main` HEAD** (чтобы не деплоить “старее, чем beta”)
 
-PR-проверки остаются в `.github/workflows/ci-cd.yml` (их можно тоже перенести на self-hosted при желании).
+### Как зарелизить production (через тег)
+
+На локальной машине:
+
+```bash
+git switch main && git pull
+git tag prod-2026-01-05
+git push origin prod-2026-01-05
+```
+
+### Опционально: “nuclear” nginx
+
+Если в `head_commit.message` есть маркер `[nginx-full]`, beta‑деплой выполнит:
+
+- `sudo bash .github/scripts/setup-nginx-full.sh <domain> 3001 3002`
+
+Это **опасная операция** (переписывает nginx конфиги). Использовать только когда осознанно хотите полностью перестроить nginx на VPS.
+
+Примечание: в текущей конфигурации единственный workflow — `ci-cd-selfhosted.yml`, поэтому и PR checks, и деплой — на self-hosted runner.
 
 
