@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deploy even if no relevant changes detected'
+        required: false
+        type: boolean
+        default: false
 
 env:
   NODE_VERSION: '20'
@@ -400,7 +406,7 @@ jobs:
   deploy-beta:
     name: Deploy beta on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     needs: [test]
     timeout-minutes: 20
 
@@ -420,15 +426,25 @@ jobs:
           BEFORE="${{ github.event.before }}"
           AFTER="${{ github.sha }}"
 
+          # Manual trigger can force deploy (useful for env/secrets changes or simple restart)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_deploy }}" = "true" ]; then
+            echo "Force deploy requested by workflow_dispatch input."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Deploy marker regex: matches "[deploy]" OR "deploy" as a standalone word OR "deploy:"/"deploy," etc.
+          DEPLOY_RE='(\\[deploy\\]|(^|[[:space:]])deploy([[:space:]]|$|[[:punct:]]))'
+
           # Force deploy if ANY pushed commit message contains "deploy" or "[deploy]"
           # (head_commit.message is not always reliable when multiple commits are pushed at once)
-          if [ -n "${{ github.event.head_commit.message }}" ] && echo "${{ github.event.head_commit.message }}" | grep -Eiq '(^|\\s)\\[?deploy\\]?($|\\s)'; then
+          if [ -n "${{ github.event.head_commit.message }}" ] && echo "${{ github.event.head_commit.message }}" | grep -Eiq "$DEPLOY_RE"; then
             echo "Force deploy requested by head commit message."
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-            if git log --format=%B "$BEFORE..$AFTER" | grep -Eiq '(^|\\s)\\[?deploy\\]?($|\\s)'; then
+            if git log --format=%B "$BEFORE..$AFTER" | grep -Eiq "$DEPLOY_RE"; then
               echo "Force deploy requested by commit message in push range."
               echo "deploy=true" >> "$GITHUB_OUTPUT"
               exit 0
