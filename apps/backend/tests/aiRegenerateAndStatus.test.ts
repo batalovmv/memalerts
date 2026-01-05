@@ -13,6 +13,19 @@ function makeJwt(payload: Record<string, any>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
+async function ensureFileHash(hash: string, filePath: string) {
+  await prisma.fileHash.upsert({
+    where: { hash },
+    create: {
+      hash,
+      filePath,
+      fileSize: 1n,
+      mimeType: 'video/mp4',
+    },
+    update: {},
+  });
+}
+
 function makeApp() {
   const app = express();
   app.use(express.json());
@@ -28,6 +41,7 @@ describe('AI regenerate + AI status', () => {
     const streamer = await prisma.user.create({ data: { displayName: 'S', role: 'streamer', channelId: channel.id } });
     const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
 
+    await ensureFileHash('a'.repeat(64), '/uploads/memes/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.mp4');
     const asset = await prisma.memeAsset.create({
       data: {
         type: 'video',
@@ -70,6 +84,7 @@ describe('AI regenerate + AI status', () => {
     const streamer = await prisma.user.create({ data: { displayName: 'S', role: 'streamer', channelId: channel.id } });
     const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
 
+    await ensureFileHash('b'.repeat(64), '/uploads/memes/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.mp4');
     const asset = await prisma.memeAsset.create({
       data: {
         type: 'video',
