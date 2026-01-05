@@ -443,7 +443,7 @@ jobs:
           fi
 
           # Check if any relevant paths changed between BEFORE and AFTER.
-          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eiq '^(src/|prisma/|package\\.json$|tsconfig\\.json$|\\.github/)'; then
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eiq '^(src/|prisma/|scripts/|package\\.json$|tsconfig\\.json$|\\.github/)'; then
             echo "Relevant changes detected; proceeding with deploy."
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
