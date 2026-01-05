@@ -8,26 +8,6 @@
 
 E2E (Playwright) можно добавить следующим этапом, когда определим 3–5 критичных пользовательских сценариев.
 
-## Запуск локально
-
-### Все тесты (web + overlay)
-```bash
-pnpm test
-```
-
-### CI-режим (без watch)
-```bash
-pnpm test:ci
-```
-
-### Coverage (по запросу)
-```bash
-pnpm test:coverage
-```
-
-Отчёты:
-- общий: `coverage/`
-
 ## Как устроена конфигурация
 - `vitest.config.ts`: запускает два проекта через `test.projects`: **web** и **overlay**
 - `vitest.web.config.ts`: настройки web (alias `@` → `src/`)
@@ -74,6 +54,6 @@ server.use(
 ## CI на VPS
 Тесты интегрированы в self-hosted workflows:
 - `.github/workflows/ci-selfhosted-checks.yml` (PR checks)
-- `.github/workflows/ci-cd-selfhosted.yml` (deploy beta/prod) — деплой происходит только после `pnpm test:ci`
+- `.github/workflows/ci-cd-selfhosted.yml` (deploy beta/prod) — деплой происходит только после успешного прогона тестов
 
 

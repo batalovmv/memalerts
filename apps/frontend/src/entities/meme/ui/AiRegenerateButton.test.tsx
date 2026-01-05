@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { Meme } from '@/types';
 
@@ -98,9 +98,9 @@ describe('AiRegenerateButton', () => {
     const btn = screen.getByRole('button', { name: /^ai regenerate$/i });
     fireEvent.click(btn);
 
-    await waitFor(() => {
-      expect(regenerateMemeAi).toHaveBeenCalledWith('channel-meme-id');
-    });
+    // With fake timers enabled in this suite, RTL's waitFor() polling won't advance unless we manually tick timers.
+    // The click handler calls regenerateMemeAi(primaryId) synchronously before its first await, so we can assert directly.
+    expect(regenerateMemeAi).toHaveBeenCalledWith('channel-meme-id');
   });
 });
 
