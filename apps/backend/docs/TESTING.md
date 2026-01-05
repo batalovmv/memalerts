@@ -21,13 +21,11 @@ Tests **do not use** your regular `DATABASE_URL`. For safety, you must provide a
 
 - `TEST_DATABASE_URL_BASE` — base URL for the test DB (without `?schema=`).
 
-You can start Postgres via `docker-compose.test.yml` (port **5433**):
+This repo’s default workflow is to run tests in the **CI/self-hosted runner** (and on deploy), where the test Postgres is provisioned and `TEST_DATABASE_URL_BASE` is set by the pipeline.
 
-```bash
-docker compose -f docker-compose.test.yml up -d
-```
+If you do need to run tests manually, you must point `TEST_DATABASE_URL_BASE` at a **dedicated test database** (not your regular `DATABASE_URL`).
 
-Run tests:
+Run tests (example):
 
 ```bash
 TEST_DATABASE_URL_BASE="postgresql://postgres:postgres@localhost:5433/memalerts_test" pnpm test

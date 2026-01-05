@@ -160,6 +160,118 @@ describe('AI regenerate + AI status', () => {
     expect(typeof res2.body?.retryAfterSeconds).toBe('number');
   });
 
+  it('POST /streamer/memes/:id/ai/regenerate allows re-run when aiAutoDescription is a UI placeholder', async () => {
+    const channel = await prisma.channel.create({ data: { slug: `p-${Date.now()}`, name: 'C' } });
+    const streamer = await prisma.user.create({ data: { displayName: 'S', role: 'streamer', channelId: channel.id } });
+    const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
+
+    await ensureFileHash('d'.repeat(64), '/uploads/memes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.mp4');
+    const asset = await prisma.memeAsset.create({
+      data: {
+        type: 'video',
+        fileUrl: '/uploads/memes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.mp4',
+        fileHash: 'd'.repeat(64),
+        durationMs: 1200,
+      },
+    });
+
+    const cm = await prisma.channelMeme.create({
+      data: {
+        channelId: channel.id,
+        memeAssetId: asset.id,
+        title: 'Placeholder',
+        priceCoins: 100,
+        status: 'approved',
+        deletedAt: null,
+        aiAutoDescription: 'Мем',
+        createdAt: new Date(Date.now() - 6 * 60_000),
+      } as any,
+      select: { id: true },
+    });
+
+    const res = await request(makeApp())
+      .post(`/streamer/memes/${cm.id}/ai/regenerate`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
+
+    expect(res.status).toBe(202);
+    expect(typeof res.body?.submissionId).toBe('string');
+  });
+
+  it('POST /streamer/memes/:id/ai/regenerate allows re-run when aiAutoDescription duplicates title', async () => {
+    const channel = await prisma.channel.create({ data: { slug: `pt-${Date.now()}`, name: 'C' } });
+    const streamer = await prisma.user.create({ data: { displayName: 'S', role: 'streamer', channelId: channel.id } });
+    const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
+
+    await ensureFileHash('e'.repeat(64), '/uploads/memes/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.mp4');
+    const asset = await prisma.memeAsset.create({
+      data: {
+        type: 'video',
+        fileUrl: '/uploads/memes/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.mp4',
+        fileHash: 'e'.repeat(64),
+        durationMs: 1200,
+      },
+    });
+
+    const cm = await prisma.channelMeme.create({
+      data: {
+        channelId: channel.id,
+        memeAssetId: asset.id,
+        title: 'test',
+        priceCoins: 100,
+        status: 'approved',
+        deletedAt: null,
+        aiAutoDescription: 'test',
+        createdAt: new Date(Date.now() - 6 * 60_000),
+      } as any,
+      select: { id: true },
+    });
+
+    const res = await request(makeApp())
+      .post(`/streamer/memes/${cm.id}/ai/regenerate`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
+
+    expect(res.status).toBe(202);
+    expect(typeof res.body?.submissionId).toBe('string');
+  });
+
+  it('POST /streamer/memes/:id/ai/regenerate blocks re-run when aiAutoDescription is real text', async () => {
+    const channel = await prisma.channel.create({ data: { slug: `pb-${Date.now()}`, name: 'C' } });
+    const streamer = await prisma.user.create({ data: { displayName: 'S', role: 'streamer', channelId: channel.id } });
+    const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
+
+    await ensureFileHash('f'.repeat(64), '/uploads/memes/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.mp4');
+    const asset = await prisma.memeAsset.create({
+      data: {
+        type: 'video',
+        fileUrl: '/uploads/memes/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.mp4',
+        fileHash: 'f'.repeat(64),
+        durationMs: 1200,
+      },
+    });
+
+    const cm = await prisma.channelMeme.create({
+      data: {
+        channelId: channel.id,
+        memeAssetId: asset.id,
+        title: 'Some title',
+        priceCoins: 100,
+        status: 'approved',
+        deletedAt: null,
+        aiAutoDescription: 'This is a real description',
+        createdAt: new Date(Date.now() - 6 * 60_000),
+      } as any,
+      select: { id: true },
+    });
+
+    const res = await request(makeApp())
+      .post(`/streamer/memes/${cm.id}/ai/regenerate`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
+
+    expect(res.status).toBe(400);
+    expect(res.body?.errorCode).toBe('AI_REGENERATE_NOT_ALLOWED');
+    expect(res.body?.details?.reason).toBe('description_already_present');
+  });
+
   it('GET /owner/ai/status is admin-only and returns queueCounts', async () => {
     const channel = await prisma.channel.create({ data: { slug: `o-${Date.now()}`, name: 'C' } });
     const viewer = await prisma.user.create({ data: { displayName: 'V', role: 'viewer', channelId: channel.id } });

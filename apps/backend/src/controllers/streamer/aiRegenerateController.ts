@@ -8,6 +8,47 @@ function parseNonNegativeInt(n: any): number | null {
   return v;
 }
 
+function normalizeAiText(s: string): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[“”«»"]/g, '')
+    .trim();
+}
+
+/**
+ * Frontend sometimes auto-fills placeholder values (e.g. "Мем") which should not block AI re-run.
+ * We treat those placeholders as "effectively empty" here for backward-compatible UX.
+ */
+function isEffectivelyEmptyAiDescription(descRaw: unknown, titleRaw: unknown): boolean {
+  const desc = normalizeAiText(String(descRaw ?? ''));
+  if (!desc) return true;
+
+  // Common case: UI auto-fills description with the same text as title (including when title defaults to "Мем").
+  const title = normalizeAiText(String(titleRaw ?? ''));
+  if (title && desc === title) return true;
+
+  // Known placeholders from UI / legacy.
+  const placeholders = new Set([
+    'мем',
+    'meme',
+    'ai tags',
+    'ai tag',
+    'tags',
+    'теги',
+    'описание',
+    'description',
+    'ai description',
+  ]);
+  if (placeholders.has(desc)) return true;
+
+  // Some UIs render multi-line templates; after whitespace normalization it becomes a single line.
+  if (desc === 'мем ai tags мем' || desc === 'meme ai tags meme') return true;
+
+  return false;
+}
+
 export const aiRegenerateController = {
   regenerate: async (req: AuthRequest, res: Response) => {
     const channelId = req.channelId;
@@ -48,8 +89,7 @@ export const aiRegenerateController = {
         .json({ errorCode: 'CHANNEL_MEME_NOT_FOUND', error: 'Meme not found', details: { entity: 'channelMeme', id: channelMemeId } });
     }
 
-    const existingDesc = String(cm.aiAutoDescription ?? '').trim();
-    if (existingDesc) {
+    if (!isEffectivelyEmptyAiDescription(cm.aiAutoDescription, cm.title)) {
       return res.status(400).json({
         errorCode: 'AI_REGENERATE_NOT_ALLOWED',
         error: 'AI regenerate is allowed only when aiAutoDescription is empty',
