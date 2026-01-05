@@ -30,6 +30,7 @@ const OwnerMemeAssetsModerationTab = lazy(() =>
   import('@/features/settings/tabs/OwnerMemeAssetsModeration').then((m) => ({ default: m.OwnerMemeAssetsModeration }))
 );
 const OwnerModeratorsTab = lazy(() => import('@/features/settings/tabs/OwnerModerators').then((m) => ({ default: m.OwnerModerators })));
+const OwnerAiStatusTab = lazy(() => import('@/features/settings/tabs/OwnerAiStatus').then((m) => ({ default: m.OwnerAiStatus })));
 const PromotionManagementTab = lazy(() =>
   import('@/features/settings/tabs/PromotionManagement').then((m) => ({ default: m.PromotionManagement }))
 );
@@ -53,7 +54,8 @@ type TabType =
   | 'beta'
   | 'entitlements'
   | 'ownerMemeAssets'
-  | 'ownerModerators';
+  | 'ownerModerators'
+  | 'ownerAiStatus';
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -127,7 +129,17 @@ export default function SettingsPage() {
     </div>
   );
 
-  const isMoreTabActive = ['wallets', 'promotions', 'statistics', 'beta', 'accounts', 'entitlements', 'ownerMemeAssets', 'ownerModerators'].includes(
+  const isMoreTabActive = [
+    'wallets',
+    'promotions',
+    'statistics',
+    'beta',
+    'accounts',
+    'entitlements',
+    'ownerMemeAssets',
+    'ownerModerators',
+    'ownerAiStatus',
+  ].includes(
     activeTab,
   );
 
@@ -142,6 +154,7 @@ export default function SettingsPage() {
     if (tab === 'entitlements') return t('admin.entitlements', { defaultValue: 'Entitlements' });
     if (tab === 'ownerMemeAssets') return t('ownerModeration.memeAssetsTab', { defaultValue: 'Owner: Meme assets' });
     if (tab === 'ownerModerators') return t('ownerModerators.tab', { defaultValue: 'Owner: Moderators' });
+    if (tab === 'ownerAiStatus') return t('ownerAiStatus.tab', { defaultValue: 'Owner: AI status' });
     if (tab === 'beta') return t('admin.betaAccess', { defaultValue: 'Beta access' });
     if (tab === 'accounts') return t('settings.accounts', { defaultValue: 'Accounts' });
     return tab;
@@ -614,6 +627,25 @@ export default function SettingsPage() {
                           <span className="min-w-0 truncate">{getTabLabel('ownerModerators')}</span>
                         </button>
                       )}
+
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('ownerAiStatus');
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors rounded-md mx-1 flex items-center gap-2 ${
+                            activeTab === 'ownerAiStatus'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10'
+                          }`}
+                          type="button"
+                          role="menuitem"
+                        >
+                          <span className={activeTab === 'ownerAiStatus' ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>{TicketIcon}</span>
+                          <span className="min-w-0 truncate">{getTabLabel('ownerAiStatus')}</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* walletManagement entry is rendered above once (admin OR streamer admin) */}
@@ -692,6 +724,14 @@ export default function SettingsPage() {
                 hidden={activeTab !== 'ownerModerators'}
               >
                 {activeTab === 'ownerModerators' && user?.role === 'admin' && <OwnerModeratorsTab />}
+              </div>
+
+              <div
+                role="tabpanel"
+                aria-label={t('ownerAiStatus.tab', { defaultValue: 'Owner: AI status' })}
+                hidden={activeTab !== 'ownerAiStatus'}
+              >
+                {activeTab === 'ownerAiStatus' && user?.role === 'admin' && <OwnerAiStatusTab />}
               </div>
 
               <div role="tabpanel" aria-label={t('admin.promotions', { defaultValue: 'Promotions' })} hidden={activeTab !== 'promotions'}>
