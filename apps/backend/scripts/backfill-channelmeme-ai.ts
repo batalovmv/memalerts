@@ -165,6 +165,7 @@ async function main() {
   let skippedNoAssetAi = 0;
   let downloadedAndDeduped = 0;
   let downloadFailed = 0;
+  let processFailed = 0;
 
   for (let i = 0; i < missing.length; i++) {
     const r = missing[i]!;
@@ -305,7 +306,26 @@ async function main() {
     if (!subId) continue;
 
     if (!dryRun) {
-      await processOneSubmission(subId);
+      try {
+        await processOneSubmission(subId);
+      } catch (e: any) {
+        processFailed += 1;
+        console.error(
+          JSON.stringify(
+            {
+              event: 'backfill.ai.process_failed',
+              channelId,
+              channelMemeId: r.id,
+              memeAssetId: asset.id,
+              submissionId: subId,
+              errorMessage: e?.message || String(e),
+            },
+            null,
+            2
+          )
+        );
+        continue;
+      }
     }
     processed += 1;
 
@@ -330,6 +350,7 @@ async function main() {
           skippedNoAssetAi,
           downloadedAndDeduped,
           downloadFailed,
+          processFailed,
         },
       },
       null,

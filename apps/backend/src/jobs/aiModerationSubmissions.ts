@@ -338,6 +338,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 
   const openaiEnabled = !!String(process.env.OPENAI_API_KEY || '').trim();
   if (openaiEnabled && (localPath || (fileUrl && isAllowedPublicFileUrl(fileUrl)))) {
+    const maxTags = clampInt(parseInt(String(process.env.AI_TAG_LIMIT || ''), 10), 1, 20, 5);
     // Temporary working directory (cleaned up in finally).
     const tmpDir = path.join(process.cwd(), 'uploads', 'temp', `ai-${submissionId}`);
     let audioPath: string | null = null;
@@ -361,21 +362,40 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
         modelVersions.download = { maxBytes, source: 'public_url' };
       }
 
-      audioPath = await extractAudioToMp3({ inputVideoPath: inputPath, outputDir: tmpDir, baseName: 'audio' });
-      const asrLanguageEnv = String(process.env.OPENAI_ASR_LANGUAGE || '').trim();
-      const asrLanguageAuto = /[а-яё]/i.test(String(submission.title || '')) ? 'ru' : '';
-      const asrLanguage = asrLanguageEnv || asrLanguageAuto || undefined;
-      const asr = await transcribeAudioOpenAI({ audioFilePath: audioPath, language: asrLanguage });
-      transcript = asr.transcript;
-      modelVersions.asrModel = asr.model;
+      // ASR (optional): some videos can be silent / have no audio stream.
+      try {
+        audioPath = await extractAudioToMp3({ inputVideoPath: inputPath, outputDir: tmpDir, baseName: 'audio' });
+      } catch (e: any) {
+        const msg = String(e?.message || e || '');
+        // Common ffmpeg error for videos without audio stream.
+        if (msg.toLowerCase().includes('does not contain any stream') || msg.toLowerCase().includes('no stream')) {
+          audioPath = null;
+          modelVersions.audio = { skipped: 'no_audio_stream', error: msg.slice(0, 200) };
+        } else {
+          throw e;
+        }
+      }
 
-      const mod = await moderateTextOpenAI({ text: transcript || '' });
-      modelVersions.moderationModel = mod.model;
-      labels = [...labels, ...mod.labels];
-      riskScore = Math.max(riskScore, mod.riskScore);
-      reason = mod.flagged ? 'ai:text_flagged' : 'ai:text_ok';
+      if (audioPath) {
+        const asrLanguageEnv = String(process.env.OPENAI_ASR_LANGUAGE || '').trim();
+        const asrLanguageAuto = /[а-яё]/i.test(String(submission.title || '')) ? 'ru' : '';
+        const asrLanguage = asrLanguageEnv || asrLanguageAuto || undefined;
+        const asr = await transcribeAudioOpenAI({ audioFilePath: audioPath, language: asrLanguage });
+        transcript = asr.transcript;
+        modelVersions.asrModel = asr.model;
 
-      const maxTags = clampInt(parseInt(String(process.env.AI_TAG_LIMIT || ''), 10), 1, 20, 5);
+        const mod = await moderateTextOpenAI({ text: transcript || '' });
+        modelVersions.moderationModel = mod.model;
+        labels = [...labels, ...mod.labels];
+        riskScore = Math.max(riskScore, mod.riskScore);
+        reason = mod.flagged ? 'ai:text_flagged' : 'ai:text_ok';
+      } else {
+        // No transcript possible; still run a lightweight heuristic on title/notes to keep moderation signal.
+        const heuristic = computeKeywordHeuristic(String(submission.title || ''), submission.notes);
+        riskScore = Math.max(riskScore, heuristic.riskScore);
+        labels = [...labels, ...heuristic.labels];
+        reason = 'ai:no_audio_stream';
+      }
 
       // Vision + metadata generation (title/tags/description).
       const metaEnabled = parseBool(process.env.AI_METADATA_ENABLED ?? '1');
