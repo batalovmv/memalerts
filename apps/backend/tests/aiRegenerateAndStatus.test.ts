@@ -85,7 +85,7 @@ describe('AI regenerate + AI status', () => {
     const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
 
     await ensureFileHash('b'.repeat(64), '/uploads/memes/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.mp4');
-    const asset = await prisma.memeAsset.create({
+    const assetTooSoon = await prisma.memeAsset.create({
       data: {
         type: 'video',
         fileUrl: '/uploads/memes/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.mp4',
@@ -97,7 +97,7 @@ describe('AI regenerate + AI status', () => {
     const tooSoon = await prisma.channelMeme.create({
       data: {
         channelId: channel.id,
-        memeAssetId: asset.id,
+        memeAssetId: assetTooSoon.id,
         title: 'Soon',
         priceCoins: 100,
         status: 'approved',
@@ -115,10 +115,20 @@ describe('AI regenerate + AI status', () => {
     expect(res.body?.errorCode).toBe('AI_REGENERATE_TOO_SOON');
     expect(typeof res.body?.retryAfterSeconds).toBe('number');
 
+    await ensureFileHash('c'.repeat(64), '/uploads/memes/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.mp4');
+    const assetOk = await prisma.memeAsset.create({
+      data: {
+        type: 'video',
+        fileUrl: '/uploads/memes/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.mp4',
+        fileHash: 'c'.repeat(64),
+        durationMs: 1200,
+      },
+    });
+
     const ok = await prisma.channelMeme.create({
       data: {
         channelId: channel.id,
-        memeAssetId: asset.id,
+        memeAssetId: assetOk.id,
         title: 'Ok',
         priceCoins: 100,
         status: 'approved',
@@ -137,7 +147,7 @@ describe('AI regenerate + AI status', () => {
 
     const submission = await prisma.memeSubmission.findUnique({ where: { id: res.body.submissionId } });
     expect(submission?.channelId).toBe(channel.id);
-    expect(submission?.memeAssetId).toBe(asset.id);
+    expect(submission?.memeAssetId).toBe(assetOk.id);
     expect(submission?.aiStatus).toBe('pending');
     expect(submission?.sourceKind).toBe('upload');
 
