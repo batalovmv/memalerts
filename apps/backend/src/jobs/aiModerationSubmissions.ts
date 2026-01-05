@@ -272,13 +272,32 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 
   // Validate fileUrlTemp / resolve local path if needed (best-effort).
   const fileUrl = submission.fileUrlTemp ? String(submission.fileUrlTemp) : '';
-  const uploadsRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads');
   let localPath: string | null = null;
   let localFileExists = false;
+  let localRootUsed: string | null = null;
   if (fileUrl.startsWith('/uploads/')) {
     const rel = fileUrl.replace(/^\/uploads\//, '');
-    localPath = validatePathWithinDirectory(rel, uploadsRoot);
-    localFileExists = fs.existsSync(localPath);
+    // Back-compat + ops safety:
+    // - Static serving supports both UPLOAD_DIR and legacy ./uploads (see src/index.ts).
+    // - AI pipeline should be resilient to UPLOAD_DIR misconfiguration during deploy.
+    const roots = Array.from(
+      new Set([path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads'), path.resolve(process.cwd(), './uploads')])
+    );
+
+    for (const r of roots) {
+      const candidate = validatePathWithinDirectory(rel, r);
+      if (fs.existsSync(candidate)) {
+        localPath = candidate;
+        localFileExists = true;
+        localRootUsed = r;
+        break;
+      }
+      // Keep the first candidate for better error messages / hashing attempts.
+      if (!localPath) {
+        localPath = candidate;
+        localRootUsed = r;
+      }
+    }
   }
 
   // Some historical / URL-imported submissions might have fileHash missing (hashing timeout / older code).
@@ -297,6 +316,13 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   // If still missing and we have a local file, compute hash now (this makes AI resilient to upload-time hash timeouts).
   if (!fileHash && localPath) {
     if (!localFileExists) {
+      logger.warn('ai_moderation.file_missing', {
+        submissionId,
+        fileUrl,
+        uploadDirEnv: process.env.UPLOAD_DIR || null,
+        localRootUsed,
+        reason: 'missing_file_on_disk_before_hash',
+      });
       throw new Error('missing_file_on_disk');
     }
     const hashTimeoutMs = clampInt(
@@ -367,6 +393,13 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   // If the submission points at a local /uploads/* path but the file is missing on disk,
   // fail and let the scheduler retry. (But dedup above must still work even if the file is gone.)
   if (fileUrl.startsWith('/uploads/') && localPath && !localFileExists) {
+    logger.warn('ai_moderation.file_missing', {
+      submissionId,
+      fileUrl,
+      uploadDirEnv: process.env.UPLOAD_DIR || null,
+      localRootUsed,
+      reason: 'missing_file_on_disk_before_processing',
+    });
     throw new Error('missing_file_on_disk');
   }
 
@@ -692,11 +725,32 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 
 export function startAiModerationScheduler() {
   const enabledRaw = process.env.AI_MODERATION_ENABLED;
-  const enabled = parseBool(enabledRaw);
+  const openaiApiKeySet = !!String(process.env.OPENAI_API_KEY || '').trim();
+  const nodeEnv = String(process.env.NODE_ENV || '').trim();
+  const isProd = nodeEnv === 'production';
+
+  let enabled = false;
+  let disabledReason = 'env_flag_off';
+
+  // Back-compat + ops safety:
+  // - If AI_MODERATION_ENABLED is explicitly set, respect it.
+  // - If it's missing, auto-enable ONLY in production when OPENAI_API_KEY is configured.
+  const enabledRawTrimmed = enabledRaw == null ? '' : String(enabledRaw).trim();
+  if (enabledRawTrimmed) {
+    enabled = parseBool(enabledRawTrimmed);
+    disabledReason = enabled ? 'enabled_by_env' : 'env_flag_off';
+  } else {
+    enabled = isProd && openaiApiKeySet;
+    disabledReason = enabled ? 'enabled_by_default' : 'env_flag_missing';
+  }
+
   if (!enabled) {
     logger.info('ai_moderation.scheduler.disabled', {
       aiModerationEnabled: enabledRaw ?? null,
-      reason: 'env_flag_off',
+      nodeEnv: nodeEnv || null,
+      openaiApiKeySet,
+      reason: disabledReason,
+      hint: 'Set AI_MODERATION_ENABLED=1 (or set OPENAI_API_KEY in production) to enable',
     });
     return;
   }
@@ -713,7 +767,6 @@ export function startAiModerationScheduler() {
     30 * 60_000,
     5 * 60_000
   );
-  const openaiApiKeySet = !!String(process.env.OPENAI_API_KEY || '').trim();
   const metaEnabled = parseBool(process.env.AI_METADATA_ENABLED ?? '1');
   const visionEnabled = parseBool(process.env.AI_VISION_ENABLED ?? '1');
 

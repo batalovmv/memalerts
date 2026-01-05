@@ -740,3 +740,4 @@ Purpose: manually enable/disable subscription-gated features for a channel (unti
   - `credits:state` → `{ chatters: [{name}], donors: [{name,amount,currency}] }`
 
 
+

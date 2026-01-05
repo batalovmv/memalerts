@@ -33,7 +33,9 @@ There are two trigger points:
 
 In `src/index.ts`, on server start, `startAiModerationScheduler()` is called (see `src/jobs/aiModerationSubmissions.ts`).
 
-- The scheduler is **off by default** and only enabled when `AI_MODERATION_ENABLED=1`.
+- The scheduler is enabled when `AI_MODERATION_ENABLED=1`.
+  - If `AI_MODERATION_ENABLED` is **missing**, it auto-enables **only in production** when `OPENAI_API_KEY` is configured (so deploys don’t silently disable analysis).
+  - To force-disable even in production, set `AI_MODERATION_ENABLED=0`.
 - It uses a Postgres advisory lock (base id: `421399`) to **prevent parallel runs per instance** (to avoid races), but **does not block other instances** (important for shared DB beta+prod).
 - It takes candidates from the database in batches and marks submissions as `aiStatus='processing'` atomically via `updateMany` (“claim”) to avoid races.
 
