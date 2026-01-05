@@ -21,7 +21,9 @@ export const aiStatusController = {
     const now = new Date();
     const stuckBefore = new Date(Date.now() - stuckMs);
 
-    const [pending, failedReady, processingStuck] = await Promise.all([
+    const processingTake = clampInt(parseInt(String(req.query.take || ''), 10), 1, 100, 20);
+
+    const [pending, failedReady, processingStuck, processingItems] = await Promise.all([
       prisma.memeSubmission.count({
         where: {
           status: { in: ['pending', 'approved'] },
@@ -45,9 +47,51 @@ export const aiStatusController = {
           aiLastTriedAt: { lt: stuckBefore },
         },
       }),
+      prisma.memeSubmission.findMany({
+        where: {
+          status: { in: ['pending', 'approved'] },
+          sourceKind: { in: ['upload', 'url'] },
+          aiStatus: 'processing',
+        },
+        orderBy: [{ aiLastTriedAt: 'desc' }, { createdAt: 'asc' }],
+        take: processingTake,
+        select: {
+          id: true,
+          channelId: true,
+          title: true,
+          type: true,
+          fileUrlTemp: true,
+          fileHash: true,
+          aiRetryCount: true,
+          aiLastTriedAt: true,
+          aiNextRetryAt: true,
+          aiError: true,
+          createdAt: true,
+          channel: { select: { slug: true } },
+        },
+      }),
     ]);
 
     const scheduler = getAiModerationSchedulerStatus();
+
+    const processing = processingItems.map((s) => {
+      const isStuck = !!s.aiLastTriedAt && s.aiLastTriedAt < stuckBefore;
+      return {
+        id: s.id,
+        channelId: s.channelId,
+        channelSlug: s.channel?.slug ?? null,
+        title: s.title,
+        type: s.type,
+        fileHash: s.fileHash ?? null,
+        fileUrlTemp: String(s.fileUrlTemp || '').slice(0, 300),
+        aiRetryCount: s.aiRetryCount,
+        aiLastTriedAt: s.aiLastTriedAt ? s.aiLastTriedAt.toISOString() : null,
+        aiNextRetryAt: s.aiNextRetryAt ? s.aiNextRetryAt.toISOString() : null,
+        stuck: isStuck,
+        aiErrorShort: s.aiError ? String(s.aiError).slice(0, 500) : null,
+        createdAt: s.createdAt.toISOString(),
+      };
+    });
 
     return res.json({
       enabled: scheduler.enabled,
@@ -62,6 +106,10 @@ export const aiStatusController = {
       lastRunCompletedAt: scheduler.lastRunCompletedAt,
       lastRunStats: scheduler.lastRunStats,
       queueCounts: { pending, failedReady, processingStuck },
+      processing: {
+        take: processingTake,
+        items: processing,
+      },
     });
   },
 };
