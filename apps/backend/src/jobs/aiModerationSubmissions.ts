@@ -75,6 +75,20 @@ function normalizeAiText(s: string): string {
     .trim();
 }
 
+function extractTitleTokens(titleRaw: unknown): string[] {
+  const title = normalizeAiText(String(titleRaw ?? ''));
+  if (!title) return [];
+  // Keep letters/numbers, treat other chars as separators.
+  const cleaned = title.replace(/[^a-z0-9а-яё]+/gi, ' ');
+  const tokens = cleaned
+    .split(' ')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    // Ignore very short tokens (noise).
+    .filter((t) => t.length >= 2);
+  return Array.from(new Set(tokens));
+}
+
 /**
  * Some UIs/legacy paths can end up with placeholder AI fields like "Мем".
  * Those should NOT be treated as reusable "AI done" metadata, otherwise duplicates never get real analysis.
@@ -102,6 +116,44 @@ function isEffectivelyEmptyAiDescription(descRaw: unknown, titleRaw: unknown): b
   if (desc === 'мем ai tags мем' || desc === 'meme ai tags meme') return true;
 
   return false;
+}
+
+function hasReusableAiTags(tagNamesJsonRaw: unknown, titleRaw: unknown, descRaw: unknown): boolean {
+  const arr = Array.isArray(tagNamesJsonRaw) ? (tagNamesJsonRaw as unknown[]) : [];
+  if (arr.length === 0) return false;
+
+  const placeholders = new Set([
+    'мем',
+    'meme',
+    'тест',
+    'test',
+    'ai tags',
+    'ai tag',
+    'tags',
+    'теги',
+  ]);
+
+  const nonPlaceholder = arr
+    .map((t) => normalizeAiText(String(t ?? '')))
+    .filter(Boolean)
+    .filter((t) => !placeholders.has(t));
+  if (nonPlaceholder.length === 0) return false;
+
+  // If description is effectively empty and tags are just tokenized title words,
+  // treat this as "no real AI" (avoid locking in heuristic results).
+  if (isEffectivelyEmptyAiDescription(descRaw, titleRaw)) {
+    const titleTokens = new Set(extractTitleTokens(titleRaw));
+    if (titleTokens.size > 0) {
+      const allFromTitle = nonPlaceholder.every((t) => titleTokens.has(t));
+      if (allFromTitle) return false;
+    }
+  }
+
+  return nonPlaceholder.some((t) => {
+    const n = normalizeAiText(String(t ?? ''));
+    if (!n) return false;
+    return !placeholders.has(n);
+  });
 }
 
 function parseBool(raw: unknown): boolean {
@@ -420,7 +472,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
 
   if (existingAsset) {
     const hasReusableDescription = !isEffectivelyEmptyAiDescription(existingAsset.aiAutoDescription, submission.title);
-    const hasReusableTags = Array.isArray(existingAsset.aiAutoTagNamesJson) && (existingAsset.aiAutoTagNamesJson as any[]).length > 0;
+    const hasReusableTags = hasReusableAiTags(existingAsset.aiAutoTagNamesJson, submission.title, existingAsset.aiAutoDescription);
     if (!hasReusableDescription && !hasReusableTags) {
       logger.info('ai_moderation.dedup.skip_reuse_placeholder', {
         submissionId,

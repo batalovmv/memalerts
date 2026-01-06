@@ -637,6 +637,17 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
             .replace(/\s+/g, ' ')
             .replace(/[“”«»"]/g, '')
             .trim();
+        const extractTitleTokens = (titleRaw: unknown): string[] => {
+          const title = normalizeAiText(String(titleRaw ?? ''));
+          if (!title) return [];
+          const cleaned = title.replace(/[^a-z0-9а-яё]+/gi, ' ');
+          const tokens = cleaned
+            .split(' ')
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .filter((t) => t.length >= 2);
+          return Array.from(new Set(tokens));
+        };
         const isEffectivelyEmptyAiDescription = (descRaw: unknown, titleRaw: unknown): boolean => {
           const desc = normalizeAiText(String(descRaw ?? ''));
           if (!desc) return true;
@@ -659,7 +670,26 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
         };
 
         const hasReusableDescription = !isEffectivelyEmptyAiDescription(aiAsset?.aiAutoDescription, finalTitle);
-        const hasReusableTags = Array.isArray((aiAsset as any)?.aiAutoTagNamesJson) && ((aiAsset as any).aiAutoTagNamesJson as any[]).length > 0;
+        const hasReusableTags = (() => {
+          const arr = Array.isArray((aiAsset as any)?.aiAutoTagNamesJson) ? (((aiAsset as any).aiAutoTagNamesJson as any[]) ?? []) : [];
+          if (arr.length === 0) return false;
+          const placeholders = new Set(['мем', 'meme', 'тест', 'test', 'ai tags', 'ai tag', 'tags', 'теги']);
+          const nonPlaceholder = arr
+            .map((t) => normalizeAiText(String(t ?? '')))
+            .filter(Boolean)
+            .filter((t) => !placeholders.has(t));
+          if (nonPlaceholder.length === 0) return false;
+
+          if (isEffectivelyEmptyAiDescription(aiAsset?.aiAutoDescription, finalTitle)) {
+            const titleTokens = new Set(extractTitleTokens(finalTitle));
+            if (titleTokens.size > 0) {
+              const allFromTitle = nonPlaceholder.every((t) => titleTokens.has(t));
+              if (allFromTitle) return false;
+            }
+          }
+
+          return nonPlaceholder.length > 0;
+        })();
 
         if (aiAsset && (hasReusableDescription || hasReusableTags)) {
           submissionData.aiStatus = 'done';
