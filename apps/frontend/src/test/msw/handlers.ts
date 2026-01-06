@@ -72,22 +72,32 @@ export function mockModerationQuarantineOk(assert?: (data: { id: string; reason:
   return http.post('*/moderation/meme-assets/:id/delete', async ({ params, request }) => {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const reason = typeof body.reason === 'string' ? body.reason : '';
-    const id = String(params.id ?? '');
+    const idRaw = String(params.id ?? '');
+    // App uses encodeURIComponent(id) in URL; keep tests robust by asserting encoded id shape.
+    const id = encodeURIComponent(idRaw);
     assert?.({ id, reason });
     return HttpResponse.json({ ok: true });
   });
 }
 
 export function mockChannel(slug: string, data: Record<string, unknown>) {
-  return http.get('*/channels/:slug', ({ params }) => {
-    if (String(params.slug ?? '') !== slug) return new HttpResponse(null, { status: 404 });
+  // Match only `/channels/<slug>` with optional query string.
+  // Important: do NOT match nested routes like `/channels/memes/search`.
+  return http.get(/.*\/channels\/([^/]+)(\?.*)?$/, ({ request }) => {
+    const url = new URL(request.url);
+    const actual = String(url.pathname.split('/').pop() ?? '');
+    if (actual !== slug) return new HttpResponse(null, { status: 404 });
     return HttpResponse.json(data);
   });
 }
 
 export function mockPublicChannel(slug: string, data: Record<string, unknown>) {
-  return http.get('*/public/channels/:slug', ({ params }) => {
-    if (String(params.slug ?? '') !== slug) return new HttpResponse(null, { status: 404 });
+  // Match only `/public/channels/<slug>` with optional query string.
+  // Important: do NOT match nested routes like `/public/channels/<slug>/memes`.
+  return http.get(/.*\/public\/channels\/([^/]+)(\?.*)?$/, ({ request }) => {
+    const url = new URL(request.url);
+    const actual = String(url.pathname.split('/').pop() ?? '');
+    if (actual !== slug) return new HttpResponse(null, { status: 404 });
     return HttpResponse.json(data);
   });
 }

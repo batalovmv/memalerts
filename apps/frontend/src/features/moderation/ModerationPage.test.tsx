@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 
@@ -96,10 +96,14 @@ describe('ModerationPage (integration)', () => {
     expect(toast.error).toHaveBeenCalled();
     expect(quarantineAssert).not.toHaveBeenCalled();
 
+    // Wait until the action finishes and buttons become clickable again.
+    await waitFor(() => expect(screen.getByRole('button', { name: /delete \(quarantine\)/i })).not.toBeDisabled());
+
     // Open again and provide valid reason.
     await user.click(screen.getByRole('button', { name: /delete \(quarantine\)/i }));
     const textarea = await screen.findByPlaceholderText(/describe why this should be deleted/i);
-    await user.type(textarea, 'dmca');
+    fireEvent.change(textarea, { target: { value: 'dmca' } });
+    expect(textarea).toHaveValue('dmca');
     await user.click(screen.getByRole('button', { name: /^delete$/i }));
 
     // API call should happen with encoded :id and provided reason.

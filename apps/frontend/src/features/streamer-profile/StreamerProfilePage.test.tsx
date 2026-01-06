@@ -96,6 +96,14 @@ describe('StreamerProfilePage (integration)', () => {
     const memesCalls: URL[] = [];
 
     server.use(
+      // The page prefers /channels/:slug for initial load; also allow /public/* as fallback.
+      mockChannel(slug, {
+        id: 'c1',
+        slug,
+        name: 'Test Channel',
+        coinPerPointRatio: 1,
+        stats: { memesCount: 1, usersCount: 2 },
+      }),
       mockPublicChannel(slug, {
         id: 'c1',
         slug,
@@ -117,25 +125,27 @@ describe('StreamerProfilePage (integration)', () => {
     await waitFor(() => expect(memesCalls.length).toBeGreaterThanOrEqual(1));
     expect(memesCalls[0]!.searchParams.get('limit')).toBe('40');
     expect(memesCalls[0]!.searchParams.get('offset')).toBe('0');
-    expect(memesCalls[0]!.searchParams.get('channelId')).toBe('c1');
+    expect(memesCalls[0]!.searchParams.get('channelSlug')).toBe(slug);
 
     // Clicking favorites while logged out should open auth required modal
     await user.click(screen.getByRole('button', { name: /my favorites/i }));
     expect(await screen.findByTestId('auth-required-modal-open')).toBeInTheDocument();
   });
 
-  it('guest: falls back to /channels/* when /public/* returns SPA HTML (misconfigured proxy)', async () => {
+  it('guest: falls back to /public/* when /channels/* fails (back-compat)', async () => {
     const slug = 'testchannel';
-    const html = '<!doctype html><html><head></head><body><div id="root"></div></body></html>';
 
     server.use(
-      // Simulate SPA fallback on public endpoints (200 + HTML).
-      http.get('*/public/channels/:slug', ({ params }) => {
-        if (String(params.slug ?? '') !== slug) return new HttpResponse(null, { status: 404 });
-        return HttpResponse.text(html, { status: 200 });
+      // Simulate /channels/* not available for guests in some deployments.
+      // Match only same-origin `/channels/:slug` (not `/public/channels/:slug`).
+      http.get(/.*\/\/[^/]+\/channels\/[^/?]+(\?.*)?$/, ({ request }) => {
+        const url = new URL(request.url);
+        const actual = String(url.pathname.split('/').pop() ?? '');
+        if (actual !== slug) return new HttpResponse(null, { status: 404 });
+        return HttpResponse.json({ error: 'forbidden' }, { status: 403 });
       }),
-      // But /channels/* works (common nginx config: proxies /channels but not /public).
-      mockChannel(slug, {
+      // /public/* still works.
+      mockPublicChannel(slug, {
         id: 'c1',
         slug,
         name: 'Test Channel',
@@ -197,6 +207,13 @@ describe('StreamerProfilePage (integration)', () => {
     const searchCalls: URL[] = [];
 
     server.use(
+      mockChannel(slug, {
+        id: 'c1',
+        slug,
+        name: 'Test Channel',
+        coinPerPointRatio: 1,
+        stats: { memesCount: 0, usersCount: 0 },
+      }),
       mockPublicChannel(slug, {
         id: 'c1',
         slug,
@@ -222,7 +239,7 @@ describe('StreamerProfilePage (integration)', () => {
     await waitFor(() => expect(searchCalls.some((u) => u.searchParams.get('q') === 'abc')).toBe(true));
     const qCall = searchCalls.find((u) => u.searchParams.get('q') === 'abc')!;
     expect(qCall.searchParams.get('q')).toBe('abc');
-    expect(qCall.searchParams.get('channelId')).toBe('c1');
+    expect(qCall.searchParams.get('channelSlug')).toBe(slug);
     expect(await screen.findByRole('button', { name: /meme:searched meme/i })).toBeInTheDocument();
   });
 });

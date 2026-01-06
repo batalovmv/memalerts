@@ -291,10 +291,10 @@ describe('SubmitModal (integration)', () => {
     await userEv.click(screen.getByRole('tab', { name: /import/i }));
 
     const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement;
-    await userEv.type(titleInput, 'Import test');
+    fireEvent.change(titleInput, { target: { value: 'Import test' } });
 
     const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;
-    await userEv.type(urlInput, 'https://cdns.memealerts.com/p/x/alert_orig.webm');
+    fireEvent.change(urlInput, { target: { value: 'https://cdns.memealerts.com/p/x/alert_orig.webm' } });
 
     // Use TagInput mock to populate tags.
     await userEv.click(screen.getByRole('button', { name: /set tags/i }));
@@ -332,7 +332,7 @@ describe('SubmitModal (integration)', () => {
     await userEv.click(screen.getByRole('tab', { name: /import/i }));
 
     const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;
-    await userEv.type(urlInput, 'https://cdns.memealerts.com/p/x/alert_orig.webm');
+    fireEvent.change(urlInput, { target: { value: 'https://cdns.memealerts.com/p/x/alert_orig.webm' } });
 
     const form = container.querySelector('form') as HTMLFormElement;
     await act(async () => {
@@ -372,10 +372,10 @@ describe('SubmitModal (integration)', () => {
     await userEv.click(screen.getByRole('tab', { name: /import/i }));
 
     const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement;
-    await userEv.type(titleInput, 'Retry title');
+    fireEvent.change(titleInput, { target: { value: 'Retry title' } });
 
     const urlInput = container.querySelector('input[type="url"][required]') as HTMLInputElement;
-    await userEv.type(urlInput, 'https://cdns.memealerts.com/p/x/alert_orig.webm');
+    fireEvent.change(urlInput, { target: { value: 'https://cdns.memealerts.com/p/x/alert_orig.webm' } });
 
     await userEv.click(screen.getByRole('button', { name: /set tags/i }));
     expect(screen.getByTestId('tags-value')).toHaveTextContent('t1,t2');
