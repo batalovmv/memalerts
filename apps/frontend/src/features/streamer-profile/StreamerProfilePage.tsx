@@ -24,6 +24,7 @@ import { Button, HelpTooltip, IconButton, Input, PageShell, Pill, Spinner } from
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
+import type { MemePoolItem } from '@/shared/api/memesPool';
 
 interface ChannelInfo {
   id: string;
@@ -64,6 +65,55 @@ function looksLikeSpaHtml(data: unknown): boolean {
   if (typeof data !== 'string') return false;
   const head = data.slice(0, 256).toLowerCase();
   return head.includes('<!doctype html') || head.includes('<html');
+}
+
+function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
+  // Pool items represent MemeAsset (channel-independent). MemeCard expects Meme-like shape.
+  const fileUrl =
+    (typeof (m as unknown as { fileUrl?: unknown }).fileUrl === 'string' && (m as unknown as { fileUrl: string }).fileUrl) ||
+    (typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string' && (m as unknown as { previewUrl: string }).previewUrl) ||
+    (typeof (m as unknown as { url?: unknown }).url === 'string' && (m as unknown as { url: string }).url) ||
+    '';
+
+  const title =
+    typeof m.sampleTitle === 'string' && m.sampleTitle.trim() ? m.sampleTitle.trim() : typeof fallbackTitle === 'string' ? fallbackTitle : '';
+  const priceCoins = typeof m.samplePriceCoins === 'number' && Number.isFinite(m.samplePriceCoins) ? m.samplePriceCoins : 0;
+  const durationMs = typeof m.durationMs === 'number' && Number.isFinite(m.durationMs) ? m.durationMs : 0;
+  const type = (m.type as Meme['type'] | undefined) || 'video';
+
+  // Prefer explicit memeAssetId, fallback to id.
+  const memeAssetId =
+    typeof m.memeAssetId === 'string' && m.memeAssetId.trim()
+      ? m.memeAssetId.trim()
+      : typeof m.id === 'string' && m.id.trim()
+        ? m.id.trim()
+        : '';
+
+  return {
+    id: memeAssetId,
+    title,
+    type,
+    fileUrl,
+    priceCoins,
+    durationMs,
+  };
+}
+
+async function fetchMemesPool(opts: { limit: number; offset: number; q?: string; timeoutMs?: number }): Promise<Meme[]> {
+  const params = new URLSearchParams();
+  params.set('limit', String(opts.limit));
+  params.set('offset', String(opts.offset));
+  if (typeof opts.q === 'string' && opts.q.trim()) params.set('q', opts.q.trim());
+  // Avoid stale cache after recent toggles (proxy/CDN/browser).
+  params.set('_ts', String(Date.now()));
+
+  const resp = await api.get<unknown>(`/memes/pool?${params.toString()}`, {
+    timeout: typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 15000,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+
+  const items = Array.isArray(resp) ? (resp as MemePoolItem[]) : [];
+  return items.map((x, idx) => toPoolCardMeme(x, `Meme #${opts.offset + idx + 1}`));
 }
 
 async function fetchChannelMemesSearch(opts: {
@@ -311,37 +361,75 @@ export default function StreamerProfile() {
           const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
           // NOTE: Some backends expose pool_all catalog via `/public/channels/:slug/memes/search`.
           // Prefer it for pool_all mode, but keep a fallback to `/channels/memes/search` for back-compat.
-          const listParams = new URLSearchParams();
-          listParams.set('channelSlug', (channelInfo.slug || normalizedSlug).toLowerCase());
-          listParams.set('limit', String(MEMES_PER_PAGE));
-          listParams.set('offset', '0');
-          listParams.set('sortBy', 'createdAt');
-          listParams.set('sortOrder', 'desc');
-          if (canIncludeFileHash) listParams.set('includeFileHash', '1');
-          // Avoid stale cache after recent settings toggles.
-          listParams.set('_ts', String(Date.now()));
-          let resp: unknown = null;
-          try {
-            resp = await fetchChannelMemesSearch({
-              channelSlug: (channelInfo.slug || normalizedSlug).toLowerCase(),
-              params: listParams,
-              preferPublic: channelInfo.memeCatalogMode === 'pool_all',
-              timeoutMs: 15000,
-            });
-          } catch {
-            // Back-compat fallback: some backends may only support channelId on the non-public endpoint.
-            const fallbackParams = new URLSearchParams(listParams);
-            fallbackParams.delete('channelSlug');
-            fallbackParams.set('channelId', channelInfo.id);
-            resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
-              timeout: 15000,
-              headers: { 'Cache-Control': 'no-store' },
-            });
+          if (channelInfo.memeCatalogMode === 'pool_all') {
+            // On production/beta deployments, the only reliable "global pool" endpoint is `/memes/pool`.
+            // Channel-scoped `/public/channels/:slug/memes/search` may be missing and fall back to SPA HTML.
+            try {
+              const poolMemes = await fetchMemesPool({ limit: MEMES_PER_PAGE, offset: 0, timeoutMs: 15000 });
+              setMemes(poolMemes);
+              setHasMore(poolMemes.length === MEMES_PER_PAGE);
+            } catch {
+              // If pool is not accessible (beta gating / auth), fall back to channel listings.
+              const listParams = new URLSearchParams();
+              listParams.set('channelSlug', (channelInfo.slug || normalizedSlug).toLowerCase());
+              listParams.set('limit', String(MEMES_PER_PAGE));
+              listParams.set('offset', '0');
+              listParams.set('sortBy', 'createdAt');
+              listParams.set('sortOrder', 'desc');
+              if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+              listParams.set('_ts', String(Date.now()));
+              let resp: unknown = null;
+              try {
+                resp = await fetchChannelMemesSearch({
+                  channelSlug: (channelInfo.slug || normalizedSlug).toLowerCase(),
+                  params: listParams,
+                  preferPublic: true,
+                  timeoutMs: 15000,
+                });
+              } catch {
+                const fallbackParams = new URLSearchParams(listParams);
+                fallbackParams.delete('channelSlug');
+                fallbackParams.set('channelId', channelInfo.id);
+                resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+                  timeout: 15000,
+                  headers: { 'Cache-Control': 'no-store' },
+                });
+              }
+              const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
+              setMemes(memes);
+              setHasMore(memes.length === MEMES_PER_PAGE);
+            }
+          } else {
+            const listParams = new URLSearchParams();
+            listParams.set('channelSlug', (channelInfo.slug || normalizedSlug).toLowerCase());
+            listParams.set('limit', String(MEMES_PER_PAGE));
+            listParams.set('offset', '0');
+            listParams.set('sortBy', 'createdAt');
+            listParams.set('sortOrder', 'desc');
+            if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+            // Avoid stale cache after recent settings toggles.
+            listParams.set('_ts', String(Date.now()));
+            let resp: unknown = null;
+            try {
+              resp = await fetchChannelMemesSearch({
+                channelSlug: (channelInfo.slug || normalizedSlug).toLowerCase(),
+                params: listParams,
+                timeoutMs: 15000,
+              });
+            } catch {
+              // Back-compat fallback: some backends may only support channelId on the non-public endpoint.
+              const fallbackParams = new URLSearchParams(listParams);
+              fallbackParams.delete('channelSlug');
+              fallbackParams.set('channelId', channelInfo.id);
+              resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+                timeout: 15000,
+                headers: { 'Cache-Control': 'no-store' },
+              });
+            }
+            const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
+            setMemes(memes);
+            setHasMore(memes.length === MEMES_PER_PAGE);
           }
-
-          const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
-          setMemes(memes);
-          setHasMore(memes.length === MEMES_PER_PAGE);
         } catch (error) {
           // Continue without memes - they can be loaded later
           setHasMore(false);
@@ -471,33 +559,41 @@ export default function StreamerProfile() {
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
       const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
-      const listParams = new URLSearchParams();
-      listParams.set('channelSlug', String(channelInfo.slug || normalizedSlug).toLowerCase());
-      listParams.set('limit', String(MEMES_PER_PAGE));
-      listParams.set('offset', String(nextOffset));
-      listParams.set('sortBy', 'createdAt');
-      listParams.set('sortOrder', 'desc');
-      if (canIncludeFileHash) listParams.set('includeFileHash', '1');
-      listParams.set('_ts', String(Date.now()));
+      let newMemes: Meme[] = [];
+      if (channelInfo.memeCatalogMode === 'pool_all') {
+        try {
+          newMemes = await fetchMemesPool({ limit: MEMES_PER_PAGE, offset: nextOffset, timeoutMs: 15000 });
+        } catch {
+          newMemes = [];
+        }
+      } else {
+        const listParams = new URLSearchParams();
+        listParams.set('channelSlug', String(channelInfo.slug || normalizedSlug).toLowerCase());
+        listParams.set('limit', String(MEMES_PER_PAGE));
+        listParams.set('offset', String(nextOffset));
+        listParams.set('sortBy', 'createdAt');
+        listParams.set('sortOrder', 'desc');
+        if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+        listParams.set('_ts', String(Date.now()));
 
-      let resp: unknown;
-      try {
-        resp = await fetchChannelMemesSearch({
-          channelSlug: String(channelInfo.slug || normalizedSlug).toLowerCase(),
-          params: listParams,
-          preferPublic: channelInfo.memeCatalogMode === 'pool_all',
-          timeoutMs: 15000,
-        });
-      } catch {
-        const fallbackParams = new URLSearchParams(listParams);
-        fallbackParams.delete('channelSlug');
-        fallbackParams.set('channelId', channelInfo.id);
-        resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
-          timeout: 15000,
-          headers: { 'Cache-Control': 'no-store' },
-        });
+        let resp: unknown;
+        try {
+          resp = await fetchChannelMemesSearch({
+            channelSlug: String(channelInfo.slug || normalizedSlug).toLowerCase(),
+            params: listParams,
+            timeoutMs: 15000,
+          });
+        } catch {
+          const fallbackParams = new URLSearchParams(listParams);
+          fallbackParams.delete('channelSlug');
+          fallbackParams.set('channelId', channelInfo.id);
+          resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+            timeout: 15000,
+            headers: { 'Cache-Control': 'no-store' },
+          });
+        }
+        newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
       }
-      const newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
       
       if (newMemes.length > 0) {
         setMemes(prev => [...prev, ...newMemes]);
@@ -568,6 +664,11 @@ export default function StreamerProfile() {
             return p.toString();
           })()}`);
         } else {
+          if (channelInfo?.memeCatalogMode === 'pool_all') {
+            const pool = await fetchMemesPool({ limit: 100, offset: 0, q: debouncedSearchQuery.trim(), timeoutMs: 15000 });
+            setSearchResults(pool);
+            return;
+          }
           const searchParams = new URLSearchParams(params);
           if (channelInfo?.slug || normalizedSlug) {
             searchParams.set('channelSlug', String(channelInfo?.slug || normalizedSlug).toLowerCase());

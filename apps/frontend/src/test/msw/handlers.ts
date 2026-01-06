@@ -432,6 +432,13 @@ export function mockMySubmissions(payload: unknown, onCall?: () => void) {
   });
 }
 
+export function mockMemesPool(payload: unknown, onCall?: (url: URL) => void) {
+  return http.get('*/memes/pool*', ({ request }) => {
+    onCall?.(new URL(request.url));
+    return HttpResponse.json(payload);
+  });
+}
+
 export function mockChannelMemesSearch(payload: unknown, onCall?: (url: URL) => void) {
   return http.get('*/channels/memes/search*', ({ request }) => {
     onCall?.(new URL(request.url));
