@@ -683,7 +683,8 @@ export default function StreamerProfile() {
             memesResp = await fetchChannelMemesSearch({
               channelSlug: String(channelInfo?.slug || normalizedSlug).toLowerCase(),
               params: searchParams,
-              preferPublic: channelInfo?.memeCatalogMode === 'pool_all',
+              // We already early-returned for pool_all above, so this branch is channel-only.
+              preferPublic: false,
               timeoutMs: 15000,
             });
           } catch {
