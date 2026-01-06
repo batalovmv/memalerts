@@ -199,11 +199,14 @@ export default function StreamerProfile() {
         // When unauthenticated, avoid hitting the authed endpoint (it can 401 and also triggers CORS preflights in tests).
         let channelInfoRaw: unknown;
         if (!isAuthed) {
-          channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
-          // Some deployments proxy /channels/* but accidentally serve SPA fallback for /public/*.
-          // If we got HTML, retry via /channels/* as a compatibility fallback.
-          if (looksLikeSpaHtml(channelInfoRaw)) {
+          // Prefer canonical /channels/* (works in prod; /public/* may be served by SPA fallback in some nginx configs).
+          try {
             channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+          } catch {
+            channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            if (looksLikeSpaHtml(channelInfoRaw)) {
+              throw new Error('Public channel endpoint returned HTML');
+            }
           }
         } else {
           try {
@@ -211,6 +214,9 @@ export default function StreamerProfile() {
             channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
           } catch {
             channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            if (looksLikeSpaHtml(channelInfoRaw)) {
+              throw new Error('Public channel endpoint returned HTML');
+            }
           }
         }
         const channelInfo = normalizeChannelInfo(channelInfoRaw, normalizedSlug);
@@ -232,13 +238,31 @@ export default function StreamerProfile() {
           // Canonical listing endpoint: respects channel listing mode (Channel.memeCatalogMode).
           // This is required so "pool_all" channels show the global pool on the public page.
           const listParams = new URLSearchParams();
-          listParams.set('channelId', channelInfo.id);
+          // Use channelSlug instead of channelId so backend can apply Channel.memeCatalogMode (pool_all vs channel).
+          listParams.set('channelSlug', (channelInfo.slug || normalizedSlug).toLowerCase());
           listParams.set('limit', String(MEMES_PER_PAGE));
           listParams.set('offset', '0');
           listParams.set('sortBy', 'createdAt');
           listParams.set('sortOrder', 'desc');
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
-          const resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, { timeout: 15000 });
+          // Avoid stale cache after recent settings toggles.
+          listParams.set('_ts', String(Date.now()));
+          let resp: unknown;
+          try {
+            resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
+              timeout: 15000,
+              headers: { 'Cache-Control': 'no-store' },
+            });
+          } catch {
+            // Back-compat fallback: some backends may only support channelId.
+            const fallbackParams = new URLSearchParams(listParams);
+            fallbackParams.delete('channelSlug');
+            fallbackParams.set('channelId', channelInfo.id);
+            resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+              timeout: 15000,
+              headers: { 'Cache-Control': 'no-store' },
+            });
+          }
 
           const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
           setMemes(memes);
@@ -325,7 +349,7 @@ export default function StreamerProfile() {
     const roomSlug = String(channelInfo?.slug || normalizedSlug || '').trim();
     if (!roomSlug) return;
 
-    socket.emit('join:channel', roomSlug);
+    socket.emit('join:channel', roomSlug.toLowerCase());
 
     const onStatus = (payload: { enabled?: boolean; onlyWhenLive?: boolean } | null | undefined) => {
       const enabled = typeof payload?.enabled === 'boolean' ? payload.enabled : null;
@@ -373,14 +397,29 @@ export default function StreamerProfile() {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
       const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
       const listParams = new URLSearchParams();
-      listParams.set('channelId', channelInfo.id);
+      listParams.set('channelSlug', String(channelInfo.slug || normalizedSlug).toLowerCase());
       listParams.set('limit', String(MEMES_PER_PAGE));
       listParams.set('offset', String(nextOffset));
       listParams.set('sortBy', 'createdAt');
       listParams.set('sortOrder', 'desc');
       if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+      listParams.set('_ts', String(Date.now()));
 
-      const resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, { timeout: 15000 });
+      let resp: unknown;
+      try {
+        resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
+          timeout: 15000,
+          headers: { 'Cache-Control': 'no-store' },
+        });
+      } catch {
+        const fallbackParams = new URLSearchParams(listParams);
+        fallbackParams.delete('channelSlug');
+        fallbackParams.set('channelId', channelInfo.id);
+        resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+          timeout: 15000,
+          headers: { 'Cache-Control': 'no-store' },
+        });
+      }
       const newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
       
       if (newMemes.length > 0) {
@@ -453,16 +492,31 @@ export default function StreamerProfile() {
           })()}`);
         } else {
           const searchParams = new URLSearchParams(params);
-          if (channelInfo?.id) searchParams.set('channelId', channelInfo.id);
+          if (channelInfo?.slug || normalizedSlug) {
+            searchParams.set('channelSlug', String(channelInfo?.slug || normalizedSlug).toLowerCase());
+          } else if (channelInfo?.id) {
+            // Back-compat only.
+            searchParams.set('channelId', channelInfo.id);
+          }
+          // Avoid stale cache after recent toggles.
+          searchParams.set('_ts', String(Date.now()));
 
-          // Prefer canonical endpoint (it respects Channel.memeCatalogMode), but keep a public fallback for guests.
+          // Canonical endpoint (respects Channel.memeCatalogMode).
           try {
-            memesResp = await api.get<unknown>(`/channels/memes/search?${searchParams.toString()}`);
+            memesResp = await api.get<unknown>(`/channels/memes/search?${searchParams.toString()}`, {
+              headers: { 'Cache-Control': 'no-store' },
+            });
           } catch {
-            memesResp = await api.get<unknown>(`/public/channels/${normalizedSlug}/memes/search?${params.toString()}`);
-            // Some deployments proxy /channels/* but accidentally serve SPA fallback for /public/*.
-            if (looksLikeSpaHtml(memesResp)) {
-              memesResp = await api.get<unknown>(`/channels/memes/search?${searchParams.toString()}`);
+            // Back-compat fallback (no /public/* to avoid SPA-fallback noise in prod).
+            if (channelInfo?.id) {
+              const fallbackParams = new URLSearchParams(params);
+              fallbackParams.set('channelId', channelInfo.id);
+              fallbackParams.set('_ts', String(Date.now()));
+              memesResp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+                headers: { 'Cache-Control': 'no-store' },
+              });
+            } else {
+              throw new Error('Failed to search memes');
             }
           }
         }
@@ -703,11 +757,21 @@ export default function StreamerProfile() {
                       onAwarded={() => void refreshWallet()}
                     />
                   )}
-                  <HelpTooltip content={t('help.profile.submitMeme', { defaultValue: 'Submit a meme to this channel.' })}>
+                  <HelpTooltip
+                    content={
+                      channelInfo?.submissionsEnabled === false
+                        ? t('submitModal.submissionsDisabled', { defaultValue: 'Отправка мемов запрещена стримером' })
+                        : t('help.profile.submitMeme', { defaultValue: 'Submit a meme to this channel.' })
+                    }
+                  >
                     <Button
                       type="button"
                       variant="primary"
-                      onClick={() => setIsSubmitModalOpen(true)}
+                      disabled={channelInfo?.submissionsEnabled === false}
+                      onClick={() => {
+                        if (channelInfo?.submissionsEnabled === false) return;
+                        setIsSubmitModalOpen(true);
+                      }}
                       leftIcon={
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
