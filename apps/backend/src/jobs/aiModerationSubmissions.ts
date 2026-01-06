@@ -493,7 +493,18 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
         aiTranscript: null,
         aiAutoTagNamesJson: tagNamesJson,
         aiAutoDescription: existingAsset.aiAutoDescription ?? null,
-        aiModelVersionsJson: { pipelineVersion: 'v3-reuse-memeasset' } as any,
+        aiModelVersionsJson: {
+          pipelineVersion: 'v3-reuse-memeasset',
+          reuse: {
+            hasReusableDescription,
+            hasReusableTags,
+            titleTokens: extractTitleTokens(submission.title),
+            assetAiAutoDescriptionNorm: normalizeAiText(String(existingAsset.aiAutoDescription ?? '')),
+            assetAiAutoTagNamesNorm: Array.isArray(existingAsset.aiAutoTagNamesJson)
+              ? (existingAsset.aiAutoTagNamesJson as any[]).map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean)
+              : null,
+          },
+        } as any,
         aiCompletedAt: now,
         aiError: null,
         aiNextRetryAt: null,

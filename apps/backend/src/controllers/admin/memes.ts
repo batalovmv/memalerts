@@ -171,6 +171,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
       aiRetryCount: number;
       aiError: string | null;
       aiPipelineVersion: string | null;
+      aiModelVersionsJson: any | null;
     }
   > = new Map();
   if (includeAi) {
@@ -211,6 +212,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
               aiRetryCount: Number.isFinite(s.aiRetryCount as any) ? Number(s.aiRetryCount) : 0,
               aiError: s.aiError ? String(s.aiError) : null,
               aiPipelineVersion: pipelineVersion,
+              aiModelVersionsJson: mv && typeof mv === 'object' ? mv : null,
             });
           }
         }
@@ -259,6 +261,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
               aiLastTriedAt: last.aiLastTriedAt ? new Date(last.aiLastTriedAt).toISOString() : null,
               aiCompletedAt: last.aiCompletedAt ? new Date(last.aiCompletedAt).toISOString() : null,
               aiErrorShort: last.aiError ? String(last.aiError).slice(0, 500) : null,
+              aiDebug: last.aiModelVersionsJson ? last.aiModelVersionsJson : null,
             };
           })(),
         }
