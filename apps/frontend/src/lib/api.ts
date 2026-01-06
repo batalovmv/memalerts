@@ -133,9 +133,27 @@ function shouldRetrySpaFallbackViaApiPrefix(config: AxiosRequestConfig): boolean
   if (url === '/config.json') return false;
   if (url.startsWith('/assets/')) return false;
   if (url.startsWith('/overlay/')) return false;
-  // Only auto-retry when baseURL is same-origin (empty string).
+  // Only auto-retry when baseURL is effectively same-origin.
+  // We allow:
+  // - "" (recommended)
+  // - "/" (some deployments set this)
+  // - window.location.origin (or origin + "/")
   const base = (config.baseURL ?? axiosInstance.defaults.baseURL) as unknown;
-  if (typeof base === 'string' && base !== '') return false;
+  if (typeof base === 'string') {
+    const b = base.trim();
+    const origin = (() => {
+      try {
+        return window.location.origin;
+      } catch {
+        return '';
+      }
+    })();
+    const ok =
+      b === '' ||
+      b === '/' ||
+      (origin && (b === origin || b === `${origin}/`));
+    if (!ok) return false;
+  }
   // Only for absolute-path style URLs. (We don't want to touch relative 'foo/bar')
   if (!url.startsWith('/')) return false;
   return true;
