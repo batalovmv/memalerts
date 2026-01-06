@@ -430,6 +430,7 @@ export function setupRoutes(app: Express) {
         /^\/memes\/[^\/]+\/activate$/.test(req.path) ||
         // Routes that will run authenticate + requireBetaAccess explicitly
         req.path === '/me' ||
+        req.path === '/me/preferences' ||
         req.path === '/wallet' ||
         req.path === '/memes' ||
         req.path === '/memes/pool' ||
