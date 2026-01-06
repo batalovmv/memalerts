@@ -284,6 +284,200 @@ def _ensure_uploads_location(server_block: str, *, uploads_alias_dir: str) -> tu
     return (server_block, False)
 
 
+def _ensure_location_if_missing(
+    server_block: str,
+    *,
+    location_header_regex: str,
+    location_block: str,
+) -> tuple[str, bool]:
+    """
+    Ensure a `location ... { ... }` block exists inside a server block.
+
+    - If a matching location header is found, do nothing.
+    - Otherwise, insert the block before `location / {` (SPA fallback usually),
+      else before the final `}` of the server block.
+    """
+    loc_re = re.compile(location_header_regex, flags=re.MULTILINE)
+    if loc_re.search(server_block):
+        return (server_block, False)
+
+    insert_point = server_block.find("\n    location / {")
+    if insert_point == -1:
+        insert_point = server_block.rfind("\n}")
+    if insert_point == -1:
+        return (server_block, False)
+
+    block = location_block
+    if not block.startswith("\n"):
+        block = "\n" + block
+    if not block.endswith("\n"):
+        block = block + "\n"
+
+    server_block = server_block[:insert_point] + block + server_block[insert_point:]
+    return (server_block, True)
+
+
+def _proxy_common_headers() -> str:
+    # Keep this minimal and safe; we don't want to override unrelated vhost config.
+    return (
+        "        proxy_set_header Host $host;\n"
+        "        proxy_set_header X-Real-IP $remote_addr;\n"
+        "        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+        "        proxy_set_header X-Forwarded-Proto $scheme;\n"
+    )
+
+
+def _ensure_memalerts_api_proxy_locations(server_block: str, *, upstream_port: int) -> tuple[str, bool]:
+    """
+    Ensure MemAlerts API routes are proxied to backend and do not fall through to SPA fallback.
+
+    We only INSERT missing blocks. Existing user config stays intact.
+
+    Critical invariant:
+    - `/internal/*` must never be exposed publicly.
+
+    Footgun avoidance:
+    - Do NOT use `location ^~ /me` because it also matches `/memes`.
+      Use `location = /me` and `location ^~ /me/`.
+    """
+    changed = False
+    upstream = f"http://127.0.0.1:{int(upstream_port)}"
+
+    # Block internal relay endpoints externally (security-critical).
+    server_block, c0 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+\^~\s+/internal/\s*\{)",
+        location_block=(
+            f"    {MARKER}: block internal relay\n"
+            "    location ^~ /internal/ {\n"
+            "        return 404;\n"
+            "    }\n"
+        ),
+    )
+    changed = changed or c0
+
+    # Health: make sure ops checks reach backend, not the SPA.
+    server_block, c1 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+=\s*/health\s*\{)",
+        location_block=(
+            f"    {MARKER}: api proxy\n"
+            "    location = /health {\n"
+            f"        proxy_pass {upstream};\n"
+            f"{_proxy_common_headers()}"
+            "    }\n"
+        ),
+    )
+    changed = changed or c1
+
+    # /me and /me/* (avoid matching /memes)
+    server_block, c2 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+=\s*/me\s*\{)",
+        location_block=(
+            f"    {MARKER}: api proxy\n"
+            "    location = /me {\n"
+            f"        proxy_pass {upstream};\n"
+            f"{_proxy_common_headers()}"
+            "    }\n"
+        ),
+    )
+    changed = changed or c2
+
+    server_block, c3 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+\^~\s+/me/\s*\{)",
+        location_block=(
+            f"    {MARKER}: api proxy\n"
+            "    location ^~ /me/ {\n"
+            f"        proxy_pass {upstream};\n"
+            f"{_proxy_common_headers()}"
+            "    }\n"
+        ),
+    )
+    changed = changed or c3
+
+    # Common backend namespaces.
+    for prefix in ("auth", "webhooks", "public", "submissions", "channels", "wallet", "memes", "streamer", "owner", "moderation"):
+        # wallet/memes are without trailing slash in some clients; use both exact and prefix where relevant.
+        if prefix in ("wallet", "memes"):
+            server_block, cx = _ensure_location_if_missing(
+                server_block,
+                location_header_regex=rf"(^\s*location\s+=\s*/{re.escape(prefix)}\s*\{{)",
+                location_block=(
+                    f"    {MARKER}: api proxy\n"
+                    f"    location = /{prefix} {{\n"
+                    f"        proxy_pass {upstream};\n"
+                    f"{_proxy_common_headers()}"
+                    "    }\n"
+                ),
+            )
+            changed = changed or cx
+
+        server_block, cy = _ensure_location_if_missing(
+            server_block,
+            location_header_regex=rf"(^\s*location\s+\^~\s+/{re.escape(prefix)}/\s*\{{)",
+            location_block=(
+                f"    {MARKER}: api proxy\n"
+                f"    location ^~ /{prefix}/ {{\n"
+                f"        proxy_pass {upstream};\n"
+                f"{_proxy_common_headers()}"
+                "    }\n"
+            ),
+        )
+        changed = changed or cy
+
+    # Overlay credits are served by backend under /overlay/credits/...; proxy only that subpath
+    # to avoid interfering with frontend static /overlay/.
+    server_block, c7 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+\^~\s+/overlay/credits/\s*\{)",
+        location_block=(
+            f"    {MARKER}: api proxy\n"
+            "    location ^~ /overlay/credits/ {\n"
+            f"        proxy_pass {upstream};\n"
+            f"{_proxy_common_headers()}"
+            "    }\n"
+        ),
+    )
+    changed = changed or c7
+
+    # Socket.IO (WebSocket upgrade).
+    server_block, c8 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+/socket\.io/\s*\{)",
+        location_block=(
+            f"    {MARKER}: socket.io proxy\n"
+            "    location /socket.io/ {\n"
+            f"        proxy_pass {upstream};\n"
+            f"{_proxy_common_headers()}"
+            "        proxy_http_version 1.1;\n"
+            "        proxy_set_header Upgrade $http_upgrade;\n"
+            '        proxy_set_header Connection "upgrade";\n'
+            "        proxy_read_timeout 3600s;\n"
+            "        proxy_send_timeout 3600s;\n"
+            "    }\n"
+        ),
+    )
+    changed = changed or c8
+
+    # Optional: /api/* compatibility (strip /api prefix by using trailing slash in proxy_pass).
+    server_block, c9 = _ensure_location_if_missing(
+        server_block,
+        location_header_regex=r"(^\s*location\s+\^~\s+/api/\s*\{)",
+        location_block=(
+            f"    {MARKER}: api compat (/api/* -> /*)\n"
+            "    location ^~ /api/ {\n"
+            f"        proxy_pass {upstream}/;\n"
+            f"{_proxy_common_headers()}"
+            "    }\n"
+        ),
+    )
+    changed = changed or c9
+
+    return (server_block, changed)
+
+
 def _ensure_location_rate_limit(
     server_block: str,
     *,
@@ -332,6 +526,7 @@ def patch_nginx_site_file(
     *,
     match_domains: set[str],
     uploads_alias_by_domain: dict[str, str],
+    backend_port_by_domain: dict[str, int],
     dry_run: bool,
 ) -> PatchResult:
     text = _read_text(path)
@@ -362,11 +557,22 @@ def patch_nginx_site_file(
             # Fallback: keep existing uploads config only; do not auto-insert.
             uploads_alias_dir = ""
 
+        # Pick upstream port based on which domain matched this server block.
+        upstream_port: Optional[int] = None
+        for d in sorted(matched):
+            if d in backend_port_by_domain:
+                upstream_port = int(backend_port_by_domain[d])
+                break
+        if upstream_port is None:
+            upstream_port = 3001
+
         patched = server_block
         if uploads_alias_dir:
             patched, c1 = _ensure_uploads_location(patched, uploads_alias_dir=uploads_alias_dir)
         else:
             c1 = False
+
+        patched, c_api = _ensure_memalerts_api_proxy_locations(patched, upstream_port=upstream_port)
         patched, c2 = _ensure_location_rate_limit(
             patched,
             location_prefix_regex=r"=" + r"\s*/me",  # exact match
@@ -392,7 +598,7 @@ def patch_nginx_site_file(
             burst=80,
         )
 
-        if any([c1, c2, c3, c4, c5]):
+        if any([c1, c_api, c2, c3, c4, c5]):
             new_text = new_text[:start] + patched + new_text[end:]
             changed = True
             details.append(f"patch vhost: {path} (server_name: {' '.join(sorted(matched))})")
@@ -446,6 +652,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Patch Nginx/Fail2ban configs for MemAlerts without overwriting.")
     parser.add_argument("--prod-domain", required=True, help="Production domain, e.g. twitchmemes.ru")
     parser.add_argument("--beta-domain", required=False, help="Beta domain, e.g. beta.twitchmemes.ru")
+    parser.add_argument("--prod-backend-port", required=False, default="3001", help="Prod backend port (default: 3001)")
+    parser.add_argument("--beta-backend-port", required=False, default="3002", help="Beta backend port (default: 3002)")
     parser.add_argument(
         "--prod-backend-dir",
         required=True,
@@ -476,6 +684,23 @@ def main() -> None:
     if beta_domain and args.beta_backend_dir:
         uploads_alias_by_domain[beta_domain] = str(Path(args.beta_backend_dir) / "uploads")
 
+    # Upstream ports for inserted proxy locations.
+    try:
+        prod_port = int(str(args.prod_backend_port))
+    except Exception:
+        _die(f"Invalid --prod-backend-port: {args.prod_backend_port}")
+    try:
+        beta_port = int(str(args.beta_backend_port))
+    except Exception:
+        _die(f"Invalid --beta-backend-port: {args.beta_backend_port}")
+
+    backend_port_by_domain = {
+        prod_domain: prod_port,
+        f"www.{prod_domain}": prod_port,
+    }
+    if beta_domain:
+        backend_port_by_domain[beta_domain] = beta_port
+
     results: list[PatchResult] = []
     results.append(ensure_gzip_conf(dry_run=args.dry_run))
     results.append(ensure_rate_limit_zones_conf(dry_run=args.dry_run))
@@ -487,6 +712,7 @@ def main() -> None:
             site_file,
             match_domains=match_domains,
             uploads_alias_by_domain=uploads_alias_by_domain,
+            backend_port_by_domain=backend_port_by_domain,
             dry_run=args.dry_run,
         )
         results.append(r)

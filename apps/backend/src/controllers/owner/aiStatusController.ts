@@ -22,8 +22,11 @@ export const aiStatusController = {
     const stuckBefore = new Date(Date.now() - stuckMs);
 
     const processingTake = clampInt(parseInt(String(req.query.take || ''), 10), 1, 100, 20);
+    const pendingTake = clampInt(parseInt(String((req.query as any).pendingTake || ''), 10), 0, 100, 20);
+    const failedTake = clampInt(parseInt(String((req.query as any).failedTake || ''), 10), 0, 100, 20);
+    const stuckTake = clampInt(parseInt(String((req.query as any).stuckTake || ''), 10), 0, 100, 20);
 
-    const [pending, failedReady, processingStuck, processingItems] = await Promise.all([
+    const [pending, failedReady, processingStuck, processingItems, pendingItems, failedItems, stuckItems] = await Promise.all([
       prisma.memeSubmission.count({
         where: {
           status: { in: ['pending', 'approved'] },
@@ -70,11 +73,88 @@ export const aiStatusController = {
           channel: { select: { slug: true } },
         },
       }),
+      pendingTake > 0
+        ? prisma.memeSubmission.findMany({
+            where: {
+              status: { in: ['pending', 'approved'] },
+              sourceKind: { in: ['upload', 'url'] },
+              aiStatus: 'pending',
+            },
+            orderBy: [{ createdAt: 'asc' }],
+            take: pendingTake,
+            select: {
+              id: true,
+              channelId: true,
+              title: true,
+              type: true,
+              fileUrlTemp: true,
+              fileHash: true,
+              aiRetryCount: true,
+              aiLastTriedAt: true,
+              aiNextRetryAt: true,
+              aiError: true,
+              createdAt: true,
+              channel: { select: { slug: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
+      failedTake > 0
+        ? prisma.memeSubmission.findMany({
+            where: {
+              status: { in: ['pending', 'approved'] },
+              sourceKind: { in: ['upload', 'url'] },
+              aiStatus: 'failed',
+              OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }],
+            },
+            orderBy: [{ aiNextRetryAt: 'asc' }, { aiLastTriedAt: 'desc' }, { createdAt: 'asc' }],
+            take: failedTake,
+            select: {
+              id: true,
+              channelId: true,
+              title: true,
+              type: true,
+              fileUrlTemp: true,
+              fileHash: true,
+              aiRetryCount: true,
+              aiLastTriedAt: true,
+              aiNextRetryAt: true,
+              aiError: true,
+              createdAt: true,
+              channel: { select: { slug: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
+      stuckTake > 0
+        ? prisma.memeSubmission.findMany({
+            where: {
+              status: { in: ['pending', 'approved'] },
+              sourceKind: { in: ['upload', 'url'] },
+              aiStatus: 'processing',
+              aiLastTriedAt: { lt: stuckBefore },
+            },
+            orderBy: [{ aiLastTriedAt: 'asc' }, { createdAt: 'asc' }],
+            take: stuckTake,
+            select: {
+              id: true,
+              channelId: true,
+              title: true,
+              type: true,
+              fileUrlTemp: true,
+              fileHash: true,
+              aiRetryCount: true,
+              aiLastTriedAt: true,
+              aiNextRetryAt: true,
+              aiError: true,
+              createdAt: true,
+              channel: { select: { slug: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
     ]);
 
     const scheduler = getAiModerationSchedulerStatus();
 
-    const processing = processingItems.map((s) => {
+    const toItem = (s: any) => {
       const isStuck = !!s.aiLastTriedAt && s.aiLastTriedAt < stuckBefore;
       return {
         id: s.id,
@@ -91,7 +171,17 @@ export const aiStatusController = {
         aiErrorShort: s.aiError ? String(s.aiError).slice(0, 500) : null,
         createdAt: s.createdAt.toISOString(),
       };
-    });
+    };
+
+    const processing = processingItems.map(toItem);
+    const queueSample = {
+      pendingTake,
+      failedTake,
+      stuckTake,
+      pending: pendingItems.map(toItem),
+      failedReady: failedItems.map(toItem),
+      processingStuck: stuckItems.map(toItem),
+    };
 
     return res.json({
       enabled: scheduler.enabled,
@@ -106,6 +196,7 @@ export const aiStatusController = {
       lastRunCompletedAt: scheduler.lastRunCompletedAt,
       lastRunStats: scheduler.lastRunStats,
       queueCounts: { pending, failedReady, processingStuck },
+      queueSample,
       processing: {
         take: processingTake,
         items: processing,

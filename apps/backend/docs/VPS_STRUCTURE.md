@@ -53,6 +53,32 @@ Main directories:
   - enabled via symlink: `/etc/nginx/sites-enabled/memalerts`
 - Rate-limit zones: `/etc/nginx/conf.d/memalerts-rate-limit.conf`
 
+### If API returns SPA `index.html` (common misroute)
+
+Symptom:
+
+- `curl -i https://beta.twitchmemes.ru/me/preferences` returns `200 text/html` with `<!doctype html>` (SPA),
+  instead of `401/403/200 application/json`.
+
+Cause:
+
+- Nginx `location / { try_files ... /index.html; }` catches API routes because API `location` proxy blocks are missing
+  (or ordered after the SPA fallback).
+
+Fix (idempotent patcher):
+
+```bash
+sudo /opt/memalerts-backend/scripts/patch-nginx-in-place.py \
+  --prod-domain twitchmemes.ru \
+  --beta-domain beta.twitchmemes.ru \
+  --prod-backend-dir /opt/memalerts-backend \
+  --beta-backend-dir /opt/memalerts-backend-beta
+
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+The patcher will also ensure `/internal/*` is **not** exposed publicly (returns 404).
+
 ### Domains and proxying
 
 - **production domain**: `twitchmemes.ru` (+ `www.twitchmemes.ru`)
