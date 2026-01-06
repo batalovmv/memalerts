@@ -91,6 +91,20 @@ class PatchResult:
 
 def ensure_gzip_conf(*, dry_run: bool) -> PatchResult:
     path = NGINX_CONF_D / "memalerts-compress.conf"
+    # Many distros already enable gzip in /etc/nginx/nginx.conf.
+    # Creating another conf.d file with `gzip on;` will fail `nginx -t` with
+    # "duplicate directive". Therefore: if nginx.conf exists and already contains
+    # gzip directives, skip creating our gzip conf altogether.
+    try:
+        nginx_conf = Path("/etc/nginx/nginx.conf")
+        if nginx_conf.exists():
+            raw = nginx_conf.read_text(encoding="utf-8", errors="ignore")
+            if re.search(r"^\s*gzip\s+on\s*;", raw, flags=re.MULTILINE):
+                return PatchResult(changed=False, details=[f"skip gzip (already enabled): {path}"])
+    except Exception:
+        # Best-effort: if we can't read nginx.conf, fall back to old behavior below.
+        pass
+
     content = (
         f"{MARKER}: gzip\n"
         "gzip on;\n"
@@ -343,6 +357,24 @@ def _ensure_memalerts_api_proxy_locations(server_block: str, *, upstream_port: i
     changed = False
     upstream = f"http://127.0.0.1:{int(upstream_port)}"
 
+    def _extract_braced_block(s: str, start_idx: int) -> tuple[str, int]:
+        brace_open = s.find("{", start_idx)
+        if brace_open == -1:
+            return ("", -1)
+        i = brace_open + 1
+        depth = 1
+        while i < len(s):
+            ch = s[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    return (s[start_idx:end], end)
+            i += 1
+        return ("", -1)
+
     # Block internal relay endpoints externally (security-critical).
     server_block, c0 = _ensure_location_if_missing(
         server_block,
@@ -371,6 +403,28 @@ def _ensure_memalerts_api_proxy_locations(server_block: str, *, upstream_port: i
     changed = changed or c1
 
     # /me and /me/* (avoid matching /memes)
+    #
+    # Real-world nginx configs often already have `location = /me { ... }` with a lot
+    # of headers (Cookie, CF-Connecting-IP, timeouts). If so, the safest fix for
+    # `/me/preferences` is to clone that exact block into `location ^~ /me/ { ... }`.
+    if not re.search(r"^\s*location\s+\^~\s+/me/\s*\{", server_block, flags=re.MULTILINE):
+        m_me_exact = re.search(r"^(?P<indent>\s*)location\s*=\s*/me\s*\{", server_block, flags=re.MULTILINE)
+        if m_me_exact:
+            start = m_me_exact.start(0)
+            indent = m_me_exact.group("indent")
+            block, end = _extract_braced_block(server_block, start)
+            if block and end != -1:
+                cloned = re.sub(
+                    r"^(\s*)location\s*=\s*/me\s*\{",
+                    r"\1location ^~ /me/ {",
+                    block,
+                    flags=re.MULTILINE,
+                )
+                insertion = "\n" + indent + f"{MARKER}: api proxy (/me/*)\n" + cloned + "\n"
+                server_block = server_block[:end] + insertion + server_block[end:]
+                changed = True
+
+    # Ensure at least the minimal `location = /me` exists (for setups that don't have it).
     server_block, c2 = _ensure_location_if_missing(
         server_block,
         location_header_regex=r"(^\s*location\s+=\s*/me\s*\{)",
@@ -384,6 +438,7 @@ def _ensure_memalerts_api_proxy_locations(server_block: str, *, upstream_port: i
     )
     changed = changed or c2
 
+    # And ensure /me/ exists (fallback minimal block if we couldn't clone).
     server_block, c3 = _ensure_location_if_missing(
         server_block,
         location_header_regex=r"(^\s*location\s+\^~\s+/me/\s*\{)",
