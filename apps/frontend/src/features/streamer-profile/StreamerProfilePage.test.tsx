@@ -8,7 +8,7 @@ import { http, HttpResponse } from 'msw';
 import StreamerProfilePage from './StreamerProfilePage';
 import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
-import { mockChannel, mockChannelMemesSearch, mockChannelWallet, mockPublicChannel } from '@/test/msw/handlers';
+import { mockChannel, mockChannelMemesSearch, mockChannelWallet, mockPublicChannel, mockPublicChannelMemesSearch } from '@/test/msw/handlers';
 import { makeMeme } from '@/test/fixtures/memes';
 import { makeViewerUser } from '@/test/fixtures/user';
 
@@ -241,6 +241,44 @@ describe('StreamerProfilePage (integration)', () => {
     expect(qCall.searchParams.get('q')).toBe('abc');
     expect(qCall.searchParams.get('channelSlug')).toBe(slug);
     expect(await screen.findByRole('button', { name: /meme:searched meme/i })).toBeInTheDocument();
+  });
+
+  it('pool_all mode: prefers /public/channels/:slug/memes/search for listing (so global pool can be shown)', async () => {
+    const slug = 'testchannel';
+    const publicCalls: URL[] = [];
+
+    server.use(
+      mockChannel(slug, {
+        id: 'c1',
+        slug,
+        name: 'Test Channel',
+        memeCatalogMode: 'pool_all',
+        coinPerPointRatio: 1,
+        stats: { memesCount: 1, usersCount: 2 },
+      }),
+      mockPublicChannel(slug, {
+        id: 'c1',
+        slug,
+        name: 'Test Channel',
+        memeCatalogMode: 'pool_all',
+        coinPerPointRatio: 1,
+        stats: { memesCount: 1, usersCount: 2 },
+      }),
+      mockPublicChannelMemesSearch([makeMeme({ id: 'asset_1', title: 'Pool meme', channelId: undefined })], (u) => publicCalls.push(u)),
+      // Keep the old endpoint available as fallback; test asserts we prefer the public one.
+      mockChannelMemesSearch([makeMeme({ id: 'm1', title: 'Channel meme', channelId: 'c1' })]),
+    );
+
+    renderWithProviders(<TestRoutes />, { route: `/channel/${slug}` });
+
+    expect(await screen.findByRole('heading', { name: /test channel/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /available memes/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /meme:pool meme/i })).toBeInTheDocument();
+
+    await waitFor(() => expect(publicCalls.length).toBe(1));
+    expect(publicCalls[0]!.pathname.endsWith(`/public/channels/${slug}/memes/search`)).toBe(true);
+    expect(publicCalls[0]!.searchParams.get('limit')).toBe('40');
+    expect(publicCalls[0]!.searchParams.get('offset')).toBe('0');
   });
 });
 

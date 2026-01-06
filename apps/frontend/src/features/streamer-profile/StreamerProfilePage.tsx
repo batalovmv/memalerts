@@ -66,6 +66,55 @@ function looksLikeSpaHtml(data: unknown): boolean {
   return head.includes('<!doctype html') || head.includes('<html');
 }
 
+async function fetchChannelMemesSearch(opts: {
+  channelSlug: string;
+  params: URLSearchParams;
+  preferPublic?: boolean;
+  timeoutMs?: number;
+}): Promise<unknown> {
+  const slug = String(opts.channelSlug || '').trim();
+  const timeout = typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 15000;
+
+  const publicParams = new URLSearchParams(opts.params);
+  // Public endpoint already scopes by slug in path.
+  publicParams.delete('channelSlug');
+  publicParams.delete('channelId');
+
+  const publicUrl = `/public/channels/${encodeURIComponent(slug)}/memes/search?${publicParams.toString()}`;
+  const channelUrl = `/channels/memes/search?${opts.params.toString()}`;
+
+  const doPublic = async () => {
+    const resp = await api.get<unknown>(publicUrl, {
+      timeout,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+    if (looksLikeSpaHtml(resp)) {
+      throw new Error('Public channel memes endpoint returned HTML');
+    }
+    return resp;
+  };
+
+  const doChannel = async () =>
+    api.get<unknown>(channelUrl, {
+      timeout,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+
+  if (opts.preferPublic) {
+    try {
+      return await doPublic();
+    } catch {
+      return await doChannel();
+    }
+  }
+
+  try {
+    return await doChannel();
+  } catch {
+    return await doPublic();
+  }
+}
+
 function normalizeChannelInfo(raw: unknown, fallbackSlug: string): ChannelInfo | null {
   const r = toRecord(raw);
   if (!r) return null;
@@ -169,6 +218,7 @@ export default function StreamerProfile() {
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
+  const lastLoadKeyRef = useRef<string>(''); // prevents duplicate initial loads when auth state hydrates
 
   // (Removed) public-profile hover-sound toggle: keep current behavior without a user-visible switch.
 
@@ -183,6 +233,12 @@ export default function StreamerProfile() {
       navigate('/');
       return;
     }
+
+    // This effect depends on `user`/`isAuthed`, so it can re-run when auth hydrates.
+    // Avoid reloading the whole page (and refetching memes twice) unless slug or reloadNonce changed.
+    const loadKey = `${normalizedSlug}:${reloadNonce}`;
+    if (lastLoadKeyRef.current === loadKey) return;
+    lastLoadKeyRef.current = loadKey;
 
     const loadChannelData = async () => {
       // Reset state for a clean retry / slug change.
@@ -253,10 +309,9 @@ export default function StreamerProfile() {
         setMemesLoading(true);
         try {
           const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
-          // Canonical listing endpoint: respects channel listing mode (Channel.memeCatalogMode).
-          // This is required so "pool_all" channels show the global pool on the public page.
+          // NOTE: Some backends expose pool_all catalog via `/public/channels/:slug/memes/search`.
+          // Prefer it for pool_all mode, but keep a fallback to `/channels/memes/search` for back-compat.
           const listParams = new URLSearchParams();
-          // Use channelSlug instead of channelId so backend can apply Channel.memeCatalogMode (pool_all vs channel).
           listParams.set('channelSlug', (channelInfo.slug || normalizedSlug).toLowerCase());
           listParams.set('limit', String(MEMES_PER_PAGE));
           listParams.set('offset', '0');
@@ -265,14 +320,16 @@ export default function StreamerProfile() {
           if (canIncludeFileHash) listParams.set('includeFileHash', '1');
           // Avoid stale cache after recent settings toggles.
           listParams.set('_ts', String(Date.now()));
-          let resp: unknown;
+          let resp: unknown = null;
           try {
-            resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
-              timeout: 15000,
-              headers: { 'Cache-Control': 'no-store' },
+            resp = await fetchChannelMemesSearch({
+              channelSlug: (channelInfo.slug || normalizedSlug).toLowerCase(),
+              params: listParams,
+              preferPublic: channelInfo.memeCatalogMode === 'pool_all',
+              timeoutMs: 15000,
             });
           } catch {
-            // Back-compat fallback: some backends may only support channelId.
+            // Back-compat fallback: some backends may only support channelId on the non-public endpoint.
             const fallbackParams = new URLSearchParams(listParams);
             fallbackParams.delete('channelSlug');
             fallbackParams.set('channelId', channelInfo.id);
@@ -425,9 +482,11 @@ export default function StreamerProfile() {
 
       let resp: unknown;
       try {
-        resp = await api.get<unknown>(`/channels/memes/search?${listParams.toString()}`, {
-          timeout: 15000,
-          headers: { 'Cache-Control': 'no-store' },
+        resp = await fetchChannelMemesSearch({
+          channelSlug: String(channelInfo.slug || normalizedSlug).toLowerCase(),
+          params: listParams,
+          preferPublic: channelInfo.memeCatalogMode === 'pool_all',
+          timeoutMs: 15000,
         });
       } catch {
         const fallbackParams = new URLSearchParams(listParams);
@@ -519,10 +578,12 @@ export default function StreamerProfile() {
           // Avoid stale cache after recent toggles.
           searchParams.set('_ts', String(Date.now()));
 
-          // Canonical endpoint (respects Channel.memeCatalogMode).
           try {
-            memesResp = await api.get<unknown>(`/channels/memes/search?${searchParams.toString()}`, {
-              headers: { 'Cache-Control': 'no-store' },
+            memesResp = await fetchChannelMemesSearch({
+              channelSlug: String(channelInfo?.slug || normalizedSlug).toLowerCase(),
+              params: searchParams,
+              preferPublic: channelInfo?.memeCatalogMode === 'pool_all',
+              timeoutMs: 15000,
             });
           } catch {
             // Back-compat fallback (no /public/* to avoid SPA-fallback noise in prod).
