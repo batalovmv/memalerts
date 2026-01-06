@@ -133,9 +133,12 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
           durationMs: true,
           ...(includeAi
             ? {
+                fileHash: true,
                 aiStatus: true,
                 aiAutoTitle: true,
                 aiCompletedAt: true,
+                aiAutoDescription: true,
+                aiAutoTagNamesJson: true,
               }
             : {}),
           createdBy: {
@@ -238,6 +241,11 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
           aiStatus: (r as any).memeAsset?.aiStatus ?? null,
           aiAutoTitle: (r as any).memeAsset?.aiAutoTitle ?? null,
           aiCompletedAt: (r as any).memeAsset?.aiCompletedAt ? new Date((r as any).memeAsset.aiCompletedAt).toISOString() : null,
+          assetFileHash: (r as any).memeAsset?.fileHash ?? null,
+          assetAiAutoDescription: (r as any).memeAsset?.aiAutoDescription ?? null,
+          assetAiAutoTagNames: Array.isArray((r as any).memeAsset?.aiAutoTagNamesJson)
+            ? (((r as any).memeAsset.aiAutoTagNamesJson as any[]) as string[])
+            : null,
           aiLastSubmission: (() => {
             const assetId = String((r as any).memeAsset?.id || '');
             if (!assetId) return null;
