@@ -180,7 +180,9 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
             memeAssetId: { in: assetIds },
             sourceKind: { in: ['upload', 'url'] },
           } as any,
-          orderBy: { createdAt: 'desc' },
+          // Prisma distinct -> Postgres DISTINCT ON requires deterministic order:
+          // order by distinct fields first, then by "latest" criteria.
+          orderBy: [{ memeAssetId: 'asc' }, { createdAt: 'desc' }],
           distinct: ['memeAssetId'],
           select: {
             id: true,

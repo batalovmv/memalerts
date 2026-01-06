@@ -630,10 +630,49 @@ export const createSubmission = async (req: AuthRequest, res: Response) => {
           where: { fileHash, aiStatus: 'done' },
           select: { aiAutoDescription: true, aiAutoTagNamesJson: true },
         });
-        if (aiAsset) {
+        const normalizeAiText = (s: string) =>
+          String(s || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/[“”«»"]/g, '')
+            .trim();
+        const isEffectivelyEmptyAiDescription = (descRaw: unknown, titleRaw: unknown): boolean => {
+          const desc = normalizeAiText(String(descRaw ?? ''));
+          if (!desc) return true;
+          const title = normalizeAiText(String(titleRaw ?? ''));
+          if (title && desc === title) return true;
+          const placeholders = new Set([
+            'мем',
+            'meme',
+            'ai tags',
+            'ai tag',
+            'tags',
+            'теги',
+            'описание',
+            'description',
+            'ai description',
+          ]);
+          if (placeholders.has(desc)) return true;
+          if (desc === 'мем ai tags мем' || desc === 'meme ai tags meme') return true;
+          return false;
+        };
+
+        const hasReusableDescription = !isEffectivelyEmptyAiDescription(aiAsset?.aiAutoDescription, finalTitle);
+        const hasReusableTags = Array.isArray((aiAsset as any)?.aiAutoTagNamesJson) && ((aiAsset as any).aiAutoTagNamesJson as any[]).length > 0;
+
+        if (aiAsset && (hasReusableDescription || hasReusableTags)) {
           submissionData.aiStatus = 'done';
           submissionData.aiAutoDescription = aiAsset.aiAutoDescription ?? null;
           submissionData.aiAutoTagNamesJson = (aiAsset as any).aiAutoTagNamesJson ?? null;
+          // Make "reuse" visible in diagnostics (pipelineVersion + timestamps), otherwise it looks like "done but not analyzed".
+          const now = new Date();
+          submissionData.aiLastTriedAt = now;
+          submissionData.aiCompletedAt = now;
+          submissionData.aiNextRetryAt = null;
+          submissionData.aiError = null;
+          submissionData.aiRetryCount = 0;
+          submissionData.aiModelVersionsJson = { pipelineVersion: 'v3-reuse-memeasset' } as any;
         }
       }
     } catch {

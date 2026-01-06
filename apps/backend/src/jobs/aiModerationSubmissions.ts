@@ -66,6 +66,44 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   return Math.floor(n);
 }
 
+function normalizeAiText(s: string): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[“”«»"]/g, '')
+    .trim();
+}
+
+/**
+ * Some UIs/legacy paths can end up with placeholder AI fields like "Мем".
+ * Those should NOT be treated as reusable "AI done" metadata, otherwise duplicates never get real analysis.
+ */
+function isEffectivelyEmptyAiDescription(descRaw: unknown, titleRaw: unknown): boolean {
+  const desc = normalizeAiText(String(descRaw ?? ''));
+  if (!desc) return true;
+
+  const title = normalizeAiText(String(titleRaw ?? ''));
+  if (title && desc === title) return true;
+
+  const placeholders = new Set([
+    'мем',
+    'meme',
+    'ai tags',
+    'ai tag',
+    'tags',
+    'теги',
+    'описание',
+    'description',
+    'ai description',
+  ]);
+  if (placeholders.has(desc)) return true;
+
+  if (desc === 'мем ai tags мем' || desc === 'meme ai tags meme') return true;
+
+  return false;
+}
+
 function parseBool(raw: unknown): boolean {
   const v = String(raw ?? '').toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
@@ -381,6 +419,16 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   });
 
   if (existingAsset) {
+    const hasReusableDescription = !isEffectivelyEmptyAiDescription(existingAsset.aiAutoDescription, submission.title);
+    const hasReusableTags = Array.isArray(existingAsset.aiAutoTagNamesJson) && (existingAsset.aiAutoTagNamesJson as any[]).length > 0;
+    if (!hasReusableDescription && !hasReusableTags) {
+      logger.info('ai_moderation.dedup.skip_reuse_placeholder', {
+        submissionId,
+        fileHash,
+        memeAssetId: existingAsset.id,
+        reason: 'placeholder_ai_fields',
+      });
+    } else {
     const tagNamesJson =
       existingAsset.aiAutoTagNamesJson === null ? Prisma.DbNull : (existingAsset.aiAutoTagNamesJson as Prisma.InputJsonValue);
     await prisma.memeSubmission.update({
@@ -419,6 +467,7 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
     }
 
     return;
+    }
   }
 
   // If the submission points at a local /uploads/* path but the file is missing on disk,
