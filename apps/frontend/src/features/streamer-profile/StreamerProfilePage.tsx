@@ -724,7 +724,7 @@ export default function StreamerProfile() {
       await dispatch(
         activateMeme(
           mode === 'pool_all'
-            ? { id: memeId, channelSlug: channelInfo?.slug || normalizedSlug }
+            ? { id: memeId, channelId: channelInfo?.id || undefined }
             : { id: memeId },
         ),
       ).unwrap();
