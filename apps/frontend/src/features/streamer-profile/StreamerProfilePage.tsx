@@ -198,12 +198,24 @@ export default function StreamerProfile() {
         // Public profile must use public API as canonical source.
         // When unauthenticated, avoid hitting the authed endpoint (it can 401 and also triggers CORS preflights in tests).
         let channelInfoRaw: unknown;
+        const channelInfoParams = new URLSearchParams();
+        channelInfoParams.set('includeMemes', 'false');
+        // Avoid stale cache after recent settings toggles (nginx/CDN/browser).
+        channelInfoParams.set('_ts', String(Date.now()));
+        const channelInfoUrl = `/channels/${normalizedSlug}?${channelInfoParams.toString()}`;
+        const publicChannelInfoUrl = `/public/channels/${normalizedSlug}?${channelInfoParams.toString()}`;
         if (!isAuthed) {
           // Prefer canonical /channels/* (works in prod; /public/* may be served by SPA fallback in some nginx configs).
           try {
-            channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            channelInfoRaw = await api.get<unknown>(channelInfoUrl, {
+              timeout: 15000,
+              headers: { 'Cache-Control': 'no-store' },
+            });
           } catch {
-            channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            channelInfoRaw = await api.get<unknown>(publicChannelInfoUrl, {
+              timeout: 15000,
+              headers: { 'Cache-Control': 'no-store' },
+            });
             if (looksLikeSpaHtml(channelInfoRaw)) {
               throw new Error('Public channel endpoint returned HTML');
             }
@@ -211,9 +223,15 @@ export default function StreamerProfile() {
         } else {
           try {
             // Prefer authenticated channel DTO (it includes reward flags like youtubeLikeReward*).
-            channelInfoRaw = await api.get<unknown>(`/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            channelInfoRaw = await api.get<unknown>(channelInfoUrl, {
+              timeout: 15000,
+              headers: { 'Cache-Control': 'no-store' },
+            });
           } catch {
-            channelInfoRaw = await api.get<unknown>(`/public/channels/${normalizedSlug}?includeMemes=false`, { timeout: 15000 });
+            channelInfoRaw = await api.get<unknown>(publicChannelInfoUrl, {
+              timeout: 15000,
+              headers: { 'Cache-Control': 'no-store' },
+            });
             if (looksLikeSpaHtml(channelInfoRaw)) {
               throw new Error('Public channel endpoint returned HTML');
             }
