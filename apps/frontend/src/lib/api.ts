@@ -124,6 +124,23 @@ function shouldRetryPublicViaApiPrefix(config: AxiosRequestConfig): boolean {
   return true;
 }
 
+function shouldRetrySpaFallbackViaApiPrefix(config: AxiosRequestConfig): boolean {
+  const url = config.url;
+  if (typeof url !== 'string') return false;
+  // Don't double-prefix.
+  if (url.startsWith('/api/')) return false;
+  // Avoid retrying obvious non-API paths.
+  if (url === '/config.json') return false;
+  if (url.startsWith('/assets/')) return false;
+  if (url.startsWith('/overlay/')) return false;
+  // Only auto-retry when baseURL is same-origin (empty string).
+  const base = (config.baseURL ?? axiosInstance.defaults.baseURL) as unknown;
+  if (typeof base === 'string' && base !== '') return false;
+  // Only for absolute-path style URLs. (We don't want to touch relative 'foo/bar')
+  if (!url.startsWith('/')) return false;
+  return true;
+}
+
 function withApiPrefix(url: string): string {
   if (url.startsWith('/api/')) return url;
   return `/api${url}`;
@@ -296,6 +313,15 @@ export const api: CustomAxiosInstance = {
                 return r.data as T;
               });
             }
+            // More general case: some deployments proxy backend under /api/* and serve SPA for unknown routes.
+            // If we received HTML for an API call, retry once via /api prefix (same-origin only).
+            if (looksLikeSpaHtml(response.data) && shouldRetrySpaFallbackViaApiPrefix(config)) {
+              const retryConfig: AxiosRequestConfig = { ...config, url: withApiPrefix(String(config.url)) };
+              return axiosInstance.request<unknown>(retryConfig).then((r) => {
+                responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+                return r.data as T;
+              });
+            }
             responseCache.set(requestKey, { data: response.data as T, timestamp: Date.now() });
           }
 
@@ -374,6 +400,13 @@ export const api: CustomAxiosInstance = {
             }
           }
           if (looksLikeSpaHtml(response.data) && shouldRetryPublicViaApiPrefix(requestConfig)) {
+            const retryConfig: AxiosRequestConfig = { ...requestConfig, url: withApiPrefix(url) };
+            return axiosInstance.request<unknown>(retryConfig).then((r) => {
+              responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
+              return r.data as T;
+            });
+          }
+          if (looksLikeSpaHtml(response.data) && shouldRetrySpaFallbackViaApiPrefix(requestConfig)) {
             const retryConfig: AxiosRequestConfig = { ...requestConfig, url: withApiPrefix(url) };
             return axiosInstance.request<unknown>(retryConfig).then((r) => {
               responseCache.set(requestKey, { data: r.data as T, timestamp: Date.now() });
