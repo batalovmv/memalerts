@@ -1,14 +1,17 @@
 import {
   moderationScenarioConfig,
   moderationScenarioHandler,
+  moderationThresholds,
 } from './moderation-list.k6.js';
 import {
   mySubmissionsScenarioConfig,
   mySubmissionsScenarioHandler,
+  mySubmissionsThresholds,
 } from './my-submissions.k6.js';
 import {
   channelMemesScenarioConfig,
   channelMemesScenarioHandler,
+  channelMemesThresholds,
 } from './channel-memes.k6.js';
 
 export const options = {
@@ -27,12 +30,9 @@ export const options = {
     },
   },
   thresholds: {
-    'http_req_failed{scenario:moderation}': ['rate<0.01'],
-    'http_req_failed{scenario:mySubmissions}': ['rate<0.01'],
-    'http_req_failed{scenario:channelMemes}': ['rate<0.01'],
-    'http_req_duration{scenario:moderation}': ['p(95)<300'],
-    'http_req_duration{scenario:mySubmissions}': ['p(95)<300'],
-    'http_req_duration{scenario:channelMemes}': ['p(95)<200'],
+    ...moderationThresholds,
+    ...mySubmissionsThresholds,
+    ...channelMemesThresholds,
   },
 };
 

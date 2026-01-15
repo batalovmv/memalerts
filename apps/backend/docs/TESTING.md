@@ -89,3 +89,38 @@ Tests run in the self-hosted workflow: `.github/workflows/ci-cd-selfhosted.yml`.
 - Then it runs `pnpm test:ci` (which is `vitest run`).
 
 Beta/prod deployment in this workflow depends on tests passing successfully.
+
+## Load tests (k6)
+
+Load tests run against a **dedicated load-test deployment** that uses its own database.
+Do not point load tests at production or the regular test database.
+
+Required environment variables (local or CI):
+
+- `BASE_URL` — load-test API base URL.
+- `STREAMER_COOKIE` — cookie for a streamer account with moderation access.
+- `VIEWER_COOKIE` — cookie for a viewer account.
+- `PUBLIC_CHANNEL_SLUG` — public channel slug to exercise catalog endpoints.
+
+Run locally:
+
+```bash
+BASE_URL="https://loadtest.example.com" STREAMER_COOKIE="token=..." VIEWER_COOKIE="token=..." pnpm test:load
+```
+
+Weekly CI runs in `.github/workflows/load-tests.yml`. It exports a k6 summary to `tests/load/summary.json`
+and enforces the baseline regression check in `tests/load/baseline.json` via `pnpm load:regression`.
+
+To refresh the baseline after a stable run:
+
+```bash
+k6 run --summary-export=tests/load/summary.json tests/load/main.k6.js
+pnpm load:baseline:update
+```
+
+## Epic 8 status (Testing Improvements)
+
+- 8.1: factories added and tests migrated off inline Prisma creates.
+- 8.2: external service mocks + OAuth callback coverage in place.
+- 8.3: bot module tests added; coverage target >60% met.
+- 8.4: weekly k6 load tests in CI with per-endpoint thresholds and regression checks.

@@ -1,0 +1,55 @@
+name: Load Tests (Weekly)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  load-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run k6 load tests
+        uses: grafana/k6-action@v0.3.0
+        with:
+          filename: tests/load/main.k6.js
+          flags: --summary-export=tests/load/summary.json
+        env:
+          BASE_URL: ${{ secrets.LOAD_TEST_BASE_URL }}
+          STREAMER_COOKIE: ${{ secrets.LOAD_TEST_STREAMER_COOKIE }}
+          VIEWER_COOKIE: ${{ secrets.LOAD_TEST_VIEWER_COOKIE }}
+          PUBLIC_CHANNEL_SLUG: ${{ secrets.LOAD_TEST_PUBLIC_CHANNEL_SLUG }}
+
+      - name: Check latency regression
+        run: pnpm -s load:regression
+        env:
+          LOAD_TEST_SUMMARY_PATH: tests/load/summary.json
+          LOAD_TEST_BASELINE_PATH: tests/load/baseline.json
+          LOAD_TEST_MAX_REGRESSION: '20'
+
+      - name: Upload k6 summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary
+          path: tests/load/summary.json

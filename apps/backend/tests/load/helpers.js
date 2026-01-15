@@ -6,10 +6,10 @@ export const STREAMER_COOKIE = __ENV.STREAMER_COOKIE || __ENV.AUTH_COOKIE || '';
 export const VIEWER_COOKIE = __ENV.VIEWER_COOKIE || __ENV.AUTH_COOKIE || '';
 export const PUBLIC_CHANNEL_SLUG = __ENV.PUBLIC_CHANNEL_SLUG || 'perf_test_channel';
 
-export function authParams(cookie) {
+export function authParams(cookie, tags = {}) {
   const headers = { Accept: 'application/json' };
   if (cookie) headers.Cookie = cookie;
-  return { headers };
+  return { headers, tags };
 }
 
 export function checkOk(res) {

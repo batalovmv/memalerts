@@ -2,6 +2,8 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { BASE_URL, PUBLIC_CHANNEL_SLUG, authParams, logIfError } from './helpers.js';
 
+const CHANNEL_MEMES_ENDPOINT = 'channel-memes';
+
 export const channelMemesScenarioConfig = {
   executor: 'constant-arrival-rate',
   rate: 50,
@@ -12,14 +14,14 @@ export const channelMemesScenarioConfig = {
 };
 
 export const channelMemesThresholds = {
-  http_req_failed: ['rate<0.01'],
-  http_req_duration: ['p(95)<200'],
+  [`http_req_failed{endpoint:${CHANNEL_MEMES_ENDPOINT}}`]: ['rate<0.01'],
+  [`http_req_duration{endpoint:${CHANNEL_MEMES_ENDPOINT}}`]: ['p(95)<200'],
 };
 
 export function channelMemesScenarioHandler() {
   const res = http.get(
     `${BASE_URL}/public/channels/${PUBLIC_CHANNEL_SLUG}/memes?limit=50&cursor=`,
-    authParams('')
+    authParams('', { endpoint: CHANNEL_MEMES_ENDPOINT })
   );
   logIfError(res, 'channel-memes');
   const body = res.json();

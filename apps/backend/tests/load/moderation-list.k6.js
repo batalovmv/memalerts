@@ -2,6 +2,8 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { BASE_URL, STREAMER_COOKIE, authParams, logIfError } from './helpers.js';
 
+const MODERATION_ENDPOINT = 'moderation-list';
+
 export const moderationScenarioConfig = {
   executor: 'constant-arrival-rate',
   rate: 20,
@@ -12,14 +14,14 @@ export const moderationScenarioConfig = {
 };
 
 export const moderationThresholds = {
-  http_req_failed: ['rate<0.01'],
-  http_req_duration: ['p(95)<300'],
+  [`http_req_failed{endpoint:${MODERATION_ENDPOINT}}`]: ['rate<0.01'],
+  [`http_req_duration{endpoint:${MODERATION_ENDPOINT}}`]: ['p(95)<300'],
 };
 
 export function moderationScenarioHandler() {
   const res = http.get(
     `${BASE_URL}/streamer/submissions?status=pending&limit=50`,
-    authParams(STREAMER_COOKIE)
+    authParams(STREAMER_COOKIE, { endpoint: MODERATION_ENDPOINT })
   );
   logIfError(res, 'moderation');
   check(res, {
