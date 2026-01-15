@@ -51,5 +51,3 @@ describe('fileTypeValidator (magic bytes)', () => {
     expect(v.detectedType).toBe('video/mp4');
   });
 });
-
-

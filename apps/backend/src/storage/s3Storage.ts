@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import type { StorageProvider, StoreFromTempArgs, StoredObject } from './types.js';
+import type { StorageProvider, StoreFromTempArgs, StoredObject, PublicPathArgs } from './types.js';
 
 type S3Config = {
   endpoint?: string;
@@ -48,6 +48,11 @@ export class S3StorageProvider implements StorageProvider {
   private makeKey(hash: string, extWithDot: string): string {
     const prefix = this.cfg.keyPrefix ? this.cfg.keyPrefix.replace(/\/+$/, '') + '/' : '';
     return `${prefix}memes/${hash}${extWithDot}`;
+  }
+
+  getPublicPathForHash(args: PublicPathArgs): string {
+    const key = this.makeKey(args.hash, args.extWithDot);
+    return safeJoinUrl(this.cfg.publicBaseUrl, key);
   }
 
   async storeMemeFromTemp(args: StoreFromTempArgs): Promise<StoredObject> {
@@ -142,5 +147,3 @@ export function loadS3ConfigFromEnv(): S3Config | null {
     forcePathStyle,
   };
 }
-
-

@@ -1,11 +1,34 @@
 import { prisma } from '../lib/prisma.js';
 import { logger } from './logger.js';
-import { refreshTrovoToken } from '../auth/providers/trovo.js';
+import { refreshTrovoToken, type TrovoTokenResponse } from '../auth/providers/trovo.js';
+import { isTransientHttpError } from './httpErrors.js';
+import { fetchWithTimeout, getServiceHttpTimeoutMs } from './httpTimeouts.js';
+import { getServiceRetryConfig, withRetry } from './retry.js';
 
 function isExpired(expiresAt: Date | null | undefined, skewSeconds: number): boolean {
   if (!expiresAt) return true;
   const msLeft = expiresAt.getTime() - Date.now();
   return msLeft <= skewSeconds * 1000;
+}
+
+const trovoTimeoutMs = getServiceHttpTimeoutMs('TROVO', 10_000, 1_000, 60_000);
+const trovoRetryConfig = getServiceRetryConfig('trovo', {
+  maxAttempts: 3,
+  baseDelayMs: 500,
+  maxDelayMs: 3000,
+});
+
+function retryTrovo<T>(action: (attempt: number) => Promise<T>, options?: {
+  retryOnResult?: (result: T) => boolean;
+  isSuccessResult?: (result: T) => boolean;
+}): Promise<T> {
+  return withRetry(action, {
+    service: 'trovo',
+    ...trovoRetryConfig,
+    retryOnError: isTransientHttpError,
+    retryOnResult: options?.retryOnResult,
+    isSuccessResult: options?.isSuccessResult,
+  });
 }
 
 export async function getTrovoExternalAccount(userId: string): Promise<{
@@ -89,8 +112,8 @@ export async function getValidTrovoAccessTokenByExternalAccountId(externalAccoun
       logger.warn('trovo.token.refresh_failed', {
         externalAccountId: id,
         status: refresh.status,
-        error: (refresh.data as any)?.error ?? null,
-        message: (refresh.data as any)?.message ?? null,
+        error: (refresh.data as TrovoTokenResponse)?.error ?? null,
+        message: (refresh.data as TrovoTokenResponse)?.message ?? null,
       });
       return null;
     }
@@ -98,7 +121,11 @@ export async function getValidTrovoAccessTokenByExternalAccountId(externalAccoun
     const refreshTokenNext = String(refresh.data?.refresh_token || '').trim() || null;
     const expiresIn = Number(refresh.data?.expires_in || 0);
     const tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000) : null;
-    const scopes = Array.isArray(refresh.data?.scope) ? refresh.data.scope.join(' ') : (refresh.data?.scope ? String(refresh.data.scope) : null);
+    const scopes = Array.isArray(refresh.data?.scope)
+      ? refresh.data.scope.join(' ')
+      : refresh.data?.scope
+        ? String(refresh.data.scope)
+        : null;
 
     await prisma.externalAccount.update({
       where: { id },
@@ -111,25 +138,27 @@ export async function getValidTrovoAccessTokenByExternalAccountId(externalAccoun
     });
 
     return accessToken;
-  } catch (e: any) {
-    logger.warn('trovo.token.refresh_failed', { externalAccountId: id, errorMessage: e?.message || String(e) });
+  } catch (error) {
+    const err = error as Error;
+    logger.warn('trovo.token.refresh_failed', { externalAccountId: id, errorMessage: err.message || String(error) });
     return null;
   }
 }
 
 export async function getValidTrovoBotAccessToken(): Promise<string | null> {
   try {
-    const cred = await (prisma as any).globalTrovoBotCredential.findFirst({
+    const cred = await prisma.globalTrovoBotCredential.findFirst({
       where: { enabled: true },
       orderBy: { updatedAt: 'desc' },
       select: { externalAccountId: true },
     });
-    const externalAccountId = String((cred as any)?.externalAccountId || '').trim();
+    const externalAccountId = String(cred?.externalAccountId || '').trim();
     if (!externalAccountId) return null;
     return await getValidTrovoAccessTokenByExternalAccountId(externalAccountId);
-  } catch (e: any) {
-    if (e?.code !== 'P2021') {
-      logger.warn('trovo.bot_token.db_credential_lookup_failed', { errorMessage: e?.message || String(e) });
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err.code !== 'P2021') {
+      logger.warn('trovo.bot_token.db_credential_lookup_failed', { errorMessage: err.message || String(error) });
     }
     return null;
   }
@@ -139,22 +168,37 @@ export async function fetchTrovoChatToken(params: {
   accessToken: string;
   clientId: string;
   chatTokenUrl?: string;
-}): Promise<{ ok: boolean; status: number; token: string | null; raw: any }> {
+}): Promise<{ ok: boolean; status: number; token: string | null; raw: unknown }> {
   const url = params.chatTokenUrl || 'https://open-api.trovo.live/openplatform/chat/token';
   try {
-    const resp = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'client-id': params.clientId,
-        Authorization: `OAuth ${params.accessToken}`,
+    return await retryTrovo(
+      async () => {
+        const resp = await fetchWithTimeout({
+          url,
+          service: 'trovo',
+          timeoutMs: trovoTimeoutMs,
+          timeoutReason: 'trovo_timeout',
+          init: {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+              'client-id': params.clientId,
+              Authorization: `OAuth ${params.accessToken}`,
+            },
+          },
+        });
+        const data = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
+        const token = String((data?.data as Record<string, unknown>)?.token ?? data?.token ?? '').trim() || null;
+        return { ok: resp.ok && !!token, status: resp.status, token, raw: data };
       },
-    });
-    const data = await resp.json().catch(() => null);
-    const token = String(data?.data?.token ?? data?.token ?? '').trim() || null;
-    return { ok: resp.ok && !!token, status: resp.status, token, raw: data };
-  } catch (e: any) {
-    return { ok: false, status: 0, token: null, raw: { error: e?.message || String(e) } };
+      {
+        retryOnResult: (result) => result.status >= 500,
+        isSuccessResult: (result) => result.ok,
+      }
+    );
+  } catch (error) {
+    const err = error as Error;
+    return { ok: false, status: 0, token: null, raw: { error: err.message || String(error) } };
   }
 }
 
@@ -164,7 +208,7 @@ export async function sendTrovoChatMessage(params: {
   trovoChannelId: string;
   content: string;
   sendChatUrl?: string;
-}): Promise<{ ok: boolean; status: number; raw: any }> {
+}): Promise<{ ok: boolean; status: number; raw: unknown }> {
   const url = params.sendChatUrl || 'https://open-api.trovo.live/openplatform/chat/send';
   const body = {
     channel_id: params.trovoChannelId,
@@ -172,24 +216,37 @@ export async function sendTrovoChatMessage(params: {
   };
 
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'client-id': params.clientId,
-        Authorization: `OAuth ${params.accessToken}`,
+    return await retryTrovo(
+      async () => {
+        const resp = await fetchWithTimeout({
+          url,
+          service: 'trovo',
+          timeoutMs: trovoTimeoutMs,
+          timeoutReason: 'trovo_timeout',
+          init: {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'client-id': params.clientId,
+              Authorization: `OAuth ${params.accessToken}`,
+            },
+            body: JSON.stringify(body),
+          },
+        });
+        const data = await resp.json().catch(() => null);
+        return { ok: resp.ok, status: resp.status, raw: data };
       },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json().catch(() => null);
-    return { ok: resp.ok, status: resp.status, raw: data };
-  } catch (e: any) {
-    return { ok: false, status: 0, raw: { error: e?.message || String(e) } };
+      {
+        retryOnResult: (result) => result.status >= 500,
+        isSuccessResult: (result) => result.ok,
+      }
+    );
+  } catch (error) {
+    const err = error as Error;
+    return { ok: false, status: 0, raw: { error: err.message || String(error) } };
   }
 }
-
-
 
 
 

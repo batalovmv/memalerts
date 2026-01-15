@@ -1,12 +1,14 @@
 import { isBetaDomain } from '../src/middleware/betaAccess.js';
 
-function makeReq(headers: Record<string, string | undefined>) {
+type HeaderGetter = { get: (name: string) => string | undefined };
+
+function makeReq(headers: Record<string, string | undefined>): HeaderGetter {
   return {
     get(name: string) {
       const key = Object.keys(headers).find((k) => k.toLowerCase() === name.toLowerCase());
-      return (key ? headers[key] : undefined) as any;
+      return key ? headers[key] : undefined;
     },
-  } as any;
+  };
 }
 
 describe('betaAccess.isBetaDomain', () => {
@@ -32,5 +34,3 @@ describe('betaAccess.isBetaDomain', () => {
     expect(isBetaDomain(makeReq({ host: 'example.com' }))).toBe(true);
   });
 });
-
-

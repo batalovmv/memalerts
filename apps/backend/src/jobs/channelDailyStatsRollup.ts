@@ -88,11 +88,12 @@ export function startChannelDailyStatsRollupScheduler() {
         rowsUpserted: res.rowsUpserted,
         durationMs: Date.now() - startedAt,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       logger.error('rollup.channel_daily.failed', {
         days: effectiveDays,
         durationMs: Date.now() - startedAt,
-        errorMessage: e?.message,
+        errorMessage,
       });
     } finally {
       await releaseAdvisoryLock(lockId);
@@ -103,5 +104,3 @@ export function startChannelDailyStatsRollupScheduler() {
   setTimeout(() => void runOnce(), effectiveInitialDelay);
   setInterval(() => void runOnce(), effectiveInterval);
 }
-
-

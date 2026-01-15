@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { processOneSubmission } from '../src/jobs/aiModerationSubmissions.js';
 import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../src/utils/fileHash.js';
@@ -62,7 +63,7 @@ async function downloadToTempFile(opts: { url: string; maxBytes: number; timeout
         u,
         {
           headers: { 'User-Agent': 'memalerts-backfill-ai/1.0' },
-          signal: ac.signal as any,
+          signal: ac.signal,
         },
         (res) => {
           if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
@@ -105,7 +106,7 @@ async function downloadToTempFile(opts: { url: string; maxBytes: number; timeout
 
 async function resolveSystemUserIdForChannel(channelId: string): Promise<string | null> {
   const streamer = await prisma.user.findFirst({
-    where: { channelId, role: { in: ['streamer', 'admin'] } as any },
+    where: { channelId, role: { in: ['streamer', 'admin'] } },
     select: { id: true },
   });
   if (streamer?.id) return streamer.id;
@@ -154,7 +155,9 @@ async function main() {
   });
 
   const missing = rows.filter((r) => !r.aiAutoDescription || r.aiAutoTagNamesJson == null);
-  console.log(JSON.stringify({ channelId, totalApproved: rows.length, missingAi: missing.length, dryRun, limit, batch }, null, 2));
+  console.log(
+    JSON.stringify({ channelId, totalApproved: rows.length, missingAi: missing.length, dryRun, limit, batch }, null, 2)
+  );
   if (missing.length === 0) return;
 
   let copied = 0;
@@ -185,8 +188,18 @@ async function main() {
         try {
           const tmp = await downloadToTempFile({
             url: fileUrl,
-            maxBytes: clampInt(parseInt(String(process.env.BACKFILL_DL_MAX_BYTES || ''), 10), 1_000_000, 200_000_000, 60_000_000),
-            timeoutMs: clampInt(parseInt(String(process.env.BACKFILL_DL_TIMEOUT_MS || ''), 10), 5_000, 10 * 60_000, 60_000),
+            maxBytes: clampInt(
+              parseInt(String(process.env.BACKFILL_DL_MAX_BYTES || ''), 10),
+              1_000_000,
+              200_000_000,
+              60_000_000
+            ),
+            timeoutMs: clampInt(
+              parseInt(String(process.env.BACKFILL_DL_TIMEOUT_MS || ''), 10),
+              5_000,
+              10 * 60_000,
+              60_000
+            ),
           });
           const hash = await calculateFileHash(tmp);
           const stats = await getFileStats(tmp);
@@ -250,17 +263,21 @@ async function main() {
 
     // If MemeAsset already has AI, just copy to ChannelMeme.
     const canCopy =
-      String(asset.aiStatus || '') === 'done' &&
-      !!asset.aiAutoDescription &&
-      asset.aiAutoTagNamesJson != null;
+      String(asset.aiStatus || '') === 'done' && !!asset.aiAutoDescription && asset.aiAutoTagNamesJson != null;
     if (canCopy) {
       if (!dryRun) {
         await prisma.channelMeme.updateMany({
           where: { id: r.id, channelId },
           data: {
             aiAutoDescription: r.aiAutoDescription ? undefined : (asset.aiAutoDescription ?? null),
-            aiAutoTagNamesJson: r.aiAutoTagNamesJson == null ? (asset.aiAutoTagNamesJson as any) : undefined,
-            searchText: r.searchText ? undefined : (asset.aiSearchText ?? (asset.aiAutoDescription ? String(asset.aiAutoDescription).slice(0, 4000) : null)),
+            aiAutoTagNamesJson:
+              r.aiAutoTagNamesJson == null
+                ? (asset.aiAutoTagNamesJson as Prisma.InputJsonValue)
+                : undefined,
+            searchText: r.searchText
+              ? undefined
+              : (asset.aiSearchText ??
+                (asset.aiAutoDescription ? String(asset.aiAutoDescription).slice(0, 4000) : null)),
           },
         });
       }
@@ -275,7 +292,7 @@ async function main() {
         memeAssetId: asset.id,
         status: { in: ['pending', 'approved'] },
         sourceKind: { in: ['upload', 'url'] },
-      } as any,
+      },
       orderBy: { createdAt: 'desc' },
       select: { id: true, aiStatus: true },
     });
@@ -283,6 +300,8 @@ async function main() {
     const subId = await (async () => {
       if (existingSub?.id) return existingSub.id;
       if (dryRun) return null;
+      const durationMs =
+        typeof asset.durationMs === 'number' && Number.isFinite(asset.durationMs) ? asset.durationMs : null;
       const created = await prisma.memeSubmission.create({
         data: {
           channelId,
@@ -294,9 +313,9 @@ async function main() {
           status: 'approved',
           memeAssetId: asset.id,
           fileHash: recoveredHash,
-          durationMs: Number.isFinite(asset.durationMs as any) ? (asset.durationMs as number) : null,
+          durationMs,
           aiStatus: 'pending',
-        } as any,
+        },
         select: { id: true },
       });
       createdSubmissions += 1;
@@ -308,8 +327,9 @@ async function main() {
     if (!dryRun) {
       try {
         await processOneSubmission(subId);
-      } catch (e: any) {
+      } catch (e: unknown) {
         processFailed += 1;
+        const errorMessage = e instanceof Error ? e.message : String(e);
         console.error(
           JSON.stringify(
             {
@@ -318,7 +338,7 @@ async function main() {
               channelMemeId: r.id,
               memeAssetId: asset.id,
               submissionId: subId,
-              errorMessage: e?.message || String(e),
+              errorMessage,
             },
             null,
             2
@@ -331,7 +351,13 @@ async function main() {
 
     // Keep the loop cooperative.
     if (processed % batch === 0) {
-      console.log(JSON.stringify({ progress: { i: i + 1, total: missing.length, copied, createdSubmissions, processed } }, null, 2));
+      console.log(
+        JSON.stringify(
+          { progress: { i: i + 1, total: missing.length, copied, createdSubmissions, processed } },
+          null,
+          2
+        )
+      );
     }
   }
 
@@ -367,5 +393,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-

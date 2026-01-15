@@ -61,10 +61,8 @@ export async function fetchTwitchUser(params: {
       'Client-Id': params.clientId,
     },
   });
-  const userData = (await userResponse.json()) as any;
-  const twitchUser = userData?.data?.[0] as TwitchHelixUser | undefined;
+  const userData = (await userResponse.json()) as { data?: TwitchHelixUser[] };
+  const twitchUser = userData?.data?.[0];
   debugLog('twitch.user.fetch', { status: userResponse.status, hasUser: !!twitchUser, id: twitchUser?.id });
   return twitchUser ?? null;
 }
-
-

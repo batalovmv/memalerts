@@ -1,5 +1,14 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { processOneSubmission } from '../src/jobs/aiModerationSubmissions.js';
+import {
+  createChannel,
+  createChannelMeme,
+  createFileHash,
+  createMemeAsset,
+  createSubmission,
+  createUser,
+} from './factories/index.js';
 
 function rand(): string {
   return Math.random().toString(16).slice(2);
@@ -7,71 +16,67 @@ function rand(): string {
 
 describe('AI moderation dedup via MemeAsset (fileHash)', () => {
   it('reuses MemeAsset AI metadata for duplicate submissions (no re-analysis)', async () => {
-    const channel = await prisma.channel.create({
-      data: { slug: `ch_${rand()}`, name: `Channel ${rand()}`, defaultPriceCoins: 100 },
-      select: { id: true },
+    const channel = await createChannel({
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+      defaultPriceCoins: 100,
     });
 
-    const user = await prisma.user.create({
-      data: { displayName: `User ${rand()}`, role: 'viewer', hasBetaAccess: false, channelId: null },
-      select: { id: true },
+    const user = await createUser({
+      displayName: `User ${rand()}`,
+      role: 'viewer',
+      hasBetaAccess: false,
+      channelId: null,
     });
 
     const fileHash = `hash_${rand()}`;
 
     // MemeAsset.fileHash has a FK to FileHash.hash in this project.
-    await prisma.fileHash.create({
-      data: {
-        hash: fileHash,
-        filePath: `/uploads/memes/${rand()}.webm`,
-        referenceCount: 1,
-        fileSize: BigInt(1),
-        mimeType: 'video/webm',
-      },
+    await createFileHash({
+      hash: fileHash,
+      filePath: `/uploads/memes/${rand()}.webm`,
+      referenceCount: 1,
+      fileSize: BigInt(1),
+      mimeType: 'video/webm',
     });
 
-    const asset = await prisma.memeAsset.create({
-      data: {
-        type: 'video',
-        fileUrl: `/uploads/memes/${rand()}.webm`,
-        fileHash,
-        durationMs: 1234,
-        poolVisibility: 'visible',
-        aiStatus: 'done',
-        aiAutoDescription: 'GLOBAL_AI_DESC',
-        aiAutoTagNamesJson: ['global_tag_1'] as any,
-        aiSearchText: 'GLOBAL_AI_SEARCH',
-        aiCompletedAt: new Date(),
-      } as any,
-      select: { id: true },
-    });
+    const assetData = {
+      type: 'video',
+      fileUrl: `/uploads/memes/${rand()}.webm`,
+      fileHash,
+      durationMs: 1234,
+      poolVisibility: 'visible',
+      aiStatus: 'done',
+      aiAutoDescription: 'GLOBAL_AI_DESC',
+      aiAutoTagNamesJson: ['global_tag_1'],
+      aiSearchText: 'GLOBAL_AI_SEARCH',
+      aiCompletedAt: new Date(),
+    } satisfies Prisma.MemeAssetCreateInput;
+    const asset = await createMemeAsset(assetData);
 
-    await prisma.channelMeme.create({
-      data: {
-        channelId: channel.id,
-        memeAssetId: asset.id,
-        status: 'approved',
-        title: 'Title',
-        priceCoins: 100,
-      } as any,
-    });
+    const channelMemeData = {
+      channelId: channel.id,
+      memeAssetId: asset.id,
+      status: 'approved',
+      title: 'Title',
+      priceCoins: 100,
+    } satisfies Prisma.ChannelMemeCreateInput;
+    await createChannelMeme(channelMemeData);
 
-    const submission = await prisma.memeSubmission.create({
-      data: {
-        channelId: channel.id,
-        submitterUserId: user.id,
-        title: 'This title would produce different heuristic output',
-        type: 'video',
-        fileUrlTemp: '/uploads/memes/does-not-need-to-exist.webm',
-        sourceKind: 'upload',
-        status: 'pending',
-        memeAssetId: asset.id,
-        fileHash,
-        durationMs: 1234,
-        aiStatus: 'pending',
-      } as any,
-      select: { id: true },
-    });
+    const submissionData = {
+      channelId: channel.id,
+      submitterUserId: user.id,
+      title: 'This title would produce different heuristic output',
+      type: 'video',
+      fileUrlTemp: '/uploads/memes/does-not-need-to-exist.webm',
+      sourceKind: 'upload',
+      status: 'pending',
+      memeAssetId: asset.id,
+      fileHash,
+      durationMs: 1234,
+      aiStatus: 'pending',
+    } satisfies Prisma.MemeSubmissionCreateInput;
+    const submission = await createSubmission(submissionData);
 
     await processOneSubmission(submission.id);
 
@@ -94,5 +99,3 @@ describe('AI moderation dedup via MemeAsset (fileHash)', () => {
     expect(Array.isArray(updatedChannelMeme?.aiAutoTagNamesJson)).toBe(true);
   });
 });
-
-

@@ -1,11 +1,12 @@
 import { prisma } from '../lib/prisma.js';
-import { Request } from 'express';
+import type { Request } from 'express';
+import { logger } from './logger.js';
 
 export interface AuditLogData {
   action: string;
   actorId?: string | null;
   channelId?: string;
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
   success?: boolean;
@@ -17,16 +18,7 @@ export interface AuditLogData {
  * Logs to both database (AuditLog) and console (structured JSON)
  */
 export async function auditLog(data: AuditLogData): Promise<void> {
-  const {
-    action,
-    actorId,
-    channelId,
-    payload = {},
-    ipAddress,
-    userAgent,
-    success = true,
-    error,
-  } = data;
+  const { action, actorId, channelId, payload = {}, ipAddress, userAgent, success = true, error } = data;
 
   // Prepare structured log entry
   const logEntry = {
@@ -41,11 +33,14 @@ export async function auditLog(data: AuditLogData): Promise<void> {
     error: error || null,
   };
 
+  const silent = process.env.LOG_SILENT_TESTS === '1';
   // Log to console in structured JSON format (for log aggregation tools)
-  if (success) {
-    console.log('[AUDIT]', JSON.stringify(logEntry));
-  } else {
-    console.error('[AUDIT_ERROR]', JSON.stringify(logEntry));
+  if (!silent) {
+    if (success) {
+      logger.info('audit.log', { entry: logEntry });
+    } else {
+      logger.error('audit.log_failed', { entry: logEntry });
+    }
   }
 
   // Save to database if channelId is provided
@@ -60,16 +55,18 @@ export async function auditLog(data: AuditLogData): Promise<void> {
           payloadJson: JSON.stringify(payload),
         },
       });
-    } catch (dbError: any) {
+    } catch (dbError) {
+      const err = dbError as Error;
       // Don't fail the request if audit logging fails
       // But log the error for monitoring
-      console.error('[AUDIT_DB_ERROR]', JSON.stringify({
-        timestamp: new Date().toISOString(),
-        error: 'Failed to save audit log to database',
-        dbError: dbError.message,
-        action,
-        channelId,
-      }));
+      if (!silent) {
+        logger.error('audit.db_write_failed', {
+          errorMessage: 'Failed to save audit log to database',
+          dbError: err.message,
+          action,
+          channelId,
+        });
+      }
     }
   }
 }
@@ -106,7 +103,7 @@ export async function logAuthEvent(
   error?: string
 ): Promise<void> {
   const { ipAddress, userAgent } = getRequestMetadata(req);
-  
+
   await auditLog({
     action: `auth.${action}`,
     actorId: userId,
@@ -136,7 +133,7 @@ export async function logFileUpload(
   error?: string
 ): Promise<void> {
   const { ipAddress, userAgent } = getRequestMetadata(req);
-  
+
   await auditLog({
     action: 'file.upload',
     actorId: userId,
@@ -173,13 +170,13 @@ export async function logAdminAction(
   userId: string,
   channelId: string,
   targetId: string,
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   success: boolean,
   req: Request,
   error?: string
 ): Promise<void> {
   const { ipAddress, userAgent } = getRequestMetadata(req);
-  
+
   await auditLog({
     action: `admin.${action}`,
     actorId: userId,
@@ -210,7 +207,7 @@ export async function logMemeActivation(
   error?: string
 ): Promise<void> {
   const { ipAddress, userAgent } = getRequestMetadata(req);
-  
+
   await auditLog({
     action: 'meme.activate',
     actorId: userId,
@@ -232,14 +229,20 @@ export async function logMemeActivation(
  * Log security events (CSRF blocked, rate limit exceeded, etc.)
  */
 export async function logSecurityEvent(
-  event: 'csrf_blocked' | 'rate_limit_exceeded' | 'unauthorized_access' | 'path_traversal_attempt' | 'invalid_file_type' | 'file_validation_failed',
+  event:
+    | 'csrf_blocked'
+    | 'rate_limit_exceeded'
+    | 'unauthorized_access'
+    | 'path_traversal_attempt'
+    | 'invalid_file_type'
+    | 'file_validation_failed',
   userId: string | null,
   channelId: string | null,
-  details: Record<string, any>,
+  details: Record<string, unknown>,
   req: Request
 ): Promise<void> {
   const { ipAddress, userAgent } = getRequestMetadata(req);
-  
+
   await auditLog({
     action: `security.${event}`,
     actorId: userId,
@@ -250,4 +253,3 @@ export async function logSecurityEvent(
     success: false, // Security events are always failures
   });
 }
-

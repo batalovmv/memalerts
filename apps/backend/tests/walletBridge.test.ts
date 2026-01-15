@@ -2,16 +2,19 @@ import { emitWalletUpdated } from '../src/realtime/walletBridge.js';
 
 describe('walletBridge', () => {
   it('emits wallet:updated only to user:{id} room (privacy invariant)', () => {
-    const calls: Array<{ room: string; event: string; payload: any }> = [];
-    const fakeIo = {
+    type EmitFn = (event: string, payload: unknown) => void;
+    type IoLike = { to: (room: string) => { emit: EmitFn } };
+
+    const calls: Array<{ room: string; event: string; payload: unknown }> = [];
+    const fakeIo: IoLike = {
       to(room: string) {
         return {
-          emit(event: string, payload: any) {
+          emit(event: string, payload: unknown) {
             calls.push({ room, event, payload });
           },
         };
       },
-    } as any;
+    };
 
     emitWalletUpdated(fakeIo, { userId: 'u1', channelId: 'c1', balance: 123 });
     expect(calls).toHaveLength(1);
@@ -19,5 +22,3 @@ describe('walletBridge', () => {
     expect(calls[0].event).toBe('wallet:updated');
   });
 });
-
-

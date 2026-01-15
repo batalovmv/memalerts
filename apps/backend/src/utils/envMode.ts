@@ -15,6 +15,3 @@ export function isProdStrictDto(): boolean {
   // Production instance is expected on 3001; beta is 3002.
   return !isBetaBackend() && port === '3001';
 }
-
-
-

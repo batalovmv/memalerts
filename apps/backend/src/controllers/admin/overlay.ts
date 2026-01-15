@@ -2,12 +2,20 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import type { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import { signJwt } from '../../utils/jwt.js';
+import { ERROR_CODES, ERROR_MESSAGES } from '../../shared/errors.js';
+import { logger } from '../../utils/logger.js';
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
 
 export const getOverlayToken = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   if (!channelId) {
-    return res.status(400).json({ error: 'Channel ID required' });
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
   }
 
   try {
@@ -24,12 +32,14 @@ export const getOverlayToken = async (req: AuthRequest, res: Response) => {
     });
 
     if (!channel?.slug) {
-      return res.status(404).json({ error: 'Channel not found' });
+      return res
+        .status(404)
+        .json({ errorCode: ERROR_CODES.CHANNEL_NOT_FOUND, error: ERROR_MESSAGES.CHANNEL_NOT_FOUND });
     }
 
     // Long-lived token intended to be pasted into OBS. It is opaque and unguessable (signed).
     // Environment separation is preserved because JWT_SECRET differs between beta and production.
-    const token = jwt.sign(
+    const token = signJwt(
       {
         kind: 'overlay',
         v: 1,
@@ -37,7 +47,6 @@ export const getOverlayToken = async (req: AuthRequest, res: Response) => {
         channelSlug: String(channel.slug).toLowerCase(),
         tv: channel.overlayTokenVersion ?? 1,
       },
-      process.env.JWT_SECRET!,
       // IMPORTANT: keep token stable across page reloads.
       // We avoid iat/exp so the string doesn't change unless streamer explicitly rotates it.
       { noTimestamp: true }
@@ -48,18 +57,21 @@ export const getOverlayToken = async (req: AuthRequest, res: Response) => {
       overlayMode: channel.overlayMode ?? 'queue',
       overlayShowSender: channel.overlayShowSender ?? false,
       overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
-      overlayStyleJson: (channel as any).overlayStyleJson ?? null,
+      overlayStyleJson: channel.overlayStyleJson ?? null,
     });
-  } catch (e: any) {
-    console.error('Error generating overlay token:', e);
-    return res.status(500).json({ error: 'Failed to generate overlay token' });
+  } catch (e: unknown) {
+    const err = e as Error;
+    logger.error('overlay.token_generate_failed', { errorMessage: err.message });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   if (!channelId) {
-    return res.status(400).json({ error: 'Channel ID required' });
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
   }
 
   try {
@@ -78,10 +90,12 @@ export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
     });
 
     if (!channel?.slug) {
-      return res.status(404).json({ error: 'Channel not found' });
+      return res
+        .status(404)
+        .json({ errorCode: ERROR_CODES.CHANNEL_NOT_FOUND, error: ERROR_MESSAGES.CHANNEL_NOT_FOUND });
     }
 
-    const token = jwt.sign(
+    const token = signJwt(
       {
         kind: 'overlay',
         v: 1,
@@ -90,7 +104,6 @@ export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
         tv: channel.overlayTokenVersion ?? 1,
         // NOTE: keep payload deterministic (no jti/iat/exp). Rotation is done via tv increment.
       },
-      process.env.JWT_SECRET!,
       // No iat/exp: keep the token deterministic (stable for this tv).
       { noTimestamp: true }
     );
@@ -103,12 +116,14 @@ export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
       const room = `channel:${slug}`;
       const sockets = await io.in(room).fetchSockets();
       for (const s of sockets) {
-        if ((s.data as any)?.isOverlay) {
+        const dataRec = asRecord(s.data);
+        if (dataRec.isOverlay) {
           s.disconnect(true);
         }
       }
     } catch (kickErr) {
-      console.error('Error disconnecting overlay sockets after token rotation:', kickErr);
+      const err = kickErr as Error;
+      logger.error('overlay.socket_disconnect_failed', { errorMessage: err.message });
     }
 
     return res.json({
@@ -117,9 +132,10 @@ export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
       overlayShowSender: channel.overlayShowSender ?? false,
       overlayMaxConcurrent: channel.overlayMaxConcurrent ?? 3,
     });
-  } catch (e: any) {
-    console.error('Error rotating overlay token:', e);
-    return res.status(500).json({ error: 'Failed to rotate overlay token' });
+  } catch (e: unknown) {
+    const err = e as Error;
+    logger.error('overlay.token_rotate_failed', { errorMessage: err.message });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
@@ -131,10 +147,12 @@ export const rotateOverlayToken = async (req: AuthRequest, res: Response) => {
 export const getOverlayPreviewMeme = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   const userId = req.userId;
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ errorCode: ERROR_CODES.UNAUTHORIZED, error: ERROR_MESSAGES.UNAUTHORIZED });
 
-  const pick = async (whereSql: string, params: any[]) => {
-    const rows = await prisma.$queryRawUnsafe<Array<{ id: string; type: string; fileUrl: string; title: string; channelId: string }>>(
+  const pick = async (whereSql: string, params: unknown[]) => {
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{ id: string; type: string; fileUrl: string; title: string; channelId: string }>
+    >(
       `
         SELECT "id", "type", "fileUrl", "title", "channelId"
         FROM "Meme"
@@ -171,9 +189,10 @@ export const getOverlayPreviewMeme = async (req: AuthRequest, res: Response) => 
         channelId: meme.channelId,
       },
     });
-  } catch (e: any) {
-    console.error('Error getting overlay preview meme:', e);
-    return res.status(500).json({ error: 'Failed to get preview meme' });
+  } catch (e: unknown) {
+    const err = e as Error;
+    logger.error('overlay.preview_meme_failed', { errorMessage: err.message });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
@@ -182,7 +201,7 @@ export const getOverlayPreviewMeme = async (req: AuthRequest, res: Response) => 
 export const getOverlayPreviewMemes = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   const userId = req.userId;
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ errorCode: ERROR_CODES.UNAUTHORIZED, error: ERROR_MESSAGES.UNAUTHORIZED });
 
   const rawCount = Number(req.query.count);
   const count = Number.isFinite(rawCount) ? Math.max(1, Math.min(5, Math.floor(rawCount))) : 1;
@@ -195,7 +214,7 @@ export const getOverlayPreviewMemes = async (req: AuthRequest, res: Response) =>
 
   type Row = { id: string; type: string; fileUrl: string; title: string; channelId: string };
 
-  const pickMany = async (whereSql: string, params: any[]): Promise<Row[]> => {
+  const pickMany = async (whereSql: string, params: unknown[]): Promise<Row[]> => {
     // Deterministic pseudo-random ordering based on seed.
     // md5(uuid::text || seed) is stable and cheap enough for small LIMITs.
     return await prisma.$queryRawUnsafe<Row[]>(
@@ -258,10 +277,9 @@ export const getOverlayPreviewMemes = async (req: AuthRequest, res: Response) =>
         channelId: m.channelId,
       })),
     });
-  } catch (e: any) {
-    console.error('Error getting overlay preview memes:', e);
-    return res.status(500).json({ error: 'Failed to get preview memes' });
+  } catch (e: unknown) {
+    const err = e as Error;
+    logger.error('overlay.preview_memes_failed', { errorMessage: err.message });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
-
-

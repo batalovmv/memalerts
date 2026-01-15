@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { Server } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import jwt from 'jsonwebtoken';
@@ -7,7 +7,9 @@ import jwt from 'jsonwebtoken';
 import { setupSocketIO } from '../src/socket/index.js';
 import { emitWalletUpdated } from '../src/realtime/walletBridge.js';
 
-function makeJwt(payload: Record<string, any>): string {
+type WalletUpdatedPayload = { userId: string };
+
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -78,7 +80,7 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
       await waitForRoomJoin(betaIo, 'user:user_from_token_beta', 1, 2000);
 
       emitWalletUpdated(betaIo, { userId: 'user_from_token_beta', channelId: 'ch1', balance: 1 });
-      const betaGot = await waitForEvent<any>(betaSocket, 'wallet:updated', 2000);
+      const betaGot = await waitForEvent<WalletUpdatedPayload>(betaSocket, 'wallet:updated', 2000);
       expect(betaGot.userId).toBe('user_from_token_beta');
 
       // Production server (DOMAIN without beta.)
@@ -104,7 +106,7 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
         await waitForRoomJoin(prodIo, 'user:user_from_token', 1, 2000);
 
         emitWalletUpdated(prodIo, { userId: 'user_from_token', channelId: 'ch1', balance: 2 });
-        const prodGot = await waitForEvent<any>(prodSocket, 'wallet:updated', 2000);
+        const prodGot = await waitForEvent<WalletUpdatedPayload>(prodSocket, 'wallet:updated', 2000);
         expect(prodGot.userId).toBe('user_from_token');
 
         // Cross-instance sanity: beta socket should not get prod server events and vice versa.
@@ -123,5 +125,3 @@ describe('Socket.IO cookie selection: token_beta vs token', () => {
     }
   });
 });
-
-

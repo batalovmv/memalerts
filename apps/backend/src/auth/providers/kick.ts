@@ -30,7 +30,10 @@ export type KickUserInfo = {
 };
 
 function normalizeScopes(scopes: string[]): string {
-  return scopes.map((s) => s.trim()).filter(Boolean).join(' ');
+  return scopes
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function getKickAuthorizeUrl(params: {
@@ -49,9 +52,12 @@ export function getKickAuthorizeUrl(params: {
   return url.toString();
 }
 
-async function fetchJsonSafe(url: string, init: RequestInit): Promise<{ status: number; json: any; text: string | null }> {
+async function fetchJsonSafe(
+  url: string,
+  init: RequestInit
+): Promise<{ status: number; json: unknown; text: string | null }> {
   const resp = await fetch(url, init);
-  let json: any = null;
+  let json: unknown = null;
   let text: string | null = null;
   try {
     json = await resp.json();
@@ -71,7 +77,7 @@ export async function exchangeKickCodeForToken(params: {
   clientSecret: string;
   code: string;
   redirectUri: string;
-}): Promise<{ status: number; data: KickTokenResponse; raw: any; text: string | null }> {
+}): Promise<{ status: number; data: KickTokenResponse; raw: unknown; text: string | null }> {
   const post = await fetchJsonSafe(params.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
@@ -93,7 +99,7 @@ export async function refreshKickToken(params: {
   clientId: string;
   clientSecret: string;
   refreshToken: string;
-}): Promise<{ status: number; data: KickTokenResponse; raw: any; text: string | null }> {
+}): Promise<{ status: number; data: KickTokenResponse; raw: unknown; text: string | null }> {
   const post = await fetchJsonSafe(params.refreshUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
@@ -112,7 +118,7 @@ export async function refreshKickToken(params: {
 export async function fetchKickUser(params: {
   userInfoUrl: string;
   accessToken: string;
-}): Promise<{ status: number; user: KickUserInfo | null; raw: any; text: string | null }> {
+}): Promise<{ status: number; user: KickUserInfo | null; raw: unknown; text: string | null }> {
   const resp = await fetchJsonSafe(params.userInfoUrl, {
     method: 'GET',
     headers: {
@@ -120,14 +126,13 @@ export async function fetchKickUser(params: {
       Authorization: `Bearer ${params.accessToken}`,
     },
   });
-  const data = resp.json ?? null;
-  const root = data?.data ?? data?.user ?? data?.profile ?? data ?? null;
+  const data = resp.json && typeof resp.json === 'object' ? (resp.json as Record<string, unknown>) : null;
+  const rootCandidate = data?.data ?? data?.user ?? data?.profile ?? data ?? null;
+  const root = rootCandidate && typeof rootCandidate === 'object' ? (rootCandidate as Record<string, unknown>) : null;
   const id = String(root?.id ?? root?.user_id ?? root?.userId ?? '').trim();
   if (!id) return { status: resp.status, user: null, raw: data, text: resp.text };
   return { status: resp.status, user: root as KickUserInfo, raw: data, text: resp.text };
 }
-
-
 
 
 

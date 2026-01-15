@@ -1,6 +1,8 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
+import { WalletService } from '../../services/WalletService.js';
+import { logger } from '../../utils/logger.js';
 
 export const getWallet = async (req: AuthRequest, res: Response) => {
   const channelId = req.query.channelId as string | undefined;
@@ -9,25 +11,10 @@ export const getWallet = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'Channel ID is required' });
   }
 
-  const wallet = await prisma.wallet.findUnique({
-    where: {
-      userId_channelId: {
-        userId: req.userId!,
-        channelId: channelId,
-      },
-    },
+  const wallet = await WalletService.getWalletOrDefault(prisma, {
+    userId: req.userId!,
+    channelId,
   });
-
-  if (!wallet) {
-    // Return wallet with 0 balance if not found
-    return res.json({
-      id: '',
-      userId: req.userId!,
-      channelId: channelId,
-      balance: 0,
-      updatedAt: new Date(),
-    });
-  }
 
   res.json(wallet);
 };
@@ -46,7 +33,7 @@ export const getWalletForChannel = async (req: AuthRequest, res: Response) => {
       setTimeout(() => reject(new Error('Channel lookup timeout')), 5000);
     });
 
-    let channel = (await Promise.race([channelPromise, channelTimeout])) as any;
+    let channel = (await Promise.race([channelPromise, channelTimeout])) as { id: string } | null;
 
     // Fallback: case-insensitive lookup (handles user-entered mixed-case slugs)
     if (!channel) {
@@ -54,7 +41,7 @@ export const getWalletForChannel = async (req: AuthRequest, res: Response) => {
         where: { slug: { equals: slug, mode: 'insensitive' } },
         select: { id: true },
       });
-      channel = (await Promise.race([ciChannelPromise, channelTimeout])) as any;
+      channel = (await Promise.race([ciChannelPromise, channelTimeout])) as { id: string } | null;
     }
 
     if (!channel) {
@@ -62,33 +49,24 @@ export const getWalletForChannel = async (req: AuthRequest, res: Response) => {
     }
 
     // Use upsert to find or create wallet atomically (prevents race conditions)
-    const walletPromise = prisma.wallet.upsert({
-      where: {
-        userId_channelId: {
-          userId: req.userId!,
-          channelId: channel.id,
-        },
-      },
-      update: {}, // If exists, just return it
-      create: {
-        userId: req.userId!,
-        channelId: channel.id,
-        balance: 0,
-      },
+    const walletPromise = WalletService.getOrCreateWallet(prisma, {
+      userId: req.userId!,
+      channelId: channel.id,
     });
 
     const walletTimeout = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Wallet operation timeout')), 5000);
     });
 
-    const wallet = (await Promise.race([walletPromise, walletTimeout])) as any;
+    const wallet = (await Promise.race([walletPromise, walletTimeout])) as Awaited<typeof walletPromise>;
 
     res.json(wallet);
-  } catch (error: any) {
-    console.error('Error in getWalletForChannel:', error);
+  } catch (error) {
+    const err = error as Error;
+    logger.error('wallet.channel_fetch_failed', { errorMessage: err.message });
 
     // If timeout or database error, return a default wallet instead of failing
-    if (error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')) {
+    if (err.message?.includes('timeout') || err.message?.includes('ECONNREFUSED')) {
       return res.json({
         id: '',
         userId: req.userId!,
@@ -99,7 +77,7 @@ export const getWalletForChannel = async (req: AuthRequest, res: Response) => {
     }
 
     // Handle unique constraint errors gracefully
-    if (error.message?.includes('Unique constraint failed')) {
+    if (err.message?.includes('Unique constraint failed')) {
       // Try to fetch existing wallet
       try {
         const channel = await prisma.channel.findUnique({
@@ -122,12 +100,11 @@ export const getWalletForChannel = async (req: AuthRequest, res: Response) => {
           }
         }
       } catch (fetchError) {
-        console.error('Error fetching wallet after constraint error:', fetchError);
+        const fetchErr = fetchError as Error;
+        logger.error('wallet.channel_fetch_retry_failed', { errorMessage: fetchErr.message });
       }
     }
 
-    res.status(500).json({ error: 'Failed to get wallet', message: error.message });
+    res.status(500).json({ error: 'Failed to get wallet', message: err.message });
   }
 };
-
-

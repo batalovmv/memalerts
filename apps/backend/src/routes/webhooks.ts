@@ -6,5 +6,3 @@ export const webhookRoutes = Router();
 
 webhookRoutes.post('/twitch/eventsub', webhookController.handleEventSub);
 webhookRoutes.post('/kick/events', kickWebhookController.handleEvents);
-
-

@@ -5,9 +5,9 @@ import jwt from 'jsonwebtoken';
 
 import { authenticate, type AuthRequest } from '../src/middleware/auth.js';
 import { requireBetaAccess } from '../src/middleware/betaAccess.js';
-import { prisma } from '../src/lib/prisma.js';
+import { createUser } from './factories/index.js';
 
-function makeJwt(payload: Record<string, any>): string {
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -39,7 +39,7 @@ describe('beta: /me remains accessible for authenticated users (even without bet
     let res = await request(makeApp()).get('/me').set('Host', 'beta.example.com');
     expect(res.status).toBe(401);
 
-    const uNo = await prisma.user.create({ data: { displayName: 'No', role: 'viewer', hasBetaAccess: false } });
+    const uNo = await createUser({ displayName: 'No', role: 'viewer', hasBetaAccess: false });
     const tNo = makeJwt({ userId: uNo.id, role: uNo.role });
     res = await request(makeApp())
       .get('/me')
@@ -48,7 +48,7 @@ describe('beta: /me remains accessible for authenticated users (even without bet
     expect(res.status).toBe(200);
     expect(res.body?.userId).toBe(uNo.id);
 
-    const uYes = await prisma.user.create({ data: { displayName: 'Yes', role: 'viewer', hasBetaAccess: true } });
+    const uYes = await createUser({ displayName: 'Yes', role: 'viewer', hasBetaAccess: true });
     const tYes = makeJwt({ userId: uYes.id, role: uYes.role });
     res = await request(makeApp())
       .get('/me')
@@ -58,5 +58,3 @@ describe('beta: /me remains accessible for authenticated users (even without bet
     expect(res.body?.userId).toBe(uYes.id);
   });
 });
-
-

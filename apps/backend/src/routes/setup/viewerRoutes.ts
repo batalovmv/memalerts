@@ -1,0 +1,75 @@
+import type { Express } from 'express';
+import type { AuthRequest } from '../../middleware/auth.js';
+import { authenticate, optionalAuthenticate } from '../../middleware/auth.js';
+import { requireBetaAccess, requireBetaAccessOrGuestForbidden, isBetaDomain } from '../../middleware/betaAccess.js';
+import { activateMemeLimiter } from '../../middleware/rateLimit.js';
+import { viewerController } from '../../controllers/viewerController.js';
+
+export function registerViewerRoutes(app: Express) {
+  app.get('/me', authenticate, requireBetaAccess, viewerController.getMe);
+  app.get('/me/preferences', authenticate, requireBetaAccess, viewerController.getMePreferences);
+  app.patch('/me/preferences', authenticate, requireBetaAccess, viewerController.patchMePreferences);
+  app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
+  app.get('/memes', authenticate, requireBetaAccess, viewerController.getMemes);
+
+  app.post('/rewards/youtube/like/claim', authenticate, requireBetaAccess, viewerController.claimYouTubeLikeReward);
+
+  app.get('/channels/:slug', (req, res) => {
+    if (isBetaDomain(req)) {
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
+          viewerController.getChannelBySlug(req as AuthRequest, res)
+        )
+      );
+    }
+    return viewerController.getChannelBySlug(req as AuthRequest, res);
+  });
+
+  app.get('/channels/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
+
+  app.get('/channels/:slug/memes', (req, res) => {
+    if (isBetaDomain(req)) {
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
+          viewerController.getChannelMemesPublic(req as AuthRequest, res)
+        )
+      );
+    }
+    return viewerController.getChannelMemesPublic(req as AuthRequest, res);
+  });
+
+  app.get('/channels/memes/search', (req, res) => {
+    if (isBetaDomain(req)) {
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
+          viewerController.searchMemes(req as AuthRequest, res)
+        )
+      );
+    }
+    return optionalAuthenticate(req as AuthRequest, res, () => viewerController.searchMemes(req as AuthRequest, res));
+  });
+
+  app.get('/memes/stats', (req, res) => {
+    if (isBetaDomain(req)) {
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
+          viewerController.getMemeStats(req as AuthRequest, res)
+        )
+      );
+    }
+    return optionalAuthenticate(req as AuthRequest, res, () => viewerController.getMemeStats(req as AuthRequest, res));
+  });
+
+  app.get('/memes/pool', (req, res) => {
+    if (isBetaDomain(req)) {
+      return optionalAuthenticate(req as AuthRequest, res, () =>
+        requireBetaAccessOrGuestForbidden(req as AuthRequest, res, () =>
+          viewerController.getMemePool(req as AuthRequest, res)
+        )
+      );
+    }
+    return viewerController.getMemePool(req as AuthRequest, res);
+  });
+
+  app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);
+}

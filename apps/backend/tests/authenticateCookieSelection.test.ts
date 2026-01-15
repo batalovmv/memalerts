@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 
 import { authenticate, type AuthRequest } from '../src/middleware/auth.js';
 
-function makeJwt(payload: Record<string, any>): string {
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -77,20 +77,12 @@ describe('authenticate: cookie selection + beta detection', () => {
     expect(res.status).toBe(200);
     expect(res.body.userId).toBe('u_beta');
 
-    res = await request(makeApp())
-      .get('/whoami')
-      .set('Cookie', [cookie])
-      .set('Origin', 'https://beta.example.com');
+    res = await request(makeApp()).get('/whoami').set('Cookie', [cookie]).set('Origin', 'https://beta.example.com');
     expect(res.status).toBe(200);
     expect(res.body.userId).toBe('u_beta');
 
-    res = await request(makeApp())
-      .get('/whoami')
-      .set('Cookie', [cookie])
-      .set('x-forwarded-port', '3002');
+    res = await request(makeApp()).get('/whoami').set('Cookie', [cookie]).set('x-forwarded-port', '3002');
     expect(res.status).toBe(200);
     expect(res.body.userId).toBe('u_beta');
   });
 });
-
-

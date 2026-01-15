@@ -3,7 +3,7 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 import { setupRoutes } from '../src/routes/index.js';
-import { prisma } from '../src/lib/prisma.js';
+import { createChannel } from './factories/index.js';
 
 function makeApp() {
   const app = express();
@@ -29,7 +29,7 @@ describe('beta gating: public endpoints remain public; non-public endpoints are 
 
   it('on beta, guest can access /public/channels/* endpoints', async () => {
     const slug = `pub_${Date.now()}`;
-    await prisma.channel.create({ data: { slug, name: 'Public Channel' } });
+    await createChannel({ slug, name: 'Public Channel' });
 
     let res = await request(makeApp()).get(`/public/channels/${slug}`).set('Host', 'beta.example.com');
     expect(res.status).toBe(200);
@@ -60,5 +60,3 @@ describe('beta gating: public endpoints remain public; non-public endpoints are 
     expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
   });
 });
-
-

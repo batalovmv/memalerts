@@ -48,5 +48,3 @@ describe('boosty boosty_api tier->coins matching', () => {
     expect(__test__pickCoinsForTier({ tierKey: null, tierCoins, fallbackCoins: 10 })).toBe(10);
   });
 });
-
-

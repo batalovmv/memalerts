@@ -1,9 +1,10 @@
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import crypto from 'crypto';
+import type { AuthRequest } from '../../middleware/auth.js';
 
 export type CacheEntry<T> = { ts: number; data: T; etag?: string };
-export const channelMetaCache = new Map<string, CacheEntry<any>>();
+export const channelMetaCache = new Map<string, CacheEntry<unknown>>();
 const CHANNEL_META_CACHE_MS_DEFAULT = 60_000;
 export const CHANNEL_META_CACHE_MAX = 2000;
 
@@ -42,9 +43,9 @@ export function getMemeStatsCacheMs(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : MEME_STATS_CACHE_MS_DEFAULT;
 }
 
-export function setSearchCacheHeaders(req: any, res: Response) {
+export function setSearchCacheHeaders(req: Request, res: Response) {
   // Search is public on production; optionally authenticated. Response is not personalized unless favorites=1.
-  const isAuthed = !!req?.userId;
+  const isAuthed = !!(req as AuthRequest)?.userId;
   if (isAuthed) res.setHeader('Cache-Control', 'private, max-age=20, stale-while-revalidate=40');
   else res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
 }
@@ -113,10 +114,10 @@ export async function resolveTagIds(tagNames: string[]): Promise<string[]> {
   return out;
 }
 
-export function setChannelMetaCacheHeaders(req: any, res: Response) {
+export function setChannelMetaCacheHeaders(req: Request, res: Response) {
   // On production this route is public. On beta it is gated via auth/beta-access middleware.
   // Either way the response is not user-personalized; we use conservative caching when authenticated.
-  const isAuthed = !!req?.userId;
+  const isAuthed = !!(req as AuthRequest)?.userId;
   if (isAuthed) {
     res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
   } else {
@@ -130,9 +131,9 @@ export function makeEtagFromString(body: string): string {
   return `"${hash}"`;
 }
 
-export function ifNoneMatchHit(req: any, etag: string | undefined): boolean {
+export function ifNoneMatchHit(req: Request, etag: string | undefined): boolean {
   if (!etag) return false;
-  const inm = req?.headers?.['if-none-match'];
+  const inm = req.headers['if-none-match'];
   if (!inm) return false;
   const raw = Array.isArray(inm) ? inm.join(',') : String(inm);
   const normalize = (v: string) => {
@@ -165,5 +166,3 @@ export function pruneOldestEntries<K, V>(map: Map<K, V>, maxSize: number): void 
     if (i >= over) break;
   }
 }
-
-

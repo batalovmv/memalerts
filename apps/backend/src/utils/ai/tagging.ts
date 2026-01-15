@@ -59,7 +59,9 @@ const STOP_WORDS = new Set(
 );
 
 function normToken(s: string): string {
-  return String(s || '').trim().toLowerCase();
+  return String(s || '')
+    .trim()
+    .toLowerCase();
 }
 
 function isValidTag(s: string): boolean {
@@ -79,7 +81,7 @@ export function generateTagNames(args: {
   maxTags?: number;
 }): { tagNames: string[]; lowConfidence: boolean } {
   const maxTagsDefault = args.lowConfidence ? 3 : 8;
-  const maxTags = Number.isFinite(args.maxTags as any) ? (args.maxTags as number) : maxTagsDefault;
+  const maxTags = typeof args.maxTags === 'number' && Number.isFinite(args.maxTags) ? args.maxTags : maxTagsDefault;
 
   const rawText = `${args.title || ''}\n${args.transcript || ''}`;
   const tokens = rawText
@@ -93,14 +95,16 @@ export function generateTagNames(args: {
     freq.set(tok, (freq.get(tok) || 0) + 1);
   }
 
-  const fromText = [...freq.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([t]) => t);
+  const fromText = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
 
   const fromLabels =
     Array.isArray(args.labels) && args.labels.length > 0
       ? args.labels
-          .map((l) => String(l || '').trim().toLowerCase())
+          .map((l) =>
+            String(l || '')
+              .trim()
+              .toLowerCase()
+          )
           .map((l) => l.replace(/^text:/, ''))
           .map((l) => l.replace(/[^a-z0-9_\-\u0400-\u04FF]+/g, ''))
           .filter(isValidTag)
@@ -117,5 +121,3 @@ export function generateTagNames(args: {
 
   return { tagNames: lowConfidence ? merged.slice(0, Math.min(3, merged.length)) : merged, lowConfidence };
 }
-
-

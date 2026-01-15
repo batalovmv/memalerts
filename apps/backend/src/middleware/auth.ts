@@ -1,13 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import type { Request, Response, NextFunction } from 'express';
+import { verifyJwtWithRotation } from '../utils/jwt.js';
 import { logger } from '../utils/logger.js';
 import { isDebugAuthEnabled } from '../utils/debug.js';
+import { getRequestContext } from '../utils/asyncContext.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
   channelId?: string;
   requestId?: string;
+  traceId?: string | null;
+  idempotencyKey?: string;
 }
 
 function isBetaDomain(req: Request): boolean {
@@ -53,8 +56,10 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const originalUrl = (req.originalUrl || req.url || '').toString();
   const shouldDebugThisRoute =
     isDebugAuthEnabled() && (originalUrl.startsWith('/me') || originalUrl.startsWith('/moderation'));
-  const hasCookie = typeof (req.headers as any)?.cookie === 'string' && String((req.headers as any)?.cookie || '').length > 0;
-  const sessionId = (req as any)?.sessionID ?? (req as any)?.session?.id ?? null;
+  const cookieHeader = typeof req.headers.cookie === 'string' ? req.headers.cookie : '';
+  const hasCookie = cookieHeader.length > 0;
+  const sessionReq = req as Request & { sessionID?: string; session?: { id?: string } };
+  const sessionId = sessionReq.sessionID ?? sessionReq.session?.id ?? null;
 
   if (!token) {
     if (shouldDebugThisRoute) {
@@ -92,14 +97,19 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const decoded = verifyJwtWithRotation<{
       userId: string;
       role: string;
       channelId?: string;
-    };
+    }>(token, 'auth');
     req.userId = decoded.userId;
     req.userRole = decoded.role;
     req.channelId = decoded.channelId;
+    const ctx = getRequestContext();
+    if (ctx) {
+      ctx.userId = decoded.userId;
+      ctx.channelId = decoded.channelId ?? null;
+    }
     logger.debug('auth.success', { requestId: req.requestId, userId: decoded.userId, role: decoded.role });
 
     if (shouldDebugThisRoute) {
@@ -116,11 +126,11 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         instancePort: process.env.PORT || null,
       });
     }
-    
+
     next();
   } catch (error) {
     // Distinguish session expiry from other invalid token reasons for UX.
-    const name = (error as any)?.name;
+    const name = (error as { name?: string })?.name;
     const isExpired = name === 'TokenExpiredError';
     if (shouldDebugThisRoute) {
       logger.info('auth.debug', {
@@ -166,14 +176,19 @@ export function optionalAuthenticate(req: AuthRequest, _res: Response, next: Nex
   const token = cookieToken || bearerToken;
   if (!token) return next();
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const decoded = verifyJwtWithRotation<{
       userId: string;
       role: string;
       channelId?: string;
-    };
+    }>(token, 'auth_optional');
     req.userId = decoded.userId;
     req.userRole = decoded.role;
     req.channelId = decoded.channelId;
+    const ctx = getRequestContext();
+    if (ctx) {
+      ctx.userId = decoded.userId;
+      ctx.channelId = decoded.channelId ?? null;
+    }
   } catch {
     // ignore invalid token on public endpoint
   }
@@ -184,13 +199,12 @@ export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userRole || !roles.includes(req.userRole)) {
       return res.status(403).json({
+        errorCode: 'ROLE_REQUIRED',
         error: 'Forbidden',
-        message: 'Forbidden',
+        details: { requiredRoles: roles, role: req.userRole ?? null },
         requestId: req.requestId,
       });
     }
     next();
   };
 }
-
-

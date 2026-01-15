@@ -10,9 +10,9 @@ function cacheKey(channelId: string, key: ChannelEntitlementKey): string {
   return `${channelId}:${key}`;
 }
 
-function isPrismaTableMissingError(e: any): boolean {
+function isPrismaTableMissingError(e: unknown): boolean {
   // Prisma "table does not exist" (feature not deployed / migrations not applied)
-  return e?.code === 'P2021';
+  return (e as { code?: string })?.code === 'P2021';
 }
 
 function isEntitlementActive(row: { enabled: boolean; expiresAt: Date | null } | null | undefined, now: Date): boolean {
@@ -36,15 +36,16 @@ export async function hasChannelEntitlement(channelIdRaw: string, key: ChannelEn
       where: { channelId_key: { channelId, key } },
       select: { enabled: true, expiresAt: true },
     });
-    const value = isEntitlementActive(row as any, now);
+    const value = isEntitlementActive(row ?? null, now);
     cache.set(k, { ts: nowMs, value });
     return value;
-  } catch (e: any) {
-    if (isPrismaTableMissingError(e)) {
+  } catch (error) {
+    if (isPrismaTableMissingError(error)) {
       cache.set(k, { ts: nowMs, value: false });
       return false;
     }
-    logger.warn('entitlements.has_failed', { channelId, key, errorMessage: e?.message || String(e) });
+    const err = error as Error;
+    logger.warn('entitlements.has_failed', { channelId, key, errorMessage: err.message || String(error) });
     cache.set(k, { ts: nowMs, value: false });
     return false;
   }
@@ -83,7 +84,7 @@ export async function getEntitledChannelIds(channelIdsRaw: string[], key: Channe
       select: { channelId: true },
     });
 
-    const entitled = new Set<string>(rows.map((r) => String((r as any)?.channelId || '').trim()).filter(Boolean));
+    const entitled = new Set<string>(rows.map((r) => String(r.channelId || '').trim()).filter(Boolean));
 
     // Update cache for queried ids.
     for (const channelId of toQuery) {
@@ -93,15 +94,14 @@ export async function getEntitledChannelIds(channelIdsRaw: string[], key: Channe
     }
 
     return out;
-  } catch (e: any) {
-    if (isPrismaTableMissingError(e)) {
+  } catch (error) {
+    if (isPrismaTableMissingError(error)) {
       for (const channelId of toQuery) cache.set(cacheKey(channelId, key), { ts: nowMs, value: false });
       return out;
     }
-    logger.warn('entitlements.bulk_failed', { key, count: toQuery.length, errorMessage: e?.message || String(e) });
+    const err = error as Error;
+    logger.warn('entitlements.bulk_failed', { key, count: toQuery.length, errorMessage: err.message || String(error) });
     for (const channelId of toQuery) cache.set(cacheKey(channelId, key), { ts: nowMs, value: false });
     return out;
   }
 }
-
-

@@ -45,9 +45,7 @@ export function toPublicChannelDto(channel: Channel, stats: ChannelStats): Publi
   };
 }
 
-export function toPublicMemeDto(
-  meme: Meme & { createdBy?: Pick<User, 'displayName'> | null }
-): PublicMemeDto {
+export function toPublicMemeDto(meme: Meme & { createdBy?: Pick<User, 'displayName'> | null }): PublicMemeDto {
   return {
     id: meme.id,
     title: meme.title,
@@ -59,6 +57,3 @@ export function toPublicMemeDto(
     createdBy: meme.createdBy ? { displayName: meme.createdBy.displayName } : null,
   };
 }
-
-
-

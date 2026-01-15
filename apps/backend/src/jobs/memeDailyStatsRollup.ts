@@ -90,8 +90,14 @@ export async function recomputeMemeDailyStats(days: number): Promise<{ days: num
   await prisma.$transaction([
     prisma.$executeRawUnsafe(sql1, start, runTs),
     prisma.$executeRawUnsafe(sql2, start, runTs),
-    prisma.$executeRawUnsafe(`DELETE FROM "ChannelMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp)`, start),
-    prisma.$executeRawUnsafe(`DELETE FROM "GlobalMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp)`, start),
+    prisma.$executeRawUnsafe(
+      `DELETE FROM "ChannelMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp)`,
+      start
+    ),
+    prisma.$executeRawUnsafe(
+      `DELETE FROM "GlobalMemeDailyStats" WHERE "day" < date_trunc('day', $1::timestamp)`,
+      start
+    ),
   ]);
 
   return { days: effectiveDays };
@@ -118,8 +124,9 @@ export function startMemeDailyStatsRollupScheduler() {
       if (!locked) return;
       const res = await recomputeMemeDailyStats(days);
       logger.info('rollup.meme_daily.completed', { days: res.days, durationMs: Date.now() - startedAt });
-    } catch (e: any) {
-      logger.error('rollup.meme_daily.failed', { days, durationMs: Date.now() - startedAt, errorMessage: e?.message });
+    } catch (error) {
+      const err = error as Error;
+      logger.error('rollup.meme_daily.failed', { days, durationMs: Date.now() - startedAt, errorMessage: err.message });
     } finally {
       await releaseAdvisoryLock(lockId);
       running = false;
@@ -129,5 +136,3 @@ export function startMemeDailyStatsRollupScheduler() {
   setTimeout(() => void runOnce(), initialDelay);
   setInterval(() => void runOnce(), intervalMs);
 }
-
-

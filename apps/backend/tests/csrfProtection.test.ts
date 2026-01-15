@@ -61,16 +61,10 @@ describe('csrfProtection', () => {
     process.env.PORT = '3002';
     process.env.DOMAIN = 'beta.example.com';
     process.env.WEB_URL = 'https://beta.example.com';
-    let res = await request(makeApp())
-      .post('/protected')
-      .set('Origin', 'https://beta.example.com')
-      .send({ a: 1 });
+    let res = await request(makeApp()).post('/protected').set('Origin', 'https://beta.example.com').send({ a: 1 });
     expect(res.status).toBe(200);
 
-    res = await request(makeApp())
-      .post('/protected')
-      .set('Origin', 'https://example.com')
-      .send({ a: 1 });
+    res = await request(makeApp()).post('/protected').set('Origin', 'https://example.com').send({ a: 1 });
     expect(res.status).toBe(403);
 
     // Production instance: allow prod WEB_URL, block beta WEB_URL.
@@ -78,16 +72,10 @@ describe('csrfProtection', () => {
     process.env.DOMAIN = 'example.com';
     process.env.WEB_URL = 'https://example.com';
 
-    res = await request(makeApp())
-      .post('/protected')
-      .set('Origin', 'https://example.com')
-      .send({ a: 1 });
+    res = await request(makeApp()).post('/protected').set('Origin', 'https://example.com').send({ a: 1 });
     expect(res.status).toBe(200);
 
-    res = await request(makeApp())
-      .post('/protected')
-      .set('Origin', 'https://beta.example.com')
-      .send({ a: 1 });
+    res = await request(makeApp()).post('/protected').set('Origin', 'https://beta.example.com').send({ a: 1 });
     expect(res.status).toBe(403);
   });
 
@@ -99,13 +87,8 @@ describe('csrfProtection', () => {
     process.env.DOMAIN = 'beta.example.com';
     process.env.WEB_URL = 'https://beta.example.com/app/';
 
-    const res = await request(makeApp())
-      .post('/protected')
-      .set('Origin', 'https://beta.example.com')
-      .send({ a: 1 });
+    const res = await request(makeApp()).post('/protected').set('Origin', 'https://beta.example.com').send({ a: 1 });
 
     expect(res.status).toBe(200);
   });
 });
-
-

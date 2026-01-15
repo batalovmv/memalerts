@@ -39,5 +39,3 @@ describe('GET /overlay/credits/t/:token', () => {
     expect(html).toContain(token);
   });
 });
-
-

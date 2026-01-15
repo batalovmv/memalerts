@@ -37,5 +37,3 @@ describe('debug endpoints are opt-in via env', () => {
     expect(res.body).toHaveProperty('socket.remoteAddress');
   });
 });
-
-

@@ -1,4 +1,5 @@
-import { Server } from 'socket.io';
+import type { Server } from 'socket.io';
+import { logger } from '../utils/logger.js';
 
 export type SubmissionEventType =
   | 'submission:created'
@@ -33,15 +34,24 @@ function getPeerBaseUrl(): string | null {
   return null;
 }
 
-export function isInternalSubmissionRelayRequest(headers: Record<string, any>): boolean {
+export function isInternalSubmissionRelayRequest(headers: Record<string, unknown>): boolean {
   const v = headers[INTERNAL_HEADER] || headers[INTERNAL_HEADER.toLowerCase()];
   return v === INTERNAL_HEADER_VALUE;
 }
 
+type SubmissionEventPayload = {
+  submissionId: string;
+  channelId: string;
+  submitterId?: string;
+  moderatorId?: string;
+};
+
 export function emitSubmissionEvent(io: Server, data: SubmissionEvent): void {
-  const slug = String(data.channelSlug || '').trim().toLowerCase();
+  const slug = String(data.channelSlug || '')
+    .trim()
+    .toLowerCase();
   if (slug) {
-    const payload: any = {
+    const payload: SubmissionEventPayload = {
       submissionId: data.submissionId,
       channelId: data.channelId,
     };
@@ -51,7 +61,7 @@ export function emitSubmissionEvent(io: Server, data: SubmissionEvent): void {
   }
 
   if (Array.isArray(data.userIds)) {
-    const payload: any = {
+    const payload: SubmissionEventPayload = {
       submissionId: data.submissionId,
       channelId: data.channelId,
     };
@@ -84,11 +94,9 @@ export async function relaySubmissionEventToPeer(data: SubmissionEvent): Promise
     });
   } catch (err) {
     // Non-fatal: local emit already happened.
-    console.warn('[submissionBridge] relay to peer failed (continuing):', (err as any)?.message || err);
+    const error = err as { message?: string };
+    logger.warn('submission_bridge.relay_failed', { errorMessage: error?.message || String(err) });
   } finally {
     clearTimeout(timeout);
   }
 }
-
-
-

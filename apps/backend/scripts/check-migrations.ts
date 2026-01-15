@@ -4,27 +4,17 @@ import { execSync } from 'node:child_process';
 
 type Finding = { file: string; rule: string; line: number; excerpt: string };
 
-function walk(dir: string, out: string[] = []): string[] {
-  if (!fs.existsSync(dir)) return out;
-  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, ent.name);
-    if (ent.isDirectory()) walk(p, out);
-    else out.push(p);
-  }
-  return out;
-}
-
 function rel(p: string): string {
   return path.relative(process.cwd(), p).replace(/\\/g, '/');
 }
 
 function isAllowed(): boolean {
-  const v = String(process.env.ALLOW_DESTRUCTIVE_MIGRATIONS || '').trim().toLowerCase();
+  const v = String(process.env.ALLOW_DESTRUCTIVE_MIGRATIONS || '')
+    .trim()
+    .toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
-const migrationsDir = path.resolve(process.cwd(), 'prisma/migrations');
-const allSqlFiles = walk(migrationsDir).filter((f) => f.endsWith('migration.sql'));
 
 function tryExec(cmd: string): string | null {
   try {
@@ -39,9 +29,7 @@ function getChangedMigrationFiles(): string[] | null {
   const base = String(process.env.MIGRATIONS_BASE_SHA || '').trim();
   const head = String(process.env.MIGRATIONS_HEAD_SHA || '').trim();
   const range = base && head ? `${base}...${head}` : base ? `${base}...HEAD` : '';
-  const diffCmd = range
-    ? `git diff --name-only --diff-filter=AMR ${range}`
-    : 'git diff --name-only --diff-filter=AMR';
+  const diffCmd = range ? `git diff --name-only --diff-filter=AMR ${range}` : 'git diff --name-only --diff-filter=AMR';
   const out = tryExec(diffCmd);
   if (!out) return null;
   const files = out
@@ -57,7 +45,7 @@ function getChangedMigrationFiles(): string[] | null {
 const changed = getChangedMigrationFiles();
 const sqlFiles = changed && changed.length > 0 ? changed.map((p) => path.resolve(process.cwd(), p)) : [];
 if (sqlFiles.length === 0) {
-  // eslint-disable-next-line no-console
+   
   console.log('[migrations:check] OK (no changed migrations)');
   process.exit(0);
 }
@@ -90,7 +78,7 @@ for (const file of sqlFiles) {
 }
 
 if (findings.length > 0 && !isAllowed()) {
-  // eslint-disable-next-line no-console
+   
   console.error(
     [
       '[migrations:check] Potentially destructive SQL detected in prisma/migrations.',
@@ -105,7 +93,5 @@ if (findings.length > 0 && !isAllowed()) {
   process.exit(1);
 }
 
-// eslint-disable-next-line no-console
+ 
 console.log('[migrations:check] OK');
-
-

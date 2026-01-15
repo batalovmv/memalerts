@@ -5,8 +5,9 @@ This document describes the **current** implementation of AI-based meme analysis
 ## Where the code is (quick links)
 
 - **Main pipeline**: `src/jobs/aiModerationSubmissions.ts`
-  - `processOneSubmission(submissionId)` — processes a single submission
-  - `startAiModerationScheduler()` — scheduler (inside the API process)
+  - `processOneSubmission(submissionId)` - processes a single submission
+  - BullMQ worker: `src/workers/aiModerationWorker.ts` (`startAiModerationWorker()`)
+  - BullMQ queue + job producer: `src/queues/aiModerationQueue.ts`
 - **ASR (speech‑to‑text)**: `src/utils/ai/openaiAsr.ts`
 - **Text moderation**: `src/utils/ai/openaiTextModeration.ts`
 - **Vision frames extraction**: `src/utils/ai/extractFrames.ts`
@@ -29,15 +30,15 @@ This document describes the **current** implementation of AI-based meme analysis
 
 There are two trigger points:
 
-### 1) Automatically, inside the API process (scheduler)
+### 1) Automatically, via BullMQ queue + worker
 
-In `src/index.ts`, on server start, `startAiModerationScheduler()` is called (see `src/jobs/aiModerationSubmissions.ts`).
+In `src/index.ts`, on server start, `startAiModerationWorker()` is called (see `src/workers/aiModerationWorker.ts`).
+Jobs are enqueued from submission creation flows via `enqueueAiModerationJob()` in `src/queues/aiModerationQueue.ts`.
 
-- The scheduler is enabled when `AI_MODERATION_ENABLED=1`.
-  - If `AI_MODERATION_ENABLED` is **missing**, it auto-enables **only in production** when `OPENAI_API_KEY` is configured (so deploys don’t silently disable analysis).
-  - To force-disable even in production, set `AI_MODERATION_ENABLED=0`.
-- It uses a Postgres advisory lock (base id: `421399`) to **prevent parallel runs per instance** (to avoid races), but **does not block other instances** (important for shared DB beta+prod).
-- It takes candidates from the database in batches and marks submissions as `aiStatus='processing'` atomically via `updateMany` (“claim”) to avoid races.
+- The worker is enabled when `AI_BULLMQ_ENABLED=1` and `REDIS_URL` is set.
+- Jobs are persisted in Redis and can be picked up by any instance.
+- Job IDs are stable (`ai:<submissionId>`) to avoid duplicates.
+- Each job claims the submission via DB lock fields (`aiLockedBy`, `aiLockExpiresAt`) to avoid double processing.
 
 ### 2) Manually (script)
 
@@ -78,7 +79,7 @@ If yes — AI **does not run again**. Instead:
 
 ### Fast reuse at submission creation stage
 
-In `src/controllers/submission/createSubmission.ts` there is an optimization: if the upload is a duplicate (`fileHash`) and `MemeAsset` already has AI (`aiStatus='done'`), the created `MemeSubmission` immediately gets `aiStatus='done'` and a copy of AI fields, without waiting for the scheduler.
+In `src/controllers/submission/createSubmission.ts` there is an optimization: if the upload is a duplicate (`fileHash`) and `MemeAsset` already has AI (`aiStatus='done'`), the created `MemeSubmission` immediately gets `aiStatus='done'` and a copy of AI fields, without waiting for the worker.
 
 ## Analysis pipeline: what exactly happens
 
@@ -192,7 +193,7 @@ Schema: `prisma/schema.prisma`.
 
 Stores:
 
-- `aiStatus`: `pending|processing|done|failed|failed_final`
+- `aiStatus`: `pending|processing|done|failed`
 - `aiDecision`: `low|medium|high`
 - `aiRiskScore`: float
 - `aiLabelsJson`: JSON array of strings (e.g. `text:*`, `kw:*`, `low_confidence`)
@@ -201,10 +202,17 @@ Stores:
 - `aiAutoDescription`: `VarChar(2000)`
 - `aiModelVersionsJson`: Json (including vision parameters, models, download limits, etc.)
 - retry/backoff fields: `aiRetryCount`, `aiLastTriedAt`, `aiNextRetryAt`, `aiError`
+- lock/processing fields: `aiProcessingStartedAt`, `aiLockedBy`, `aiLockExpiresAt`
 
 Important:
 
 - AI title is **not stored** in `MemeSubmission`; it lives at the `MemeAsset` level (`aiAutoTitle`).
+
+Invariants:
+
+- `done` ⇒ `aiAutoDescription` + `aiAutoTagNamesJson` are non-empty and not placeholders
+- `processing` ⇒ `aiProcessingStartedAt` is set
+- `failed` ⇒ `aiError` is set and `aiRetryCount >= 1`
 
 ### 2) `MemeAsset` — global AI metadata (dedup by `fileHash`)
 
@@ -287,13 +295,19 @@ If `AI_LOW_AUTOPROVE_ENABLED=1`:
 
 ## Retry/backoff and stuck processing
 
-The scheduler supports:
+The queue/worker supports:
 
-- `stuck` detection (if `aiStatus='processing'` and `aiLastTriedAt` is older than `AI_MODERATION_STUCK_MS`)
+- `stuck` detection (if `aiStatus='processing'` and `aiLockExpiresAt` is in the past, or `aiLastTriedAt` older than `AI_MODERATION_STUCK_MS`)
 - retry/backoff:
   - limit `AI_MAX_RETRIES`
-  - exponential backoff (up to 1 hour)
+  - backoff schedule: 1m → 5m → 15m → 1h (cap) with jitter
+  - retries move the submission back to `pending` with `aiNextRetryAt`
+- failed jobs are copied to the BullMQ dead-letter queue (`ai-moderation-dlq`)
 - protection from a “permanent” submission: `AI_PER_SUBMISSION_TIMEOUT_MS` — timeout for processing a single submission
+
+Manual watchdog (for ops/tests):
+
+- `pnpm ai:watchdog:once` or `npm run ai:watchdog:once`
 
 ## Temporary directories and cleanup
 
@@ -305,15 +319,15 @@ The directory is removed with `rm -r` in `finally` (best‑effort).
 
 ## Settings (ENV) — what really affects behavior
 
-### Enable/frequency
+### Enable/queue
 
-- `AI_MODERATION_ENABLED=1` — enable scheduler
-- `AI_MODERATION_INTERVAL_MS` (default 30000)
-- `AI_MODERATION_INITIAL_DELAY_MS` (default 15000)
-- `AI_MODERATION_BATCH` (default 25)
+- `AI_BULLMQ_ENABLED=1` — enable BullMQ worker (requires `REDIS_URL`)
+- `AI_BULLMQ_CONCURRENCY` (default 2)
+- `BULLMQ_PREFIX` (optional; defaults to `memalerts:<namespace>`)
 - `AI_MODERATION_STUCK_MS` (default 600000)
 - `AI_MAX_RETRIES` (default 5)
 - `AI_PER_SUBMISSION_TIMEOUT_MS` (default 300000)
+- `AI_LOCK_TTL_MS` (default 480000)
 - `AI_FILEHASH_TIMEOUT_MS` (default 120000) — when `fileHash` is missing but the file exists locally, AI can compute SHA‑256 during processing (bounded by this timeout)
 
 ### OpenAI / HTTP
@@ -367,7 +381,8 @@ The directory is removed with `rm -r` in `finally` (best‑effort).
 
 ## Diagnostics / common reasons “AI doesn’t work”
 
-- **`OPENAI_API_KEY` not set** → OpenAI pipeline doesn’t start (you’ll see log `ai_moderation.openai.disabled`)
+- **`AI_BULLMQ_ENABLED` disabled or `REDIS_URL` missing** → jobs are not enqueued/processed (check `ai.queue.disabled_by_env` / `ai.queue.redis_missing`)
+- **`OPENAI_API_KEY` not set** → OpenAI pipeline falls back to heuristic results
 - **ffmpeg/ffprobe unavailable** → audio/frames not extracted (see `src/utils/media/configureFfmpeg.ts`)
 - **region-block OpenAI** → pipeline falls back to heuristic and marks submission as done (with `ai:openai_unavailable`)
 - **no audio stream** → transcript is empty, fallback by title/notes + tags heuristics/metadata without transcript

@@ -6,6 +6,7 @@ import { botIntegrationsController } from '../controllers/streamer/botIntegratio
 import { streamerEntitlementsController } from '../controllers/streamer/entitlementsController.js';
 import { submissionsControlController } from '../controllers/streamer/submissionsControlController.js';
 import { aiRegenerateController } from '../controllers/streamer/aiRegenerateController.js';
+import { bulkSubmissionsController } from '../controllers/streamer/bulkSubmissionsController.js';
 
 // Streamer control panel API (role: streamer | admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
@@ -18,6 +19,7 @@ streamerRoutes.get('/submissions', adminController.getSubmissions);
 streamerRoutes.post('/submissions/:id/approve', adminController.approveSubmission);
 streamerRoutes.post('/submissions/:id/reject', adminController.rejectSubmission);
 streamerRoutes.post('/submissions/:id/needs-changes', adminController.needsChangesSubmission);
+streamerRoutes.post('/submissions/bulk', bulkSubmissionsController.bulk);
 
 // Memes management
 streamerRoutes.get('/memes', adminController.getMemes);
@@ -106,5 +108,3 @@ streamerRoutes.patch('/bot/follow-greetings', streamerBotController.patchFollowG
 // Smart bot command: stream duration
 streamerRoutes.get('/bot/stream-duration', streamerBotController.getStreamDuration);
 streamerRoutes.patch('/bot/stream-duration', streamerBotController.patchStreamDuration);
-
-

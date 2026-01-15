@@ -58,10 +58,11 @@ export async function purgeMemeAssetsOnce(opts: PurgeOptions): Promise<{
 
       purged += 1;
       channelMemesDisabled += res.disabled;
-    } catch (e: any) {
+    } catch (error) {
+      const err = error as Error;
       logger.warn('purge.meme_assets.item_failed', {
         memeAssetId: r.id,
-        errorMessage: e?.message,
+        errorMessage: err.message,
       });
     }
   }
@@ -97,11 +98,12 @@ export function startMemeAssetPurgeScheduler() {
         durationMs: Date.now() - startedAt,
         ...res,
       });
-    } catch (e: any) {
+    } catch (error) {
+      const err = error as Error;
       logger.error('purge.meme_assets.failed', {
         batchSize,
         durationMs: Date.now() - startedAt,
-        errorMessage: e?.message,
+        errorMessage: err.message,
       });
     } finally {
       if (locked) await releaseAdvisoryLock(lockId);
@@ -112,5 +114,3 @@ export function startMemeAssetPurgeScheduler() {
   setTimeout(() => void runOnce(), initialDelayMs);
   setInterval(() => void runOnce(), intervalMs);
 }
-
-

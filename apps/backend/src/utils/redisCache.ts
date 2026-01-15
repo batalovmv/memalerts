@@ -34,5 +34,3 @@ export async function redisDel(key: string): Promise<void> {
 export function nsKey(kind: string, key: string): string {
   return `memalerts:${getRedisNamespace()}:${kind}:${key}`;
 }
-
-

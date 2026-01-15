@@ -20,12 +20,18 @@ export type DiscordUser = {
 };
 
 function normalizeScopes(scopes: string[]): string {
-  return scopes.map((s) => s.trim()).filter(Boolean).join(' ');
+  return scopes
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(' ');
 }
 
-async function fetchJsonSafe(url: string, init: RequestInit): Promise<{ status: number; json: any; text: string | null }> {
+async function fetchJsonSafe(
+  url: string,
+  init: RequestInit
+): Promise<{ status: number; json: unknown; text: string | null }> {
   const resp = await fetch(url, init);
-  let json: any = null;
+  let json: unknown = null;
   let text: string | null = null;
   try {
     json = await resp.json();
@@ -61,7 +67,7 @@ export async function exchangeDiscordCodeForToken(params: {
   code: string;
   redirectUri: string;
   tokenUrl?: string;
-}): Promise<{ status: number; data: DiscordTokenResponse; raw: any; text: string | null }> {
+}): Promise<{ status: number; data: DiscordTokenResponse; raw: unknown; text: string | null }> {
   const tokenUrl = params.tokenUrl || 'https://discord.com/api/oauth2/token';
   const post = await fetchJsonSafe(tokenUrl, {
     method: 'POST',
@@ -82,7 +88,7 @@ export async function exchangeDiscordCodeForToken(params: {
 export async function fetchDiscordUser(params: {
   accessToken: string;
   userInfoUrl?: string;
-}): Promise<{ status: number; user: DiscordUser | null; raw: any; text: string | null }> {
+}): Promise<{ status: number; user: DiscordUser | null; raw: unknown; text: string | null }> {
   const url = params.userInfoUrl || 'https://discord.com/api/users/@me';
   const resp = await fetchJsonSafe(url, {
     method: 'GET',
@@ -91,10 +97,8 @@ export async function fetchDiscordUser(params: {
       Authorization: `Bearer ${params.accessToken}`,
     },
   });
-  const data = resp.json ?? null;
+  const data = resp.json && typeof resp.json === 'object' ? (resp.json as Record<string, unknown>) : null;
   const id = String(data?.id ?? '').trim();
   if (!id) return { status: resp.status, user: null, raw: data, text: resp.text };
   return { status: resp.status, user: data as DiscordUser, raw: data, text: resp.text };
 }
-
-

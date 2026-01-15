@@ -1,17 +1,24 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
-import { patchUserPreferencesSchema, userPreferencesSchema } from '../../shared/index.js';
+import { patchUserPreferencesSchema, userPreferencesSchema } from '../../shared/schemas.js';
 import { ZodError } from 'zod';
 
 const DEFAULTS = userPreferencesSchema.parse({});
 
-function toResponse(row: any | null) {
+type PreferenceRow = {
+  theme: string | null;
+  autoplayMemesEnabled: boolean | null;
+  memeModalMuted: boolean | null;
+  coinsInfoSeen: boolean | null;
+} | null;
+
+function toResponse(row: PreferenceRow) {
   return {
-    theme: (row?.theme as string | undefined) ?? DEFAULTS.theme,
-    autoplayMemesEnabled: (row?.autoplayMemesEnabled as boolean | undefined) ?? DEFAULTS.autoplayMemesEnabled,
-    memeModalMuted: (row?.memeModalMuted as boolean | undefined) ?? DEFAULTS.memeModalMuted,
-    coinsInfoSeen: (row?.coinsInfoSeen as boolean | undefined) ?? DEFAULTS.coinsInfoSeen,
+    theme: row?.theme ?? DEFAULTS.theme,
+    autoplayMemesEnabled: row?.autoplayMemesEnabled ?? DEFAULTS.autoplayMemesEnabled,
+    memeModalMuted: row?.memeModalMuted ?? DEFAULTS.memeModalMuted,
+    coinsInfoSeen: row?.coinsInfoSeen ?? DEFAULTS.coinsInfoSeen,
   };
 }
 
@@ -70,12 +77,10 @@ export const patchMePreferences = async (req: AuthRequest, res: Response) => {
     });
 
     return res.json(merged);
-  } catch (e: any) {
-    if (e instanceof ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: e.errors });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    throw e;
+    throw error;
   }
 };
-
-

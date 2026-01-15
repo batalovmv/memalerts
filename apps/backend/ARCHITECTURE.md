@@ -15,6 +15,7 @@ s
 - **HTTP API (Express)**: auth, viewer, streamer/owner панель, webhooks.
 - **Realtime (Socket.IO)**: overlay + обновления состояния (активации, кошелёк, submissions).
 - **DB (PostgreSQL через Prisma)**: source of truth (users/channels/memes/wallets/submissions/activations).
+- **Service layer**: бизнес-логика в `src/services/*`, контроллеры тонкие и используют сервисы.
 - **Uploads / Storage**: дедупликация по SHA‑256 (`FileHash`) + storage provider:
   - **local**: `FileHash.filePath` = `/uploads/memes/{hash}.{ext}` (раздача через nginx/Express static)
   - **s3**: `FileHash.filePath` = публичный URL (например CDN), объект кладётся в S3‑совместимое хранилище
@@ -54,6 +55,8 @@ s
 
 Контроллеры сгруппированы по фичам, при этом сохраняются фасады для совместимости.
 
+- **Services**: `src/services/*` (submissions/memes/bots/rewards/ai moderation), контроллеры вызывают сервисы через `services`.
+
 - **Streamer/Owner**
   - фасады: `src/controllers/adminController.ts`, `src/controllers/viewerController.ts`, `src/controllers/submissionController.ts`
   - модули: `src/controllers/admin/*`
@@ -83,9 +86,18 @@ s
 
 1. `POST /submissions` (multer + лимиты)
 2. Проверка magic bytes (anti-spoofing), размера и длительности (ffprobe, fallback на фронтовый duration).
-3. Дедупликация файла по SHA‑256, сохранение через storage provider (local или S3‑совместимое).
-4. Если uploader = владелец канала → создаём approved мем напрямую; иначе `MemeSubmission(status=pending)`.
-5. Socket.IO событие `submission:created` (best‑effort, не ломает запрос при ошибке emit).
+3. Нормализация видео в единый формат воспроизведения (MP4/H.264/AAC) с ограничением разрешения и fps.
+4. Дедупликация файла по SHA‑256, сохранение через storage provider (local или S3‑совместимое).
+5. Если uploader = владелец канала → создаём approved мем напрямую; иначе `MemeSubmission(status=pending)`.
+6. Socket.IO событие `submission:created` (best‑effort, не ломает запрос при ошибке emit).
+
+### Ограничения видео (upload/import)
+
+- Длительность: `<= 15s`
+- Размер: `<= 50MB`
+- Нормализация: MP4 (H.264/AAC)
+- Разрешение: `<= 1920x1080` (настраивается через `VIDEO_MAX_WIDTH`/`VIDEO_MAX_HEIGHT`)
+- FPS: `<= 30` (настраивается через `VIDEO_MAX_FPS`)
 
 ## Performance / UX заметки (актуальные)
 

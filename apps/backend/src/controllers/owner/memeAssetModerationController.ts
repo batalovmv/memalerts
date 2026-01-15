@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { auditLog, getRequestMetadata } from '../../utils/auditLogger.js';
 
@@ -10,7 +11,15 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   return n;
 }
 
-function toMemeAssetModerationDto(row: any) {
+type MemeAssetModerationBase = {
+  poolHiddenReason?: string | null;
+  poolHiddenByUserId?: string | null;
+  purgeByUserId?: string | null;
+  hiddenBy?: { id: string; displayName: string | null } | null;
+  purgedBy?: { id: string; displayName: string | null } | null;
+};
+
+function toMemeAssetModerationDto<T extends Record<string, unknown> & MemeAssetModerationBase>(row: T) {
   return {
     ...row,
     // Stable, UI-friendly aliases (keep existing poolHidden*/purge* fields for backward compatibility)
@@ -25,16 +34,17 @@ function toMemeAssetModerationDto(row: any) {
 export const memeAssetModerationController = {
   // GET /owner/meme-assets?status=hidden|quarantine|purged|all&q=...&limit=...&offset=...
   list: async (req: AuthRequest, res: Response) => {
-    const status = String((req.query as any)?.status || 'quarantine').toLowerCase();
-    const qRaw = String((req.query as any)?.q || '').trim();
+    const query = req.query as Record<string, unknown>;
+    const status = String(query.status || 'quarantine').toLowerCase();
+    const qRaw = String(query.q || '').trim();
     const q = qRaw.length > 100 ? qRaw.slice(0, 100) : qRaw;
 
-    const limitRaw = parseInt(String((req.query as any)?.limit ?? ''), 10);
-    const offsetRaw = parseInt(String((req.query as any)?.offset ?? ''), 10);
+    const limitRaw = parseInt(String(query.limit ?? ''), 10);
+    const offsetRaw = parseInt(String(query.offset ?? ''), 10);
     const limit = clampInt(Number.isFinite(limitRaw) ? limitRaw : 50, 1, 500, 50);
     const offset = clampInt(Number.isFinite(offsetRaw) ? offsetRaw : 0, 0, 1_000_000, 0);
 
-    const where: any = {};
+    const where: Prisma.MemeAssetWhereInput = {};
     if (status === 'hidden') {
       where.poolVisibility = 'hidden';
       where.purgeRequestedAt = null;
@@ -47,7 +57,9 @@ export const memeAssetModerationController = {
     } else if (status === 'all') {
       // no extra filters
     } else {
-      return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Invalid status filter', requestId: req.requestId });
+      return res
+        .status(400)
+        .json({ errorCode: 'BAD_REQUEST', error: 'Invalid status filter', requestId: req.requestId });
     }
 
     if (q) {
@@ -97,7 +109,8 @@ export const memeAssetModerationController = {
   // POST /owner/meme-assets/:id/hide
   hide: async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id || '');
-    const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).slice(0, 500) : null;
+    const body = req.body as Record<string, unknown>;
+    const reason = typeof body.reason === 'string' ? String(body.reason).slice(0, 500) : null;
 
     const { ipAddress, userAgent } = getRequestMetadata(req);
 
@@ -130,7 +143,8 @@ export const memeAssetModerationController = {
       });
 
       return res.json(toMemeAssetModerationDto(updated));
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       await auditLog({
         action: 'owner.memeAsset.hide',
         actorId: req.userId || null,
@@ -138,7 +152,7 @@ export const memeAssetModerationController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message,
+        error: errorMessage,
       });
       return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
@@ -178,7 +192,8 @@ export const memeAssetModerationController = {
       });
 
       return res.json(toMemeAssetModerationDto(updated));
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       await auditLog({
         action: 'owner.memeAsset.unhide',
         actorId: req.userId || null,
@@ -186,7 +201,7 @@ export const memeAssetModerationController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message,
+        error: errorMessage,
       });
       return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
@@ -196,8 +211,9 @@ export const memeAssetModerationController = {
   // Sets quarantine (purgeNotBefore) and hides from pool immediately.
   purge: async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id || '');
-    const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).slice(0, 500) : null;
-    const daysRaw = (req.body as any)?.days;
+    const body = req.body as Record<string, unknown>;
+    const reason = typeof body.reason === 'string' ? String(body.reason).slice(0, 500) : null;
+    const daysRaw = body.days;
     const daysNum = typeof daysRaw === 'number' ? daysRaw : typeof daysRaw === 'string' ? parseInt(daysRaw, 10) : NaN;
     const days = clampInt(daysNum, 1, 90, 7);
 
@@ -242,7 +258,8 @@ export const memeAssetModerationController = {
       });
 
       return res.json(toMemeAssetModerationDto(updated));
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       await auditLog({
         action: 'owner.memeAsset.purge',
         actorId: req.userId || null,
@@ -250,7 +267,7 @@ export const memeAssetModerationController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message,
+        error: errorMessage,
       });
       return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
@@ -303,7 +320,8 @@ export const memeAssetModerationController = {
       });
 
       return res.json(toMemeAssetModerationDto(updated));
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       await auditLog({
         action: 'owner.memeAsset.restore',
         actorId: req.userId || null,
@@ -311,11 +329,9 @@ export const memeAssetModerationController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message,
+        error: errorMessage,
       });
       return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
     }
   },
 };
-
-

@@ -22,7 +22,8 @@ describe('beta domain: /auth/* and /beta/* remain accessible to guests', () => {
     process.env.PORT = '3002';
     // Minimal env so /auth/twitch can build authorize URL (no network).
     process.env.TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID || 'test_client_id';
-    process.env.TWITCH_CALLBACK_URL = process.env.TWITCH_CALLBACK_URL || 'https://beta.example.com/auth/twitch/callback';
+    process.env.TWITCH_CALLBACK_URL =
+      process.env.TWITCH_CALLBACK_URL || 'https://beta.example.com/auth/twitch/callback';
   });
 
   afterAll(() => {
@@ -47,5 +48,3 @@ describe('beta domain: /auth/* and /beta/* remain accessible to guests', () => {
     expect(res.status).not.toBe(403);
   });
 });
-
-

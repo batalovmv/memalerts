@@ -16,9 +16,11 @@ export async function extractFramesJpeg(args: {
   maxFrames?: number;
   width?: number;
 }): Promise<string[]> {
-  const stepSeconds = Number.isFinite(args.stepSeconds as any) ? (args.stepSeconds as number) : 2;
-  const maxFrames = Number.isFinite(args.maxFrames as any) ? (args.maxFrames as number) : 8;
-  const width = Number.isFinite(args.width as any) ? (args.width as number) : 512;
+  const stepSeconds =
+    typeof args.stepSeconds === 'number' && Number.isFinite(args.stepSeconds) ? args.stepSeconds : 2;
+  const maxFrames =
+    typeof args.maxFrames === 'number' && Number.isFinite(args.maxFrames) ? args.maxFrames : 8;
+  const width = typeof args.width === 'number' && Number.isFinite(args.width) ? args.width : 512;
 
   await ensureDir(args.outputDir);
 
@@ -55,5 +57,3 @@ export async function extractFramesJpeg(args: {
 
   return files;
 }
-
-

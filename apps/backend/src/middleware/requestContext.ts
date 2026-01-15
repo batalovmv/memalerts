@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 import { runWithRequestContext, getRequestContext } from '../utils/asyncContext.js';
+import { getActiveTraceId } from '../tracing/traceContext.js';
+import type { AuthRequest } from './auth.js';
 
 function parseNumberEnv(name: string, fallback: number): number {
   const n = Number.parseFloat(String(process.env[name] ?? ''));
@@ -24,8 +26,12 @@ function getOrCreateRequestId(req: Request): string {
 
 export function requestContext(req: Request, res: Response, next: NextFunction) {
   const requestId = getOrCreateRequestId(req);
-  (req as any).requestId = requestId;
-  (res.locals as any).requestId = requestId;
+  const traceId = getActiveTraceId();
+  const authReq = req as AuthRequest;
+  authReq.requestId = requestId;
+  authReq.traceId = traceId ?? null;
+  (res.locals as { requestId?: string }).requestId = requestId;
+  (res.locals as { traceId?: string | null }).traceId = traceId ?? null;
   res.setHeader('X-Request-Id', requestId);
 
   const start = process.hrtime.bigint();
@@ -34,28 +40,23 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
     const end = process.hrtime.bigint();
     const durationMs = Number(end - start) / 1_000_000;
 
-    const anyReq = req as any;
+    const reqWithAuth = req as AuthRequest;
 
     const status = res.statusCode;
     const roundedMs = Math.round(durationMs);
 
-    const sampleRate = parseNumberEnv(
-      'HTTP_LOG_SAMPLE_RATE',
-      process.env.NODE_ENV === 'production' ? 0.05 : 1
-    );
-    const slowMs = parseNumberEnv(
-      'HTTP_LOG_SLOW_MS',
-      process.env.NODE_ENV === 'production' ? 1000 : 2000
-    );
+    const sampleRate = parseNumberEnv('HTTP_LOG_SAMPLE_RATE', process.env.NODE_ENV === 'production' ? 0.05 : 1);
+    const slowMs = parseNumberEnv('HTTP_LOG_SLOW_MS', process.env.NODE_ENV === 'production' ? 1000 : 2000);
 
     const base = {
       requestId,
+      traceId,
       method: req.method,
       path: req.path,
       status,
       durationMs: roundedMs,
-      userId: typeof anyReq.userId === 'string' ? anyReq.userId : null,
-      channelId: typeof anyReq.channelId === 'string' ? anyReq.channelId : null,
+      userId: typeof reqWithAuth.userId === 'string' ? reqWithAuth.userId : null,
+      channelId: typeof reqWithAuth.channelId === 'string' ? reqWithAuth.channelId : null,
       dbQueryCount: getRequestContext()?.db.queryCount ?? 0,
       dbMs: Math.round(getRequestContext()?.db.totalMs ?? 0),
       dbSlowQueryCount: getRequestContext()?.db.slowQueryCount ?? 0,
@@ -79,6 +80,7 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
 
   const store = {
     requestId,
+    traceId,
     userId: null,
     channelId: null,
     db: { queryCount: 0, totalMs: 0, slowQueryCount: 0 },
@@ -86,6 +88,3 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
 
   runWithRequestContext(store, () => next());
 }
-
-
-

@@ -27,5 +27,3 @@ describe('boosty discord tier role matching', () => {
     expect(matched).toBeNull();
   });
 });
-
-

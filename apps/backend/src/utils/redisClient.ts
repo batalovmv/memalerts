@@ -1,7 +1,7 @@
 import { createClient, type RedisClientType } from 'redis';
 import { logger } from './logger.js';
 
-let clientPromise: Promise<RedisClientType> | null = null;
+let clientPromise: Promise<RedisClientType | null> | null = null;
 
 function getRedisUrl(): string | null {
   const url = String(process.env.REDIS_URL || '').trim();
@@ -19,7 +19,8 @@ export async function getRedisClient(): Promise<RedisClientType | null> {
   if (!clientPromise) {
     const client: RedisClientType = createClient({ url });
     client.on('error', (err) => {
-      logger.warn('redis.error', { errorMessage: (err as any)?.message || String(err) });
+      const error = err as { message?: string };
+      logger.warn('redis.error', { errorMessage: error?.message || String(err) });
     });
     clientPromise = (async () => {
       await client.connect();
@@ -27,9 +28,10 @@ export async function getRedisClient(): Promise<RedisClientType | null> {
       return client;
     })().catch((e) => {
       clientPromise = null;
-      logger.warn('redis.connect_failed', { errorMessage: e?.message || String(e) });
-      return null as any;
-    }) as any;
+      const error = e as { message?: string };
+      logger.warn('redis.connect_failed', { errorMessage: error?.message || String(e) });
+      return null;
+    });
   }
 
   try {
@@ -43,5 +45,3 @@ export function getRedisNamespace(): string {
   const isBeta = String(process.env.DOMAIN || '').includes('beta.') || String(process.env.PORT || '') === '3002';
   return isBeta ? 'beta' : 'prod';
 }
-
-

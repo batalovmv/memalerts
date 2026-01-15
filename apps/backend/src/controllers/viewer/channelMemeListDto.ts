@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type { AuthRequest } from '../../middleware/auth.js';
 
 // Canonical list item for "channel memes listing" used by:
 // - GET /channels/:slug/memes
@@ -36,28 +37,32 @@ export type ChannelMemeListItemDto = {
   aiAutoTagNames?: string[] | null;
 };
 
-export function canReturnFileHash(req: any, channelId: string): boolean {
-  const flag = String((req?.query as any)?.includeFileHash ?? '').toLowerCase();
+export function canReturnFileHash(req: Request, channelId: string): boolean {
+  const query = (req.query as Record<string, unknown>) ?? {};
+  const flag = String(query.includeFileHash ?? '').toLowerCase();
   const wants = flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on';
   if (!wants) return false;
-  if (!req?.userId) return false;
-  if (req?.userRole === 'admin') return true;
+  const auth = req as AuthRequest;
+  if (!auth.userId) return false;
+  if (auth.userRole === 'admin') return true;
   // Streamer is scoped to a channel in JWT.
-  return String(req?.channelId || '') === String(channelId);
+  return String(auth.channelId || '') === String(channelId);
 }
 
-export function canReturnAiFields(req: any, channelId: string): boolean {
-  const flag = String((req?.query as any)?.includeAi ?? '').toLowerCase();
+export function canReturnAiFields(req: Request, channelId: string): boolean {
+  const query = (req.query as Record<string, unknown>) ?? {};
+  const flag = String(query.includeAi ?? '').toLowerCase();
   const wants = flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on';
   if (!wants) return false;
-  if (!req?.userId) return false;
-  if (req?.userRole === 'admin') return true;
+  const auth = req as AuthRequest;
+  if (!auth.userId) return false;
+  if (auth.userRole === 'admin') return true;
   // Streamer is scoped to a channel in JWT.
-  return String(req?.channelId || '') === String(channelId);
+  return String(auth.channelId || '') === String(channelId);
 }
 
 export function toChannelMemeListItemDto(
-  req: Request | any,
+  req: Request,
   channelId: string,
   row: {
     id: string;
@@ -75,7 +80,7 @@ export function toChannelMemeListItemDto(
       createdBy?: { id: string; displayName: string } | null;
     };
     aiAutoDescription?: string | null;
-    aiAutoTagNamesJson?: any | null;
+    aiAutoTagNamesJson?: unknown | null;
   }
 ): ChannelMemeListItemDto {
   const exposeHash = canReturnFileHash(req, channelId);
@@ -93,7 +98,9 @@ export function toChannelMemeListItemDto(
     status: row.status,
     deletedAt: null,
     createdAt: row.createdAt,
-    createdBy: row.memeAsset.createdBy ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName } : null,
+    createdBy: row.memeAsset.createdBy
+      ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }
+      : null,
     fileHash: exposeHash ? (row.memeAsset.fileHash ?? null) : null,
     ...(exposeAi
       ? {
@@ -103,5 +110,3 @@ export function toChannelMemeListItemDto(
       : {}),
   };
 }
-
-

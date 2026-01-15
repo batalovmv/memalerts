@@ -200,11 +200,12 @@ export function startTopStats30dRollupScheduler() {
         days: res.days,
         durationMs: Date.now() - startedAt,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       logger.error('rollup.top_stats_30d.failed', {
         days,
         durationMs: Date.now() - startedAt,
-        errorMessage: e?.message,
+        errorMessage,
       });
     } finally {
       await releaseAdvisoryLock(lockId);
@@ -215,5 +216,3 @@ export function startTopStats30dRollupScheduler() {
   setTimeout(() => void runOnce(), initialDelay);
   setInterval(() => void runOnce(), intervalMs);
 }
-
-

@@ -59,9 +59,9 @@ export function getVkVideoAuthorizeUrl(params: {
   return url.toString();
 }
 
-async function fetchJsonSafe(url: string, init: RequestInit): Promise<{ status: number; json: any }> {
+async function fetchJsonSafe(url: string, init: RequestInit): Promise<{ status: number; json: unknown }> {
   const resp = await fetch(url, init);
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = await resp.json();
   } catch {
@@ -77,7 +77,7 @@ export async function exchangeVkVideoCodeForToken(params: {
   code: string;
   redirectUri: string;
   codeVerifier?: string | null;
-}): Promise<{ status: number; data: VkVideoTokenResponse; raw: any }> {
+}): Promise<{ status: number; data: VkVideoTokenResponse; raw: unknown }> {
   // VKVideo token exchange uses:
   // - POST application/x-www-form-urlencoded
   // - Authorization: Basic base64(client_id:secret)
@@ -100,7 +100,11 @@ export async function exchangeVkVideoCodeForToken(params: {
     body,
   });
   const tokenData = (post.json ?? {}) as VkVideoTokenResponse;
-  debugLog('vkvideo.token.exchange', { method: 'POST', status: post.status, hasAccessToken: !!tokenData?.access_token });
+  debugLog('vkvideo.token.exchange', {
+    method: 'POST',
+    status: post.status,
+    hasAccessToken: !!tokenData?.access_token,
+  });
   return { status: post.status, data: tokenData, raw: post.json };
 }
 
@@ -110,7 +114,7 @@ export async function refreshVkVideoToken(params: {
   clientSecret: string;
   refreshToken: string;
   redirectUri: string;
-}): Promise<{ status: number; data: VkVideoTokenResponse; raw: any }> {
+}): Promise<{ status: number; data: VkVideoTokenResponse; raw: unknown }> {
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: params.refreshToken,
@@ -134,7 +138,7 @@ export async function refreshVkVideoToken(params: {
 export async function fetchVkVideoUser(params: {
   userInfoUrl?: string | null;
   accessToken: string;
-}): Promise<{ status: number; user: VkVideoUser | null; raw: any }> {
+}): Promise<{ status: number; user: VkVideoUser | null; raw: unknown }> {
   if (!params.userInfoUrl) return { status: 0, user: null, raw: null };
 
   const resp = await fetch(params.userInfoUrl, {
@@ -142,18 +146,24 @@ export async function fetchVkVideoUser(params: {
       Authorization: `Bearer ${params.accessToken}`,
     },
   });
-  const data = (await resp.json().catch(() => null)) as any;
+  const data = (await resp.json().catch(() => null)) as unknown;
+  const dataObj = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
 
   // Extremely defensive mapping: different APIs may use different keys.
-  const root =
+  const rootCandidate =
     // Common wrapper patterns:
     // - { data: { user: {...}, ... } }
     // - { response: {...} }
     // - { result: {...} }
-    data?.data ?? data?.response ?? data?.result ?? data?.payload ?? data?.profile ?? data ?? null;
+    dataObj?.data ?? dataObj?.response ?? dataObj?.result ?? dataObj?.payload ?? dataObj?.profile ?? dataObj ?? null;
+  const root = rootCandidate && typeof rootCandidate === 'object' ? (rootCandidate as Record<string, unknown>) : null;
 
   // If root has nested "user" object (VKVideo Live current_user), prefer it.
-  const userRoot = root?.user ?? root?.profile ?? root;
+  const userRootCandidate = root?.user ?? root?.profile ?? root;
+  const userRoot =
+    userRootCandidate && typeof userRootCandidate === 'object'
+      ? (userRootCandidate as Record<string, unknown>)
+      : null;
 
   const id = String(
     userRoot?.id ??
@@ -162,9 +172,9 @@ export async function fetchVkVideoUser(params: {
       root?.id ??
       root?.user_id ??
       root?.sub ??
-      data?.id ??
-      data?.user_id ??
-      data?.sub ??
+      dataObj?.id ??
+      dataObj?.user_id ??
+      dataObj?.sub ??
       ''
   ).trim();
   if (!id) {
@@ -183,8 +193,7 @@ export async function fetchVkVideoUser(params: {
         userRoot?.username ??
         userRoot?.user_name ??
         ''
-    ).trim() ||
-    null;
+    ).trim() || null;
   // If provider returns split name fields, join them (best-effort).
   const displayNameFromParts =
     String([userRoot?.first_name, userRoot?.last_name].filter(Boolean).join(' ')).trim() || null;
@@ -208,8 +217,6 @@ export async function fetchVkVideoUser(params: {
   return {
     status: resp.status,
     user: { id, displayName: displayName ?? displayNameFromParts, login, avatarUrl, profileUrl },
-    raw: data,
+    raw: dataObj ?? data,
   };
 }
-
-

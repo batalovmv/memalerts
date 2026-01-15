@@ -7,7 +7,9 @@ let provider: StorageProvider | null = null;
 export function getStorageProvider(): StorageProvider {
   if (provider) return provider;
 
-  const kind = String(process.env.UPLOAD_STORAGE || '').trim().toLowerCase();
+  const kind = String(process.env.UPLOAD_STORAGE || '')
+    .trim()
+    .toLowerCase();
   if (kind === 's3') {
     const cfg = loadS3ConfigFromEnv();
     if (cfg) {
@@ -20,5 +22,3 @@ export function getStorageProvider(): StorageProvider {
   provider = new LocalStorageProvider();
   return provider;
 }
-
-

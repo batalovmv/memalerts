@@ -4,7 +4,7 @@ import path from 'node:path';
 type Check = { name: string; predicate: (text: string) => boolean; hint: string };
 
 function fail(message: string): never {
-  // eslint-disable-next-line no-console
+   
   console.error(message);
   process.exit(1);
 }
@@ -33,8 +33,7 @@ const required: Check[] = [
       t.includes('creditsStyleJson') &&
       t.includes('creditsTokenVersion') &&
       t.includes('creditsReconnectWindowMinutes'),
-    hint:
-      'Expected Channel to include credits overlay fields (creditsStyleJson/creditsTokenVersion/creditsReconnectWindowMinutes).',
+    hint: 'Expected Channel to include credits overlay fields (creditsStyleJson/creditsTokenVersion/creditsReconnectWindowMinutes).',
   },
   {
     name: 'ChatBotSubscription model',
@@ -69,7 +68,5 @@ if (missing.length > 0) {
   );
 }
 
-// eslint-disable-next-line no-console
+ 
 console.log('[schema:check] OK');
-
-

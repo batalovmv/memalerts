@@ -6,6 +6,10 @@ let cachedPem: string | null = null;
 let cachedExpiresAt = 0;
 let inFlight: Promise<string | null> | null = null;
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
 function normalizePem(pem: string): string {
   const s = String(pem || '').trim();
   if (!s) return '';
@@ -34,12 +38,10 @@ export async function fetchKickPublicKeyPem(): Promise<string | null> {
         headers: { Accept: 'application/json' },
       });
       const data = await resp.json().catch(() => null);
+      const dataRecord = asRecord(data);
+      const nested = asRecord(dataRecord.data);
       const keyRaw =
-        (data as any)?.data?.public_key ??
-        (data as any)?.data?.publicKey ??
-        (data as any)?.public_key ??
-        (data as any)?.publicKey ??
-        null;
+        nested.public_key ?? nested.publicKey ?? dataRecord.public_key ?? dataRecord.publicKey ?? null;
       const pem = normalizePem(String(keyRaw || ''));
       if (!resp.ok || !pem) {
         logger.warn('kick.webhook.public_key_fetch_failed', { status: resp.status });
@@ -50,8 +52,9 @@ export async function fetchKickPublicKeyPem(): Promise<string | null> {
       cachedPem = pem;
       cachedExpiresAt = Date.now() + ttlMs;
       return pem;
-    } catch (e: any) {
-      logger.warn('kick.webhook.public_key_fetch_failed', { errorMessage: e?.message || String(e) });
+    } catch (error) {
+      const err = error as Error;
+      logger.warn('kick.webhook.public_key_fetch_failed', { errorMessage: err.message || String(error) });
       cachedPem = null;
       cachedExpiresAt = 0;
       return null;
@@ -62,5 +65,3 @@ export async function fetchKickPublicKeyPem(): Promise<string | null> {
 
   return await inFlight;
 }
-
-

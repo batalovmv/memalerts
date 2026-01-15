@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 export type RequestContextStore = {
   requestId: string;
+  traceId?: string | null;
   // Best-effort: may be filled by auth middleware later in the request lifecycle.
   userId?: string | null;
   channelId?: string | null;
@@ -21,5 +22,3 @@ export function runWithRequestContext<T>(store: RequestContextStore, fn: () => T
 export function getRequestContext(): RequestContextStore | undefined {
   return storage.getStore();
 }
-
-

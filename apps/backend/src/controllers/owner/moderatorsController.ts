@@ -69,7 +69,8 @@ export const moderatorsController = {
       });
 
       return res.json(row);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       await auditLog({
         action: 'owner.moderators.grant',
         actorId: req.userId || null,
@@ -77,7 +78,7 @@ export const moderatorsController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message,
+        error: errorMessage,
       });
       return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Bad request', requestId: req.requestId });
     }
@@ -122,7 +123,8 @@ export const moderatorsController = {
       });
 
       return res.json(row);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       await auditLog({
         action: 'owner.moderators.revoke',
         actorId: req.userId || null,
@@ -130,11 +132,9 @@ export const moderatorsController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message,
+        error: errorMessage,
       });
       return res.status(400).json({ errorCode: 'BAD_REQUEST', error: 'Bad request', requestId: req.requestId });
     }
   },
 };
-
-

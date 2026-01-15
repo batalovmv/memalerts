@@ -1,0 +1,12 @@
+{
+  "index_patterns": ["memalerts-logs-*"],
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "memalerts-logs-30d"
+    },
+    "mappings": {
+      "dynamic": true
+    }
+  },
+  "priority": 500
+}

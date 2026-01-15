@@ -26,7 +26,7 @@ describe('BoostyApiClient tierKey extraction', () => {
           ok: true,
           status: 200,
           text: async () => JSON.stringify(payload),
-        } as any;
+        } as unknown as Response;
       })
     );
 
@@ -39,5 +39,3 @@ describe('BoostyApiClient tierKey extraction', () => {
     expect(subs[0]?.isActive).toBe(true);
   });
 });
-
-

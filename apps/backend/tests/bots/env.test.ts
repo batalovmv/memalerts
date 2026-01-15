@@ -16,20 +16,27 @@ import {
   validateYoutubeChatbotEnv,
 } from '../../src/bots/env.js';
 
-const baseEnv = { ...process.env };
+const ORIGINAL_ENV = process.env;
 
 function setBaseEnv() {
-  process.env.DATABASE_URL = 'postgres://localhost:5432/db';
-  process.env.CHATBOT_BACKEND_BASE_URL = 'https://api.example.com';
+  process.env = {
+    PATH: ORIGINAL_ENV.PATH,
+    NODE_ENV: 'test',
+    DATABASE_URL: 'postgres://localhost:5432/db',
+    CHATBOT_BACKEND_BASE_URL: 'https://api.example.com',
+  };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env = { ...baseEnv };
+  process.env = {
+    PATH: ORIGINAL_ENV.PATH,
+    NODE_ENV: 'test',
+  };
 });
 
 afterEach(() => {
-  process.env = { ...baseEnv };
+  process.env = ORIGINAL_ENV;
   vi.restoreAllMocks();
 });
 
@@ -45,9 +52,13 @@ describe('bot env validation', () => {
   });
 
   it('logs and exits on invalid base url list', () => {
-    process.env.DATABASE_URL = 'postgres://localhost:5432/db';
-    process.env.CHATBOT_BACKEND_BASE_URL = '';
-    process.env.CHATBOT_BACKEND_BASE_URLS = 'https://good.example,not-a-url';
+    process.env = {
+      PATH: ORIGINAL_ENV.PATH,
+      NODE_ENV: 'test',
+      DATABASE_URL: 'postgres://localhost:5432/db',
+      CHATBOT_BACKEND_BASE_URL: '',
+      CHATBOT_BACKEND_BASE_URLS: 'https://good.example,not-a-url',
+    };
 
     const exitSpy = vi
       .spyOn(process, 'exit')

@@ -1,16 +1,18 @@
 import express from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../src/lib/prisma.js';
 import { webhookRoutes } from '../src/routes/webhooks.js';
+import { createChannel } from './factories/index.js';
 
 function makeApp() {
   const app = express();
   app.use(
     express.json({
       verify: (req, _res, buf) => {
-        (req as any).rawBody = buf;
+        (req as { rawBody?: Buffer }).rawBody = buf;
       },
     })
   );
@@ -41,16 +43,16 @@ describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant 
   });
 
   it('creates exactly one pending coin grant per user (onceEver) even if follow event repeats', async () => {
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-        twitchChannelId: `tw_${rand()}`,
-        // New JSONB column may not be in older Prisma typings during staged deploys.
-        ...( { twitchAutoRewardsJson: { v: 1, follow: { enabled: true, coins: 10, onceEver: true } } } as any ),
-      } as any,
-      select: { id: true, slug: true, twitchChannelId: true },
-    });
+    const channelData: Prisma.ChannelCreateInput & {
+      twitchAutoRewardsJson: { v: number; follow: { enabled: boolean; coins: number; onceEver: boolean } };
+    } = {
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+      twitchChannelId: `tw_${rand()}`,
+      // New JSONB column may not be in older Prisma typings during staged deploys.
+      twitchAutoRewardsJson: { v: 1, follow: { enabled: true, coins: 10, onceEver: true } },
+    };
+    const channel = await createChannel(channelData);
 
     const event = {
       user_id: `u_${rand()}`,
@@ -97,17 +99,23 @@ describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant 
       expect(res.status).toBe(200);
     }
 
-    const pendingCount = await (prisma as any).pendingCoinGrant.count({
+    const pendingCount = await prisma.pendingCoinGrant.count({
       where: { provider: 'twitch', providerAccountId: event.user_id, channelId: channel.id },
     });
     expect(pendingCount).toBe(1);
 
-    const evCount = await (prisma as any).externalRewardEvent.count({
-      where: { provider: 'twitch', providerAccountId: event.user_id, channelId: channel.id, eventType: 'twitch_follow' },
+    const evCount = await prisma.externalRewardEvent.count({
+      where: {
+        provider: 'twitch',
+        providerAccountId: event.user_id,
+        channelId: channel.id,
+        eventType: 'twitch_follow',
+      },
     });
     expect(evCount).toBe(1);
   });
 });
+
 
 
 

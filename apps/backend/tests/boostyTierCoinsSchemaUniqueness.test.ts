@@ -25,5 +25,3 @@ describe('updateChannelSettingsSchema boostyTierCoins uniqueness (case-insensiti
     expect(issues.some((it) => String(it.message ?? '').includes('tier-2'))).toBe(true);
   });
 });
-
-

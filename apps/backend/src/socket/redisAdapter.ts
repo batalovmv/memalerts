@@ -19,8 +19,9 @@ export async function maybeSetupSocketIoRedisAdapter(io: Server): Promise<void> 
     await subClient.connect();
     io.adapter(createAdapter(pubClient, subClient));
     logger.info('socket.redis_adapter.enabled', {});
-  } catch (e: any) {
-    logger.warn('socket.redis_adapter.failed', { errorMessage: e?.message || String(e) });
+  } catch (error) {
+    const err = error as { message?: string };
+    logger.warn('socket.redis_adapter.failed', { errorMessage: err?.message || String(error) });
     try {
       await pubClient.disconnect();
     } catch {}
@@ -29,5 +30,3 @@ export async function maybeSetupSocketIoRedisAdapter(io: Server): Promise<void> 
     } catch {}
   }
 }
-
-

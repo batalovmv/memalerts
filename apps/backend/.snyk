@@ -1,0 +1,4 @@
+# Snyk policy file (ignore list for false positives).
+version: v1.25.0
+
+ignore: {}

@@ -2,14 +2,29 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import type { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import { createStreamOfflineEventSubSubscription, createStreamOnlineEventSubSubscription, deleteEventSubSubscription, getEventSubSubscriptions } from '../../utils/twitchApi.js';
+import { signJwt } from '../../utils/jwt.js';
+import {
+  createStreamOfflineEventSubSubscription,
+  createStreamOnlineEventSubSubscription,
+  deleteEventSubSubscription,
+  getEventSubSubscriptions,
+} from '../../utils/twitchApi.js';
 import { resetCreditsSession } from '../../realtime/creditsSessionStore.js';
 import { getCreditsStateFromStore } from '../../realtime/creditsSessionStore.js';
+import { ERROR_CODES, ERROR_MESSAGES } from '../../shared/errors.js';
+import { logger } from '../../utils/logger.js';
 
 const MAX_STYLE_JSON_LEN = 50_000;
 
-function safeString(v: any): string {
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function safeString(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
@@ -17,7 +32,9 @@ export const getCreditsToken = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   const userId = req.userId;
   if (!channelId) {
-    return res.status(400).json({ error: 'Channel ID required' });
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
   }
 
   try {
@@ -33,7 +50,9 @@ export const getCreditsToken = async (req: AuthRequest, res: Response) => {
     });
 
     if (!channel?.slug) {
-      return res.status(404).json({ error: 'Channel not found' });
+      return res
+        .status(404)
+        .json({ errorCode: ERROR_CODES.CHANNEL_NOT_FOUND, error: ERROR_MESSAGES.CHANNEL_NOT_FOUND });
     }
 
     // Best-effort: ensure EventSub stream.online/offline exists for reconnect window handling.
@@ -49,23 +68,32 @@ export const getCreditsToken = async (req: AuthRequest, res: Response) => {
         const existing = await getEventSubSubscriptions(channel.twitchChannelId);
         const subs = Array.isArray(existing?.data) ? existing.data : [];
         const wantTypes = new Set(['stream.online', 'stream.offline']);
-        const relevant = subs.filter(
-          (s: any) =>
-            wantTypes.has(s?.type) && (s.status === 'enabled' || s.status === 'webhook_callback_verification_pending' || s.status === 'authorization_revoked')
-        );
+        const relevant = subs
+          .map((s) => asRecord(s))
+          .filter(
+            (s) =>
+              wantTypes.has(String(s.type)) &&
+              (s.status === 'enabled' ||
+                s.status === 'webhook_callback_verification_pending' ||
+                s.status === 'authorization_revoked')
+          );
 
         // Delete mismatched callbacks so we can re-register deterministically.
-        const mismatched = relevant.filter((s: any) => s?.transport?.callback !== webhookUrl);
+        const mismatched = relevant.filter((s) => asRecord(s.transport).callback !== webhookUrl);
         for (const s of mismatched) {
           try {
-            await deleteEventSubSubscription(s.id);
-          } catch (e) {
+            await deleteEventSubSubscription(String(s.id));
+          } catch {
             // ignore
           }
         }
 
-        const hasOnline = relevant.some((s: any) => s.type === 'stream.online' && s?.transport?.callback === webhookUrl);
-        const hasOffline = relevant.some((s: any) => s.type === 'stream.offline' && s?.transport?.callback === webhookUrl);
+        const hasOnline = relevant.some(
+          (s) => s.type === 'stream.online' && asRecord(s.transport).callback === webhookUrl
+        );
+        const hasOffline = relevant.some(
+          (s) => s.type === 'stream.offline' && asRecord(s.transport).callback === webhookUrl
+        );
 
         if (!hasOnline) {
           await createStreamOnlineEventSubSubscription({
@@ -82,16 +110,16 @@ export const getCreditsToken = async (req: AuthRequest, res: Response) => {
           });
         }
       }
-    } catch (e: any) {
-      console.warn('[credits] ensure stream online/offline EventSub failed (continuing):', {
+    } catch (e: unknown) {
+      logger.warn('credits_overlay.eventsub_ensure_failed', {
         userId: userId || null,
         channelId,
-        errorMessage: e?.message || String(e),
+        errorMessage: getErrorMessage(e),
       });
     }
 
     // Long-lived token intended to be pasted into OBS. It is opaque and unguessable (signed).
-    const token = jwt.sign(
+    const token = signJwt(
       {
         kind: 'credits',
         v: 1,
@@ -99,25 +127,26 @@ export const getCreditsToken = async (req: AuthRequest, res: Response) => {
         channelSlug: String(channel.slug).toLowerCase(),
         tv: channel.creditsTokenVersion ?? 1,
       },
-      process.env.JWT_SECRET!,
       // IMPORTANT: keep token stable across page reloads; rotation happens via tv increment.
       { noTimestamp: true }
     );
 
     return res.json({
       token,
-      creditsStyleJson: (channel as any).creditsStyleJson ?? null,
+      creditsStyleJson: channel.creditsStyleJson ?? null,
     });
-  } catch (e: any) {
-    console.error('Error generating credits token:', e);
-    return res.status(500).json({ error: 'Failed to generate credits token' });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.token_generate_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const rotateCreditsToken = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   if (!channelId) {
-    return res.status(400).json({ error: 'Channel ID required' });
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
   }
 
   try {
@@ -133,10 +162,12 @@ export const rotateCreditsToken = async (req: AuthRequest, res: Response) => {
     });
 
     if (!channel?.slug) {
-      return res.status(404).json({ error: 'Channel not found' });
+      return res
+        .status(404)
+        .json({ errorCode: ERROR_CODES.CHANNEL_NOT_FOUND, error: ERROR_MESSAGES.CHANNEL_NOT_FOUND });
     }
 
-    const token = jwt.sign(
+    const token = signJwt(
       {
         kind: 'credits',
         v: 1,
@@ -144,7 +175,6 @@ export const rotateCreditsToken = async (req: AuthRequest, res: Response) => {
         channelSlug: String(channel.slug).toLowerCase(),
         tv: channel.creditsTokenVersion ?? 1,
       },
-      process.env.JWT_SECRET!,
       { noTimestamp: true }
     );
 
@@ -155,28 +185,32 @@ export const rotateCreditsToken = async (req: AuthRequest, res: Response) => {
       const room = `channel:${slug}`;
       const sockets = await io.in(room).fetchSockets();
       for (const s of sockets) {
-        if ((s.data as any)?.isCreditsOverlay) {
+        const dataRec = asRecord(s.data);
+        if (dataRec.isCreditsOverlay) {
           s.disconnect(true);
         }
       }
     } catch (kickErr) {
-      console.error('Error disconnecting credits overlay sockets after token rotation:', kickErr);
+      logger.error('credits_overlay.socket_disconnect_failed', { errorMessage: getErrorMessage(kickErr) });
     }
 
     return res.json({ token });
-  } catch (e: any) {
-    console.error('Error rotating credits token:', e);
-    return res.status(500).json({ error: 'Failed to rotate credits token' });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.token_rotate_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const saveCreditsSettings = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   if (!channelId) {
-    return res.status(400).json({ error: 'Channel ID required' });
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
   }
 
-  const creditsStyleJsonRaw = safeString((req.body as any)?.creditsStyleJson);
+  const bodyRec = asRecord(req.body);
+  const creditsStyleJsonRaw = safeString(bodyRec.creditsStyleJson);
   const creditsStyleJson = creditsStyleJsonRaw.trim();
   if (!creditsStyleJson) {
     // Allow clearing by sending empty string? MVP: treat empty as null.
@@ -193,22 +227,24 @@ export const saveCreditsSettings = async (req: AuthRequest, res: Response) => {
         const slug = String(updated.slug || '').toLowerCase();
         if (slug) {
           io.to(`channel:${slug}`).emit('credits:config', {
-            creditsStyleJson: (updated as any).creditsStyleJson ?? null,
+            creditsStyleJson: updated.creditsStyleJson ?? null,
           });
         }
       } catch (emitErr) {
-        console.error('Error emitting credits:config after settings update:', emitErr);
+        logger.error('credits_overlay.emit_config_failed', { errorMessage: getErrorMessage(emitErr) });
       }
 
       return res.json({ ok: true, creditsStyleJson: null });
-    } catch (e: any) {
-      console.error('Error saving credits settings:', e);
-      return res.status(500).json({ error: 'Failed to save credits settings' });
+    } catch (e: unknown) {
+      logger.error('credits_overlay.save_settings_failed', { errorMessage: getErrorMessage(e) });
+      return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
     }
   }
 
   if (creditsStyleJson.length > MAX_STYLE_JSON_LEN) {
-    return res.status(400).json({ error: `creditsStyleJson is too large (max ${MAX_STYLE_JSON_LEN})` });
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.BAD_REQUEST, error: `creditsStyleJson is too large (max ${MAX_STYLE_JSON_LEN})` });
   }
 
   // Optional parse (minimal validation) — do not reject if JSON is invalid, just store as-is (MVP).
@@ -231,25 +267,28 @@ export const saveCreditsSettings = async (req: AuthRequest, res: Response) => {
       const slug = String(updated.slug || '').toLowerCase();
       if (slug) {
         io.to(`channel:${slug}`).emit('credits:config', {
-          creditsStyleJson: (updated as any).creditsStyleJson ?? null,
+          creditsStyleJson: updated.creditsStyleJson ?? null,
         });
       }
     } catch (emitErr) {
-      console.error('Error emitting credits:config after settings update:', emitErr);
+      logger.error('credits_overlay.emit_config_failed', { errorMessage: getErrorMessage(emitErr) });
     }
 
-    return res.json({ ok: true, creditsStyleJson: (updated as any).creditsStyleJson ?? null });
-  } catch (e: any) {
-    console.error('Error saving credits settings:', e);
-    return res.status(500).json({ error: 'Failed to save credits settings' });
+    return res.json({ ok: true, creditsStyleJson: updated.creditsStyleJson ?? null });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.save_settings_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const setCreditsReconnectWindow = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
-  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+  if (!channelId)
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
 
-  const raw = Number((req.body as any)?.minutes);
+  const raw = Number(asRecord(req.body).minutes);
   const minutes = Number.isFinite(raw) ? Math.max(1, Math.min(24 * 60, Math.floor(raw))) : 60;
 
   try {
@@ -258,27 +297,33 @@ export const setCreditsReconnectWindow = async (req: AuthRequest, res: Response)
       data: { creditsReconnectWindowMinutes: minutes },
       select: { creditsReconnectWindowMinutes: true },
     });
-    return res.json({ creditsReconnectWindowMinutes: (updated as any).creditsReconnectWindowMinutes ?? minutes });
-  } catch (e: any) {
-    console.error('Error updating creditsReconnectWindowMinutes:', e);
-    return res.status(500).json({ error: 'Failed to update reconnect window' });
+    return res.json({ creditsReconnectWindowMinutes: updated.creditsReconnectWindowMinutes ?? minutes });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.update_reconnect_window_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const resetCredits = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
-  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+  if (!channelId)
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
 
   try {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
       select: { slug: true, creditsReconnectWindowMinutes: true },
     });
-    const slug = String((channel as any)?.slug || '').toLowerCase();
-    if (!slug) return res.status(404).json({ error: 'Channel not found' });
+    const slug = String(channel?.slug || '').toLowerCase();
+    if (!slug)
+      return res
+        .status(404)
+        .json({ errorCode: ERROR_CODES.CHANNEL_NOT_FOUND, error: ERROR_MESSAGES.CHANNEL_NOT_FOUND });
 
-    const windowMin = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
-      ? Number((channel as any).creditsReconnectWindowMinutes)
+    const windowMin = Number.isFinite(channel?.creditsReconnectWindowMinutes)
+      ? Number(channel?.creditsReconnectWindowMinutes)
       : 60;
 
     await resetCreditsSession(slug, windowMin);
@@ -292,27 +337,33 @@ export const resetCredits = async (req: AuthRequest, res: Response) => {
     }
 
     return res.json({ ok: true });
-  } catch (e: any) {
-    console.error('Error resetting credits:', e);
-    return res.status(500).json({ error: 'Failed to reset credits' });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.reset_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const getCreditsState = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
-  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+  if (!channelId)
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
 
   try {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
       select: { slug: true, creditsReconnectWindowMinutes: true },
     });
-    const slug = String((channel as any)?.slug || '').toLowerCase();
-    if (!slug) return res.status(404).json({ error: 'Channel not found' });
+    const slug = String(channel?.slug || '').toLowerCase();
+    if (!slug)
+      return res
+        .status(404)
+        .json({ errorCode: ERROR_CODES.CHANNEL_NOT_FOUND, error: ERROR_MESSAGES.CHANNEL_NOT_FOUND });
 
     const state = await getCreditsStateFromStore(slug);
-    const windowMin = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
-      ? Number((channel as any).creditsReconnectWindowMinutes)
+    const windowMin = Number.isFinite(channel?.creditsReconnectWindowMinutes)
+      ? Number(channel?.creditsReconnectWindowMinutes)
       : 60;
     return res.json({
       channelSlug: slug,
@@ -320,53 +371,62 @@ export const getCreditsState = async (req: AuthRequest, res: Response) => {
       chatters: state.chatters || [],
       donors: state.donors || [],
     });
-  } catch (e: any) {
-    console.error('Error getting credits state:', e);
-    return res.status(500).json({ error: 'Failed to get credits state' });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.state_fetch_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const getCreditsReconnectWindow = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
-  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+  if (!channelId)
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
 
   try {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
       select: { creditsReconnectWindowMinutes: true },
     });
-    const minutes = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
-      ? Number((channel as any).creditsReconnectWindowMinutes)
+    const minutes = Number.isFinite(channel?.creditsReconnectWindowMinutes)
+      ? Number(channel?.creditsReconnectWindowMinutes)
       : 60;
     return res.json({ creditsReconnectWindowMinutes: minutes });
-  } catch (e: any) {
-    console.error('Error getting creditsReconnectWindowMinutes:', e);
-    return res.status(500).json({ error: 'Failed to get reconnect window' });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.reconnect_window_fetch_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const getCreditsIgnoredChatters = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
-  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+  if (!channelId)
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
 
   try {
     const ch = await prisma.channel.findUnique({
       where: { id: channelId },
       select: { creditsIgnoredChattersJson: true },
     });
-    const list = Array.isArray((ch as any)?.creditsIgnoredChattersJson) ? (ch as any).creditsIgnoredChattersJson : [];
+    const list = Array.isArray(ch?.creditsIgnoredChattersJson) ? ch?.creditsIgnoredChattersJson : [];
     return res.json({ creditsIgnoredChatters: list });
-  } catch (e: any) {
-    console.error('Error getting credits ignored chatters:', e);
-    return res.status(500).json({ error: 'Failed to get ignored chatters' });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.ignored_chatters_fetch_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
 
 export const setCreditsIgnoredChatters = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
-  if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+  if (!channelId)
+    return res
+      .status(400)
+      .json({ errorCode: ERROR_CODES.MISSING_CHANNEL_ID, error: ERROR_MESSAGES.MISSING_CHANNEL_ID });
 
-  const raw = (req.body as any)?.creditsIgnoredChatters;
+  const raw = asRecord(req.body).creditsIgnoredChatters;
   const arr = Array.isArray(raw) ? raw : [];
   const cleaned: string[] = [];
   for (const v of arr) {
@@ -381,14 +441,12 @@ export const setCreditsIgnoredChatters = async (req: AuthRequest, res: Response)
   try {
     const updated = await prisma.channel.update({
       where: { id: channelId },
-      data: { creditsIgnoredChattersJson: capped as any },
+      data: { creditsIgnoredChattersJson: capped },
       select: { creditsIgnoredChattersJson: true },
     });
-    return res.json({ creditsIgnoredChatters: (updated as any)?.creditsIgnoredChattersJson ?? capped });
-  } catch (e: any) {
-    console.error('Error setting credits ignored chatters:', e);
-    return res.status(500).json({ error: 'Failed to set ignored chatters' });
+    return res.json({ creditsIgnoredChatters: updated?.creditsIgnoredChattersJson ?? capped });
+  } catch (e: unknown) {
+    logger.error('credits_overlay.ignored_chatters_set_failed', { errorMessage: getErrorMessage(e) });
+    return res.status(500).json({ errorCode: ERROR_CODES.INTERNAL_ERROR, error: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 };
-
-

@@ -24,5 +24,3 @@ describe('boostyDiscordTierRoles validation', () => {
     expect(result.success).toBe(false);
   });
 });
-
-

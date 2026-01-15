@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 function appendSchemaToPostgresUrl(baseUrl: string, schema: string): string {
   const url = new URL(baseUrl);
@@ -39,9 +41,15 @@ export default async function globalSetup() {
   // (some migrations were created assuming pre-existing tables).
   // For CI tests we need a deterministic "create schema from current Prisma schema" step,
   // therefore we use `prisma db push`.
-  const bootstrap = spawnSync('pnpm', ['prisma', 'db', 'push', '--accept-data-loss'], {
+  const pnpmCmd =
+    process.platform === 'win32'
+      ? path.join(process.env.APPDATA || '', 'npm', 'pnpm.cmd')
+      : 'pnpm';
+  const pnpmExec = process.platform === 'win32' && fs.existsSync(pnpmCmd) ? pnpmCmd : 'pnpm';
+  const bootstrap = spawnSync(pnpmExec, ['prisma', 'db', 'push', '--accept-data-loss'], {
     stdio: 'inherit',
     env: process.env as NodeJS.ProcessEnv,
+    shell: process.platform === 'win32',
   });
   if (bootstrap.status !== 0) {
     throw new Error(`prisma db push failed with exit code ${bootstrap.status}`);
@@ -55,5 +63,3 @@ export default async function globalSetup() {
     }
   };
 }
-
-

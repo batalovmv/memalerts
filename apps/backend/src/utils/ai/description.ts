@@ -1,4 +1,8 @@
-export function makeAutoDescription(args: { title?: string | null; transcript?: string | null; labels?: string[] }): string | null {
+export function makeAutoDescription(args: {
+  title?: string | null;
+  transcript?: string | null;
+  labels?: string[];
+}): string | null {
   const t = String(args.transcript || '').trim();
   const lines = t
     .split(/[.!?]\s+/g)
@@ -26,5 +30,3 @@ export function makeAutoDescription(args: { title?: string | null; transcript?: 
   const base = parts.length > 0 ? parts.join('. ') : 'Видео без распознанной речи.';
   return labelHint ? `${base}. Метки: ${labelHint}.` : base;
 }
-
-

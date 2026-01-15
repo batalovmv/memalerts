@@ -53,21 +53,22 @@ export const getMe = async (req: AuthRequest, res: Response) => {
 
     // Used by frontend to enable /moderation UX without extra round-trips.
     // Admin is always allowed; otherwise this reflects an active GlobalModerator grant (revokedAt IS NULL).
-    const isGlobalModerator = user.role === 'admin' || (Boolean(user.globalModerator) && !user.globalModerator?.revokedAt);
+    const isGlobalModerator =
+      user.role === 'admin' || (Boolean(user.globalModerator) && !user.globalModerator?.revokedAt);
 
     const externalAccounts = user.externalAccounts.map((a) => {
-      const provider = String((a as any)?.provider || '').toLowerCase();
+      const provider = String(a.provider || '').toLowerCase();
       if (provider === 'youtube') {
-        const channelId = String((a as any)?.login || '').trim();
-        const profileUrl = (a as any)?.profileUrl ?? null;
+        const channelId = String(a.login || '').trim();
+        const profileUrl = a.profileUrl ?? null;
         if (!profileUrl && channelId) {
           return { ...a, profileUrl: `https://www.youtube.com/channel/${channelId}` };
         }
       }
       if (provider === 'vkvideo') {
-        const profileUrl = normalizeVkVideoProfileUrl((a as any)?.profileUrl ?? null) ?? ((a as any)?.profileUrl ?? null);
-        const displayName = (a as any)?.displayName ?? null;
-        const login = (a as any)?.login ?? null;
+        const profileUrl = normalizeVkVideoProfileUrl(a.profileUrl ?? null) ?? a.profileUrl ?? null;
+        const displayName = a.displayName ?? null;
+        const login = a.login ?? null;
         return { ...a, profileUrl, displayName: displayName ?? (login ? String(login) : null) };
       }
       return a;
@@ -85,15 +86,13 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       // Backward compatibility: legacy enum value "vkplay" should be presented as "vk" to the frontend.
       externalAccounts: externalAccounts.map((a) => ({
         ...a,
-        provider: a.provider === ('vkplay' as any) ? ('vk' as any) : a.provider,
+        provider: a.provider === 'vkplay' ? 'vk' : a.provider,
       })),
     };
     debugLog('[DEBUG] getMe sending response', { userId: user.id, hasChannel: !!user.channelId });
     res.json(response);
-  } catch (error: any) {
-    debugError('[DEBUG] getMe error', error);
+  } catch (error) {
+    debugError('[DEBUG] getMe error', error as Error);
     throw error;
   }
 };
-
-

@@ -4,9 +4,9 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
 import { setupRoutes } from '../src/routes/index.js';
-import { prisma } from '../src/lib/prisma.js';
+import { createChannel, createUser } from './factories/index.js';
 
-function makeJwt(payload: Record<string, any>): string {
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -31,7 +31,7 @@ describe('beta/prod routing: GET /channels/:slug', () => {
 
   it('production is public; beta is gated (guest 403, user without access 403, user with access 200)', async () => {
     const slug = `chan_${Date.now()}`;
-    await prisma.channel.create({ data: { slug, name: 'Test Channel' } });
+    await createChannel({ slug, name: 'Test Channel' });
 
     // Production: guest can read
     process.env.DOMAIN = 'example.com';
@@ -46,9 +46,7 @@ describe('beta/prod routing: GET /channels/:slug', () => {
     expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
 
     // Beta: authenticated but no beta access -> 403
-    const userNo = await prisma.user.create({
-      data: { displayName: 'NoAccess', role: 'viewer', hasBetaAccess: false },
-    });
+    const userNo = await createUser({ displayName: 'NoAccess', role: 'viewer', hasBetaAccess: false });
     const tokenNo = makeJwt({ userId: userNo.id, role: userNo.role });
     res = await request(makeApp())
       .get(`/channels/${slug}?includeMemes=false`)
@@ -58,9 +56,7 @@ describe('beta/prod routing: GET /channels/:slug', () => {
     expect(res.body?.errorCode).toBe('BETA_ACCESS_REQUIRED');
 
     // Beta: authenticated with beta access -> 200
-    const userYes = await prisma.user.create({
-      data: { displayName: 'HasAccess', role: 'viewer', hasBetaAccess: true },
-    });
+    const userYes = await createUser({ displayName: 'HasAccess', role: 'viewer', hasBetaAccess: true });
     const tokenYes = makeJwt({ userId: userYes.id, role: userYes.role });
     res = await request(makeApp())
       .get(`/channels/${slug}?includeMemes=false`)
@@ -70,5 +66,3 @@ describe('beta/prod routing: GET /channels/:slug', () => {
     expect(res.body?.slug).toBe(slug);
   });
 });
-
-

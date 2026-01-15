@@ -13,8 +13,12 @@ function newToken(): string {
 }
 
 function getBaseUrl(req: Request): string {
-  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0]?.trim();
-  const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0]?.trim();
+  const forwardedProto = String(req.get('x-forwarded-proto') || '')
+    .split(',')[0]
+    ?.trim();
+  const forwardedHost = String(req.get('x-forwarded-host') || '')
+    .split(',')[0]
+    ?.trim();
   const proto = forwardedProto || req.protocol || 'https';
   const host = forwardedHost || req.get('host') || process.env.DOMAIN || 'localhost';
   return `${proto}://${host}`;
@@ -95,5 +99,3 @@ export const submissionsControlController = {
     });
   },
 };
-
-

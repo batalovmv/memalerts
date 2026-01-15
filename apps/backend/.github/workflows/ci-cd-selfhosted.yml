@@ -13,6 +13,20 @@ on:
         required: false
         type: boolean
         default: false
+      enable_canary:
+        description: 'Enable beta canary deployment (traffic split)'
+        required: false
+        type: boolean
+        default: false
+      canary_percent:
+        description: 'Beta canary traffic percentage (0-50)'
+        required: false
+        default: '10'
+      auto_promote:
+        description: 'Auto-promote canary after 10 minutes of healthy checks'
+        required: false
+        type: boolean
+        default: false
 
 env:
   NODE_VERSION: '20'
@@ -69,6 +83,40 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm prisma generate
 
+      - name: npm audit (high+)
+        id: npm_audit
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high
+
+      - name: Snyk scan
+        id: snyk_scan
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+      - name: Typecheck
+        shell: bash
+        run: pnpm typecheck
+
+      - name: Lint
+        shell: bash
+        run: pnpm lint
+
+      - name: Guard any count
+        shell: bash
+        run: pnpm guard:any
+
+      - name: Format check
+        shell: bash
+        run: pnpm format:check
+
       - name: Wait for Postgres
         shell: bash
         run: |
@@ -89,6 +137,59 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           pnpm test:ci
+
+      - name: Coverage drop check
+        shell: bash
+        run: pnpm coverage:check
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          flags: backend
+          fail_ci_if_error: true
+
+      - name: Notify Slack on security findings
+        if: >-
+          ${{
+            always() &&
+            (steps.npm_audit.outcome == 'failure' || steps.snyk_scan.outcome == 'failure') &&
+            secrets.SLACK_SECURITY_WEBHOOK_URL != ''
+          }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "Memalerts backend security scan failures in CI.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Security scan findings detected*\nRepository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK_URL }}
+
+      - name: Fail on security findings
+        if: ${{ always() && (steps.npm_audit.outcome == 'failure' || steps.snyk_scan.outcome == 'failure') }}
+        shell: bash
+        run: |
+          echo "Security scan failures detected."
+          exit 1
 
   deploy-production:
     name: Deploy production on VPS (self-hosted)
@@ -136,6 +237,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Deploy production (build + migrate + restart)
+        id: deploy_production
         shell: bash
         run: |
           set -euo pipefail
@@ -153,6 +255,77 @@ jobs:
             exit 1
           fi
 
+          ROLLBACK_DIR="$APP_DIR/.rollback"
+          ROLLBACK_COOLDOWN_SECONDS=600
+          PREV_SHA=""
+
+          mkdir -p "$ROLLBACK_DIR"
+          if [ -d "$APP_DIR/.git" ]; then
+            PREV_SHA="$(git -C "$APP_DIR" rev-parse HEAD)"
+            echo "$PREV_SHA" > "$ROLLBACK_DIR/previous_sha"
+            echo "$(date -u +%FT%TZ)" > "$ROLLBACK_DIR/previous_recorded_at"
+          fi
+
+          log_rollback_event() {
+            local status="$1"
+            local message="$2"
+            local now
+            now="$(date -u +%FT%TZ)"
+            echo "${now} status=${status} from=${GITHUB_SHA} to=${PREV_SHA:-unknown} reason=healthcheck_failed message=${message}" >> "$ROLLBACK_DIR/rollback.log"
+          }
+
+          attempt_rollback() {
+            if [ -z "$PREV_SHA" ]; then
+              log_rollback_event "skipped" "no_previous_sha"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            local now
+            now=$(date +%s)
+            local last
+            last=0
+            if [ -f "$ROLLBACK_DIR/last_rollback_at" ]; then
+              last=$(cat "$ROLLBACK_DIR/last_rollback_at" || echo 0)
+            fi
+            if [ $((now - last)) -lt "$ROLLBACK_COOLDOWN_SECONDS" ]; then
+              log_rollback_event "skipped" "cooldown"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            echo "Rolling back to $PREV_SHA ..."
+            git -C "$APP_DIR" checkout "$PREV_SHA"
+            pnpm install --frozen-lockfile
+            pnpm build
+            pnpm prisma migrate deploy
+
+            pm2 stop "$PM2_NAME" 2>/dev/null || true
+            pm2 delete "$PM2_NAME" 2>/dev/null || true
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env
+            pm2 save
+
+            local rollback_ok=0
+            for i in $(seq 1 30); do
+              if curl -fsS --max-time 2 http://127.0.0.1:3001/health >/dev/null; then
+                rollback_ok=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$rollback_ok" = "1" ]; then
+              echo "$(date +%s)" > "$ROLLBACK_DIR/last_rollback_at"
+              log_rollback_event "rolled_back" "health_ok"
+              echo "rollback_status=rolled_back" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+
+            log_rollback_event "failed" "health_check_failed_after_rollback"
+            echo "rollback_status=failed" >> "$GITHUB_OUTPUT"
+            return 1
+          }
+
           echo "Syncing repo -> $APP_DIR ..."
           sudo rsync -a --delete \
             --exclude node_modules \
@@ -166,10 +339,10 @@ jobs:
           # NOTE: The workflow intentionally excludes .env from rsync, so values must exist on VPS.
           # If you manage some envs via GitHub Secrets, add them here explicitly.
 
-          # OpenAI (AI moderation)
-          if [ -n "${{ secrets.AI_MODERATION_ENABLED }}" ]; then
-            KEY="AI_MODERATION_ENABLED"
-            VAL="${{ secrets.AI_MODERATION_ENABLED }}"
+          # OpenAI (AI moderation worker)
+          if [ -n "${{ secrets.AI_BULLMQ_ENABLED }}" ]; then
+            KEY="AI_BULLMQ_ENABLED"
+            VAL="${{ secrets.AI_BULLMQ_ENABLED }}"
             if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
               sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
             else
@@ -219,12 +392,12 @@ jobs:
           fi
 
           # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
-          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
           case "$AI_ENABLED_NORM" in
             1|true|yes|on)
               if ! grep -qE '^OPENAI_API_KEY=.+$' "$APP_DIR/.env"; then
-                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
                 exit 1
               fi
               ;;
@@ -360,13 +533,14 @@ jobs:
           if [ "$HEALTH_OK" != "1" ]; then
             echo "❌ Healthcheck failed (production). Recent logs:"
             pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+            attempt_rollback || true
             exit 1
           fi
 
-          echo "Checking AI moderation scheduler startup (production)..."
+          echo "Checking AI moderation worker startup (production)..."
           LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
           for i in $(seq 1 25); do
-            if [ -f "$LOG_FILE" ] && grep -qE 'ai_moderation\.scheduler\.(enabled|disabled)' "$LOG_FILE"; then
+            if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
               break
             fi
             sleep 1
@@ -377,31 +551,52 @@ jobs:
             exit 1
           fi
 
-          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
-          if grep -qE 'ai_moderation\.scheduler\.enabled' "$LOG_FILE"; then
-            echo "✅ AI moderation scheduler started (production)"
+          if grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
+            echo "✅ AI moderation worker started (production)"
           else
             case "$AI_ENABLED_NORM" in
               1|true|yes|on)
-                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but scheduler did NOT start (no ai_moderation.scheduler.enabled in logs)"
-                echo "Recent scheduler logs:"
-                grep -nE 'ai_moderation\.scheduler\.' "$LOG_FILE" | tail -n 30 || true
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
+                echo "Recent worker logs:"
+                grep -nE 'ai\\.queue\\.' "$LOG_FILE" | tail -n 30 || true
                 exit 1
                 ;;
               *)
-                echo "ℹ️ AI moderation is disabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+                echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
                 ;;
             esac
           fi
 
-          if grep -qE 'ai_moderation\.openai\.disabled' "$LOG_FILE"; then
-            echo "⚠️ OpenAI pipeline is disabled/unavailable (production). See logs for reason."
-            grep -nE 'ai_moderation\.openai\.disabled' "$LOG_FILE" | tail -n 5 || true
-          fi
-
           echo "✅ Production deployed"
+          echo "rollback_status=none" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Notify Slack on auto-rollback (production)
+        if: >-
+          ${{
+            always() &&
+            steps.deploy_production.outputs.rollback_status == 'rolled_back' &&
+            secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+          }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "Memalerts production auto-rollback executed.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Auto-rollback executed (production)*\nRepository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
 
   deploy-beta:
     name: Deploy beta on VPS (self-hosted)
@@ -493,6 +688,7 @@ jobs:
           sudo bash .github/scripts/setup-nginx-full.sh twitchmemes.ru 3001 3002
 
       - name: Deploy beta (build + migrate + restart)
+        id: deploy_beta
         shell: bash
         if: steps.decide.outputs.deploy == 'true'
         run: |
@@ -511,6 +707,77 @@ jobs:
             exit 1
           fi
 
+          ROLLBACK_DIR="$APP_DIR/.rollback"
+          ROLLBACK_COOLDOWN_SECONDS=600
+          PREV_SHA=""
+
+          mkdir -p "$ROLLBACK_DIR"
+          if [ -d "$APP_DIR/.git" ]; then
+            PREV_SHA="$(git -C "$APP_DIR" rev-parse HEAD)"
+            echo "$PREV_SHA" > "$ROLLBACK_DIR/previous_sha"
+            echo "$(date -u +%FT%TZ)" > "$ROLLBACK_DIR/previous_recorded_at"
+          fi
+
+          log_rollback_event() {
+            local status="$1"
+            local message="$2"
+            local now
+            now="$(date -u +%FT%TZ)"
+            echo "${now} status=${status} from=${GITHUB_SHA} to=${PREV_SHA:-unknown} reason=healthcheck_failed message=${message}" >> "$ROLLBACK_DIR/rollback.log"
+          }
+
+          attempt_rollback() {
+            if [ -z "$PREV_SHA" ]; then
+              log_rollback_event "skipped" "no_previous_sha"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            local now
+            now=$(date +%s)
+            local last
+            last=0
+            if [ -f "$ROLLBACK_DIR/last_rollback_at" ]; then
+              last=$(cat "$ROLLBACK_DIR/last_rollback_at" || echo 0)
+            fi
+            if [ $((now - last)) -lt "$ROLLBACK_COOLDOWN_SECONDS" ]; then
+              log_rollback_event "skipped" "cooldown"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            echo "Rolling back to $PREV_SHA ..."
+            git -C "$APP_DIR" checkout "$PREV_SHA"
+            pnpm install --frozen-lockfile
+            pnpm build
+            pnpm prisma migrate deploy
+
+            pm2 stop "$PM2_NAME" 2>/dev/null || true
+            pm2 delete "$PM2_NAME" 2>/dev/null || true
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env
+            pm2 save
+
+            local rollback_ok=0
+            for i in $(seq 1 30); do
+              if curl -fsS --max-time 2 http://127.0.0.1:3002/health >/dev/null; then
+                rollback_ok=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$rollback_ok" = "1" ]; then
+              echo "$(date +%s)" > "$ROLLBACK_DIR/last_rollback_at"
+              log_rollback_event "rolled_back" "health_ok"
+              echo "rollback_status=rolled_back" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+
+            log_rollback_event "failed" "health_check_failed_after_rollback"
+            echo "rollback_status=failed" >> "$GITHUB_OUTPUT"
+            return 1
+          }
+
           echo "Syncing repo -> $APP_DIR ..."
           sudo rsync -a --delete \
             --exclude node_modules \
@@ -521,10 +788,10 @@ jobs:
           cd "$APP_DIR"
 
           # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
-          # OpenAI (AI moderation) - prefer beta-specific secret when present.
-          if [ -n "${{ secrets.AI_MODERATION_ENABLED_BETA || secrets.AI_MODERATION_ENABLED }}" ]; then
-            KEY="AI_MODERATION_ENABLED"
-            VAL="${{ secrets.AI_MODERATION_ENABLED_BETA || secrets.AI_MODERATION_ENABLED }}"
+          # OpenAI (AI moderation worker) - prefer beta-specific secret when present.
+          if [ -n "${{ secrets.AI_BULLMQ_ENABLED_BETA || secrets.AI_BULLMQ_ENABLED }}" ]; then
+            KEY="AI_BULLMQ_ENABLED"
+            VAL="${{ secrets.AI_BULLMQ_ENABLED_BETA || secrets.AI_BULLMQ_ENABLED }}"
             if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
               sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
             else
@@ -574,12 +841,12 @@ jobs:
           fi
 
           # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
-          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
           case "$AI_ENABLED_NORM" in
             1|true|yes|on)
               if ! grep -qE '^OPENAI_API_KEY=.+$' "$APP_DIR/.env"; then
-                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
                 exit 1
               fi
               ;;
@@ -715,13 +982,14 @@ jobs:
           if [ "$HEALTH_OK" != "1" ]; then
             echo "❌ Healthcheck failed (beta). Recent logs:"
             pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+            attempt_rollback || true
             exit 1
           fi
 
-          echo "Checking AI moderation scheduler startup (beta)..."
+          echo "Checking AI moderation worker startup (beta)..."
           LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
           for i in $(seq 1 25); do
-            if [ -f "$LOG_FILE" ] && grep -qE 'ai_moderation\.scheduler\.(enabled|disabled)' "$LOG_FILE"; then
+            if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
               break
             fi
             sleep 1
@@ -732,30 +1000,95 @@ jobs:
             exit 1
           fi
 
-          AI_ENABLED_RAW="$(grep -E '^AI_MODERATION_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
-          if grep -qE 'ai_moderation\.scheduler\.enabled' "$LOG_FILE"; then
-            echo "✅ AI moderation scheduler started (beta)"
+          if grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
+            echo "✅ AI moderation worker started (beta)"
           else
             case "$AI_ENABLED_NORM" in
               1|true|yes|on)
-                echo "❌ AI moderation is enabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>}) but scheduler did NOT start (no ai_moderation.scheduler.enabled in logs)"
-                echo "Recent scheduler logs:"
-                grep -nE 'ai_moderation\.scheduler\.' "$LOG_FILE" | tail -n 30 || true
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
+                echo "Recent worker logs:"
+                grep -nE 'ai\\.queue\\.' "$LOG_FILE" | tail -n 30 || true
                 exit 1
                 ;;
               *)
-                echo "ℹ️ AI moderation is disabled (AI_MODERATION_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+                echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
                 ;;
             esac
           fi
 
-          if grep -qE 'ai_moderation\.openai\.disabled' "$LOG_FILE"; then
-            echo "⚠️ OpenAI pipeline is disabled/unavailable (beta). See logs for reason."
-            grep -nE 'ai_moderation\.openai\.disabled' "$LOG_FILE" | tail -n 5 || true
-          fi
-
           echo "✅ Beta deployed"
+          echo "rollback_status=none" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Start beta canary (optional)
+        if: >-
+          ${{
+            steps.decide.outputs.deploy == 'true' &&
+            (contains(github.event.head_commit.message, '[canary]') || contains(github.event.head_commit.message, '[canary-auto]') || inputs.enable_canary == true)
+          }}
+        shell: bash
+        run: |
+          set -euo pipefail
 
+          APP_DIR="/opt/memalerts-backend-beta"
+          PM2_NAME="memalerts-api-beta-canary"
+          CANARY_PORT="3003"
+          CANARY_PERCENT="${{ inputs.canary_percent }}"
+          if [ -z "$CANARY_PERCENT" ]; then
+            CANARY_PERCENT="10"
+          fi
+
+          cd "$APP_DIR"
+          PORT="$CANARY_PORT" INSTANCE_ID="beta-canary" pm2 start dist/index.js --name "$PM2_NAME" --update-env
+          pm2 save
+
+          sudo bash .github/scripts/enable-beta-canary.sh 3002 "$CANARY_PORT" "$CANARY_PERCENT"
+
+      - name: Auto-promote beta canary (optional)
+        if: >-
+          ${{
+            steps.decide.outputs.deploy == 'true' &&
+            (contains(github.event.head_commit.message, '[canary-auto]') || inputs.auto_promote == true)
+          }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CANARY_PORT="3003"
+          echo "Waiting 10 minutes for canary health before promotion..."
+          for i in $(seq 1 60); do
+            if ! curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/health" >/dev/null; then
+              echo "❌ Canary health check failed; aborting promotion."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          sudo bash .github/scripts/promote-beta-canary.sh 3002 "$CANARY_PORT"
+
+      - name: Notify Slack on auto-rollback (beta)
+        if: >-
+          ${{
+            always() &&
+            steps.deploy_beta.outputs.rollback_status == 'rolled_back' &&
+            secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+          }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "Memalerts beta auto-rollback executed.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Auto-rollback executed (beta)*\nRepository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}

@@ -1,4 +1,5 @@
-import { Server } from 'socket.io';
+import type { Server } from 'socket.io';
+import { logger } from '../utils/logger.js';
 
 export type WalletUpdatedEvent = {
   userId: string;
@@ -47,15 +48,14 @@ export async function relayWalletUpdatedToPeer(data: WalletUpdatedEvent): Promis
     });
   } catch (err) {
     // Non-fatal: local emit already happened.
-    console.warn('[walletBridge] relay to peer failed (continuing):', (err as any)?.message || err);
+    const error = err as { message?: string };
+    logger.warn('wallet_bridge.relay_failed', { errorMessage: error?.message || String(err) });
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export function isInternalWalletRelayRequest(headers: Record<string, any>): boolean {
+export function isInternalWalletRelayRequest(headers: Record<string, unknown>): boolean {
   const v = headers[INTERNAL_HEADER] || headers[INTERNAL_HEADER.toLowerCase()];
   return v === INTERNAL_HEADER_VALUE;
 }
-
-

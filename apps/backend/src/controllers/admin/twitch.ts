@@ -5,6 +5,10 @@ import { getChannelInformation } from '../../utils/twitchApi.js';
 import { logger } from '../../utils/logger.js';
 import { isBetaBackend } from '../../utils/envMode.js';
 
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const getTwitchRewardEligibility = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
   const userId = req.userId;
@@ -93,19 +97,18 @@ export const getTwitchRewardEligibility = async (req: AuthRequest, res: Response
           }
         : {}),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errorMessage = getErrorMessage(e);
     logger.error('twitch.eligibility.failed', {
       requestId: req.requestId,
       userId,
       channelId,
       broadcasterId: channel.twitchChannelId,
-      errorMessage: e?.message,
+      errorMessage,
     });
     return res.status(502).json({
-      error: e?.message || 'Failed to check Twitch channel eligibility',
+      error: errorMessage || 'Failed to check Twitch channel eligibility',
       errorCode: 'TWITCH_ELIGIBILITY_CHECK_FAILED',
     });
   }
 };
-
-

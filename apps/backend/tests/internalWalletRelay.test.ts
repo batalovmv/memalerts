@@ -4,11 +4,11 @@ import { setupRoutes } from '../src/routes/index.js';
 
 describe('internal relay: /internal/wallet-updated', () => {
   it('requires localhost + internal header and emits only to user room', async () => {
-    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    const emitted: Array<{ room: string; event: string; payload: unknown }> = [];
     const fakeIo = {
       to(room: string) {
         return {
-          emit(event: string, payload: any) {
+          emit(event: string, payload: unknown) {
             emitted.push({ room, event, payload });
           },
         };
@@ -21,9 +21,7 @@ describe('internal relay: /internal/wallet-updated', () => {
     setupRoutes(app);
 
     // Missing internal header => 404 (must not expose internal endpoints)
-    let res = await request(app)
-      .post('/internal/wallet-updated')
-      .send({ userId: 'u1', channelId: 'c1', balance: 10 });
+    let res = await request(app).post('/internal/wallet-updated').send({ userId: 'u1', channelId: 'c1', balance: 10 });
     expect(res.status).toBe(404);
 
     // With header but invalid payload => 400
@@ -47,5 +45,3 @@ describe('internal relay: /internal/wallet-updated', () => {
     expect(emitted[0].payload?.balance).toBe(10);
   });
 });
-
-

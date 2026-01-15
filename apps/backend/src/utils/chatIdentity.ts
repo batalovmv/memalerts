@@ -87,5 +87,3 @@ export async function resolveMemalertsUserIdFromChatIdentity(params: {
   cache.set(key, { userId, ts: Date.now() });
   return userId;
 }
-
-

@@ -1,0 +1,43 @@
+import type { Express } from 'express';
+import type { AuthRequest } from '../../middleware/auth.js';
+import { requireBetaAccess } from '../../middleware/betaAccess.js';
+
+export function registerBetaAccessMiddleware(app: Express) {
+  app.use((req, res, next) => {
+    const isSkipped =
+      req.path.startsWith('/beta/request') ||
+      req.path.startsWith('/beta/status') ||
+      req.path === '/health' ||
+      req.path === '/healthz' ||
+      req.path === '/readyz' ||
+      req.path === '/health/workers' ||
+      req.path === '/metrics' ||
+      req.path === '/csp-report' ||
+      req.path.startsWith('/admin/queues') ||
+      req.path.startsWith('/public/submissions/') ||
+      req.path.startsWith('/public/channels/') ||
+      /^\/overlay\/credits\/t\/[^\/]+$/.test(req.path) ||
+      req.path.startsWith('/auth/twitch') ||
+      req.path === '/auth/logout' ||
+      req.path.startsWith('/uploads') ||
+      /^\/memes\/[^\/]+\/activate$/.test(req.path) ||
+      req.path === '/me' ||
+      req.path === '/me/preferences' ||
+      req.path === '/wallet' ||
+      req.path === '/memes' ||
+      req.path === '/memes/pool' ||
+      req.path.startsWith('/streamer') ||
+      req.path.startsWith('/owner') ||
+      req.path.startsWith('/moderation') ||
+      req.path.startsWith('/submissions') ||
+      /^\/channels\/[^\/]+$/.test(req.path) ||
+      /^\/channels\/[^\/]+\/wallet$/.test(req.path) ||
+      /^\/channels\/[^\/]+\/memes$/.test(req.path) ||
+      req.path.startsWith('/channels/memes/search') ||
+      req.path === '/memes/stats';
+    if (isSkipped) {
+      return next();
+    }
+    void requireBetaAccess(req as AuthRequest, res, next);
+  });
+}

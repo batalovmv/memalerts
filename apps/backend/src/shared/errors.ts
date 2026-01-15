@@ -1,9 +1,11 @@
 export const ERROR_CODES = {
   BAD_REQUEST: 'BAD_REQUEST',
+  INVALID_LIMIT: 'INVALID_LIMIT',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   UNAUTHORIZED: 'UNAUTHORIZED',
   SESSION_EXPIRED: 'SESSION_EXPIRED',
   FORBIDDEN: 'FORBIDDEN',
+  ROLE_REQUIRED: 'ROLE_REQUIRED',
   BETA_ACCESS_REQUIRED: 'BETA_ACCESS_REQUIRED',
   CSRF_INVALID: 'CSRF_INVALID',
   NOT_FOUND: 'NOT_FOUND',
@@ -24,6 +26,8 @@ export const ERROR_CODES = {
   TROVO_BOT_NOT_CONFIGURED: 'TROVO_BOT_NOT_CONFIGURED',
   KICK_BOT_NOT_CONFIGURED: 'KICK_BOT_NOT_CONFIGURED',
   // Submissions / uploads
+  STREAMER_SUBMISSIONS_DISABLED: 'STREAMER_SUBMISSIONS_DISABLED',
+  ONLY_WHEN_LIVE: 'ONLY_WHEN_LIVE',
   SUBMISSIONS_DISABLED: 'SUBMISSIONS_DISABLED',
   SUBMISSIONS_OFFLINE: 'SUBMISSIONS_OFFLINE',
   SUBMISSION_NOT_FOUND: 'SUBMISSION_NOT_FOUND',
@@ -42,6 +46,7 @@ export const ERROR_CODES = {
   ASSET_PURGED_OR_QUARANTINED: 'ASSET_PURGED_OR_QUARANTINED',
   INVALID_FILE_TYPE: 'INVALID_FILE_TYPE',
   INVALID_FILE_CONTENT: 'INVALID_FILE_CONTENT',
+  TRANSCODE_FAILED: 'TRANSCODE_FAILED',
   RATE_LIMITED: 'RATE_LIMITED',
   TIMEOUT: 'TIMEOUT',
   // Twitch / rewards
@@ -70,10 +75,12 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   BAD_REQUEST: 'Bad request',
+  INVALID_LIMIT: 'Invalid limit',
   VALIDATION_ERROR: 'Validation failed',
   UNAUTHORIZED: 'Unauthorized',
   SESSION_EXPIRED: 'Session expired',
   FORBIDDEN: 'Forbidden',
+  ROLE_REQUIRED: 'Role required',
   BETA_ACCESS_REQUIRED: 'Beta access required',
   CSRF_INVALID: 'CSRF validation failed',
   NOT_FOUND: 'Not found',
@@ -92,6 +99,8 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   VKVIDEO_BOT_NOT_CONFIGURED: 'VKVideo bot is not configured',
   TROVO_BOT_NOT_CONFIGURED: 'Trovo bot is not configured',
   KICK_BOT_NOT_CONFIGURED: 'Kick bot is not configured',
+  STREAMER_SUBMISSIONS_DISABLED: 'Submissions are disabled for this channel',
+  ONLY_WHEN_LIVE: 'Submissions are allowed only while the stream is live',
   SUBMISSIONS_DISABLED: 'Submissions are disabled for this channel',
   SUBMISSIONS_OFFLINE: 'Submissions are allowed only while the stream is live',
   SUBMISSION_NOT_FOUND: 'Submission not found',
@@ -110,6 +119,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   ASSET_PURGED_OR_QUARANTINED: 'Asset is quarantined or purged',
   INVALID_FILE_TYPE: 'Invalid file type',
   INVALID_FILE_CONTENT: 'Invalid file content',
+  TRANSCODE_FAILED: 'Failed to transcode media',
   RATE_LIMITED: 'Too many requests',
   TIMEOUT: 'Request timed out',
   TWITCH_CHANNEL_NOT_LINKED: 'Twitch channel is not linked',
@@ -135,11 +145,12 @@ export type ApiErrorResponse = {
   errorCode: ErrorCode;
   error: string;
   requestId?: string;
+  traceId?: string | null;
   details?: unknown;
 };
 
 export function isErrorCode(v: unknown): v is ErrorCode {
-  return typeof v === 'string' && Object.values(ERROR_CODES).includes(v as any);
+  return typeof v === 'string' && Object.values(ERROR_CODES).includes(v as ErrorCode);
 }
 
 export function defaultErrorCodeForStatus(status: number): ErrorCode {
@@ -159,5 +170,3 @@ export function defaultErrorCodeForStatus(status: number): ErrorCode {
   if (status === 503) return ERROR_CODES.RELAY_UNAVAILABLE;
   return ERROR_CODES.INTERNAL_ERROR;
 }
-
-

@@ -4,11 +4,11 @@ import { setupRoutes } from '../src/routes/index.js';
 
 describe('internal relay: /internal/submission-event', () => {
   it('requires internal header and validates body; emits to channel:{slugLower} and optional user rooms', async () => {
-    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    const emitted: Array<{ room: string; event: string; payload: unknown }> = [];
     const fakeIo = {
       to(room: string) {
         return {
-          emit(event: string, payload: any) {
+          emit(event: string, payload: unknown) {
             emitted.push({ room, event, payload });
           },
         };
@@ -63,5 +63,3 @@ describe('internal relay: /internal/submission-event', () => {
     expect(emitted[2].room).toBe('user:u2');
   });
 });
-
-

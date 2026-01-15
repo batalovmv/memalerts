@@ -1,8 +1,10 @@
 import express from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { webhookRoutes } from '../src/routes/webhooks.js';
+import { createChannel, createChatBotCommand, createKickChatBotSubscription, createUser } from './factories/index.js';
 
 function rand(): string {
   return Math.random().toString(16).slice(2);
@@ -14,7 +16,7 @@ function makeApp() {
   app.use(
     express.json({
       verify: (req, _res, buf) => {
-        (req as any).rawBody = buf;
+        (req as { rawBody?: Buffer }).rawBody = buf;
       },
     })
   );
@@ -28,40 +30,32 @@ describe('webhooks: /webhooks/kick/events (chat.message.sent)', () => {
     process.env.KICK_WEBHOOK_PUBLIC_KEY_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.KICK_WEBHOOK_REPLAY_WINDOW_MS = String(10 * 60 * 1000);
 
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-      } as any,
-      select: { id: true, slug: true },
-    });
-    const user = await prisma.user.create({
-      data: { displayName: `Streamer ${rand()}`, role: 'streamer', hasBetaAccess: true } as any,
-      select: { id: true },
+    const channel = await createChannel({
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+    } satisfies Prisma.ChannelCreateInput);
+    const user = await createUser({
+      displayName: `Streamer ${rand()}`,
+      role: 'streamer',
+      hasBetaAccess: true,
+    } satisfies Prisma.UserCreateInput);
+
+    await createKickChatBotSubscription({
+      channelId: channel.id,
+      userId: user.id,
+      kickChannelId: '123',
+      enabled: true,
     });
 
-    await (prisma as any).kickChatBotSubscription.create({
-      data: {
-        channelId: channel.id,
-        userId: user.id,
-        kickChannelId: '123',
-        enabled: true,
-      },
-      select: { id: true },
-    });
-
-    await (prisma as any).chatBotCommand.create({
-      data: {
-        channelId: channel.id,
-        trigger: 'hello',
-        triggerNormalized: 'hello',
-        response: 'world',
-        enabled: true,
-        onlyWhenLive: false,
-        allowedUsers: [],
-        allowedRoles: [],
-      },
-      select: { id: true },
+    await createChatBotCommand({
+      channelId: channel.id,
+      trigger: 'hello',
+      triggerNormalized: 'hello',
+      response: 'world',
+      enabled: true,
+      onlyWhenLive: false,
+      allowedUsers: [],
+      allowedRoles: [],
     });
 
     const payload = {
@@ -84,7 +78,10 @@ describe('webhooks: /webhooks/kick/events (chat.message.sent)', () => {
     const ts = new Date().toISOString();
     const message = `${messageId}.${ts}.${rawBody}`;
     const signature = crypto
-      .sign('RSA-SHA256', Buffer.from(message, 'utf8'), { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING })
+      .sign('RSA-SHA256', Buffer.from(message, 'utf8'), {
+        key: privateKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      })
       .toString('base64');
 
     let res = await request(makeApp())
@@ -98,7 +95,7 @@ describe('webhooks: /webhooks/kick/events (chat.message.sent)', () => {
     expect(res.status).toBe(200);
     expect(res.body?.ok).toBe(true);
 
-    const outbox1 = await (prisma as any).kickChatBotOutboxMessage.findMany({
+    const outbox1 = await prisma.kickChatBotOutboxMessage.findMany({
       where: { channelId: channel.id },
       select: { id: true, message: true },
     });
@@ -118,12 +115,13 @@ describe('webhooks: /webhooks/kick/events (chat.message.sent)', () => {
     expect(res.body?.ok).toBe(true);
     expect(res.body?.duplicate).toBe(true);
 
-    const outbox2 = await (prisma as any).kickChatBotOutboxMessage.count({
+    const outbox2 = await prisma.kickChatBotOutboxMessage.count({
       where: { channelId: channel.id },
     });
     expect(outbox2).toBe(1);
   });
 });
+
 
 
 

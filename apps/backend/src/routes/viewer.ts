@@ -14,5 +14,3 @@ viewerRoutes.get('/:slug/memes', viewerController.getChannelMemesPublic);
 
 // Get wallet for specific channel (requires auth)
 viewerRoutes.get('/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
-
-

@@ -1,9 +1,10 @@
-import { Server as SocketIOServer } from 'socket.io';
+import type { Server as SocketIOServer } from 'socket.io';
 
 declare global {
   namespace Express {
     interface Request {
       requestId?: string;
+      traceId?: string | null;
     }
     interface Application {
       get(name: 'io'): SocketIOServer;
@@ -13,5 +14,3 @@ declare global {
 }
 
 export {};
-
-

@@ -14,5 +14,3 @@ moderationRoutes.get('/meme-assets', moderationMemeAssetController.list);
 moderationRoutes.post('/meme-assets/:id/hide', moderationActionLimiter, moderationMemeAssetController.hide);
 moderationRoutes.post('/meme-assets/:id/unhide', moderationActionLimiter, moderationMemeAssetController.unhide);
 moderationRoutes.post('/meme-assets/:id/delete', moderationActionLimiter, moderationMemeAssetController.del);
-
-

@@ -10,10 +10,12 @@ const cacheByChannelId = new Map<string, IgnoredCacheEntry>();
 const CACHE_TTL_MS = 60_000;
 
 function normalizeName(s: string): string {
-  return String(s || '').trim().toLowerCase();
+  return String(s || '')
+    .trim()
+    .toLowerCase();
 }
 
-function splitNames(raw: any): string[] {
+function splitNames(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   for (const v of raw) {
@@ -30,9 +32,18 @@ async function getBotCredentialUserIds(channelId: string): Promise<Set<string>> 
   // Global bot credentials (all channels).
   try {
     const [gYt, gVk, gTw] = await Promise.all([
-      (prisma as any).globalYouTubeBotCredential?.findFirst?.({ where: { enabled: true }, select: { externalAccountId: true } }).catch(() => null),
-      (prisma as any).globalVkVideoBotCredential?.findFirst?.({ where: { enabled: true }, select: { externalAccountId: true } }).catch(() => null),
-      (prisma as any).globalTwitchBotCredential?.findFirst?.({ where: { enabled: true }, select: { externalAccountId: true } }).catch(() => null),
+      prisma.globalYouTubeBotCredential.findFirst({
+        where: { enabled: true },
+        select: { externalAccountId: true },
+      }),
+      prisma.globalVkVideoBotCredential.findFirst({
+        where: { enabled: true },
+        select: { externalAccountId: true },
+      }),
+      prisma.globalTwitchBotCredential.findFirst({
+        where: { enabled: true },
+        select: { externalAccountId: true },
+      }),
     ]);
 
     const globalIds = [gYt?.externalAccountId, gVk?.externalAccountId, gTw?.externalAccountId]
@@ -56,14 +67,23 @@ async function getBotCredentialUserIds(channelId: string): Promise<Set<string>> 
   // Per-channel overrides.
   try {
     const [yt, vk, tw] = await Promise.all([
-      (prisma as any).youTubeBotIntegration?.findUnique?.({ where: { channelId }, select: { enabled: true, externalAccountId: true } }).catch(() => null),
-      (prisma as any).vkVideoBotIntegration?.findUnique?.({ where: { channelId }, select: { enabled: true, externalAccountId: true } }).catch(() => null),
-      (prisma as any).twitchBotIntegration?.findUnique?.({ where: { channelId }, select: { enabled: true, externalAccountId: true } }).catch(() => null),
+      prisma.youTubeBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true },
+      }),
+      prisma.vkVideoBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true },
+      }),
+      prisma.twitchBotIntegration.findUnique({
+        where: { channelId },
+        select: { enabled: true, externalAccountId: true },
+      }),
     ]);
 
     const ids = [yt, vk, tw]
-      .filter((r: any) => r && r.enabled)
-      .map((r: any) => String(r.externalAccountId || '').trim())
+      .filter((r): r is { enabled: boolean; externalAccountId: string } => Boolean(r?.enabled))
+      .map((r) => String(r.externalAccountId || '').trim())
       .filter(Boolean);
 
     if (ids.length) {
@@ -83,7 +103,9 @@ async function getBotCredentialUserIds(channelId: string): Promise<Set<string>> 
   return out;
 }
 
-export async function getCreditsIgnoreRules(channelId: string): Promise<{ ignoredUserIds: Set<string>; ignoredNames: Set<string> }> {
+export async function getCreditsIgnoreRules(
+  channelId: string
+): Promise<{ ignoredUserIds: Set<string>; ignoredNames: Set<string> }> {
   const id = String(channelId || '').trim();
   if (!id) return { ignoredUserIds: new Set(), ignoredNames: new Set() };
 
@@ -96,7 +118,7 @@ export async function getCreditsIgnoreRules(channelId: string): Promise<{ ignore
     where: { id },
     select: { creditsIgnoredChattersJson: true },
   });
-  const ignoredNames = new Set(splitNames((channel as any)?.creditsIgnoredChattersJson));
+  const ignoredNames = new Set(splitNames(channel?.creditsIgnoredChattersJson));
   const ignoredUserIds = await getBotCredentialUserIds(id);
 
   const entry: IgnoredCacheEntry = { ignoredNames, ignoredUserIds, ts: Date.now() };
@@ -120,5 +142,3 @@ export async function shouldIgnoreCreditsChatter(params: {
   if (nameKey && rules.ignoredNames.has(nameKey)) return true;
   return false;
 }
-
-

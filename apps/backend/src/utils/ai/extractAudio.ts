@@ -72,5 +72,3 @@ export async function extractAudioToMp3(args: {
       .save(out);
   });
 }
-
-

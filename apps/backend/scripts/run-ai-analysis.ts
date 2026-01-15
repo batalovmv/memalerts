@@ -2,6 +2,7 @@ import { prisma } from '../src/lib/prisma.js';
 import { logger } from '../src/utils/logger.js';
 import { processOneSubmission } from '../src/jobs/aiModerationSubmissions.js';
 import { releaseAdvisoryLock, tryAcquireAdvisoryLock } from '../src/utils/pgAdvisoryLock.js';
+import { computeAiFailureUpdate, resolveAiQueueConfig, tryClaimAiSubmission } from '../src/jobs/aiQueue.js';
 
 /**
  * Manual AI analysis runner for pending submissions.
@@ -66,8 +67,15 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
 
 async function main() {
   const batch = clampInt(parseInt(String(process.env.BATCH || ''), 10), 1, 500, 25);
-  const maxRetries = clampInt(parseInt(String(process.env.MAX_RETRIES || ''), 10), 0, 50, 5);
-  const stuckMs = clampInt(parseInt(String(process.env.STUCK_MS || ''), 10), 5_000, 7 * 24 * 60 * 60_000, 10 * 60_000);
+  const defaultCfg = resolveAiQueueConfig();
+  const maxAttempts = clampInt(parseInt(String(process.env.MAX_RETRIES || ''), 10), 0, 50, defaultCfg.maxAttempts);
+  const stuckMs = clampInt(
+    parseInt(String(process.env.STUCK_MS || ''), 10),
+    5_000,
+    7 * 24 * 60 * 60_000,
+    defaultCfg.stuckMs
+  );
+  const lockTtlMs = defaultCfg.lockTtlMs;
   const perSubmissionTimeoutMs = clampInt(
     parseInt(String(process.env.PER_SUBMISSION_TIMEOUT_MS || ''), 10),
     5_000,
@@ -84,7 +92,7 @@ async function main() {
 
   logger.info('ai_analysis.start', {
     batch,
-    maxRetries,
+    maxAttempts,
     stuckMs,
     perSubmissionTimeoutMs,
   });
@@ -114,9 +122,20 @@ async function main() {
           status: { in: ['pending', 'approved'] },
           sourceKind: { in: ['upload', 'url'] },
           OR: [
-            { aiStatus: 'pending' },
-            { aiStatus: 'failed', OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }] },
-            { aiStatus: 'processing', aiLastTriedAt: { lt: stuckBefore } },
+            { aiStatus: 'pending', OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }] },
+            {
+              aiStatus: 'failed',
+              aiRetryCount: { lt: maxAttempts },
+              OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }],
+            },
+            {
+              aiStatus: 'processing',
+              OR: [
+                { aiLockExpiresAt: { lte: now } },
+                { aiLockExpiresAt: null },
+                { aiLastTriedAt: { lt: stuckBefore } },
+              ],
+            },
           ],
         },
         select: { id: true, aiStatus: true, aiRetryCount: true },
@@ -136,36 +155,29 @@ async function main() {
 
       for (const c of candidates) {
         // Guard: permanent failure
-        if ((c.aiRetryCount ?? 0) >= maxRetries) {
+        if ((c.aiRetryCount ?? 0) >= maxAttempts && maxAttempts > 0) {
           await prisma.memeSubmission.update({
             where: { id: c.id },
             data: {
-              aiStatus: 'failed_final',
-              aiError: 'max_retries_exceeded',
+              aiStatus: 'failed',
+              aiError: 'max_attempts_exceeded',
               aiNextRetryAt: null,
+              aiProcessingStartedAt: null,
+              aiLockedBy: null,
+              aiLockExpiresAt: null,
             },
           });
           continue;
         }
 
-        const claim = await prisma.memeSubmission.updateMany({
-          where: {
-            id: c.id,
-            status: { in: ['pending', 'approved'] },
-            sourceKind: { in: ['upload', 'url'] },
-            OR: [
-              { aiStatus: 'pending' },
-              { aiStatus: 'failed', OR: [{ aiNextRetryAt: null }, { aiNextRetryAt: { lte: now } }] },
-              { aiStatus: 'processing', aiLastTriedAt: { lt: stuckBefore } },
-            ],
-          },
-          data: {
-            aiStatus: 'processing',
-            aiLastTriedAt: now,
-          },
+        const claim = await tryClaimAiSubmission({
+          submissionId: c.id,
+          now,
+          lockTtlMs,
+          stuckMs,
+          maxAttempts,
         });
-
-        if (claim.count !== 1) continue;
+        if (!claim.claimed) continue;
         claimed += 1;
         totalClaimed += 1;
 
@@ -182,23 +194,21 @@ async function main() {
               totalAutoApproved += 1;
             }
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           failed += 1;
           totalFailed += 1;
-          const prevRetries = Number.isFinite(c.aiRetryCount as any) ? (c.aiRetryCount as number) : 0;
-          const nextRetryCount = prevRetries + 1;
-          const backoffMs = Math.min(60 * 60_000, 5_000 * Math.pow(2, Math.max(0, nextRetryCount - 1)));
-
-          await prisma.memeSubmission.update({
-            where: { id: c.id },
-            data: {
-              aiStatus: nextRetryCount >= maxRetries ? 'failed_final' : 'failed',
-              aiRetryCount: nextRetryCount,
-              aiLastTriedAt: now,
-              aiNextRetryAt: nextRetryCount >= maxRetries ? null : new Date(Date.now() + backoffMs),
-              aiError: String(e?.message || 'ai_failed'),
-            },
+          const prevRetries =
+            typeof c.aiRetryCount === 'number' && Number.isFinite(c.aiRetryCount) ? c.aiRetryCount : 0;
+          const errorMessage = e instanceof Error ? e.message : 'ai_failed';
+          const update = computeAiFailureUpdate({
+            prevAttempts: prevRetries,
+            now,
+            errorMessage,
+            maxAttempts,
+            jitterSeed: c.id,
           });
+
+          await prisma.memeSubmission.update({ where: { id: c.id }, data: update });
         }
       }
 
@@ -227,10 +237,12 @@ async function main() {
       totalFailed,
       totalAutoApproved,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    const errorStack = e instanceof Error ? e.stack : undefined;
     logger.error('ai_analysis.failed', {
-      errorMessage: e?.message,
-      errorStack: e?.stack,
+      errorMessage,
+      errorStack,
     });
     process.exitCode = 1;
   } finally {
@@ -246,4 +258,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

@@ -39,7 +39,7 @@ export const vkvideoDefaultBotController = {
   // GET /owner/bots/vkvideo/default/status
   status: async (_req: AuthRequest, res: Response) => {
     try {
-      const row = await (prisma as any).globalVkVideoBotCredential.findFirst({
+      const row = await prisma.globalVkVideoBotCredential.findFirst({
         where: { enabled: true },
         orderBy: { updatedAt: 'desc' },
         select: { enabled: true, externalAccountId: true, updatedAt: true },
@@ -50,13 +50,14 @@ export const vkvideoDefaultBotController = {
       }
 
       return res.json({
-        enabled: Boolean((row as any)?.enabled),
-        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
-        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        enabled: Boolean(row.enabled),
+        externalAccountId: String(row.externalAccountId || '').trim() || null,
+        updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
       });
-    } catch (e: any) {
-      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      throw e;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw error;
     }
   },
 
@@ -105,13 +106,12 @@ export const vkvideoDefaultBotController = {
   // DELETE /owner/bots/vkvideo/default
   unlink: async (_req: AuthRequest, res: Response) => {
     try {
-      await (prisma as any).globalVkVideoBotCredential.deleteMany({});
+      await prisma.globalVkVideoBotCredential.deleteMany({});
       return res.json({ ok: true });
-    } catch (e: any) {
-      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      throw e;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw error;
     }
   },
 };
-
-

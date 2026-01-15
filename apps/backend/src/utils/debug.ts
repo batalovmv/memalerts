@@ -5,8 +5,12 @@
  * - Debug logs must be opt-in via env to avoid leaking noisy/PII logs on production.
  * - Keep payloads minimal; never log secrets/tokens.
  */
+import { logger } from './logger.js';
+
 export function isDebugLogsEnabled(): boolean {
-  const v = String(process.env.DEBUG_LOGS ?? '').trim().toLowerCase();
+  const v = String(process.env.DEBUG_LOGS ?? '')
+    .trim()
+    .toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
@@ -18,36 +22,36 @@ export function isDebugLogsEnabled(): boolean {
  */
 export function isDebugAuthEnabled(): boolean {
   if (isDebugLogsEnabled()) return true;
-  const v = String(process.env.DEBUG_AUTH ?? '').trim().toLowerCase();
+  const v = String(process.env.DEBUG_AUTH ?? '')
+    .trim()
+    .toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
 export function debugLog(message: string, data?: unknown) {
   if (!isDebugLogsEnabled()) return;
   if (typeof data === 'undefined') {
-    // eslint-disable-next-line no-console
-    console.log(message);
+    logger.debug(message);
     return;
   }
-  // eslint-disable-next-line no-console
-  console.log(message, data);
+  if (data && typeof data === 'object') {
+    logger.debug(message, data as Record<string, unknown>);
+  } else {
+    logger.debug(message, { data });
+  }
 }
 
 export function debugError(message: string, error: unknown) {
   if (!isDebugLogsEnabled()) return;
-  // eslint-disable-next-line no-console
-  console.error(message, sanitizeError(error));
+  logger.error(message, { error: sanitizeError(error) });
 }
 
 export function sanitizeError(error: unknown) {
   if (!error || typeof error !== 'object') return error;
-  const anyErr = error as any;
+  const errInfo = error as { name?: string; message?: string; code?: string };
   return {
-    name: anyErr.name,
-    message: anyErr.message,
-    code: anyErr.code,
+    name: errInfo.name,
+    message: errInfo.message,
+    code: errInfo.code,
   };
 }
-
-
-

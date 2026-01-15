@@ -1,6 +1,11 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
+import { WalletService } from '../../services/WalletService.js';
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // Admin wallet management
 export const getWalletOptions = async (req: AuthRequest, res: Response) => {
@@ -29,14 +34,14 @@ export const getWalletOptions = async (req: AuthRequest, res: Response) => {
           select: { id: true, displayName: true, twitchUserId: true },
           orderBy: { displayName: 'asc' },
         })
-      : Promise.resolve([] as any[]),
+      : Promise.resolve([] as Array<{ id: string; displayName: string | null; twitchUserId: string | null }>),
     channelIds.length
       ? prisma.channel.findMany({
           where: { id: { in: channelIds } },
           select: { id: true, name: true, slug: true },
           orderBy: { name: 'asc' },
         })
-      : Promise.resolve([] as any[]),
+      : Promise.resolve([] as Array<{ id: string; name: string | null; slug: string | null }>),
   ]);
 
   return res.json({ users, channels });
@@ -60,10 +65,13 @@ export const getAllWallets = async (req: AuthRequest, res: Response) => {
   const offsetRaw = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : undefined;
   const maxFromEnv = parseInt(String(process.env.ADMIN_WALLETS_PAGE_MAX || ''), 10);
   const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 200;
-  const limit = Number.isFinite(limitRaw as number) && (limitRaw as number) > 0 ? Math.min(limitRaw as number, MAX_PAGE) : undefined;
+  const limit =
+    Number.isFinite(limitRaw as number) && (limitRaw as number) > 0
+      ? Math.min(limitRaw as number, MAX_PAGE)
+      : undefined;
   const offset = Number.isFinite(offsetRaw as number) && (offsetRaw as number) >= 0 ? (offsetRaw as number) : undefined;
 
-  const where: any = {};
+  const where: Record<string, unknown> = {};
   if (userId) where.userId = userId;
   if (channelId) where.channelId = channelId;
   if (q) {
@@ -101,7 +109,9 @@ export const getAllWallets = async (req: AuthRequest, res: Response) => {
 
   const [items, total] = await Promise.all([
     query,
-    includeTotal ? prisma.wallet.count({ where: Object.keys(where).length ? where : undefined }) : Promise.resolve(null),
+    includeTotal
+      ? prisma.wallet.count({ where: Object.keys(where).length ? where : undefined })
+      : Promise.resolve(null),
   ]);
 
   return res.json({ items, total });
@@ -123,13 +133,9 @@ export const adjustWallet = async (req: AuthRequest, res: Response) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
       // Get current wallet
-      const wallet = await tx.wallet.findUnique({
-        where: {
-          userId_channelId: {
-            userId,
-            channelId,
-          },
-        },
+      const wallet = await WalletService.getWalletForUpdate(tx, {
+        userId,
+        channelId,
       });
 
       if (!wallet) {
@@ -146,15 +152,8 @@ export const adjustWallet = async (req: AuthRequest, res: Response) => {
 
       // Update wallet
       const updatedWallet = await tx.wallet.update({
-        where: {
-          userId_channelId: {
-            userId,
-            channelId,
-          },
-        },
-        data: {
-          balance: newBalance,
-        },
+        where: { userId_channelId: { userId, channelId } },
+        data: { balance: newBalance },
         include: {
           user: {
             select: {
@@ -191,12 +190,11 @@ export const adjustWallet = async (req: AuthRequest, res: Response) => {
     });
 
     res.json(result);
-  } catch (error: any) {
-    if (error.message === 'Wallet not found' || error.message === 'Balance cannot be negative') {
-      return res.status(400).json({ error: error.message });
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
+    if (errorMessage === 'Wallet not found' || errorMessage === 'Balance cannot be negative') {
+      return res.status(400).json({ error: errorMessage });
     }
     throw error;
   }
 };
-
-

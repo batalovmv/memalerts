@@ -17,7 +17,10 @@ function getPromoCacheMs(): number {
  * Get active promotion for a channel at current time
  * Returns the promotion with highest discount if multiple active
  */
-export async function getActivePromotion(channelId: string, db: DbClient = prisma): Promise<{ discountPercent: number } | null> {
+export async function getActivePromotion(
+  channelId: string,
+  db: DbClient = prisma
+): Promise<{ discountPercent: number } | null> {
   // Best-effort short cache: promotions don't change frequently, but this endpoint can be hot (activation/search).
   const ttl = getPromoCacheMs();
   const cached = promoCache.get(channelId);
@@ -65,5 +68,3 @@ export function calculatePriceWithDiscount(originalPrice: number, discountPercen
   const discount = (originalPrice * discountPercent) / 100;
   return Math.max(0, Math.floor(originalPrice - discount));
 }
-
-

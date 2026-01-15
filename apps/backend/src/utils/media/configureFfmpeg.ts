@@ -26,7 +26,8 @@ export function configureFfmpegPaths(): void {
   const envFfmpeg = String(process.env.FFMPEG_PATH || '').trim();
   const envFfprobe = String(process.env.FFPROBE_PATH || '').trim();
 
-  const installerPath = (ffmpegInstaller as any)?.path ? String((ffmpegInstaller as any).path) : '';
+  const installer = ffmpegInstaller as { path?: unknown };
+  const installerPath = typeof installer.path === 'string' ? installer.path : '';
   const candidateFfmpeg = envFfmpeg || installerPath;
 
   if (candidateFfmpeg && fileExists(candidateFfmpeg)) {
@@ -35,7 +36,8 @@ export function configureFfmpegPaths(): void {
 
   // Prefer explicit ffprobe path, otherwise try to infer next to ffmpeg installer binary.
   if (envFfprobe && fileExists(envFfprobe)) {
-    (ffmpeg as any).setFfprobePath(envFfprobe);
+    const ffmpegWithProbe = ffmpeg as unknown as { setFfprobePath?: (path: string) => void };
+    ffmpegWithProbe.setFfprobePath?.(envFfprobe);
     return;
   }
 
@@ -45,10 +47,13 @@ export function configureFfmpegPaths(): void {
     const ffprobeBin = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
     const inferred = path.join(dir, ffprobeBin);
     if (fileExists(inferred)) {
-      (ffmpeg as any).setFfprobePath(inferred);
+      const ffmpegWithProbe = ffmpeg as unknown as { setFfprobePath?: (path: string) => void };
+      ffmpegWithProbe.setFfprobePath?.(inferred);
     }
   }
 }
+
+
 
 
 

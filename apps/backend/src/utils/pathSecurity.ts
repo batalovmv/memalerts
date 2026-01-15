@@ -1,5 +1,4 @@
 import path from 'path';
-import fs from 'fs';
 
 /**
  * Sanitize filename by removing path traversal sequences and dangerous characters
@@ -41,40 +40,35 @@ export function sanitizeFilename(filename: string): string {
  * Validate that a file path is within the allowed directory
  * Prevents path traversal attacks by ensuring the resolved path
  * is within the base directory
- * 
+ *
  * @param filePath Path to validate (can be relative or absolute)
  * @param baseDir Base directory that the path must be within
  * @returns Resolved absolute path if valid, throws error if invalid
  */
-export function validatePathWithinDirectory(
-  filePath: string,
-  baseDir: string = process.cwd()
-): string {
+export function validatePathWithinDirectory(filePath: string, baseDir: string = process.cwd()): string {
   if (!filePath || typeof filePath !== 'string') {
     throw new Error('Invalid file path: must be a non-empty string');
   }
 
   // Resolve base directory to absolute path
   const resolvedBaseDir = path.resolve(baseDir);
-  
+
   // Resolve the file path (handles both relative and absolute paths)
   const resolvedFilePath = path.resolve(baseDir, filePath);
-  
+
   // Normalize paths (remove .., ., etc.)
   const normalizedBaseDir = path.normalize(resolvedBaseDir);
   const normalizedFilePath = path.normalize(resolvedFilePath);
-  
+
   // Check if resolved path is within base directory
   // Use path.relative to check if file is within base
   const relativePath = path.relative(normalizedBaseDir, normalizedFilePath);
-  
+
   // If relative path starts with .., it's outside the base directory
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `Path traversal detected: ${filePath} resolves outside allowed directory ${baseDir}`
-    );
+    throw new Error(`Path traversal detected: ${filePath} resolves outside allowed directory ${baseDir}`);
   }
-  
+
   return normalizedFilePath;
 }
 
@@ -87,10 +81,10 @@ export function validatePathWithinDirectory(
 export function safePathJoin(baseDir: string, filePath: string): string {
   // First sanitize the file path component
   const sanitized = sanitizeFilename(path.basename(filePath));
-  
+
   // Join paths
   const joinedPath = path.join(baseDir, sanitized);
-  
+
   // Validate the result is within base directory
   return validatePathWithinDirectory(joinedPath, baseDir);
 }
@@ -104,9 +98,8 @@ export function getSafeExtension(filename: string): string {
   if (!filename || typeof filename !== 'string') {
     return '';
   }
-  
+
   const ext = path.extname(filename).toLowerCase();
   // Remove dot and sanitize
   return sanitizeFilename(ext.slice(1));
 }
-

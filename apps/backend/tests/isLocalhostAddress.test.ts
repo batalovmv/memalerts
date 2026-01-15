@@ -18,5 +18,3 @@ describe('isLocalhostAddress', () => {
     expect(isLocalhostAddress('8.8.8.8')).toBe(false);
   });
 });
-
-

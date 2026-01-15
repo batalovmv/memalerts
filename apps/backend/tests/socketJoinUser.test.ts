@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { Server } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import jwt from 'jsonwebtoken';
@@ -7,7 +7,9 @@ import jwt from 'jsonwebtoken';
 import { setupSocketIO } from '../src/socket/index.js';
 import { emitWalletUpdated } from '../src/realtime/walletBridge.js';
 
-function makeJwt(payload: Record<string, any>): string {
+type WalletUpdatedPayload = { userId: string };
+
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -72,10 +74,7 @@ describe('Socket.IO join:user', () => {
     const b = connectClient(url, tokenB);
 
     try {
-      await Promise.all([
-        waitForEvent(a, 'connect', 4000),
-        waitForEvent(b, 'connect', 4000),
-      ]);
+      await Promise.all([waitForEvent(a, 'connect', 4000), waitForEvent(b, 'connect', 4000)]);
 
       a.emit('join:user', 'userA');
       b.emit('join:user', 'userB');
@@ -88,14 +87,14 @@ describe('Socket.IO join:user', () => {
       await waitForRoomJoin(io, 'user:userB', 1, 2000);
 
       emitWalletUpdated(io, { userId: 'userA', channelId: 'ch1', balance: 1 });
-      const payloadA = await waitForEvent<any>(a, 'wallet:updated');
+      const payloadA = await waitForEvent<WalletUpdatedPayload>(a, 'wallet:updated');
       expect(payloadA.userId).toBe('userA');
 
       // UserB не должен получить апдейт userA.
       await expectNoEvent(b, 'wallet:updated', 600);
 
       emitWalletUpdated(io, { userId: 'userB', channelId: 'ch1', balance: 2 });
-      const payloadB = await waitForEvent<any>(b, 'wallet:updated');
+      const payloadB = await waitForEvent<WalletUpdatedPayload>(b, 'wallet:updated');
       expect(payloadB.userId).toBe('userB');
 
       // UserA не должен получить апдейт userB (даже после попытки join:user('userB')).
@@ -108,5 +107,3 @@ describe('Socket.IO join:user', () => {
     }
   });
 });
-
-

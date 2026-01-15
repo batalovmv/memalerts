@@ -40,9 +40,10 @@ export async function moderateTextOpenAI(args: { text: string; model?: string })
     .filter(([, v]) => !!v)
     .map(([k]) => `text:${k}`);
 
-  const riskScore = Math.max(0, Math.min(1, Math.max(...Object.values(scores).map((n) => (typeof n === 'number' ? n : 0)), flagged ? 0.9 : 0)));
+  const riskScore = Math.max(
+    0,
+    Math.min(1, Math.max(...Object.values(scores).map((n) => (typeof n === 'number' ? n : 0)), flagged ? 0.9 : 0))
+  );
 
   return { flagged, labels, riskScore, model };
 }
-
-

@@ -1027,6 +1027,17 @@ model GlobalKickBotCredential {
   @@index([externalAccountId])
 }
 
+// Lightweight heartbeat table for background workers (bots/AI).
+// No foreign keys to keep it expand-only and deployment-safe.
+model ServiceHeartbeat {
+  id         String   @id
+  lastSeenAt DateTime @updatedAt
+  meta       Json?    @db.JsonB
+  createdAt  DateTime @default(now())
+
+  @@index([lastSeenAt])
+}
+
 model Wallet {
   id        String   @id @default(uuid())
   userId    String
@@ -1193,6 +1204,7 @@ model MemeSubmission {
   memeAssetId     String? // Pool import: references MemeAsset
   sourceKind      String   @default("upload") // upload | url | pool
   notes           String?
+  idempotencyKey  String?  @db.VarChar(128)
   status          String // pending, approved, rejected
   moderatorNotes  String?
   // Upload metadata (best-effort; required for AI and better moderation UX).
@@ -1202,7 +1214,7 @@ model MemeSubmission {
   fileSizeBytes Int?
 
   // AI moderation pipeline state (best-effort; safe defaults for backfill).
-  aiStatus           String   @default("pending") // pending|processing|done|failed|failed_final
+  aiStatus           String   @default("pending") // pending|processing|done|failed
   aiDecision         String?  @db.VarChar(16)     // low|medium|high
   aiRiskScore        Float?
   aiLabelsJson       Json?
@@ -1213,6 +1225,10 @@ model MemeSubmission {
   aiCompletedAt      DateTime?
   aiRetryCount       Int      @default(0)
   aiLastTriedAt      DateTime?
+  // Lock/processing fields (used for distributed queue safety).
+  aiProcessingStartedAt DateTime?
+  aiLockedBy         String?  @db.VarChar(128)
+  aiLockExpiresAt    DateTime?
   aiNextRetryAt      DateTime?
   aiError            String?  @db.Text
   // Number of times the submitter resubmitted this submission after "needs_changes".
@@ -1232,6 +1248,12 @@ model MemeSubmission {
   @@index([sourceKind])
   @@index([fileHash])
   @@index([status, sourceKind, aiStatus, aiNextRetryAt, createdAt])
+  @@index([aiStatus, aiLockExpiresAt])
+  @@index([channelId, status, createdAt(sort: Desc)])
+  @@index([submitterUserId, status, createdAt(sort: Desc)])
+  @@index([submitterUserId, createdAt(sort: Desc)])
+  @@unique([channelId, submitterUserId, idempotencyKey])
+  @@unique([channelId, memeAssetId, status])
 }
 
 model Redemption {

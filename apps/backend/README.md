@@ -1,5 +1,7 @@
 # MemAlerts Backend
 
+[![codecov](https://codecov.io/gh/batalovmv/memalerts-backend/branch/main/graph/badge.svg)](https://codecov.io/gh/batalovmv/memalerts-backend)
+
 Backend API для MemAlerts: активация мемов через Twitch Channel Points, overlay для OBS и панель стримера.  
 Стек: **Express + Socket.IO + Prisma/PostgreSQL**, деплой через **GitHub Actions** на VPS.
 
@@ -23,6 +25,13 @@ Backend API для MemAlerts: активация мемов через Twitch Ch
 Дополнительно (см. `docs/`):
 
 - **`docs/AI_MEME_ANALYSIS.md`** — подробная документация текущей реализации AI‑анализа мемов (video+audio → title/tags/description), дедупа и хранения результатов
+- **`docs/API_ERRORS.md`** — единый контракт ошибок API (`errorCode` + `requestId` + shape)
+
+## AI очередь (кратко)
+
+- `aiStatus`: pending → processing → done/failed (failed = финальное состояние)
+- Ретраи с backoff, попытки ограничены `AI_MAX_RETRIES`
+- Lock с TTL (`aiLockedBy`, `aiLockExpiresAt`), watchdog: `npm run ai:watchdog:once`
 
 ## Быстрый старт (локально)
 
@@ -39,6 +48,14 @@ pnpm dev
 ```
 
 API поднимется на `http://localhost:3001`, health-check: `GET /health`.
+
+## E2E тест (viewer отправляет мем → streamer получает realtime)
+
+Тест не ходит во внешние OAuth‑провайдеры: использует **test-only** эндпоинт `POST /test/login` (доступен только при `NODE_ENV=test`), делает **multipart upload** на `/submissions` с `Origin` (CSRF) и проверяет **Socket.IO** событие `submission:created`.
+
+```bash
+pnpm e2e
+```
 
 ## Окружения (beta / production)
 

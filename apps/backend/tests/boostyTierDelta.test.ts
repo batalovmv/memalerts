@@ -87,5 +87,3 @@ describe('boosty boosty_api tier delta rules', () => {
     expect(r.nextTierKeyGranted).toBeNull();
   });
 });
-
-

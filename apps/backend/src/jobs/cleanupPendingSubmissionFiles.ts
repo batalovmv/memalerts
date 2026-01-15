@@ -61,22 +61,27 @@ export async function cleanupPendingSubmissionFilesOnce(opts: CleanupOptions): P
         await decrementFileHashReference(hash);
         fileRefsDecremented += 1;
       }
-    } catch (e: any) {
-      logger.warn('cleanup.pending_files.decrement_failed', { submissionId: r.id, errorMessage: e?.message });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      logger.warn('cleanup.pending_files.decrement_failed', { submissionId: r.id, errorMessage });
     }
 
     try {
       await prisma.memeSubmission.update({
         where: { id: r.id },
         data: {
-          aiStatus: 'failed_final',
+          aiStatus: 'failed',
           aiError: 'retention_expired',
           aiNextRetryAt: null,
+          aiProcessingStartedAt: null,
+          aiLockedBy: null,
+          aiLockExpiresAt: null,
         },
       });
       cleaned += 1;
-    } catch (e: any) {
-      logger.warn('cleanup.pending_files.update_failed', { submissionId: r.id, errorMessage: e?.message });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      logger.warn('cleanup.pending_files.update_failed', { submissionId: r.id, errorMessage });
     }
   }
 
@@ -84,11 +89,26 @@ export async function cleanupPendingSubmissionFilesOnce(opts: CleanupOptions): P
 }
 
 export function startPendingSubmissionFilesCleanupScheduler() {
-  const retentionHours = clampInt(parseInt(String(process.env.AI_PENDING_FILE_RETENTION_HOURS || '72'), 10), 1, 24 * 30, 72);
+  const retentionHours = clampInt(
+    parseInt(String(process.env.AI_PENDING_FILE_RETENTION_HOURS || '72'), 10),
+    1,
+    24 * 30,
+    72
+  );
   const maxRetries = clampInt(parseInt(String(process.env.AI_MAX_RETRIES || '5'), 10), 0, 50, 5);
   const batchSize = clampInt(parseInt(String(process.env.AI_PENDING_FILE_CLEANUP_BATCH || '200'), 10), 1, 1000, 200);
-  const intervalMs = clampInt(parseInt(String(process.env.AI_PENDING_FILE_CLEANUP_INTERVAL_MS || ''), 10), 60_000, 24 * 60 * 60_000, 6 * 60 * 60_000); // 6h
-  const initialDelayMs = clampInt(parseInt(String(process.env.AI_PENDING_FILE_CLEANUP_INITIAL_DELAY_MS || ''), 10), 0, 24 * 60 * 60_000, 10 * 60_000);
+  const intervalMs = clampInt(
+    parseInt(String(process.env.AI_PENDING_FILE_CLEANUP_INTERVAL_MS || ''), 10),
+    60_000,
+    24 * 60 * 60_000,
+    6 * 60 * 60_000
+  ); // 6h
+  const initialDelayMs = clampInt(
+    parseInt(String(process.env.AI_PENDING_FILE_CLEANUP_INITIAL_DELAY_MS || ''), 10),
+    0,
+    24 * 60 * 60_000,
+    10 * 60_000
+  );
 
   let running = false;
   // Ensure only one instance (prod or beta) runs cleanup on shared DB.
@@ -111,8 +131,9 @@ export function startPendingSubmissionFilesCleanupScheduler() {
         durationMs: Date.now() - startedAt,
         ...res,
       });
-    } catch (e: any) {
-      logger.error('cleanup.pending_files.failed', { errorMessage: e?.message, durationMs: Date.now() - startedAt });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      logger.error('cleanup.pending_files.failed', { errorMessage, durationMs: Date.now() - startedAt });
     } finally {
       if (locked) await releaseAdvisoryLock(lockId);
       running = false;
@@ -122,5 +143,3 @@ export function startPendingSubmissionFilesCleanupScheduler() {
   setTimeout(() => void runOnce(), initialDelayMs);
   setInterval(() => void runOnce(), intervalMs);
 }
-
-

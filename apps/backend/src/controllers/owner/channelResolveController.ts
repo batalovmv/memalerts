@@ -11,8 +11,9 @@ import {
 export const channelResolveController = {
   // GET /owner/channels/resolve?provider=twitch&externalId=12345
   resolve: async (req: AuthRequest, res: Response) => {
-    const provider = normalizeProvider((req.query as any)?.provider);
-    const externalId = normalizeExternalId((req.query as any)?.externalId);
+    const query = req.query as Record<string, unknown>;
+    const provider = normalizeProvider(query.provider);
+    const externalId = normalizeExternalId(query.externalId);
 
     if (!provider || !externalId) {
       return res.status(400).json({
@@ -74,5 +75,3 @@ export const channelResolveController = {
     return res.json(resolved);
   },
 };
-
-

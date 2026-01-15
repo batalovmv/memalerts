@@ -26,5 +26,3 @@ describe('pathSecurity', () => {
     expect(path.basename(p)).toBe('passwd');
   });
 });
-
-

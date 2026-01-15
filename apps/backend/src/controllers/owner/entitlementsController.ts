@@ -11,7 +11,7 @@ import {
   resolveChannelByProviderExternalId,
 } from '../../utils/channelResolve.js';
 
-function parseIsoDateOrNull(v: any): Date | null {
+function parseIsoDateOrNull(v: unknown): Date | null {
   if (v === null || v === undefined || v === '') return null;
   const s = String(v).trim();
   if (!s) return null;
@@ -19,14 +19,15 @@ function parseIsoDateOrNull(v: any): Date | null {
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
-function isPrismaTableMissingError(e: any): boolean {
-  return e?.code === 'P2021';
+function isPrismaTableMissingError(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && 'code' in e && (e as { code?: string }).code === 'P2021';
 }
 
 export const entitlementsController = {
   // GET /owner/entitlements/custom-bot?channelId=...
   getCustomBot: async (req: AuthRequest, res: Response) => {
-    const channelId = String((req.query as any)?.channelId || '').trim();
+    const query = req.query as Record<string, unknown>;
+    const channelId = String(query.channelId || '').trim();
     if (!channelId) return res.status(400).json({ error: 'Bad Request', message: 'channelId is required' });
     try {
       const row = await prisma.channelEntitlement.findUnique({
@@ -44,22 +45,24 @@ export const entitlementsController = {
         updatedAt: row?.updatedAt ? new Date(row.updatedAt).toISOString() : null,
         createdAt: row?.createdAt ? new Date(row.createdAt).toISOString() : null,
       });
-    } catch (e: any) {
-      if (isPrismaTableMissingError(e)) return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+    } catch (e: unknown) {
+      if (isPrismaTableMissingError(e))
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
       throw e;
     }
   },
 
   // POST /owner/entitlements/custom-bot/grant  body: { channelId, expiresAt?, source? }
   grantCustomBot: async (req: AuthRequest, res: Response) => {
-    const channelId = String((req.body as any)?.channelId || '').trim();
+    const body = req.body as Record<string, unknown>;
+    const channelId = String(body.channelId || '').trim();
     if (!channelId) return res.status(400).json({ error: 'Bad Request', message: 'channelId is required' });
 
-    const expiresAt = parseIsoDateOrNull((req.body as any)?.expiresAt);
-    if ((req.body as any)?.expiresAt && !expiresAt) {
+    const expiresAt = parseIsoDateOrNull(body.expiresAt);
+    if (body.expiresAt && !expiresAt) {
       return res.status(400).json({ error: 'Bad Request', message: 'expiresAt must be ISO date string or null' });
     }
-    const source = String((req.body as any)?.source || '').trim() || 'manual';
+    const source = String(body.source || '').trim() || 'manual';
 
     try {
       await prisma.channelEntitlement.upsert({
@@ -69,17 +72,31 @@ export const entitlementsController = {
         select: { id: true },
       });
       const active = await hasChannelEntitlement(channelId, 'custom_bot');
-      return res.json({ ok: true, channelId, key: 'custom_bot', active, expiresAt: expiresAt ? expiresAt.toISOString() : null, source });
-    } catch (e: any) {
-      if (isPrismaTableMissingError(e)) return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      logger.warn('owner.entitlements.grant_failed', { channelId, key: 'custom_bot', errorMessage: e?.message || String(e) });
+      return res.json({
+        ok: true,
+        channelId,
+        key: 'custom_bot',
+        active,
+        expiresAt: expiresAt ? expiresAt.toISOString() : null,
+        source,
+      });
+    } catch (e: unknown) {
+      if (isPrismaTableMissingError(e))
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      logger.warn('owner.entitlements.grant_failed', {
+        channelId,
+        key: 'custom_bot',
+        errorMessage,
+      });
       throw e;
     }
   },
 
   // POST /owner/entitlements/custom-bot/revoke  body: { channelId }
   revokeCustomBot: async (req: AuthRequest, res: Response) => {
-    const channelId = String((req.body as any)?.channelId || '').trim();
+    const body = req.body as Record<string, unknown>;
+    const channelId = String(body.channelId || '').trim();
     if (!channelId) return res.status(400).json({ error: 'Bad Request', message: 'channelId is required' });
     try {
       await prisma.channelEntitlement.updateMany({
@@ -88,9 +105,15 @@ export const entitlementsController = {
       });
       const active = await hasChannelEntitlement(channelId, 'custom_bot');
       return res.json({ ok: true, channelId, key: 'custom_bot', active });
-    } catch (e: any) {
-      if (isPrismaTableMissingError(e)) return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      logger.warn('owner.entitlements.revoke_failed', { channelId, key: 'custom_bot', errorMessage: e?.message || String(e) });
+    } catch (e: unknown) {
+      if (isPrismaTableMissingError(e))
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      logger.warn('owner.entitlements.revoke_failed', {
+        channelId,
+        key: 'custom_bot',
+        errorMessage,
+      });
       throw e;
     }
   },
@@ -98,8 +121,9 @@ export const entitlementsController = {
   // POST /owner/entitlements/custom-bot/grant-by-provider
   // body: { provider: "twitch", externalId: "12345" }
   grantCustomBotByProvider: async (req: AuthRequest, res: Response) => {
-    const provider = normalizeProvider((req.body as any)?.provider);
-    const externalId = normalizeExternalId((req.body as any)?.externalId);
+    const body = req.body as Record<string, unknown>;
+    const provider = normalizeProvider(body.provider);
+    const externalId = normalizeExternalId(body.externalId);
 
     if (!provider || !externalId) {
       return res.status(400).json({ error: 'Bad Request', message: 'provider and externalId are required' });
@@ -108,7 +132,9 @@ export const entitlementsController = {
       return res.status(400).json({ error: 'Bad Request', message: 'Unsupported provider' });
     }
     if (!isValidTwitchExternalId(externalId)) {
-      return res.status(400).json({ error: 'Bad Request', message: 'externalId must be a numeric Twitch broadcaster_id' });
+      return res
+        .status(400)
+        .json({ error: 'Bad Request', message: 'externalId must be a numeric Twitch broadcaster_id' });
     }
 
     const { ipAddress, userAgent } = getRequestMetadata(req);
@@ -150,14 +176,16 @@ export const entitlementsController = {
       });
 
       return res.json({ channelId, granted: true });
-    } catch (e: any) {
-      if (isPrismaTableMissingError(e)) return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+    } catch (e: unknown) {
+      if (isPrismaTableMissingError(e))
+        return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      const errorMessage = e instanceof Error ? e.message : String(e);
       logger.warn('owner.entitlements.grant_by_provider_failed', {
         channelId,
         key: 'custom_bot',
         provider,
         externalId,
-        errorMessage: e?.message || String(e),
+        errorMessage,
       });
 
       await auditLog({
@@ -168,12 +196,10 @@ export const entitlementsController = {
         ipAddress,
         userAgent,
         success: false,
-        error: e?.message || String(e),
+        error: errorMessage,
       });
 
       throw e;
     }
   },
 };
-
-

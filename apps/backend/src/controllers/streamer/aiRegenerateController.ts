@@ -1,8 +1,11 @@
 import type { Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
+import { logger } from '../../utils/logger.js';
+import { enqueueAiModerationJob } from '../../queues/aiModerationQueue.js';
 
-function parseNonNegativeInt(n: any): number | null {
+function parseNonNegativeInt(n: unknown): number | null {
   const v = typeof n === 'number' ? n : typeof n === 'string' ? parseInt(n, 10) : NaN;
   if (!Number.isFinite(v) || v < 0) return null;
   return v;
@@ -84,9 +87,11 @@ export const aiRegenerateController = {
     });
 
     if (!cm) {
-      return res
-        .status(404)
-        .json({ errorCode: 'CHANNEL_MEME_NOT_FOUND', error: 'Meme not found', details: { entity: 'channelMeme', id: channelMemeId } });
+      return res.status(404).json({
+        errorCode: 'CHANNEL_MEME_NOT_FOUND',
+        error: 'Meme not found',
+        details: { entity: 'channelMeme', id: channelMemeId },
+      });
     }
 
     if (!isEffectivelyEmptyAiDescription(cm.aiAutoDescription, cm.title)) {
@@ -122,7 +127,10 @@ export const aiRegenerateController = {
     });
 
     if (last) {
-      const lastTryMs = Math.max(new Date(last.createdAt).getTime(), last.aiLastTriedAt ? new Date(last.aiLastTriedAt).getTime() : 0);
+      const lastTryMs = Math.max(
+        new Date(last.createdAt).getTime(),
+        last.aiLastTriedAt ? new Date(last.aiLastTriedAt).getTime() : 0
+      );
       if (nowMs - lastTryMs < cooldownMs) {
         const retryAfterSeconds = Math.max(1, Math.ceil((cooldownMs - (nowMs - lastTryMs)) / 1000));
         return res.status(429).json({
@@ -159,9 +167,11 @@ export const aiRegenerateController = {
         fileHash: cm.memeAsset?.fileHash ?? null,
         durationMs: durationMs && durationMs > 0 ? durationMs : null,
         aiStatus: 'pending',
-      } as any,
+      } satisfies Prisma.MemeSubmissionUncheckedCreateInput,
       select: { id: true, createdAt: true },
     });
+    logger.info('ai.enqueue', { submissionId: submission.id, reason: 'ai_regenerate' });
+    void enqueueAiModerationJob(submission.id, { reason: 'ai_regenerate' });
 
     const queuedAt = new Date(submission.createdAt).toISOString();
     const nextAllowedAt = new Date(nowMs + cooldownMs).toISOString();
@@ -173,6 +183,3 @@ export const aiRegenerateController = {
     });
   },
 };
-
-
-

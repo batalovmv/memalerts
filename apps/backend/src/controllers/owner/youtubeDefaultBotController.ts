@@ -5,7 +5,13 @@ import { createOAuthState } from '../../auth/oauthState.js';
 import { getYouTubeAuthorizeUrl } from '../../auth/providers/youtube.js';
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
-const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/youtube', '/dashboard', '/']);
+const REDIRECT_ALLOWLIST = new Set<string>([
+  '/settings/accounts',
+  '/settings/bot',
+  '/settings/bot/youtube',
+  '/dashboard',
+  '/',
+]);
 
 const GLOBAL_YOUTUBE_BOT_CHANNEL_ID = '__global_youtube_bot__';
 
@@ -24,7 +30,7 @@ export const youtubeDefaultBotController = {
   // GET /owner/bots/youtube/default/status
   status: async (req: AuthRequest, res: Response) => {
     try {
-      const row = await (prisma as any).globalYouTubeBotCredential.findFirst({
+      const row = await prisma.globalYouTubeBotCredential.findFirst({
         where: { enabled: true },
         orderBy: { updatedAt: 'desc' },
         select: { enabled: true, externalAccountId: true, updatedAt: true },
@@ -35,14 +41,15 @@ export const youtubeDefaultBotController = {
       }
 
       return res.json({
-        enabled: Boolean((row as any)?.enabled),
-        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
-        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        enabled: Boolean(row.enabled),
+        externalAccountId: String(row.externalAccountId || '').trim() || null,
+        updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
       });
-    } catch (e: any) {
+    } catch (error) {
+      const err = error as { code?: string };
       // Prisma "table does not exist" (feature not deployed / migrations not applied)
-      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      throw e;
+      if (err.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw error;
     }
   },
 
@@ -87,13 +94,12 @@ export const youtubeDefaultBotController = {
   // Removes the global shared bot credential (falls back to ENV YOUTUBE_BOT_REFRESH_TOKEN if set).
   unlink: async (_req: AuthRequest, res: Response) => {
     try {
-      await (prisma as any).globalYouTubeBotCredential.deleteMany({});
+      await prisma.globalYouTubeBotCredential.deleteMany({});
       return res.json({ ok: true });
-    } catch (e: any) {
-      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      throw e;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw error;
     }
   },
 };
-
-

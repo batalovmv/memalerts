@@ -1,16 +1,22 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../utils/logger.js';
+import { CircuitBreakerOpenError } from '../utils/circuitBreaker.js';
 import { ERROR_CODES, ERROR_MESSAGES, defaultErrorCodeForStatus, type ErrorCode } from '../shared/errors.js';
+import { ApiError } from '../shared/apiError.js';
+import type { AuthRequest } from './auth.js';
 
 export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
-  const anyReq = req as any;
-  const requestId = typeof anyReq.requestId === 'string' ? anyReq.requestId : undefined;
-  const userId = typeof anyReq.userId === 'string' ? anyReq.userId : null;
-  const channelId = typeof anyReq.channelId === 'string' ? anyReq.channelId : null;
+  const authReq = req as AuthRequest;
+  const requestId = typeof authReq.requestId === 'string' ? authReq.requestId : undefined;
+  const traceId = typeof authReq.traceId === 'string' ? authReq.traceId : undefined;
+  const userId = typeof authReq.userId === 'string' ? authReq.userId : null;
+  const channelId = typeof authReq.channelId === 'string' ? authReq.channelId : null;
+  const errWithCode = err as Error & { code?: string };
 
   logger.error('http.error', {
     requestId,
+    traceId,
     method: req.method,
     path: req.path,
     userId,
@@ -34,8 +40,20 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
       errorCode,
       error: error ?? ERROR_MESSAGES[errorCode] ?? 'Error',
       requestId,
+      traceId,
     });
   };
+
+  if (err instanceof ApiError) {
+    const errorMsg = err.message && err.message !== err.errorCode ? err.message : undefined;
+    return res.status(err.status).json({
+      errorCode: err.errorCode,
+      error: errorMsg ?? ERROR_MESSAGES[err.errorCode] ?? 'Error',
+      requestId,
+      traceId,
+      ...(err.details !== undefined ? { details: err.details } : {}),
+    });
+  }
 
   if (err instanceof ZodError) {
     return send(400, ERROR_CODES.VALIDATION_ERROR);
@@ -53,16 +71,20 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return send(404, ERROR_CODES.NOT_FOUND);
   }
 
+  if (err instanceof CircuitBreakerOpenError) {
+    return send(503, ERROR_CODES.RELAY_UNAVAILABLE);
+  }
+
   // Handle multer errors
-  if ((err as any).code === 'LIMIT_FILE_SIZE') {
+  if (errWithCode.code === 'LIMIT_FILE_SIZE') {
     return send(413, ERROR_CODES.FILE_TOO_LARGE);
   }
 
-  if ((err as any).code === 'LIMIT_UNEXPECTED_FILE') {
+  if (errWithCode.code === 'LIMIT_UNEXPECTED_FILE') {
     return send(400, ERROR_CODES.BAD_REQUEST, 'Unexpected file field');
   }
 
-  if ((err as any).code === 'LIMIT_PART_COUNT' || (err as any).code === 'LIMIT_FILE_COUNT') {
+  if (errWithCode.code === 'LIMIT_PART_COUNT' || errWithCode.code === 'LIMIT_FILE_COUNT') {
     return send(400, ERROR_CODES.BAD_REQUEST, 'Too many files');
   }
 
@@ -72,7 +94,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   }
 
   // Handle ECONNRESET and other connection errors
-  if ((err as any).code === 'ECONNRESET' || (err as any).code === 'ECONNABORTED') {
+  if (errWithCode.code === 'ECONNRESET' || errWithCode.code === 'ECONNABORTED') {
     return send(408, ERROR_CODES.TIMEOUT, 'Connection was reset or aborted');
   }
 
@@ -83,5 +105,3 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   const msg = isProduction ? undefined : err.message;
   return send(fallbackStatus, fallbackCode, msg ?? ERROR_MESSAGES[fallbackCode]);
 }
-
-

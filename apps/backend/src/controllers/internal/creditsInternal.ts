@@ -21,20 +21,29 @@ type EmitThrottleState = { lastEmitAt: number; timer: NodeJS.Timeout | null };
 const emitStateBySlug = new Map<string, EmitThrottleState>();
 const EMIT_MIN_INTERVAL_MS = 1_000;
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
 function isLocalRequest(req: Request): boolean {
   return isLocalhostAddress(req.socket.remoteAddress);
 }
 
 function isInternal(req: Request): boolean {
-  const v = (req.headers as any)[INTERNAL_HEADER] || (req.headers as any)[INTERNAL_HEADER.toLowerCase()];
+  const headers = asRecord(req.headers);
+  const v = headers[INTERNAL_HEADER] || headers[INTERNAL_HEADER.toLowerCase()];
   return v === INTERNAL_HEADER_VALUE;
 }
 
-function toSlug(v: any): string {
-  return String(v || '').trim().toLowerCase();
+function toSlug(v: unknown): string {
+  return String(v || '')
+    .trim()
+    .toLowerCase();
 }
 
-async function getChannelContextBySlug(slug: string): Promise<{ channelId: string | null; reconnectWindowMinutes: number }> {
+async function getChannelContextBySlug(
+  slug: string
+): Promise<{ channelId: string | null; reconnectWindowMinutes: number }> {
   const s = toSlug(slug);
   if (!s) return { channelId: null, reconnectWindowMinutes: 60 };
 
@@ -48,9 +57,9 @@ async function getChannelContextBySlug(slug: string): Promise<{ channelId: strin
     where: { slug: s },
     select: { id: true, creditsReconnectWindowMinutes: true },
   });
-  const channelId = String((channel as any)?.id || '').trim() || null;
-  const windowMin = Number.isFinite((channel as any)?.creditsReconnectWindowMinutes)
-    ? Number((channel as any).creditsReconnectWindowMinutes)
+  const channelId = String(channel?.id || '').trim() || null;
+  const windowMin = Number.isFinite(channel?.creditsReconnectWindowMinutes)
+    ? Number(channel?.creditsReconnectWindowMinutes)
     : 60;
   const reconnectWindowMinutes = Math.max(1, Math.min(24 * 60, Math.floor(windowMin)));
 
@@ -118,16 +127,19 @@ export const creditsInternalController = {
   chatter: async (req: Request, res: Response) => {
     if (!isLocalRequest(req) || !isInternal(req)) return res.status(404).json({ error: 'Not Found' });
 
-    const slug = toSlug((req.body as any)?.channelSlug);
-    const userId = String((req.body as any)?.userId || '').trim();
-    const displayName = String((req.body as any)?.displayName || '').trim();
-    const avatarUrl = (req.body as any)?.avatarUrl ?? null;
+    const bodyRec = asRecord(req.body);
+    const slug = toSlug(bodyRec.channelSlug);
+    const userId = String(bodyRec.userId || '').trim();
+    const displayName = String(bodyRec.displayName || '').trim();
+    const avatarUrl = typeof bodyRec.avatarUrl === 'string' ? bodyRec.avatarUrl : null;
     if (!slug || !userId || !displayName) return res.status(400).json({ error: 'Bad Request' });
 
     // Best-effort: push fresh state to connected overlays immediately.
     let io: Server | undefined = undefined;
     try {
-      io = (req.app as any)?.get?.('io');
+      const appRec = asRecord(req.app);
+      const getFn = appRec.get;
+      io = typeof getFn === 'function' ? (getFn as (key: string) => Server | undefined)('io') : undefined;
     } catch {
       // ignore
     }
@@ -138,11 +150,12 @@ export const creditsInternalController = {
   donor: async (req: Request, res: Response) => {
     if (!isLocalRequest(req) || !isInternal(req)) return res.status(404).json({ error: 'Not Found' });
 
-    const slug = toSlug((req.body as any)?.channelSlug);
-    const name = String((req.body as any)?.name || '').trim();
-    const amount = Number((req.body as any)?.amount);
-    const currency = String((req.body as any)?.currency || 'RUB').trim();
-    const avatarUrl = (req.body as any)?.avatarUrl ?? null;
+    const bodyRec = asRecord(req.body);
+    const slug = toSlug(bodyRec.channelSlug);
+    const name = String(bodyRec.name || '').trim();
+    const amount = Number(bodyRec.amount);
+    const currency = String(bodyRec.currency || 'RUB').trim();
+    const avatarUrl = typeof bodyRec.avatarUrl === 'string' ? bodyRec.avatarUrl : null;
     if (!slug || !name || !Number.isFinite(amount)) return res.status(400).json({ error: 'Bad Request' });
 
     const { reconnectWindowMinutes } = await getChannelContextBySlug(slug);
@@ -151,7 +164,9 @@ export const creditsInternalController = {
 
     // Best-effort: push fresh state to connected overlays immediately.
     try {
-      const io: Server | undefined = (req.app as any)?.get?.('io');
+      const appRec = asRecord(req.app);
+      const getFn = appRec.get;
+      const io: Server | undefined = typeof getFn === 'function' ? (getFn as (key: string) => Server | undefined)('io') : undefined;
       if (io) {
         scheduleEmitCreditsState(io, slug);
       }
@@ -161,5 +176,3 @@ export const creditsInternalController = {
     return res.json({ ok: true });
   },
 };
-
-

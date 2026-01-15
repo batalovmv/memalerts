@@ -12,5 +12,3 @@ export const submissionController = {
   ...imp,
   ...resub,
 };
-
-

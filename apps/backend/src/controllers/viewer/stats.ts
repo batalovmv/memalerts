@@ -1,9 +1,21 @@
 import type { Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
-import { clampInt, getMemeStatsCacheMs, ifNoneMatchHit, makeEtagFromString, MEME_STATS_CACHE_MAX, memeStatsCache } from './cache.js';
+import {
+  clampInt,
+  getMemeStatsCacheMs,
+  ifNoneMatchHit,
+  makeEtagFromString,
+  MEME_STATS_CACHE_MAX,
+  memeStatsCache,
+} from './cache.js';
+import type { AuthRequest } from '../../middleware/auth.js';
 
-export const getMemeStats = async (req: any, res: Response) => {
-  const { period = 'month', limit = 10, channelId, channelSlug } = req.query;
+type MemeStatsRequest = AuthRequest & { __memeStatsCacheKey?: string };
+
+export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
+  const query = (req.query ?? {}) as Record<string, unknown>;
+  const { period = 'month', limit = 10, channelId, channelSlug } = query;
 
   // Clamp limit (defensive).
   const maxFromEnv = parseInt(String(process.env.MEME_STATS_MAX || ''), 10);
@@ -62,7 +74,7 @@ export const getMemeStats = async (req: any, res: Response) => {
       if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
       return res.type('application/json').send(cached.body);
     }
-    (req as any).__memeStatsCacheKey = key;
+    req.__memeStatsCacheKey = key;
   } else {
     // Authenticated stats are user-dependent; allow only short private caching (or proxies may cache incorrectly).
     res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
@@ -138,7 +150,7 @@ export const getMemeStats = async (req: any, res: Response) => {
         },
       };
 
-      const cacheKey = (req as any).__memeStatsCacheKey as string | undefined;
+      const cacheKey = req.__memeStatsCacheKey;
       if (cacheKey) {
         try {
           const body = JSON.stringify(payload);
@@ -153,9 +165,10 @@ export const getMemeStats = async (req: any, res: Response) => {
         }
       }
       return res.json(payload);
-    } catch (e: any) {
+    } catch (error) {
+      const prismaError = error as { code?: string };
       // Back-compat: daily tables might not exist yet.
-      if (e?.code !== 'P2021') throw e;
+      if (prismaError.code !== 'P2021') throw error;
       // fall through to live query
     }
   }
@@ -163,19 +176,19 @@ export const getMemeStats = async (req: any, res: Response) => {
   if (canCache && effectivePeriod === 'month') {
     try {
       const rows = targetChannelId
-        ? await (prisma as any).channelMemeStats30d.findMany({
+        ? await prisma.channelMemeStats30d.findMany({
             where: { channelId: targetChannelId },
             orderBy: [{ completedActivationsCount: 'desc' }, { completedCoinsSpentSum: 'desc' }],
             take: parsedLimit,
             select: { memeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
           })
-        : await (prisma as any).globalMemeStats30d.findMany({
+        : await prisma.globalMemeStats30d.findMany({
             orderBy: [{ completedActivationsCount: 'desc' }, { completedCoinsSpentSum: 'desc' }],
             take: parsedLimit,
             select: { memeId: true, completedActivationsCount: true, completedCoinsSpentSum: true },
           });
 
-      const memeIds = rows.map((r: any) => r.memeId);
+      const memeIds = rows.map((r) => r.memeId);
       const memes = memeIds.length
         ? await prisma.meme.findMany({
             where: { id: { in: memeIds } },
@@ -187,7 +200,7 @@ export const getMemeStats = async (req: any, res: Response) => {
         : [];
 
       const map = new Map(memes.map((m) => [m.id, m]));
-      const stats = rows.map((r: any) => {
+      const stats = rows.map((r) => {
         const meme = map.get(r.memeId);
         return {
           meme: meme
@@ -214,7 +227,7 @@ export const getMemeStats = async (req: any, res: Response) => {
         },
       };
 
-      const cacheKey = (req as any).__memeStatsCacheKey as string | undefined;
+      const cacheKey = req.__memeStatsCacheKey;
       if (cacheKey) {
         try {
           const body = JSON.stringify(payload);
@@ -229,15 +242,16 @@ export const getMemeStats = async (req: any, res: Response) => {
         }
       }
       return res.json(payload);
-    } catch (e: any) {
+    } catch (error) {
+      const prismaError = error as { code?: string };
       // Back-compat: rollup tables might not exist yet.
-      if (e?.code !== 'P2021') throw e;
+      if (prismaError.code !== 'P2021') throw error;
       // fall through to live query
     }
   }
 
   // Build where clause
-  const where: any = {
+  const where: Prisma.MemeActivationWhereInput = {
     status: { in: ['done', 'completed'] }, // Only count completed activations
     createdAt: {
       gte: startDate,
@@ -318,7 +332,7 @@ export const getMemeStats = async (req: any, res: Response) => {
     stats,
   };
 
-  const cacheKey = (req as any).__memeStatsCacheKey as string | undefined;
+  const cacheKey = req.__memeStatsCacheKey;
   if (cacheKey) {
     try {
       const body = JSON.stringify(payload);
@@ -335,5 +349,3 @@ export const getMemeStats = async (req: any, res: Response) => {
 
   return res.json(payload);
 };
-
-

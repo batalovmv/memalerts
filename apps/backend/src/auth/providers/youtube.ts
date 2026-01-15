@@ -77,9 +77,7 @@ export async function exchangeYouTubeCodeForToken(params: {
   return tokenData;
 }
 
-export async function fetchYouTubeUser(params: {
-  accessToken: string;
-}): Promise<GoogleUserInfo | null> {
+export async function fetchYouTubeUser(params: { accessToken: string }): Promise<GoogleUserInfo | null> {
   const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
     headers: { Authorization: `Bearer ${params.accessToken}` },
   });
@@ -95,13 +93,16 @@ export async function fetchGoogleTokenInfo(params: { accessToken: string }): Pro
     url.searchParams.set('access_token', params.accessToken);
     const resp = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
     const data = (await resp.json()) as GoogleTokenInfo;
-    debugLog('google.tokeninfo.fetch', { status: resp.status, hasSub: !!(data?.sub || data?.user_id), hasScope: !!data?.scope });
+    debugLog('google.tokeninfo.fetch', {
+      status: resp.status,
+      hasSub: !!(data?.sub || data?.user_id),
+      hasScope: !!data?.scope,
+    });
     if (!resp.ok) return null;
     return data;
-  } catch (e: any) {
-    debugLog('google.tokeninfo.fetch_error', { errorMessage: e?.message || String(e) });
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    debugLog('google.tokeninfo.fetch_error', { errorMessage });
     return null;
   }
 }
-
-

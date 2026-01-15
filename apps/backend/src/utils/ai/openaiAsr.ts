@@ -33,5 +33,3 @@ export async function transcribeAudioOpenAI(args: {
 
   return { transcript: String(data?.text || ''), model };
 }
-
-

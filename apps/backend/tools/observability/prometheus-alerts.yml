@@ -1,0 +1,38 @@
+groups:
+  - name: memalerts-alerts
+    rules:
+      - alert: MemalertsHttp5xxRateHigh
+        expr: sum(rate(memalerts_http_requests_total{status=~"5.."}[5m])) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx rate is high"
+          description: "5xx responses exceed 1 req/s for 5m."
+
+      - alert: MemalertsHttpLatencyP95High
+        expr: histogram_quantile(0.95, sum(rate(memalerts_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP latency p95 is high"
+          description: "p95 latency exceeded 2s for 10m."
+
+      - alert: MemalertsAiFailures
+        expr: sum(rate(memalerts_ai_jobs_failed_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI jobs failing"
+          description: "AI job failure rate is above 0 for 10m."
+
+      - alert: MemalertsChatOutboxBacklog
+        expr: sum(memalerts_chat_outbox_queue_depth{state=~"waiting|delayed"}) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chat outbox backlog building"
+          description: "Chat outbox queue depth is above 50 for 10m."

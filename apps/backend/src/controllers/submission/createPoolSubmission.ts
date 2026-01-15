@@ -1,10 +1,12 @@
 import type { Response } from 'express';
+import type { Meme, Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../middleware/auth.js';
 import type { Server } from 'socket.io';
 import { prisma } from '../../lib/prisma.js';
-import { createPoolSubmissionSchema } from '../../shared/index.js';
+import { createPoolSubmissionSchema } from '../../shared/schemas.js';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
 import { logger } from '../../utils/logger.js';
+import { maybeFailDualWrite } from '../../utils/dualWriteTestHooks.js';
 import { ZodError } from 'zod';
 
 export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
@@ -21,7 +23,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       String(process.env.DOMAIN || '').includes('beta.');
     return debugFlag || isBetaInstance;
   })();
-  const stageLog = (event: string, meta: Record<string, any>) => {
+  const stageLog = (event: string, meta: Record<string, unknown>) => {
     // Keep detailed stage logs opt-in to avoid spamming production logs.
     (verboseStages ? logger.info : logger.debug)(event, meta);
   };
@@ -29,7 +31,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
   stageLog('submission.pool.start', {
     requestId,
     userId: userId || null,
-    bodyKeys: req.body && typeof req.body === 'object' ? Object.keys(req.body as any) : null,
+    bodyKeys: req.body && typeof req.body === 'object' ? Object.keys(req.body as Record<string, unknown>) : null,
   });
 
   if (!userId) {
@@ -59,7 +61,9 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       userId,
       channelId: body.channelId,
       memeAssetId: body.memeAssetId,
-      hasTitle: typeof (body as any).title === 'string' ? String((body as any).title).trim().length > 0 : false,
+      hasTitle: typeof (body as Record<string, unknown>).title === 'string'
+        ? String((body as Record<string, unknown>).title).trim().length > 0
+        : false,
       hasNotes: !!body.notes,
       tagsCount: Array.isArray(body.tags) ? body.tags.length : null,
     });
@@ -115,9 +119,14 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
     if (!asset || asset.purgedAt || asset.purgeRequestedAt || asset.poolVisibility !== 'visible') {
       return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
     }
-    if (!asset.fileUrl) return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
+    const assetFileUrl = asset.fileUrl;
+    if (!assetFileUrl)
+      return res.status(404).json({ errorCode: 'MEME_ASSET_NOT_FOUND', error: 'Meme asset not found', requestId });
 
-    const titleInput = typeof (body as any).title === 'string' ? String((body as any).title).trim() : '';
+    const titleInput =
+      typeof (body as Record<string, unknown>).title === 'string'
+        ? String((body as Record<string, unknown>).title).trim()
+        : '';
     // If user omitted title, use asset AI title if available; otherwise fallback placeholder.
     const finalTitle = titleInput || (asset.aiAutoTitle ? String(asset.aiAutoTitle).slice(0, 80) : 'Мем');
 
@@ -145,88 +154,103 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
     // Owner bypass: if the authenticated user is the streamer/admin for this channel, adopt immediately (no submission).
     // IMPORTANT: based on JWT channelId to prevent cross-channel bypass.
     const isOwner =
-      !!req.userId && !!req.channelId && (req.userRole === 'streamer' || req.userRole === 'admin') && String(req.channelId) === String(body.channelId);
+      !!req.userId &&
+      !!req.channelId &&
+      (req.userRole === 'streamer' || req.userRole === 'admin') &&
+      String(req.channelId) === String(body.channelId);
     if (isOwner) {
-      const defaultPrice = (channel as any).defaultPriceCoins ?? 100;
+      const defaultPrice = channel.defaultPriceCoins ?? 100;
       const now = new Date();
 
       const aiDescription = asset.aiStatus === 'done' ? (asset.aiAutoDescription ?? null) : null;
-      const aiTagsJson = asset.aiStatus === 'done' ? ((asset as any).aiAutoTagNamesJson ?? null) : null;
+      const aiTagsJson =
+        asset.aiStatus === 'done' && Array.isArray(asset.aiAutoTagNamesJson) ? asset.aiAutoTagNamesJson : null;
       const aiSearchText =
         asset.aiStatus === 'done'
           ? (asset.aiSearchText ?? (aiDescription ? String(aiDescription).slice(0, 4000) : null))
           : null;
       // ChannelMeme.title is channel-scoped and editable. Use user title when provided; otherwise prefer AI title for convenience.
 
-      const cm = await prisma.channelMeme.upsert({
-        where: { channelId_memeAssetId: { channelId: body.channelId, memeAssetId: asset.id } },
-        create: {
+      const { cm, legacy } = await prisma.$transaction(async (tx) => {
+        const cm = await tx.channelMeme.upsert({
+          where: { channelId_memeAssetId: { channelId: body.channelId, memeAssetId: asset.id } },
+          create: {
+            channelId: body.channelId,
+            memeAssetId: asset.id,
+            status: 'approved',
+            title: finalTitle,
+            searchText: aiSearchText,
+            aiAutoDescription: aiDescription,
+          aiAutoTagNamesJson: aiTagsJson ?? undefined,
+            priceCoins: defaultPrice,
+            addedByUserId: userId,
+            approvedByUserId: userId,
+            approvedAt: now,
+          },
+          update: {
+            status: 'approved',
+            deletedAt: null,
+            title: finalTitle,
+            searchText: aiSearchText,
+            aiAutoDescription: aiDescription,
+            aiAutoTagNamesJson: aiTagsJson ?? undefined,
+            priceCoins: defaultPrice,
+            approvedByUserId: userId,
+            approvedAt: now,
+          },
+        });
+
+        // Back-compat: keep legacy Meme row in sync.
+        // Bugfix: if we restored ChannelMeme but legacy Meme was previously soft-deleted, the response must NOT return deletedAt/status=deleted.
+        const legacyData: Prisma.MemeUncheckedCreateInput = {
           channelId: body.channelId,
-          memeAssetId: asset.id,
-          status: 'approved',
           title: finalTitle,
-          searchText: aiSearchText,
-          aiAutoDescription: aiDescription,
-          aiAutoTagNamesJson: aiTagsJson,
+          type: asset.type,
+          fileUrl: assetFileUrl,
+          fileHash: asset.fileHash,
+          durationMs: asset.durationMs,
           priceCoins: defaultPrice,
-          addedByUserId: userId,
-          approvedByUserId: userId,
-          approvedAt: now,
-        },
-        update: {
           status: 'approved',
           deletedAt: null,
-          title: finalTitle,
-          searchText: aiSearchText,
-          aiAutoDescription: aiDescription,
-          aiAutoTagNamesJson: aiTagsJson,
-          priceCoins: defaultPrice,
+          createdByUserId: userId,
           approvedByUserId: userId,
-          approvedAt: now,
-        },
-      });
+        };
 
-      // Back-compat: keep legacy Meme row in sync.
-      // Bugfix: if we restored ChannelMeme but legacy Meme was previously soft-deleted, the response must NOT return deletedAt/status=deleted.
-      const legacyData: any = {
-        channelId: body.channelId,
-        title: finalTitle,
-        type: asset.type,
-        fileUrl: asset.fileUrl,
-        fileHash: asset.fileHash,
-        durationMs: asset.durationMs,
-        priceCoins: defaultPrice,
-        status: 'approved',
-        deletedAt: null,
-        createdByUserId: userId,
-        approvedByUserId: userId,
-      };
-
-      let legacy: any | null = null;
-      if (cm.legacyMemeId) {
-        try {
-          legacy = await prisma.meme.update({
-            where: { id: cm.legacyMemeId },
-            data: legacyData,
-          });
-        } catch {
-          // Dangling legacy id / row missing → recreate.
-          legacy = await prisma.meme.create({ data: legacyData });
-          await prisma.channelMeme.update({
+        let legacy: Meme | null = null;
+        if (cm.legacyMemeId) {
+          try {
+            legacy = await tx.meme.update({
+              where: { id: cm.legacyMemeId },
+              data: legacyData,
+            });
+          } catch (error: unknown) {
+            const errorCode =
+              typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+            if (errorCode === 'P2025') {
+              legacy = await tx.meme.create({ data: legacyData });
+              await tx.channelMeme.update({
+                where: { id: cm.id },
+                data: { legacyMemeId: legacy.id },
+              });
+            } else {
+              throw error;
+            }
+          }
+        } else {
+          legacy = await tx.meme.create({ data: legacyData });
+          await tx.channelMeme.update({
             where: { id: cm.id },
             data: { legacyMemeId: legacy.id },
           });
         }
-      } else {
-        legacy = await prisma.meme.create({ data: legacyData });
-        await prisma.channelMeme.update({
-          where: { id: cm.id },
-          data: { legacyMemeId: legacy.id },
-        });
-      }
+
+        maybeFailDualWrite('createPoolSubmission:afterLegacy');
+
+        return { cm, legacy };
+      });
 
       return res.status(201).json({
-        ...(legacy as any),
+        ...(legacy ? legacy : {}),
         isDirectApproval: true,
         channelMemeId: cm.id,
         memeAssetId: asset.id,
@@ -249,12 +273,12 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
         fileUrlTemp: '',
         // For pool submissions, preview should come from the asset itself.
         // Keep it in sourceUrl so pending UI has a stable URL without extra joins/endpoints.
-        sourceUrl: asset.fileUrl,
+        sourceUrl: assetFileUrl,
         notes: body.notes || null,
         status: 'pending',
         sourceKind: 'pool',
         memeAssetId: body.memeAssetId,
-      } as any,
+      },
     });
 
     stageLog('submission.pool.after_db_write', {
@@ -276,13 +300,15 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
             skipDuplicates: true,
           });
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Back-compat: MemeSubmissionTag might not exist.
-        if (!(e?.code === 'P2021' && e?.meta?.table === 'public.MemeSubmissionTag')) {
+        const errorCode = typeof e === 'object' && e !== null ? (e as { code?: string }).code : null;
+        const errorMeta = typeof e === 'object' && e !== null ? (e as { meta?: { table?: string } }).meta : null;
+        if (!(errorCode === 'P2021' && errorMeta?.table === 'public.MemeSubmissionTag')) {
           logger.warn('submission.pool.tags_attach_failed_ignored', {
             requestId,
             userId,
-            message: e?.message || String(e),
+            message: e instanceof Error ? e.message : String(e),
           });
         }
       }
@@ -292,7 +318,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
     try {
       const io: Server = req.app.get('io');
       const channelSlug = String(channel.slug || '').toLowerCase();
-      const streamerUserId = (channel as any).users?.[0]?.id;
+      const streamerUserId = channel.users?.[0]?.id;
       const evt = {
         event: 'submission:created' as const,
         submissionId: created.id,
@@ -304,11 +330,11 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       };
       emitSubmissionEvent(io, evt);
       void relaySubmissionEventToPeer(evt);
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.warn('submission.pool.realtime_emit_failed_ignored', {
         requestId,
         userId,
-        message: e?.message || String(e),
+        message: e instanceof Error ? e.message : String(e),
       });
     }
 
@@ -319,7 +345,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       durationMs: Date.now() - startedAt,
     });
     return res.status(201).json(created);
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Critical: without this, async errors can leave the HTTP request hanging (no status/headers).
     if (error instanceof ZodError) {
       logger.warn('submission.pool.validation_failed_throw', {
@@ -335,13 +361,28 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const errorRec =
+      error && typeof error === 'object'
+        ? (error as { name?: unknown; message?: unknown })
+        : ({} as { name?: unknown; message?: unknown });
+    const errorName = typeof errorRec.name === 'string' ? errorRec.name : null;
+    const errorMessage = typeof errorRec.message === 'string' ? errorRec.message : String(error);
     logger.error('submission.pool.unhandled_error', {
       requestId,
       userId,
-      errorName: error?.name || null,
-      errorMessage: error?.message || String(error),
+      errorName,
+      errorMessage,
       durationMs: Date.now() - startedAt,
     });
+
+    const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+    if (errorCode === 'P2002') {
+      return res.status(409).json({
+        errorCode: 'SUBMISSION_ALREADY_EXISTS',
+        error: 'Submission already exists for this asset',
+        requestId,
+      });
+    }
 
     if (!res.headersSent) {
       return res.status(500).json({
@@ -352,5 +393,3 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
     }
   }
 };
-
-

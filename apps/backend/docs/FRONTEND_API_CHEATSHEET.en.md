@@ -351,9 +351,11 @@ All `/submissions/*` require: **`authenticate + requireBetaAccess`**
 
 ### POST `/submissions`
 - **Content-Type**: `multipart/form-data`
+- **Headers**:
+  - `Idempotency-Key` (string, optional): retry within 1 hour returns the existing submission (HTTP 200)
 - **Form fields**:
   - `file` (required): video
-  - `title` (string, 0..200; can be omitted/empty — server will set a placeholder and later AI may replace it)
+  - `title` (string, 0..200; can be omitted/empty - server will set a placeholder and later AI may replace it)
   - `type`: strictly `"video"`
   - `notes` (string up to 500, optional)
   - `tags` (optional): **JSON-string** of string array (e.g. `["cat","lol"]`)
@@ -738,6 +740,16 @@ Purpose: manually enable/disable subscription-gated features for a channel (unti
 - **Credits overlay**:
   - `credits:config` → `{ creditsStyleJson }`
   - `credits:state` → `{ chatters: [{name}], donors: [{name,amount,currency}] }`
+
+
+
+
+
+
+
+
+
+
 
 
 

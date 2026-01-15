@@ -1,14 +1,16 @@
 import { createServer } from 'node:http';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { Server } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import jwt from 'jsonwebtoken';
 
 import { setupSocketIO } from '../src/socket/index.js';
-import { prisma } from '../src/lib/prisma.js';
+import { createChannel, createUser } from './factories/index.js';
 
-function makeJwt(payload: Record<string, any>): string {
+type TestEventPayload = { ok: boolean };
+
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -57,16 +59,10 @@ describe('Socket.IO join:channel (authenticated dashboard room)', () => {
   it('allows streamer to join own channel slug; denies viewer and slug mismatch', async () => {
     const channelId = randomUUID();
     const slug = 'MySlug';
-    await prisma.channel.create({ data: { id: channelId, slug, name: 'Test Channel' } });
+    await createChannel({ id: channelId, slug, name: 'Test Channel' });
 
-    const streamer = await prisma.user.create({
-      data: { displayName: 'Streamer', role: 'streamer', channelId },
-      select: { id: true, role: true, channelId: true },
-    });
-    const viewer = await prisma.user.create({
-      data: { displayName: 'Viewer', role: 'viewer', channelId },
-      select: { id: true, role: true, channelId: true },
-    });
+    const streamer = await createUser({ displayName: 'Streamer', role: 'streamer', channelId });
+    const viewer = await createUser({ displayName: 'Viewer', role: 'viewer', channelId });
 
     const streamerToken = makeJwt({ userId: streamer.id, role: streamer.role, channelId: streamer.channelId });
     const viewerToken = makeJwt({ userId: viewer.id, role: viewer.role, channelId: viewer.channelId });
@@ -96,7 +92,7 @@ describe('Socket.IO join:channel (authenticated dashboard room)', () => {
 
       // Emit to the channel room, streamer should receive, viewer should not.
       io.to(`channel:${slug.toLowerCase()}`).emit('test:event', { ok: true });
-      const got = await waitForEvent<any>(s, 'test:event', 2000);
+      const got = await waitForEvent<TestEventPayload>(s, 'test:event', 2000);
       expect(got.ok).toBe(true);
       await expectNoEvent(v, 'test:event', 700);
     } finally {
@@ -107,5 +103,3 @@ describe('Socket.IO join:channel (authenticated dashboard room)', () => {
     }
   });
 });
-
-

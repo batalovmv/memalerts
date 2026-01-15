@@ -18,11 +18,11 @@ describe('internal relay to peer (fetch)', () => {
   });
 
   it('walletBridge relays to peer instance with correct header/url/body', async () => {
-    const calls: any[] = [];
-    global.fetch = vi.fn(async (url: any, options: any) => {
+    const calls: Array<{ url: unknown; options?: RequestInit }> = [];
+    global.fetch = vi.fn(async (url: unknown, options?: RequestInit) => {
       calls.push({ url, options });
-      return { ok: true, status: 200 } as any;
-    }) as any;
+      return { ok: true, status: 200 } as unknown as Response;
+    }) as unknown as typeof fetch;
 
     process.env.PORT = '3001';
     await relayWalletUpdatedToPeer({ userId: 'u1', channelId: 'c1', balance: 10 });
@@ -36,11 +36,11 @@ describe('internal relay to peer (fetch)', () => {
   });
 
   it('submissionBridge relays to peer instance with correct header/url/body', async () => {
-    const calls: any[] = [];
-    global.fetch = vi.fn(async (url: any, options: any) => {
+    const calls: Array<{ url: unknown; options?: RequestInit }> = [];
+    global.fetch = vi.fn(async (url: unknown, options?: RequestInit) => {
       calls.push({ url, options });
-      return { ok: true, status: 200 } as any;
-    }) as any;
+      return { ok: true, status: 200 } as unknown as Response;
+    }) as unknown as typeof fetch;
 
     process.env.PORT = '3002';
     await relaySubmissionEventToPeer({
@@ -67,18 +67,21 @@ describe('internal relay to peer (fetch)', () => {
   });
 
   it('no peer relay when PORT is not 3001/3002', async () => {
-    const calls: any[] = [];
-    global.fetch = vi.fn(async (url: any, options: any) => {
+    const calls: Array<{ url: unknown; options?: RequestInit }> = [];
+    global.fetch = vi.fn(async (url: unknown, options?: RequestInit) => {
       calls.push({ url, options });
-      return { ok: true, status: 200 } as any;
-    }) as any;
+      return { ok: true, status: 200 } as unknown as Response;
+    }) as unknown as typeof fetch;
 
     process.env.PORT = '9999';
     await relayWalletUpdatedToPeer({ userId: 'u1', channelId: 'c1', balance: 10 });
-    await relaySubmissionEventToPeer({ event: 'submission:created', submissionId: 's1', channelId: 'c1', channelSlug: 'x' });
+    await relaySubmissionEventToPeer({
+      event: 'submission:created',
+      submissionId: 's1',
+      channelId: 'c1',
+      channelSlug: 'x',
+    });
 
     expect(calls).toHaveLength(0);
   });
 });
-
-

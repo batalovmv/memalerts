@@ -1,6 +1,8 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { claimPendingCoinGrantsTx } from '../src/rewards/pendingCoinGrants.js';
 import { recordExternalRewardEventTx } from '../src/rewards/externalRewardEvents.js';
+import { createChannel, createUser } from './factories/index.js';
 
 function rand(): string {
   return Math.random().toString(16).slice(2);
@@ -8,26 +10,20 @@ function rand(): string {
 
 describe('external rewards -> pending coin grants -> claim on account link', () => {
   it('records a pending grant (dedup) and claims exactly-once into the wallet', async () => {
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-      },
-      select: { id: true, slug: true },
+    const channel = await createChannel({
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
     });
 
-    const user = await prisma.user.create({
-      data: { displayName: `User ${rand()}`, role: 'viewer', hasBetaAccess: false },
-      select: { id: true },
-    });
+    const user = await createUser({ displayName: `User ${rand()}`, role: 'viewer', hasBetaAccess: false });
 
     const providerAccountId = `kick_user_${rand()}`;
     const providerEventId = `kick_evt_${rand()}`;
 
     // Create the same event twice -> should dedup and create at most one pending grant.
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const r1 = await recordExternalRewardEventTx({
-        tx: tx as any,
+        tx,
         provider: 'kick',
         providerEventId,
         channelId: channel.id,
@@ -44,7 +40,7 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
       expect(r1.ok).toBe(true);
 
       const r2 = await recordExternalRewardEventTx({
-        tx: tx as any,
+        tx,
         provider: 'kick',
         providerEventId,
         channelId: channel.id,
@@ -61,14 +57,14 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
       expect(r2.ok).toBe(true);
     });
 
-    const pendingCount = await (prisma as any).pendingCoinGrant.count({
+    const pendingCount = await prisma.pendingCoinGrant.count({
       where: { provider: 'kick', providerAccountId, channelId: channel.id },
     });
     expect(pendingCount).toBe(1);
 
     // Claim: should increment wallet and mark pending as claimed.
-    const events1 = await prisma.$transaction(async (tx) => {
-      return await claimPendingCoinGrantsTx({ tx: tx as any, userId: user.id, provider: 'kick', providerAccountId });
+    const events1 = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      return await claimPendingCoinGrantsTx({ tx, userId: user.id, provider: 'kick', providerAccountId });
     });
     expect(events1).toHaveLength(1);
     expect(events1[0].userId).toBe(user.id);
@@ -81,7 +77,7 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
     });
     expect(wallet?.balance).toBe(250);
 
-    const pending = await (prisma as any).pendingCoinGrant.findFirst({
+    const pending = await prisma.pendingCoinGrant.findFirst({
       where: { provider: 'kick', providerAccountId, channelId: channel.id },
       select: { claimedAt: true, claimedByUserId: true },
     });
@@ -89,8 +85,8 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
     expect(pending?.claimedAt).not.toBeNull();
 
     // Claim again: must be exactly-once (no new wallet delta).
-    const events2 = await prisma.$transaction(async (tx) => {
-      return await claimPendingCoinGrantsTx({ tx: tx as any, userId: user.id, provider: 'kick', providerAccountId });
+    const events2 = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      return await claimPendingCoinGrantsTx({ tx, userId: user.id, provider: 'kick', providerAccountId });
     });
     expect(events2).toHaveLength(0);
 
@@ -101,25 +97,19 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
   });
 
   it('supports non-native eventType mapping for trovo (e.g. follow uses twitch_* eventType)', async () => {
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-      },
-      select: { id: true },
+    const channel = await createChannel({
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
     });
 
-    const user = await prisma.user.create({
-      data: { displayName: `User ${rand()}`, role: 'viewer', hasBetaAccess: false },
-      select: { id: true },
-    });
+    const user = await createUser({ displayName: `User ${rand()}`, role: 'viewer', hasBetaAccess: false });
 
     const providerAccountId = `trovo_user_${rand()}`;
     const providerEventId = `trovo_evt_${rand()}`;
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await recordExternalRewardEventTx({
-        tx: tx as any,
+        tx,
         provider: 'trovo',
         providerEventId,
         channelId: channel.id,
@@ -135,17 +125,15 @@ describe('external rewards -> pending coin grants -> claim on account link', () 
       });
     });
 
-    const pendingCount = await (prisma as any).pendingCoinGrant.count({
+    const pendingCount = await prisma.pendingCoinGrant.count({
       where: { provider: 'trovo', providerAccountId, channelId: channel.id },
     });
     expect(pendingCount).toBe(1);
 
-    const events1 = await prisma.$transaction(async (tx) => {
-      return await claimPendingCoinGrantsTx({ tx: tx as any, userId: user.id, provider: 'trovo', providerAccountId });
+    const events1 = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      return await claimPendingCoinGrantsTx({ tx, userId: user.id, provider: 'trovo', providerAccountId });
     });
     expect(events1).toHaveLength(1);
     expect(events1[0].delta).toBe(77);
   });
 });
-
-

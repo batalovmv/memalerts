@@ -1,6 +1,5 @@
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
-import { decrementFileHashReference, getFileHashByPath } from '../utils/fileHash.js';
 import { releaseAdvisoryLock, tryAcquireAdvisoryLock } from '../utils/pgAdvisoryLock.js';
 
 type CleanupOptions = {
@@ -30,6 +29,7 @@ export async function cleanupRejectedSubmissions(opts: CleanupOptions): Promise<
     },
     select: {
       id: true,
+      fileHash: true,
       fileUrlTemp: true,
       createdAt: true,
     },
@@ -41,30 +41,18 @@ export async function cleanupRejectedSubmissions(opts: CleanupOptions): Promise<
   let fileRefsDecremented = 0;
 
   for (const r of rows) {
-    // Best-effort: only try file hash cleanup for our local dedup store.
-    try {
-      const p = String(r.fileUrlTemp || '');
-      if (p.startsWith('/uploads/memes/')) {
-        const hash = await getFileHashByPath(p);
-        if (hash) {
-          await decrementFileHashReference(hash);
-          fileRefsDecremented += 1;
-        }
-      }
-    } catch (e: any) {
-      logger.warn('cleanup.rejected.filehash.decrement_failed', {
-        submissionId: r.id,
-        errorMessage: e?.message,
-      });
-    }
+    const p = String(r.fileUrlTemp || '');
+    const shouldDecrement = Boolean(r.fileHash) || p.startsWith('/uploads/memes/');
 
     try {
       await prisma.memeSubmission.delete({ where: { id: r.id } });
       deleted += 1;
-    } catch (e: any) {
+      if (shouldDecrement) fileRefsDecremented += 1;
+    } catch (error) {
+      const err = error as Error;
       logger.warn('cleanup.rejected.delete_failed', {
         submissionId: r.id,
-        errorMessage: e?.message,
+        errorMessage: err.message,
       });
     }
   }
@@ -76,7 +64,10 @@ export function startRejectedSubmissionsCleanupScheduler() {
   const ttlDays = parseInt(process.env.REJECTED_SUBMISSIONS_TTL_DAYS || '30', 10);
   const batchSize = parseInt(process.env.REJECTED_SUBMISSIONS_CLEANUP_BATCH || '200', 10);
   const intervalMs = parseInt(process.env.REJECTED_SUBMISSIONS_CLEANUP_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10); // daily
-  const initialDelayMs = parseInt(process.env.REJECTED_SUBMISSIONS_CLEANUP_INITIAL_DELAY_MS || String(5 * 60 * 1000), 10); // 5 min
+  const initialDelayMs = parseInt(
+    process.env.REJECTED_SUBMISSIONS_CLEANUP_INITIAL_DELAY_MS || String(5 * 60 * 1000),
+    10
+  ); // 5 min
 
   let running = false;
   // Ensure only one instance (prod or beta) runs cleanup on shared DB.
@@ -100,12 +91,13 @@ export function startRejectedSubmissionsCleanupScheduler() {
         durationMs: Date.now() - startedAt,
         ...res,
       });
-    } catch (e: any) {
+    } catch (error) {
+      const err = error as Error;
       logger.error('cleanup.rejected.failed', {
         ttlDays,
         batchSize,
         durationMs: Date.now() - startedAt,
-        errorMessage: e?.message,
+        errorMessage: err.message,
       });
     } finally {
       if (locked) await releaseAdvisoryLock(lockId);
@@ -117,5 +109,3 @@ export function startRejectedSubmissionsCleanupScheduler() {
   setTimeout(() => void runOnce(), Math.max(0, initialDelayMs));
   setInterval(() => void runOnce(), Math.max(60_000, intervalMs));
 }
-
-

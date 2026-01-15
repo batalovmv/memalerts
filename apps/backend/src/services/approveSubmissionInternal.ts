@@ -15,8 +15,10 @@ export type ApproveSubmissionInternalArgs = {
   };
 };
 
+type LegacyMeme = Awaited<ReturnType<Prisma.TransactionClient['meme']['findUnique']>>;
+
 export async function approveSubmissionInternal(args: ApproveSubmissionInternalArgs): Promise<{
-  legacyMeme: any;
+  legacyMeme: LegacyMeme | null;
   alreadyApproved: boolean;
   memeAssetId: string | null;
   channelMemeId: string | null;
@@ -58,7 +60,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 
   // Idempotency: one submission -> one approve.
   if (submission.status === 'approved') {
-    let legacy: any | null = null;
+    let legacy: LegacyMeme | null = null;
     const memeAssetId: string | null = submission.memeAssetId ?? null;
     let channelMemeId: string | null = null;
 
@@ -78,17 +80,17 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   const tagIds = tagNames.length > 0 ? await getOrCreateTags(tagNames) : [];
 
   const aiAutoDescription =
-    typeof (submission as any).aiAutoDescription === 'string'
-      ? String((submission as any).aiAutoDescription).trim().slice(0, 2000) || null
+    typeof submission.aiAutoDescription === 'string'
+      ? String(submission.aiAutoDescription).trim().slice(0, 2000) || null
       : null;
 
-  const aiAutoTagNamesJson = (submission as any).aiAutoTagNamesJson ?? null;
+  const aiAutoTagNamesJson = submission.aiAutoTagNamesJson ?? null;
   const aiAutoTags =
     Array.isArray(aiAutoTagNamesJson) && aiAutoTagNamesJson.every((t) => typeof t === 'string')
       ? (aiAutoTagNamesJson as string[])
       : [];
 
-  const memeData: any = {
+  const memeData: Prisma.MemeUncheckedCreateInput = {
     channelId: submission.channelId,
     title: submission.title,
     type: submission.type,
@@ -115,7 +117,12 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     resolved.fileHash !== null
       ? await tx.memeAsset.findFirst({ where: { fileHash: resolved.fileHash }, select: { id: true } })
       : await tx.memeAsset.findFirst({
-          where: { fileHash: null, fileUrl: resolved.finalFileUrl, type: submission.type, durationMs: resolved.durationMs },
+          where: {
+            fileHash: null,
+            fileUrl: resolved.finalFileUrl,
+            type: submission.type,
+            durationMs: resolved.durationMs,
+          },
           select: { id: true },
         });
 
@@ -153,15 +160,16 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   // Best-effort: persist AI results globally on MemeAsset so future duplicates/pool adoptions can reuse them.
   // (Do not overwrite if already marked done.)
   try {
+    const aiUpdateData: Prisma.MemeAssetUpdateManyMutationInput = {
+      aiStatus: 'done',
+      aiAutoDescription,
+      aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
+      aiSearchText,
+      aiCompletedAt: new Date(),
+    };
     await tx.memeAsset.updateMany({
-      where: { id: memeAssetId, aiStatus: { not: 'done' } as any },
-      data: {
-        aiStatus: 'done',
-        aiAutoDescription,
-        aiAutoTagNamesJson,
-        aiSearchText,
-        aiCompletedAt: new Date(),
-      } as any,
+      where: { id: memeAssetId, aiStatus: { not: 'done' } },
+      data: aiUpdateData,
     });
   } catch {
     // ignore (back-compat if column missing on older DBs)
@@ -177,7 +185,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       title: channelTitle,
       searchText: aiSearchText,
       aiAutoDescription,
-      aiAutoTagNamesJson,
+      aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
       priceCoins: resolved.priceCoins,
       addedByUserId: submission.submitterUserId || null,
       approvedByUserId,
@@ -189,7 +197,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       title: channelTitle,
       searchText: aiSearchText,
       aiAutoDescription,
-      aiAutoTagNamesJson,
+      aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
       priceCoins: resolved.priceCoins,
       approvedByUserId,
       approvedAt: new Date(),
@@ -202,5 +210,3 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
 
   return { legacyMeme, alreadyApproved: false, memeAssetId, channelMemeId: cm.id };
 }
-
-

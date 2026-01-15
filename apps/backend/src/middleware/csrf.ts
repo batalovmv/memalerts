@@ -1,17 +1,21 @@
-import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from './auth.js';
+import type { Request, Response, NextFunction } from 'express';
+import type { AuthRequest } from './auth.js';
 import { logSecurityEvent } from '../utils/auditLogger.js';
 import { logger } from '../utils/logger.js';
 import { isDebugLogsEnabled } from '../utils/debug.js';
 
 function isDebugCsrfEnabled(): boolean {
   if (isDebugLogsEnabled()) return true;
-  const v = String(process.env.DEBUG_CSRF ?? '').trim().toLowerCase();
+  const v = String(process.env.DEBUG_CSRF ?? '')
+    .trim()
+    .toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
 function isFetchMetadataSameSite(req: Request): boolean {
-  const v = String(req.get('sec-fetch-site') || '').trim().toLowerCase();
+  const v = String(req.get('sec-fetch-site') || '')
+    .trim()
+    .toLowerCase();
   return v === 'same-origin' || v === 'same-site';
 }
 
@@ -35,13 +39,13 @@ function normalizeOrigin(input: string | undefined | null): string | null {
  */
 function getAllowedOrigins(): string[] {
   const origins = new Set<string>();
-  
+
   // Check if this is a beta instance
   const isBetaInstance =
     process.env.DOMAIN?.includes('beta.') ||
     process.env.PORT === '3002' ||
     String(process.env.INSTANCE || '').toLowerCase() === 'beta';
-  
+
   if (process.env.WEB_URL) {
     const webUrlNormalized = normalizeOrigin(process.env.WEB_URL);
     const webUrlIsBeta = (() => {
@@ -56,12 +60,12 @@ function getAllowedOrigins(): string[] {
       if (webUrlNormalized) origins.add(webUrlNormalized);
     }
   }
-  
+
   if (process.env.OVERLAY_URL) {
     const overlayUrlNormalized = normalizeOrigin(process.env.OVERLAY_URL);
     if (overlayUrlNormalized) origins.add(overlayUrlNormalized);
   }
-  
+
   if (process.env.DOMAIN) {
     const domainIsBeta = process.env.DOMAIN.includes('beta.');
     if ((isBetaInstance && domainIsBeta) || (!isBetaInstance && !domainIsBeta)) {
@@ -71,13 +75,13 @@ function getAllowedOrigins(): string[] {
       if (b) origins.add(b);
     }
   }
-  
+
   // Development fallback
   if (origins.size === 0) {
     origins.add('http://localhost:5173');
     origins.add('http://localhost:5174');
   }
-  
+
   return Array.from(origins);
 }
 
@@ -90,7 +94,7 @@ function getRequestOrigin(req: Request): string | null {
   if (origin) {
     return origin;
   }
-  
+
   // Fallback to Referer header
   const referer = req.headers.referer;
   if (referer) {
@@ -102,14 +106,14 @@ function getRequestOrigin(req: Request): string | null {
       return null;
     }
   }
-  
+
   return null;
 }
 
 /**
  * CSRF protection middleware for state-changing operations
  * Validates that the request Origin/Referer matches allowed origins
- * 
+ *
  * This protects against Cross-Site Request Forgery attacks by ensuring
  * that state-changing requests (POST, PUT, DELETE, PATCH) come from
  * trusted origins.
@@ -125,12 +129,12 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   if (req.path.startsWith('/internal/')) {
     return next();
   }
-  
+
   // Skip CSRF check for webhooks (they use HMAC verification instead)
   if (req.path.startsWith('/webhooks')) {
     return next();
   }
-  
+
   // Skip CSRF check for health checks and public endpoints
   if (req.path === '/health' || req.path.startsWith('/auth/twitch') || req.path.startsWith('/public/')) {
     return next();
@@ -138,18 +142,19 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
 
   const shouldDebugThisRoute =
     isDebugCsrfEnabled() &&
-    (req.method === 'POST' &&
-      (req.path === '/auth/logout' ||
-        req.path === '/submissions' ||
-        req.path === '/me/preferences' ||
-        req.path.startsWith('/auth/')));
-  
+    req.method === 'POST' &&
+    (req.path === '/auth/logout' ||
+      req.path === '/submissions' ||
+      req.path === '/me/preferences' ||
+      req.path.startsWith('/auth/'));
+
   // Get request origin
   const requestOrigin = getRequestOrigin(req);
 
   if (shouldDebugThisRoute) {
+    const authReq = req as AuthRequest;
     logger.info('security.csrf.debug', {
-      requestId: (req as any).requestId,
+      requestId: authReq.requestId,
       method: req.method,
       path: req.path,
       host: req.get('host') || null,
@@ -162,7 +167,7 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
       allowedOrigins: getAllowedOrigins(),
     });
   }
-  
+
   // If no origin is present, it might be a same-origin request
   // In production, we should require origin for security
   // In development, we allow requests without origin (e.g., Postman, curl)
@@ -175,8 +180,9 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
         return next();
       }
 
+      const authReq = req as AuthRequest;
       logger.warn('security.csrf.missing_origin', {
-        requestId: (req as any).requestId,
+        requestId: authReq.requestId,
         method: req.method,
         path: req.path,
       });
@@ -195,10 +201,10 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
     // In development, allow requests without origin
     return next();
   }
-  
+
   // Validate origin against allowed origins
   const allowedOrigins = getAllowedOrigins();
-  const isAllowed = allowedOrigins.some(allowedOrigin => {
+  const isAllowed = allowedOrigins.some((allowedOrigin) => {
     // Exact match
     if (requestOrigin === allowedOrigin) {
       return true;
@@ -211,17 +217,17 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
     }
     return false;
   });
-  
+
   if (!isAllowed) {
+    const authReq = req as AuthRequest;
     logger.warn('security.csrf.blocked', {
-      requestId: (req as any).requestId,
+      requestId: authReq.requestId,
       origin: requestOrigin,
       method: req.method,
       path: req.path,
     });
-    
+
     // Log security event
-    const authReq = req as AuthRequest;
     await logSecurityEvent(
       'csrf_blocked',
       authReq.userId || null,
@@ -234,7 +240,7 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
       },
       req
     );
-    
+
     return res.status(403).json({
       errorCode: 'CSRF_INVALID',
       // Put the human-readable reason into `error` so errorResponseFormat doesn't hide it.
@@ -246,7 +252,6 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
       },
     });
   }
-  
+
   next();
 }
-

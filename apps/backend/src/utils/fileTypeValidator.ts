@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { logger } from './logger.js';
 
 /**
  * Magic bytes (file signatures) for video formats
@@ -59,14 +60,14 @@ function matchesMagicBytes(buffer: Buffer, pattern: number[]): boolean {
 /**
  * Detect file type by checking magic bytes (file signatures)
  * This validates the actual file content, not just the MIME type header
- * 
+ *
  * @param filePath Path to the file
  * @returns Detected MIME type or null if unknown/invalid
  */
 export async function detectFileTypeByMagicBytes(filePath: string): Promise<string | null> {
   try {
     const header = await readFileHeader(filePath, 12);
-    
+
     // Check each known file type
     for (const [mimeType, patterns] of Object.entries(MAGIC_BYTES)) {
       for (const pattern of patterns) {
@@ -75,17 +76,18 @@ export async function detectFileTypeByMagicBytes(filePath: string): Promise<stri
         }
       }
     }
-    
+
     return null;
   } catch (error) {
-    console.error('Error reading file header for magic bytes check:', error);
+    const err = error as Error;
+    logger.error('file_type.magic_bytes_read_failed', { errorMessage: err.message });
     return null;
   }
 }
 
 /**
  * Validate that file's actual content matches the declared MIME type
- * 
+ *
  * @param filePath Path to the uploaded file
  * @param declaredMimeType MIME type declared in the upload (from HTTP header)
  * @returns Object with validation result
@@ -100,7 +102,7 @@ export async function validateFileContent(
   }
 
   const detectedType = await detectFileTypeByMagicBytes(filePath);
-  
+
   if (!detectedType) {
     return {
       valid: false,
@@ -125,4 +127,3 @@ export async function validateFileContent(
 
   return { valid: true, detectedType };
 }
-

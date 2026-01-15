@@ -7,6 +7,10 @@ type ChatCompletionResponse = {
   }>;
 };
 
+type OpenAIContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 function clampInt(n: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;
   if (n < min) return min;
@@ -15,7 +19,9 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
 }
 
 function normSpace(s: string): string {
-  return String(s || '').replace(/\s+/g, ' ').trim();
+  return String(s || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const RU_STOP = new Set(
@@ -96,12 +102,16 @@ function sanitizeTags(raw: unknown, maxTags: number): string[] {
   return out;
 }
 
-function safeParseJson(s: string): any | null {
+function safeParseJson(s: string): unknown | null {
   try {
     return JSON.parse(s);
   } catch {
     return null;
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
 export async function generateMemeMetadataOpenAI(args: {
@@ -127,7 +137,12 @@ export async function generateMemeMetadataOpenAI(args: {
 
   const transcript = String(args.transcript || '').trim();
   const transcriptForPrompt = transcript ? transcript.slice(0, 8000) : '';
-  const labels = Array.isArray(args.labels) ? args.labels.map((x) => String(x || '')).filter(Boolean).slice(0, 50) : [];
+  const labels = Array.isArray(args.labels)
+    ? args.labels
+        .map((x) => String(x || ''))
+        .filter(Boolean)
+        .slice(0, 50)
+    : [];
 
   const sys = [
     'Ты помогаешь генерировать метаданные для коротких видео-мемов (до 15 секунд).',
@@ -136,7 +151,9 @@ export async function generateMemeMetadataOpenAI(args: {
     'Требования:',
     '- title: короткое (3-4 слова), выражает суть мема, НЕ цитата из аудио и НЕ длинное предложение.',
     "- Никогда не используй плейсхолдеры вроде 'Мем', 'Untitled', 'Без названия'.",
-    '- tags: массив из 3-' + String(maxTags) + ' поисковых тегов (короткие, 1 слово или snake_case, без мусора, НЕ слова из каждой реплики).',
+    '- tags: массив из 3-' +
+      String(maxTags) +
+      ' поисковых тегов (короткие, 1 слово или snake_case, без мусора, НЕ слова из каждой реплики).',
     '- description: НЕ выдумывай. Опиши только то, что следует из входных данных.',
     hasFrames
       ? '- description: 1-3 предложения: что на экране (если видно), и что происходит по аудио.'
@@ -153,7 +170,7 @@ export async function generateMemeMetadataOpenAI(args: {
     .filter(Boolean)
     .join('\n\n');
 
-  const content: any[] = [{ type: 'text', text: userText }];
+  const content: OpenAIContentPart[] = [{ type: 'text', text: userText }];
 
   for (const fp of frames) {
     const buf = await fs.promises.readFile(fp);
@@ -187,12 +204,11 @@ export async function generateMemeMetadataOpenAI(args: {
     throw new Error('openai_metadata_invalid_json');
   }
 
-  const title = sanitizeTitle((json as any).title);
-  const tags = sanitizeTags((json as any).tags, maxTags);
-  const descriptionRaw = normSpace(String((json as any).description ?? ''));
+  const jsonRecord = asRecord(json);
+  const title = sanitizeTitle(jsonRecord.title);
+  const tags = sanitizeTags(jsonRecord.tags, maxTags);
+  const descriptionRaw = normSpace(String(jsonRecord.description ?? ''));
   const description = descriptionRaw ? descriptionRaw.slice(0, 1500) : null;
 
   return { title, tags, description, model };
 }
-
-

@@ -2,19 +2,19 @@ import { prisma } from '../lib/prisma.js';
 
 export type ChannelResolveProvider = 'twitch';
 
-export type ChannelResolveResult =
-  | {
-      channelId: string;
-      provider: ChannelResolveProvider;
-      externalId: string;
-      displayHint: {
-        twitchChannelId: string;
-      };
-    }
-  | null;
+export type ChannelResolveResult = {
+  channelId: string;
+  provider: ChannelResolveProvider;
+  externalId: string;
+  displayHint: {
+    twitchChannelId: string;
+  };
+} | null;
 
 export function normalizeProvider(v: unknown): string {
-  return String(v ?? '').trim().toLowerCase();
+  return String(v ?? '')
+    .trim()
+    .toLowerCase();
 }
 
 export function normalizeExternalId(v: unknown): string {
@@ -55,5 +55,3 @@ export async function resolveChannelByProviderExternalId(
 
   return null;
 }
-
-

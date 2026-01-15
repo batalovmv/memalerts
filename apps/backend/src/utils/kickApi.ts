@@ -1,6 +1,45 @@
 import { prisma } from '../lib/prisma.js';
 import { logger } from './logger.js';
-import { refreshKickToken } from '../auth/providers/kick.js';
+import { refreshKickToken, type KickTokenResponse } from '../auth/providers/kick.js';
+import { isTransientHttpError } from './httpErrors.js';
+import { fetchWithTimeout, getServiceHttpTimeoutMs } from './httpTimeouts.js';
+import { getServiceRetryConfig, withRetry } from './retry.js';
+
+export interface KickEventSubscription {
+  event?: string;
+  type?: string;
+  name?: string;
+  callback_url?: string;
+  callback?: string;
+  transport?: {
+    callback?: string;
+  };
+  [key: string]: unknown;
+}
+
+const kickTimeoutMs = getServiceHttpTimeoutMs('KICK', 10_000, 1_000, 60_000);
+const kickRetryConfig = getServiceRetryConfig('kick', {
+  maxAttempts: 3,
+  baseDelayMs: 500,
+  maxDelayMs: 3000,
+});
+
+function retryKick<T>(action: (attempt: number) => Promise<T>, options?: {
+  retryOnResult?: (result: T) => boolean;
+  isSuccessResult?: (result: T) => boolean;
+}): Promise<T> {
+  return withRetry(action, {
+    service: 'kick',
+    ...kickRetryConfig,
+    retryOnError: isTransientHttpError,
+    retryOnResult: options?.retryOnResult,
+    isSuccessResult: options?.isSuccessResult,
+  });
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
 
 function isExpired(expiresAt: Date | null | undefined, skewSeconds: number): boolean {
   if (!expiresAt) return true;
@@ -83,7 +122,7 @@ export async function getValidKickAccessTokenByExternalAccountId(externalAccount
       logger.warn('kick.token.refresh_failed', {
         externalAccountId: id,
         status: refresh.status,
-        error: (refresh.data as any)?.error ?? null,
+        error: (refresh.data as KickTokenResponse)?.error ?? null,
       });
       return null;
     }
@@ -91,7 +130,11 @@ export async function getValidKickAccessTokenByExternalAccountId(externalAccount
     const refreshTokenNext = String(refresh.data?.refresh_token || '').trim() || null;
     const expiresIn = Number(refresh.data?.expires_in || 0);
     const tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000) : null;
-    const scopes = Array.isArray(refresh.data?.scope) ? refresh.data.scope.join(' ') : (refresh.data?.scope ? String(refresh.data.scope) : null);
+    const scopes = Array.isArray(refresh.data?.scope)
+      ? refresh.data.scope.join(' ')
+      : refresh.data?.scope
+        ? String(refresh.data.scope)
+        : null;
 
     await prisma.externalAccount.update({
       where: { id },
@@ -104,25 +147,27 @@ export async function getValidKickAccessTokenByExternalAccountId(externalAccount
     });
 
     return accessToken;
-  } catch (e: any) {
-    logger.warn('kick.token.refresh_failed', { externalAccountId: id, errorMessage: e?.message || String(e) });
+  } catch (error) {
+    const err = error as Error;
+    logger.warn('kick.token.refresh_failed', { externalAccountId: id, errorMessage: err.message || String(error) });
     return null;
   }
 }
 
 export async function getValidKickBotAccessToken(): Promise<string | null> {
   try {
-    const cred = await (prisma as any).globalKickBotCredential.findFirst({
+    const cred = await prisma.globalKickBotCredential.findFirst({
       where: { enabled: true },
       orderBy: { updatedAt: 'desc' },
       select: { externalAccountId: true },
     });
-    const externalAccountId = String((cred as any)?.externalAccountId || '').trim();
+    const externalAccountId = String(cred?.externalAccountId || '').trim();
     if (!externalAccountId) return null;
     return await getValidKickAccessTokenByExternalAccountId(externalAccountId);
-  } catch (e: any) {
-    if (e?.code !== 'P2021') {
-      logger.warn('kick.bot_token.db_credential_lookup_failed', { errorMessage: e?.message || String(e) });
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err.code !== 'P2021') {
+      logger.warn('kick.bot_token.db_credential_lookup_failed', { errorMessage: err.message || String(error) });
     }
     return null;
   }
@@ -133,14 +178,19 @@ export async function sendKickChatMessage(params: {
   kickChannelId: string;
   content: string;
   sendChatUrl: string;
-}): Promise<{ ok: boolean; status: number; raw: any; retryAfterSeconds: number | null }> {
+}): Promise<{ ok: boolean; status: number; raw: unknown; retryAfterSeconds: number | null }> {
   // Kick Dev API (Chat → Post Chat Message) expects:
   // POST https://api.kick.com/public/v1/chat
   // Body: { type: "user"|"bot", content, broadcaster_user_id? }
   // To target a specific channel, we send as "user" and set broadcaster_user_id.
   const broadcasterUserId = Number.parseInt(String(params.kickChannelId || '').trim(), 10);
   if (!Number.isFinite(broadcasterUserId) || broadcasterUserId <= 0) {
-    return { ok: false, status: 400, raw: { error: 'Invalid kickChannelId (expected numeric broadcaster_user_id)' }, retryAfterSeconds: null };
+    return {
+      ok: false,
+      status: 400,
+      raw: { error: 'Invalid kickChannelId (expected numeric broadcaster_user_id)' },
+      retryAfterSeconds: null,
+    };
   }
 
   const contentRaw = String(params.content || '').trim();
@@ -151,50 +201,88 @@ export async function sendKickChatMessage(params: {
     type: 'user',
   };
   try {
-    const resp = await fetch(params.sendChatUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+    return await retryKick(
+      async () => {
+        const resp = await fetchWithTimeout({
+          url: params.sendChatUrl,
+          service: 'kick',
+          timeoutMs: kickTimeoutMs,
+          timeoutReason: 'kick_timeout',
+          init: {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${params.accessToken}`,
+            },
+            body: JSON.stringify(body),
+          },
+        });
+        const data = await resp.json().catch(() => null);
+        const retryAfterSeconds = (() => {
+          const h = String(resp.headers.get('retry-after') || '').trim();
+          if (!h) return null;
+          const n = Number.parseInt(h, 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        })();
+        return { ok: resp.ok, status: resp.status, raw: data, retryAfterSeconds };
       },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json().catch(() => null);
-    const retryAfterSeconds = (() => {
-      const h = String(resp.headers.get('retry-after') || '').trim();
-      if (!h) return null;
-      const n = Number.parseInt(h, 10);
-      return Number.isFinite(n) && n > 0 ? n : null;
-    })();
-    return { ok: resp.ok, status: resp.status, raw: data, retryAfterSeconds };
-  } catch (e: any) {
-    return { ok: false, status: 0, raw: { error: e?.message || String(e) }, retryAfterSeconds: null };
+      {
+        retryOnResult: (result) => result.status >= 500,
+        isSuccessResult: (result) => result.ok,
+      }
+    );
+  } catch (error) {
+    const err = error as Error;
+    return { ok: false, status: 0, raw: { error: err.message || String(error) }, retryAfterSeconds: null };
   }
 }
 
 const DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL = 'https://api.kick.com/public/v1/events/subscriptions';
 
-export async function listKickEventSubscriptions(params: { accessToken: string; url?: string }): Promise<{
+export async function listKickEventSubscriptions(params: {
+  accessToken: string;
+  url?: string;
+}): Promise<{
   ok: boolean;
   status: number;
-  raw: any;
-  subscriptions: any[];
+  raw: unknown;
+  subscriptions: KickEventSubscription[];
 }> {
   const url = String(params.url || DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL).trim();
   try {
-    const resp = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+    return await retryKick(
+      async () => {
+        const resp = await fetchWithTimeout({
+          url,
+          service: 'kick',
+          timeoutMs: kickTimeoutMs,
+          timeoutReason: 'kick_timeout',
+          init: {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Bearer ${params.accessToken}`,
+            },
+          },
+        });
+        const data = await resp.json().catch(() => null);
+        const dataRecord = asRecord(data);
+        const subs = dataRecord.data ?? dataRecord.subscriptions ?? asRecord(dataRecord.data).subscriptions ?? [];
+        const subscriptions =
+          Array.isArray(subs) && subs.every((item) => typeof item === 'object' && item !== null)
+            ? (subs as KickEventSubscription[])
+            : [];
+        return { ok: resp.ok, status: resp.status, raw: data, subscriptions };
       },
-    });
-    const data = await resp.json().catch(() => null);
-    const subs = (data as any)?.data ?? (data as any)?.subscriptions ?? (data as any)?.data?.subscriptions ?? [];
-    return { ok: resp.ok, status: resp.status, raw: data, subscriptions: Array.isArray(subs) ? subs : [] };
-  } catch (e: any) {
-    return { ok: false, status: 0, raw: { error: e?.message || String(e) }, subscriptions: [] };
+      {
+        retryOnResult: (result) => result.status >= 500,
+        isSuccessResult: (result) => result.ok,
+      }
+    );
+  } catch (error) {
+    const err = error as Error;
+    return { ok: false, status: 0, raw: { error: err.message || String(error) }, subscriptions: [] };
   }
 }
 
@@ -204,38 +292,46 @@ export async function createKickEventSubscription(params: {
   event: string;
   version?: string;
   url?: string;
-}): Promise<{ ok: boolean; status: number; raw: any; subscriptionId: string | null }> {
+}): Promise<{ ok: boolean; status: number; raw: unknown; subscriptionId: string | null }> {
   const url = String(params.url || DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL).trim();
-  const body: any = {
+  const body = {
     event: params.event,
     version: params.version || 'v1',
     callback_url: params.callbackUrl,
   };
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+    return await retryKick(
+      async () => {
+        const resp = await fetchWithTimeout({
+          url,
+          service: 'kick',
+          timeoutMs: kickTimeoutMs,
+          timeoutReason: 'kick_timeout',
+          init: {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${params.accessToken}`,
+            },
+            body: JSON.stringify(body),
+          },
+        });
+        const data = await resp.json().catch(() => null);
+        const dataRecord = asRecord(data);
+        const nestedData = asRecord(dataRecord.data);
+        const idRaw =
+          nestedData.subscription_id ?? nestedData.id ?? dataRecord.subscription_id ?? dataRecord.id ?? null;
+        const subscriptionId = String(idRaw || '').trim() || null;
+        return { ok: resp.ok, status: resp.status, raw: data, subscriptionId };
       },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json().catch(() => null);
-    const idRaw =
-      (data as any)?.data?.subscription_id ??
-      (data as any)?.data?.id ??
-      (data as any)?.subscription_id ??
-      (data as any)?.id ??
-      null;
-    const subscriptionId = String(idRaw || '').trim() || null;
-    return { ok: resp.ok, status: resp.status, raw: data, subscriptionId };
-  } catch (e: any) {
-    return { ok: false, status: 0, raw: { error: e?.message || String(e) }, subscriptionId: null };
+      {
+        retryOnResult: (result) => result.status >= 500,
+        isSuccessResult: (result) => result.ok,
+      }
+    );
+  } catch (error) {
+    const err = error as Error;
+    return { ok: false, status: 0, raw: { error: err.message || String(error) }, subscriptionId: null };
   }
 }
-
-
-
-
-

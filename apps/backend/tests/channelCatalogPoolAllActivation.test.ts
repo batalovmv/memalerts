@@ -2,14 +2,16 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { setupRoutes } from '../src/routes/index.js';
+import { createChannel, createFileHash, createMemeAsset, createUser, createWallet } from './factories/index.js';
 
 function rand(): string {
   return Math.random().toString(16).slice(2);
 }
 
-function makeJwt(payload: Record<string, any>): string {
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -38,58 +40,58 @@ describe('channel catalog mode: pool_all', () => {
   });
 
   it('lists pool memes on channel page and can activate MemeAsset by passing channelSlug', async () => {
-    const channel = await prisma.channel.create({
-      data: { slug: `ch_${rand()}`, name: `Channel ${rand()}`, defaultPriceCoins: 123, memeCatalogMode: 'pool_all' } as any,
-      select: { id: true, slug: true },
-    });
+    const channel = await createChannel({
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+      defaultPriceCoins: 123,
+      memeCatalogMode: 'pool_all',
+    } satisfies Prisma.ChannelCreateInput);
 
-    const viewer = await prisma.user.create({
-      data: { displayName: `Viewer ${rand()}`, role: 'viewer', hasBetaAccess: false, channelId: null },
-      select: { id: true },
+    const viewer = await createUser({
+      displayName: `Viewer ${rand()}`,
+      role: 'viewer',
+      hasBetaAccess: false,
+      channelId: null,
     });
 
     // Give viewer enough balance to activate (otherwise expect 400 Insufficient balance).
-    await prisma.wallet.create({
-      data: { userId: viewer.id, channelId: channel.id, balance: 1000 },
-      select: { id: true },
-    });
+    await createWallet({ userId: viewer.id, channelId: channel.id, balance: 1000 });
 
     const fileHash = `hash_${rand()}`;
     const fileUrl = `/uploads/memes/${rand()}.webm`;
-    await prisma.fileHash.create({
-      data: {
-        hash: fileHash,
-        filePath: fileUrl,
-        referenceCount: 1,
-        fileSize: BigInt(1),
-        mimeType: 'video/webm',
-      },
+    await createFileHash({
+      hash: fileHash,
+      filePath: fileUrl,
+      referenceCount: 1,
+      fileSize: BigInt(1),
+      mimeType: 'video/webm',
     });
 
-    const asset = await prisma.memeAsset.create({
-      data: {
-        type: 'video',
-        fileUrl,
-        fileHash,
-        durationMs: 1500,
-        poolVisibility: 'visible',
-        aiStatus: 'done',
-        aiAutoTitle: 'Pool meme title',
-        aiSearchText: 'Pool meme title tag1 tag2',
-        aiCompletedAt: new Date(),
-      } as any,
-      select: { id: true },
-    });
+    const assetData = {
+      type: 'video',
+      fileUrl,
+      fileHash,
+      durationMs: 1500,
+      poolVisibility: 'visible',
+      aiStatus: 'done',
+      aiAutoTitle: 'Pool meme title',
+      aiSearchText: 'Pool meme title tag1 tag2',
+      aiCompletedAt: new Date(),
+    } satisfies Prisma.MemeAssetCreateInput;
+    const asset = await createMemeAsset(assetData);
 
     // Channel page should list pool assets (id is MemeAsset.id in pool_all mode)
     const listRes = await request(makeApp()).get(`/channels/${channel.slug}`).set('Host', 'example.com');
     expect(listRes.status).toBe(200);
     expect(listRes.body?.memeCatalogMode).toBe('pool_all');
     expect(Array.isArray(listRes.body?.memes)).toBe(true);
-    expect(listRes.body.memes?.some((m: any) => m.id === asset.id)).toBe(true);
+    const poolMemes = Array.isArray(listRes.body?.memes) ? (listRes.body.memes as Array<{ id: string }>) : [];
+    expect(poolMemes.some((m) => m.id === asset.id)).toBe(true);
 
     // includeMemes=false should still include channel meta + memeCatalogMode (used by UI)
-    const metaRes = await request(makeApp()).get(`/channels/${channel.slug}?includeMemes=false`).set('Host', 'example.com');
+    const metaRes = await request(makeApp())
+      .get(`/channels/${channel.slug}?includeMemes=false`)
+      .set('Host', 'example.com');
     expect(metaRes.status).toBe(200);
     expect(metaRes.body?.memeCatalogMode).toBe('pool_all');
     expect(metaRes.body?.memes).toBeUndefined();
@@ -119,5 +121,3 @@ describe('channel catalog mode: pool_all', () => {
     expect(legacy?.status).toBe('approved');
   });
 });
-
-

@@ -13,5 +13,3 @@ export const streamerEntitlementsController = {
     return res.json({ entitled });
   },
 };
-
-

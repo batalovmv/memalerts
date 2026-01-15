@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireRole } from '../middleware/auth.js';
+import type { AuthRequest } from '../middleware/auth.js';
 import { adminController } from '../controllers/adminController.js';
 import { youtubeDefaultBotController } from '../controllers/owner/youtubeDefaultBotController.js';
 import { vkvideoDefaultBotController } from '../controllers/owner/vkvideoDefaultBotController.js';
@@ -12,12 +12,16 @@ import { memeAssetModerationController } from '../controllers/owner/memeAssetMod
 import { moderatorsController } from '../controllers/owner/moderatorsController.js';
 import { ownerResolveLimiter } from '../middleware/rateLimit.js';
 import { aiStatusController } from '../controllers/owner/aiStatusController.js';
+import { assertAdmin } from '../utils/accessControl.js';
 
 // Owner-only API (role: admin).
 // NOTE: This router is mounted with authenticate + requireBetaAccess in routes/index.ts.
 export const ownerRoutes = Router();
 
-ownerRoutes.use(requireRole('admin'));
+ownerRoutes.use((req, res, next) => {
+  if (!assertAdmin((req as AuthRequest).userRole, res)) return;
+  next();
+});
 
 // Wallet management (owner-only)
 ownerRoutes.get('/wallets/options', adminController.getWalletOptions);
@@ -55,7 +59,11 @@ ownerRoutes.post('/entitlements/custom-bot/grant', entitlementsController.grantC
 ownerRoutes.post('/entitlements/custom-bot/revoke', entitlementsController.revokeCustomBot);
 // Safer UX: resolve by provider/externalId (no channelId exposure)
 ownerRoutes.get('/channels/resolve', ownerResolveLimiter, channelResolveController.resolve);
-ownerRoutes.post('/entitlements/custom-bot/grant-by-provider', ownerResolveLimiter, entitlementsController.grantCustomBotByProvider);
+ownerRoutes.post(
+  '/entitlements/custom-bot/grant-by-provider',
+  ownerResolveLimiter,
+  entitlementsController.grantCustomBotByProvider
+);
 
 // Meme pool moderation (admin-only): affects only pool visibility (does not retroactively remove from channels).
 ownerRoutes.get('/meme-assets', memeAssetModerationController.list);
@@ -71,5 +79,3 @@ ownerRoutes.post('/moderators/:userId/revoke', moderatorsController.revoke);
 
 // AI scheduler status (admin-only)
 ownerRoutes.get('/ai/status', aiStatusController.status);
-
-

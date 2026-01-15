@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io';
-import tmi from 'tmi.js';
+import tmi, { type ChatUserstate, type Client } from 'tmi.js';
 import { prisma } from '../lib/prisma.js';
 import { getValidAccessToken } from '../utils/twitchApi.js';
 import { addCreditsChatter } from '../realtime/creditsSessionStore.js';
@@ -14,22 +14,43 @@ import { claimPendingCoinGrantsTx } from '../rewards/pendingCoinGrants.js';
 import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 
+type RewardTx = Parameters<typeof recordExternalRewardEventTx>[0]['tx'];
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 type ChannelMapEntry = {
   login: string; // twitch channel login (lowercase)
   slug: string; // memalerts channel.slug
 };
 
 function parseBool(v: string | undefined): boolean {
-  const s = String(v || '').trim().toLowerCase();
+  const s = String(v || '')
+    .trim()
+    .toLowerCase();
   return s === '1' || s === 'true' || s === 'yes' || s === 'on';
 }
 
 function normalizeLogin(v: string): string {
-  return String(v || '').trim().toLowerCase().replace(/^#/, '');
+  return String(v || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^#/, '');
 }
 
 function normalizeSlug(v: string): string {
-  return String(v || '').trim().toLowerCase();
+  return String(v || '')
+    .trim()
+    .toLowerCase();
 }
 
 function parseChannelMap(): ChannelMapEntry[] {
@@ -58,8 +79,9 @@ function parseChannelMap(): ChannelMapEntry[] {
     if (!Array.isArray(arr)) return [];
     const out: ChannelMapEntry[] = [];
     for (const it of arr) {
-      const login = normalizeLogin(String((it as any)?.login || ''));
-      const slug = normalizeSlug(String((it as any)?.slug || ''));
+      const rec = asRecord(it);
+      const login = normalizeLogin(String(rec.login ?? ''));
+      const slug = normalizeSlug(String(rec.slug ?? ''));
       if (!login || !slug) continue;
       out.push({ login, slug });
     }
@@ -107,7 +129,9 @@ async function getReconnectWindowMinutes(slug: string): Promise<number> {
       where: { slug },
       select: { creditsReconnectWindowMinutes: true },
     });
-    const v = Number.isFinite((ch as any)?.creditsReconnectWindowMinutes) ? Number((ch as any).creditsReconnectWindowMinutes) : 60;
+    const v = Number.isFinite(ch?.creditsReconnectWindowMinutes)
+      ? Number(ch?.creditsReconnectWindowMinutes)
+      : 60;
     const clamped = Math.max(1, Math.min(24 * 60, Math.floor(v)));
     windowMinCache.set(slug, { v: clamped, ts: now });
     return clamped;
@@ -124,7 +148,7 @@ async function getChannelIdBySlug(slug: string): Promise<string | null> {
   if (cached && now - cached.ts < CHANNEL_ID_CACHE_MS) return cached.v;
   try {
     const ch = await prisma.channel.findUnique({ where: { slug: s }, select: { id: true } });
-    const id = String((ch as any)?.id || '').trim();
+    const id = String(ch?.id || '').trim();
     if (!id) return null;
     channelIdCache.set(s, { v: id, ts: now });
     return id;
@@ -133,18 +157,18 @@ async function getChannelIdBySlug(slug: string): Promise<string | null> {
   }
 }
 
-const autoRewardsCache = new Map<string, { v: any; ts: number }>(); // channelId -> twitchAutoRewardsJson
+const autoRewardsCache = new Map<string, { v: unknown; ts: number }>(); // channelId -> twitchAutoRewardsJson
 const AUTO_REWARDS_CACHE_MS = 60_000;
 
-async function getTwitchAutoRewardsConfig(channelId: string): Promise<any | null> {
+async function getTwitchAutoRewardsConfig(channelId: string): Promise<unknown | null> {
   const id = String(channelId || '').trim();
   if (!id) return null;
   const now = Date.now();
   const cached = autoRewardsCache.get(id);
   if (cached && now - cached.ts < AUTO_REWARDS_CACHE_MS) return cached.v ?? null;
   try {
-    const ch = await (prisma as any).channel.findUnique({ where: { id }, select: { twitchAutoRewardsJson: true } });
-    const v = (ch as any)?.twitchAutoRewardsJson ?? null;
+    const ch = await prisma.channel.findUnique({ where: { id }, select: { twitchAutoRewardsJson: true } });
+    const v = (ch as { twitchAutoRewardsJson?: unknown } | null)?.twitchAutoRewardsJson ?? null;
     autoRewardsCache.set(id, { v, ts: now });
     return v;
   } catch {
@@ -177,7 +201,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
   }
 
   let stopped = false;
-  let client: any = null;
+  let client: Client | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
 
   const connect = async () => {
@@ -198,7 +222,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
     }
 
     const channels = Array.from(new Set(map.map((m) => m.login))).filter(Boolean);
-    client = new (tmi as any).Client({
+    const activeClient = new tmi.Client({
       options: { debug: false },
       connection: { secure: true, reconnect: true },
       identity: {
@@ -207,14 +231,15 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
       },
       channels,
     });
+    client = activeClient;
 
-    client.on('connected', () => {
+    activeClient.on('connected', () => {
       logger.info('chatbot.connected', { botLogin, channels });
     });
-    client.on('disconnected', (reason: any) => {
+    activeClient.on('disconnected', (reason: unknown) => {
       logger.warn('chatbot.disconnected', { botLogin, reason: String(reason || '') });
     });
-    client.on('message', async (channel: string, tags: any, _message: string, self: boolean) => {
+    activeClient.on('message', async (channel: string, tags: ChatUserstate, _message: string, self: boolean) => {
       if (self) return;
       const login = normalizeLogin(channel);
       const entry = map.find((m) => m.login === login);
@@ -226,7 +251,10 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
 
       const slug = entry.slug;
       const windowMin = await getReconnectWindowMinutes(slug);
-      const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({ provider: 'twitch', platformUserId: twitchUserId });
+      const memalertsUserId = await resolveMemalertsUserIdFromChatIdentity({
+        provider: 'twitch',
+        platformUserId: twitchUserId,
+      });
       const creditsUserId = memalertsUserId || `twitch:${twitchUserId}`;
 
       const channelId = await getChannelIdBySlug(slug);
@@ -245,8 +273,9 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
         const cfg = await getTwitchAutoRewardsConfig(channelId);
         if (!cfg || typeof cfg !== 'object') return;
 
-        const chatCfg = (cfg as any)?.chat ?? null;
-        if (!chatCfg || typeof chatCfg !== 'object') return;
+        const chatCfgRaw = asRecord(cfg).chat;
+        if (!chatCfgRaw || typeof chatCfgRaw !== 'object') return;
+        const chatCfg = asRecord(chatCfgRaw);
 
         const redis = await getRedisClient();
         if (!redis) return;
@@ -268,9 +297,9 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
           if (coins <= 0) return;
 
           const linkedUserId = memalertsUserId || null;
-          const claimed = await prisma.$transaction(async (tx: any) => {
+          const claimed = await prisma.$transaction(async (tx: RewardTx) => {
             await recordExternalRewardEventTx({
-              tx: tx as any,
+              tx,
               provider: 'twitch',
               providerEventId: params.providerEventId,
               channelId,
@@ -293,7 +322,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
 
             if (linkedUserId) {
               return await claimPendingCoinGrantsTx({
-                tx: tx as any,
+                tx,
                 userId: linkedUserId,
                 provider: 'twitch',
                 providerAccountId: twitchUserId,
@@ -304,24 +333,27 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
 
           if (claimed.length) {
             for (const ev of claimed) {
-              emitWalletUpdated(io, ev as any);
-              void relayWalletUpdatedToPeer(ev as any);
+              emitWalletUpdated(io, ev);
+              void relayWalletUpdatedToPeer(ev);
             }
           }
         };
 
         // Daily streak: award once per day on first chat message.
-        const streakCfg = (chatCfg as any)?.dailyStreak ?? null;
-        if (streakCfg?.enabled) {
+        const streakCfg = asRecord(chatCfg.dailyStreak);
+        if (streakCfg.enabled) {
           const k = nsKey('twitch_auto_rewards', `streak:${channelId}:${twitchUserId}`);
           const raw = await redis.get(k);
           let lastDate: string | null = null;
           let streak = 0;
           try {
             if (raw) {
-              const parsed = JSON.parse(raw);
-              lastDate = typeof (parsed as any)?.lastDate === 'string' ? (parsed as any).lastDate : null;
-              streak = Number.isFinite(Number((parsed as any)?.streak)) ? Math.floor(Number((parsed as any).streak)) : 0;
+              const parsed = JSON.parse(raw) as unknown;
+              const parsedRec = asRecord(parsed);
+              lastDate = typeof parsedRec.lastDate === 'string' ? parsedRec.lastDate : null;
+              streak = Number.isFinite(Number(parsedRec.streak))
+                ? Math.floor(Number(parsedRec.streak))
+                : 0;
             }
           } catch {
             lastDate = null;
@@ -332,11 +364,11 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
             const nextStreak = lastDate === yesterday ? Math.max(1, streak + 1) : 1;
             await redis.set(k, JSON.stringify({ lastDate: day, streak: nextStreak }), { EX: 90 * 24 * 60 * 60 });
 
-            const coinsByStreak = (streakCfg as any)?.coinsByStreak ?? null;
+            const coinsByStreak = streakCfg.coinsByStreak ?? null;
             const coins =
               coinsByStreak && typeof coinsByStreak === 'object'
-                ? Number((coinsByStreak as any)[String(nextStreak)] ?? 0)
-                : Number((streakCfg as any)?.coinsPerDay ?? 0);
+                ? Number(asRecord(coinsByStreak)[String(nextStreak)] ?? 0)
+                : Number(streakCfg.coinsPerDay ?? 0);
 
             const providerEventId = stableProviderEventId({
               provider: 'twitch',
@@ -348,9 +380,10 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
         }
 
         // First message per stream: award once per user per stream session.
-        const firstCfg = (chatCfg as any)?.firstMessage ?? null;
-        if (firstCfg?.enabled) {
-          const onlyWhenLive = (firstCfg as any)?.onlyWhenLive === undefined ? true : Boolean((firstCfg as any).onlyWhenLive);
+        const firstCfg = asRecord(chatCfg.firstMessage);
+        if (firstCfg.enabled) {
+          const onlyWhenLive =
+            firstCfg.onlyWhenLive === undefined ? true : Boolean(firstCfg.onlyWhenLive);
           if (!onlyWhenLive || isOnline) {
             const sid = String(session.sessionId || '').trim();
             if (sid) {
@@ -366,7 +399,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
                   providerEventId,
                   eventType: 'twitch_chat_first_message',
                   amount: 1,
-                  coins: Number((firstCfg as any)?.coins ?? 0),
+                  coins: Number(firstCfg.coins ?? 0),
                 });
               }
             }
@@ -374,9 +407,10 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
         }
 
         // Message count thresholds per stream.
-        const thrCfg = (chatCfg as any)?.messageThresholds ?? null;
-        if (thrCfg?.enabled) {
-          const onlyWhenLive = (thrCfg as any)?.onlyWhenLive === undefined ? true : Boolean((thrCfg as any).onlyWhenLive);
+        const thrCfg = asRecord(chatCfg.messageThresholds);
+        if (thrCfg.enabled) {
+          const onlyWhenLive =
+            thrCfg.onlyWhenLive === undefined ? true : Boolean(thrCfg.onlyWhenLive);
           if (!onlyWhenLive || isOnline) {
             const sid = String(session.sessionId || '').trim();
             if (sid) {
@@ -384,12 +418,14 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
               const n = await redis.incr(kCount);
               if (n === 1) await redis.expire(kCount, 48 * 60 * 60);
 
-              const thresholds = Array.isArray((thrCfg as any)?.thresholds) ? (thrCfg as any).thresholds : [];
-              const hit = thresholds.some((t: any) => Number.isFinite(Number(t)) && Math.floor(Number(t)) === n);
+              const thresholds = asArray(thrCfg.thresholds);
+              const hit = thresholds.some((t) => Number.isFinite(Number(t)) && Math.floor(Number(t)) === n);
               if (hit) {
-                const coinsByThreshold = (thrCfg as any)?.coinsByThreshold ?? null;
+                const coinsByThreshold = thrCfg.coinsByThreshold ?? null;
                 const coins =
-                  coinsByThreshold && typeof coinsByThreshold === 'object' ? Number((coinsByThreshold as any)[String(n)] ?? 0) : 0;
+                  coinsByThreshold && typeof coinsByThreshold === 'object'
+                    ? Number(asRecord(coinsByThreshold)[String(n)] ?? 0)
+                    : 0;
                 const providerEventId = stableProviderEventId({
                   provider: 'twitch',
                   rawPayloadJson: '{}',
@@ -400,16 +436,16 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
             }
           }
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Never fail credits flow because of chat rewards.
-        logger.warn('chatbot.auto_rewards_failed', { errorMessage: e?.message || String(e) });
+        logger.warn('chatbot.auto_rewards_failed', { errorMessage: getErrorMessage(e) });
       }
     });
 
     try {
-      await client.connect();
-    } catch (e: any) {
-      logger.warn('chatbot.connect_failed', { botLogin, errorMessage: e?.message || String(e) });
+      await activeClient.connect();
+    } catch (e: unknown) {
+      logger.warn('chatbot.connect_failed', { botLogin, errorMessage: getErrorMessage(e) });
       reconnectTimer = setTimeout(connect, 30_000);
     }
   };
@@ -428,5 +464,3 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
     },
   };
 }
-
-

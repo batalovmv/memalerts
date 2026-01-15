@@ -55,10 +55,7 @@ describe('POST /auth/logout: CSRF + beta-gate invariants', () => {
     process.env.DOMAIN = 'example.com';
     process.env.WEB_URL = 'https://example.com';
 
-    const res = await request(makeApp())
-      .post('/auth/logout')
-      .set('Sec-Fetch-Site', 'same-origin')
-      .send({});
+    const res = await request(makeApp()).post('/auth/logout').set('Sec-Fetch-Site', 'same-origin').send({});
 
     expect(res.status).toBe(200);
   });
@@ -72,5 +69,3 @@ describe('POST /auth/logout: CSRF + beta-gate invariants', () => {
     expect(res.status).toBe(200);
   });
 });
-
-

@@ -65,5 +65,3 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
 
   res.json(items);
 };
-
-

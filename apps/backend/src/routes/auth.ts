@@ -24,5 +24,3 @@ authRoutes.get('/:provider/callback', authController.handleCallback);
 authRoutes.get('/:provider/link', authenticate, authController.initiateLink);
 authRoutes.get('/:provider/link/callback', authController.handleLinkCallback);
 authRoutes.post('/logout', authController.logout);
-
-

@@ -1,11 +1,11 @@
 /**
  * Migration script to merge data from beta database (memalerts_beta) into production database (memalerts)
- * 
+ *
  * This script:
  * 1. Merges users by twitchUserId (keeps production user, merges beta data)
  * 2. Merges wallets (sums balances for same channels, creates new wallets for different channels)
  * 3. Preserves transaction history (redemptions, activations) from beta
- * 
+ *
  * Usage:
  *   DATABASE_URL_BETA=postgresql://... DATABASE_URL=postgresql://... tsx scripts/migrate-beta-to-production.ts
  */
@@ -79,23 +79,23 @@ async function migrateBetaToProduction() {
           // User exists in production - production data has priority
           console.log(`   User exists in production: ${existingUser.displayName} (${betaUser.twitchUserId})`);
           console.log(`     Production data will be preserved, beta data will only supplement missing information`);
-          
+
           // Update user data - ONLY if production is missing the data
           // Production data has absolute priority
-          const updateData: any = {};
-          
+          const updateData: { profileImageUrl?: string | null; hasBetaAccess?: boolean } = {};
+
           // Only update profileImageUrl if production doesn't have it but beta does
           if (!existingUser.profileImageUrl && betaUser.profileImageUrl) {
             updateData.profileImageUrl = betaUser.profileImageUrl;
             console.log(`     Adding profileImageUrl from beta`);
           }
-          
+
           // Grant beta access if beta user has it (this is safe to merge)
           if (!existingUser.hasBetaAccess && betaUser.hasBetaAccess) {
             updateData.hasBetaAccess = true;
             console.log(`     Granting beta access from beta user`);
           }
-          
+
           // Only update if there's something to update
           if (Object.keys(updateData).length > 0) {
             await productionDb.user.update({
@@ -122,7 +122,9 @@ async function migrateBetaToProduction() {
               // This handles edge case where beta user might have earned more during testing
               const maxBalance = Math.max(existingWallet.balance, betaWallet.balance);
               if (maxBalance !== existingWallet.balance) {
-                console.log(`     Updating wallet for channel ${betaWallet.channelId}: ${existingWallet.balance} -> ${maxBalance} (beta had ${betaWallet.balance})`);
+                console.log(
+                  `     Updating wallet for channel ${betaWallet.channelId}: ${existingWallet.balance} -> ${maxBalance} (beta had ${betaWallet.balance})`
+                );
                 await productionDb.wallet.update({
                   where: { id: existingWallet.id },
                   data: {
@@ -131,12 +133,16 @@ async function migrateBetaToProduction() {
                 });
                 stats.walletsMerged++;
               } else {
-                console.log(`     Wallet for channel ${betaWallet.channelId} already has higher/equal balance (${existingWallet.balance} >= ${betaWallet.balance})`);
+                console.log(
+                  `     Wallet for channel ${betaWallet.channelId} already has higher/equal balance (${existingWallet.balance} >= ${betaWallet.balance})`
+                );
               }
             } else {
               // Wallet doesn't exist in production - create it from beta
               // Use upsert to handle race conditions and old schema constraints
-              console.log(`     Creating wallet for channel ${betaWallet.channelId} with balance ${betaWallet.balance} (not in production)`);
+              console.log(
+                `     Creating wallet for channel ${betaWallet.channelId} with balance ${betaWallet.balance} (not in production)`
+              );
               try {
                 await productionDb.wallet.upsert({
                   where: {
@@ -153,9 +159,10 @@ async function migrateBetaToProduction() {
                   },
                 });
                 stats.walletsCreated++;
-              } catch (error: any) {
+              } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
                 // If wallet was created by another process or constraint issue, check if it exists now
-                if (error.message?.includes('Unique constraint')) {
+                if (message.includes('Unique constraint')) {
                   const existingWalletNow = await productionDb.wallet.findUnique({
                     where: {
                       userId_channelId: {
@@ -172,7 +179,9 @@ async function migrateBetaToProduction() {
                       where: { userId: existingUser.id },
                     });
                     if (walletByUserId) {
-                      console.log(`     User already has a wallet (old schema constraint), skipping new wallet creation`);
+                      console.log(
+                        `     User already has a wallet (old schema constraint), skipping new wallet creation`
+                      );
                     } else {
                       throw error;
                     }
@@ -188,7 +197,7 @@ async function migrateBetaToProduction() {
           const betaRedemptions = await betaDb.redemption.findMany({
             where: { userId: betaUser.id },
           });
-          
+
           for (const redemption of betaRedemptions) {
             // Check if redemption already exists
             const existingRedemption = await productionDb.redemption.findUnique({
@@ -245,7 +254,7 @@ async function migrateBetaToProduction() {
         } else {
           // User doesn't exist - create new user
           console.log(`   Creating new user: ${betaUser.displayName} (${betaUser.twitchUserId})`);
-          
+
           const newUser = await productionDb.user.create({
             data: {
               twitchUserId: betaUser.twitchUserId,
@@ -313,8 +322,9 @@ async function migrateBetaToProduction() {
 
           stats.usersCreated++;
         }
-      } catch (error: any) {
-        const errorMsg = `Error processing user ${betaUser.displayName} (${betaUser.twitchUserId}): ${error.message}`;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        const errorMsg = `Error processing user ${betaUser.displayName} (${betaUser.twitchUserId}): ${message}`;
         console.error(`   ❌ ${errorMsg}`);
         stats.errors.push(errorMsg);
       }
@@ -328,14 +338,14 @@ async function migrateBetaToProduction() {
     console.log(`   Wallets created: ${stats.walletsCreated}`);
     console.log(`   Redemptions migrated: ${stats.redemptionsMigrated}`);
     console.log(`   Activations migrated: ${stats.activationsMigrated}`);
-    
+
     if (stats.errors.length > 0) {
       console.log(`\n⚠️  Errors encountered: ${stats.errors.length}`);
       stats.errors.forEach((error, index) => {
         console.log(`   ${index + 1}. ${error}`);
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Migration failed:', error);
     throw error;
   } finally {
@@ -346,7 +356,8 @@ async function migrateBetaToProduction() {
 
 // Run migration
 // Check if running as main module (ES modules way)
-const isMainModule = import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('migrate-beta-to-production.ts');
+const isMainModule =
+  import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('migrate-beta-to-production.ts');
 
 if (isMainModule) {
   if (!process.env.DATABASE_URL) {

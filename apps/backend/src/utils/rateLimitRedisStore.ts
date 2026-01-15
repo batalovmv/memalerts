@@ -19,7 +19,7 @@ export class RedisBackedRateLimitStore implements Store {
     this.prefix = prefix;
   }
 
-  init(options: any) {
+  init(options: { windowMs?: number } | undefined) {
     const ms = Number(options?.windowMs);
     if (Number.isFinite(ms) && ms > 0) this.windowMs = ms;
   }
@@ -113,5 +113,3 @@ export function maybeCreateRateLimitStore(prefix: string): Store | undefined {
   if (!isRedisEnabled()) return undefined;
   return new RedisBackedRateLimitStore(prefix);
 }
-
-

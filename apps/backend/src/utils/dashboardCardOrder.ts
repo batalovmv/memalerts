@@ -1,11 +1,4 @@
-export const DASHBOARD_CARD_IDS = [
-  'submit',
-  'pending',
-  'memes',
-  'settings',
-  'submissionsControl',
-  'bots',
-] as const;
+export const DASHBOARD_CARD_IDS = ['submit', 'pending', 'memes', 'settings', 'submissionsControl', 'bots'] as const;
 
 export type DashboardCardId = (typeof DASHBOARD_CARD_IDS)[number];
 
@@ -44,5 +37,3 @@ export function normalizeDashboardCardOrder(input: unknown): DashboardCardId[] {
 
   return out;
 }
-
-

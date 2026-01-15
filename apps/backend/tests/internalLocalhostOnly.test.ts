@@ -54,5 +54,3 @@ describe('internal endpoints are localhost-only (remoteAddress gating)', () => {
     expect(res.status).toBe(404);
   });
 });
-
-

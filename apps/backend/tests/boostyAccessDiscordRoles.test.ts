@@ -4,11 +4,12 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Prisma } from '@prisma/client';
 
 import { setupRoutes } from '../src/routes/index.js';
-import { prisma } from '../src/lib/prisma.js';
+import { createChannel, createExternalAccount, createUser } from './factories/index.js';
 
-function makeJwt(payload: Record<string, any>): string {
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -21,14 +22,13 @@ function makeApp() {
   return app;
 }
 
-function mockFetchJsonOnce(status: number, json: any) {
-  global.fetch = vi.fn(async () => {
-    return {
-      status,
-      json: async () => json,
-      text: async () => JSON.stringify(json),
-    } as any;
-  }) as any;
+function mockFetchJsonOnce(status: number, json: unknown) {
+  const mockFetch = vi.fn(async () => ({
+    status,
+    json: async () => json,
+    text: async () => JSON.stringify(json),
+  }));
+  global.fetch = mockFetch as unknown as typeof fetch;
 }
 
 describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
@@ -59,18 +59,18 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const channelId = randomUUID();
     const slug = `ch_${Date.now()}_a`;
 
-    await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Channel',
-        boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
-      } as any,
-    });
+    await createUser({ id: userId, displayName: 'Viewer', role: 'viewer' });
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Channel',
+      boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
+    } satisfies Prisma.ChannelCreateInput);
 
     const token = makeJwt({ userId, role: 'viewer', channelId: null });
-    const res = await request(makeApp()).get(`/channels/${channelId}/boosty-access`).set('Cookie', [`token=${encodeURIComponent(token)}`]);
+    const res = await request(makeApp())
+      .get(`/channels/${channelId}/boosty-access`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.status).toBe('need_discord_link');
@@ -84,23 +84,21 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const slug = `ch_${Date.now()}_b`;
     const discordUserId = `discord_${randomUUID()}`;
 
-    await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Channel',
-        boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
-      } as any,
-    });
-    await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
-    });
+    await createUser({ id: userId, displayName: 'Viewer', role: 'viewer' });
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Channel',
+      boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
+    } satisfies Prisma.ChannelCreateInput);
+    await createExternalAccount({ userId, provider: 'discord', providerAccountId: discordUserId });
 
     mockFetchJsonOnce(404, { message: 'Unknown Member' });
 
     const token = makeJwt({ userId, role: 'viewer', channelId: null });
-    const res = await request(makeApp()).get(`/channels/${channelId}/boosty-access`).set('Cookie', [`token=${encodeURIComponent(token)}`]);
+    const res = await request(makeApp())
+      .get(`/channels/${channelId}/boosty-access`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.status).toBe('need_join_guild');
@@ -113,23 +111,21 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const slug = `ch_${Date.now()}_c`;
     const discordUserId = `discord_${randomUUID()}`;
 
-    await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Channel',
-        boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
-      } as any,
-    });
-    await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
-    });
+    await createUser({ id: userId, displayName: 'Viewer', role: 'viewer' });
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Channel',
+      boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
+    } satisfies Prisma.ChannelCreateInput);
+    await createExternalAccount({ userId, provider: 'discord', providerAccountId: discordUserId });
 
     mockFetchJsonOnce(200, { roles: ['some_other_role'] });
 
     const token = makeJwt({ userId, role: 'viewer', channelId: null });
-    const res = await request(makeApp()).get(`/channels/${channelId}/boosty-access`).set('Cookie', [`token=${encodeURIComponent(token)}`]);
+    const res = await request(makeApp())
+      .get(`/channels/${channelId}/boosty-access`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.status).toBe('not_subscribed');
@@ -142,23 +138,21 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const slug = `ch_${Date.now()}_d`;
     const discordUserId = `discord_${randomUUID()}`;
 
-    await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Channel',
-        boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
-      } as any,
-    });
-    await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
-    });
+    await createUser({ id: userId, displayName: 'Viewer', role: 'viewer' });
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Channel',
+      boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
+    } satisfies Prisma.ChannelCreateInput);
+    await createExternalAccount({ userId, provider: 'discord', providerAccountId: discordUserId });
 
     mockFetchJsonOnce(200, { roles: ['role3'] });
 
     const token = makeJwt({ userId, role: 'viewer', channelId: null });
-    const res = await request(makeApp()).get(`/channels/${channelId}/boosty-access`).set('Cookie', [`token=${encodeURIComponent(token)}`]);
+    const res = await request(makeApp())
+      .get(`/channels/${channelId}/boosty-access`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.status).toBe('subscribed');
@@ -173,31 +167,29 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const slug = `ch_${Date.now()}_e`;
     const discordUserId = `discord_${randomUUID()}`;
 
-    await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Channel',
-        discordSubscriptionsGuildId: 'g_override',
-        boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
-      } as any,
-    });
-    await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
-    });
+    await createUser({ id: userId, displayName: 'Viewer', role: 'viewer' });
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Channel',
+      discordSubscriptionsGuildId: 'g_override',
+      boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
+    } satisfies Prisma.ChannelCreateInput);
+    await createExternalAccount({ userId, provider: 'discord', providerAccountId: discordUserId });
 
-    global.fetch = vi.fn(async (url: any) => {
+    global.fetch = vi.fn(async (url: unknown) => {
       expect(String(url)).toContain('/guilds/g_override/members/');
       return {
         status: 404,
         json: async () => ({ message: 'Unknown Member' }),
         text: async () => '',
-      } as any;
-    }) as any;
+      };
+    }) as unknown as typeof fetch;
 
     const token = makeJwt({ userId, role: 'viewer', channelId: null });
-    const res = await request(makeApp()).get(`/channels/${channelId}/boosty-access`).set('Cookie', [`token=${encodeURIComponent(token)}`]);
+    const res = await request(makeApp())
+      .get(`/channels/${channelId}/boosty-access`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.requiredGuild?.guildId).toBe('g_override');
@@ -213,35 +205,31 @@ describe('GET /channels/:channelId/boosty-access (discord_roles)', () => {
     const slug = `ch_${Date.now()}_f`;
     const discordUserId = `discord_${randomUUID()}`;
 
-    await prisma.user.create({ data: { id: userId, displayName: 'Viewer', role: 'viewer' } as any });
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Channel',
-        boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
-      } as any,
-    });
-    await prisma.externalAccount.create({
-      data: { userId, provider: 'discord', providerAccountId: discordUserId } as any,
-    });
+    await createUser({ id: userId, displayName: 'Viewer', role: 'viewer' });
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Channel',
+      boostyDiscordTierRolesJson: [{ tier: 't3', roleId: 'role3' }],
+    } satisfies Prisma.ChannelCreateInput);
+    await createExternalAccount({ userId, provider: 'discord', providerAccountId: discordUserId });
 
-    global.fetch = vi.fn(async (url: any) => {
+    global.fetch = vi.fn(async (url: unknown) => {
       expect(String(url)).toContain('/guilds/g_legacy/members/');
       return {
         status: 404,
         json: async () => ({ message: 'Unknown Member' }),
         text: async () => '',
-      } as any;
-    }) as any;
+      };
+    }) as unknown as typeof fetch;
 
     const token = makeJwt({ userId, role: 'viewer', channelId: null });
-    const res = await request(makeApp()).get(`/channels/${channelId}/boosty-access`).set('Cookie', [`token=${encodeURIComponent(token)}`]);
+    const res = await request(makeApp())
+      .get(`/channels/${channelId}/boosty-access`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.requiredGuild?.guildId).toBe('g_legacy');
     expect(res.body?.status).toBe('need_join_guild');
   });
 });
-
-

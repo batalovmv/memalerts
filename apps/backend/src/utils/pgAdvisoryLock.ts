@@ -16,5 +16,3 @@ export async function releaseAdvisoryLock(lockId: bigint): Promise<void> {
     // ignore
   }
 }
-
-

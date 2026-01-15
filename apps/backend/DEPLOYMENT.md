@@ -29,6 +29,63 @@ Workflows:
 
 - включён **`concurrency`** для деплой‑джобов, чтобы при серии пушей не “наезжали” деплои друг на друга (берётся последний).
 
+## Авто-откат (rollback) на неуспешный healthcheck
+
+В деплое beta и production включён авто-откат, если `/health` не поднимается в течение ~60 секунд:
+
+- перед деплоем сохраняется **предыдущий SHA** в `/.rollback/previous_sha`;
+- при фейле healthcheck выполняется checkout предыдущего SHA, build + migrate + restart;
+- действует **cooldown 10 минут** (после отката повторный откат не выполняется);
+- лог откатов пишется в `/.rollback/rollback.log`.
+
+Пути:
+
+- production: `/opt/memalerts-backend/.rollback`
+- beta: `/opt/memalerts-backend-beta/.rollback`
+
+Slack уведомление:
+
+- секрет `SLACK_DEPLOY_WEBHOOK_URL` (опционально)
+- сообщение отправляется только при успешном авто-откате.
+
+## Canary (beta-only)
+
+Canary включается только для **beta** (10% трафика по умолчанию).
+
+Как включить:
+
+- коммит-маркер: `[canary]` (включит canary);
+- или `workflow_dispatch` с `enable_canary=true`.
+
+Порт и процесс:
+
+- canary процесс: `memalerts-api-beta-canary`
+- порт: `3003` (можно менять в скриптах)
+
+Скрипты:
+
+- `/.github/scripts/enable-beta-canary.sh 3002 3003 10`
+- `/.github/scripts/disable-beta-canary.sh 3002`
+- `/.github/scripts/promote-beta-canary.sh 3002 3003`
+
+Автопромоут:
+
+- маркер `[canary-auto]` или `workflow_dispatch` `auto_promote=true`
+- 10 минут проверяет `http://127.0.0.1:3003/health`, затем переключает трафик на canary.
+
+Canary метрики:
+
+- `/healthz` и `/readyz` включают `instanceId`
+- Prometheus: `memalerts_instance_info{instanceId="beta-canary"}`
+
+## Coverage в CI
+
+- `pnpm test:ci` запускает `vitest --coverage` и сохраняет отчет в `coverage/`
+- baseline хранится в `coverage-baseline.json`
+- проверка: `pnpm coverage:check` (падение >2% -> fail)
+- обновить baseline: `pnpm coverage:update`
+- Codecov (опционально): секрет `CODECOV_TOKEN`
+
 ## Секреты (GitHub Secrets)
 
 Обязательные:

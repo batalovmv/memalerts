@@ -14,5 +14,3 @@ export function isLocalhostAddress(remoteAddress: string | null | undefined): bo
   if (remote.endsWith('127.0.0.1')) return true;
   return false;
 }
-
-

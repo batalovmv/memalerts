@@ -1,8 +1,10 @@
 import express from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { webhookRoutes } from '../src/routes/webhooks.js';
+import { createChannel, createKickChatBotSubscription, createUser } from './factories/index.js';
 
 function rand(): string {
   return Math.random().toString(16).slice(2);
@@ -14,7 +16,7 @@ function makeApp() {
   app.use(
     express.json({
       verify: (req, _res, buf) => {
-        (req as any).rawBody = buf;
+        (req as { rawBody?: Buffer }).rawBody = buf;
       },
     })
   );
@@ -22,7 +24,12 @@ function makeApp() {
   return app;
 }
 
-async function signKick(payload: any, privateKey: crypto.KeyObject, messageId: string, ts: string): Promise<{ rawBody: string; signature: string }> {
+async function signKick(
+  payload: Record<string, unknown>,
+  privateKey: crypto.KeyObject,
+  messageId: string,
+  ts: string
+): Promise<{ rawBody: string; signature: string }> {
   const rawBody = JSON.stringify(payload);
   const message = `${messageId}.${ts}.${rawBody}`;
   const signature = crypto
@@ -37,27 +44,24 @@ describe('webhooks: /webhooks/kick/events (auto rewards)', () => {
     process.env.KICK_WEBHOOK_PUBLIC_KEY_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.KICK_WEBHOOK_REPLAY_WINDOW_MS = String(10 * 60 * 1000);
 
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-        twitchAutoRewardsJson: { v: 1, follow: { enabled: true, coins: 123, onceEver: true } },
-      } as any,
-      select: { id: true, slug: true },
-    });
-    const user = await prisma.user.create({
-      data: { displayName: `Streamer ${rand()}`, role: 'streamer', hasBetaAccess: true } as any,
-      select: { id: true },
-    });
+    const channelData = {
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+      twitchAutoRewardsJson: { v: 1, follow: { enabled: true, coins: 123, onceEver: true } },
+    } satisfies Prisma.ChannelCreateInput;
+    const channel = await createChannel(channelData);
+    const userData = {
+      displayName: `Streamer ${rand()}`,
+      role: 'streamer',
+      hasBetaAccess: true,
+    } satisfies Prisma.UserCreateInput;
+    const user = await createUser(userData);
 
-    await (prisma as any).kickChatBotSubscription.create({
-      data: {
-        channelId: channel.id,
-        userId: user.id,
-        kickChannelId: '123',
-        enabled: true,
-      },
-      select: { id: true },
+    await createKickChatBotSubscription({
+      channelId: channel.id,
+      userId: user.id,
+      kickChannelId: '123',
+      enabled: true,
     });
 
     const providerAccountId = `kick_u_${rand()}`;
@@ -87,7 +91,7 @@ describe('webhooks: /webhooks/kick/events (auto rewards)', () => {
     expect(res.status).toBe(200);
     expect(res.body?.ok).toBe(true);
 
-    const pending = await (prisma as any).pendingCoinGrant.findMany({
+    const pending = await prisma.pendingCoinGrant.findMany({
       where: { provider: 'kick', providerAccountId, channelId: channel.id },
       select: { coinsToGrant: true },
     });
@@ -106,7 +110,7 @@ describe('webhooks: /webhooks/kick/events (auto rewards)', () => {
     expect(res.status).toBe(200);
     expect(res.body?.duplicate).toBe(true);
 
-    const pendingCount2 = await (prisma as any).pendingCoinGrant.count({
+    const pendingCount2 = await prisma.pendingCoinGrant.count({
       where: { provider: 'kick', providerAccountId, channelId: channel.id },
     });
     expect(pendingCount2).toBe(1);
@@ -117,27 +121,24 @@ describe('webhooks: /webhooks/kick/events (auto rewards)', () => {
     process.env.KICK_WEBHOOK_PUBLIC_KEY_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.KICK_WEBHOOK_REPLAY_WINDOW_MS = String(10 * 60 * 1000);
 
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-        twitchAutoRewardsJson: { v: 1, cheer: { enabled: true, bitsPerCoin: 10, minBits: 1 } },
-      } as any,
-      select: { id: true },
-    });
-    const user = await prisma.user.create({
-      data: { displayName: `Streamer ${rand()}`, role: 'streamer', hasBetaAccess: true } as any,
-      select: { id: true },
-    });
+    const channelData = {
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+      twitchAutoRewardsJson: { v: 1, cheer: { enabled: true, bitsPerCoin: 10, minBits: 1 } },
+    } satisfies Prisma.ChannelCreateInput;
+    const channel = await createChannel(channelData);
+    const userData = {
+      displayName: `Streamer ${rand()}`,
+      role: 'streamer',
+      hasBetaAccess: true,
+    } satisfies Prisma.UserCreateInput;
+    const user = await createUser(userData);
 
-    await (prisma as any).kickChatBotSubscription.create({
-      data: {
-        channelId: channel.id,
-        userId: user.id,
-        kickChannelId: '555',
-        enabled: true,
-      },
-      select: { id: true },
+    await createKickChatBotSubscription({
+      channelId: channel.id,
+      userId: user.id,
+      kickChannelId: '555',
+      enabled: true,
     });
 
     const providerAccountId = `kick_u_${rand()}`;
@@ -168,7 +169,7 @@ describe('webhooks: /webhooks/kick/events (auto rewards)', () => {
     expect(res.status).toBe(200);
     expect(res.body?.ok).toBe(true);
 
-    const pending = await (prisma as any).pendingCoinGrant.findMany({
+    const pending = await prisma.pendingCoinGrant.findMany({
       where: { provider: 'kick', providerAccountId, channelId: channel.id },
       select: { coinsToGrant: true },
     });
@@ -177,5 +178,3 @@ describe('webhooks: /webhooks/kick/events (auto rewards)', () => {
     expect(Number(pending[0]?.coinsToGrant ?? 0)).toBe(10);
   });
 });
-
-

@@ -51,5 +51,3 @@ export async function loadAndConsumeOAuthState(state: string) {
 
   return { ok: true as const, row: consumed };
 }
-
-

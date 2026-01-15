@@ -48,14 +48,15 @@ export async function exchangeVkCodeForToken(params: {
 
   const tokenResponse = await fetch(url.toString(), { method: 'GET' });
   const tokenData = (await tokenResponse.json()) as VkTokenResponse;
-  debugLog('vk.token.exchange', { status: tokenResponse.status, hasAccessToken: !!tokenData?.access_token, hasUserId: !!tokenData?.user_id });
+  debugLog('vk.token.exchange', {
+    status: tokenResponse.status,
+    hasAccessToken: !!tokenData?.access_token,
+    hasUserId: !!tokenData?.user_id,
+  });
   return tokenData;
 }
 
-export async function fetchVkUser(params: {
-  accessToken: string;
-  userId: number;
-}): Promise<VkUser | null> {
+export async function fetchVkUser(params: { accessToken: string; userId: number }): Promise<VkUser | null> {
   const url = new URL('https://api.vk.com/method/users.get');
   url.searchParams.set('user_ids', String(params.userId));
   url.searchParams.set('fields', 'photo_200,screen_name');
@@ -63,11 +64,9 @@ export async function fetchVkUser(params: {
   url.searchParams.set('v', '5.131');
 
   const userResponse = await fetch(url.toString(), { method: 'GET' });
-  const data = (await userResponse.json()) as any;
-  const vkUser = (data?.response?.[0] ?? null) as VkUser | null;
+  const data = (await userResponse.json()) as { response?: VkUser[] };
+  const vkUser = data?.response?.[0] ?? null;
   debugLog('vk.user.fetch', { status: userResponse.status, hasUser: !!vkUser?.id });
   if (!vkUser?.id) return null;
   return vkUser;
 }
-
-

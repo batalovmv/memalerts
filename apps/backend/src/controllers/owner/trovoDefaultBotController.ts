@@ -6,7 +6,13 @@ import { getTrovoAuthorizeUrl } from '../../auth/providers/trovo.js';
 import { ERROR_CODES } from '../../shared/errors.js';
 
 const DEFAULT_LINK_REDIRECT = '/settings/accounts';
-const REDIRECT_ALLOWLIST = new Set<string>(['/settings/accounts', '/settings/bot', '/settings/bot/trovo', '/dashboard', '/']);
+const REDIRECT_ALLOWLIST = new Set<string>([
+  '/settings/accounts',
+  '/settings/bot',
+  '/settings/bot/trovo',
+  '/dashboard',
+  '/',
+]);
 
 const GLOBAL_TROVO_BOT_CHANNEL_ID = '__global_trovo_bot__';
 
@@ -25,20 +31,21 @@ export const trovoDefaultBotController = {
   // GET /owner/bots/trovo/default/status
   status: async (_req: AuthRequest, res: Response) => {
     try {
-      const row = await (prisma as any).globalTrovoBotCredential.findFirst({
+      const row = await prisma.globalTrovoBotCredential.findFirst({
         where: { enabled: true },
         orderBy: { updatedAt: 'desc' },
         select: { enabled: true, externalAccountId: true, updatedAt: true },
       });
       if (!row) return res.json({ enabled: false, externalAccountId: null, updatedAt: null });
       return res.json({
-        enabled: Boolean((row as any)?.enabled),
-        externalAccountId: String((row as any)?.externalAccountId || '').trim() || null,
-        updatedAt: (row as any)?.updatedAt ? new Date((row as any).updatedAt).toISOString() : null,
+        enabled: Boolean(row.enabled),
+        externalAccountId: String(row.externalAccountId || '').trim() || null,
+        updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
       });
-    } catch (e: any) {
-      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      throw e;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw error;
     }
   },
 
@@ -96,13 +103,12 @@ export const trovoDefaultBotController = {
   // DELETE /owner/bots/trovo/default
   unlink: async (_req: AuthRequest, res: Response) => {
     try {
-      await (prisma as any).globalTrovoBotCredential.deleteMany({});
+      await prisma.globalTrovoBotCredential.deleteMany({});
       return res.json({ ok: true });
-    } catch (e: any) {
-      if (e?.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
-      throw e;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'P2021') return res.status(404).json({ error: 'Not Found', message: 'Feature not available' });
+      throw error;
     }
   },
 };
-
-

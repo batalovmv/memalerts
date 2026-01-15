@@ -10,7 +10,7 @@ function makeApp() {
   app.use(
     express.json({
       verify: (req, _res, buf) => {
-        (req as any).rawBody = buf;
+        (req as { rawBody?: Buffer }).rawBody = buf;
       },
     })
   );
@@ -139,5 +139,3 @@ describe('Twitch EventSub webhook /webhooks/twitch/eventsub', () => {
     expect(res.body?.error).toBe('Invalid timestamp');
   });
 });
-
-

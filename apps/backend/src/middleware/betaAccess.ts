@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from './auth.js';
+import type { Request, Response, NextFunction } from 'express';
+import type { AuthRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { debugLog, debugError } from '../utils/debug.js';
 
@@ -17,13 +17,13 @@ const CACHE_MAX_SIZE = 50_000;
 function getCachedBetaAccess(userId: string): boolean | null {
   const entry = betaAccessCache.get(userId);
   if (!entry) return null;
-  
+
   const age = Date.now() - entry.timestamp;
   if (age > CACHE_TTL_MS) {
     betaAccessCache.delete(userId);
     return null;
   }
-  
+
   return entry.hasAccess;
 }
 
@@ -54,7 +54,7 @@ export function isBetaDomain(req: Request): boolean {
 export async function requireBetaAccess(req: AuthRequest, res: Response, next: NextFunction) {
   // Only check beta access if this is a beta domain request
   const isBeta = isBetaDomain(req);
-  
+
   if (!isBeta) {
     return next();
   }
@@ -72,19 +72,21 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
   }
 
   if (!req.userId) {
-    return res.status(401).json({ errorCode: 'UNAUTHORIZED', error: 'Unauthorized', message: 'Authentication required' });
+    return res
+      .status(401)
+      .json({ errorCode: 'UNAUTHORIZED', error: 'Unauthorized', message: 'Authentication required' });
   }
 
   try {
     // Check cache first to reduce database load
     const cachedAccess = getCachedBetaAccess(req.userId);
-    
+
     if (cachedAccess !== null) {
       if (!cachedAccess) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           errorCode: 'BETA_ACCESS_REQUIRED',
           error: 'Beta access required',
-          message: 'Beta access required. Please request access or contact an administrator.' 
+          message: 'Beta access required. Please request access or contact an administrator.',
         });
       }
       // User has beta access (from cache), continue
@@ -98,17 +100,17 @@ export async function requireBetaAccess(req: AuthRequest, res: Response, next: N
     });
 
     let hasAccess = user?.hasBetaAccess || false;
-    
+
     // Cache the result
     setCachedBetaAccess(req.userId, hasAccess);
 
     // If user doesn't have beta access, deny access
     if (!hasAccess) {
       debugLog('[requireBetaAccess] User does not have beta access', { userId: req.userId });
-      return res.status(403).json({ 
+      return res.status(403).json({
         errorCode: 'BETA_ACCESS_REQUIRED',
         error: 'Beta access required',
-        message: 'Beta access required. Please request access or contact an administrator.' 
+        message: 'Beta access required. Please request access or contact an administrator.',
       });
     }
 
@@ -139,4 +141,3 @@ export async function requireBetaAccessOrGuestForbidden(req: AuthRequest, res: R
   }
   return requireBetaAccess(req, res, next);
 }
-

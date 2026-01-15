@@ -44,8 +44,8 @@ export function toPublicChannelMemeListItemDto(
     durationMs: row.memeAsset.durationMs,
     priceCoins: row.priceCoins,
     createdAt: row.createdAt,
-    createdBy: row.memeAsset.createdBy ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName } : null,
+    createdBy: row.memeAsset.createdBy
+      ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }
+      : null,
   };
 }
-
-

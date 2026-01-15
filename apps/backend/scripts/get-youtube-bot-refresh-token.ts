@@ -56,7 +56,7 @@ async function main() {
   });
 
   const text = await tokenResp.text();
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
@@ -67,9 +67,10 @@ async function main() {
     throw new Error(`Token exchange failed: ${tokenResp.status} ${text || tokenResp.statusText}`);
   }
 
-  const refreshToken = String(json?.refresh_token || '').trim();
-  const scope = String(json?.scope || '').trim();
-  const hasAccessToken = Boolean(String(json?.access_token || '').trim());
+  const tokenData = json && typeof json === 'object' ? (json as Record<string, unknown>) : {};
+  const refreshToken = String(tokenData['refresh_token'] ?? '').trim();
+  const scope = String(tokenData['scope'] ?? '').trim();
+  const hasAccessToken = Boolean(String(tokenData['access_token'] ?? '').trim());
 
   if (!refreshToken) {
     console.log('\nToken response:\n', json);
@@ -86,9 +87,8 @@ async function main() {
   console.log('');
 }
 
-main().catch((e: any) => {
-  console.error('\nERROR:', e?.message || String(e));
+main().catch((e: unknown) => {
+  const message = e instanceof Error ? e.message : String(e);
+  console.error('\nERROR:', message);
   process.exit(1);
 });
-
-

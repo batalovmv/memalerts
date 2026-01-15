@@ -5,7 +5,9 @@ import { getCreditsStateFromStore, type CreditsState } from './creditsSessionSto
 const channelTickers = new Map<string, { timer: NodeJS.Timeout; refs: number }>();
 
 function normalizeSlug(slug: string): string {
-  return String(slug || '').trim().toLowerCase();
+  return String(slug || '')
+    .trim()
+    .toLowerCase();
 }
 
 export async function emitCreditsState(io: Server, channelSlug: string): Promise<void> {
@@ -25,9 +27,12 @@ export function startCreditsTicker(io: Server, channelSlug: string, intervalMs =
     return;
   }
 
-  const timer = setInterval(() => {
-    void emitCreditsState(io, slug);
-  }, Math.max(1000, intervalMs));
+  const timer = setInterval(
+    () => {
+      void emitCreditsState(io, slug);
+    },
+    Math.max(1000, intervalMs)
+  );
   channelTickers.set(slug, { timer, refs: 1 });
 }
 
@@ -42,5 +47,3 @@ export function stopCreditsTicker(channelSlug: string): void {
   clearInterval(existing.timer);
   channelTickers.delete(slug);
 }
-
-

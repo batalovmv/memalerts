@@ -18,7 +18,9 @@ type StreamDurationMeta = {
 };
 
 function normalizeSlug(slug: string): string {
-  return String(slug || '').trim().toLowerCase();
+  return String(slug || '')
+    .trim()
+    .toLowerCase();
 }
 
 function clampInt(n: number, min: number, max: number): number {
@@ -53,8 +55,8 @@ async function readMeta(slug: string): Promise<StreamDurationMeta | null> {
     status,
     sessionStartedAt: Number.isFinite(sessionStartedAt) ? sessionStartedAt : Date.now(),
     accumMs: Number.isFinite(accumMs) ? Math.max(0, Math.floor(accumMs)) : 0,
-    lastOnlineAt: Number.isFinite(lastOnlineAt as any) ? (lastOnlineAt as any) : null,
-    offlineAt: Number.isFinite(offlineAt as any) ? (offlineAt as any) : null,
+    lastOnlineAt: typeof lastOnlineAt === 'number' && Number.isFinite(lastOnlineAt) ? lastOnlineAt : null,
+    offlineAt: typeof offlineAt === 'number' && Number.isFinite(offlineAt) ? offlineAt : null,
     updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
   };
 }
@@ -101,7 +103,12 @@ export async function handleStreamOnline(channelSlug: string, breakCreditMinutes
 
   // Already online: just touch timestamp.
   if (meta.status === 'online') {
-    const updated: StreamDurationMeta = { ...meta, updatedAt: now, lastOnlineAt: meta.lastOnlineAt ?? now, offlineAt: null };
+    const updated: StreamDurationMeta = {
+      ...meta,
+      updatedAt: now,
+      lastOnlineAt: meta.lastOnlineAt ?? now,
+      offlineAt: null,
+    };
     await writeMeta(slug, updated);
     return;
   }
@@ -163,7 +170,9 @@ export async function handleStreamOffline(channelSlug: string): Promise<void> {
   await writeMeta(slug, updated);
 }
 
-export async function getStreamDurationSnapshot(channelSlug: string): Promise<{ status: 'online' | 'offline'; totalMinutes: number }> {
+export async function getStreamDurationSnapshot(
+  channelSlug: string
+): Promise<{ status: 'online' | 'offline'; totalMinutes: number }> {
   const slug = normalizeSlug(channelSlug);
   if (!slug) return { status: 'offline', totalMinutes: 0 };
 
@@ -180,7 +189,9 @@ export async function getStreamDurationSnapshot(channelSlug: string): Promise<{ 
   return { status: meta.status, totalMinutes };
 }
 
-export async function getStreamSessionSnapshot(channelSlug: string): Promise<{ status: 'online' | 'offline'; totalMinutes: number; sessionId: string | null }> {
+export async function getStreamSessionSnapshot(
+  channelSlug: string
+): Promise<{ status: 'online' | 'offline'; totalMinutes: number; sessionId: string | null }> {
   const slug = normalizeSlug(channelSlug);
   if (!slug) return { status: 'offline', totalMinutes: 0, sessionId: null };
 
@@ -196,9 +207,3 @@ export async function getStreamSessionSnapshot(channelSlug: string): Promise<{ s
   const totalMinutes = Math.floor(Math.max(0, totalMs) / 60_000);
   return { status: meta.status, totalMinutes, sessionId: meta.sessionId || null };
 }
-
-
-
-
-
-

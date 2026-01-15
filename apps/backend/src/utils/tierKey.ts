@@ -10,5 +10,3 @@ export function normTierKey(input: unknown): string {
   if (typeof input === 'number' && Number.isFinite(input)) return String(input).trim().toLowerCase();
   return '';
 }
-
-

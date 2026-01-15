@@ -1,8 +1,9 @@
-import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import type { Server } from 'socket.io';
 import { debugLog, debugError } from '../utils/debug.js';
-import { emitCreditsState, startCreditsTicker, stopCreditsTicker } from '../realtime/creditsState.js';
+import { startCreditsTicker, stopCreditsTicker } from '../realtime/creditsState.js';
 import { getCreditsStateFromStore } from '../realtime/creditsSessionStore.js';
+import { isShuttingDown } from '../utils/shutdownState.js';
+import { verifyJwtWithRotation } from '../utils/jwt.js';
 
 type JwtPayload = {
   userId?: string;
@@ -37,6 +38,13 @@ function isBetaHost(host: string | undefined): boolean {
 }
 
 export function setupSocketIO(io: Server) {
+  io.use((socket, next) => {
+    if (isShuttingDown()) {
+      return next(new Error('server_shutting_down'));
+    }
+    return next();
+  });
+
   io.on('connection', (socket) => {
     debugLog('Client connected:', socket.id);
 
@@ -49,7 +57,7 @@ export function setupSocketIO(io: Server) {
       const beta = isBetaHost(host);
       const token = beta ? (cookies.token_beta ?? cookies.token) : cookies.token;
       if (token) {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+        const decoded = verifyJwtWithRotation<JwtPayload>(token, 'overlay_token');
         auth = { userId: decoded.userId, role: decoded.role, channelId: decoded.channelId };
       }
     } catch {
@@ -91,16 +99,26 @@ export function setupSocketIO(io: Server) {
       }
       if (!allowedSlug) return;
       if (requested !== allowedSlug) {
-        debugLog('[socket] join:channel denied (slug mismatch)', { socketId: socket.id, requested: raw, allowed: allowedSlug });
+        debugLog('[socket] join:channel denied (slug mismatch)', {
+          socketId: socket.id,
+          requested: raw,
+          allowed: allowedSlug,
+        });
         return;
       }
 
-      socket.join(`channel:${allowedSlug}`);
-      socket.data.isOverlay = false;
+      void socket.join(`channel:${allowedSlug}`);
+      const socketData = socket.data as {
+        isOverlay?: boolean;
+        isCreditsSubscriber?: boolean;
+        channelSlug?: string;
+        isCreditsOverlay?: boolean;
+      };
+      socketData.isOverlay = false;
       // Allow streamer dashboard to subscribe to credits updates without requiring OBS overlay to be open.
       // We keep this separate from "isCreditsOverlay" to avoid affecting token-rotation kick logic.
-      (socket.data as any).isCreditsSubscriber = true;
-      socket.data.channelSlug = allowedSlug;
+      socketData.isCreditsSubscriber = true;
+      socketData.channelSlug = allowedSlug;
       debugLog(`Client ${socket.id} joined channel:${allowedSlug} (auth)`);
 
       // Best-effort: also send credits config/state and start ticker for this channel.
@@ -113,7 +131,7 @@ export function setupSocketIO(io: Server) {
         });
         const slug = String(ch?.slug || '').toLowerCase();
         if (slug) {
-          socket.emit('credits:config', { creditsStyleJson: (ch as any)?.creditsStyleJson ?? null });
+          socket.emit('credits:config', { creditsStyleJson: ch?.creditsStyleJson ?? null });
           socket.emit('credits:state', await getCreditsStateFromStore(slug));
           startCreditsTicker(io, slug, 5000);
         }
@@ -126,7 +144,7 @@ export function setupSocketIO(io: Server) {
       const token = String(data?.token || '').trim();
       if (!token) return;
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+        const decoded = verifyJwtWithRotation<JwtPayload>(token, 'socket_auth');
         if (!decoded?.kind || !decoded.channelId) return;
         const isMemeOverlay = decoded.kind === 'overlay';
         const isCreditsOverlay = decoded.kind === 'credits';
@@ -134,33 +152,73 @@ export function setupSocketIO(io: Server) {
 
         // Resolve current channel slug + config from DB so tokens survive slug changes.
         const { prisma } = await import('../lib/prisma.js');
+        if (isMemeOverlay) {
+          const channel = await prisma.channel.findUnique({
+            where: { id: decoded.channelId },
+            select: {
+              slug: true,
+              overlayMode: true,
+              overlayShowSender: true,
+              overlayMaxConcurrent: true,
+              overlayStyleJson: true,
+              overlayTokenVersion: true,
+            },
+          });
+
+          // Token rotation: deny old links after streamer regenerates overlay URL.
+          const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
+          const currentVersion = Number.isFinite(channel?.overlayTokenVersion)
+            ? Number(channel?.overlayTokenVersion)
+            : 1;
+          if (tokenVersion !== currentVersion) {
+            debugLog('[socket] join:overlay denied (token rotated)', {
+              socketId: socket.id,
+              channelId: decoded.channelId,
+              tokenVersion,
+              currentVersion,
+            });
+            return;
+          }
+
+          const slug = String(channel?.slug || decoded.channelSlug || '').toLowerCase();
+          if (!slug) return;
+
+          // Join the normalized channel room only.
+          void socket.join(`channel:${slug}`);
+          const socketData = socket.data as {
+            isOverlay?: boolean;
+            isCreditsOverlay?: boolean;
+            channelSlug?: string;
+          };
+          socketData.isOverlay = true;
+          socketData.isCreditsOverlay = false;
+          socketData.channelSlug = slug;
+          debugLog(`Client ${socket.id} joined channel:${slug} (overlay token)`);
+
+          // Private config (sent only to the overlay client socket).
+          socket.emit('overlay:config', {
+            overlayMode: channel?.overlayMode ?? 'queue',
+            overlayShowSender: channel?.overlayShowSender ?? false,
+            overlayMaxConcurrent: channel?.overlayMaxConcurrent ?? 3,
+            overlayStyleJson: channel?.overlayStyleJson ?? null,
+          });
+          return;
+        }
+
         const channel = await prisma.channel.findUnique({
           where: { id: decoded.channelId },
-          select: isMemeOverlay
-            ? {
-                slug: true,
-                overlayMode: true,
-                overlayShowSender: true,
-                overlayMaxConcurrent: true,
-                overlayStyleJson: true,
-                overlayTokenVersion: true,
-              }
-            : {
-                slug: true,
-                creditsStyleJson: true,
-                creditsTokenVersion: true,
-              },
+          select: {
+            slug: true,
+            creditsStyleJson: true,
+            creditsTokenVersion: true,
+          },
         });
 
         // Token rotation: deny old links after streamer regenerates overlay URL.
         const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
-        const currentVersion = isMemeOverlay
-          ? Number.isFinite((channel as any)?.overlayTokenVersion)
-            ? Number((channel as any)?.overlayTokenVersion)
-            : 1
-          : Number.isFinite((channel as any)?.creditsTokenVersion)
-            ? Number((channel as any)?.creditsTokenVersion)
-            : 1;
+        const currentVersion = Number.isFinite(channel?.creditsTokenVersion)
+          ? Number(channel?.creditsTokenVersion)
+          : 1;
         if (tokenVersion !== currentVersion) {
           debugLog('[socket] join:overlay denied (token rotated)', {
             socketId: socket.id,
@@ -175,28 +233,23 @@ export function setupSocketIO(io: Server) {
         if (!slug) return;
 
         // Join the normalized channel room only.
-        socket.join(`channel:${slug}`);
-        socket.data.isOverlay = isMemeOverlay;
-        socket.data.isCreditsOverlay = isCreditsOverlay;
-        socket.data.channelSlug = slug;
+        void socket.join(`channel:${slug}`);
+        const socketData = socket.data as {
+          isOverlay?: boolean;
+          isCreditsOverlay?: boolean;
+          channelSlug?: string;
+        };
+        socketData.isOverlay = false;
+        socketData.isCreditsOverlay = true;
+        socketData.channelSlug = slug;
         debugLog(`Client ${socket.id} joined channel:${slug} (overlay token)`);
 
-        if (isMemeOverlay) {
-          // Private config (sent only to the overlay client socket).
-          socket.emit('overlay:config', {
-            overlayMode: (channel as any)?.overlayMode ?? 'queue',
-            overlayShowSender: (channel as any)?.overlayShowSender ?? false,
-            overlayMaxConcurrent: (channel as any)?.overlayMaxConcurrent ?? 3,
-            overlayStyleJson: (channel as any)?.overlayStyleJson ?? null,
-          });
-        } else {
-          socket.emit('credits:config', {
-            creditsStyleJson: (channel as any)?.creditsStyleJson ?? null,
-          });
-          socket.emit('credits:state', await getCreditsStateFromStore(slug));
-          startCreditsTicker(io, slug, 5000);
-        }
-      } catch (e) {
+        socket.emit('credits:config', {
+          creditsStyleJson: channel?.creditsStyleJson ?? null,
+        });
+        socket.emit('credits:state', await getCreditsStateFromStore(slug));
+        startCreditsTicker(io, slug, 5000);
+      } catch {
         debugLog('[socket] join:overlay denied (invalid token)', { socketId: socket.id });
       }
     });
@@ -205,7 +258,7 @@ export function setupSocketIO(io: Server) {
       // User rooms must be authenticated; do not allow joining arbitrary users.
       if (!auth.userId) return;
       if (String(userId) !== auth.userId) return;
-      socket.join(`user:${auth.userId}`);
+      void socket.join(`user:${auth.userId}`);
       debugLog(`Client ${socket.id} joined user:${auth.userId}`);
     });
 
@@ -224,8 +277,13 @@ export function setupSocketIO(io: Server) {
 
     socket.on('disconnect', () => {
       try {
-        if (((socket.data as any)?.isCreditsOverlay || (socket.data as any)?.isCreditsSubscriber) && (socket.data as any)?.channelSlug) {
-          stopCreditsTicker(String((socket.data as any).channelSlug));
+        const socketData = socket.data as {
+          isCreditsOverlay?: boolean;
+          isCreditsSubscriber?: boolean;
+          channelSlug?: string;
+        };
+        if ((socketData.isCreditsOverlay || socketData.isCreditsSubscriber) && socketData.channelSlug) {
+          stopCreditsTicker(String(socketData.channelSlug));
         }
       } catch {
         // ignore
@@ -234,5 +292,3 @@ export function setupSocketIO(io: Server) {
     });
   });
 }
-
-

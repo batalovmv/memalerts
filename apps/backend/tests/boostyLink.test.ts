@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import { setupRoutes } from '../src/routes/index.js';
 import { csrfProtection } from '../src/middleware/csrf.js';
 
-function makeJwt(payload: Record<string, any>): string {
+function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -70,5 +70,3 @@ describe('POST /auth/boosty/link', () => {
     expect(res.body?.errorCode).toBe('BOOSTY_LINK_MISSING_CREDENTIALS');
   });
 });
-
-

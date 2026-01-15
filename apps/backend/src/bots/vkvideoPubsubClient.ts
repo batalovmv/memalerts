@@ -1,21 +1,37 @@
 import { logger } from '../utils/logger.js';
 import WebSocketImpl from 'ws';
 
-function ensureWebSocketCtor(): any {
+type WebSocketLike = {
+  addEventListener: (event: string, handler: (ev: unknown) => void) => void;
+  send: (data: string, cb?: (err?: unknown) => void) => unknown;
+  close?: () => void;
+};
+
+type WebSocketCtor = new (
+  url: string,
+  protocols?: string[] | string,
+  options?: { headers?: Record<string, string> }
+) => WebSocketLike;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function ensureWebSocketCtor(): WebSocketCtor {
   // Prefer built-in WebSocket (Node 20+). Fall back to `ws` for Node 18/older runtimes.
-  const WS: any = (globalThis as any).WebSocket;
-  return WS || (WebSocketImpl as any);
+  const globalWs = (globalThis as { WebSocket?: WebSocketCtor }).WebSocket;
+  return globalWs || (WebSocketImpl as unknown as WebSocketCtor);
 }
 
 type SubscriptionSpec = { channel: string; token?: string | null };
 
 export type VkVideoPubSubPush = {
   channel: string;
-  data: any;
+  data: unknown;
 };
 
 export class VkVideoPubSubClient {
-  private ws: any | null = null;
+  private ws: WebSocketLike | null = null;
   private stopped = false;
   private nextId = 1;
   private connected = false;
@@ -25,9 +41,9 @@ export class VkVideoPubSubClient {
       url: string;
       token: string;
       subscriptions: SubscriptionSpec[];
-      logContext?: Record<string, any>;
+      logContext?: Record<string, unknown>;
       onPush: (push: VkVideoPubSubPush) => void;
-    },
+    }
   ) {}
 
   start(): void {
@@ -35,10 +51,8 @@ export class VkVideoPubSubClient {
     if (this.ws) return;
 
     const WS = ensureWebSocketCtor();
-    const ws =
-      WS === (WebSocketImpl as any)
-        ? new WS(this.opts.url)
-        : new WS(this.opts.url, [], undefined);
+    const usingWsImpl = WS === (WebSocketImpl as unknown as WebSocketCtor);
+    const ws = usingWsImpl ? new WS(this.opts.url) : new WS(this.opts.url, [], undefined);
 
     this.ws = ws;
     this.connected = false;
@@ -50,21 +64,23 @@ export class VkVideoPubSubClient {
       this.sendConnect();
     });
 
-    ws.addEventListener('close', (ev: any) => {
+    ws.addEventListener('close', (ev: unknown) => {
       const ctx = this.opts.logContext || {};
-      logger.warn('vkvideo_pubsub.ws_close', { ...ctx, code: ev?.code, reason: String(ev?.reason || '') });
+      const rec = asRecord(ev);
+      logger.warn('vkvideo_pubsub.ws_close', { ...ctx, code: rec.code, reason: String(rec.reason ?? '') });
       this.ws = null;
       this.connected = false;
       // Reconnect is handled by the runner (periodic resync).
     });
 
-    ws.addEventListener('error', (ev: any) => {
+    ws.addEventListener('error', (ev: unknown) => {
       const ctx = this.opts.logContext || {};
-      logger.warn('vkvideo_pubsub.ws_error', { ...ctx, error: String(ev?.message || ev?.error || '') });
+      const rec = asRecord(ev);
+      logger.warn('vkvideo_pubsub.ws_error', { ...ctx, error: String(rec.message ?? rec.error ?? '') });
     });
 
-    ws.addEventListener('message', (ev: any) => {
-      const raw = ev?.data;
+    ws.addEventListener('message', (ev: unknown) => {
+      const raw = asRecord(ev).data;
       const text = typeof raw === 'string' ? raw : raw?.toString?.() || '';
       if (!text) return;
       this.handleFrame(text);
@@ -91,7 +107,7 @@ export class VkVideoPubSubClient {
     }
   }
 
-  private send(obj: any) {
+  private send(obj: unknown) {
     if (!this.ws) return;
     try {
       // `ws` supports callback-style send; native WS may throw.
@@ -109,13 +125,13 @@ export class VkVideoPubSubClient {
 
   private sendSubscribe(channel: string, token?: string | null) {
     const id = this.nextId++;
-    const sub: any = { channel };
+    const sub: { channel: string; token?: string } = { channel };
     if (token) sub.token = token;
     this.send({ id, subscribe: sub });
   }
 
   private handleFrame(text: string) {
-    let msg: any = null;
+    let msg: unknown = null;
     try {
       msg = JSON.parse(text);
     } catch {
@@ -126,15 +142,16 @@ export class VkVideoPubSubClient {
     const arr = Array.isArray(msg) ? msg : [msg];
     for (const m of arr) {
       if (!m || typeof m !== 'object') continue;
+      const rec = asRecord(m);
 
       // Server ping -> client pong
-      if (m.ping) {
+      if (rec.ping) {
         this.send({ pong: {} });
         continue;
       }
 
       // Connect result: after connect, subscribe to requested channels.
-      if (m.id && m.connect) {
+      if (rec.id && rec.connect) {
         this.connected = true;
         const ctx = this.opts.logContext || {};
         logger.info('vkvideo_pubsub.connected', { ...ctx });
@@ -147,14 +164,13 @@ export class VkVideoPubSubClient {
       }
 
       // Publications
-      const push = m.push;
-      const pubData = push?.pub?.data;
-      const channel = String(push?.channel || '').trim();
+      const push = asRecord(rec.push);
+      const pub = asRecord(push.pub);
+      const pubData = pub.data;
+      const channel = String(push.channel ?? '').trim();
       if (channel && pubData !== undefined) {
         this.opts.onPush({ channel, data: pubData });
       }
     }
   }
 }
-
-

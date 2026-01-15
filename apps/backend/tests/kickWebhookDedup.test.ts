@@ -1,8 +1,10 @@
 import express from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { setupRoutes } from '../src/routes/index.js';
+import { createChannel, createKickChatBotSubscription, createUser } from './factories/index.js';
 
 function rand(): string {
   return Math.random().toString(16).slice(2);
@@ -14,27 +16,23 @@ describe('webhooks: /webhooks/kick/events', () => {
     process.env.KICK_WEBHOOK_PUBLIC_KEY_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.KICK_WEBHOOK_REPLAY_WINDOW_MS = String(10 * 60 * 1000);
 
-    const channel = await prisma.channel.create({
-      data: {
-        slug: `ch_${rand()}`,
-        name: `Channel ${rand()}`,
-        kickRewardEnabled: true,
-        kickCoinPerPointRatio: 2.0,
-      } as any,
-      select: { id: true, slug: true },
-    });
-    const user = await prisma.user.create({
-      data: { displayName: `Streamer ${rand()}`, role: 'streamer', hasBetaAccess: true } as any,
-      select: { id: true },
-    });
+    const channel = await createChannel({
+      slug: `ch_${rand()}`,
+      name: `Channel ${rand()}`,
+      kickRewardEnabled: true,
+      kickCoinPerPointRatio: 2.0,
+    } satisfies Prisma.ChannelCreateInput);
+    const user = await createUser({
+      displayName: `Streamer ${rand()}`,
+      role: 'streamer',
+      hasBetaAccess: true,
+    } satisfies Prisma.UserCreateInput);
 
-    await (prisma as any).kickChatBotSubscription.create({
-      data: {
-        channelId: channel.id,
-        userId: user.id,
-        kickChannelId: 'kick_ch_1',
-        enabled: true,
-      },
+    await createKickChatBotSubscription({
+      channelId: channel.id,
+      userId: user.id,
+      kickChannelId: 'kick_ch_1',
+      enabled: true,
     });
 
     const payload = {
@@ -58,7 +56,10 @@ describe('webhooks: /webhooks/kick/events', () => {
     const ts = String(Date.now());
     const message = `${messageId}.${ts}.${rawBody}`;
     const signature = crypto
-      .sign('RSA-SHA256', Buffer.from(message, 'utf8'), { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING })
+      .sign('RSA-SHA256', Buffer.from(message, 'utf8'), {
+        key: privateKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      })
       .toString('base64');
 
     const app = express();
@@ -86,16 +87,14 @@ describe('webhooks: /webhooks/kick/events', () => {
     expect(res.body?.ok).toBe(true);
     expect(res.body?.duplicate).toBe(true);
 
-    const pending = await (prisma as any).pendingCoinGrant.count({
+    const pending = await prisma.pendingCoinGrant.count({
       where: { provider: 'kick', channelId: channel.id },
     });
     expect(pending).toBe(1);
 
-    const dedups = await (prisma as any).externalWebhookDeliveryDedup.count({
+    const dedups = await prisma.externalWebhookDeliveryDedup.count({
       where: { provider: 'kick', messageId },
     });
     expect(dedups).toBe(1);
   });
 });
-
-

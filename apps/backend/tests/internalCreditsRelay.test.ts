@@ -51,5 +51,3 @@ describe('internal relay: /internal/credits/*', () => {
     expect(res.body?.ok).toBe(true);
   });
 });
-
-

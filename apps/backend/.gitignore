@@ -5,3 +5,7 @@ dist/
 *.log
 uploads/
 .DS_Store
+.claude/
+coverage/
+lint-data.json
+tmp-runtime/

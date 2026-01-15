@@ -1,5 +1,5 @@
-import type { Response } from 'express';
-import { Prisma } from '@prisma/client';
+import type { Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import {
   clampInt,
@@ -12,11 +12,12 @@ import {
 } from './cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 
-export const getMemePool = async (req: any, res: Response) => {
-  const qRaw = req.query.q ? String(req.query.q).trim() : '';
+export const getMemePool = async (req: Request, res: Response) => {
+  const query = (req.query ?? {}) as Record<string, unknown>;
+  const qRaw = query.q ? String(query.q).trim() : '';
   const q = qRaw.length > 100 ? qRaw.slice(0, 100) : qRaw;
-  const limitRaw = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
-  const offsetRaw = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
+  const limitRaw = query.limit ? parseInt(String(query.limit), 10) : 50;
+  const offsetRaw = query.offset ? parseInt(String(query.offset), 10) : 0;
 
   const maxFromEnv = parseInt(String(process.env.SEARCH_PAGE_MAX || ''), 10);
   const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 50;
@@ -55,7 +56,7 @@ export const getMemePool = async (req: any, res: Response) => {
   // IMPORTANT (product): pool visibility is governed by MemeAsset moderation only.
   // ChannelMeme adoption (approved/disabled/deletedAt) must NOT hide the asset from the pool.
   // Search is best-effort via historical channel titles (even if disabled).
-  const where: any = {
+  const where: Prisma.MemeAssetWhereInput = {
     poolVisibility: 'visible',
     purgedAt: null,
     ...(q
@@ -128,5 +129,3 @@ export const getMemePool = async (req: any, res: Response) => {
 
   return res.json(items);
 };
-
-

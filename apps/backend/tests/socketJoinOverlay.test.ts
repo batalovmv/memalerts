@@ -1,14 +1,16 @@
 import { createServer } from 'node:http';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { Server } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import jwt from 'jsonwebtoken';
 
 import { setupSocketIO } from '../src/socket/index.js';
-import { prisma } from '../src/lib/prisma.js';
+import { createChannel } from './factories/index.js';
 
-function makeOverlayJwt(payload: Record<string, any>): string {
+type TestEventPayload = { ok: boolean };
+
+function makeOverlayJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
@@ -37,14 +39,12 @@ describe('Socket.IO join:overlay', () => {
   it('accepts current tv and denies rotated tv; joins channel:{slugLower}', async () => {
     const channelId = randomUUID();
     const slug = 'MyChan';
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Test channel',
-        overlayTokenVersion: 2,
-        creditsTokenVersion: 3,
-      },
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Test channel',
+      overlayTokenVersion: 2,
+      creditsTokenVersion: 3,
     });
 
     const httpServer = createServer();
@@ -69,7 +69,7 @@ describe('Socket.IO join:overlay', () => {
         waitForEvent(badKind, 'connect', 4000),
       ]);
 
-      const goodCfgP = waitForEvent<any>(good, 'overlay:config', 2000);
+      const goodCfgP = waitForEvent<unknown>(good, 'overlay:config', 2000);
       good.emit('join:overlay', { token: goodToken });
       rotated.emit('join:overlay', { token: rotatedToken });
       badKind.emit('join:overlay', { token: badKindToken });
@@ -84,7 +84,7 @@ describe('Socket.IO join:overlay', () => {
 
       // Only good socket should be joined to the channel room.
       io.to(`channel:${slug.toLowerCase()}`).emit('test:event', { ok: true });
-      const got = await waitForEvent<any>(good, 'test:event', 2000);
+      const got = await waitForEvent<TestEventPayload>(good, 'test:event', 2000);
       expect(got.ok).toBe(true);
       await expectNoEvent(rotated, 'test:event', 700);
       await expectNoEvent(badKind, 'test:event', 700);
@@ -100,13 +100,11 @@ describe('Socket.IO join:overlay', () => {
   it('uses DB slug even if token has stale channelSlug; tv defaults to 1 if missing', async () => {
     const channelId = randomUUID();
     const dbSlug = 'NewSlug';
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug: dbSlug,
-        name: 'Slug change channel',
-        overlayTokenVersion: 2,
-      },
+    await createChannel({
+      id: channelId,
+      slug: dbSlug,
+      name: 'Slug change channel',
+      overlayTokenVersion: 2,
     });
 
     const httpServer = createServer();
@@ -126,7 +124,7 @@ describe('Socket.IO join:overlay', () => {
 
     try {
       await Promise.all([waitForEvent(missingTv, 'connect', 4000), waitForEvent(good, 'connect', 4000)]);
-      const goodCfgP = waitForEvent<any>(good, 'overlay:config', 2000);
+      const goodCfgP = waitForEvent<unknown>(good, 'overlay:config', 2000);
       missingTv.emit('join:overlay', { token: missingTvToken });
       good.emit('join:overlay', { token: goodToken });
 
@@ -139,7 +137,7 @@ describe('Socket.IO join:overlay', () => {
 
       // ...and must be in the DB slug room (not in "oldslug").
       io.to(`channel:${dbSlug.toLowerCase()}`).emit('test:event', { ok: true });
-      const got = await waitForEvent<any>(good, 'test:event', 2000);
+      const got = await waitForEvent<TestEventPayload>(good, 'test:event', 2000);
       expect(got.ok).toBe(true);
     } finally {
       missingTv.disconnect();
@@ -152,13 +150,11 @@ describe('Socket.IO join:overlay', () => {
   it('supports credits overlay kind=credits with creditsTokenVersion', async () => {
     const channelId = randomUUID();
     const slug = 'CreditsChan';
-    await prisma.channel.create({
-      data: {
-        id: channelId,
-        slug,
-        name: 'Credits channel',
-        creditsTokenVersion: 5,
-      },
+    await createChannel({
+      id: channelId,
+      slug,
+      name: 'Credits channel',
+      creditsTokenVersion: 5,
     });
 
     const httpServer = createServer();
@@ -175,11 +171,11 @@ describe('Socket.IO join:overlay', () => {
       await waitForEvent(client, 'connect', 4000);
       client.emit('join:overlay', { token });
 
-      const cfg = await waitForEvent<any>(client, 'credits:config', 2000);
+      const cfg = await waitForEvent<unknown>(client, 'credits:config', 2000);
       expect(cfg).toBeTruthy();
 
       io.to(`channel:${slug.toLowerCase()}`).emit('test:event', { ok: true });
-      const got = await waitForEvent<any>(client, 'test:event', 2000);
+      const got = await waitForEvent<TestEventPayload>(client, 'test:event', 2000);
       expect(got.ok).toBe(true);
     } finally {
       client.disconnect();
@@ -188,5 +184,3 @@ describe('Socket.IO join:overlay', () => {
     }
   });
 });
-
-

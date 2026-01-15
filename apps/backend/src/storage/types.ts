@@ -12,8 +12,15 @@ export type StoreFromTempArgs = {
   mimeType?: string | null;
 };
 
+export type PublicPathArgs = {
+  hash: string;
+  extWithDot: string;
+};
+
 export interface StorageProvider {
   kind: 'local' | 's3';
+
+  getPublicPathForHash(args: PublicPathArgs): string;
 
   storeMemeFromTemp(args: StoreFromTempArgs): Promise<StoredObject>;
 
@@ -23,5 +30,3 @@ export interface StorageProvider {
    */
   deleteByPublicPath(publicPath: string): Promise<void>;
 }
-
-

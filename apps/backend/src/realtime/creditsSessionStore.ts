@@ -25,7 +25,9 @@ function clampInt(n: number, min: number, max: number): number {
 }
 
 function normalizeSlug(slug: string): string {
-  return String(slug || '').trim().toLowerCase();
+  return String(slug || '')
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeName(name: string): string {
@@ -102,8 +104,8 @@ async function readMeta(slug: string): Promise<SessionMeta | null> {
     status,
     startedAt: Number.isFinite(startedAt) ? startedAt : Date.now(),
     lastSeenAt: Number.isFinite(lastSeenAt) ? lastSeenAt : Date.now(),
-    offlineAt: Number.isFinite(offlineAt as any) ? (offlineAt as any) : null,
-    expiresAt: Number.isFinite(expiresAt as any) ? (expiresAt as any) : null,
+    offlineAt: typeof offlineAt === 'number' && Number.isFinite(offlineAt) ? offlineAt : null,
+    expiresAt: typeof expiresAt === 'number' && Number.isFinite(expiresAt) ? expiresAt : null,
   };
 }
 
@@ -194,7 +196,10 @@ export async function markCreditsSessionOffline(channelSlug: string, reconnectWi
   await writeMeta(slug, updated, offlineTtlSeconds(windowMin));
 }
 
-export async function resetCreditsSession(channelSlug: string, reconnectWindowMinutes: number): Promise<{ sessionId: string }> {
+export async function resetCreditsSession(
+  channelSlug: string,
+  reconnectWindowMinutes: number
+): Promise<{ sessionId: string }> {
   const slug = normalizeSlug(channelSlug);
   if (!slug) return { sessionId: '' };
 
@@ -272,7 +277,10 @@ export async function addCreditsDonor(
   const donorName = normalizeName(name);
   if (!donorName) return;
   if (!Number.isFinite(amount)) return;
-  const cur = String(currency || '').trim().toUpperCase() || 'RUB';
+  const cur =
+    String(currency || '')
+      .trim()
+      .toUpperCase() || 'RUB';
 
   const client = await getRedisClient();
   if (!client) return;
@@ -295,7 +303,13 @@ export async function addCreditsDonor(
   meta.offlineAt = null;
   meta.expiresAt = null;
 
-  const donor: Donor = { name: donorName, amount: Math.max(0, Number(amount)), currency: cur, avatarUrl: avatar, ts: now };
+  const donor: Donor = {
+    name: donorName,
+    amount: Math.max(0, Number(amount)),
+    currency: cur,
+    avatarUrl: avatar,
+    ts: now,
+  };
   await client.hSet(kDonors(slug), key, JSON.stringify(donor));
   await client.zAdd(kDonorsOrder(slug), [{ score: now, value: key }], { NX: true });
   await writeMeta(slug, meta, onlineTtlSeconds(windowMin));
@@ -324,9 +338,9 @@ export async function getCreditsStateFromStore(channelSlug: string): Promise<Cre
       if (raw.startsWith('{')) {
         try {
           const c = JSON.parse(raw) as Partial<Chatter>;
-          const name = normalizeName((c as any)?.name || '');
+          const name = normalizeName(c?.name || '');
           if (!name) continue;
-          const avatarUrl = normalizeAvatarUrl((c as any)?.avatarUrl);
+          const avatarUrl = normalizeAvatarUrl(c?.avatarUrl);
           chatters.push({ name, avatarUrl });
           continue;
         } catch {
@@ -350,7 +364,7 @@ export async function getCreditsStateFromStore(channelSlug: string): Promise<Cre
           name: String(d.name),
           amount: Number(d.amount) || 0,
           currency: String(d.currency || 'RUB'),
-          avatarUrl: normalizeAvatarUrl((d as any)?.avatarUrl),
+          avatarUrl: normalizeAvatarUrl(d.avatarUrl),
         });
       } catch {
         // ignore
@@ -360,5 +374,3 @@ export async function getCreditsStateFromStore(channelSlug: string): Promise<Cre
 
   return { chatters, donors };
 }
-
-
