@@ -1,0 +1,7 @@
+{
+  "id": "discord_user_123",
+  "username": "TestUser",
+  "global_name": "Test User",
+  "discriminator": "0001",
+  "avatar": "avatarhash"
+}

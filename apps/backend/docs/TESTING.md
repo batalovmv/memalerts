@@ -55,6 +55,30 @@ Useful for debugging:
 - **`TEST_SCHEMA`** can be set manually to reuse the same schema across multiple runs.
 - `vitest.config.ts` automatically generates `TEST_SCHEMA` and sets `process.env.DATABASE_URL` with `?schema=...`.
 
+## Test factories
+
+To keep tests consistent and reduce boilerplate, use the factories in `tests/factories/` instead of inline
+`prisma.*.create` calls.
+Avoid direct `prisma.*.create`/`upsert` usage in tests; route new test data through factories instead.
+
+Quick examples:
+
+```ts
+import { createChannel, createUser, createSubmission } from './factories/index.js';
+
+const channel = await createChannel({ slug: 'my-channel', name: 'My Channel' });
+const user = await createUser({ role: 'viewer', channelId: null });
+const submission = await createSubmission({
+  channelId: channel.id,
+  submitterUserId: user.id,
+  title: 'Test',
+  status: 'pending',
+});
+```
+
+Composition helpers are available (e.g. `createUserWithChannel`) and additional factories cover related entities
+like file hashes, meme assets, and bot subscriptions.
+
 ## CI (self-hosted runner)
 
 Tests run in the self-hosted workflow: `.github/workflows/ci-cd-selfhosted.yml`.
@@ -65,5 +89,3 @@ Tests run in the self-hosted workflow: `.github/workflows/ci-cd-selfhosted.yml`.
 - Then it runs `pnpm test:ci` (which is `vitest run`).
 
 Beta/prod deployment in this workflow depends on tests passing successfully.
-
-

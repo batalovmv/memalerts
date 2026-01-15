@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "id": "yt_channel_123",
+      "snippet": {
+        "title": "My YouTube Channel",
+        "thumbnails": {
+          "high": {
+            "url": "https://yt.example.com/channel_avatar.png"
+          }
+        }
+      }
+    }
+  ]
+}

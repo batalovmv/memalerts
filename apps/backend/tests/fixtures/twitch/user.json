@@ -1,0 +1,10 @@
+{
+  "data": [
+    {
+      "id": "123456789",
+      "login": "test_user",
+      "display_name": "Test User",
+      "profile_image_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/test-user.png"
+    }
+  ]
+}
