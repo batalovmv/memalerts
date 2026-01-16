@@ -181,14 +181,14 @@
 **Файл теста**: `tests/submissionModeration.test.ts`
 
 **Что тестировать**:
-- [ ] Approve: submission → ChannelMeme + MemeAsset
-- [ ] Approve: начисление submissionRewardCoins (если настроено)
-- [ ] Approve: проверка onlyWhenLive флага
-- [ ] Reject: установка статуса + причины
-- [ ] NeedsChanges: установка статуса + feedback
-- [ ] Доступ: только streamer/admin канала могут модерировать
-- [ ] Socket.IO события при смене статуса
-- [ ] File operations при approve (перемещение из temp)
+- [x] Approve: submission → ChannelMeme + MemeAsset
+- [x] Approve: начисление submissionRewardCoins (если настроено)
+- [x] Approve: проверка onlyWhenLive флага
+- [x] Reject: установка статуса + причины
+- [x] NeedsChanges: установка статуса + feedback
+- [x] Доступ: только streamer/admin канала могут модерировать
+- [x] Socket.IO события при смене статуса
+- [x] File operations при approve (перемещение из temp)
 
 **Acceptance Criteria**:
 ```
