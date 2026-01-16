@@ -1535,9 +1535,9 @@
 **Файл теста**: `tests/middlewareModerator.test.ts`
 
 **Что тестировать**:
-- [ ] Global moderator access
-- [ ] Channel moderator access
-- [ ] Non-moderator rejection
+- [x] Global moderator access
+- [x] Channel moderator access (N/A: middleware only supports global moderators)
+- [x] Non-moderator rejection
 
 **Acceptance Criteria**:
 ```
