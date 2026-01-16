@@ -34,6 +34,19 @@ function makeApp() {
 }
 
 describe('AI regenerate + AI status', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    process.env.NODE_ENV = 'development';
+    process.env.PORT = '3001';
+    process.env.DOMAIN = 'example.com';
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+    process.env.REDIS_URL = '';
+    process.env.AI_BULLMQ_ENABLED = '0';
+    process.env.CHAT_OUTBOX_BULLMQ_ENABLED = '0';
+  });
+
   it('GET /streamer/memes returns AI fields only when includeAi=1', async () => {
     const channel = await createChannel({ slug: `s-${Date.now()}`, name: 'C' });
     const streamer = await createUser({ displayName: 'S', role: 'streamer', channelId: channel.id });
@@ -158,6 +171,26 @@ describe('AI regenerate + AI status', () => {
     expect(res2.status).toBe(429);
     expect(res2.body?.errorCode).toBe('AI_REGENERATE_COOLDOWN');
     expect(typeof res2.body?.retryAfterSeconds).toBe('number');
+  });
+
+  it('POST /streamer/memes/:id/ai/regenerate is limited to the streamers channel', async () => {
+    const channel = await createChannel({ slug: `own-${Date.now()}`, name: 'Own' });
+    const otherChannel = await createChannel({ slug: `other-${Date.now()}`, name: 'Other' });
+    const streamer = await createUser({ displayName: 'S', role: 'streamer', channelId: channel.id });
+    const token = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
+
+    const otherMeme = await createChannelMeme({
+      channelId: otherChannel.id,
+      aiAutoDescription: null,
+      createdAt: new Date(Date.now() - 6 * 60_000),
+    });
+
+    const res = await request(makeApp())
+      .post(`/streamer/memes/${otherMeme.id}/ai/regenerate`)
+      .set('Cookie', [`token=${encodeURIComponent(token)}`]);
+
+    expect(res.status).toBe(404);
+    expect(res.body?.errorCode).toBe('CHANNEL_MEME_NOT_FOUND');
   });
 
   it('POST /streamer/memes/:id/ai/regenerate allows re-run when aiAutoDescription is a UI placeholder', async () => {

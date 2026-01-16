@@ -936,9 +936,9 @@
 **Файл теста**: `tests/streamerAiRegenerate.test.ts`
 
 **Что тестировать**:
-- [ ] Запуск regenerate для мема
-- [ ] Доступ только к своим мемам
-- [ ] Rate limiting
+- [x] Запуск regenerate для мема
+- [x] Доступ только к своим мемам
+- [x] Rate limiting
 
 **Мокировать**:
 - AI service / OpenAI
