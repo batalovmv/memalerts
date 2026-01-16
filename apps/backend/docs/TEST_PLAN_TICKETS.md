@@ -237,11 +237,11 @@
 **Файл теста**: `tests/submissionBulk.test.ts`
 
 **Что тестировать**:
-- [ ] Bulk approve (несколько submissions)
-- [ ] Bulk reject
-- [ ] Partial success (часть approved, часть failed)
-- [ ] Валидация массива ID
-- [ ] Права доступа
+- [x] Bulk approve (несколько submissions)
+- [x] Bulk reject
+- [x] Partial success (часть approved, часть failed)
+- [x] Валидация массива ID
+- [x] Права доступа
 
 **Acceptance Criteria**:
 ```
