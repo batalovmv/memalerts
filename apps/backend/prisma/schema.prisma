@@ -1280,6 +1280,7 @@ model MemeActivation {
   userId        String
   memeId        String
   channelMemeId String?
+  idempotencyKey String? @db.VarChar(128)
   coinsSpent    Int
   status        String // queued, playing, done, failed
   createdAt     DateTime @default(now())
@@ -1294,6 +1295,7 @@ model MemeActivation {
   @@index([status])
   @@index([memeId])
   @@index([channelMemeId])
+  @@unique([channelId, userId, idempotencyKey])
   // Common time-range scans (e.g., daily charts / rollups)
   @@index([channelId, createdAt])
   // Admin stats groupBy helpers (group by userId/memeId within a channel)

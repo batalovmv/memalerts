@@ -3,6 +3,7 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import { authenticate, optionalAuthenticate } from '../../middleware/auth.js';
 import { requireBetaAccess, requireBetaAccessOrGuestForbidden, isBetaDomain } from '../../middleware/betaAccess.js';
 import { activateMemeLimiter } from '../../middleware/rateLimit.js';
+import { idempotencyKey } from '../../middleware/idempotencyKey.js';
 import { viewerController } from '../../controllers/viewerController.js';
 
 export function registerViewerRoutes(app: Router) {
@@ -71,5 +72,12 @@ export function registerViewerRoutes(app: Router) {
     return viewerController.getMemePool(req as AuthRequest, res);
   });
 
-  app.post('/memes/:id/activate', authenticate, requireBetaAccess, activateMemeLimiter, viewerController.activateMeme);
+  app.post(
+    '/memes/:id/activate',
+    authenticate,
+    requireBetaAccess,
+    idempotencyKey,
+    activateMemeLimiter,
+    viewerController.activateMeme
+  );
 }

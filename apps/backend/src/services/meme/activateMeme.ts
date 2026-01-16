@@ -51,6 +51,7 @@ const normalizeDefaultPrice = (value: number | null | undefined): number =>
 export const activateMeme = async (req: AuthRequest, res: Response) => {
   const { id: memeId } = req.params;
   const io: Server = req.app.get('io');
+  const idempotencyKey = typeof req.idempotencyKey === 'string' ? req.idempotencyKey.trim() : null;
 
   try {
     const parsed = activateMemeSchema.parse({ memeId });
@@ -141,6 +142,29 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
 
     const result = await prisma.$transaction(
       async (tx) => {
+        if (idempotencyKey) {
+          const existing = await tx.memeActivation.findFirst({
+            where: { channelId, userId: req.userId!, idempotencyKey },
+          });
+          if (existing) {
+            const wallet = await WalletService.getWalletOrDefault(tx, {
+              userId: req.userId!,
+              channelId,
+            });
+            const sender = await tx.user.findUnique({
+              where: { id: req.userId! },
+              select: { displayName: true },
+            });
+            return {
+              activation: existing,
+              wallet,
+              senderDisplayName: sender?.displayName ?? null,
+              resolvedChannelMemeId: existing.channelMemeId ?? null,
+              idempotencyHit: true,
+            };
+          }
+        }
+
         let resolvedChannelMeme: ResolvedChannelMemePointer | null = channelMeme
           ? { id: channelMeme.id, legacyMemeId: channelMeme.legacyMemeId ?? null }
           : null;
@@ -240,6 +264,7 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
             userId: req.userId!,
             memeId: resolvedLegacyMemeId!,
             ...(resolvedChannelMeme ? { channelMemeId: resolvedChannelMeme.id } : {}),
+            ...(idempotencyKey ? { idempotencyKey } : {}),
             coinsSpent,
             status: 'queued',
           },
@@ -255,49 +280,52 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
           wallet: updatedWallet,
           senderDisplayName: sender?.displayName ?? null,
           resolvedChannelMemeId: resolvedChannelMeme?.id ?? null,
+          idempotencyHit: false,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
 
-    const channelSlug = String(channel.slug || '').toLowerCase();
-    const overlayType = channelMeme ? channelMeme.memeAsset.type : legacyMeme ? legacyMeme.type : poolAsset!.type;
-    const overlayFileUrl = channelMeme
-      ? channelMeme.memeAsset.fileUrl
-      : legacyMeme
-        ? legacyMeme.fileUrl
-        : String(poolAsset!.fileUrl || '');
-    const overlayDurationMs = channelMeme
-      ? channelMeme.memeAsset.durationMs
-      : legacyMeme
-        ? legacyMeme.durationMs
-        : (poolAsset!.durationMs ?? 0);
-    const overlayTitle = channelMeme
-      ? channelMeme.title
-      : legacyMeme
-        ? legacyMeme.title
-        : String(poolExistingChannelMeme?.title || poolAsset!.aiAutoTitle || 'Meme').slice(0, 80);
-    io.to(`channel:${channelSlug}`).emit('activation:new', {
-      id: result.activation.id,
-      memeId: result.activation.memeId,
-      type: overlayType,
-      fileUrl: overlayFileUrl,
-      durationMs: overlayDurationMs,
-      title: overlayTitle,
-      senderDisplayName: result.senderDisplayName,
-    });
+    if (!result.idempotencyHit) {
+      const channelSlug = String(channel.slug || '').toLowerCase();
+      const overlayType = channelMeme ? channelMeme.memeAsset.type : legacyMeme ? legacyMeme.type : poolAsset!.type;
+      const overlayFileUrl = channelMeme
+        ? channelMeme.memeAsset.fileUrl
+        : legacyMeme
+          ? legacyMeme.fileUrl
+          : String(poolAsset!.fileUrl || '');
+      const overlayDurationMs = channelMeme
+        ? channelMeme.memeAsset.durationMs
+        : legacyMeme
+          ? legacyMeme.durationMs
+          : (poolAsset!.durationMs ?? 0);
+      const overlayTitle = channelMeme
+        ? channelMeme.title
+        : legacyMeme
+          ? legacyMeme.title
+          : String(poolExistingChannelMeme?.title || poolAsset!.aiAutoTitle || 'Meme').slice(0, 80);
+      io.to(`channel:${channelSlug}`).emit('activation:new', {
+        id: result.activation.id,
+        memeId: result.activation.memeId,
+        type: overlayType,
+        fileUrl: overlayFileUrl,
+        durationMs: overlayDurationMs,
+        title: overlayTitle,
+        senderDisplayName: result.senderDisplayName,
+      });
 
-    if (result.activation.coinsSpent && result.activation.coinsSpent > 0) {
-      const walletUpdateData: WalletUpdatedEvent = {
-        userId: result.activation.userId,
-        channelId: result.activation.channelId,
-        balance: result.wallet.balance,
-        delta: -result.activation.coinsSpent,
-        reason: 'meme_activation',
-        channelSlug: channel.slug,
-      };
-      emitWalletUpdated(io, walletUpdateData);
-      void relayWalletUpdatedToPeer(walletUpdateData);
+      if (result.activation.coinsSpent && result.activation.coinsSpent > 0) {
+        const walletUpdateData: WalletUpdatedEvent = {
+          userId: result.activation.userId,
+          channelId: result.activation.channelId,
+          balance: result.wallet.balance,
+          delta: -result.activation.coinsSpent,
+          reason: 'meme_activation',
+          channelSlug: channel.slug,
+        };
+        emitWalletUpdated(io, walletUpdateData);
+        void relayWalletUpdatedToPeer(walletUpdateData);
+      }
     }
 
     res.json({

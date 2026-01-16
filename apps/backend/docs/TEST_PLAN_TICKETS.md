@@ -48,15 +48,15 @@
 **Файл теста**: `tests/viewerActivation.test.ts`
 
 **Что тестировать**:
-- [ ] Успешная активация мема с достаточным балансом
-- [ ] Отклонение при недостаточном балансе (402)
-- [ ] Отклонение для неактивного/удалённого мема (404)
-- [ ] Списание правильной суммы с учётом промо
-- [ ] Создание `MemeActivation` со статусом `queued`
-- [ ] Socket.IO emit `activation:new` в комнату `channel:{slug}`
-- [ ] Socket.IO emit `wallet:updated` в комнату `user:{userId}`
-- [ ] Проверка что `wallet:updated` НЕ идёт в `channel:*` (privacy)
-- [ ] Idempotency — повторный запрос с тем же ключом не списывает дважды
+- [x] Успешная активация мема с достаточным балансом
+- [x] Отклонение при недостаточном балансе
+- [x] Отклонение для неактивного/удалённого мема
+- [x] Списание правильной суммы с учётом промо
+- [x] Создание `MemeActivation` со статусом `queued`
+- [x] Socket.IO emit `activation:new` в комнату `channel:{slug}`
+- [x] Socket.IO emit `wallet:updated` в комнату `user:{userId}`
+- [x] Проверка что `wallet:updated` НЕ идёт в `channel:*` (privacy)
+- [x] Idempotency — повторный запрос с тем же ключом не списывает дважды
 
 **Acceptance Criteria**:
 ```
