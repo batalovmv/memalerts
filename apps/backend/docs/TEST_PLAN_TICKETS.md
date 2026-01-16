@@ -1040,10 +1040,10 @@
 **Файл теста**: `tests/ownerWallet.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /owner/wallets/options` — options для dropdown
-- [ ] `GET /owner/wallets` — все wallets (pagination)
-- [ ] `POST /owner/wallets/:userId/:channelId/adjust` — корректировка баланса
-- [ ] Только admin access
+- [x] `GET /owner/wallets/options` - options для dropdown
+- [x] `GET /owner/wallets` - все wallets (pagination)
+- [x] `POST /owner/wallets/:userId/:channelId/adjust` - корректировка баланса
+- [x] Только admin access
 
 **Acceptance Criteria**:
 ```
