@@ -1439,10 +1439,10 @@
 **Файл теста**: `tests/externalApis.test.ts`
 
 **Что тестировать**:
-- [ ] Discord API — guild members, roles
-- [ ] Boosty API — tier info
-- [ ] Kick API — channel info
-- [ ] Trovo API — channel info
+- [x] Discord API - guild members, roles
+- [x] Boosty API - tier info
+- [x] Kick API - channel info
+- [x] Trovo API - channel info
 
 **Acceptance Criteria**:
 ```
