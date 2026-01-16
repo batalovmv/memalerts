@@ -323,9 +323,9 @@
 **Файл теста**: `tests/authBoostyLink.test.ts`
 
 **Что тестировать**:
-- [ ] `POST /auth/boosty/link` с валидным API key
-- [ ] Отклонение невалидного API key
-- [ ] Обновление при повторном linking
+- [x] `POST /auth/boosty/link` с валидным API key
+- [x] Отклонение невалидного API key
+- [x] Обновление при повторном linking
 
 **Мокировать**:
 - Boosty API

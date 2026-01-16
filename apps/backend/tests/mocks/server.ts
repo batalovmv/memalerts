@@ -9,6 +9,7 @@ import { vkvideoHandlers } from './vkvideoApi.mock.js';
 import { youtubeHandlers } from './youtubeApi.mock.js';
 
 export const mockServer = setupServer(
+  ...boostyHandlers,
   ...twitchHandlers,
   ...youtubeHandlers,
   ...discordHandlers,
@@ -43,3 +44,4 @@ export function resetMockHandlers() {
 export function stopMockServer() {
   mockServer.close();
 }
+import { boostyHandlers } from './boostyApi.mock.js';
