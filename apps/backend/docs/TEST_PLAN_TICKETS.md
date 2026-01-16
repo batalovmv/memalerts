@@ -1739,9 +1739,9 @@
 **Файл теста**: `tests/utilsServiceHeartbeat.test.ts`
 
 **Что тестировать**:
-- [ ] Heartbeat recording
-- [ ] Stale detection
-- [ ] Cleanup
+- [x] Heartbeat recording
+- [x] Stale detection (N/A: no stale detection helper in serviceHeartbeat)
+- [x] Cleanup (N/A: no cleanup helper in serviceHeartbeat)
 
 **Acceptance Criteria**:
 ```
@@ -1762,9 +1762,9 @@
 **Файл теста**: `tests/utilsAuditLogger.test.ts`
 
 **Что тестировать**:
-- [ ] Log creation
-- [ ] Log format
-- [ ] Context inclusion
+- [x] Log creation
+- [x] Log format
+- [x] Context inclusion
 
 **Acceptance Criteria**:
 ```
@@ -1785,9 +1785,9 @@
 **Файл теста**: `tests/utilsMetrics.test.ts`
 
 **Что тестировать**:
-- [ ] Counter increment
-- [ ] Histogram observation
-- [ ] Gauge set
+- [x] Counter increment
+- [x] Histogram observation
+- [x] Gauge set
 
 **Acceptance Criteria**:
 ```

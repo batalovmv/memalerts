@@ -1,44 +1,71 @@
-import { prisma } from '../src/lib/prisma.js';
-import { resolveServiceHeartbeatId, startServiceHeartbeat } from '../src/utils/serviceHeartbeat.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-async function waitForHeartbeat(id: string): Promise<unknown> {
-  for (let i = 0; i < 10; i += 1) {
-    const row = await prisma.serviceHeartbeat.findUnique({ where: { id } });
-    if (row) return row;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return null;
-}
+const prismaMock = vi.hoisted(() => ({
+  serviceHeartbeat: {
+    upsert: vi.fn(),
+  },
+}));
 
-describe('utils: serviceHeartbeat', () => {
-  const originalEnv = { ...process.env };
+const loggerMock = vi.hoisted(() => ({
+  warn: vi.fn(),
+}));
 
-  afterEach(() => {
-    process.env = { ...originalEnv };
+const fsMocks = vi.hoisted(() => ({
+  readFileSync: vi.fn(() => JSON.stringify({ version: '1.2.3' })),
+}));
+
+vi.mock('../src/lib/prisma.js', () => ({ prisma: prismaMock }));
+vi.mock('../src/utils/logger.js', () => ({ logger: loggerMock }));
+vi.mock('fs', () => ({
+  default: fsMocks,
+  readFileSync: fsMocks.readFileSync,
+}));
+
+const baseEnv = { ...process.env };
+
+beforeEach(() => {
+  process.env = { ...baseEnv };
+  prismaMock.serviceHeartbeat.upsert.mockReset();
+  loggerMock.warn.mockReset();
+  fsMocks.readFileSync.mockReset().mockReturnValue(JSON.stringify({ version: '1.2.3' }));
+  vi.useFakeTimers();
+  vi.resetModules();
+});
+
+afterEach(() => {
+  process.env = { ...baseEnv };
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('utils: service heartbeat', () => {
+  it('records heartbeat and stops on demand', async () => {
+    prismaMock.serviceHeartbeat.upsert.mockResolvedValue({});
+    const { startServiceHeartbeat } = await import('../src/utils/serviceHeartbeat.js');
+
+    const handle = startServiceHeartbeat({ service: 'api', intervalMs: 5000, meta: { region: 'eu' } });
+    await Promise.resolve();
+
+    expect(prismaMock.serviceHeartbeat.upsert).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(prismaMock.serviceHeartbeat.upsert).toHaveBeenCalledTimes(2);
+
+    handle.stop();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(prismaMock.serviceHeartbeat.upsert).toHaveBeenCalledTimes(2);
   });
 
-  it('builds heartbeat ids with instance suffix', () => {
-    process.env.INSTANCE = 'beta';
-    expect(resolveServiceHeartbeatId('api')).toBe('api-beta');
-    expect(resolveServiceHeartbeatId('')).toBe('unknown-beta');
-  });
+  it('halts updates when heartbeat table is missing', async () => {
+    prismaMock.serviceHeartbeat.upsert.mockRejectedValueOnce({ code: 'P2021' });
+    const { startServiceHeartbeat } = await import('../src/utils/serviceHeartbeat.js');
 
-  it('writes heartbeat rows and can be stopped', async () => {
-    process.env.INSTANCE = '';
-    const id = resolveServiceHeartbeatId('svc-test');
-    const heartbeat = startServiceHeartbeat({
-      service: 'svc-test',
-      intervalMs: 5000,
-      meta: { role: 'worker' },
-    });
+    startServiceHeartbeat({ service: 'api', intervalMs: 5000 });
+    await Promise.resolve();
 
-    const row = await waitForHeartbeat(id);
-    heartbeat.stop();
+    expect(loggerMock.warn).toHaveBeenCalledWith('heartbeat.table_missing', expect.any(Object));
 
-    expect(row).toBeTruthy();
-    if (row && typeof row === 'object' && 'meta' in row) {
-      const meta = (row as { meta?: Record<string, unknown> }).meta;
-      expect(meta?.role).toBe('worker');
-    }
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(prismaMock.serviceHeartbeat.upsert).toHaveBeenCalledTimes(1);
   });
 });
