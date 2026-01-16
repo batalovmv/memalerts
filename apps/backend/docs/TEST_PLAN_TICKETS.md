@@ -1254,13 +1254,13 @@
 **Файл теста**: `tests/utilsCore.test.ts`
 
 **Что тестировать**:
-- [ ] `pagination.ts` — buildPaginatedResponse, parsePaginationParams
-- [ ] `dto.ts` — DTO transformations
-- [ ] `tags.ts` — tag normalization
-- [ ] `jwt.ts` — sign, verify, decode
-- [ ] `entitlements.ts` — hasEntitlement checks
-- [ ] `promotions.ts` — calculatePromoPrice
-- [ ] `httpErrors.ts` — error creation helpers
+- [x] `pagination.ts` - buildPaginatedResponse, parsePaginationParams (N/A: проверены parseLimit/cursor helpers)
+- [x] `dto.ts` - DTO transformations
+- [x] `tags.ts` - tag normalization
+- [x] `jwt.ts` - sign, verify, decode
+- [x] `entitlements.ts` - hasEntitlement checks
+- [x] `promotions.ts` - calculatePromoPrice
+- [x] `httpErrors.ts` - error creation helpers (N/A: проверены extract/isTimeout/isTransient)
 
 **Acceptance Criteria**:
 ```

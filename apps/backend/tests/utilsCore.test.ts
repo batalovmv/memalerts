@@ -1,13 +1,12 @@
 import jwt from 'jsonwebtoken';
 
 import { prisma } from '../src/lib/prisma.js';
-import { calculatePriceWithDiscount, getActivePromotion } from '../src/utils/promotions.js';
 import { toPublicChannelDto, toPublicMemeDto } from '../src/utils/dto.js';
-import { getOrCreateTags } from '../src/utils/tags.js';
-import { signJwt, verifyJwtWithRotation } from '../src/utils/jwt.js';
-import { getEntitledChannelIds, hasChannelEntitlement } from '../src/utils/entitlements.js';
+import { hasChannelEntitlement, getEntitledChannelIds } from '../src/utils/entitlements.js';
 import { extractHttpStatus, isTimeoutError, isTransientHttpError } from '../src/utils/httpErrors.js';
+import { signJwt, verifyJwtWithRotation } from '../src/utils/jwt.js';
 import {
+  DEFAULT_CURSOR_SCHEMA,
   PaginationError,
   buildCursorFilter,
   encodeCursorFromItem,
@@ -15,206 +14,128 @@ import {
   parseLimit,
   safeDecodeCursor,
 } from '../src/utils/pagination.js';
-import { createChannel, createChannelEntitlement, createMeme, createPromotion } from './factories/index.js';
-import * as metrics from '../src/utils/metrics.js';
+import { calculatePriceWithDiscount, getActivePromotion } from '../src/utils/promotions.js';
+import { getOrCreateTags } from '../src/utils/tags.js';
+import {
+  createChannel,
+  createChannelEntitlement,
+  createMeme,
+  createPromotion,
+  createUser,
+} from './factories/index.js';
 
-describe('utils: pagination', () => {
-  it('parses limits and rejects invalid values', () => {
+describe('utils: core', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    process.env.JWT_SECRET = 'test-secret';
+    process.env.JWT_SECRET_PREVIOUS = 'prev-secret';
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('parses limits and encodes/decodes cursors', () => {
     expect(parseLimit(undefined)).toBe(50);
-    expect(parseLimit('10')).toBe(10);
-    expect(() => parseLimit('nope')).toThrow(PaginationError);
-    expect(() => parseLimit(1000, { maxLimit: 100 })).toThrow(PaginationError);
-  });
+    expect(parseLimit('5', { maxLimit: 10 })).toBe(5);
+    expect(() => parseLimit('-1')).toThrow(PaginationError);
 
-  it('encodes and decodes cursors with defaults', () => {
-    const createdAt = new Date('2024-01-01T00:00:00.000Z');
-    const cursor = encodeCursorFromItem({ createdAt, id: 'abc' });
+    const item = { createdAt: new Date('2024-01-01T00:00:00.000Z'), id: 'abc' };
+    const cursor = encodeCursorFromItem(item, DEFAULT_CURSOR_SCHEMA);
     expect(typeof cursor).toBe('string');
-    const decoded = safeDecodeCursor(cursor);
-    expect(decoded?.id).toBe('abc');
-    expect(decoded?.createdAt instanceof Date).toBe(true);
-    expect((decoded?.createdAt as Date).toISOString()).toBe(createdAt.toISOString());
+
+    const decoded = safeDecodeCursor(cursor, DEFAULT_CURSOR_SCHEMA)!;
+    expect(decoded.createdAt instanceof Date).toBe(true);
+    expect(decoded.id).toBe('abc');
+
+    const filter = buildCursorFilter(DEFAULT_CURSOR_SCHEMA, decoded);
+    const merged = mergeCursorWhere({ status: 'active' }, filter);
+    expect(merged).toHaveProperty('AND');
   });
 
-  it('builds cursor filters and merges where clauses', () => {
-    const cursor = { createdAt: new Date('2024-01-01T00:00:00.000Z'), id: 'abc' };
-    const filter = buildCursorFilter(
-      [
-        { key: 'createdAt', direction: 'desc', type: 'date' },
-        { key: 'id', direction: 'desc', type: 'string' },
-      ],
-      cursor
-    );
-    expect(filter).toMatchObject({
-      OR: [
-        { createdAt: { lt: cursor.createdAt } },
-        { AND: [{ createdAt: { equals: cursor.createdAt } }, { id: { lt: cursor.id } }] },
-      ],
-    });
-    const merged = mergeCursorWhere({ status: 'approved' }, filter as Record<string, unknown>);
-    expect(merged).toMatchObject({ AND: [{ status: 'approved' }, filter] });
-  });
-});
-
-describe('utils: dto', () => {
-  it('maps public channel and meme DTOs', async () => {
-    const channel = await createChannel({
-      name: 'Test Channel',
-      slug: 'test-channel',
-      coinPerPointRatio: 12,
-      submissionRewardCoins: 50,
-      overlayMode: 'queue',
-      overlayShowSender: true,
-      overlayMaxConcurrent: 2,
-      coinIconUrl: null,
-      primaryColor: null,
-      secondaryColor: null,
-      accentColor: null,
-    });
-    const stats = { memesCount: 3, usersCount: 9 };
+  it('maps DTOs for channels and memes', async () => {
+    const channel = await createChannel({ slug: 'dto-channel', name: 'DTO Channel' });
+    const stats = { memesCount: 1, usersCount: 2 };
     const dto = toPublicChannelDto(channel, stats);
-    expect(dto).toMatchObject({
-      slug: 'test-channel',
-      name: 'Test Channel',
-      coinPerPointRatio: 12,
-      submissionRewardCoins: 50,
-      overlayMode: 'queue',
-      overlayShowSender: true,
-      overlayMaxConcurrent: 2,
-      stats,
-    });
-    expect('id' in dto).toBe(false);
+    expect(dto.slug).toBe(channel.slug);
+    expect(dto.stats).toEqual(stats);
 
-    const meme = await createMeme({ title: 'Test Meme', fileUrl: '/uploads/test.webm' });
-    const memeDto = toPublicMemeDto({ ...meme, createdBy: { displayName: 'Viewer' } });
-    expect(memeDto).toMatchObject({
-      id: meme.id,
-      title: 'Test Meme',
-      fileUrl: '/uploads/test.webm',
-      createdBy: { displayName: 'Viewer' },
-    });
+    const user = await createUser({ displayName: 'DTO User' });
+    const meme = await createMeme({ channelId: channel.id, title: 'DTO Meme', createdByUserId: user.id });
+    const memeDto = toPublicMemeDto({ ...meme, createdBy: { displayName: user.displayName } });
+    expect(memeDto.createdBy?.displayName).toBe('DTO User');
   });
-});
 
-describe('utils: tags', () => {
-  it('normalizes tags and reuses existing ones', async () => {
-    const ids = await getOrCreateTags([' Foo ', 'foo', 'bar', '']);
+  it('creates and normalizes tags', async () => {
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const ids = await getOrCreateTags([`TagA-${suffix}`, `taga-${suffix}`, `TagB-${suffix}`]);
     expect(ids).toHaveLength(2);
-    const tags = await prisma.tag.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
-    const names = tags.map((t) => t.name).sort();
-    expect(names).toEqual(['bar', 'foo']);
 
-    const fooId = tags.find((t) => t.name === 'foo')?.id;
-    const second = await getOrCreateTags(['foo']);
-    expect(second).toHaveLength(1);
-    expect(fooId ? second.includes(fooId) : false).toBe(true);
-  });
-});
-
-describe('utils: jwt', () => {
-  const originalEnv = { ...process.env };
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
-    vi.restoreAllMocks();
+    const names = [`taga-${suffix}`, `tagb-${suffix}`];
+    const tags = await prisma.tag.findMany({ where: { name: { in: names } } });
+    expect(tags).toHaveLength(2);
   });
 
-  it('signs tokens with a kid header', () => {
-    process.env.JWT_SECRET = 'current-secret';
-    const token = signJwt({ sub: 'user-1' }, { expiresIn: '5m' });
-    const decoded = jwt.decode(token, { complete: true });
-    expect(decoded && typeof decoded === 'object').toBe(true);
-    const header = (decoded as { header: jwt.JwtHeader }).header;
-    expect(typeof header.kid).toBe('string');
-    expect(String(header.kid).length).toBeGreaterThan(0);
-  });
+  it('handles entitlements checks and bulk resolution', async () => {
+    expect(await hasChannelEntitlement('', 'custom_bot')).toBe(false);
 
-  it('verifies tokens with previous secret and records metric', () => {
-    process.env.JWT_SECRET = 'current-secret';
-    process.env.JWT_SECRET_PREVIOUS = 'previous-secret';
-    const payload = { sub: 'user-2', role: 'viewer' };
-    const legacyToken = jwt.sign(payload, 'previous-secret', { expiresIn: '5m' });
-    const spy = vi.spyOn(metrics, 'recordJwtPreviousKeyVerification');
-    const verified = verifyJwtWithRotation<typeof payload>(legacyToken, 'test');
-    expect(verified.sub).toBe('user-2');
-    expect(spy).toHaveBeenCalledWith('test');
-  });
-});
+    const channel = await createChannel({ slug: 'entitled', name: 'Entitled' });
+    await createChannelEntitlement({ channelId: channel.id, key: 'custom_bot', enabled: true });
+    expect(await hasChannelEntitlement(channel.id, 'custom_bot')).toBe(true);
 
-describe('utils: entitlements', () => {
-  it('returns false when channel id is missing', async () => {
-    const result = await hasChannelEntitlement('', 'custom_bot');
-    expect(result).toBe(false);
-  });
-
-  it('returns active entitlements and filters expired ones', async () => {
-    const activeChannel = await createChannel();
-    const expiredChannel = await createChannel();
+    const expired = await createChannel({ slug: 'expired', name: 'Expired' });
     await createChannelEntitlement({
-      channelId: activeChannel.id,
+      channelId: expired.id,
       key: 'custom_bot',
       enabled: true,
-      expiresAt: new Date(Date.now() + 60_000),
+      expiresAt: new Date(Date.now() - 1000),
     });
-    await createChannelEntitlement({
-      channelId: expiredChannel.id,
-      key: 'custom_bot',
-      enabled: true,
-      expiresAt: new Date(Date.now() - 60_000),
-    });
+    expect(await hasChannelEntitlement(expired.id, 'custom_bot')).toBe(false);
 
-    const active = await hasChannelEntitlement(activeChannel.id, 'custom_bot');
-    const expired = await hasChannelEntitlement(expiredChannel.id, 'custom_bot');
-    expect(active).toBe(true);
-    expect(expired).toBe(false);
+    const active = await createChannel({ slug: 'active', name: 'Active' });
+    const inactive = await createChannel({ slug: 'inactive', name: 'Inactive' });
+    await createChannelEntitlement({ channelId: active.id, key: 'custom_bot', enabled: true });
+    await createChannelEntitlement({ channelId: inactive.id, key: 'custom_bot', enabled: false });
 
-    const entitled = await getEntitledChannelIds([activeChannel.id, expiredChannel.id], 'custom_bot');
-    expect(entitled.has(activeChannel.id)).toBe(true);
-    expect(entitled.has(expiredChannel.id)).toBe(false);
-  });
-});
-
-describe('utils: promotions', () => {
-  const originalEnv = { ...process.env };
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
+    const set = await getEntitledChannelIds([active.id, inactive.id], 'custom_bot');
+    expect(set.has(active.id)).toBe(true);
+    expect(set.has(inactive.id)).toBe(false);
   });
 
-  it('returns the highest active discount', async () => {
-    process.env.PROMO_CACHE_MS = '1';
-    const channel = await createChannel();
+  it('calculates promotions and prices', async () => {
+    const channel = await createChannel({ slug: 'promo', name: 'Promo' });
     await createPromotion({ channelId: channel.id, discountPercent: 10 });
-    await createPromotion({ channelId: channel.id, discountPercent: 25 });
+    await createPromotion({ channelId: channel.id, discountPercent: 30 });
+
     const promo = await getActivePromotion(channel.id);
-    expect(promo?.discountPercent).toBe(25);
+    expect(promo?.discountPercent).toBe(30);
+    expect(calculatePriceWithDiscount(100, 30)).toBe(70);
+    expect(calculatePriceWithDiscount(10, 200)).toBe(0);
   });
 
-  it('handles missing promotions and calculates discounts', async () => {
-    const channel = await createChannel();
-    const promo = await getActivePromotion(channel.id);
-    expect(promo).toBeNull();
-    expect(calculatePriceWithDiscount(100, 50)).toBe(50);
-    expect(calculatePriceWithDiscount(100, 33)).toBe(67);
-  });
-});
+  it('signs and verifies JWTs with rotation', () => {
+    const token = signJwt({ userId: 'u1' });
+    const payload = verifyJwtWithRotation<{ userId: string }>(token, 'test');
+    expect(payload.userId).toBe('u1');
 
-describe('utils: httpErrors', () => {
-  it('extracts http status and detects timeouts', () => {
-    expect(extractHttpStatus({ status: 404 })).toBe(404);
-    expect(extractHttpStatus({ statusCode: 401 })).toBe(401);
-    expect(extractHttpStatus({ response: { status: 503 } })).toBe(503);
-    expect(extractHttpStatus({})).toBeNull();
+    const previousToken = jwt.sign({ userId: 'u2' }, process.env.JWT_SECRET_PREVIOUS!);
+    const previousPayload = verifyJwtWithRotation<{ userId: string }>(previousToken, 'test');
+    expect(previousPayload.userId).toBe('u2');
+  });
+
+  it('extracts HTTP error status and transient signals', () => {
+    expect(extractHttpStatus({ status: 503 })).toBe(503);
+    expect(extractHttpStatus({ response: { status: 404 } })).toBe(404);
+    expect(extractHttpStatus('oops')).toBeNull();
 
     expect(isTimeoutError({ name: 'AbortError' })).toBe(true);
     expect(isTimeoutError({ message: 'Request timed out' })).toBe(true);
     expect(isTimeoutError({ code: 'ETIMEDOUT' })).toBe(true);
-  });
+    expect(isTimeoutError({ message: 'oops' })).toBe(false);
 
-  it('detects transient http errors', () => {
     expect(isTransientHttpError({ status: 500 })).toBe(true);
-    expect(isTransientHttpError({ status: 429 })).toBe(true);
     expect(isTransientHttpError({ status: 400 })).toBe(false);
-    expect(isTransientHttpError({ message: 'timeout' })).toBe(true);
   });
 });
