@@ -1281,10 +1281,10 @@
 **Файл теста**: `tests/utilsConcurrency.test.ts`
 
 **Что тестировать**:
-- [ ] Semaphore — acquire, release, limit enforcement
-- [ ] Retry — exponential backoff, max attempts
-- [ ] Circuit breaker — open, half-open, closed states
-- [ ] PG advisory lock — acquire, release, timeout
+- [x] Semaphore - acquire, release, limit enforcement
+- [x] Retry - exponential backoff, max attempts
+- [x] Circuit breaker - open, half-open, closed states
+- [x] PG advisory lock - acquire, release, timeout
 
 **Acceptance Criteria**:
 ```
