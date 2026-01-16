@@ -891,9 +891,9 @@
 **Файл теста**: `tests/streamerCreditsOverlay.test.ts`
 
 **Что тестировать**:
-- [ ] GET credits overlay settings
-- [ ] PATCH credits overlay settings
-- [ ] Генерация credits overlay URL
+- [x] GET credits overlay settings
+- [x] PATCH credits overlay settings
+- [x] Генерация credits overlay URL
 
 **Acceptance Criteria**:
 ```
