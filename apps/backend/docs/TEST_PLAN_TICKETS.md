@@ -1087,11 +1087,11 @@
 **Файл теста**: `tests/ownerEntitlements.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /owner/entitlements/custom-bot`
-- [ ] `POST /owner/entitlements/custom-bot/grant`
-- [ ] `POST /owner/entitlements/custom-bot/revoke`
-- [ ] `POST /owner/entitlements/custom-bot/grant-by-provider`
-- [ ] Rate limiting на resolve
+- [x] `GET /owner/entitlements/custom-bot`
+- [x] `POST /owner/entitlements/custom-bot/grant`
+- [x] `POST /owner/entitlements/custom-bot/revoke`
+- [x] `POST /owner/entitlements/custom-bot/grant-by-provider`
+- [x] Rate limiting на resolve
 
 **Acceptance Criteria**:
 ```
