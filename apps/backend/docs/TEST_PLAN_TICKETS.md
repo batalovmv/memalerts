@@ -588,15 +588,15 @@
 **Файл теста**: `tests/viewerYoutubeLikeReward.test.ts`
 
 **Что тестировать**:
-- [ ] `POST /rewards/youtube/like/claim`
-- [ ] status: disabled (feature off)
-- [ ] status: need_youtube_link
-- [ ] status: need_relink_scopes
-- [ ] status: not_live
-- [ ] status: cooldown
-- [ ] status: not_liked
-- [ ] status: already_claimed
-- [ ] status: success + начисление coins
+- [x] `POST /rewards/youtube/like/claim`
+- [x] status: disabled (feature off)
+- [x] status: need_youtube_link
+- [x] status: need_relink_scopes
+- [x] status: not_live
+- [x] status: cooldown
+- [x] status: not_liked
+- [x] status: already_claimed
+- [x] status: success + начисление coins
 
 **Мокировать**:
 - YouTube API (videos.getRating)
