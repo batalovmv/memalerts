@@ -1305,9 +1305,9 @@
 **Файл теста**: `tests/utilsMedia.test.ts`
 
 **Что тестировать**:
-- [ ] `videoNormalization.ts` — normalize (mock ffmpeg)
-- [ ] `videoValidator.ts` — validateDuration, validateSize
-- [ ] `configureFfmpeg.ts` — configuration
+- [x] `videoNormalization.ts` - normalize (mock ffmpeg)
+- [x] `videoValidator.ts` - validateDuration, validateSize
+- [x] `configureFfmpeg.ts` - configuration
 
 **Мокировать**:
 - FFmpeg/FFprobe
