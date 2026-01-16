@@ -263,6 +263,17 @@ const httpRequestDurationSeconds = metricsBackend.histogram({
   buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
 });
 
+const dbSlowQueriesTotal = metricsBackend.counter({
+  name: 'memalerts_db_slow_queries_total',
+  help: 'Total slow database queries',
+});
+
+const dbSlowQueryDurationSeconds = metricsBackend.histogram({
+  name: 'memalerts_db_slow_query_duration_seconds',
+  help: 'Slow database query duration in seconds',
+  buckets: [0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+});
+
 const aiJobsPending = metricsBackend.gauge({
   name: 'memalerts_ai_jobs_pending',
   help: 'AI jobs pending in the queue',
@@ -390,6 +401,12 @@ export function recordHttpRequest(params: { method: string; route: string; statu
   const status = String(params.status || 0);
   httpRequestsTotal.inc({ method: params.method, route, status }, 1);
   httpRequestDurationSeconds.observe({ route }, Math.max(0, params.durationSeconds));
+}
+
+export function recordDbSlowQuery(params: { durationMs: number }) {
+  const durationMs = Math.max(0, params.durationMs);
+  dbSlowQueriesTotal.inc();
+  dbSlowQueryDurationSeconds.observe({}, durationMs / 1000);
 }
 
 export function setAiJobMetrics(params: { pending: number; processing: number; failedTotal: number }) {

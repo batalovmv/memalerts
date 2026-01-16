@@ -1,9 +1,9 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import express from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { logger } from '../../utils/logger.js';
 
-export function registerCspReportRoute(app: Express) {
+export function registerCspReportRoute(app: Router) {
   app.post('/csp-report', express.json({ type: ['application/csp-report'] }), (req, res) => {
     const payload = req.body as Record<string, unknown> | undefined;
     const report =

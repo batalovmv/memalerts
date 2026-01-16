@@ -1,12 +1,14 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { requireBetaAccess } from '../../middleware/betaAccess.js';
 
-export function registerBetaAccessMiddleware(app: Express) {
+export function registerBetaAccessMiddleware(app: Router) {
   app.use((req, res, next) => {
     const isSkipped =
       req.path.startsWith('/beta/request') ||
       req.path.startsWith('/beta/status') ||
+      req.path === '/docs' ||
+      req.path.startsWith('/docs/') ||
       req.path === '/health' ||
       req.path === '/healthz' ||
       req.path === '/readyz' ||

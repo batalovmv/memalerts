@@ -1,5 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+export type SlowQuerySummary = {
+  durationMs: number;
+  query: string | null;
+};
+
 export type RequestContextStore = {
   requestId: string;
   traceId?: string | null;
@@ -10,6 +15,7 @@ export type RequestContextStore = {
     queryCount: number;
     totalMs: number;
     slowQueryCount: number;
+    slowQueries?: SlowQuerySummary[];
   };
 };
 

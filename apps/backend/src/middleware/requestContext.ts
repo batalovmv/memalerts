@@ -48,7 +48,8 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
     const sampleRate = parseNumberEnv('HTTP_LOG_SAMPLE_RATE', process.env.NODE_ENV === 'production' ? 0.05 : 1);
     const slowMs = parseNumberEnv('HTTP_LOG_SLOW_MS', process.env.NODE_ENV === 'production' ? 1000 : 2000);
 
-    const base = {
+    const ctx = getRequestContext();
+    const base: Record<string, unknown> = {
       requestId,
       traceId,
       method: req.method,
@@ -57,10 +58,13 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
       durationMs: roundedMs,
       userId: typeof reqWithAuth.userId === 'string' ? reqWithAuth.userId : null,
       channelId: typeof reqWithAuth.channelId === 'string' ? reqWithAuth.channelId : null,
-      dbQueryCount: getRequestContext()?.db.queryCount ?? 0,
-      dbMs: Math.round(getRequestContext()?.db.totalMs ?? 0),
-      dbSlowQueryCount: getRequestContext()?.db.slowQueryCount ?? 0,
+      dbQueryCount: ctx?.db.queryCount ?? 0,
+      dbMs: Math.round(ctx?.db.totalMs ?? 0),
+      dbSlowQueryCount: ctx?.db.slowQueryCount ?? 0,
     };
+    if (ctx?.db.slowQueries && ctx.db.slowQueries.length > 0) {
+      base.dbSlowQueries = ctx.db.slowQueries;
+    }
 
     // Always log 5xx, and always log slow requests.
     if (status >= 500) {

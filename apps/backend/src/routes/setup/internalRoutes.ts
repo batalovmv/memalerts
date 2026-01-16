@@ -1,4 +1,4 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import type { Server } from 'socket.io';
 import type { WalletUpdatedEvent } from '../../realtime/walletBridge.js';
 import { emitWalletUpdated, isInternalWalletRelayRequest } from '../../realtime/walletBridge.js';
@@ -7,7 +7,7 @@ import { emitSubmissionEvent, isInternalSubmissionRelayRequest } from '../../rea
 import { creditsInternalController } from '../../controllers/internal/creditsInternal.js';
 import { isLocalhostAddress } from '../../utils/isLocalhostAddress.js';
 
-export function registerInternalRoutes(app: Express) {
+export function registerInternalRoutes(app: Router) {
   app.post('/internal/wallet-updated', (req, res) => {
     const isLocal = isLocalhostAddress(req.socket.remoteAddress);
     if (!isLocal || !isInternalWalletRelayRequest(req.headers)) {
@@ -19,7 +19,7 @@ export function registerInternalRoutes(app: Express) {
       return res.status(400).json({ error: 'Bad Request' });
     }
 
-    const io = app.get('io') as Server;
+    const io = req.app.get('io') as Server;
     emitWalletUpdated(io, body as WalletUpdatedEvent);
     return res.json({ ok: true });
   });
@@ -35,7 +35,7 @@ export function registerInternalRoutes(app: Express) {
       return res.status(400).json({ error: 'Bad Request' });
     }
 
-    const io = app.get('io') as Server;
+    const io = req.app.get('io') as Server;
     emitSubmissionEvent(io, body as SubmissionEvent);
     return res.json({ ok: true });
   });

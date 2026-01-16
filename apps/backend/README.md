@@ -38,16 +38,35 @@ Backend API для MemAlerts: активация мемов через Twitch Ch
 **Требования:** Node.js 18+ (в CI используется 20), pnpm, PostgreSQL 15+.
 
 ```bash
+docker compose up -d
+
 pnpm install
 
 # создай .env (см. DEVELOPMENT.md)
-copy ENV.example .env
+copy .env.example .env
 
 pnpm prisma migrate dev
+pnpm db:seed
 pnpm dev
 ```
 
 API поднимется на `http://localhost:3001`, health-check: `GET /health`.
+
+## API документация
+
+- Swagger UI: `http://localhost:3001/docs`
+- OpenAPI JSON: `http://localhost:3001/docs/openapi.json`
+- Версионирование: текущий API считается **v1**. Эндпоинты доступны без префикса и через `/v1/*` (предпочтительно для новых интеграций).
+
+## Devcontainer (VS Code)
+
+Если используешь Dev Containers, конфиг лежит в `.devcontainer/`:
+
+```bash
+docker compose up -d
+```
+
+Далее открывай репозиторий через **Dev Containers: Reopen in Container**.
 
 ## E2E тест (viewer отправляет мем → streamer получает realtime)
 

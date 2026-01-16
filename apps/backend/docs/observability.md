@@ -102,6 +102,12 @@ rg "\"requestId\":\"<id>\"" /var/log/memalerts-api.log
 - AI jobs: queue depth + failures (`tools/observability/grafana/dashboards/memalerts-ai-jobs.json`).
 - Bot outbox: pending/failures/latency (`tools/observability/grafana/dashboards/memalerts-bot-outbox.json`).
 - Wallet operations: ops + conflicts (`tools/observability/grafana/dashboards/memalerts-wallet.json`).
+- DB slow queries: rate + duration (`tools/observability/grafana/dashboards/memalerts-db.json`).
+
+### DB slow query metrics
+
+- `memalerts_db_slow_queries_total`
+- `memalerts_db_slow_query_duration_seconds` (histogram)
 
 ### Canary-friendly metrics
 

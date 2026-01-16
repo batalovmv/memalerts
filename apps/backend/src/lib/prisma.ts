@@ -2,6 +2,7 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import { decrementFileHashReferenceInTx, deleteFileHashStorage } from '../utils/fileHash.js';
 import { getRequestContext } from '../utils/asyncContext.js';
 import { logger } from '../utils/logger.js';
+import { recordDbSlowQuery } from '../utils/metrics.js';
 
 type PrismaGlobalStore = {
   prisma?: PrismaClient;
@@ -56,10 +57,18 @@ export function setFileHashHooksForTest(overrides: Partial<FileHashHooks>): void
 // Connection pooling is configured via DATABASE_URL parameters:
 // ?connection_limit=10&pool_timeout=20
 // This ensures efficient database connection management under load
+const prismaLog: Prisma.LogDefinition[] = [
+  { emit: 'event', level: 'query' },
+  { emit: 'stdout', level: 'error' },
+];
+if (process.env.NODE_ENV === 'development') {
+  prismaLog.push({ emit: 'stdout', level: 'warn' });
+  prismaLog.push({ emit: 'stdout', level: 'query' });
+}
 export const prisma =
   prismaStore.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: prismaLog,
     // Connection pooling is handled via DATABASE_URL parameters
     // Recommended: ?connection_limit=10&pool_timeout=20
   });
@@ -75,8 +84,14 @@ if (!prismaStore.prisma) {
 function getSlowQueryThresholdMs(): number {
   const raw = parseInt(String(process.env.DB_SLOW_MS || ''), 10);
   if (Number.isFinite(raw) && raw > 0) return raw;
-  return process.env.NODE_ENV === 'production' ? 200 : 100;
+  return 500;
 }
+
+function normalizeQueryForLog(query: string): string {
+  return query.replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+
+const MAX_SLOW_QUERIES = 3;
 
 function getTransactionOptions() {
   if (process.env.NODE_ENV !== 'test') return undefined;
@@ -87,43 +102,46 @@ function getTransactionOptions() {
 }
 
 if (!prismaStore.middlewareRegistered) {
-  // Observability middleware:
-  // - tracks query count + total db time per HTTP request (via AsyncLocalStorage store)
-  // - logs slow queries (without args payload to avoid leaking PII)
-  prisma.$use(async (params, next) => {
-    const start = process.hrtime.bigint();
-    try {
-      const result = await next(params);
-      return result;
-    } finally {
-      const end = process.hrtime.bigint();
-      const ms = Number(end - start) / 1_000_000;
+  // Observability hooks:
+  // - tracks query count + total db time per request (AsyncLocalStorage)
+  // - logs slow queries (no params payload to avoid leaking PII)
+  const prismaEvents = prisma as unknown as {
+    $on: (event: 'query', callback: (event: Prisma.QueryEvent) => void) => void;
+  };
+  prismaEvents.$on('query', (event: Prisma.QueryEvent) => {
+    const ctx = getRequestContext();
+    if (ctx) {
+      ctx.db.queryCount += 1;
+      ctx.db.totalMs += event.duration;
+    }
 
-      const ctx = getRequestContext();
-      if (ctx) {
-        ctx.db.queryCount += 1;
-        ctx.db.totalMs += ms;
-      }
+    const slowMs = getSlowQueryThresholdMs();
+    const durationMs = Math.round(event.duration);
+    if (durationMs < slowMs) return;
 
-      const slowMs = getSlowQueryThresholdMs();
-      if (ms >= slowMs) {
-        if (ctx) ctx.db.slowQueryCount += 1;
-        logger.warn('db.slow_query', {
-          requestId: ctx?.requestId,
-          model: params.model ?? null,
-          action: params.action,
-          durationMs: Math.round(ms),
-          slowMs,
-        });
+    const query = normalizeQueryForLog(event.query || '');
+    recordDbSlowQuery({ durationMs });
+
+    if (ctx) {
+      ctx.db.slowQueryCount += 1;
+      if (!ctx.db.slowQueries) ctx.db.slowQueries = [];
+      if (ctx.db.slowQueries.length < MAX_SLOW_QUERIES) {
+        ctx.db.slowQueries.push({ durationMs, query: query || null });
       }
     }
+
+    logger.warn('db.slow_query', {
+      requestId: ctx?.requestId,
+      durationMs,
+      slowMs,
+      query: query || null,
+      target: event.target ?? null,
+    });
   });
 
   // Middleware to handle file hash reference counting when memes/submissions are deleted.
   prisma.$use(async (params, next) => {
     const skipFlag = '__skipFileHashRefCount' as const;
-    type SkipFlag = typeof skipFlag;
-    type WithSkipFlag<T> = T & { [key in SkipFlag]?: boolean };
     if (params.args && (params.args as Record<string, unknown>)[skipFlag]) {
       delete (params.args as Record<string, unknown>)[skipFlag];
       return next(params);

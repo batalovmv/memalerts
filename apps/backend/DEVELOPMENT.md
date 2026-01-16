@@ -5,13 +5,16 @@
 - Node.js 18+ (в CI используется 20)
 - pnpm
 - PostgreSQL 15+
+- Docker + Docker Compose (опционально, для локальных сервисов)
 
 ## Быстрый запуск
 
 ```bash
+docker compose up -d
 pnpm install
-copy ENV.example .env
+copy .env.example .env
 pnpm prisma migrate dev
+pnpm db:seed
 pnpm dev
 ```
 
@@ -71,6 +74,12 @@ pnpm db:seed
 pnpm db:studio
 ```
 
+## Devcontainer (VS Code)
+
+1. `docker compose up -d`
+2. **Dev Containers: Reopen in Container**
+3. Внутри контейнера: `pnpm dev`
+
 ## Shared DB (beta + prod): как безопасно жить с недельным отрывом develop→main
 
 Если beta (`develop`) может быть впереди `main` на дни/неделю, то база данных должна быть **обратно-совместимой** для старого прод-кода.
@@ -91,7 +100,7 @@ pnpm db:studio
 - `RENAME COLUMN/TABLE`
 - `ALTER COLUMN ... SET NOT NULL` (если нет гарантированного backfill’а)
 
-В CI включён guard: `pnpm migrations:check` — он падает, если в **новых/изменённых** миграциях есть destructive SQL.
+В CI включён guard: `pnpm migrations:check` — он выводит предупреждения для **новых/изменённых** миграций с опасным SQL (см. `docs/migrations.md`).
 
 ### Soft-delete вместо физического удаления
 

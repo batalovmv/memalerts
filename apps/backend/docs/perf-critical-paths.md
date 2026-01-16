@@ -59,6 +59,13 @@ Inventory of user-facing screens and backend endpoints that can turn into latenc
 - Rolling restart smoke (local): `powershell -ExecutionPolicy Bypass -File tools/rolling-restart-smoke.ps1` (starts two app instances + health-aware proxy, emits SIGTERM on instance A, runs k6 smoke against the proxy).
 - Rolling restart flags: `-SkipSeed`, `-AppPortA`, `-AppPortB`, `-ProxyPort`, `-SigtermAfterMs` (see `tools/rolling-restart-smoke.ps1`).
 
+## N+1 Prevention Patterns
+- Prefer `findMany` with `in` lists over per-row `findUnique` in loops.
+- Use `include`/`select` to prefetch relations instead of loading child rows one-by-one.
+- For counts/aggregations, use `groupBy`/`aggregate` once per endpoint, not per item.
+- Fetch ids first, then resolve related data in one secondary query (batching).
+- Keep relation includes narrow; avoid large nested includes by default.
+
 ## Verification Queries
 - Streamer moderation:  
   `EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM "MemeSubmission" WHERE "channelId" = '<perf_channel_id>' AND "status" = 'pending' ORDER BY "createdAt" DESC, "id" DESC LIMIT 51;`

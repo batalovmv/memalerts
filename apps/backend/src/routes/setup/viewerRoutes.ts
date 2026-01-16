@@ -1,11 +1,11 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { authenticate, optionalAuthenticate } from '../../middleware/auth.js';
 import { requireBetaAccess, requireBetaAccessOrGuestForbidden, isBetaDomain } from '../../middleware/betaAccess.js';
 import { activateMemeLimiter } from '../../middleware/rateLimit.js';
 import { viewerController } from '../../controllers/viewerController.js';
 
-export function registerViewerRoutes(app: Express) {
+export function registerViewerRoutes(app: Router) {
   app.get('/me', authenticate, requireBetaAccess, viewerController.getMe);
   app.get('/me/preferences', authenticate, requireBetaAccess, viewerController.getMePreferences);
   app.patch('/me/preferences', authenticate, requireBetaAccess, viewerController.patchMePreferences);

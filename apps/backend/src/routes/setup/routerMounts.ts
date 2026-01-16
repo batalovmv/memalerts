@@ -1,4 +1,4 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import { authRoutes } from '../auth.js';
 import { viewerRoutes } from '../viewer.js';
 import { submissionRoutes } from '../submissions.js';
@@ -15,7 +15,7 @@ import { createAdminQueuesRouter } from '../adminQueues.js';
 import { assertAdmin } from '../../utils/accessControl.js';
 import { viewerController } from '../../controllers/viewerController.js';
 
-export function registerRouterMounts(app: Express) {
+export function registerRouterMounts(app: Router) {
   app.use(
     '/admin/queues',
     authenticate,

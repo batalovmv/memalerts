@@ -1,10 +1,10 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { optionalAuthenticate } from '../../middleware/auth.js';
 import { debugLog, isDebugAuthEnabled, isDebugLogsEnabled } from '../../utils/debug.js';
 import { isBetaDomain } from '../../middleware/betaAccess.js';
 
-export function registerDebugRoutes(app: Express) {
+export function registerDebugRoutes(app: Router) {
   if (isDebugLogsEnabled()) {
     app.get('/debug-ip', (req, res) => {
       const ipInfo = {

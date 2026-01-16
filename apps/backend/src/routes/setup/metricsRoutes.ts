@@ -1,11 +1,11 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { getChatOutboxQueueCounts } from '../../queues/chatOutboxQueue.js';
 import { metricsRegistry, setAiJobMetrics, setBotOutboxMetrics, setChatOutboxQueueDepth } from '../../utils/metrics.js';
 import { logger } from '../../utils/logger.js';
 
-export function registerMetricsRoutes(app: Express) {
+export function registerMetricsRoutes(app: Router) {
   app.get('/metrics', async (_req, res) => {
     try {
       const aiWhere: Prisma.MemeSubmissionWhereInput = {

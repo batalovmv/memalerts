@@ -109,6 +109,10 @@ jobs:
         shell: bash
         run: pnpm lint
 
+      - name: Migration lint (warning only)
+        shell: bash
+        run: pnpm migrations:check
+
       - name: Guard any count
         shell: bash
         run: pnpm guard:any

@@ -60,6 +60,7 @@ git push origin prod-20260105-1530
 - **Prisma migrations**:
   - if beta and prod share one DB, migrations must be **backward-compatible (expand/contract)**
   - the repo has a guard against destructive SQL (`pnpm migrations:check`)
+  - see `docs/migrations.md` for lint rules and safe patterns
 - **`/internal/*`**:
   - do not weaken **localhost-only** and the `x-memalerts-internal` check
   - nginx must not proxy these paths externally

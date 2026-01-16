@@ -1,4 +1,4 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../../lib/prisma.js';
@@ -47,7 +47,7 @@ function resolveInstanceId(): string | null {
   return instanceId || null;
 }
 
-export function registerHealthRoutes(app: Express) {
+export function registerHealthRoutes(app: Router) {
   app.get('/health', (req, res) => {
     const payload = {
       status: 'ok',

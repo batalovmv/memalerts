@@ -352,7 +352,10 @@ app.set('io', io);
 app.use(globalLimiter);
 
 // Routes
-setupRoutes(app);
+const apiRouter = express.Router();
+setupRoutes(apiRouter);
+app.use('/', apiRouter);
+app.use('/v1', apiRouter);
 
 // 404 handler for unmatched routes
 app.use((req, res) => {

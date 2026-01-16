@@ -1,6 +1,6 @@
-import type { Express } from 'express';
+import type { Router } from 'express';
 
-export function registerOverlayRoutes(app: Express) {
+export function registerOverlayRoutes(app: Router) {
   app.get('/overlay/credits/t/:token', (req, res) => {
     const token = String(req.params?.token || '').trim();
     if (!token) return res.status(400).send('Bad Request');

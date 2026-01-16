@@ -1,0 +1,12 @@
+services:
+  api:
+    image: node:20-bullseye
+    command: sleep infinity
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/memalerts?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      PORT: 3001
+    depends_on:
+      - postgres
+      - redis
