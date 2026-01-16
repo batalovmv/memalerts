@@ -914,8 +914,8 @@
 **Файл теста**: `tests/streamerEntitlements.test.ts`
 
 **Что тестировать**:
-- [ ] GET entitlements (custom bot, features)
-- [ ] Отображение активных/неактивных
+- [x] GET entitlements (custom bot, features)
+- [x] Отображение активных/неактивных
 
 **Acceptance Criteria**:
 ```
