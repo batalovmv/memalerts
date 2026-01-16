@@ -17,6 +17,7 @@ This document describes the **real-world VPS setup** for MemAlerts on `155.212.1
 - **PostgreSQL** and **Redis** run as systemd services and listen on **localhost only**:
   - Postgres: `127.0.0.1:5432`
   - Redis: `127.0.0.1:6379`
+- **Beta isolation**: beta uses a **separate DB** (`memalerts_beta`) and a **separate uploads dir** (`/opt/memalerts-backend-beta/uploads`).
 - **Logs**:
   - Nginx: `/var/log/nginx/*`
   - PM2: `/home/deploy/.pm2/logs/*` (with rotation via `pm2-logrotate`)
@@ -25,7 +26,7 @@ This document describes the **real-world VPS setup** for MemAlerts on `155.212.1
 ## Server versions (as of 2026-01-06)
 
 - **OS**: Ubuntu 24.04.3 LTS (Noble)
-- **Node.js**: v18.19.1
+- **Node.js**: v20.19.6 for MemAlerts PM2 processes (system `node` is still v18.19.1)
 - **pnpm**: 10.26.0
 - **PM2**: 6.0.14
 
@@ -98,7 +99,8 @@ Both server blocks include `location /socket.io/` with `Upgrade/Connection` head
 
 `/uploads/*` is served **directly by Nginx**:
 
-- alias: `/opt/memalerts-backend/uploads/`
+- production alias: `/opt/memalerts-backend/uploads/`
+- beta alias: `/opt/memalerts-backend-beta/uploads/`
 - CORS headers are set **only** for `twitchmemes.ru` and `beta.twitchmemes.ru`
 - caching: `expires 1y` + `Cache-Control: public, immutable`
 
@@ -182,6 +184,19 @@ Checks:
 
 - `sudo systemctl status postgresql`
 - `sudo systemctl status redis-server`
+
+### Current DB layout (production + beta)
+
+- production DB: `memalerts` (from `/opt/memalerts-backend/.env`)
+- beta DB: `memalerts_beta` (from `/opt/memalerts-backend-beta/.env`)
+
+### Import production data into beta (incl. uploads)
+
+1) Stop beta services (API + bots).
+2) `pg_dump` production DB and restore into `memalerts_beta`.
+3) `rsync` uploads from `/opt/memalerts-backend/uploads/` → `/opt/memalerts-backend-beta/uploads/`.
+4) Run `pnpm prisma migrate deploy` in `/opt/memalerts-backend-beta`.
+5) Start beta services.
 
 ## Logs and diagnostics
 
