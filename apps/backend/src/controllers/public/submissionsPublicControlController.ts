@@ -23,12 +23,16 @@ function emitStatus(io: Server, slug: string, enabled: boolean, onlyWhenLive: bo
   io.to(`channel:${s}`).emit('submissions:status', { enabled, onlyWhenLive });
 }
 
+function respondUnauthorized(res: Response) {
+  return res.status(401).json({ errorCode: 'UNAUTHORIZED', error: 'Unauthorized' });
+}
+
 export const submissionsPublicControlController = {
   // GET /public/submissions/status?token=...
   status: async (req: Request, res: Response) => {
     const token = String(req.query.token || '');
     const channel = await resolveChannelByToken(token);
-    if (!channel) return res.status(404).json({ error: 'Not Found' });
+    if (!channel) return respondUnauthorized(res);
     return res.json({
       ok: true,
       submissions: { enabled: !!channel.submissionsEnabled, onlyWhenLive: !!channel.submissionsOnlyWhenLive },
@@ -39,7 +43,7 @@ export const submissionsPublicControlController = {
   enable: async (req: Request, res: Response) => {
     const token = String(req.query.token || '');
     const channel = await resolveChannelByToken(token);
-    if (!channel) return res.status(404).json({ error: 'Not Found' });
+    if (!channel) return respondUnauthorized(res);
 
     const updated = await prisma.channel.update({
       where: { id: channel.id },
@@ -64,7 +68,7 @@ export const submissionsPublicControlController = {
   disable: async (req: Request, res: Response) => {
     const token = String(req.query.token || '');
     const channel = await resolveChannelByToken(token);
-    if (!channel) return res.status(404).json({ error: 'Not Found' });
+    if (!channel) return respondUnauthorized(res);
 
     const updated = await prisma.channel.update({
       where: { id: channel.id },
@@ -89,7 +93,7 @@ export const submissionsPublicControlController = {
   toggle: async (req: Request, res: Response) => {
     const token = String(req.query.token || '');
     const channel = await resolveChannelByToken(token);
-    if (!channel) return res.status(404).json({ error: 'Not Found' });
+    if (!channel) return respondUnauthorized(res);
 
     const nextEnabled = !channel.submissionsEnabled;
     const updated = await prisma.channel.update({

@@ -404,12 +404,12 @@
 **Файл теста**: `tests/publicSubmissionsControl.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /public/submissions/status?token=...`
-- [ ] `POST /public/submissions/enable?token=...`
-- [ ] `POST /public/submissions/disable?token=...`
-- [ ] `POST /public/submissions/toggle?token=...`
-- [ ] Невалидный token — 401
-- [ ] Socket.IO emit `submissions:status`
+- [x] `GET /public/submissions/status?token=...`
+- [x] `POST /public/submissions/enable?token=...`
+- [x] `POST /public/submissions/disable?token=...`
+- [x] `POST /public/submissions/toggle?token=...`
+- [x] Невалидный token - 401
+- [x] Socket.IO emit `submissions:status`
 
 **Acceptance Criteria**:
 ```
@@ -1904,4 +1904,3 @@ End-to-end integration tests для полных user journeys.
 - [Architecture](../ARCHITECTURE.md)
 - [Factories](../tests/factories/)
 - [Mocks](../tests/mocks/)
-
