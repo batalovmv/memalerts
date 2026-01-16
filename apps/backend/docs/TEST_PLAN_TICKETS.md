@@ -565,9 +565,9 @@
 **Файл теста**: `tests/viewerPool.test.ts`
 
 **Что тестировать**:
-- [ ] `POST /submissions/pool` — добавление из pool
-- [ ] Проверка memeCatalogMode=pool_all
-- [ ] Копирование AI полей при adoption
+- [x] `POST /submissions/pool` - добавление из pool
+- [x] Проверка memeCatalogMode=pool_all
+- [x] Копирование AI полей при adoption
 
 **Acceptance Criteria**:
 ```
