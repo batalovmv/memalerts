@@ -3,7 +3,7 @@ import type { AuthRequest } from '../../../middleware/auth.js';
 import { channelMetaCache } from '../../viewer/cache.js';
 import { nsKey, redisDel } from '../../../utils/redisCache.js';
 import { logger } from '../../../utils/logger.js';
-import { asRecord, getErrorMessage } from './shared.js';
+import { getErrorMessage } from './shared.js';
 
 export function invalidateCatalogCacheOnModeChange(params: {
   bodyRec: Record<string, unknown>;

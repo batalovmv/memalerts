@@ -4,7 +4,6 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import type { Prisma } from '@prisma/client';
 
-import { prisma } from '../src/lib/prisma.js';
 import { authenticate } from '../src/middleware/auth.js';
 import { requireBetaAccess } from '../src/middleware/betaAccess.js';
 import { submissionRoutes } from '../src/routes/submissions.js';

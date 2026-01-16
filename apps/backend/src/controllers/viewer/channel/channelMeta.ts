@@ -13,8 +13,8 @@ import {
 } from '../cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 import { normalizeDashboardCardOrder } from '../../../utils/dashboardCardOrder.js';
-import { toChannelMemeListItemDto, type ChannelMemeListItemDto } from '../channelMemeListDto.js';
-import { ChannelMemeRow, ChannelResponse, ChannelWithOwner, PoolAssetRow } from './shared.js';
+import { toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import type { ChannelMemeRow, ChannelResponse, ChannelWithOwner, PoolAssetRow } from './shared.js';
 
 export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
   const slug = String(req.params.slug || '').trim();

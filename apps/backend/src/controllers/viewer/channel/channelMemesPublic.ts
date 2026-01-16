@@ -12,7 +12,8 @@ import {
   safeDecodeCursor,
 } from '../../../utils/pagination.js';
 import { ifNoneMatchHit, makeEtagFromString } from '../cache.js';
-import { ChannelMemeRow, PoolAssetRow, makeCreatedCursorSchema, makePriceCursorSchema } from './shared.js';
+import { makeCreatedCursorSchema, makePriceCursorSchema } from './shared.js';
+import type { ChannelMemeRow, PoolAssetRow } from './shared.js';
 
 export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => {
   const slug = String(req.params.slug || '').trim();

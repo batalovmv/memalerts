@@ -48,7 +48,7 @@ export async function resolveApprovalInputs(opts: {
   fileHashForCleanup: string | null;
   fileHashRefAdded: boolean;
 }> {
-  const { submission, body, txRepos, channelId, defaultPrice, req, id } = opts;
+  const { submission, body, txRepos, defaultPrice, id } = opts;
   let { fileHashForCleanup, fileHashRefAdded } = opts;
 
   let finalFileUrl: string;

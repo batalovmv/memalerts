@@ -1,7 +1,7 @@
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { logger } from '../utils/logger.js';
-import { getYouTubeRoleTags, hasRoles, sanitizeRoleTags, type RoleMode, type RoleTag } from './youtubeRoles.js';
+import { getYouTubeRoleTags, hasRoles, sanitizeRoleTags, type RoleMode } from './youtubeRoles.js';
 import {
   asRecord,
   getErrorCode,

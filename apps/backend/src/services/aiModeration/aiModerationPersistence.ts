@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { makeAutoDescription } from '../../utils/ai/description.js';
 import {

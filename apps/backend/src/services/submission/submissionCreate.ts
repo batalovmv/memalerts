@@ -3,7 +3,7 @@ import type { AuthRequest } from '../../middleware/auth.js';
 import type { z } from 'zod';
 import { ZodError } from 'zod';
 import { createSubmissionSchema } from '../../shared/schemas.js';
-import { ApiError } from '../../shared/apiError.js';
+import type { ApiError } from '../../shared/apiError.js';
 import type { SubmissionDeps } from './submissionTypes.js';
 import { getStreamDurationSnapshot } from '../../realtime/streamDurationStore.js';
 import { logger } from '../../utils/logger.js';

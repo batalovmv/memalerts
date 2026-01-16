@@ -1,7 +1,6 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import type { Server } from 'socket.io';
-import type { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import { approveSubmissionSchema } from '../../shared/schemas.js';

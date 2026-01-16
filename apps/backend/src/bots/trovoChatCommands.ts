@@ -89,7 +89,7 @@ export async function sendToTrovoChat(params: { st: TrovoChannelState; text: str
 }
 
 export function createTrovoChatCommands(states: Map<string, TrovoChannelState>, config: TrovoChatCommandsConfig) {
-  const { backendBaseUrls, commandsRefreshSeconds, stoppedRef } = config;
+  const { backendBaseUrls, stoppedRef } = config;
   let commandsRefreshing = false;
 
   const refreshCommands = async () => {

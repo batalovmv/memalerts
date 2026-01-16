@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { recordExternalRewardEventTx, stableProviderEventId } from '../src/services/RewardService.js';
+import {
+  recordExternalRewardEventTx,
+  stableProviderEventId,
+  type ExternalRewardTx,
+} from '../src/services/RewardService.js';
 
 describe('RewardService', () => {
   it('stableProviderEventId is deterministic', () => {
@@ -27,10 +31,10 @@ describe('RewardService', () => {
     const tx = {
       externalRewardEvent: { upsert: vi.fn() },
       pendingCoinGrant: { createMany: vi.fn() },
-    };
+    } as unknown as ExternalRewardTx;
 
     const res = await recordExternalRewardEventTx({
-      tx: tx as any,
+      tx,
       provider: 'twitch',
       providerEventId: '',
       channelId: '',
@@ -51,10 +55,10 @@ describe('RewardService', () => {
     const tx = {
       externalRewardEvent: { upsert: vi.fn().mockResolvedValue({ id: 'evt1' }) },
       pendingCoinGrant: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
-    };
+    } as unknown as ExternalRewardTx;
 
     const res = await recordExternalRewardEventTx({
-      tx: tx as any,
+      tx,
       provider: 'twitch',
       providerEventId: 'event-1',
       channelId: 'channel-1',

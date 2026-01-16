@@ -1,6 +1,5 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
-import type { MemeSubmission, Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import {
   DEFAULT_CURSOR_SCHEMA,
@@ -14,7 +13,6 @@ import {
 import type { AdminSubmissionDeps } from './submissionTypes.js';
 import { asRecord, getErrorMessage } from './submissionShared.js';
 
-type Submission = MemeSubmission;
 export const getSubmissionsWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
   const { submissions: submissionsRepo } = deps;
   const status = req.query.status as string | undefined;

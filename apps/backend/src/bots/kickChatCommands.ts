@@ -49,7 +49,7 @@ async function postInternalCreditsChatter(
 }
 
 export function createKickChatCommands(states: Map<string, KickChannelState>, config: KickChatCommandsConfig) {
-  const { backendBaseUrls, commandsRefreshSeconds, stoppedRef } = config;
+  const { backendBaseUrls, stoppedRef } = config;
   let commandsRefreshing = false;
 
   const refreshCommands = async () => {

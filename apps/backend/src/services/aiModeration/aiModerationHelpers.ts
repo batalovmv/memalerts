@@ -1,11 +1,10 @@
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { pipeline } from 'stream/promises';
 import { prisma } from '../../lib/prisma.js';
-import { logger } from '../../utils/logger.js';
 
 export type AiModerationDecision = 'low' | 'medium' | 'high';
 

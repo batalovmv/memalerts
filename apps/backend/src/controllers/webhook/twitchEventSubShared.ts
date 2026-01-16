@@ -1,11 +1,9 @@
 import crypto from 'crypto';
 import type { Request, Response } from 'express';
 import type { z } from 'zod';
-import {
-  twitchAutoRewardsSchema,
-  type TwitchAutoRewardsConfig,
+import { twitchAutoRewardsSchema, type TwitchAutoRewardsConfig } from '../../shared/schemas.js';
+import type {
   twitchCheerEventSchema,
-  twitchFollowEventSchema,
   twitchRaidEventSchema,
   twitchSubscribeEventSchema,
   twitchSubscriptionGiftEventSchema,

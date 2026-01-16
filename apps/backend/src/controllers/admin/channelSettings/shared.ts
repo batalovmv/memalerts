@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { updateChannelSettingsSchema } from '../../../shared/schemas.js';
+import type { updateChannelSettingsSchema } from '../../../shared/schemas.js';
 
 export type UpdateChannelSettingsBody = z.infer<typeof updateChannelSettingsSchema>;
 
