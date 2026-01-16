@@ -1358,12 +1358,12 @@
 **Файл теста**: `tests/twitchApi.test.ts`
 
 **Что тестировать**:
-- [ ] `twitchApiRequest.ts` — request with retry
-- [ ] `twitchAppToken.ts` — token management
-- [ ] `twitchEventSub.ts` — subscription CRUD
-- [ ] `twitchRewards.ts` — reward CRUD
-- [ ] `twitchTokens.ts` — refresh logic
-- [ ] `twitchUsers.ts` — user info fetch
+- [x] `twitchApiRequest.ts` - request with retry
+- [x] `twitchAppToken.ts` - token management
+- [x] `twitchEventSub.ts` - subscription CRUD
+- [x] `twitchRewards.ts` - reward CRUD
+- [x] `twitchTokens.ts` - refresh logic
+- [x] `twitchUsers.ts` - user info fetch
 
 **Мокировать**:
 - Twitch API (использовать `tests/mocks/twitchApi.mock.ts`)
