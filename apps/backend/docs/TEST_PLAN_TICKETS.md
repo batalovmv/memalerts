@@ -1207,33 +1207,33 @@
 **Что тестировать для каждого репозитория**:
 
 ### ChannelRepository
-- [ ] findBySlug
-- [ ] findById
-- [ ] update
+- [x] findBySlug
+- [x] findById
+- [x] update
 
 ### MemeRepository
-- [ ] create
-- [ ] findById
-- [ ] findByChannel (pagination)
-- [ ] update
-- [ ] softDelete
+- [x] create
+- [x] findById
+- [x] findByChannel (pagination)
+- [x] update
+- [x] softDelete (N/A: repo не реализует softDelete)
 
 ### SubmissionRepository
-- [ ] create
-- [ ] findById
-- [ ] findByChannel (filtering, pagination)
-- [ ] updateStatus
+- [x] create
+- [x] findById
+- [x] findByChannel (filtering, pagination)
+- [x] updateStatus
 
 ### UserRepository
-- [ ] findById
-- [ ] findByExternalAccount
-- [ ] create
-- [ ] update
+- [x] findById
+- [x] findByExternalAccount (N/A: нет отдельного метода в репозитории)
+- [x] create
+- [x] update
 
 ### WalletRepository
-- [ ] findByKey
-- [ ] upsert
-- [ ] lockForUpdate
+- [x] findByKey (N/A: нет отдельного метода в репозитории)
+- [x] upsert (N/A: нет отдельного метода в репозитории)
+- [x] lockForUpdate
 
 **Acceptance Criteria**:
 ```
