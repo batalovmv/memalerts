@@ -1,0 +1,11 @@
+{
+  "response": [
+    {
+      "id": 123456,
+      "first_name": "VK",
+      "last_name": "User",
+      "screen_name": "vkuser",
+      "photo_200": "https://example.com/vk/avatar.png"
+    }
+  ]
+}

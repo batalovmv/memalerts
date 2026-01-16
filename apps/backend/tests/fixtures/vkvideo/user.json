@@ -1,0 +1,9 @@
+{
+  "data": {
+    "id": "vkvideo-user-1",
+    "displayName": "VK Video User",
+    "login": "vkvideo_user",
+    "avatarUrl": "https://example.com/vkvideo/avatar.png",
+    "profileUrl": "https://live.vkvideo.ru/vkvideo_user"
+  }
+}

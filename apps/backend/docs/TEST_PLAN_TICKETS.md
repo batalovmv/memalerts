@@ -263,13 +263,13 @@
 **Файл теста**: `tests/authOAuthFlows.test.ts` (расширить существующий `oauthCallbackFlows.test.ts`)
 
 **Что тестировать для каждого провайдера** (Twitch, YouTube, Discord, VK, VKVideo, Kick, Trovo):
-- [ ] `GET /auth/:provider` — redirect на OAuth URL
-- [ ] `GET /auth/:provider/callback` — успешный callback, создание user
-- [ ] Callback с существующим user — login
-- [ ] Невалидный state — отклонение
-- [ ] Expired state — отклонение
-- [ ] OAuth error от провайдера — корректная обработка
-- [ ] Установка cookie (token/token_beta в зависимости от instance)
+- [x] `GET /auth/:provider` — redirect на OAuth URL
+- [x] `GET /auth/:provider/callback` — успешный callback, создание user
+- [x] Callback с существующим user — login
+- [x] Невалидный state — отклонение
+- [x] Expired state — отклонение
+- [x] OAuth error от провайдера — корректная обработка
+- [x] Установка cookie (token/token_beta в зависимости от instance)
 
 **Мокировать**:
 - OAuth token exchange
