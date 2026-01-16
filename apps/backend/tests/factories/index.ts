@@ -3,6 +3,7 @@ export { createExternalAccount, createUser, createUserWithChannel } from './user
 export { createChatBotCommand, createKickChatBotSubscription } from './botFactory.js';
 export { createFileHash, createMeme, createMemeAsset, createChannelMeme } from './memeFactory.js';
 export { createChannelEntitlement } from './entitlementFactory.js';
+export { createGlobalModerator } from './globalModeratorFactory.js';
 export { createPromotion } from './promotionFactory.js';
 export { createServiceHeartbeat } from './serviceHeartbeatFactory.js';
 export { createSubmission } from './submissionFactory.js';

@@ -439,12 +439,12 @@
 **Файл теста**: `tests/viewerMe.test.ts`
 
 **Что тестировать**:
-- [ ] Возврат user data (id, displayName, profileImageUrl, role)
-- [ ] Включение channel если есть
-- [ ] Включение wallets
-- [ ] Включение externalAccounts
-- [ ] isGlobalModerator флаг
-- [ ] 401 без auth
+- [x] Возврат user data (id, displayName, profileImageUrl, role)
+- [x] Включение channel если есть
+- [x] Включение wallets
+- [x] Включение externalAccounts
+- [x] isGlobalModerator флаг
+- [x] 401 без auth
 
 **Acceptance Criteria**:
 ```
