@@ -2,6 +2,11 @@ export { createChannel } from './channelFactory.js';
 export { createExternalAccount, createUser, createUserWithChannel } from './userFactory.js';
 export {
   createChatBotCommand,
+  createGlobalKickBotCredential,
+  createGlobalTrovoBotCredential,
+  createGlobalTwitchBotCredential,
+  createGlobalVkVideoBotCredential,
+  createGlobalYouTubeBotCredential,
   createKickBotIntegration,
   createKickChatBotSubscription,
   createTrovoBotIntegration,

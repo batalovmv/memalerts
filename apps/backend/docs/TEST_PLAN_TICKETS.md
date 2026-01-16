@@ -1064,9 +1064,9 @@
 **Файл теста**: `tests/ownerDefaultBots.test.ts`
 
 **Что тестировать для каждой платформы**:
-- [ ] GET status
-- [ ] Link start
-- [ ] Unlink
+- [x] GET status
+- [x] Link start
+- [x] Unlink
 
 **Acceptance Criteria**:
 ```

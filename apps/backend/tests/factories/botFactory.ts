@@ -1,5 +1,10 @@
 import type {
   ChatBotCommand,
+  GlobalKickBotCredential,
+  GlobalTrovoBotCredential,
+  GlobalTwitchBotCredential,
+  GlobalVkVideoBotCredential,
+  GlobalYouTubeBotCredential,
   KickBotIntegration,
   KickChatBotSubscription,
   Prisma,
@@ -115,4 +120,69 @@ export async function createKickBotIntegration(
     ...overrides,
   };
   return prisma.kickBotIntegration.create({ data });
+}
+
+export async function createGlobalTwitchBotCredential(
+  overrides: Partial<Prisma.GlobalTwitchBotCredentialUncheckedCreateInput> = {}
+): Promise<GlobalTwitchBotCredential> {
+  const externalAccountId =
+    overrides.externalAccountId ?? (await createExternalAccount({ provider: 'twitch' })).id;
+  const data: Prisma.GlobalTwitchBotCredentialUncheckedCreateInput = {
+    externalAccountId,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.globalTwitchBotCredential.create({ data });
+}
+
+export async function createGlobalYouTubeBotCredential(
+  overrides: Partial<Prisma.GlobalYouTubeBotCredentialUncheckedCreateInput> = {}
+): Promise<GlobalYouTubeBotCredential> {
+  const externalAccountId =
+    overrides.externalAccountId ?? (await createExternalAccount({ provider: 'youtube' })).id;
+  const data: Prisma.GlobalYouTubeBotCredentialUncheckedCreateInput = {
+    externalAccountId,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.globalYouTubeBotCredential.create({ data });
+}
+
+export async function createGlobalVkVideoBotCredential(
+  overrides: Partial<Prisma.GlobalVkVideoBotCredentialUncheckedCreateInput> = {}
+): Promise<GlobalVkVideoBotCredential> {
+  const externalAccountId =
+    overrides.externalAccountId ?? (await createExternalAccount({ provider: 'vkvideo' })).id;
+  const data: Prisma.GlobalVkVideoBotCredentialUncheckedCreateInput = {
+    externalAccountId,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.globalVkVideoBotCredential.create({ data });
+}
+
+export async function createGlobalTrovoBotCredential(
+  overrides: Partial<Prisma.GlobalTrovoBotCredentialUncheckedCreateInput> = {}
+): Promise<GlobalTrovoBotCredential> {
+  const externalAccountId =
+    overrides.externalAccountId ?? (await createExternalAccount({ provider: 'trovo' })).id;
+  const data: Prisma.GlobalTrovoBotCredentialUncheckedCreateInput = {
+    externalAccountId,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.globalTrovoBotCredential.create({ data });
+}
+
+export async function createGlobalKickBotCredential(
+  overrides: Partial<Prisma.GlobalKickBotCredentialUncheckedCreateInput> = {}
+): Promise<GlobalKickBotCredential> {
+  const externalAccountId =
+    overrides.externalAccountId ?? (await createExternalAccount({ provider: 'kick' })).id;
+  const data: Prisma.GlobalKickBotCredentialUncheckedCreateInput = {
+    externalAccountId,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.globalKickBotCredential.create({ data });
 }
