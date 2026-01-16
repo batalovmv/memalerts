@@ -1463,10 +1463,10 @@
 **Файл теста**: `tests/middlewareErrorHandler.test.ts`
 
 **Что тестировать**:
-- [ ] Обработка HttpError
-- [ ] Обработка unknown errors
-- [ ] Формат response
-- [ ] Logging
+- [x] Обработка HttpError
+- [x] Обработка unknown errors
+- [x] Формат response
+- [x] Logging
 
 **Acceptance Criteria**:
 ```
