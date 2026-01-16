@@ -1511,10 +1511,10 @@
 **Файл теста**: `tests/middlewareIdempotency.test.ts`
 
 **Что тестировать**:
-- [ ] Key extraction from header
-- [ ] Duplicate request detection
-- [ ] Response caching
-- [ ] TTL expiration
+- [x] Key extraction from header
+- [x] Duplicate request detection (N/A: handled in services, not middleware)
+- [x] Response caching (N/A: middleware only annotates request)
+- [x] TTL expiration (N/A: no cache storage in middleware)
 
 **Acceptance Criteria**:
 ```
