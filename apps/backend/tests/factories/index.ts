@@ -8,3 +8,4 @@ export { createPromotion } from './promotionFactory.js';
 export { createServiceHeartbeat } from './serviceHeartbeatFactory.js';
 export { createSubmission } from './submissionFactory.js';
 export { createWallet } from './walletFactory.js';
+export { createMemeActivation } from './memeActivationFactory.js';
