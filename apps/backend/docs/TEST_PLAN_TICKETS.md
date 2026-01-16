@@ -1160,9 +1160,9 @@
 **Файл теста**: `tests/ownerModerators.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /owner/moderators` — list
-- [ ] `POST /owner/moderators/:userId/grant`
-- [ ] `POST /owner/moderators/:userId/revoke`
+- [x] `GET /owner/moderators` - list
+- [x] `POST /owner/moderators/:userId/grant`
+- [x] `POST /owner/moderators/:userId/revoke`
 
 **Acceptance Criteria**:
 ```
