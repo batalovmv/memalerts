@@ -211,11 +211,11 @@
 **Файл теста**: `tests/submissionResubmit.test.ts`
 
 **Что тестировать**:
-- [ ] Успешный resubmit из статуса `needs_changes`
-- [ ] Отклонение resubmit из других статусов
-- [ ] Только автор может resubmit
-- [ ] Новый файл заменяет старый
-- [ ] Статус меняется на `pending`
+- [x] Успешный resubmit из статуса `needs_changes`
+- [x] Отклонение resubmit из других статусов
+- [x] Только автор может resubmit
+- [x] Новый файл заменяет старый (N/A: resubmit принимает только метаданные)
+- [x] Статус меняется на `pending`
 
 **Acceptance Criteria**:
 ```
