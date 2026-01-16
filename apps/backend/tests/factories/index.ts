@@ -10,3 +10,4 @@ export { createSubmission } from './submissionFactory.js';
 export { createWallet } from './walletFactory.js';
 export { createMemeActivation } from './memeActivationFactory.js';
 export { createYouTubeLikeRewardClaim } from './youtubeLikeRewardClaimFactory.js';
+export { createChannelDailyStats, createChannelMemeStats30d, createChannelUserStats30d } from './statsFactory.js';

@@ -56,6 +56,10 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
     const toNumberSafe = (v: unknown): number => {
       if (typeof v === 'number') return v;
       if (typeof v === 'bigint') return Number(v);
+      if (typeof v === 'string') {
+        const num = Number(v);
+        return Number.isFinite(num) ? num : 0;
+      }
       return 0;
     };
 
@@ -218,12 +222,12 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       const sumRec = asRecord(rec._sum);
       const countRec = asRecord(rec._count);
       const userId = String(rec.userId || '');
+      const totalCoinsSpentRaw = rec.totalCoinsSpentSum ?? sumRec.coinsSpent;
+      const activationsCountRaw = rec.totalActivationsCount ?? countRec.id;
       return {
         user: usersById.get(userId) || { id: userId, displayName: 'Unknown' },
-        totalCoinsSpent:
-          typeof rec.totalCoinsSpentSum === 'number' ? rec.totalCoinsSpentSum : Number(sumRec.coinsSpent || 0),
-        activationsCount:
-          typeof rec.totalActivationsCount === 'number' ? rec.totalActivationsCount : Number(countRec.id || 0),
+        totalCoinsSpent: toNumberSafe(totalCoinsSpentRaw),
+        activationsCount: toNumberSafe(activationsCountRaw),
       };
     });
     // Stable ordering even when coinsSpent is 0 (e.g., channel-owner free activations).
@@ -242,12 +246,12 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       const sumRec = asRecord(rec._sum);
       const countRec = asRecord(rec._count);
       const memeId = String(rec.memeId || '');
+      const totalCoinsSpentRaw = rec.totalCoinsSpentSum ?? sumRec.coinsSpent;
+      const activationsCountRaw = rec.totalActivationsCount ?? countRec.id;
       return {
         meme: memesById.get(memeId) || null,
-        activationsCount:
-          typeof rec.totalActivationsCount === 'number' ? rec.totalActivationsCount : Number(countRec.id || 0),
-        totalCoinsSpent:
-          typeof rec.totalCoinsSpentSum === 'number' ? rec.totalCoinsSpentSum : Number(sumRec.coinsSpent || 0),
+        activationsCount: toNumberSafe(activationsCountRaw),
+        totalCoinsSpent: toNumberSafe(totalCoinsSpentRaw),
       };
     });
     memePopularityOut.sort((a, b) => {

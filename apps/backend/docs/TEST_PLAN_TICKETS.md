@@ -796,8 +796,8 @@
 **Файл теста**: `tests/streamerStats.test.ts`
 
 **Что тестировать**:
-- [ ] Статистика канала (activations, revenue, users)
-- [ ] Период фильтрации
+- [x] Статистика канала (activations, revenue, users)
+- [x] Период фильтрации
 
 **Acceptance Criteria**:
 ```
