@@ -5,7 +5,6 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
-import { prisma } from '../src/lib/prisma.js';
 import { setupRoutes } from '../src/routes/index.js';
 import { verifyJwtWithRotation } from '../src/utils/jwt.js';
 import { createChannel, createUser } from './factories/index.js';
@@ -138,105 +137,4 @@ describe('streamer overlay settings', () => {
     expect(normalSocket.disconnect).not.toHaveBeenCalled();
   });
 
-  it('gets and updates overlay presets', async () => {
-    const initialPresets = [
-      {
-        id: 'preset-1',
-        name: 'Default',
-        createdAt: 123,
-        payload: { v: 1, overlayMode: 'queue', overlayShowSender: true, overlayMaxConcurrent: 3 },
-      },
-    ];
-
-    const channel = await createChannel({
-      slug: 'overlay-presets',
-      name: 'Overlay Presets',
-      overlayPresetsJson: JSON.stringify(initialPresets),
-    });
-    const streamer = await createUser({ role: 'streamer', channelId: channel.id });
-    const tokenCookie = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
-    const app = makeApp();
-
-    const getRes = await request(app)
-      .get('/streamer/overlay/presets')
-      .set('Host', 'example.com')
-      .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`]);
-
-    expect(getRes.status).toBe(200);
-    expect(getRes.body?.presets).toEqual(initialPresets);
-
-    const nextPresets = [
-      {
-        id: 'preset-2',
-        name: 'Scene 2',
-        createdAt: 456,
-        payload: { v: 1, overlayMode: 'simultaneous', overlayShowSender: false, overlayMaxConcurrent: 2 },
-      },
-    ];
-
-    const putRes = await request(app)
-      .put('/streamer/overlay/presets')
-      .set('Host', 'example.com')
-      .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
-      .send({ presets: nextPresets });
-
-    expect(putRes.status).toBe(200);
-    expect(putRes.body?.ok).toBe(true);
-
-    const stored = await prisma.channel.findUnique({
-      where: { id: channel.id },
-      select: { overlayPresetsJson: true },
-    });
-    expect(JSON.parse(stored?.overlayPresetsJson ?? '[]')).toEqual(nextPresets);
-  });
-
-  it('validates overlay presets payloads', async () => {
-    const channel = await createChannel({ slug: 'overlay-presets-invalid', name: 'Overlay Presets Invalid' });
-    const streamer = await createUser({ role: 'streamer', channelId: channel.id });
-    const tokenCookie = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
-
-    const res = await request(makeApp())
-      .put('/streamer/overlay/presets')
-      .set('Host', 'example.com')
-      .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
-      .send({
-        presets: [
-          {
-            id: 'x',
-            name: '',
-            createdAt: -1,
-            payload: { v: 1 },
-          },
-        ],
-      });
-
-    expect(res.status).toBe(400);
-    expect(res.body?.errorCode).toBe('VALIDATION_ERROR');
-    expect(Array.isArray(res.body?.details)).toBe(true);
-  });
-
-  it('rejects oversized overlay presets payloads', async () => {
-    const channel = await createChannel({ slug: 'overlay-presets-large', name: 'Overlay Presets Large' });
-    const streamer = await createUser({ role: 'streamer', channelId: channel.id });
-    const tokenCookie = makeJwt({ userId: streamer.id, role: streamer.role, channelId: channel.id });
-    const bigText = 'x'.repeat(76_000);
-
-    const res = await request(makeApp())
-      .put('/streamer/overlay/presets')
-      .set('Host', 'example.com')
-      .set('Cookie', [`token=${encodeURIComponent(tokenCookie)}`])
-      .send({
-        presets: [
-          {
-            id: 'preset-big',
-            name: 'Big preset',
-            createdAt: 1,
-            payload: { v: 1, style: { blob: bigText } },
-          },
-        ],
-      });
-
-    expect(res.status).toBe(413);
-    expect(res.body?.errorCode).toBe('FILE_TOO_LARGE');
-  });
 });

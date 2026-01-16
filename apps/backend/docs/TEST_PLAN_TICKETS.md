@@ -771,11 +771,11 @@
 **Файл теста**: `tests/streamerOverlayPresets.test.ts`
 
 **Что тестировать**:
-- [ ] Create preset
-- [ ] List presets
-- [ ] Update preset
-- [ ] Delete preset
-- [ ] Apply preset
+- [x] Create preset (via PUT list replace)
+- [x] List presets
+- [x] Update preset (via PUT list replace)
+- [x] Delete preset (via PUT empty list)
+- [x] Apply preset (N/A: no server endpoint; presets stored for client use)
 
 **Acceptance Criteria**:
 ```
