@@ -1183,8 +1183,8 @@
 **Файл теста**: `tests/ownerAiStatus.test.ts`
 
 **Что тестировать**:
-- [ ] Статус AI scheduler
-- [ ] Queue stats
+- [x] Статус AI scheduler (covered in `tests/aiRegenerateAndStatus.test.ts`)
+- [x] Queue stats (covered in `tests/aiRegenerateAndStatus.test.ts`)
 
 **Acceptance Criteria**:
 ```
