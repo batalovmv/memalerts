@@ -1690,9 +1690,9 @@
 **Файл теста**: `tests/storage.test.ts`
 
 **Что тестировать**:
-- [ ] Local storage — save, get, delete
-- [ ] S3 storage — save, get, delete
-- [ ] Storage factory
+- [x] Local storage - save, get, delete
+- [x] S3 storage - save, get, delete
+- [x] Storage factory
 
 **Мокировать**:
 - S3 client
