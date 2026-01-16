@@ -37,6 +37,32 @@ Watch mode:
 TEST_DATABASE_URL_BASE="postgresql://postgres:postgres@localhost:5433/memalerts_test" pnpm test:watch
 ```
 
+## VPS test run (prod/beta .env present)
+
+When running tests on a VPS with a production .env, override env to keep tests isolated
+and avoid beta gating + S3-specific behavior. Also start the test DB container without
+loading .env (docker-compose parses .env and can fail on JSON values).
+
+Start test Postgres:
+
+```bash
+docker compose --env-file /dev/null -f docker-compose.test.yml up -d
+```
+
+Run the test suite with safe overrides:
+
+```bash
+NODE_ENV=test \
+DOMAIN=example.com \
+PORT=3001 \
+INSTANCE=prod \
+WEB_URL=https://example.com \
+UPLOAD_STORAGE=local \
+DEBUG_LOGS=0 \
+TEST_DATABASE_URL_BASE="postgresql://postgres:postgres@localhost:5433/memalerts_test" \
+pnpm test
+```
+
 ## How the test DB works
 
 - Tests use **real Postgres**.
