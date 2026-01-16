@@ -1135,11 +1135,11 @@
 **Файл теста**: `tests/ownerMemeAssetModeration.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /owner/meme-assets` — list
-- [ ] `POST /owner/meme-assets/:id/hide`
-- [ ] `POST /owner/meme-assets/:id/unhide`
-- [ ] `POST /owner/meme-assets/:id/purge`
-- [ ] `POST /owner/meme-assets/:id/restore`
+- [x] `GET /owner/meme-assets` - list
+- [x] `POST /owner/meme-assets/:id/hide`
+- [x] `POST /owner/meme-assets/:id/unhide`
+- [x] `POST /owner/meme-assets/:id/purge`
+- [x] `POST /owner/meme-assets/:id/restore`
 
 **Acceptance Criteria**:
 ```
