@@ -295,13 +295,13 @@
 **Файл теста**: `tests/authAccountLinking.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /auth/accounts` — список связанных аккаунтов
-- [ ] `GET /auth/:provider/link` — initiate linking
-- [ ] `GET /auth/:provider/link/callback` — complete linking
-- [ ] `DELETE /auth/accounts/:id` — unlink
-- [ ] Нельзя отвязать primary account
-- [ ] Linking уже связанного провайдера — обновление токенов
-- [ ] Linking к другому user — conflict
+- [x] `GET /auth/accounts` — список связанных аккаунтов
+- [x] `GET /auth/:provider/link` — initiate linking
+- [x] `GET /auth/:provider/link/callback` — complete linking
+- [x] `DELETE /auth/accounts/:id` — unlink
+- [x] Нельзя отвязать primary account
+- [x] Linking уже связанного провайдера — обновление токенов
+- [x] Linking к другому user — conflict
 
 **Acceptance Criteria**:
 ```
