@@ -1487,10 +1487,10 @@
 **Файл теста**: `tests/middlewareUpload.test.ts`
 
 **Что тестировать**:
-- [ ] File size limits
-- [ ] File type filtering
-- [ ] Multer configuration
-- [ ] Error handling
+- [x] File size limits
+- [x] File type filtering
+- [x] Multer configuration
+- [x] Error handling
 
 **Acceptance Criteria**:
 ```
