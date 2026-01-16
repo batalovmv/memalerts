@@ -54,25 +54,53 @@ export async function resolveApprovalInputs(opts: {
   let finalFileUrl: string;
   let fileHash: string | null = null;
   let filePath: string | null = null;
+  const fileUrlTemp = String(submission.fileUrlTemp || '').trim();
+  const isRemoteUrl = /^https?:\/\//i.test(fileUrlTemp);
 
   debugLog('[DEBUG] Processing file URL', {
     submissionId: id,
     hasSourceUrl: !!submission.sourceUrl,
-    fileUrlTemp: submission.fileUrlTemp,
+    fileUrlTemp,
+    isRemoteUrl,
   });
+
+  if (!fileUrlTemp && !submission.sourceUrl) {
+    throw new Error('Uploaded file not found');
+  }
 
   if (submission.sourceUrl) {
     finalFileUrl = submission.sourceUrl;
+  } else if (isRemoteUrl) {
+    const existingHash = await getFileHashByPath(fileUrlTemp);
+
+    if (existingHash) {
+      finalFileUrl = fileUrlTemp;
+      fileHash = existingHash;
+      const blocked = await txRepos.memes.asset.findFirst({
+        where: {
+          fileHash: existingHash,
+          OR: [{ purgeRequestedAt: { not: null } }, { purgedAt: { not: null } }],
+        },
+        select: { id: true },
+      });
+      if (blocked) {
+        throw new Error('MEME_ASSET_DELETED');
+      }
+      await incrementFileHashReference(existingHash);
+      fileHashForCleanup = existingHash;
+      fileHashRefAdded = true;
+    } else {
+      finalFileUrl = fileUrlTemp;
+      fileHash = null;
+    }
   } else {
     try {
-      const uploadsDir = path.join(process.cwd(), 'uploads');
-      const relativePath = submission.fileUrlTemp.startsWith('/')
-        ? submission.fileUrlTemp.slice(1)
-        : submission.fileUrlTemp;
+      const uploadsDir = path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads');
+      const relativePath = fileUrlTemp.startsWith('/') ? fileUrlTemp.slice(1) : fileUrlTemp;
 
       debugLog('[DEBUG] Validating file path', {
         submissionId: id,
-        fileUrlTemp: submission.fileUrlTemp,
+        fileUrlTemp,
         relativePath,
         uploadsDir,
       });
@@ -83,21 +111,21 @@ export async function resolveApprovalInputs(opts: {
     } catch (pathError: unknown) {
       debugLog('[DEBUG] Path validation failed', {
         submissionId: id,
-        fileUrlTemp: submission.fileUrlTemp,
+        fileUrlTemp,
         error: getErrorMessage(pathError),
       });
       logger.error('admin.submissions.path_validation_failed', {
         submissionId: id,
-        fileUrlTemp: submission.fileUrlTemp,
+        fileUrlTemp,
         errorMessage: getErrorMessage(pathError),
       });
       throw new Error('Invalid file path: File path contains invalid characters or path traversal attempt');
     }
 
-    const existingHash = await getFileHashByPath(submission.fileUrlTemp);
+    const existingHash = await getFileHashByPath(fileUrlTemp);
 
     if (existingHash) {
-      finalFileUrl = submission.fileUrlTemp;
+      finalFileUrl = fileUrlTemp;
       fileHash = existingHash;
       const blocked = await txRepos.memes.asset.findFirst({
         where: {
@@ -129,7 +157,7 @@ export async function resolveApprovalInputs(opts: {
         debugLog(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
       } catch (error: unknown) {
         logger.error('admin.submissions.filehash_failed', { errorMessage: getErrorMessage(error) });
-        finalFileUrl = submission.fileUrlTemp;
+        finalFileUrl = fileUrlTemp;
         fileHash = null;
       }
     } else {

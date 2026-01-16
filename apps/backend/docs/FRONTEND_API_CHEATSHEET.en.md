@@ -20,7 +20,7 @@ Source of truth: `src/routes/*`, `src/controllers/*`, `src/shared/schemas.ts`, `
 - **CSRF**: for `POST/PUT/PATCH/DELETE` in production, `Origin`/`Referer` from allowed origins (CORS) is **required**.  
   Exceptions: `/internal/*`, `/webhooks/*`, `/health`, `/public/*`, `/auth/twitch*`.  
   Note: `POST /auth/logout` is still CSRF-protected (in prod), but it’s allowed without `Origin` only in a narrow case when the browser explicitly marks the request as same-site (`Sec-Fetch-Site: same-origin|same-site`).
-- **Uploads**: static files are available at `GET /uploads/...` (the URLs returned as `fileUrl` / `fileUrlTemp`).
+- **Uploads**: `fileUrl` / `fileUrlTemp` can be a `/uploads/...` path (local) or an absolute URL (S3/CDN); treat it as opaque.
 - **Enums** (see `src/shared/schemas.ts`):
   - `SubmissionStatus`: `pending | needs_changes | approved | rejected`
   - `MemeStatus`: `pending | approved | rejected` (+ soft-delete uses `status='deleted'` and `deletedAt`)
@@ -740,6 +740,7 @@ Purpose: manually enable/disable subscription-gated features for a channel (unti
 - **Credits overlay**:
   - `credits:config` → `{ creditsStyleJson }`
   - `credits:state` → `{ chatters: [{name}], donors: [{name,amount,currency}] }`
+
 
 
 
