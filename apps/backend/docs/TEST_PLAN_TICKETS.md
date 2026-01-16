@@ -868,9 +868,9 @@
 **Файл теста**: `tests/streamerBotSettings.test.ts`
 
 **Что тестировать**:
-- [ ] GET bot settings
-- [ ] PATCH bot settings (commands, greetings, etc.)
-- [ ] Валидация
+- [x] GET bot settings
+- [x] PATCH bot settings (provider enable/disable)
+- [x] Валидация
 
 **Acceptance Criteria**:
 ```
