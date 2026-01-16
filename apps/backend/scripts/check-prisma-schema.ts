@@ -4,7 +4,6 @@ import path from 'node:path';
 type Check = { name: string; predicate: (text: string) => boolean; hint: string };
 
 function fail(message: string): never {
-   
   console.error(message);
   process.exit(1);
 }
@@ -68,5 +67,4 @@ if (missing.length > 0) {
   );
 }
 
- 
 console.log('[schema:check] OK');

@@ -10,10 +10,7 @@ import {
   tryClaimAiSubmission,
 } from '../jobs/aiQueue.js';
 import { getBullmqConnection, getBullmqPrefix } from '../queues/bullmqConnection.js';
-import {
-  AI_MODERATION_QUEUE_NAME,
-  enqueueAiModerationDlq,
-} from '../queues/aiModerationQueue.js';
+import { AI_MODERATION_QUEUE_NAME, enqueueAiModerationDlq } from '../queues/aiModerationQueue.js';
 
 export type AiModerationWorkerHandle = {
   stop: (opts?: { timeoutMs?: number }) => Promise<void>;
@@ -112,7 +109,12 @@ export function startAiModerationWorker(): AiModerationWorkerHandle | null {
           jitterSeed: submissionId,
         });
         await prisma.memeSubmission.update({ where: { id: submissionId }, data: update });
-        logger.warn('ai.queue.failed', { submissionId, jobId: job.id, errorMessage: errMsg, nextStatus: update.aiStatus });
+        logger.warn('ai.queue.failed', {
+          submissionId,
+          jobId: job.id,
+          errorMessage: errMsg,
+          nextStatus: update.aiStatus,
+        });
 
         if (update.aiStatus === 'failed') {
           await enqueueAiModerationDlq({

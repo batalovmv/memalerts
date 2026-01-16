@@ -122,8 +122,7 @@ export async function handleTwitchFollowEvent(ctx: EventSubContext): Promise<boo
         select: { id: true },
       });
     } catch (error: unknown) {
-      const errorCode =
-        typeof error === 'object' && error !== null ? (error as { code?: string }).code : undefined;
+      const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : undefined;
       if (errorCode === 'P2002') {
         ctx.res.status(200).json({ message: 'Duplicate follow ignored' });
         return true;

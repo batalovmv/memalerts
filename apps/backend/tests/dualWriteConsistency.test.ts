@@ -276,10 +276,7 @@ describe('dual-write consistency', () => {
       status: 'approved',
     } satisfies Prisma.MemeCreateInput);
 
-    const pnpmCmd =
-      process.platform === 'win32'
-        ? path.join(process.env.APPDATA || '', 'npm', 'pnpm.cmd')
-        : 'pnpm';
+    const pnpmCmd = process.platform === 'win32' ? path.join(process.env.APPDATA || '', 'npm', 'pnpm.cmd') : 'pnpm';
     const pnpmExec = process.platform === 'win32' && existsSync(pnpmCmd) ? pnpmCmd : 'pnpm';
     const res = spawnSync(pnpmExec, ['-s', 'audit:consistency'], {
       cwd: path.resolve(process.cwd()),

@@ -50,12 +50,7 @@ async function start() {
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.TROVO_CHATBOT_OUTBOX_POLL_MS, 1_000));
   const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.TROVO_CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
   const outboxBullmqEnabled = parseBool(process.env.CHAT_OUTBOX_BULLMQ_ENABLED);
-  const outboxConcurrency = clampInt(
-    parseInt(String(process.env.TROVO_CHAT_OUTBOX_CONCURRENCY || ''), 10),
-    1,
-    10,
-    2
-  );
+  const outboxConcurrency = clampInt(parseInt(String(process.env.TROVO_CHAT_OUTBOX_CONCURRENCY || ''), 10), 1, 10, 2);
   const outboxRateLimitMax = clampInt(
     parseInt(String(process.env.TROVO_CHAT_OUTBOX_RATE_LIMIT_MAX || ''), 10),
     1,

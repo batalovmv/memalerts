@@ -124,9 +124,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
 
   const owner = channel.users[0] || null;
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
-  const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN)
-    ? channel.defaultPriceCoins ?? 0
-    : 100;
+  const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const response: PublicChannelResponse = {
     id: channel.id,
     slug: channel.slug,
@@ -138,14 +136,12 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
     rewardTitle: channel.rewardTitle,
     rewardOnlyWhenLive: channel.rewardOnlyWhenLive,
     submissionRewardCoins: Number.isFinite(channel.submissionRewardCoins ?? NaN)
-      ? channel.submissionRewardCoins ?? 0
+      ? (channel.submissionRewardCoins ?? 0)
       : 0,
     submissionRewardOnlyWhenLive: channel.submissionRewardOnlyWhenLive,
     submissionsEnabled: channel.submissionsEnabled,
     submissionsOnlyWhenLive: channel.submissionsOnlyWhenLive,
-    owner: owner
-      ? { id: owner.id, displayName: owner.displayName, profileImageUrl: owner.profileImageUrl }
-      : null,
+    owner: owner ? { id: owner.id, displayName: owner.displayName, profileImageUrl: owner.profileImageUrl } : null,
     stats: {
       memesCount: channel._count.channelMemes,
       usersCount: channel._count.users,

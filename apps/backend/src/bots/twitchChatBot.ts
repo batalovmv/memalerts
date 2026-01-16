@@ -129,9 +129,7 @@ async function getReconnectWindowMinutes(slug: string): Promise<number> {
       where: { slug },
       select: { creditsReconnectWindowMinutes: true },
     });
-    const v = Number.isFinite(ch?.creditsReconnectWindowMinutes)
-      ? Number(ch?.creditsReconnectWindowMinutes)
-      : 60;
+    const v = Number.isFinite(ch?.creditsReconnectWindowMinutes) ? Number(ch?.creditsReconnectWindowMinutes) : 60;
     const clamped = Math.max(1, Math.min(24 * 60, Math.floor(v)));
     windowMinCache.set(slug, { v: clamped, ts: now });
     return clamped;
@@ -351,9 +349,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
               const parsed = JSON.parse(raw) as unknown;
               const parsedRec = asRecord(parsed);
               lastDate = typeof parsedRec.lastDate === 'string' ? parsedRec.lastDate : null;
-              streak = Number.isFinite(Number(parsedRec.streak))
-                ? Math.floor(Number(parsedRec.streak))
-                : 0;
+              streak = Number.isFinite(Number(parsedRec.streak)) ? Math.floor(Number(parsedRec.streak)) : 0;
             }
           } catch {
             lastDate = null;
@@ -382,8 +378,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
         // First message per stream: award once per user per stream session.
         const firstCfg = asRecord(chatCfg.firstMessage);
         if (firstCfg.enabled) {
-          const onlyWhenLive =
-            firstCfg.onlyWhenLive === undefined ? true : Boolean(firstCfg.onlyWhenLive);
+          const onlyWhenLive = firstCfg.onlyWhenLive === undefined ? true : Boolean(firstCfg.onlyWhenLive);
           if (!onlyWhenLive || isOnline) {
             const sid = String(session.sessionId || '').trim();
             if (sid) {
@@ -409,8 +404,7 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
         // Message count thresholds per stream.
         const thrCfg = asRecord(chatCfg.messageThresholds);
         if (thrCfg.enabled) {
-          const onlyWhenLive =
-            thrCfg.onlyWhenLive === undefined ? true : Boolean(thrCfg.onlyWhenLive);
+          const onlyWhenLive = thrCfg.onlyWhenLive === undefined ? true : Boolean(thrCfg.onlyWhenLive);
           if (!onlyWhenLive || isOnline) {
             const sid = String(session.sessionId || '').trim();
             if (sid) {

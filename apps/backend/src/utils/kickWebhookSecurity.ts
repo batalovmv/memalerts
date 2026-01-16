@@ -40,8 +40,7 @@ export async function fetchKickPublicKeyPem(): Promise<string | null> {
       const data = await resp.json().catch(() => null);
       const dataRecord = asRecord(data);
       const nested = asRecord(dataRecord.data);
-      const keyRaw =
-        nested.public_key ?? nested.publicKey ?? dataRecord.public_key ?? dataRecord.publicKey ?? null;
+      const keyRaw = nested.public_key ?? nested.publicKey ?? dataRecord.public_key ?? dataRecord.publicKey ?? null;
       const pem = normalizePem(String(keyRaw || ''));
       if (!resp.ok || !pem) {
         logger.warn('kick.webhook.public_key_fetch_failed', { status: resp.status });

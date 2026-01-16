@@ -161,9 +161,7 @@ export async function fetchVkVideoUser(params: {
   // If root has nested "user" object (VKVideo Live current_user), prefer it.
   const userRootCandidate = root?.user ?? root?.profile ?? root;
   const userRoot =
-    userRootCandidate && typeof userRootCandidate === 'object'
-      ? (userRootCandidate as Record<string, unknown>)
-      : null;
+    userRootCandidate && typeof userRootCandidate === 'object' ? (userRootCandidate as Record<string, unknown>) : null;
 
   const id = String(
     userRoot?.id ??

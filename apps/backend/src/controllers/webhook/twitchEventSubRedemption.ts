@@ -4,7 +4,12 @@ import { twitchRedemptionEventSchema } from '../../shared/schemas.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../../utils/chatIdentity.js';
 import { logger } from '../../utils/logger.js';
 import { emitWalletEvents, recordAndMaybeClaim } from './twitchEventSubRewards.js';
-import { parseTwitchAutoRewards, safeNum, type ChannelForRedemption, type EventSubContext } from './twitchEventSubShared.js';
+import {
+  parseTwitchAutoRewards,
+  safeNum,
+  type ChannelForRedemption,
+  type EventSubContext,
+} from './twitchEventSubShared.js';
 
 export async function handleTwitchRedemptionEvent(ctx: EventSubContext): Promise<boolean> {
   if (ctx.subscriptionType !== 'channel.channel_points_custom_reward_redemption.add') return false;
@@ -60,9 +65,7 @@ export async function handleTwitchRedemptionEvent(ctx: EventSubContext): Promise
             reason: 'offline',
             eventAt: new Date(event.redeemed_at),
           });
-          ctx.res
-            .status(200)
-            .json({ message: 'Redemption skipped (offline)', errorCode: 'REWARD_DISABLED_OFFLINE' });
+          ctx.res.status(200).json({ message: 'Redemption skipped (offline)', errorCode: 'REWARD_DISABLED_OFFLINE' });
           return true;
         }
       }

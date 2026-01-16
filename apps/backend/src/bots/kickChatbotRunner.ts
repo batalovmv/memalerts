@@ -53,12 +53,7 @@ async function start() {
   const commandsRefreshSeconds = Math.max(5, parseIntSafe(process.env.KICK_CHATBOT_COMMANDS_REFRESH_SECONDS, 30));
   const ingestPollMs = Math.max(250, parseIntSafe(process.env.KICK_CHATBOT_INGEST_POLL_MS, 1_000));
   const outboxBullmqEnabled = parseBool(process.env.CHAT_OUTBOX_BULLMQ_ENABLED);
-  const outboxConcurrency = clampInt(
-    parseInt(String(process.env.KICK_CHAT_OUTBOX_CONCURRENCY || ''), 10),
-    1,
-    10,
-    2
-  );
+  const outboxConcurrency = clampInt(parseInt(String(process.env.KICK_CHAT_OUTBOX_CONCURRENCY || ''), 10), 1, 10, 2);
   const outboxRateLimitMax = clampInt(
     parseInt(String(process.env.KICK_CHAT_OUTBOX_RATE_LIMIT_MAX || ''), 10),
     1,

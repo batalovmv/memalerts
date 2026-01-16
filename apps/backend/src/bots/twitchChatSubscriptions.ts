@@ -1,7 +1,14 @@
 import { prisma } from '../lib/prisma.js';
 import { getEntitledChannelIds } from '../utils/entitlements.js';
 import { logger } from '../utils/logger.js';
-import { asRecord, getErrorCode, getErrorMessage, normalizeLogin, prismaAny, type BotClient } from './twitchChatbotShared.js';
+import {
+  asRecord,
+  getErrorCode,
+  getErrorMessage,
+  normalizeLogin,
+  prismaAny,
+  type BotClient,
+} from './twitchChatbotShared.js';
 
 type SubscriptionRow = { channelId: string; login: string; slug: string };
 
@@ -23,9 +30,7 @@ async function fetchEnabledSubscriptions(): Promise<SubscriptionRow[]> {
 
   let twitchGate: Map<string, boolean> | null = null;
   try {
-    const channelIds = Array.from(
-      new Set(rows.map((r) => String(asRecord(r).channelId ?? '').trim()).filter(Boolean))
-    );
+    const channelIds = Array.from(new Set(rows.map((r) => String(asRecord(r).channelId ?? '').trim()).filter(Boolean)));
     if (channelIds.length > 0) {
       const gateRows = await prismaAny.botIntegrationSettings.findMany({
         where: { channelId: { in: channelIds }, provider: 'twitch' },

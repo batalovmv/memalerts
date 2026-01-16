@@ -85,6 +85,4 @@ try {
   process.exit(1);
 }
 
-console.log(
-  `[backup:verify] OK file=${target.filePath} ageHours=${ageHours.toFixed(2)} sizeBytes=${target.size}`
-);
+console.log(`[backup:verify] OK file=${target.filePath} ageHours=${ageHours.toFixed(2)} sizeBytes=${target.size}`);

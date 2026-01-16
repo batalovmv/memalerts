@@ -167,9 +167,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     }
   > = new Map();
   if (includeAi) {
-    const assetIds = Array.from(
-      new Set(rows.map((r) => r.memeAsset?.id).filter((id): id is string => Boolean(id)))
-    );
+    const assetIds = Array.from(new Set(rows.map((r) => r.memeAsset?.id).filter((id): id is string => Boolean(id))));
     if (assetIds.length > 0) {
       try {
         const subs = await prisma.memeSubmission.findMany({
@@ -195,8 +193,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
         for (const s of subs) {
           const mv = s.aiModelVersionsJson ?? null;
           const mvRec = mv && typeof mv === 'object' ? (mv as Record<string, unknown>) : null;
-          const pipelineVersion =
-            mvRec && typeof mvRec.pipelineVersion === 'string' ? mvRec.pipelineVersion : null;
+          const pipelineVersion = mvRec && typeof mvRec.pipelineVersion === 'string' ? mvRec.pipelineVersion : null;
           if (s.memeAssetId) {
             latestAiByAssetId.set(String(s.memeAssetId), {
               submissionId: String(s.id),

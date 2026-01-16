@@ -63,7 +63,10 @@ describe('vkvideo chat commands', () => {
     const vkvideoIdToLastLiveStreamId = new Map<string, string | null>();
     const streamDurationCfgByChannelId = new Map<
       string,
-      { ts: number; cfg: { enabled: boolean; triggerNormalized: string; responseTemplate: string | null; onlyWhenLive: boolean } }
+      {
+        ts: number;
+        cfg: { enabled: boolean; triggerNormalized: string; responseTemplate: string | null; onlyWhenLive: boolean };
+      }
     >([
       [
         'channel-1',
@@ -78,7 +81,9 @@ describe('vkvideo chat commands', () => {
         },
       ],
     ]);
-    const commandsByChannelId = new Map<string, { ts: number; items: [] }>([['channel-1', { ts: Date.now(), items: [] }]]);
+    const commandsByChannelId = new Map<string, { ts: number; items: [] }>([
+      ['channel-1', { ts: Date.now(), items: [] }],
+    ]);
     const autoRewardsByChannelId = new Map<string, { ts: number; cfg: unknown | null }>([
       ['channel-1', { ts: Date.now(), cfg: null }],
     ]);
@@ -110,9 +115,7 @@ describe('vkvideo chat commands', () => {
       senderLogin: 'viewer',
     });
 
-    expect(sendVkVideoChatMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ text: 'Stream 2h 5m (125m)' })
-    );
+    expect(sendVkVideoChatMessage).toHaveBeenCalledWith(expect.objectContaining({ text: 'Stream 2h 5m (125m)' }));
   });
 
   it('replies to configured static commands', async () => {
@@ -121,8 +124,23 @@ describe('vkvideo chat commands', () => {
     const vkvideoIdToOwnerUserId = new Map<string, string>([['vk2', 'owner-2']]);
     const vkvideoIdToChannelUrl = new Map<string, string>([['vk2', 'https://vkvideo.example/channel/2']]);
     const vkvideoIdToLastLiveStreamId = new Map<string, string | null>();
-    const streamDurationCfgByChannelId = new Map<string, { ts: number; cfg: null }>([['channel-2', { ts: Date.now(), cfg: null }]]);
-    const commandsByChannelId = new Map<string, { ts: number; items: Array<{ triggerNormalized: string; response: string; onlyWhenLive: boolean; allowedRoles: string[]; allowedUsers: string[]; vkvideoAllowedRoleIds: string[] }> }>([
+    const streamDurationCfgByChannelId = new Map<string, { ts: number; cfg: null }>([
+      ['channel-2', { ts: Date.now(), cfg: null }],
+    ]);
+    const commandsByChannelId = new Map<
+      string,
+      {
+        ts: number;
+        items: Array<{
+          triggerNormalized: string;
+          response: string;
+          onlyWhenLive: boolean;
+          allowedRoles: string[];
+          allowedUsers: string[];
+          vkvideoAllowedRoleIds: string[];
+        }>;
+      }
+    >([
       [
         'channel-2',
         {

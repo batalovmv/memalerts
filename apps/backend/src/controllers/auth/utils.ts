@@ -72,7 +72,7 @@ export function getErrorMessage(err: unknown): string {
 export function wantsJson(req: AuthRequest): boolean {
   const accept = String(req.get('accept') || '').toLowerCase();
   if (accept.includes('application/json')) return true;
-  const reqRec = (req as unknown) as Record<string, unknown>;
+  const reqRec = req as unknown as Record<string, unknown>;
   if (reqRec?.xhr) return true;
   return false;
 }

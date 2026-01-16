@@ -58,14 +58,8 @@ function extractP95ByEndpoint(summary: K6Summary): Record<string, number> {
   return result;
 }
 
-const baselinePath = resolvePath(
-  'LOAD_TEST_BASELINE_PATH',
-  path.join(process.cwd(), 'tests', 'load', 'baseline.json')
-);
-const summaryPath = resolvePath(
-  'LOAD_TEST_SUMMARY_PATH',
-  path.join(process.cwd(), 'tests', 'load', 'summary.json')
-);
+const baselinePath = resolvePath('LOAD_TEST_BASELINE_PATH', path.join(process.cwd(), 'tests', 'load', 'baseline.json'));
+const summaryPath = resolvePath('LOAD_TEST_SUMMARY_PATH', path.join(process.cwd(), 'tests', 'load', 'summary.json'));
 const maxRegression = Number.parseFloat(String(process.env.LOAD_TEST_MAX_REGRESSION ?? '20'));
 
 if (!fs.existsSync(summaryPath)) {
@@ -97,9 +91,7 @@ for (const [endpoint, baselineValue] of Object.entries(baselineP95)) {
   }
   const allowed = (baselineValue as number) * allowedFactor;
   if ((currentValue as number) > allowed) {
-    failures.push(
-      `${endpoint}: ${currentValue.toFixed(2)}ms > ${allowed.toFixed(2)}ms (baseline ${baselineValue}ms)`
-    );
+    failures.push(`${endpoint}: ${currentValue.toFixed(2)}ms > ${allowed.toFixed(2)}ms (baseline ${baselineValue}ms)`);
   }
 }
 

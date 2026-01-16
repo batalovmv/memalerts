@@ -44,15 +44,18 @@ export async function handleCallback(req: AuthRequest, res: Response) {
   const consumed = await loadAndConsumeOAuthState(stateId);
   const consumedRow = asRecord(consumed.row);
   const stateOrigin = consumed.ok && typeof consumedRow.origin === 'string' ? consumedRow.origin : undefined;
-  const stateRedirectTo = consumed.ok && typeof consumedRow.redirectTo === 'string' ? consumedRow.redirectTo : undefined;
+  const stateRedirectTo =
+    consumed.ok && typeof consumedRow.redirectTo === 'string' ? consumedRow.redirectTo : undefined;
   const stateKind: OAuthStateKind | undefined =
     consumed.ok && typeof consumedRow.kind === 'string' ? (consumedRow.kind as OAuthStateKind) : undefined;
-  const stateUserId: string | undefined = consumed.ok ? (String(consumedRow.userId || '').trim() || undefined) : undefined;
+  const stateUserId: string | undefined = consumed.ok
+    ? String(consumedRow.userId || '').trim() || undefined
+    : undefined;
   const stateChannelId: string | undefined = consumed.ok
-    ? (String(consumedRow.channelId || '').trim() || undefined)
+    ? String(consumedRow.channelId || '').trim() || undefined
     : undefined;
   const stateCodeVerifier: string | undefined = consumed.ok
-    ? (String(consumedRow.codeVerifier || '').trim() || undefined)
+    ? String(consumedRow.codeVerifier || '').trim() || undefined
     : undefined;
   const providerFromState: ExternalAccountProvider | undefined =
     consumed.ok && typeof consumedRow.provider === 'string'
@@ -148,10 +151,10 @@ export async function handleCallback(req: AuthRequest, res: Response) {
     } catch (providerError) {
       if (providerError instanceof OAuthProviderError) {
         const redirectUrl = getRedirectUrl(req, stateOrigin);
-        const providerParam = providerError.includeProviderParam ? `&provider=${providerError.provider ?? provider}` : '';
-        return res.redirect(
-          `${redirectUrl}/?error=auth_failed&reason=${providerError.reason}${providerParam}`
-        );
+        const providerParam = providerError.includeProviderParam
+          ? `&provider=${providerError.provider ?? provider}`
+          : '';
+        return res.redirect(`${redirectUrl}/?error=auth_failed&reason=${providerError.reason}${providerParam}`);
       }
       throw providerError;
     }

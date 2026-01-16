@@ -34,11 +34,7 @@ async function main() {
           },
           {
             aiStatus: 'processing',
-            OR: [
-              { aiLockExpiresAt: { lte: now } },
-              { aiLockExpiresAt: null },
-              { aiLastTriedAt: { lt: stuckBefore } },
-            ],
+            OR: [{ aiLockExpiresAt: { lte: now } }, { aiLockExpiresAt: null }, { aiLastTriedAt: { lt: stuckBefore } }],
           },
         ],
       },

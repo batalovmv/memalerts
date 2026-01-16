@@ -383,4 +383,3 @@ if (isMainModule) {
 }
 
 export { migrateBetaToProduction };
-

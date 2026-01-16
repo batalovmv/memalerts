@@ -244,15 +244,23 @@ export function extractKickRewardRedemption(payload: unknown): {
 
   const rewardRec = asRecord(redemptionRec.reward ?? eventRec.reward ?? {});
   const rewardId = safeString(rewardRec.id ?? rewardRec.reward_id ?? redemptionRec.reward_id ?? null) || null;
-  const amount = Math.floor(safeNum(redemptionRec.amount ?? rewardRec.cost ?? rewardRec.points ?? rewardRec.value ?? 0));
+  const amount = Math.floor(
+    safeNum(redemptionRec.amount ?? rewardRec.cost ?? rewardRec.points ?? rewardRec.value ?? 0)
+  );
   const status = safeString(redemptionRec.status ?? redemptionRec.state ?? eventRec.status ?? null) || null;
 
   const providerEventId =
-    safeString(redemptionRec.id ?? redemptionRec.redemption_id ?? eventRec.id ?? eventRec.redemption_id ?? null) || null;
+    safeString(redemptionRec.id ?? redemptionRec.redemption_id ?? eventRec.id ?? eventRec.redemption_id ?? null) ||
+    null;
 
   const eventAt = (() => {
     const ts =
-      redemptionRec.created_at ?? redemptionRec.createdAt ?? redemptionRec.timestamp ?? redemptionRec.time ?? rootRec.timestamp ?? null;
+      redemptionRec.created_at ??
+      redemptionRec.createdAt ??
+      redemptionRec.timestamp ??
+      redemptionRec.time ??
+      rootRec.timestamp ??
+      null;
     const ms = parseTimestampMs(ts);
     return ms ? new Date(ms) : null;
   })();
@@ -322,8 +330,7 @@ export function extractKickRecipientsUserIds(payload: unknown): string[] {
 
 export function extractKickCount(payload: unknown): number {
   const eventRec = getKickEventRec(payload);
-  const count =
-    eventRec.count ?? eventRec.total ?? eventRec.quantity ?? eventRec.gifts ?? eventRec.gift_count ?? null;
+  const count = eventRec.count ?? eventRec.total ?? eventRec.quantity ?? eventRec.gifts ?? eventRec.gift_count ?? null;
   const n = Math.floor(safeNum(count));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
@@ -338,7 +345,12 @@ export function extractKickKicksAmount(payload: unknown): number {
 export function extractKickTier(payload: unknown): string {
   const eventRec = getKickEventRec(payload);
   const tier =
-    eventRec.tier ?? eventRec.sub_tier ?? eventRec.subTier ?? eventRec.subscription_tier ?? eventRec.subscriptionTier ?? null;
+    eventRec.tier ??
+    eventRec.sub_tier ??
+    eventRec.subTier ??
+    eventRec.subscription_tier ??
+    eventRec.subscriptionTier ??
+    null;
   const normalized = safeString(tier);
   return normalized || '1000';
 }

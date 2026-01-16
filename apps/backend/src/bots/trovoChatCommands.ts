@@ -1,6 +1,10 @@
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
-import { getValidTrovoAccessTokenByExternalAccountId, getValidTrovoBotAccessToken, sendTrovoChatMessage } from '../utils/trovoApi.js';
+import {
+  getValidTrovoAccessTokenByExternalAccountId,
+  getValidTrovoBotAccessToken,
+  sendTrovoChatMessage,
+} from '../utils/trovoApi.js';
 import { logger } from '../utils/logger.js';
 import {
   asRecord,
@@ -84,10 +88,7 @@ export async function sendToTrovoChat(params: { st: TrovoChannelState; text: str
   }
 }
 
-export function createTrovoChatCommands(
-  states: Map<string, TrovoChannelState>,
-  config: TrovoChatCommandsConfig
-) {
+export function createTrovoChatCommands(states: Map<string, TrovoChannelState>, config: TrovoChatCommandsConfig) {
   const { backendBaseUrls, commandsRefreshSeconds, stoppedRef } = config;
   let commandsRefreshing = false;
 

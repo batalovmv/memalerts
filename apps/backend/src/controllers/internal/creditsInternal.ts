@@ -166,7 +166,8 @@ export const creditsInternalController = {
     try {
       const appRec = asRecord(req.app);
       const getFn = appRec.get;
-      const io: Server | undefined = typeof getFn === 'function' ? (getFn as (key: string) => Server | undefined)('io') : undefined;
+      const io: Server | undefined =
+        typeof getFn === 'function' ? (getFn as (key: string) => Server | undefined)('io') : undefined;
       if (io) {
         scheduleEmitCreditsState(io, slug);
       }

@@ -41,10 +41,7 @@ export default async function globalSetup() {
   // (some migrations were created assuming pre-existing tables).
   // For CI tests we need a deterministic "create schema from current Prisma schema" step,
   // therefore we use `prisma db push`.
-  const pnpmCmd =
-    process.platform === 'win32'
-      ? path.join(process.env.APPDATA || '', 'npm', 'pnpm.cmd')
-      : 'pnpm';
+  const pnpmCmd = process.platform === 'win32' ? path.join(process.env.APPDATA || '', 'npm', 'pnpm.cmd') : 'pnpm';
   const pnpmExec = process.platform === 'win32' && fs.existsSync(pnpmCmd) ? pnpmCmd : 'pnpm';
   const bootstrap = spawnSync(pnpmExec, ['prisma', 'db', 'push', '--accept-data-loss'], {
     stdio: 'inherit',

@@ -98,8 +98,7 @@ export async function prepareYouTubePatch(ctx: BotPatchContext): Promise<BotPatc
         status: 409,
         body: {
           errorCode: 'YOUTUBE_CHANNEL_REQUIRED',
-          error:
-            'Your Google account has no YouTube channel. Please create/activate a YouTube channel and try again.',
+          error: 'Your Google account has no YouTube channel. Please create/activate a YouTube channel and try again.',
           details: {
             reason,
             // Helps support/debugging when multiple YouTube accounts are linked.
@@ -203,7 +202,12 @@ export async function applyYouTubePatch(
     }
     await prisma.youTubeChatBotSubscription.upsert({
       where: { channelId: ctx.channelId },
-      create: { channelId: ctx.channelId, userId: ctx.req.userId, youtubeChannelId: data.youtubeChannelId, enabled: true },
+      create: {
+        channelId: ctx.channelId,
+        userId: ctx.req.userId,
+        youtubeChannelId: data.youtubeChannelId,
+        enabled: true,
+      },
       update: { userId: ctx.req.userId, youtubeChannelId: data.youtubeChannelId, enabled: true },
       select: { id: true },
     });

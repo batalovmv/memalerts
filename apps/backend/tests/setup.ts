@@ -14,13 +14,13 @@ if (!process.env.NODE_ENV) {
 
 if (silent) {
   // Reduce noise in test output while keeping console.error intact.
-   
+
   console.log = () => {};
-   
+
   console.info = () => {};
-   
+
   console.debug = () => {};
-   
+
   console.warn = () => {};
 }
 

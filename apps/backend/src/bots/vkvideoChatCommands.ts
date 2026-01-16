@@ -79,12 +79,7 @@ export function createVkvideoChatCommands(state: VkvideoChatCommandState, config
     autoRewardsByChannelId,
     userRolesCache,
   } = state;
-  const {
-    backendBaseUrls,
-    commandsRefreshSeconds,
-    userRolesCacheTtlMs,
-    stoppedRef,
-  } = config;
+  const { backendBaseUrls, commandsRefreshSeconds, userRolesCacheTtlMs, stoppedRef } = config;
   const roleStubs = parseVkVideoRoleStubs();
   let commandsRefreshing = false;
 

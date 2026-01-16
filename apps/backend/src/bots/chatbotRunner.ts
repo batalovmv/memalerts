@@ -46,12 +46,7 @@ async function start() {
   const syncSeconds = Math.max(5, parseIntSafe(process.env.CHATBOT_SYNC_SECONDS, 30));
   const outboxPollMs = Math.max(250, parseIntSafe(process.env.CHATBOT_OUTBOX_POLL_MS, 1_000));
   const outboxBullmqEnabled = parseBool(process.env.CHAT_OUTBOX_BULLMQ_ENABLED);
-  const outboxConcurrency = clampInt(
-    parseInt(String(process.env.TWITCH_CHAT_OUTBOX_CONCURRENCY || ''), 10),
-    1,
-    10,
-    2
-  );
+  const outboxConcurrency = clampInt(parseInt(String(process.env.TWITCH_CHAT_OUTBOX_CONCURRENCY || ''), 10), 1, 10, 2);
   const outboxRateLimitMax = clampInt(
     parseInt(String(process.env.TWITCH_CHAT_OUTBOX_RATE_LIMIT_MAX || ''), 10),
     1,

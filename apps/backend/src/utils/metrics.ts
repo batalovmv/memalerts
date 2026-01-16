@@ -199,8 +199,7 @@ function createRegistry(): {
       registry,
       counter: (opts) => wrapCounter(new promClient.Counter({ ...opts, registers: [registry] }), opts.name),
       gauge: (opts) => wrapGauge(new promClient.Gauge({ ...opts, registers: [registry] }), opts.name),
-      histogram: (opts) =>
-        wrapHistogram(new promClient.Histogram({ ...opts, registers: [registry] }), opts.name),
+      histogram: (opts) => wrapHistogram(new promClient.Histogram({ ...opts, registers: [registry] }), opts.name),
     };
   }
 

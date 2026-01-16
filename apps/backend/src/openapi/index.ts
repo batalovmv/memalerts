@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import type { AnyZodObject, ZodTypeAny } from 'zod';
-import {
-  OpenAPIRegistry,
-  OpenApiGeneratorV3,
-  extendZodWithOpenApi,
-} from '@asteasolutions/zod-to-openapi';
+import { OpenAPIRegistry, OpenApiGeneratorV3, extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
 import {
   approveSubmissionSchema,
   bulkSubmissionsSchema,

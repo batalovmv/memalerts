@@ -1,7 +1,14 @@
 import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { logger } from '../utils/logger.js';
-import { asRecord, getErrorMessage, normalizeLogin, normalizeMessage, prismaAny, type KickChannelState } from './kickChatbotShared.js';
+import {
+  asRecord,
+  getErrorMessage,
+  normalizeLogin,
+  normalizeMessage,
+  prismaAny,
+  type KickChannelState,
+} from './kickChatbotShared.js';
 import { sendToKickChat } from './kickChatSender.js';
 
 type IncomingChat = {

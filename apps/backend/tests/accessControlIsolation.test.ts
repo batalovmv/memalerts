@@ -10,13 +10,7 @@ import { requireBetaAccess } from '../src/middleware/betaAccess.js';
 import { submissionRoutes } from '../src/routes/submissions.js';
 import { streamerRoutes } from '../src/routes/streamer.js';
 import { ownerRoutes } from '../src/routes/owner.js';
-import {
-  createChannel,
-  createChannelMeme,
-  createMemeAsset,
-  createSubmission,
-  createUser,
-} from './factories/index.js';
+import { createChannel, createChannelMeme, createMemeAsset, createSubmission, createUser } from './factories/index.js';
 
 function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });

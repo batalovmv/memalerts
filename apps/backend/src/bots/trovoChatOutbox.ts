@@ -25,10 +25,7 @@ type TrovoChatOutboxConfig = {
   stoppedRef: { value: boolean };
 };
 
-export function createTrovoChatOutbox(
-  states: Map<string, TrovoChannelState>,
-  config: TrovoChatOutboxConfig
-) {
+export function createTrovoChatOutbox(states: Map<string, TrovoChannelState>, config: TrovoChatOutboxConfig) {
   const {
     outboxBullmqEnabled,
     outboxConcurrency,

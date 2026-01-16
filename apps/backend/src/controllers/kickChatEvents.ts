@@ -48,13 +48,20 @@ function extractKickChatMessageSent(payload: unknown): {
   const channelRec = asRecord(eventRec.broadcaster ?? eventRec.channel ?? {});
   const kickChannelId =
     String(
-      channelRec.user_id ?? channelRec.id ?? channelRec.channel_id ?? rootRec.channel_id ?? rootRec.broadcaster_user_id ?? ''
+      channelRec.user_id ??
+        channelRec.id ??
+        channelRec.channel_id ??
+        rootRec.channel_id ??
+        rootRec.broadcaster_user_id ??
+        ''
     ).trim() || null;
 
   const senderRec = asRecord(eventRec.sender ?? eventRec.user ?? eventRec.chatter ?? eventRec.author ?? {});
   const platformUserId =
-    String(senderRec.user_id ?? senderRec.id ?? senderRec.userId ?? eventRec.user_id ?? eventRec.userId ?? '').trim() || null;
-  const loginRaw = String(senderRec.username ?? senderRec.user_name ?? senderRec.login ?? senderRec.name ?? '').trim() || null;
+    String(senderRec.user_id ?? senderRec.id ?? senderRec.userId ?? eventRec.user_id ?? eventRec.userId ?? '').trim() ||
+    null;
+  const loginRaw =
+    String(senderRec.username ?? senderRec.user_name ?? senderRec.login ?? senderRec.name ?? '').trim() || null;
   const displayName =
     String(
       senderRec.display_name ??
@@ -64,10 +71,13 @@ function extractKickChatMessageSent(payload: unknown): {
         senderRec.callingName ??
         ''
     ).trim() || null;
-  const avatarUrl = String(senderRec.profile_image_url ?? senderRec.avatar_url ?? senderRec.avatarUrl ?? '').trim() || null;
+  const avatarUrl =
+    String(senderRec.profile_image_url ?? senderRec.avatar_url ?? senderRec.avatarUrl ?? '').trim() || null;
 
   const msgRec = asRecord(eventRec.message ?? eventRec.chat_message ?? eventRec.chatMessage ?? eventRec.data ?? {});
-  const text = normalizeMessage(msgRec.content ?? msgRec.message ?? msgRec.text ?? eventRec.content ?? eventRec.message ?? '');
+  const text = normalizeMessage(
+    msgRec.content ?? msgRec.message ?? msgRec.text ?? eventRec.content ?? eventRec.message ?? ''
+  );
 
   const roles = new Set<ChatCommandRole>();
   const identityRec = asRecord(senderRec.identity);
@@ -168,7 +178,10 @@ export async function handleKickChatMessageSent(params: {
         select: { channelId: true, channel: { select: { slug: true } } },
       });
       const channelId = String(sub?.channelId ?? '').trim() || null;
-      const channelSlug = String(sub?.channel?.slug ?? '').trim().toLowerCase() || null;
+      const channelSlug =
+        String(sub?.channel?.slug ?? '')
+          .trim()
+          .toLowerCase() || null;
       if (!channelId || !channelSlug) {
         return {
           httpStatus: 200,
@@ -212,7 +225,9 @@ export async function handleKickChatMessageSent(params: {
                   },
                   select: { id: true },
                 });
-                eventBuffer.add(() => void enqueueChatOutboxJob({ platform: 'kick', outboxId: outboxRow.id, channelId }));
+                eventBuffer.add(
+                  () => void enqueueChatOutboxJob({ platform: 'kick', outboxId: outboxRow.id, channelId })
+                );
               }
             } else {
               const outboxRow = await tx.kickChatBotOutboxMessage.create({

@@ -24,10 +24,13 @@ const kickRetryConfig = getServiceRetryConfig('kick', {
   maxDelayMs: 3000,
 });
 
-function retryKick<T>(action: (attempt: number) => Promise<T>, options?: {
-  retryOnResult?: (result: T) => boolean;
-  isSuccessResult?: (result: T) => boolean;
-}): Promise<T> {
+function retryKick<T>(
+  action: (attempt: number) => Promise<T>,
+  options?: {
+    retryOnResult?: (result: T) => boolean;
+    isSuccessResult?: (result: T) => boolean;
+  }
+): Promise<T> {
   return withRetry(action, {
     service: 'kick',
     ...kickRetryConfig,
@@ -240,10 +243,7 @@ export async function sendKickChatMessage(params: {
 
 const DEFAULT_KICK_EVENTS_SUBSCRIPTIONS_URL = 'https://api.kick.com/public/v1/events/subscriptions';
 
-export async function listKickEventSubscriptions(params: {
-  accessToken: string;
-  url?: string;
-}): Promise<{
+export async function listKickEventSubscriptions(params: { accessToken: string; url?: string }): Promise<{
   ok: boolean;
   status: number;
   raw: unknown;

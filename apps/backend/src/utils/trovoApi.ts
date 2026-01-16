@@ -18,10 +18,13 @@ const trovoRetryConfig = getServiceRetryConfig('trovo', {
   maxDelayMs: 3000,
 });
 
-function retryTrovo<T>(action: (attempt: number) => Promise<T>, options?: {
-  retryOnResult?: (result: T) => boolean;
-  isSuccessResult?: (result: T) => boolean;
-}): Promise<T> {
+function retryTrovo<T>(
+  action: (attempt: number) => Promise<T>,
+  options?: {
+    retryOnResult?: (result: T) => boolean;
+    isSuccessResult?: (result: T) => boolean;
+  }
+): Promise<T> {
   return withRetry(action, {
     service: 'trovo',
     ...trovoRetryConfig,
@@ -247,11 +250,3 @@ export async function sendTrovoChatMessage(params: {
     return { ok: false, status: 0, raw: { error: err.message || String(error) } };
   }
 }
-
-
-
-
-
-
-
-

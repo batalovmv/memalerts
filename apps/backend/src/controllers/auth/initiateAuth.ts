@@ -8,7 +8,9 @@ import { asRecord, getRedirectUrl } from './utils.js';
 export async function initiateAuth(req: AuthRequest, res: Response) {
   const params = asRecord(req.params);
   const query = asRecord(req.query);
-  const provider = String(params.provider || '').trim().toLowerCase();
+  const provider = String(params.provider || '')
+    .trim()
+    .toLowerCase();
   const oauthProvider = resolveOAuthProvider(provider);
   if (!oauthProvider || !oauthProvider.supportsLogin) {
     const redirectUrl = getRedirectUrl(req);

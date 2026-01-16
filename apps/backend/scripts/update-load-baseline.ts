@@ -58,14 +58,8 @@ function extractP95ByEndpoint(summary: K6Summary): Record<string, number> {
   return result;
 }
 
-const summaryPath = resolvePath(
-  'LOAD_TEST_SUMMARY_PATH',
-  path.join(process.cwd(), 'tests', 'load', 'summary.json')
-);
-const baselinePath = resolvePath(
-  'LOAD_TEST_BASELINE_PATH',
-  path.join(process.cwd(), 'tests', 'load', 'baseline.json')
-);
+const summaryPath = resolvePath('LOAD_TEST_SUMMARY_PATH', path.join(process.cwd(), 'tests', 'load', 'summary.json'));
+const baselinePath = resolvePath('LOAD_TEST_BASELINE_PATH', path.join(process.cwd(), 'tests', 'load', 'baseline.json'));
 
 if (!fs.existsSync(summaryPath)) {
   console.error(`k6 summary not found: ${summaryPath}`);

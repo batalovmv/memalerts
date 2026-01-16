@@ -5,7 +5,7 @@ import { createUser } from './userFactory.js';
 import { uniqueId } from './utils.js';
 
 export async function createKickChatBotSubscription(
-  overrides: Partial<Prisma.KickChatBotSubscriptionUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.KickChatBotSubscriptionUncheckedCreateInput> = {}
 ): Promise<KickChatBotSubscription> {
   const seed = uniqueId('kick');
   const channelId = overrides.channelId ?? (await createChannel()).id;
@@ -21,7 +21,7 @@ export async function createKickChatBotSubscription(
 }
 
 export async function createChatBotCommand(
-  overrides: Partial<Prisma.ChatBotCommandUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.ChatBotCommandUncheckedCreateInput> = {}
 ): Promise<ChatBotCommand> {
   const seed = uniqueId('command');
   const channelId = overrides.channelId ?? (await createChannel()).id;

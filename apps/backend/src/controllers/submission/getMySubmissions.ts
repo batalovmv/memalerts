@@ -137,7 +137,7 @@ export const getMySubmissions = async (req: AuthRequest, res: Response) => {
       const memeAsset = row.memeAsset as { fileUrl?: string | null } | undefined;
       return {
         ...rest,
-        sourceUrl: sourceKind === 'pool' && !sourceUrl ? memeAsset?.fileUrl ?? null : sourceUrl,
+        sourceUrl: sourceKind === 'pool' && !sourceUrl ? (memeAsset?.fileUrl ?? null) : sourceUrl,
       };
     });
     const nextCursor = hasMore ? encodeCursorFromItem(items[items.length - 1], DEFAULT_CURSOR_SCHEMA) : null;

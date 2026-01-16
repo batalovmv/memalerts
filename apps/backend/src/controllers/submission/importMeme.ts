@@ -232,7 +232,8 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
                   data: legacyData,
                 });
               } catch (error) {
-                const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+                const errorCode =
+                  typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
                 if (errorCode === 'P2025') {
                   legacy = await tx.meme.create({ data: legacyData });
                   await tx.channelMeme.update({

@@ -21,7 +21,9 @@ type TwitchRewardResult = {
   coinIconUrl: string | null;
 };
 
-function getRewardIconUrl(reward: { image?: { url_1x?: string; url_2x?: string; url_4x?: string } | null } | null | undefined): string | null {
+function getRewardIconUrl(
+  reward: { image?: { url_1x?: string; url_2x?: string; url_4x?: string } | null } | null | undefined
+): string | null {
   const img = reward?.image;
   return img?.url_1x || img?.url_2x || img?.url_4x || null;
 }
@@ -36,10 +38,8 @@ export async function handleTwitchRewardSettings(params: {
 }): Promise<TwitchRewardResult> {
   const { req, userId, channelId, channel, body, bodyRec } = params;
   const channelRec = asRecord(channel);
-  const channelRewardIdForCoins =
-    typeof channelRec.rewardIdForCoins === 'string' ? channelRec.rewardIdForCoins : null;
-  let rewardIdForCoinsOverride =
-    typeof bodyRec.rewardIdForCoins === 'string' ? bodyRec.rewardIdForCoins : null;
+  const channelRewardIdForCoins = typeof channelRec.rewardIdForCoins === 'string' ? channelRec.rewardIdForCoins : null;
+  let rewardIdForCoinsOverride = typeof bodyRec.rewardIdForCoins === 'string' ? bodyRec.rewardIdForCoins : null;
 
   let coinIconUrl: string | null = null;
   const currentRewardEnabled = Boolean(channelRec.rewardEnabled);
@@ -85,11 +85,14 @@ export async function handleTwitchRewardSettings(params: {
         const who = await getAuthenticatedTwitchUser(userId);
         const tokenTwitchUserId = who?.id || null;
         if (tokenTwitchUserId && tokenTwitchUserId !== String(broadcasterId)) {
-          throw Object.assign(new Error('Twitch account mismatch. Please log in as the channel owner to manage rewards.'), {
-            status: 403,
-            errorCode: 'TWITCH_ACCOUNT_MISMATCH',
-            requiresReauth: true,
-          });
+          throw Object.assign(
+            new Error('Twitch account mismatch. Please log in as the channel owner to manage rewards.'),
+            {
+              status: 403,
+              errorCode: 'TWITCH_ACCOUNT_MISMATCH',
+              requiresReauth: true,
+            }
+          );
         }
       } catch (e: unknown) {
         logger.warn('twitch.identity_check.failed', {
@@ -114,10 +117,13 @@ export async function handleTwitchRewardSettings(params: {
             rawBroadcasterType: info?._meta?.rawBroadcasterType,
           });
           if (!isBetaBackend()) {
-            throw Object.assign(new Error('Unable to verify Twitch eligibility at the moment. Please try again later.'), {
-              status: 502,
-              errorCode: 'TWITCH_ELIGIBILITY_UNKNOWN',
-            });
+            throw Object.assign(
+              new Error('Unable to verify Twitch eligibility at the moment. Please try again later.'),
+              {
+                status: 502,
+                errorCode: 'TWITCH_ELIGIBILITY_UNKNOWN',
+              }
+            );
           }
         }
 
@@ -366,7 +372,12 @@ export async function handleTwitchRewardSettings(params: {
                     });
                   }
                 }
-                await createEventSubSubscription(userId, broadcasterId, webhookUrl, process.env.TWITCH_EVENTSUB_SECRET!);
+                await createEventSubSubscription(
+                  userId,
+                  broadcasterId,
+                  webhookUrl,
+                  process.env.TWITCH_EVENTSUB_SECRET!
+                );
               } else {
                 throw createErr;
               }

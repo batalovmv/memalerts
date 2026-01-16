@@ -1,6 +1,10 @@
 import type { AuthRequest } from '../../../middleware/auth.js';
 import type { Channel } from '@prisma/client';
-import { getEventSubSubscriptions, createEventSubSubscriptionOfType, deleteEventSubSubscription } from '../../../utils/twitchApi.js';
+import {
+  getEventSubSubscriptions,
+  createEventSubSubscriptionOfType,
+  deleteEventSubSubscription,
+} from '../../../utils/twitchApi.js';
 import { asRecord } from './shared.js';
 
 export async function ensureTwitchAutoRewardsEventSubs(params: {

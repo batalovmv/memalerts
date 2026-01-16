@@ -55,11 +55,3 @@ if (total > baselineTotal) {
 }
 
 console.log(`✅ any guard OK (${total} <= ${baselineTotal})`);
-
-
-
-
-
-
-
-

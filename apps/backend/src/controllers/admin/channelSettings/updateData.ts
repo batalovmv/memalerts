@@ -12,8 +12,7 @@ export function buildChannelUpdateData(params: {
 }) {
   const { channel, body, bodyRec, rewardIdForCoinsOverride, kickRewardsSubscriptionIdToSave, coinIconUrl } = params;
   const channelRec = asRecord(channel);
-  const channelRewardIdForCoins =
-    typeof channelRec.rewardIdForCoins === 'string' ? channelRec.rewardIdForCoins : null;
+  const channelRewardIdForCoins = typeof channelRec.rewardIdForCoins === 'string' ? channelRec.rewardIdForCoins : null;
 
   const updateData: Record<string, unknown> = {
     rewardIdForCoins: rewardIdForCoinsOverride ?? channelRewardIdForCoins,
@@ -31,23 +30,14 @@ export function buildChannelUpdateData(params: {
         ? kickRewardsSubscriptionIdToSave
         : channelRec.kickRewardsSubscriptionId,
     kickRewardIdForCoins:
-      bodyRec.kickRewardIdForCoins !== undefined
-        ? bodyRec.kickRewardIdForCoins
-        : channelRec.kickRewardIdForCoins,
+      bodyRec.kickRewardIdForCoins !== undefined ? bodyRec.kickRewardIdForCoins : channelRec.kickRewardIdForCoins,
     kickCoinPerPointRatio:
-      bodyRec.kickCoinPerPointRatio !== undefined
-        ? bodyRec.kickCoinPerPointRatio
-        : channelRec.kickCoinPerPointRatio,
-    kickRewardCoins:
-      bodyRec.kickRewardCoins !== undefined ? bodyRec.kickRewardCoins : channelRec.kickRewardCoins,
+      bodyRec.kickCoinPerPointRatio !== undefined ? bodyRec.kickCoinPerPointRatio : channelRec.kickCoinPerPointRatio,
+    kickRewardCoins: bodyRec.kickRewardCoins !== undefined ? bodyRec.kickRewardCoins : channelRec.kickRewardCoins,
     kickRewardOnlyWhenLive:
-      bodyRec.kickRewardOnlyWhenLive !== undefined
-        ? bodyRec.kickRewardOnlyWhenLive
-        : channelRec.kickRewardOnlyWhenLive,
+      bodyRec.kickRewardOnlyWhenLive !== undefined ? bodyRec.kickRewardOnlyWhenLive : channelRec.kickRewardOnlyWhenLive,
     trovoManaCoinsPerUnit:
-      bodyRec.trovoManaCoinsPerUnit !== undefined
-        ? bodyRec.trovoManaCoinsPerUnit
-        : channelRec.trovoManaCoinsPerUnit,
+      bodyRec.trovoManaCoinsPerUnit !== undefined ? bodyRec.trovoManaCoinsPerUnit : channelRec.trovoManaCoinsPerUnit,
     trovoElixirCoinsPerUnit:
       bodyRec.trovoElixirCoinsPerUnit !== undefined
         ? bodyRec.trovoElixirCoinsPerUnit
@@ -104,8 +94,7 @@ export function buildChannelUpdateData(params: {
     secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : channelRec.secondaryColor,
     accentColor: body.accentColor !== undefined ? body.accentColor : channelRec.accentColor,
     overlayMode: body.overlayMode !== undefined ? body.overlayMode : channelRec.overlayMode,
-    overlayShowSender:
-      body.overlayShowSender !== undefined ? body.overlayShowSender : channelRec.overlayShowSender,
+    overlayShowSender: body.overlayShowSender !== undefined ? body.overlayShowSender : channelRec.overlayShowSender,
     overlayMaxConcurrent:
       body.overlayMaxConcurrent !== undefined ? body.overlayMaxConcurrent : channelRec.overlayMaxConcurrent,
     overlayStyleJson: body.overlayStyleJson !== undefined ? body.overlayStyleJson : channelRec.overlayStyleJson,

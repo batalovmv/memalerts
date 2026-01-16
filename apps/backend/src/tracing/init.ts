@@ -33,9 +33,9 @@ if (diagEnabled) {
 const enabledEnv = parseBool(process.env.OTEL_ENABLED);
 const hasExporterConfig = Boolean(
   process.env.OTEL_EXPORTER_JAEGER_ENDPOINT ||
-    process.env.JAEGER_ENDPOINT ||
-    process.env.OTEL_EXPORTER_JAEGER_AGENT_HOST ||
-    process.env.JAEGER_AGENT_HOST
+  process.env.JAEGER_ENDPOINT ||
+  process.env.OTEL_EXPORTER_JAEGER_AGENT_HOST ||
+  process.env.JAEGER_AGENT_HOST
 );
 const otelEnabled = enabledEnv ?? hasExporterConfig;
 

@@ -15,11 +15,7 @@ function normalizeSecret(value: string | undefined | null): string | null {
 }
 
 function base64Url(input: Buffer): string {
-  return input
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
+  return input.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function buildKid(secret: string): string {
@@ -48,11 +44,7 @@ export function signJwt(payload: string | Buffer | object, options?: SignOptions
   return jwt.sign(payload, currentSecret, { ...options, algorithm, header });
 }
 
-export function verifyJwtWithRotation<T = jwt.JwtPayload>(
-  token: string,
-  context: string,
-  options?: VerifyOptions
-): T {
+export function verifyJwtWithRotation<T = jwt.JwtPayload>(token: string, context: string, options?: VerifyOptions): T {
   const { currentSecret, previousSecret } = getJwtConfig();
   try {
     return jwt.verify(token, currentSecret, options) as T;

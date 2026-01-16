@@ -8,12 +8,7 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   return Math.floor(n);
 }
 
-export function getServiceHttpTimeoutMs(
-  service: string,
-  fallbackMs: number,
-  minMs = 1000,
-  maxMs = 120_000
-): number {
+export function getServiceHttpTimeoutMs(service: string, fallbackMs: number, minMs = 1000, maxMs = 120_000): number {
   const key = `${service.toUpperCase()}_HTTP_TIMEOUT_MS`;
   const raw = parseInt(String(process.env[key] || ''), 10);
   return clampInt(raw, minMs, maxMs, fallbackMs);

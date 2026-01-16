@@ -181,8 +181,7 @@ export async function fetchTrovoUserInfo(params: {
   const nickname =
     String(root?.['nick_name'] ?? root?.['nickname'] ?? root?.['display_name'] ?? root?.['displayName'] ?? '').trim() ||
     undefined;
-  const userName =
-    String(root?.['user_name'] ?? root?.['username'] ?? root?.['login'] ?? '').trim() || undefined;
+  const userName = String(root?.['user_name'] ?? root?.['username'] ?? root?.['login'] ?? '').trim() || undefined;
   const avatar =
     String(
       root?.['profile_pic'] ??
@@ -207,11 +206,3 @@ export async function fetchTrovoUserInfo(params: {
     text: post.text,
   };
 }
-
-
-
-
-
-
-
-

@@ -127,8 +127,7 @@ export async function getValidVkVideoBotAccessToken(): Promise<string | null> {
     if (!externalAccountId) return null;
     return await getValidVkVideoAccessTokenByExternalAccountId(externalAccountId);
   } catch (error: unknown) {
-    const errorCode =
-      typeof error === 'object' && error !== null ? (error as { code?: string }).code : undefined;
+    const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : undefined;
     if (errorCode !== 'P2021') {
       logger.warn('vkvideo.bot_token.db_credential_lookup_failed', {
         errorMessage: error instanceof Error ? error.message : String(error),

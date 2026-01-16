@@ -27,10 +27,7 @@ type KickChatOutboxConfig = {
   stoppedRef: { value: boolean };
 };
 
-export function createKickChatOutbox(
-  states: Map<string, KickChannelState>,
-  config: KickChatOutboxConfig
-) {
+export function createKickChatOutbox(states: Map<string, KickChannelState>, config: KickChatOutboxConfig) {
   const {
     outboxBullmqEnabled,
     outboxConcurrency,

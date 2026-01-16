@@ -1,5 +1,10 @@
 import { logger } from '../utils/logger.js';
-import { createKickEventSubscription, getKickExternalAccount, getValidKickAccessTokenByExternalAccountId, listKickEventSubscriptions } from '../utils/kickApi.js';
+import {
+  createKickEventSubscription,
+  getKickExternalAccount,
+  getValidKickAccessTokenByExternalAccountId,
+  listKickEventSubscriptions,
+} from '../utils/kickApi.js';
 import { asRecord, type KickChannelState } from './kickChatbotShared.js';
 
 function resolveKickWebhookCallbackUrl(): string | null {

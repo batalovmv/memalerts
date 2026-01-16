@@ -73,7 +73,14 @@ export async function handleLegacySearch(ctx: SearchContext, rawQuery: Record<st
 
   const favoritesEnabled = ctx.favoritesEnabled;
   const favoritesStatuses = ['queued', 'playing', 'done', 'completed'];
-  if (favoritesEnabled && !rawQuery.q && !rawQuery.tags && !ctx.minPrice && !ctx.maxPrice && rawQuery.sortBy !== 'priceCoins') {
+  if (
+    favoritesEnabled &&
+    !rawQuery.q &&
+    !rawQuery.tags &&
+    !ctx.minPrice &&
+    !ctx.maxPrice &&
+    rawQuery.sortBy !== 'priceCoins'
+  ) {
     const rows = await prisma.memeActivation.groupBy({
       by: ['memeId'],
       where: {
@@ -224,7 +231,11 @@ export async function handleLegacySearch(ctx: SearchContext, rawQuery: Record<st
       if (ids.length === 0) return ctx.res.json([]);
 
       const byId = await prisma.meme.findMany({
-        where: { id: { in: ids }, status: 'approved', ...(ctx.targetChannelId ? { channelId: ctx.targetChannelId } : {}) },
+        where: {
+          id: { in: ids },
+          status: 'approved',
+          ...(ctx.targetChannelId ? { channelId: ctx.targetChannelId } : {}),
+        },
         include: {
           createdBy: { select: { id: true, displayName: true } },
           tags: { include: { tag: true } },

@@ -4,11 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { calculateFileHash } from '../../utils/fileHash.js';
 import { validatePathWithinDirectory } from '../../utils/pathSecurity.js';
-import {
-  clampInt,
-  tryExtractSha256FromUploadsPath,
-  withTimeout,
-} from './aiModerationHelpers.js';
+import { clampInt, tryExtractSha256FromUploadsPath, withTimeout } from './aiModerationHelpers.js';
 import type { AiModerationSubmission } from './aiModerationTypes.js';
 
 export type AiModerationFileContext = {

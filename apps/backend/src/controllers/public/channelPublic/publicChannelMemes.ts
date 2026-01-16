@@ -77,9 +77,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
       .json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
 
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
-  const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN)
-    ? channel.defaultPriceCoins ?? 0
-    : 100;
+  const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const poolWhereBase = buildChannelPoolWhere(channel.id);
 
   if (!useCursorMode) {
@@ -215,8 +213,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
     }
   }
 
-  const nextCursor =
-    hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;
+  const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;
   const payload = { items, nextCursor, total };
 
   try {

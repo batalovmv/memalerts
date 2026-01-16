@@ -55,9 +55,7 @@ export async function youtubeGetJson<T>(params: { accessToken: string; url: stri
           ? (errorRecord.errors as Array<Record<string, unknown>>)
           : [];
         const errorReason =
-          errorErrors.length > 0 && typeof errorErrors[0]?.reason === 'string'
-            ? String(errorErrors[0].reason)
-            : null;
+          errorErrors.length > 0 && typeof errorErrors[0]?.reason === 'string' ? String(errorErrors[0].reason) : null;
         const reasonText = errorMessage || text || resp.statusText;
         throw new YouTubeHttpError(
           `YouTube API error: ${resp.status} ${reasonText}`,

@@ -1,7 +1,10 @@
 import { prisma } from '../lib/prisma.js';
 
 export type PrismaAny = typeof prisma & {
-  vkVideoChatBotSubscription: { findMany: (args: unknown) => Promise<unknown[]>; update: (args: unknown) => Promise<unknown> };
+  vkVideoChatBotSubscription: {
+    findMany: (args: unknown) => Promise<unknown[]>;
+    update: (args: unknown) => Promise<unknown>;
+  };
   botIntegrationSettings: { findMany: (args: unknown) => Promise<unknown[]> };
   vkVideoBotIntegration: { findUnique: (args: unknown) => Promise<unknown | null> };
   globalVkVideoBotCredential: { findFirst: (args: unknown) => Promise<unknown | null> };

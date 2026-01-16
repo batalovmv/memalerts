@@ -1,6 +1,12 @@
 import { getKickExternalAccount, getValidKickAccessTokenByExternalAccountId } from '../utils/kickApi.js';
 import { logger } from '../utils/logger.js';
-import { asRecord, getErrorMessage, normalizeLogin, normalizeMessage, type KickChannelState } from './kickChatbotShared.js';
+import {
+  asRecord,
+  getErrorMessage,
+  normalizeLogin,
+  normalizeMessage,
+  type KickChannelState,
+} from './kickChatbotShared.js';
 
 type IncomingChat = {
   userId: string;
@@ -35,8 +41,9 @@ function extractKickChatItems(raw: unknown): IncomingChat[] {
         ? dataRec.items
         : [];
   const cursor =
-    String(rawRec.cursor ?? rawRec.next_cursor ?? rawRec.nextCursor ?? dataRec.cursor ?? dataRec.next_cursor ?? '').trim() ||
-    null;
+    String(
+      rawRec.cursor ?? rawRec.next_cursor ?? rawRec.nextCursor ?? dataRec.cursor ?? dataRec.next_cursor ?? ''
+    ).trim() || null;
 
   const out: IncomingChat[] = [];
   for (const m of list) {

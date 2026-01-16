@@ -370,7 +370,9 @@ app.use(sentryErrorHandler());
 app.use(errorHandler);
 
 function parseBool(value: string | undefined): boolean {
-  const normalized = String(value ?? '').trim().toLowerCase();
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
   return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
 }
 

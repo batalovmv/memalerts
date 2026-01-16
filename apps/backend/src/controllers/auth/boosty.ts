@@ -20,7 +20,9 @@ function decodeJwtPayloadNoVerify(token: string): Record<string, unknown> | null
 export async function linkBoosty(req: AuthRequest, res: Response) {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  const mode = String(process.env.BOOSTY_REWARDS_MODE || 'boosty_api').trim().toLowerCase();
+  const mode = String(process.env.BOOSTY_REWARDS_MODE || 'boosty_api')
+    .trim()
+    .toLowerCase();
   if (mode === 'discord_roles') {
     return res.status(410).json({
       error: 'Gone',
@@ -83,7 +85,9 @@ export async function linkBoosty(req: AuthRequest, res: Response) {
   let stableIdFromJwt: string | null = null;
   if (accessToken) {
     const payload = decodeJwtPayloadNoVerify(accessToken);
-    const candidate = String(payload?.user_id ?? payload?.userId ?? payload?.uid ?? payload?.sub ?? payload?.id ?? '').trim();
+    const candidate = String(
+      payload?.user_id ?? payload?.userId ?? payload?.uid ?? payload?.sub ?? payload?.id ?? ''
+    ).trim();
     if (candidate) stableIdFromJwt = candidate;
   }
 

@@ -41,9 +41,9 @@ const isTrustedProxy = (req: Request): boolean => {
 const hasForwardedHeaders = (req: Request): boolean => {
   return Boolean(
     req.headers['cf-connecting-ip'] ||
-      req.headers['x-real-ip'] ||
-      req.headers['x-forwarded-for'] ||
-      req.headers['true-client-ip']
+    req.headers['x-real-ip'] ||
+    req.headers['x-forwarded-for'] ||
+    req.headers['true-client-ip']
   );
 };
 

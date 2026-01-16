@@ -47,16 +47,19 @@ function getDestination() {
 const transport = getTransport();
 const destination = transport ? undefined : getDestination();
 
-const baseLogger = pino({
-  level: getMinLevel(),
-  messageKey: 'event',
-  base: {
-    service: String(process.env.INSTANCE || '').trim() || null,
-    instanceId: getInstanceId(),
-    env: String(process.env.NODE_ENV || '').trim() || null,
+const baseLogger = pino(
+  {
+    level: getMinLevel(),
+    messageKey: 'event',
+    base: {
+      service: String(process.env.INSTANCE || '').trim() || null,
+      instanceId: getInstanceId(),
+      env: String(process.env.NODE_ENV || '').trim() || null,
+    },
+    timestamp: pino.stdTimeFunctions.isoTime,
   },
-  timestamp: pino.stdTimeFunctions.isoTime,
-}, transport ?? destination);
+  transport ?? destination
+);
 
 export function log(level: LogLevel, event: string, meta: LogMeta = {}): void {
   const ctx = getRequestContext();

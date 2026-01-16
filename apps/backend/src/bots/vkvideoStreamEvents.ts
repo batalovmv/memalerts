@@ -9,7 +9,14 @@ import {
   getVkVideoExternalAccount,
 } from '../utils/vkvideoApi.js';
 import { logger } from '../utils/logger.js';
-import { asRecord, getErrorCode, getErrorMessage, normalizeLogin, normalizeSlug, prismaAny } from './vkvideoChatbotShared.js';
+import {
+  asRecord,
+  getErrorCode,
+  getErrorMessage,
+  normalizeLogin,
+  normalizeSlug,
+  prismaAny,
+} from './vkvideoChatbotShared.js';
 import { handleVkvideoRewardPush } from './vkvideoRewardProcessor.js';
 import type { VkvideoChatCommandState } from './vkvideoChatCommands.js';
 
@@ -79,9 +86,7 @@ async function fetchEnabledVkVideoSubscriptions(): Promise<SubRow[]> {
   // Optional gating by BotIntegrationSettings(provider=vkvideo).
   let gate: Map<string, boolean> | null = null; // channelId -> enabled
   try {
-    const channelIds = Array.from(
-      new Set(rows.map((r) => String(asRecord(r).channelId ?? '').trim()).filter(Boolean))
-    );
+    const channelIds = Array.from(new Set(rows.map((r) => String(asRecord(r).channelId ?? '').trim()).filter(Boolean)));
     if (channelIds.length > 0) {
       const gateRows = await prismaAny.botIntegrationSettings.findMany({
         where: { channelId: { in: channelIds }, provider: 'vkvideo' },
@@ -394,7 +399,7 @@ export function createVkvideoStreamEvents(
 
             const channelId = vkvideoIdToChannelId.get(vkId) || null;
             const slug = vkvideoIdToSlug.get(vkId) || '';
-            const autoRewardsCfg = channelId ? autoRewardsByChannelId.get(channelId)?.cfg ?? null : null;
+            const autoRewardsCfg = channelId ? (autoRewardsByChannelId.get(channelId)?.cfg ?? null) : null;
             const handledReward = handleVkvideoRewardPush({
               vkvideoChannelId: vkId,
               channelId,

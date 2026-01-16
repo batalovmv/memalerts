@@ -1,7 +1,14 @@
 import type { AuthRequest } from '../../middleware/auth.js';
 import path from 'path';
 import fs from 'fs';
-import { calculateFileHash, decrementFileHashReference, findOrCreateFileHash, getFileHashByPath, getFileStats, incrementFileHashReference } from '../../utils/fileHash.js';
+import {
+  calculateFileHash,
+  decrementFileHashReference,
+  findOrCreateFileHash,
+  getFileHashByPath,
+  getFileStats,
+  incrementFileHashReference,
+} from '../../utils/fileHash.js';
 import { validatePathWithinDirectory } from '../../utils/pathSecurity.js';
 import { getVideoMetadata } from '../../utils/videoValidator.js';
 import { logger } from '../../utils/logger.js';
@@ -59,7 +66,9 @@ export async function resolveApprovalInputs(opts: {
   } else {
     try {
       const uploadsDir = path.join(process.cwd(), 'uploads');
-      const relativePath = submission.fileUrlTemp.startsWith('/') ? submission.fileUrlTemp.slice(1) : submission.fileUrlTemp;
+      const relativePath = submission.fileUrlTemp.startsWith('/')
+        ? submission.fileUrlTemp.slice(1)
+        : submission.fileUrlTemp;
 
       debugLog('[DEBUG] Validating file path', {
         submissionId: id,
@@ -117,9 +126,7 @@ export async function resolveApprovalInputs(opts: {
         fileHash = hash;
         fileHashForCleanup = hash;
         fileHashRefAdded = true;
-        debugLog(
-          `File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`
-        );
+        debugLog(`File deduplication on approve: ${result.isNew ? 'new file' : 'duplicate found'}, hash: ${hash}`);
       } catch (error: unknown) {
         logger.error('admin.submissions.filehash_failed', { errorMessage: getErrorMessage(error) });
         finalFileUrl = submission.fileUrlTemp;
@@ -151,9 +158,7 @@ export async function resolveApprovalInputs(opts: {
       ? body.tags
       : (() => {
           const submissionWithTags = submission as ApprovalSubmission & { tags?: unknown[] };
-          const submissionTags = Array.isArray(submissionWithTags?.tags)
-            ? (submissionWithTags.tags as unknown[])
-            : [];
+          const submissionTags = Array.isArray(submissionWithTags?.tags) ? (submissionWithTags.tags as unknown[]) : [];
           if (submissionTags.length > 0) {
             return submissionTags
               .map((st: unknown) => {
@@ -166,9 +171,7 @@ export async function resolveApprovalInputs(opts: {
               .filter((name: string | null): name is string => typeof name === 'string' && name.length > 0);
           }
           const aiTags = submission?.aiAutoTagNamesJson;
-          return Array.isArray(aiTags)
-            ? aiTags.filter((t): t is string => typeof t === 'string' && t.length > 0)
-            : [];
+          return Array.isArray(aiTags) ? aiTags.filter((t): t is string => typeof t === 'string' && t.length > 0) : [];
         })();
 
   const STANDARD_DURATION_MS = 15000;

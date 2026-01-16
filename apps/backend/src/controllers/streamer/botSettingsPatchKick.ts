@@ -58,8 +58,7 @@ export async function prepareKickPatch(ctx: BotPatchContext): Promise<BotPatchRe
       status: 400,
       body: {
         error: 'Bad Request',
-        message:
-          'Failed to resolve kickChannelId. Please pass kickChannelId explicitly (or re-link Kick and retry).',
+        message: 'Failed to resolve kickChannelId. Please pass kickChannelId explicitly (or re-link Kick and retry).',
       },
     };
   }
@@ -98,7 +97,8 @@ export async function applyKickPatch(
 ): Promise<BotPatchApplyResult> {
   if (ctx.enabled) {
     if (!ctx.req.userId) return { ok: false, status: 401, body: { error: 'Unauthorized' } };
-    if (!data.kickChannelId) return { ok: false, status: 400, body: { error: 'Bad Request', message: 'Missing kickChannelId' } };
+    if (!data.kickChannelId)
+      return { ok: false, status: 400, body: { error: 'Bad Request', message: 'Missing kickChannelId' } };
 
     // Ensure Kick Events subscription exists for chat.message.sent (event-driven chat ingest).
     const acc = await getKickExternalAccount(ctx.req.userId);
@@ -132,8 +132,7 @@ export async function applyKickPatch(
         ok: false,
         status: 401,
         body: {
-          error:
-            'Kick access token not found/expired. Please log out and log in again to refresh your authorization.',
+          error: 'Kick access token not found/expired. Please log out and log in again to refresh your authorization.',
           requiresReauth: true,
           errorCode: 'KICK_ACCESS_TOKEN_MISSING',
         },

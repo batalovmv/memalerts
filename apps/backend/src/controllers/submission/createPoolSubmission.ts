@@ -61,9 +61,10 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       userId,
       channelId: body.channelId,
       memeAssetId: body.memeAssetId,
-      hasTitle: typeof (body as Record<string, unknown>).title === 'string'
-        ? String((body as Record<string, unknown>).title).trim().length > 0
-        : false,
+      hasTitle:
+        typeof (body as Record<string, unknown>).title === 'string'
+          ? String((body as Record<string, unknown>).title).trim().length > 0
+          : false,
       hasNotes: !!body.notes,
       tagsCount: Array.isArray(body.tags) ? body.tags.length : null,
     });
@@ -181,7 +182,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
             title: finalTitle,
             searchText: aiSearchText,
             aiAutoDescription: aiDescription,
-          aiAutoTagNamesJson: aiTagsJson ?? undefined,
+            aiAutoTagNamesJson: aiTagsJson ?? undefined,
             priceCoins: defaultPrice,
             addedByUserId: userId,
             approvedByUserId: userId,
@@ -224,8 +225,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
               data: legacyData,
             });
           } catch (error: unknown) {
-            const errorCode =
-              typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+            const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
             if (errorCode === 'P2025') {
               legacy = await tx.meme.create({ data: legacyData });
               await tx.channelMeme.update({

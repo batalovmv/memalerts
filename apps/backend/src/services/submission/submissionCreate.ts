@@ -286,7 +286,10 @@ export const createSubmissionWithRepos = async (deps: SubmissionDeps, req: AuthR
       });
     }
 
-    if ((error as { code?: string; name?: string })?.code === 'P2021' || (error as Error)?.name === 'PrismaClientKnownRequestError') {
+    if (
+      (error as { code?: string; name?: string })?.code === 'P2021' ||
+      (error as Error)?.name === 'PrismaClientKnownRequestError'
+    ) {
       logger.error('submission.db_missing_table', {
         requestId: req.requestId,
         errorMeta: (error as { meta?: unknown })?.meta,

@@ -30,11 +30,7 @@ export function resolveServiceHeartbeatId(service: string): string {
   return instance ? `${base}-${instance}` : base;
 }
 
-export function startServiceHeartbeat(opts: {
-  service: string;
-  intervalMs?: number;
-  meta?: Record<string, unknown>;
-}): {
+export function startServiceHeartbeat(opts: { service: string; intervalMs?: number; meta?: Record<string, unknown> }): {
   stop: () => void;
 } {
   const id = resolveServiceHeartbeatId(opts.service);

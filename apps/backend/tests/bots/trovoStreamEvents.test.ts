@@ -118,9 +118,7 @@ describe('trovo stream events', () => {
       JSON.stringify({
         type: 'CHAT',
         data: {
-          chats: [
-            { uid: 'viewer-1', nick_name: 'Viewer', user_name: 'viewer', content: 'Hello world' },
-          ],
+          chats: [{ uid: 'viewer-1', nick_name: 'Viewer', user_name: 'viewer', content: 'Hello world' }],
         },
       })
     );

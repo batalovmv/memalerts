@@ -81,9 +81,10 @@ export async function twitchApiRequest<T = TwitchHelixResponse<unknown>>(
 
       if (!response.ok) {
         const errorText = await response.text();
-        const err = new Error(
-          `Twitch API error: ${response.status} ${response.statusText} - ${errorText}`
-        ) as Error & { status?: number; body?: string };
+        const err = new Error(`Twitch API error: ${response.status} ${response.statusText} - ${errorText}`) as Error & {
+          status?: number;
+          body?: string;
+        };
         err.status = response.status;
         err.body = errorText;
         throw err;

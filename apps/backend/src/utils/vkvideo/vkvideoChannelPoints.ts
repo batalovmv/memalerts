@@ -1,4 +1,10 @@
-import { asRecord, guessVkVideoApiBaseUrl, vkvideoGetJson, vkvideoPostJson, type VkVideoApiResult } from './vkvideoCore.js';
+import {
+  asRecord,
+  guessVkVideoApiBaseUrl,
+  vkvideoGetJson,
+  vkvideoPostJson,
+  type VkVideoApiResult,
+} from './vkvideoCore.js';
 
 export async function fetchVkVideoChannelPointBalance(params: {
   accessToken: string;

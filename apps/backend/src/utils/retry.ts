@@ -50,7 +50,10 @@ export function getServiceRetryConfig(
   return { maxAttempts, baseDelayMs, maxDelayMs, factor, jitter };
 }
 
-function computeDelayMs(opts: { baseDelayMs: number; maxDelayMs: number; factor: number; jitter: 'full' | 'none' }, retryIndex: number) {
+function computeDelayMs(
+  opts: { baseDelayMs: number; maxDelayMs: number; factor: number; jitter: 'full' | 'none' },
+  retryIndex: number
+) {
   const raw = opts.baseDelayMs * Math.pow(opts.factor, Math.max(0, retryIndex - 1));
   const capped = Math.min(opts.maxDelayMs, Math.max(0, raw));
   if (opts.jitter === 'full') {
@@ -84,8 +87,7 @@ export async function withRetry<T>(action: (attempt: number) => Promise<T>, opti
         attempt += 1;
         continue;
       }
-      const success =
-        options.isSuccessResult && options.retryOnResult ? options.isSuccessResult(result) : true;
+      const success = options.isSuccessResult && options.retryOnResult ? options.isSuccessResult(result) : true;
       recordRetryOutcome({ service: options.service, outcome: success ? 'success' : 'failure' });
       return result;
     } catch (error) {

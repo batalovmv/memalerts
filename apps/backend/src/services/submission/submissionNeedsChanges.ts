@@ -138,4 +138,3 @@ export type SubmissionService = {
   reject: (req: AuthRequest, res: Response) => Promise<unknown>;
   needsChanges: (req: AuthRequest, res: Response) => Promise<unknown>;
 };
-

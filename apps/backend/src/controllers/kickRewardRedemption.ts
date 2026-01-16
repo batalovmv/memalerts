@@ -2,10 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
-import {
-  errCode,
-  extractKickRewardRedemption,
-} from './kickWebhookShared.js';
+import { errCode, extractKickRewardRedemption } from './kickWebhookShared.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -14,10 +11,13 @@ export async function handleKickRewardRedemption(params: {
   messageId: string;
 }): Promise<{ httpStatus: number; body: Record<string, unknown> }> {
   const { payload, messageId } = params;
-  const kind = String((payload as { type?: string; event?: string; event_type?: string; name?: string })?.type ??
-    (payload as { event?: string })?.event ??
-    (payload as { event_type?: string })?.event_type ??
-    (payload as { name?: string })?.name ?? '')
+  const kind = String(
+    (payload as { type?: string; event?: string; event_type?: string; name?: string })?.type ??
+      (payload as { event?: string })?.event ??
+      (payload as { event_type?: string })?.event_type ??
+      (payload as { name?: string })?.name ??
+      ''
+  )
     .trim()
     .toLowerCase();
   const parsed = extractKickRewardRedemption(payload);

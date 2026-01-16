@@ -65,10 +65,7 @@ describe('vkvideo pubsub client', () => {
     expect(subscribePayload.subscribe?.channel).toBe('channel-1');
     expect(subscribePayload.subscribe?.token).toBe('sub-token');
 
-    ws.trigger(
-      'message',
-      JSON.stringify({ push: { channel: 'channel-1', pub: { data: { ok: true } } } })
-    );
+    ws.trigger('message', JSON.stringify({ push: { channel: 'channel-1', pub: { data: { ok: true } } } }));
     expect(pushes).toHaveLength(1);
     expect(pushes[0]).toEqual({ channel: 'channel-1', data: { ok: true } });
   });

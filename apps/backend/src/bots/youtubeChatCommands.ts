@@ -2,7 +2,15 @@ import { resolveMemalertsUserIdFromChatIdentity } from '../utils/chatIdentity.js
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { logger } from '../utils/logger.js';
 import { getYouTubeRoleTags, hasRoles, sanitizeRoleTags, type RoleMode, type RoleTag } from './youtubeRoles.js';
-import { asRecord, getErrorCode, getErrorMessage, normalizeMessage, prismaAny, type YouTubeChannelState, type YouTubeCommandItem } from './youtubeChatbotShared.js';
+import {
+  asRecord,
+  getErrorCode,
+  getErrorMessage,
+  normalizeMessage,
+  prismaAny,
+  type YouTubeChannelState,
+  type YouTubeCommandItem,
+} from './youtubeChatbotShared.js';
 import { sendToYouTubeChat } from './youtubeChatSender.js';
 
 type YouTubeChatCommandsConfig = {
@@ -35,10 +43,7 @@ async function postInternalCreditsChatter(
   }
 }
 
-export function createYouTubeChatCommands(
-  states: Map<string, YouTubeChannelState>,
-  config: YouTubeChatCommandsConfig
-) {
+export function createYouTubeChatCommands(states: Map<string, YouTubeChannelState>, config: YouTubeChatCommandsConfig) {
   const { backendBaseUrls, commandsRefreshSeconds, stoppedRef } = config;
 
   const refreshCommandsForChannel = async (channelId: string): Promise<YouTubeCommandItem[]> => {
@@ -47,7 +52,13 @@ export function createYouTubeChatCommands(
       try {
         rows = await prismaAny.chatBotCommand.findMany({
           where: { channelId, enabled: true },
-          select: { triggerNormalized: true, response: true, onlyWhenLive: true, requiredRoleTags: true, roleMode: true },
+          select: {
+            triggerNormalized: true,
+            response: true,
+            onlyWhenLive: true,
+            requiredRoleTags: true,
+            roleMode: true,
+          },
         });
       } catch (e: unknown) {
         if (getErrorCode(e) === 'P2022') {

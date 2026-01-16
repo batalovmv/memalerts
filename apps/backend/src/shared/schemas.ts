@@ -174,8 +174,8 @@ export const twitchAutoRewardsSchema = z
             coinsByStreak: z.record(z.string().min(1).max(16), twitchCoinsSchema).optional(),
           })
           .optional(),
-    })
-    .optional(),
+      })
+      .optional(),
   })
   .passthrough();
 

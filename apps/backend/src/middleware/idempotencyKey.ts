@@ -10,8 +10,7 @@ export function idempotencyKey(req: Request, res: Response, next: NextFunction) 
   if (!trimmed) return next();
 
   const maxLenRaw = Number.parseInt(String(process.env.IDEMPOTENCY_KEY_MAX_LEN || ''), 10);
-  const maxLen =
-    Number.isFinite(maxLenRaw) && maxLenRaw > 0 ? maxLenRaw : DEFAULT_MAX_KEY_LENGTH;
+  const maxLen = Number.isFinite(maxLenRaw) && maxLenRaw > 0 ? maxLenRaw : DEFAULT_MAX_KEY_LENGTH;
   if (trimmed.length > maxLen) {
     return res.status(400).json({
       errorCode: 'BAD_REQUEST',

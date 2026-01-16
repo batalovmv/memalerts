@@ -1,9 +1,12 @@
 import type { Router } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { requireBetaAccess } from '../../middleware/betaAccess.js';
+import { isDebugAuthEnabled, isDebugLogsEnabled } from '../../utils/debug.js';
 
 export function registerBetaAccessMiddleware(app: Router) {
   app.use((req, res, next) => {
+    const allowDebugIp = isDebugLogsEnabled();
+    const allowDebugAuth = isDebugAuthEnabled();
     const isSkipped =
       req.path.startsWith('/beta/request') ||
       req.path.startsWith('/beta/status') ||
@@ -36,7 +39,9 @@ export function registerBetaAccessMiddleware(app: Router) {
       /^\/channels\/[^\/]+\/wallet$/.test(req.path) ||
       /^\/channels\/[^\/]+\/memes$/.test(req.path) ||
       req.path.startsWith('/channels/memes/search') ||
-      req.path === '/memes/stats';
+      req.path === '/memes/stats' ||
+      (allowDebugIp && req.path === '/debug-ip') ||
+      (allowDebugAuth && req.path === '/debug-auth');
     if (isSkipped) {
       return next();
     }

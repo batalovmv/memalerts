@@ -71,10 +71,7 @@ export function startBoostySubscriptionRewardsScheduler(io: Server) {
         } else {
           const channelWhere: Prisma.ChannelWhereInput = {
             boostyCoinsPerSub: { gt: 0 },
-            OR: [
-              { boostyDiscordTierRolesJson: { not: Prisma.DbNull } },
-              { boostyDiscordRoleId: { not: null } },
-            ],
+            OR: [{ boostyDiscordTierRolesJson: { not: Prisma.DbNull } }, { boostyDiscordRoleId: { not: null } }],
           };
           const channels = await prisma.channel.findMany({
             where: channelWhere,

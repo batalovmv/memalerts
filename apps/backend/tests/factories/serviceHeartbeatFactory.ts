@@ -3,7 +3,7 @@ import { prisma } from '../../src/lib/prisma.js';
 import { uniqueId } from './utils.js';
 
 export async function createServiceHeartbeat(
-  overrides: Partial<Prisma.ServiceHeartbeatUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.ServiceHeartbeatUncheckedCreateInput> = {}
 ): Promise<ServiceHeartbeat> {
   const seed = uniqueId('heartbeat');
   const data: Prisma.ServiceHeartbeatUncheckedCreateInput = {

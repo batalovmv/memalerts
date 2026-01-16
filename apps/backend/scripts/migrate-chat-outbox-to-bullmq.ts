@@ -1,9 +1,6 @@
 import { prisma } from '../src/lib/prisma.js';
 import { logger } from '../src/utils/logger.js';
-import {
-  type ChatOutboxPlatform,
-  enqueueChatOutboxJob,
-} from '../src/queues/chatOutboxQueue.js';
+import { type ChatOutboxPlatform, enqueueChatOutboxJob } from '../src/queues/chatOutboxQueue.js';
 
 type OutboxRow = { id: string; channelId: string };
 
@@ -14,11 +11,7 @@ function clampInt(n: number, min: number, max: number, fallback: number): number
   return Math.floor(n);
 }
 
-async function fetchBatch(
-  platform: ChatOutboxPlatform,
-  batch: number,
-  staleBefore: Date
-): Promise<OutboxRow[]> {
+async function fetchBatch(platform: ChatOutboxPlatform, batch: number, staleBefore: Date): Promise<OutboxRow[]> {
   const baseOrder = { createdAt: 'asc' as const };
   if (platform === 'twitch') {
     return await prisma.chatBotOutboxMessage.findMany({

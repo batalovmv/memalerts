@@ -120,4 +120,3 @@ export const rejectSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: 
     }
   }
 };
-

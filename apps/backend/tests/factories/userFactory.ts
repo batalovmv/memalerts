@@ -3,9 +3,7 @@ import { prisma } from '../../src/lib/prisma.js';
 import { createChannel } from './channelFactory.js';
 import { uniqueId } from './utils.js';
 
-export async function createUser(
-  overrides: Partial<Prisma.UserUncheckedCreateInput> = {},
-): Promise<User> {
+export async function createUser(overrides: Partial<Prisma.UserUncheckedCreateInput> = {}): Promise<User> {
   const seed = uniqueId('user');
   const data: Prisma.UserUncheckedCreateInput = {
     displayName: `User ${seed}`,
@@ -19,7 +17,7 @@ export async function createUser(
 
 export async function createUserWithChannel(
   userOverrides: Partial<Prisma.UserUncheckedCreateInput> = {},
-  channelOverrides: Partial<Prisma.ChannelUncheckedCreateInput> = {},
+  channelOverrides: Partial<Prisma.ChannelUncheckedCreateInput> = {}
 ): Promise<{ user: User; channel: Channel }> {
   const channel = await createChannel(channelOverrides);
   const user = await createUser({ ...userOverrides, channelId: channel.id });
@@ -27,7 +25,7 @@ export async function createUserWithChannel(
 }
 
 export async function createExternalAccount(
-  overrides: Partial<Prisma.ExternalAccountUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.ExternalAccountUncheckedCreateInput> = {}
 ): Promise<ExternalAccount> {
   const seed = uniqueId('external');
   let userId = overrides.userId;

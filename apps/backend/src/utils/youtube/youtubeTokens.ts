@@ -1,6 +1,10 @@
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../logger.js';
-import type { GoogleRefreshTokenResponse, YouTubeApiErrorReason, YouTubeBotAuthErrorReason } from './youtubeApiTypes.js';
+import type {
+  GoogleRefreshTokenResponse,
+  YouTubeApiErrorReason,
+  YouTubeBotAuthErrorReason,
+} from './youtubeApiTypes.js';
 import { getMissingRequiredScopes } from './youtubeScopes.js';
 
 function isExpired(expiresAt: Date | null | undefined, skewSeconds: number): boolean {
@@ -303,7 +307,10 @@ export async function getValidYouTubeAccessTokenByExternalAccountId(externalAcco
       return data.access_token;
     } catch (error) {
       const err = error as Error;
-      logger.warn('youtube.token.refresh_failed', { externalAccountId: id, errorMessage: err.message || String(error) });
+      logger.warn('youtube.token.refresh_failed', {
+        externalAccountId: id,
+        errorMessage: err.message || String(error),
+      });
       return null;
     }
   }

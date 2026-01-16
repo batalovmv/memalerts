@@ -56,9 +56,7 @@ describe('observability endpoints', () => {
 
     const res = await request(makeApp()).get('/health/workers');
     expect(res.status).toBe(200);
-    const workers = Array.isArray(res.body?.workers)
-      ? (res.body.workers as Array<{ id: string; status: string }>)
-      : [];
+    const workers = Array.isArray(res.body?.workers) ? (res.body.workers as Array<{ id: string; status: string }>) : [];
     const byId = new Map(workers.map((w) => [w.id, w.status]));
     for (const [id, status] of byId.entries()) {
       if (String(id).includes('alive')) expect(status).toBe('alive');

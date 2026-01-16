@@ -12,7 +12,11 @@ import {
 } from './cache.js';
 import { nsKey, redisGetString } from '../../utils/redisCache.js';
 import type { AuthRequest } from '../../middleware/auth.js';
-import { handleChannelListingMode, handleChannelSearchMode, handlePoolAllChannelFilterMode } from './search/searchModes.js';
+import {
+  handleChannelListingMode,
+  handleChannelSearchMode,
+  handlePoolAllChannelFilterMode,
+} from './search/searchModes.js';
 import { handleLegacySearch } from './search/searchLegacy.js';
 import type { SearchContext, SearchRequest } from './search/searchShared.js';
 

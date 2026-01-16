@@ -256,7 +256,10 @@ export async function applyExternalAccount(params: ApplyExternalAccountParams): 
 
     if (
       params.stateKind !== 'bot_link' &&
-      (params.provider === 'kick' || params.provider === 'trovo' || params.provider === 'vkvideo' || params.provider === 'twitch')
+      (params.provider === 'kick' ||
+        params.provider === 'trovo' ||
+        params.provider === 'vkvideo' ||
+        params.provider === 'twitch')
     ) {
       try {
         const events = await claimPendingCoinGrantsTx({
@@ -267,7 +270,10 @@ export async function applyExternalAccount(params: ApplyExternalAccountParams): 
         });
         if (events.length) claimedWalletEvents.push(...events);
       } catch (error: unknown) {
-        logger.warn('external_rewards.claim_failed', { provider: params.provider, errorMessage: getErrorMessage(error) });
+        logger.warn('external_rewards.claim_failed', {
+          provider: params.provider,
+          errorMessage: getErrorMessage(error),
+        });
       }
     }
   });

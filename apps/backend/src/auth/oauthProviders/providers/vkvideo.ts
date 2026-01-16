@@ -234,7 +234,9 @@ export const vkVideoOAuthProvider: OAuthProvider = {
 
         const nameFromParts = String([u?.first_name, u?.last_name].filter(Boolean).join(' ')).trim() || null;
         const name =
-          String(u?.display_name ?? u?.displayName ?? u?.name ?? u?.full_name ?? u?.nickname ?? u?.username ?? '').trim() ||
+          String(
+            u?.display_name ?? u?.displayName ?? u?.name ?? u?.full_name ?? u?.nickname ?? u?.username ?? ''
+          ).trim() ||
           nameFromParts ||
           null;
         if (!displayName && name) displayName = name;

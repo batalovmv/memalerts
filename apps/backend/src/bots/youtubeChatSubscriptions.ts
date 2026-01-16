@@ -56,9 +56,7 @@ async function fetchEnabledYouTubeSubscriptions(): Promise<SubRow[]> {
 
   let gate: Map<string, boolean> | null = null;
   try {
-    const channelIds = Array.from(
-      new Set(rows.map((r) => String(asRecord(r).channelId ?? '').trim()).filter(Boolean))
-    );
+    const channelIds = Array.from(new Set(rows.map((r) => String(asRecord(r).channelId ?? '').trim()).filter(Boolean)));
     if (channelIds.length > 0) {
       const gateRows = await prismaAny.botIntegrationSettings.findMany({
         where: { channelId: { in: channelIds }, provider: 'youtube' },

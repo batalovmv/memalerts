@@ -271,9 +271,7 @@ async function main() {
           data: {
             aiAutoDescription: r.aiAutoDescription ? undefined : (asset.aiAutoDescription ?? null),
             aiAutoTagNamesJson:
-              r.aiAutoTagNamesJson == null
-                ? (asset.aiAutoTagNamesJson as Prisma.InputJsonValue)
-                : undefined,
+              r.aiAutoTagNamesJson == null ? (asset.aiAutoTagNamesJson as Prisma.InputJsonValue) : undefined,
             searchText: r.searchText
               ? undefined
               : (asset.aiSearchText ??

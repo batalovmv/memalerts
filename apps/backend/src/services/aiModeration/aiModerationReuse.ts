@@ -44,9 +44,7 @@ export async function tryReuseAiResults(opts: {
       ? Prisma.DbNull
       : (existingAsset.aiAutoTagNamesJson as Prisma.InputJsonValue);
   const assetAiAutoTagNamesNorm = Array.isArray(existingAsset.aiAutoTagNamesJson)
-    ? (existingAsset.aiAutoTagNamesJson as unknown[])
-        .map((t) => normalizeAiText(String(t ?? '')))
-        .filter(Boolean)
+    ? (existingAsset.aiAutoTagNamesJson as unknown[]).map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean)
     : null;
   const reuseModelVersions: Prisma.JsonObject = {
     pipelineVersion: 'v3-reuse-memeasset',

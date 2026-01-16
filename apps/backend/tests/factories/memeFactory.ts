@@ -3,9 +3,7 @@ import { prisma } from '../../src/lib/prisma.js';
 import { createChannel } from './channelFactory.js';
 import { uniqueId } from './utils.js';
 
-export async function createFileHash(
-  overrides: Partial<Prisma.FileHashUncheckedCreateInput> = {},
-): Promise<FileHash> {
+export async function createFileHash(overrides: Partial<Prisma.FileHashUncheckedCreateInput> = {}): Promise<FileHash> {
   const seed = uniqueId('filehash');
   const data: Prisma.FileHashUncheckedCreateInput = {
     hash: `hash_${seed}`,
@@ -19,7 +17,7 @@ export async function createFileHash(
 }
 
 export async function createMemeAsset(
-  overrides: Partial<Prisma.MemeAssetUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.MemeAssetUncheckedCreateInput> = {}
 ): Promise<MemeAsset> {
   const seed = uniqueId('asset');
   const data: Prisma.MemeAssetUncheckedCreateInput = {
@@ -32,7 +30,7 @@ export async function createMemeAsset(
 }
 
 export async function createChannelMeme(
-  overrides: Partial<Prisma.ChannelMemeUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.ChannelMemeUncheckedCreateInput> = {}
 ): Promise<ChannelMeme> {
   const seed = uniqueId('channelmeme');
   const channelId = overrides.channelId ?? (await createChannel()).id;
@@ -48,9 +46,7 @@ export async function createChannelMeme(
   return prisma.channelMeme.create({ data });
 }
 
-export async function createMeme(
-  overrides: Partial<Prisma.MemeUncheckedCreateInput> = {},
-): Promise<Meme> {
+export async function createMeme(overrides: Partial<Prisma.MemeUncheckedCreateInput> = {}): Promise<Meme> {
   const seed = uniqueId('meme');
   const channelId = overrides.channelId ?? (await createChannel()).id;
   const data: Prisma.MemeUncheckedCreateInput = {

@@ -30,7 +30,9 @@ for (const provider of providers) {
 }
 
 export function resolveOAuthProvider(input: string): OAuthProvider | null {
-  const key = String(input || '').trim().toLowerCase();
+  const key = String(input || '')
+    .trim()
+    .toLowerCase();
   if (!key) return null;
   return providerById.get(key) ?? aliasToProvider.get(key) ?? null;
 }

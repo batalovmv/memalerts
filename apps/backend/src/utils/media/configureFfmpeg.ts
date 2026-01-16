@@ -52,11 +52,3 @@ export function configureFfmpegPaths(): void {
     }
   }
 }
-
-
-
-
-
-
-
-

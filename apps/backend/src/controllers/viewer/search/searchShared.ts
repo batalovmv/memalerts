@@ -1,13 +1,7 @@
 import type { Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../../middleware/auth.js';
-import {
-  getSearchCacheMs,
-  ifNoneMatchHit,
-  makeEtagFromString,
-  searchCache,
-  SEARCH_CACHE_MAX,
-} from '../cache.js';
+import { getSearchCacheMs, ifNoneMatchHit, makeEtagFromString, searchCache, SEARCH_CACHE_MAX } from '../cache.js';
 import { nsKey, redisSetStringEx } from '../../../utils/redisCache.js';
 
 export type SearchRequest = AuthRequest & { __searchCacheKey?: string };
@@ -47,7 +41,12 @@ export type SearchContext = {
   req: SearchRequest;
   res: Response;
   targetChannelId: string | null;
-  targetChannel: { id: string; memeCatalogMode: string | null; defaultPriceCoins: number | null; slug: string | null } | null;
+  targetChannel: {
+    id: string;
+    memeCatalogMode: string | null;
+    defaultPriceCoins: number | null;
+    slug: string | null;
+  } | null;
   memeCatalogMode: string;
   minPrice: unknown;
   maxPrice: unknown;

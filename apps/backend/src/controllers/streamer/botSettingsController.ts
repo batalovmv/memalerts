@@ -18,7 +18,12 @@ import {
   normalizeVkVideoCurrentUserRoot,
   extractVkVideoChannelUrls,
 } from './botIntegrationsShared.js';
-import type { BotPatchApplyResult, BotPatchContext, BotPatchPrepared, BotPatchResult } from './botSettingsPatchTypes.js';
+import type {
+  BotPatchApplyResult,
+  BotPatchContext,
+  BotPatchPrepared,
+  BotPatchResult,
+} from './botSettingsPatchTypes.js';
 import { prepareTwitchPatch, applyTwitchPatch } from './botSettingsPatchTwitch.js';
 import { prepareYouTubePatch, applyYouTubePatch } from './botSettingsPatchYouTube.js';
 import { prepareTrovoPatch, applyTrovoPatch } from './botSettingsPatchTrovo.js';

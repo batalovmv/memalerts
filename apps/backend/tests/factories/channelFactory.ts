@@ -6,7 +6,7 @@ type ChannelClient = Prisma.TransactionClient | typeof prisma;
 
 export async function createChannel(
   overrides: Partial<Prisma.ChannelUncheckedCreateInput> = {},
-  opts: { prisma?: ChannelClient } = {},
+  opts: { prisma?: ChannelClient } = {}
 ): Promise<Channel> {
   const seed = uniqueId('channel');
   const data: Prisma.ChannelUncheckedCreateInput = {

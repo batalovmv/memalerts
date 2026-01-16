@@ -89,8 +89,7 @@ export async function unlinkAccount(req: AuthRequest, res: Response) {
         'Use DELETE /owner/bots/twitch/default (global) or DELETE /streamer/bots/twitch/bot (per-channel override).',
       vkvideo:
         'Use DELETE /owner/bots/vkvideo/default (global) or DELETE /streamer/bots/vkvideo/bot (per-channel override).',
-      trovo:
-        'Use DELETE /owner/bots/trovo/default (global) or DELETE /streamer/bots/trovo/bot (per-channel override).',
+      trovo: 'Use DELETE /owner/bots/trovo/default (global) or DELETE /streamer/bots/trovo/bot (per-channel override).',
       kick: 'Use DELETE /owner/bots/kick/default (global) or DELETE /streamer/bots/kick/bot (per-channel override).',
     };
 

@@ -54,14 +54,8 @@ function readCurrentTotals(filePath: string): CoverageBaseline {
   };
 }
 
-const baselinePath = resolvePath(
-  'COVERAGE_BASELINE_PATH',
-  path.join(process.cwd(), 'coverage-baseline.json')
-);
-const summaryPath = resolvePath(
-  'COVERAGE_SUMMARY_PATH',
-  path.join(process.cwd(), 'coverage', 'coverage-summary.json')
-);
+const baselinePath = resolvePath('COVERAGE_BASELINE_PATH', path.join(process.cwd(), 'coverage-baseline.json'));
+const summaryPath = resolvePath('COVERAGE_SUMMARY_PATH', path.join(process.cwd(), 'coverage', 'coverage-summary.json'));
 const maxDrop = Number.parseFloat(String(process.env.COVERAGE_MAX_DROP ?? '2'));
 
 if (!fs.existsSync(summaryPath)) {
@@ -80,9 +74,7 @@ for (const metric of metrics) {
   const currentValue = current[metric] ?? 0;
   const allowed = baselineValue - maxDrop;
   if (currentValue + 1e-6 < allowed) {
-    failures.push(
-      `${metric}: ${currentValue.toFixed(2)}% < ${baselineValue.toFixed(2)}% - ${maxDrop.toFixed(2)}%`
-    );
+    failures.push(`${metric}: ${currentValue.toFixed(2)}% < ${baselineValue.toFixed(2)}% - ${maxDrop.toFixed(2)}%`);
   }
 }
 

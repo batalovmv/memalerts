@@ -8,10 +8,7 @@ import {
 
 describe('vkvideo reward utils', () => {
   it('extracts first mention id from parts', () => {
-    const id = extractFirstMentionIdFromParts([
-      { mention: { id: 'user-1' } },
-      { mention: { id: 'user-2' } },
-    ]);
+    const id = extractFirstMentionIdFromParts([{ mention: { id: 'user-1' } }, { mention: { id: 'user-2' } }]);
     expect(id).toBe('user-1');
   });
 

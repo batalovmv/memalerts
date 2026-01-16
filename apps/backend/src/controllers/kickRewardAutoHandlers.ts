@@ -83,8 +83,7 @@ export async function handleKickFollow(params: {
   const onceEver = rule?.onceEver === undefined ? true : Boolean(rule?.onceEver);
   const onlyWhenLive = Boolean(rule?.onlyWhenLive);
 
-  if (!params.actorId)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
+  if (!params.actorId) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
 
   if (!enabled || coins <= 0) {
     await params.record({
@@ -157,21 +156,17 @@ export async function handleKickSubscriptionNew(params: {
   record: RecordKickReward;
 }): Promise<KickRewardResponse> {
   const rule = params.cfg?.subscribe ?? null;
-  if (!params.actorId)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
-  if (!rule?.enabled)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
+  if (!params.actorId) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
+  if (!rule?.enabled) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
 
   const onlyWhenLive = Boolean(rule?.onlyWhenLive);
   if (onlyWhenLive) {
     const snap = await getStreamDurationSnapshot(params.slug);
-    if (snap.status !== 'online')
-      return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
+    if (snap.status !== 'online') return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
   }
 
   const coins = readTierCoins(rule?.tierCoins, params.tier ?? '');
-  if (coins <= 0)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'zero_coins' } };
+  if (coins <= 0) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'zero_coins' } };
 
   await params.record({
     providerEventId: `${params.messageId}:sub`,
@@ -195,23 +190,19 @@ export async function handleKickSubscriptionRenewal(params: {
   record: RecordKickReward;
 }): Promise<KickRewardResponse> {
   const rule = params.cfg?.resubMessage ?? null;
-  if (!params.actorId)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
-  if (!rule?.enabled)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
+  if (!params.actorId) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
+  if (!rule?.enabled) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
 
   const onlyWhenLive = Boolean(rule?.onlyWhenLive);
   if (onlyWhenLive) {
     const snap = await getStreamDurationSnapshot(params.slug);
-    if (snap.status !== 'online')
-      return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
+    if (snap.status !== 'online') return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
   }
 
   const tierCoins = readTierCoins(rule?.tierCoins, params.tier ?? '');
   const bonus = Math.floor(safeNum(rule?.bonusCoins ?? 0));
   const coins = tierCoins + (bonus > 0 ? bonus : 0);
-  if (coins <= 0)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'zero_coins' } };
+  if (coins <= 0) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'zero_coins' } };
 
   await params.record({
     providerEventId: `${params.messageId}:renewal`,
@@ -237,14 +228,12 @@ export async function handleKickSubscriptionGifts(params: {
   record: RecordKickReward;
 }): Promise<KickRewardResponse> {
   const rule = params.cfg?.giftSub ?? null;
-  if (!rule?.enabled)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
+  if (!rule?.enabled) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
 
   const onlyWhenLive = Boolean(rule?.onlyWhenLive);
   if (onlyWhenLive) {
     const snap = await getStreamDurationSnapshot(params.slug);
-    if (snap.status !== 'online')
-      return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
+    if (snap.status !== 'online') return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
   }
 
   const giverId = params.actorId;
@@ -293,16 +282,13 @@ export async function handleKickKicksGifted(params: {
   record: RecordKickReward;
 }): Promise<KickRewardResponse> {
   const rule = params.cfg?.cheer ?? null;
-  if (!params.actorId)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
-  if (!rule?.enabled)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
+  if (!params.actorId) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'missing_actor_id' } };
+  if (!rule?.enabled) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'auto_rewards_disabled' } };
 
   const onlyWhenLive = Boolean(rule?.onlyWhenLive);
   if (onlyWhenLive) {
     const snap = await getStreamDurationSnapshot(params.slug);
-    if (snap.status !== 'online')
-      return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
+    if (snap.status !== 'online') return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'offline' } };
   }
 
   const minKicks = Math.max(1, Math.floor(safeNum(rule?.minBits ?? 1)));
@@ -311,8 +297,7 @@ export async function handleKickKicksGifted(params: {
 
   const kicksPerCoin = Math.max(1, Math.floor(safeNum(rule?.bitsPerCoin ?? 1)));
   const coins = Math.floor(params.kicks / kicksPerCoin);
-  if (coins <= 0)
-    return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'zero_coins' } };
+  if (coins <= 0) return { httpStatus: 200, body: { ok: true, ignored: true, reason: 'zero_coins' } };
 
   await params.record({
     providerEventId: `${params.messageId}:kicks_gifted`,

@@ -216,9 +216,7 @@ export function setupSocketIO(io: Server) {
 
         // Token rotation: deny old links after streamer regenerates overlay URL.
         const tokenVersion = Number.isFinite(decoded.tv) ? Number(decoded.tv) : 1;
-        const currentVersion = Number.isFinite(channel?.creditsTokenVersion)
-          ? Number(channel?.creditsTokenVersion)
-          : 1;
+        const currentVersion = Number.isFinite(channel?.creditsTokenVersion) ? Number(channel?.creditsTokenVersion) : 1;
         if (tokenVersion !== currentVersion) {
           debugLog('[socket] join:overlay denied (token rotated)', {
             socketId: socket.id,

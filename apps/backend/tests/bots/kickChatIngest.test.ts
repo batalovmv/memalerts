@@ -55,10 +55,14 @@ describe('kick chat ingest', () => {
     const states = new Map<string, KickChannelState>([[st.channelId, st]]);
     const handleIncomingChat = vi.fn();
 
-    const ingest = createKickChatIngest(states, { handleIncomingChat }, {
-      chatPollUrlTemplate: 'https://kick.test/channels/{channelId}/chat?cursor={cursor}',
-      stoppedRef: { value: false },
-    });
+    const ingest = createKickChatIngest(
+      states,
+      { handleIncomingChat },
+      {
+        chatPollUrlTemplate: 'https://kick.test/channels/{channelId}/chat?cursor={cursor}',
+        stoppedRef: { value: false },
+      }
+    );
 
     await ingest.ingestChatOnce();
 

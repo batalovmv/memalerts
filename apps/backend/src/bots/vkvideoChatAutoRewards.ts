@@ -4,13 +4,7 @@ import { claimPendingCoinGrantsTx } from '../rewards/pendingCoinGrants.js';
 import { getRedisClient } from '../utils/redisClient.js';
 import { nsKey } from '../utils/redisCache.js';
 import { logger } from '../utils/logger.js';
-import {
-  asArray,
-  asRecord,
-  getErrorMessage,
-  utcDayKey,
-  utcDayKeyYesterday,
-} from './vkvideoChatbotShared.js';
+import { asArray, asRecord, getErrorMessage, utcDayKey, utcDayKeyYesterday } from './vkvideoChatbotShared.js';
 
 type RewardTx = Parameters<typeof recordExternalRewardEventTx>[0]['tx'];
 

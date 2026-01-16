@@ -21,19 +21,21 @@ type RewardPushParams = {
   autoRewardsCfg: unknown | null;
 };
 
-async function processFollowOrSubscribe(params: RewardPushParams, alert: ReturnType<typeof extractVkVideoFollowOrSubscriptionAlert>): Promise<void> {
+async function processFollowOrSubscribe(
+  params: RewardPushParams,
+  alert: ReturnType<typeof extractVkVideoFollowOrSubscriptionAlert>
+): Promise<void> {
   if (!alert || !params.channelId) return;
   const channelId = params.channelId;
   const slug = params.channelSlug;
 
   const rawPayloadJson = JSON.stringify(params.pushData ?? {});
-  const cfgRec = params.autoRewardsCfg && typeof params.autoRewardsCfg === 'object' ? asRecord(params.autoRewardsCfg) : {};
+  const cfgRec =
+    params.autoRewardsCfg && typeof params.autoRewardsCfg === 'object' ? asRecord(params.autoRewardsCfg) : {};
   const rule = alert.kind === 'follow' ? asRecord(cfgRec.follow) : asRecord(cfgRec.subscribe);
   const enabled = Boolean(rule.enabled);
   const coins =
-    alert.kind === 'follow'
-      ? Math.floor(Number(rule.coins ?? 0))
-      : Math.floor(Number(rule.primeCoins ?? 0)); // VKVideo has no tier info; use primeCoins as a single-value knob.
+    alert.kind === 'follow' ? Math.floor(Number(rule.coins ?? 0)) : Math.floor(Number(rule.primeCoins ?? 0)); // VKVideo has no tier info; use primeCoins as a single-value knob.
   const onlyWhenLive = Boolean(rule.onlyWhenLive);
   const onceEver = alert.kind === 'follow' ? (rule.onceEver === undefined ? true : Boolean(rule.onceEver)) : true;
 
@@ -48,7 +50,12 @@ async function processFollowOrSubscribe(params: RewardPushParams, alert: ReturnT
       : stableProviderEventId({
           provider: 'vkvideo',
           rawPayloadJson,
-          fallbackParts: [alert.kind, params.vkvideoChannelId, alert.providerAccountId, String(alert.eventAt?.getTime?.() || '')],
+          fallbackParts: [
+            alert.kind,
+            params.vkvideoChannelId,
+            alert.providerAccountId,
+            String(alert.eventAt?.getTime?.() || ''),
+          ],
         }));
 
   if (!enabled || coins <= 0) {
@@ -128,7 +135,10 @@ async function processFollowOrSubscribe(params: RewardPushParams, alert: ReturnT
   });
 }
 
-async function processChannelPoints(params: RewardPushParams, redemption: ReturnType<typeof extractVkVideoChannelPointsRedemption>): Promise<void> {
+async function processChannelPoints(
+  params: RewardPushParams,
+  redemption: ReturnType<typeof extractVkVideoChannelPointsRedemption>
+): Promise<void> {
   if (!redemption || !params.channelId) return;
   const channelId = params.channelId;
   const slug = params.channelSlug;
@@ -234,7 +244,9 @@ async function processChannelPoints(params: RewardPushParams, redemption: Return
 
   const fixedCoins = channel.vkvideoRewardCoins ?? null;
   const ratio = Number(channel.vkvideoCoinPerPointRatio ?? 1.0);
-  const coinsToGrant = fixedCoins ? Number(fixedCoins) : Math.floor(redemption.amount * (Number.isFinite(ratio) ? ratio : 1.0));
+  const coinsToGrant = fixedCoins
+    ? Number(fixedCoins)
+    : Math.floor(redemption.amount * (Number.isFinite(ratio) ? ratio : 1.0));
 
   const linkedUserId = await resolveMemalertsUserIdFromChatIdentity({
     provider: 'vkvideo',

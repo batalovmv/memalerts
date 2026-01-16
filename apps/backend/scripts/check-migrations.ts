@@ -42,9 +42,7 @@ function getChangedMigrationFiles(): string[] | null {
   const base = String(process.env.MIGRATIONS_BASE_SHA || '').trim();
   const head = String(process.env.MIGRATIONS_HEAD_SHA || '').trim();
   const range = base && head ? `${base}...${head}` : base ? `${base}...HEAD` : '';
-  const diffCmd = range
-    ? `git diff --name-only --diff-filter=AMR ${range}`
-    : 'git diff --name-only --diff-filter=AMR';
+  const diffCmd = range ? `git diff --name-only --diff-filter=AMR ${range}` : 'git diff --name-only --diff-filter=AMR';
   const out = tryExec(diffCmd);
   if (!out) return null;
   const files = out
@@ -70,7 +68,9 @@ function stripSqlComments(sql: string): string {
 function parseAllowList(line: string): string[] | null {
   const match = line.match(LINT_ALLOW_RE);
   if (!match) return null;
-  const raw = String(match[1] || '').trim().toLowerCase();
+  const raw = String(match[1] || '')
+    .trim()
+    .toLowerCase();
   if (!raw) return ['all'];
   return raw
     .split(/[, ]+/)
@@ -252,8 +252,7 @@ for (const file of sqlFiles) {
     const trimmed = stmtLower.trim();
     const hasWhere = /\bwhere\b/i.test(stmtLower);
     const isUpdate = /^\s*update\b/i.test(trimmed) || (/^\s*with\b/i.test(trimmed) && /\bupdate\b/i.test(trimmed));
-    const isDelete =
-      /^\s*delete\b/i.test(trimmed) || (/^\s*with\b/i.test(trimmed) && /\bdelete\b/i.test(trimmed));
+    const isDelete = /^\s*delete\b/i.test(trimmed) || (/^\s*with\b/i.test(trimmed) && /\bdelete\b/i.test(trimmed));
     if (!allowNoWhere && (isUpdate || isDelete) && !hasWhere) {
       const lineIndex = findLineIndex(stmt.lines, isUpdate ? /\bupdate\b/i : /\bdelete\b/i);
       addFinding(findings, {

@@ -1,4 +1,8 @@
-import { getValidKickAccessTokenByExternalAccountId, getValidKickBotAccessToken, sendKickChatMessage } from '../utils/kickApi.js';
+import {
+  getValidKickAccessTokenByExternalAccountId,
+  getValidKickBotAccessToken,
+  sendKickChatMessage,
+} from '../utils/kickApi.js';
 import { asRecord, getErrorMessage, normalizeMessage, type KickChannelState } from './kickChatbotShared.js';
 
 export async function sendToKickChat(params: { st: KickChannelState; text: string }) {

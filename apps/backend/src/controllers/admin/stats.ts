@@ -187,12 +187,8 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
     ]);
 
     // Fetch user/meme details (only if needed)
-    const userIds = userSpendingRes.rows
-      .map((s) => String(asRecord(s).userId || ''))
-      .filter((id) => id);
-    const memeIds = memeStatsRes.rows
-      .map((s) => String(asRecord(s).memeId || ''))
-      .filter((id) => id);
+    const userIds = userSpendingRes.rows.map((s) => String(asRecord(s).userId || '')).filter((id) => id);
+    const memeIds = memeStatsRes.rows.map((s) => String(asRecord(s).memeId || '')).filter((id) => id);
 
     const [users, memes] = await Promise.all([
       userIds.length
@@ -212,7 +208,11 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
     const usersById = new Map(users.map((u) => [u.id, u]));
     const memesById = new Map(memes.map((m) => [m.id, m]));
 
-    type UserSpendingOut = { user: { id: string; displayName: string }; totalCoinsSpent: number; activationsCount: number };
+    type UserSpendingOut = {
+      user: { id: string; displayName: string };
+      totalCoinsSpent: number;
+      activationsCount: number;
+    };
     const userSpendingOut: UserSpendingOut[] = userSpendingRes.rows.map((s) => {
       const rec = asRecord(s);
       const sumRec = asRecord(rec._sum);
@@ -232,7 +232,11 @@ export const getChannelStats = async (req: AuthRequest, res: Response) => {
       return b.activationsCount - a.activationsCount;
     });
 
-    type MemePopularityOut = { meme: { id: string; title: string; priceCoins: number } | null; activationsCount: number; totalCoinsSpent: number };
+    type MemePopularityOut = {
+      meme: { id: string; title: string; priceCoins: number } | null;
+      activationsCount: number;
+      totalCoinsSpent: number;
+    };
     const memePopularityOut: MemePopularityOut[] = memeStatsRes.rows.map((s) => {
       const rec = asRecord(s);
       const sumRec = asRecord(rec._sum);

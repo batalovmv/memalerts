@@ -5,7 +5,11 @@ import {
   getVkVideoExternalAccount,
   getValidVkVideoBotAccessToken,
 } from '../../utils/vkvideoApi.js';
-import { isPrismaFeatureUnavailable, extractVkVideoChannelUrls, normalizeVkVideoCurrentUserRoot } from './botIntegrationsShared.js';
+import {
+  isPrismaFeatureUnavailable,
+  extractVkVideoChannelUrls,
+  normalizeVkVideoCurrentUserRoot,
+} from './botIntegrationsShared.js';
 import type { BotPatchApplyResult, BotPatchContext, BotPatchResult } from './botSettingsPatchTypes.js';
 
 export async function prepareVkVideoPatch(ctx: BotPatchContext): Promise<BotPatchResult> {

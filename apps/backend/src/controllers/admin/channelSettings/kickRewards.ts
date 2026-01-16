@@ -38,16 +38,21 @@ export async function handleKickRewardToggle(params: {
       .map((s) => s.trim())
       .filter(Boolean);
     if (!scopes.includes('events:subscribe')) {
-      throw Object.assign(new Error('Kick scope missing: events:subscribe. Please re-link Kick with the required permissions.'), {
-        status: 400,
-        errorCode: 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE',
-      });
+      throw Object.assign(
+        new Error('Kick scope missing: events:subscribe. Please re-link Kick with the required permissions.'),
+        {
+          status: 400,
+          errorCode: 'KICK_SCOPE_MISSING_EVENTS_SUBSCRIBE',
+        }
+      );
     }
 
     const accessToken = await getValidKickAccessTokenByExternalAccountId(acc.id);
     if (!accessToken) {
       throw Object.assign(
-        new Error('Kick access token not found/expired. Please log out and log in again to refresh your authorization.'),
+        new Error(
+          'Kick access token not found/expired. Please log out and log in again to refresh your authorization.'
+        ),
         { status: 401, requiresReauth: true, errorCode: 'KICK_ACCESS_TOKEN_MISSING' }
       );
     }

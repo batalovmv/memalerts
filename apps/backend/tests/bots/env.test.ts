@@ -60,11 +60,9 @@ describe('bot env validation', () => {
       CHATBOT_BACKEND_BASE_URLS: 'https://good.example,not-a-url',
     };
 
-    const exitSpy = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(((code?: number) => {
-        throw new Error(`exit:${code ?? 0}`);
-      }) as never);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code ?? 0}`);
+    }) as never);
 
     expect(() => validateChatbotEnv()).toThrow('exit:1');
     expect(loggerMock.error).toHaveBeenCalledWith('chatbot.env_invalid', expect.any(Object));

@@ -9,7 +9,7 @@ export function registerCspReportRoute(app: Router) {
     const report =
       payload && typeof payload === 'object' && 'csp-report' in payload
         ? (payload['csp-report'] as Record<string, unknown>)
-        : payload ?? null;
+        : (payload ?? null);
     logger.warn('security.csp_violation', {
       requestId: (req as AuthRequest).requestId ?? null,
       ip: req.ip ?? null,

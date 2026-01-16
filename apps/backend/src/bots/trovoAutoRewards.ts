@@ -219,7 +219,12 @@ export function createTrovoAutoRewards(params?: { autoRewardsCacheMs?: number })
                   coinsToGrant: coins,
                   status: 'eligible',
                   reason: null,
-                  rawMeta: { kind: 'trovo_subscribe', channelSlug: params.st.slug, trovoUserId: providerAccountId, tier },
+                  rawMeta: {
+                    kind: 'trovo_subscribe',
+                    channelSlug: params.st.slug,
+                    trovoUserId: providerAccountId,
+                    tier,
+                  },
                 });
               }
             }
@@ -311,7 +316,12 @@ export function createTrovoAutoRewards(params?: { autoRewardsCacheMs?: number })
                     coinsToGrant: coins,
                     status: 'eligible',
                     reason: null,
-                    rawMeta: { kind: 'trovo_raid', channelSlug: params.st.slug, trovoUserId: providerAccountId, viewers },
+                    rawMeta: {
+                      kind: 'trovo_raid',
+                      channelSlug: params.st.slug,
+                      trovoUserId: providerAccountId,
+                      viewers,
+                    },
                   });
                 }
               }
@@ -334,10 +344,7 @@ export function createTrovoAutoRewards(params?: { autoRewardsCacheMs?: number })
 
               const award = async (awardParams: {
                 providerEventId: string;
-                eventType:
-                  | 'twitch_chat_first_message'
-                  | 'twitch_chat_messages_threshold'
-                  | 'twitch_chat_daily_streak';
+                eventType: 'twitch_chat_first_message' | 'twitch_chat_messages_threshold' | 'twitch_chat_daily_streak';
                 amount: number;
                 coins: number;
                 rawMeta: unknown;
@@ -463,7 +470,13 @@ export function createTrovoAutoRewards(params?: { autoRewardsCacheMs?: number })
                       const providerEventId = stableProviderEventId({
                         provider: 'trovo',
                         rawPayloadJson: '{}',
-                        fallbackParts: ['chat_messages_threshold', params.st.channelId, sid, providerAccountId, String(n)],
+                        fallbackParts: [
+                          'chat_messages_threshold',
+                          params.st.channelId,
+                          sid,
+                          providerAccountId,
+                          String(n),
+                        ],
                       });
                       await award({
                         providerEventId,

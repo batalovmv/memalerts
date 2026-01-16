@@ -7,9 +7,7 @@ type ChatCompletionResponse = {
   }>;
 };
 
-type OpenAIContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string } };
+type OpenAIContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
 function clampInt(n: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(n)) return fallback;

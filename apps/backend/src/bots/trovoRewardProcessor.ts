@@ -41,8 +41,7 @@ function extractTrovoSpellFromChat(params: { envelope: unknown; chat: unknown })
     .trim();
   const currency: 'trovo_mana' | 'trovo_elixir' = contentDataStr.includes('elixir') ? 'trovo_elixir' : 'trovo_mana';
 
-  const providerEventId =
-    String(chatRec.eid ?? chatRec.id ?? chatRec.msg_id ?? envelopeData.eid ?? '').trim() || null;
+  const providerEventId = String(chatRec.eid ?? chatRec.id ?? chatRec.msg_id ?? envelopeData.eid ?? '').trim() || null;
 
   const eventAt = (() => {
     const ts = chatRec.send_time ?? chatRec.sendTime ?? chatRec.timestamp ?? null;

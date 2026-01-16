@@ -205,8 +205,7 @@ export async function handlePendingSubmission(opts: {
   try {
     submission = await runSubmissionWrite(tagIds.length > 0);
   } catch (dbError) {
-    const dbErrorCode =
-      typeof dbError === 'object' && dbError !== null ? (dbError as { code?: string }).code : null;
+    const dbErrorCode = typeof dbError === 'object' && dbError !== null ? (dbError as { code?: string }).code : null;
     const dbErrorMeta =
       typeof dbError === 'object' && dbError !== null ? (dbError as { meta?: { table?: string } }).meta : null;
     if (dbErrorCode === 'P2021' && dbErrorMeta?.table === 'public.MemeSubmissionTag') {
@@ -223,9 +222,7 @@ export async function handlePendingSubmission(opts: {
   }
 
   const idempotencyHit =
-    !!submissionIdempotencyKey &&
-    !!idempotencyWriteStartedAt &&
-    submission.createdAt < idempotencyWriteStartedAt;
+    !!submissionIdempotencyKey && !!idempotencyWriteStartedAt && submission.createdAt < idempotencyWriteStartedAt;
   if (idempotencyHit) {
     if (fileHashRefAdded && fileHashForCleanup) {
       try {

@@ -139,7 +139,11 @@ export function isAllowedPublicFileUrl(p: string): boolean {
   return false;
 }
 
-export async function downloadPublicFileToDisk(opts: { url: string; destPath: string; maxBytes: number }): Promise<void> {
+export async function downloadPublicFileToDisk(opts: {
+  url: string;
+  destPath: string;
+  maxBytes: number;
+}): Promise<void> {
   const { url, destPath, maxBytes } = opts;
   const res = await fetch(url, { method: 'GET' });
   if (!res.ok) {
@@ -183,7 +187,10 @@ export async function downloadPublicFileToDisk(opts: { url: string; destPath: st
   }
 }
 
-export function computeKeywordHeuristic(title: string, notes: string | null | undefined): {
+export function computeKeywordHeuristic(
+  title: string,
+  notes: string | null | undefined
+): {
   decision: AiModerationDecision;
   riskScore: number;
   labels: string[];

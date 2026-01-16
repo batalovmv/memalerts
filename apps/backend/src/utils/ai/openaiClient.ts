@@ -49,9 +49,11 @@ export async function openaiFetchJson<T>(path: string, init: RequestInit, opts: 
         const external = (init as { signal?: AbortSignal })?.signal;
         if (!external) return ac.signal;
         try {
-          const signalAny = (AbortSignal as typeof AbortSignal & {
-            any?: (signals: AbortSignal[]) => AbortSignal;
-          }).any;
+          const signalAny = (
+            AbortSignal as typeof AbortSignal & {
+              any?: (signals: AbortSignal[]) => AbortSignal;
+            }
+          ).any;
           if (typeof signalAny === 'function') {
             return signalAny([external, ac.signal]);
           }

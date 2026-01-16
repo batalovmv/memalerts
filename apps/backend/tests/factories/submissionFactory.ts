@@ -5,7 +5,7 @@ import { createUser } from './userFactory.js';
 import { uniqueId } from './utils.js';
 
 export async function createSubmission(
-  overrides: Partial<Prisma.MemeSubmissionUncheckedCreateInput> = {},
+  overrides: Partial<Prisma.MemeSubmissionUncheckedCreateInput> = {}
 ): Promise<MemeSubmission> {
   const seed = uniqueId('submission');
   const channelId = overrides.channelId ?? (await createChannel()).id;

@@ -28,14 +28,8 @@ function resolvePath(envKey: string, fallback: string): string {
   return raw.length > 0 ? raw : fallback;
 }
 
-const summaryPath = resolvePath(
-  'COVERAGE_SUMMARY_PATH',
-  path.join(process.cwd(), 'coverage', 'coverage-summary.json')
-);
-const baselinePath = resolvePath(
-  'COVERAGE_BASELINE_PATH',
-  path.join(process.cwd(), 'coverage-baseline.json')
-);
+const summaryPath = resolvePath('COVERAGE_SUMMARY_PATH', path.join(process.cwd(), 'coverage', 'coverage-summary.json'));
+const baselinePath = resolvePath('COVERAGE_BASELINE_PATH', path.join(process.cwd(), 'coverage-baseline.json'));
 
 if (!fs.existsSync(summaryPath)) {
   console.error(`coverage summary not found: ${summaryPath}`);

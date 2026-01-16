@@ -377,7 +377,9 @@ export const botOutboxHandlers = {
             select: { enabled: true },
           });
           if (gate && !gate.enabled) {
-            return res.status(400).json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
+            return res
+              .status(400)
+              .json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
           }
         } catch (error) {
           if (!isPrismaErrorCode(error, 'P2021')) throw error;
@@ -388,7 +390,9 @@ export const botOutboxHandlers = {
           select: { enabled: true, kickChannelId: true },
         });
         if (!sub?.enabled || !sub.kickChannelId) {
-          return res.status(400).json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
+          return res
+            .status(400)
+            .json({ error: 'Bad Request', message: 'Kick chat bot is not enabled for this channel' });
         }
 
         const row = await prisma.kickChatBotOutboxMessage.create({

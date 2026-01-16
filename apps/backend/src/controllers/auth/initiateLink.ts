@@ -58,7 +58,9 @@ export async function initiateYouTubeForceSslLink(req: AuthRequest, res: Respons
 }
 
 export async function initiateLink(req: AuthRequest, res: Response) {
-  const providerInput = String(asRecord(req.params)?.provider || '').trim().toLowerCase();
+  const providerInput = String(asRecord(req.params)?.provider || '')
+    .trim()
+    .toLowerCase();
   if (!req.userId) {
     const redirectUrl = getRedirectUrl(req);
     return res.redirect(`${redirectUrl}/?error=auth_required&reason=no_session`);

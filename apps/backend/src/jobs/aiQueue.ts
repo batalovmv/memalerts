@@ -218,7 +218,8 @@ export async function runAiWatchdogOnce(opts: { limit?: number } = {}): Promise<
 
   let recovered = 0;
   for (const row of stuck) {
-    const prevAttempts = typeof row.aiRetryCount === 'number' && Number.isFinite(row.aiRetryCount) ? row.aiRetryCount : 0;
+    const prevAttempts =
+      typeof row.aiRetryCount === 'number' && Number.isFinite(row.aiRetryCount) ? row.aiRetryCount : 0;
     const update = computeAiFailureUpdate({
       prevAttempts,
       now,

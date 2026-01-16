@@ -19,8 +19,18 @@ export async function createOwnerImportMeme(params: {
   detectedDurationMs: number | null;
   userProvidedTitle: boolean;
 }): Promise<Response> {
-  const { req, res, channelId, channel, finalTitle, tagIds, finalFilePath, fileHash, detectedDurationMs, userProvidedTitle } =
-    params;
+  const {
+    req,
+    res,
+    channelId,
+    channel,
+    finalTitle,
+    tagIds,
+    finalFilePath,
+    fileHash,
+    detectedDurationMs,
+    userProvidedTitle,
+  } = params;
 
   const defaultPrice = channel.defaultPriceCoins ?? 100;
   const durationMsSafe = Math.max(0, Math.min(detectedDurationMs ?? 0, 15000));
@@ -123,7 +133,8 @@ export async function createOwnerImportMeme(params: {
     channelMemeId = resTx.channelMemeId;
   } catch (error) {
     const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-    const errorMeta = typeof error === 'object' && error !== null ? (error as { meta?: { table?: string } }).meta : null;
+    const errorMeta =
+      typeof error === 'object' && error !== null ? (error as { meta?: { table?: string } }).meta : null;
     if (errorCode === 'P2021' && errorMeta?.table === 'public.MemeTag' && tagIds.length > 0) {
       const resTx = await runOwnerCreateTx(false);
       meme = resTx.meme;
@@ -140,8 +151,12 @@ export async function createOwnerImportMeme(params: {
     }
   }
 
-  const fallbackDesc = userProvidedTitle ? makeAutoDescription({ title: finalTitle, transcript: null, labels: [] }) : null;
-  const fallbackTags = userProvidedTitle ? generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames : [];
+  const fallbackDesc = userProvidedTitle
+    ? makeAutoDescription({ title: finalTitle, transcript: null, labels: [] })
+    : null;
+  const fallbackTags = userProvidedTitle
+    ? generateTagNames({ title: finalTitle, transcript: null, labels: [] }).tagNames
+    : [];
   const fallbackSearchText = fallbackDesc ? String(fallbackDesc).slice(0, 4000) : null;
 
   try {

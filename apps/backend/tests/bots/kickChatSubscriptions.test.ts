@@ -35,9 +35,7 @@ describe('kick chat subscriptions', () => {
       { channelId: 'channel-1', enabled: true },
       { channelId: 'channel-2', enabled: false },
     ]);
-    prismaMock.kickBotIntegration.findMany.mockResolvedValue([
-      { channelId: 'channel-1', externalAccountId: 'ext-1' },
-    ]);
+    prismaMock.kickBotIntegration.findMany.mockResolvedValue([{ channelId: 'channel-1', externalAccountId: 'ext-1' }]);
 
     const states = new Map<string, KickChannelState>([
       [

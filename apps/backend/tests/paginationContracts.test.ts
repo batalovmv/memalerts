@@ -97,7 +97,10 @@ describe('cursor pagination contracts', () => {
     expect(res.body.items).toHaveLength(2);
     expect(typeof res.body.nextCursor).toBe('string');
 
-    const nextReq = { userId: user.id, query: { cursor: (res.body as { nextCursor?: string }).nextCursor } } as unknown as AuthRequest;
+    const nextReq = {
+      userId: user.id,
+      query: { cursor: (res.body as { nextCursor?: string }).nextCursor },
+    } as unknown as AuthRequest;
     const nextRes = createMockRes();
     await getMySubmissions(nextReq, nextRes as unknown as Response);
     expect(nextRes.statusCode).toBe(200);
@@ -182,7 +185,11 @@ describe('cursor pagination contracts', () => {
       });
     }
 
-    const req = { params: { slug: channel.slug }, query: { limit: '2', cursor: '' }, headers: {} } as unknown as Request;
+    const req = {
+      params: { slug: channel.slug },
+      query: { limit: '2', cursor: '' },
+      headers: {},
+    } as unknown as Request;
     const res = createMockRes();
     await getPublicChannelMemes(req, res as unknown as Response);
     expect(res.statusCode).toBe(200);

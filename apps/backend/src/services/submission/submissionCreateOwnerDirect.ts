@@ -149,7 +149,8 @@ export async function handleOwnerDirectSubmission(opts: {
     channelMemeId = resTx.channelMemeId;
   } catch (error) {
     const errorCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
-    const errorMeta = typeof error === 'object' && error !== null ? (error as { meta?: { table?: string } }).meta : null;
+    const errorMeta =
+      typeof error === 'object' && error !== null ? (error as { meta?: { table?: string } }).meta : null;
     if (errorCode === 'P2021' && errorMeta?.table === 'public.MemeTag' && tagIds.length > 0) {
       logger.warn('submission.owner.meme_tag_table_missing', {
         requestId: req.requestId,

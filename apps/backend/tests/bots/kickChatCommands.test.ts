@@ -32,16 +32,19 @@ describe('kick chat commands', () => {
   });
 
   it('refreshes commands and normalizes fields', async () => {
-    const states = new Map<string, {
-      channelId: string;
-      userId: string;
-      kickChannelId: string;
-      slug: string;
-      botExternalAccountId: string | null;
-      commandsTs: number;
-      commands: unknown[];
-      chatCursor: string | null;
-    }>();
+    const states = new Map<
+      string,
+      {
+        channelId: string;
+        userId: string;
+        kickChannelId: string;
+        slug: string;
+        botExternalAccountId: string | null;
+        commandsTs: number;
+        commands: unknown[];
+        chatCursor: string | null;
+      }
+    >();
     const st = {
       channelId: 'channel-1',
       userId: 'user-1',
@@ -87,22 +90,25 @@ describe('kick chat commands', () => {
   });
 
   it('posts credits chatter and replies when command matches', async () => {
-    const states = new Map<string, {
-      channelId: string;
-      userId: string;
-      kickChannelId: string;
-      slug: string;
-      botExternalAccountId: string | null;
-      commandsTs: number;
-      commands: Array<{
-        triggerNormalized: string;
-        response: string;
-        onlyWhenLive: boolean;
-        allowedUsers: string[];
-        allowedRoles: string[];
-      }>;
-      chatCursor: string | null;
-    }>();
+    const states = new Map<
+      string,
+      {
+        channelId: string;
+        userId: string;
+        kickChannelId: string;
+        slug: string;
+        botExternalAccountId: string | null;
+        commandsTs: number;
+        commands: Array<{
+          triggerNormalized: string;
+          response: string;
+          onlyWhenLive: boolean;
+          allowedUsers: string[];
+          allowedRoles: string[];
+        }>;
+        chatCursor: string | null;
+      }
+    >();
     const st = {
       channelId: 'channel-1',
       userId: 'user-1',

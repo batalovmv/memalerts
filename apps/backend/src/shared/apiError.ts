@@ -30,11 +30,3 @@ export function sendError(res: Response, payload: ApiErrorPayload) {
     ...(details !== undefined ? { details } : {}),
   });
 }
-
-
-
-
-
-
-
-

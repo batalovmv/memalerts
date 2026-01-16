@@ -24,6 +24,4 @@ export type BotPatchResult =
   | { ok: true; data: BotPatchPrepared }
   | { ok: false; status: number; body: Record<string, unknown> };
 
-export type BotPatchApplyResult =
-  | { ok: true }
-  | { ok: false; status: number; body: Record<string, unknown> };
+export type BotPatchApplyResult = { ok: true } | { ok: false; status: number; body: Record<string, unknown> };
