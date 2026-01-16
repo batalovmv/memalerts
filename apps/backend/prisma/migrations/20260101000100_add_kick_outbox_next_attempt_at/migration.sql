@@ -22,3 +22,4 @@ ON "KickChatBotOutboxMessage" ("status", "nextAttemptAt", "createdAt");
 
 
 
+

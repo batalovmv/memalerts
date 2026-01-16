@@ -291,3 +291,4 @@ describe('API error contract (shape + errorCode + requestId)', () => {
     expectErrorShape(r2.body);
   });
 });
+

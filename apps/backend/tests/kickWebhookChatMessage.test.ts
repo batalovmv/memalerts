@@ -121,3 +121,4 @@ describe('webhooks: /webhooks/kick/events (chat.message.sent)', () => {
     expect(outbox2).toBe(1);
   });
 });
+

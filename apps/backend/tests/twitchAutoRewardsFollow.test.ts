@@ -115,3 +115,4 @@ describe('Twitch auto rewards: follow -> ExternalRewardEvent + PendingCoinGrant 
     expect(evCount).toBe(1);
   });
 });
+
