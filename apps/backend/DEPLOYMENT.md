@@ -255,4 +255,15 @@ Nginx конфиг на сервере ожидает:
 
 Скрипт безопасно перезапускать: он обрабатывает только `FileHash.filePath`, которые всё ещё указывают на `/uploads/*`.
 
+#### Проверка после миграции
+
+- Убедиться, что **не осталось** ссылок на `/uploads/*` в БД:
+  - `FileHash.filePath`, `Meme.fileUrl`, `MemeAsset.fileUrl`, `MemeAsset.playFileUrl`, `MemeSubmission.fileUrlTemp`.
+- Проверить доступность объектов:
+  - выбрать 3–5 S3 URL из БД и сделать `curl -I` → `200 OK`.
+- Проверить CORS (для браузеров):
+  - `curl -I -H "Origin: https://twitchmemes.ru" <s3-url>` → есть `Access-Control-Allow-Origin`.
+- Убедиться, что локальные файлы удалены:
+  - `find /opt/memalerts-backend/uploads/memes -type f | wc -l` → `0` (и аналогично для beta).
+
 
