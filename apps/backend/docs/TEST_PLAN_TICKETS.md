@@ -1331,10 +1331,10 @@
 **Файл теста**: `tests/utilsCache.test.ts`
 
 **Что тестировать**:
-- [ ] get/set/delete
-- [ ] TTL handling
-- [ ] Cache miss behavior
-- [ ] Connection handling
+- [x] get/set/delete
+- [x] TTL handling
+- [x] Cache miss behavior
+- [x] Connection handling
 
 **Мокировать**:
 - Redis client
