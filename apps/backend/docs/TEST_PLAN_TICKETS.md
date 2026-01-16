@@ -375,13 +375,13 @@
 **Файл теста**: `tests/publicChannelApi.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /public/channels/:slug` — channel meta
-- [ ] `GET /public/channels/:slug?includeMemes=true` — с мемами
-- [ ] `GET /public/channels/:slug/memes` — pagination
-- [ ] `GET /public/channels/:slug/memes/search?q=...` — поиск
-- [ ] Несуществующий slug — 404
-- [ ] Pagination параметры (limit, offset, sortBy, sortOrder)
-- [ ] DTO не содержит приватных полей
+- [x] `GET /public/channels/:slug` - channel meta
+- [x] `GET /public/channels/:slug?includeMemes=true` - с мемами
+- [x] `GET /public/channels/:slug/memes` - pagination
+- [x] `GET /public/channels/:slug/memes/search?q=...` - поиск
+- [x] Несуществующий slug - 404
+- [x] Pagination параметры (limit, offset, sortBy, sortOrder)
+- [x] DTO не содержит приватных полей
 
 **Acceptance Criteria**:
 ```
