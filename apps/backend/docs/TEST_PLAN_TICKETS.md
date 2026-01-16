@@ -645,11 +645,11 @@
 **Файл теста**: `tests/streamerMemes.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /streamer/memes` — список мемов канала
-- [ ] `PATCH /streamer/memes/:id` — обновление (title, price, tags)
-- [ ] `DELETE /streamer/memes/:id` — soft delete
-- [ ] Доступ только к мемам своего канала
-- [ ] Валидация полей при update
+- [x] `GET /streamer/memes` - список мемов канала
+- [x] `PATCH /streamer/memes/:id` - обновление (title, price; N/A: tags)
+- [x] `DELETE /streamer/memes/:id` - soft delete
+- [x] Доступ только к мемам своего канала
+- [x] Валидация полей при update
 
 **Acceptance Criteria**:
 ```

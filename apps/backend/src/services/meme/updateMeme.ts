@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { updateMemeSchema } from '../../shared/schemas.js';
+import { ZodError } from 'zod';
 import { assertChannelOwner } from '../../utils/accessControl.js';
 import { ERROR_CODES } from '../../shared/errors.js';
 import { asRecord } from './memeShared.js';
@@ -131,6 +132,13 @@ export const updateMeme = async (req: AuthRequest, res: Response) => {
       approvedBy: updated.approvedBy,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Validation failed',
+        details: error.errors,
+      });
+    }
     throw error;
   }
 };
