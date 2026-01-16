@@ -818,11 +818,11 @@
 **Файл теста**: `tests/streamerPromotions.test.ts`
 
 **Что тестировать**:
-- [ ] Create promotion (discount percentage, dates)
-- [ ] List promotions
-- [ ] Update promotion
-- [ ] Delete promotion
-- [ ] Активная промо применяется к цене
+- [x] Create promotion (discount percentage, dates)
+- [x] List promotions
+- [x] Update promotion
+- [x] Delete promotion
+- [x] Активная промо применяется к цене (covered in `tests/viewerActivation.test.ts`)
 
 **Acceptance Criteria**:
 ```
