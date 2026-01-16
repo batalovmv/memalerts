@@ -1009,9 +1009,9 @@
 **Файл теста**: `tests/realtimeCreditsState.test.ts`
 
 **Что тестировать**:
-- [ ] Session store operations
-- [ ] Credits state updates
-- [ ] Ticker logic
+- [x] Session store operations
+- [x] Credits state updates
+- [x] Ticker logic
 
 **Acceptance Criteria**:
 ```
