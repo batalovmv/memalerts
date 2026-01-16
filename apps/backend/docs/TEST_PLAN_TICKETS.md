@@ -1558,8 +1558,8 @@
 **Файл теста**: `tests/middlewareRequireChannel.test.ts`
 
 **Что тестировать**:
-- [ ] User with channel — pass
-- [ ] User without channel — reject
+- [x] User with channel - pass
+- [x] User without channel - reject
 
 **Acceptance Criteria**:
 ```
