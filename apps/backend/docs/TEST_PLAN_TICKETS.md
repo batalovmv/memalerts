@@ -699,10 +699,10 @@
 **Файл теста**: `tests/streamerTwitchRewards.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /streamer/twitch/reward/eligibility`
-- [ ] Create/Update/Delete reward
-- [ ] EventSub subscription management
-- [ ] Auto rewards configuration
+- [x] `GET /streamer/twitch/reward/eligibility`
+- [x] Create/Update/Delete reward
+- [x] EventSub subscription management
+- [x] Auto rewards configuration
 
 **Мокировать**:
 - Twitch API
