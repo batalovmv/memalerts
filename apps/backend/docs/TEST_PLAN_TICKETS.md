@@ -986,9 +986,9 @@
 **Файл теста**: `tests/realtimeSubmission.test.ts`
 
 **Что тестировать**:
-- [ ] `submission:created` — при создании
-- [ ] `submission:status` — при изменении статуса
-- [ ] Slug normalization (lowercase)
+- [x] `submission:created` - при создании
+- [x] `submission:status` - при изменении статуса
+- [x] Slug normalization (lowercase)
 
 **Acceptance Criteria**:
 ```
