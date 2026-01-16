@@ -514,13 +514,13 @@
 **Файл теста**: `tests/viewerMemesSearch.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /memes` — мемы пользователя
-- [ ] `GET /channels/:slug/memes` — мемы канала
-- [ ] `GET /channels/memes/search?q=...` — поиск
-- [ ] Pagination
-- [ ] Sorting (createdAt, priceCoins)
-- [ ] memeCatalogMode влияние (channel vs pool_all)
-- [ ] ETag / 304 caching
+- [x] `GET /memes` - мемы пользователя
+- [x] `GET /channels/:slug/memes` - мемы канала
+- [x] `GET /channels/memes/search?q=...` - поиск
+- [x] Pagination
+- [x] Sorting (createdAt, priceCoins)
+- [x] memeCatalogMode влияние (channel vs pool_all)
+- [x] ETag / 304 caching
 
 **Acceptance Criteria**:
 ```
