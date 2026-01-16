@@ -620,11 +620,11 @@
 **Файл теста**: `tests/streamerSubmissions.test.ts`
 
 **Что тестировать**:
-- [ ] Список submissions на модерацию
-- [ ] Фильтрация по статусу
-- [ ] Pagination
-- [ ] Доступ только для streamer/admin
-- [ ] Только submissions своего канала
+- [x] Список submissions на модерацию
+- [x] Фильтрация по статусу
+- [x] Pagination
+- [x] Доступ только для streamer/admin
+- [x] Только submissions своего канала
 
 **Acceptance Criteria**:
 ```
