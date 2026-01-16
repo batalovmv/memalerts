@@ -466,10 +466,10 @@
 **Файл теста**: `tests/viewerPreferences.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /me/preferences` — текущие настройки
-- [ ] `PATCH /me/preferences` — обновление
-- [ ] Валидация полей
-- [ ] Partial update (только переданные поля)
+- [x] `GET /me/preferences` - текущие настройки
+- [x] `PATCH /me/preferences` - обновление
+- [x] Валидация полей
+- [x] Partial update (только переданные поля)
 
 **Acceptance Criteria**:
 ```
