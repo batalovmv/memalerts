@@ -111,16 +111,16 @@
 **Файл теста**: `tests/submissionCreate.test.ts`
 
 **Что тестировать**:
-- [ ] Успешная загрузка видео (mock file)
-- [ ] Валидация magic bytes (отклонение spoofed files)
-- [ ] Валидация размера файла (> 50MB отклоняется)
-- [ ] Валидация длительности (> 15s отклоняется)
-- [ ] Дедупликация по SHA-256 (повторная загрузка = reuse FileHash)
-- [ ] Owner канала → сразу `approved` мем
-- [ ] Viewer → `pending` submission
-- [ ] Создание тегов из title
-- [ ] Socket.IO emit `submission:created`
-- [ ] Idempotency key предотвращает дубликаты
+- [x] Успешная загрузка видео (mock file)
+- [x] Валидация magic bytes (отклонение spoofed files)
+- [x] Валидация размера файла (> 50MB отклоняется)
+- [x] Валидация длительности (> 15s отклоняется)
+- [x] Дедупликация по SHA-256 (повторная загрузка = reuse FileHash)
+- [x] Owner канала → сразу `approved` мем
+- [x] Viewer → `pending` submission
+- [x] Создание тегов (через `tags` body)
+- [x] Socket.IO emit `submission:created`
+- [x] Idempotency key предотвращает дубликаты
 
 **Мокировать**:
 - FFprobe (длительность)
