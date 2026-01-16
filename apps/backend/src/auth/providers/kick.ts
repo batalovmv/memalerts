@@ -133,4 +133,3 @@ export async function fetchKickUser(params: {
   if (!id) return { status: resp.status, user: null, raw: data, text: resp.text };
   return { status: resp.status, user: root as KickUserInfo, raw: data, text: resp.text };
 }
-

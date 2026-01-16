@@ -28,7 +28,9 @@ import { Semaphore, parsePositiveIntEnv } from '../src/utils/semaphore.js';
 type S3Config = NonNullable<ReturnType<typeof loadS3ConfigFromEnv>>;
 
 function isTruthy(value: string | undefined): boolean {
-  const v = String(value || '').trim().toLowerCase();
+  const v = String(value || '')
+    .trim()
+    .toLowerCase();
   return v === '1' || v === 'true' || v === 'yes';
 }
 
@@ -84,7 +86,9 @@ async function main() {
     return;
   }
 
-  const uploadStorage = String(process.env.UPLOAD_STORAGE || '').trim().toLowerCase();
+  const uploadStorage = String(process.env.UPLOAD_STORAGE || '')
+    .trim()
+    .toLowerCase();
   if (uploadStorage && uploadStorage !== 's3') {
     logger.warn('s3.migrate.upload_storage_mismatch', { uploadStorage });
   }

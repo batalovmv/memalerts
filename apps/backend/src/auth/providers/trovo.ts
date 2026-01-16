@@ -206,4 +206,3 @@ export async function fetchTrovoUserInfo(params: {
     text: post.text,
   };
 }
-
