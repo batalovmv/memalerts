@@ -748,9 +748,9 @@
 **Файл теста**: `tests/streamerOverlay.test.ts`
 
 **Что тестировать**:
-- [ ] GET overlay settings
-- [ ] PATCH overlay settings
-- [ ] Генерация overlay URL/token
+- [x] GET overlay settings
+- [x] PATCH overlay settings (via PUT overlay presets; overlay fields updated in channel settings)
+- [x] Генерация overlay URL/token
 
 **Acceptance Criteria**:
 ```
