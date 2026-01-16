@@ -671,13 +671,13 @@
 **Файл теста**: `tests/streamerChannelSettings.test.ts`
 
 **Что тестировать**:
-- [ ] Обновление базовых настроек (name, colors, coinIconUrl)
-- [ ] Обновление reward настроек (coinPerPointRatio, rewardCoins и т.д.)
-- [ ] Обновление submission настроек (submissionsEnabled, onlyWhenLive)
-- [ ] Обновление overlay настроек
-- [ ] Валидация (например, отрицательные значения)
-- [ ] Partial update
-- [ ] Socket.IO emit при изменении
+- [x] Обновление базовых настроек (colors; N/A: name/coinIconUrl нет в PATCH schema)
+- [x] Обновление reward настроек (coinPerPointRatio, rewardCoins и т.д.)
+- [x] Обновление submission настроек (submissionsEnabled, onlyWhenLive)
+- [x] Обновление overlay настроек
+- [x] Валидация (например, отрицательные значения)
+- [x] Partial update
+- [x] Socket.IO emit при изменении
 
 **Acceptance Criteria**:
 ```
