@@ -844,10 +844,10 @@
 **Файл теста**: `tests/streamerBotIntegrations.test.ts`
 
 **Что тестировать для каждой платформы** (Twitch, YouTube, Kick, Trovo, VKVideo):
-- [ ] GET status
-- [ ] Initiate link
-- [ ] Unlink
-- [ ] Custom bot vs default bot
+- [x] GET status
+- [x] Initiate link
+- [x] Unlink
+- [x] Custom bot vs default bot
 
 **Acceptance Criteria**:
 ```

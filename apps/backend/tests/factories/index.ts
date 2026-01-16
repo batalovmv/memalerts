@@ -1,6 +1,14 @@
 export { createChannel } from './channelFactory.js';
 export { createExternalAccount, createUser, createUserWithChannel } from './userFactory.js';
-export { createChatBotCommand, createKickChatBotSubscription } from './botFactory.js';
+export {
+  createChatBotCommand,
+  createKickBotIntegration,
+  createKickChatBotSubscription,
+  createTrovoBotIntegration,
+  createTwitchBotIntegration,
+  createVkVideoBotIntegration,
+  createYouTubeBotIntegration,
+} from './botFactory.js';
 export { createFileHash, createMeme, createMemeAsset, createChannelMeme } from './memeFactory.js';
 export { createChannelEntitlement } from './entitlementFactory.js';
 export { createGlobalModerator } from './globalModeratorFactory.js';
