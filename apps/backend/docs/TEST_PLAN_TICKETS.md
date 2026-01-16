@@ -726,8 +726,8 @@
 **Файл теста**: `tests/streamerKickRewards.test.ts`
 
 **Что тестировать**:
-- [ ] Настройка Kick rewards
-- [ ] Валидация
+- [x] Настройка Kick rewards
+- [x] Валидация
 
 **Acceptance Criteria**:
 ```
