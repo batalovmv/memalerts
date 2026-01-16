@@ -962,10 +962,10 @@
 **Файл теста**: `tests/realtimeActivation.test.ts`
 
 **Что тестировать**:
-- [ ] `activation:new` — отправка в channel room
-- [ ] `activation:played` — обновление статуса
-- [ ] `activation:done` — завершение
-- [ ] Только подписанные клиенты получают события
+- [x] `activation:new` - отправка в channel room
+- [x] `activation:played` - N/A: статус `playing` не обновляется сокет-событием
+- [x] `activation:done` - статус обновляется через `activation:ackDone`
+- [x] Только подписанные клиенты получают события
 
 **Acceptance Criteria**:
 ```
