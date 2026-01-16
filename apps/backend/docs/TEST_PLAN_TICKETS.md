@@ -1414,11 +1414,11 @@
 **Файл теста**: `tests/vkvideoApi.test.ts`
 
 **Что тестировать**:
-- [ ] `vkvideoChannel.ts`
-- [ ] `vkvideoChannelPoints.ts`
-- [ ] `vkvideoCore.ts`
-- [ ] `vkvideoTokens.ts`
-- [ ] `vkvideoRoles.ts`
+- [x] `vkvideoChannel.ts`
+- [x] `vkvideoChannelPoints.ts`
+- [x] `vkvideoCore.ts`
+- [x] `vkvideoTokens.ts`
+- [x] `vkvideoRoles.ts`
 
 **Acceptance Criteria**:
 ```
