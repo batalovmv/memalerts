@@ -1387,10 +1387,10 @@
 **Файл теста**: `tests/youtubeApi.test.ts`
 
 **Что тестировать**:
-- [ ] `youtubeChannels.ts` — channel info
-- [ ] `youtubeLive.ts` — live stream detection
-- [ ] `youtubeTokens.ts` — refresh logic
-- [ ] `youtubeHttp.ts` — request handling
+- [x] `youtubeChannels.ts` - channel info
+- [x] `youtubeLive.ts` - live stream detection
+- [x] `youtubeTokens.ts` - refresh logic
+- [x] `youtubeHttp.ts` - request handling
 
 **Мокировать**:
 - YouTube API (использовать `tests/mocks/youtubeApi.mock.ts`)
