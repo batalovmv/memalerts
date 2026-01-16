@@ -40,6 +40,7 @@ Main directories:
 - **Frontend**
   - `/opt/memalerts-frontend` — production frontend (Vite build in `dist/`, overlay build in `overlay/dist/`)
   - `/opt/memalerts-frontend-beta` — beta frontend (same layout)
+  - build-time env: `/opt/memalerts-frontend/.env` and `/opt/memalerts-frontend-beta/.env` (e.g. `VITE_API_URL`); change → rebuild (`pnpm build` + `pnpm build:overlay`)
 - **Backups**
   - `/opt/backups` — local “snapshots” (including `.env` copies). Treat as secrets.
 - **containerd**
