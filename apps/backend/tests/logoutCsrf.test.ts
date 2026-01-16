@@ -67,5 +67,8 @@ describe('POST /auth/logout: CSRF + beta-gate invariants', () => {
 
     const res = await request(makeApp()).post('/auth/logout').set('Origin', 'https://beta.example.com').send({});
     expect(res.status).toBe(200);
+    const setCookie = res.headers['set-cookie'];
+    const joined = Array.isArray(setCookie) ? setCookie.join('\n') : String(setCookie || '');
+    expect(joined).toContain('token_beta=');
   });
 });

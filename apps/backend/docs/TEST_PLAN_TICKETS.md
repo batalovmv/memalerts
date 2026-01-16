@@ -349,11 +349,12 @@
 **Файл теста**: `tests/authLogout.test.ts` (расширить существующий `logoutCsrf.test.ts`)
 
 **Что тестировать**:
-- [ ] `POST /auth/logout` — очистка cookie
-- [ ] Logout на beta — очистка `token_beta`
-- [ ] Logout на prod — очистка `token`
-- [ ] CSRF проверка (уже покрыто частично)
-- [ ] Logout без cookie — 200 OK (idempotent)
+**Что тестировать**:
+- [x] `POST /auth/logout` — очистка cookie
+- [x] Logout на beta — очистка `token_beta`
+- [x] Logout на prod — очистка `token`
+- [x] CSRF проверка (уже покрыто частично)
+- [x] Logout без cookie — 200 OK (idempotent)
 
 **Acceptance Criteria**:
 ```
