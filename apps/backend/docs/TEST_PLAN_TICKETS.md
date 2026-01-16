@@ -1112,9 +1112,9 @@
 **Файл теста**: `tests/ownerChannelResolve.test.ts`
 
 **Что тестировать**:
-- [ ] `GET /owner/channels/resolve?provider=...&externalId=...`
-- [ ] Все провайдеры
-- [ ] Not found case
+- [x] `GET /owner/channels/resolve?provider=...&externalId=...`
+- [x] Все провайдеры (N/A: поддерживается только twitch)
+- [x] Not found case
 
 **Acceptance Criteria**:
 ```
