@@ -1,5 +1,6 @@
 import type {
   ChatBotCommand,
+  ChatBotSubscription,
   GlobalKickBotCredential,
   GlobalTrovoBotCredential,
   GlobalTwitchBotCredential,
@@ -10,6 +11,7 @@ import type {
   Prisma,
   TrovoBotIntegration,
   TwitchBotIntegration,
+  YouTubeChatBotSubscription,
   VkVideoBotIntegration,
   YouTubeBotIntegration,
 } from '@prisma/client';
@@ -50,6 +52,36 @@ export async function createChatBotCommand(
     ...overrides,
   };
   return prisma.chatBotCommand.create({ data });
+}
+
+export async function createChatBotSubscription(
+  overrides: Partial<Prisma.ChatBotSubscriptionUncheckedCreateInput> = {}
+): Promise<ChatBotSubscription> {
+  const seed = uniqueId('twitch');
+  const channelId = overrides.channelId ?? (await createChannel()).id;
+  const data: Prisma.ChatBotSubscriptionUncheckedCreateInput = {
+    channelId,
+    twitchLogin: `twitch_${seed}`,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.chatBotSubscription.create({ data });
+}
+
+export async function createYouTubeChatBotSubscription(
+  overrides: Partial<Prisma.YouTubeChatBotSubscriptionUncheckedCreateInput> = {}
+): Promise<YouTubeChatBotSubscription> {
+  const seed = uniqueId('youtube');
+  const channelId = overrides.channelId ?? (await createChannel()).id;
+  const userId = overrides.userId ?? (await createUser({ channelId })).id;
+  const data: Prisma.YouTubeChatBotSubscriptionUncheckedCreateInput = {
+    channelId,
+    userId,
+    youtubeChannelId: `youtube_${seed}`,
+    enabled: true,
+    ...overrides,
+  };
+  return prisma.youTubeChatBotSubscription.create({ data });
 }
 
 export async function createTwitchBotIntegration(

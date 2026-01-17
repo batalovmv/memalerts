@@ -1588,11 +1588,11 @@
 **Файл теста**: `tests/botServiceFull.test.ts`
 
 **Что тестировать**:
-- [ ] Bot commands processing
-- [ ] Follow greetings
-- [ ] Outbox management
-- [ ] Subscription handling
-- [ ] Stream duration tracking
+- [x] Bot commands processing
+- [x] Follow greetings
+- [x] Outbox management
+- [x] Subscription handling
+- [x] Stream duration tracking
 
 **Acceptance Criteria**:
 ```
