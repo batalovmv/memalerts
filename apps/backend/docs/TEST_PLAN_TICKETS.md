@@ -1642,10 +1642,10 @@
 **Файл теста**: `tests/jobs.test.ts`
 
 **Что тестировать**:
-- [ ] AI analysis job
-- [ ] AI watchdog job
-- [ ] Monitoring job
-- [ ] Worker lifecycle
+- [x] AI analysis job
+- [x] AI watchdog job
+- [x] Monitoring job
+- [x] Worker lifecycle
 
 **Acceptance Criteria**:
 ```
