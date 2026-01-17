@@ -248,6 +248,65 @@ jobs:
       - name: Deploy production (build + migrate + restart)
         id: deploy_production
         shell: bash
+        env:
+          AI_METADATA_ENABLED: ${{ secrets.AI_METADATA_ENABLED }}
+          AI_MODERATION_ENABLED: ${{ secrets.AI_MODERATION_ENABLED }}
+          AI_TAG_LIMIT: ${{ secrets.AI_TAG_LIMIT }}
+          AI_VISION_ENABLED: ${{ secrets.AI_VISION_ENABLED }}
+          AI_VISION_MAX_FRAMES: ${{ secrets.AI_VISION_MAX_FRAMES }}
+          AI_VISION_STEP_SECONDS: ${{ secrets.AI_VISION_STEP_SECONDS }}
+          CHATBOT_BACKEND_BASE_URLS: ${{ secrets.CHATBOT_BACKEND_BASE_URLS }}
+          CHATBOT_SYNC_SECONDS: ${{ secrets.CHATBOT_SYNC_SECONDS }}
+          CHAT_BOT_ENABLED: ${{ secrets.CHAT_BOT_ENABLED }}
+          CHAT_BOT_LOGIN: ${{ secrets.CHAT_BOT_LOGIN }}
+          CHAT_BOT_USER_ID: ${{ secrets.CHAT_BOT_USER_ID }}
+          CLOUDFLARE_ORIGIN_CERT: ${{ secrets.CLOUDFLARE_ORIGIN_CERT }}
+          CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          KICK_AUTHORIZE_URL: ${{ secrets.KICK_AUTHORIZE_URL }}
+          KICK_CALLBACK_URL: ${{ secrets.KICK_CALLBACK_URL }}
+          KICK_CHAT_BOT_ENABLED: ${{ secrets.KICK_CHAT_BOT_ENABLED }}
+          KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}
+          KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
+          KICK_REFRESH_URL: ${{ secrets.KICK_REFRESH_URL }}
+          KICK_TOKEN_URL: ${{ secrets.KICK_TOKEN_URL }}
+          KICK_USERINFO_URL: ${{ secrets.KICK_USERINFO_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ASR_LANGUAGE: ${{ secrets.OPENAI_ASR_LANGUAGE }}
+          OPENAI_ASR_MODEL: ${{ secrets.OPENAI_ASR_MODEL }}
+          OPENAI_MEME_METADATA_MODEL: ${{ secrets.OPENAI_MEME_METADATA_MODEL }}
+          OVERLAY_URL: ${{ secrets.OVERLAY_URL }}
+          RATE_LIMIT_WHITELIST_IPS: ${{ secrets.RATE_LIMIT_WHITELIST_IPS }}
+          TROVO_BOT_SCOPES: ${{ secrets.TROVO_BOT_SCOPES }}
+          TROVO_CALLBACK_URL: ${{ secrets.TROVO_CALLBACK_URL }}
+          TROVO_CHAT_BOT_ENABLED: ${{ secrets.TROVO_CHAT_BOT_ENABLED }}
+          TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
+          TROVO_CLIENT_SECRET: ${{ secrets.TROVO_CLIENT_SECRET }}
+          TWITCH_CALLBACK_URL: ${{ secrets.TWITCH_CALLBACK_URL }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          TWITCH_EVENTSUB_SECRET: ${{ secrets.TWITCH_EVENTSUB_SECRET }}
+          VKVIDEO_AUTHORIZE_URL: ${{ secrets.VKVIDEO_AUTHORIZE_URL }}
+          VKVIDEO_CALLBACK_URL: ${{ secrets.VKVIDEO_CALLBACK_URL }}
+          VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: ${{ secrets.VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE }}
+          VKVIDEO_CHAT_BOT_ENABLED: ${{ secrets.VKVIDEO_CHAT_BOT_ENABLED }}
+          VKVIDEO_CLIENT_ID: ${{ secrets.VKVIDEO_CLIENT_ID }}
+          VKVIDEO_CLIENT_SECRET: ${{ secrets.VKVIDEO_CLIENT_SECRET }}
+          VKVIDEO_PUBSUB_REFRESH_SECONDS: ${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}
+          VKVIDEO_ROLE_STUBS_JSON: ${{ secrets.VKVIDEO_ROLE_STUBS_JSON }}
+          VKVIDEO_SCOPES: ${{ secrets.VKVIDEO_SCOPES }}
+          VKVIDEO_TOKEN_URL: ${{ secrets.VKVIDEO_TOKEN_URL }}
+          VKVIDEO_USERINFO_URL: ${{ secrets.VKVIDEO_USERINFO_URL }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          WEB_URL: ${{ secrets.WEB_URL }}
+          YOUTUBE_CALLBACK_URL: ${{ secrets.YOUTUBE_CALLBACK_URL }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -455,57 +514,116 @@ jobs:
           # NOTE: The workflow intentionally excludes .env from rsync, so values must exist on VPS.
           # If you manage some envs via GitHub Secrets, add them here explicitly.
 
-          # OpenAI (AI moderation worker)
-          if [ -n "${{ secrets.AI_BULLMQ_ENABLED }}" ]; then
-            KEY="AI_BULLMQ_ENABLED"
-            VAL="${{ secrets.AI_BULLMQ_ENABLED }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+          upsert_env() {
+            local key="$1"
+            local val="$2"
+            if [ -z "$val" ]; then
+              return 0
             fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
-            KEY="OPENAI_API_KEY"
-            VAL="${{ secrets.OPENAI_API_KEY }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+            KEY="$key" VAL="$val" APP_DIR="$APP_DIR" node - <<'NODE'
+            const fs = require('fs');
+            const path = require('path');
+
+            const appDir = process.env.APP_DIR;
+            const key = process.env.KEY;
+            const rawVal = process.env.VAL ?? '';
+            const envPath = path.join(appDir, '.env');
+
+            const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const normalizeVal = (value) => {
+              if (!value.includes('\n') && !value.includes('\r')) return value;
+              const escaped = value
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\r?\n/g, '\\n');
+              return `"${escaped}"`;
+            };
+
+            let text = fs.readFileSync(envPath, 'utf8');
+            const line = `${key}=${normalizeVal(rawVal)}`;
+            const re = new RegExp(`^${escapeRegex(key)}=.*$`, 'm');
+
+            if (re.test(text)) {
+              text = text.replace(re, line);
+            } else {
+              if (text.length > 0 && !text.endsWith('\n')) {
+                text += '\n';
+              }
+              text += line + '\n';
+            }
+
+            fs.writeFileSync(envPath, text);
+          NODE
+            echo "✅ Upserted ${key} into $APP_DIR/.env"
+          }
+
+          SYNC_KEYS=(
+            AI_METADATA_ENABLED
+            AI_MODERATION_ENABLED
+            AI_TAG_LIMIT
+            AI_VISION_ENABLED
+            AI_VISION_MAX_FRAMES
+            AI_VISION_STEP_SECONDS
+            CHATBOT_BACKEND_BASE_URLS
+            CHATBOT_SYNC_SECONDS
+            CHAT_BOT_ENABLED
+            CHAT_BOT_LOGIN
+            CHAT_BOT_USER_ID
+            CLOUDFLARE_ORIGIN_CERT
+            CLOUDFLARE_ORIGIN_KEY
+            DATABASE_URL
+            DOMAIN
+            JWT_SECRET
+            KICK_AUTHORIZE_URL
+            KICK_CALLBACK_URL
+            KICK_CHAT_BOT_ENABLED
+            KICK_CLIENT_ID
+            KICK_CLIENT_SECRET
+            KICK_REFRESH_URL
+            KICK_TOKEN_URL
+            KICK_USERINFO_URL
+            OPENAI_API_KEY
+            OPENAI_ASR_LANGUAGE
+            OPENAI_ASR_MODEL
+            OPENAI_MEME_METADATA_MODEL
+            OVERLAY_URL
+            RATE_LIMIT_WHITELIST_IPS
+            TROVO_BOT_SCOPES
+            TROVO_CALLBACK_URL
+            TROVO_CHAT_BOT_ENABLED
+            TROVO_CLIENT_ID
+            TROVO_CLIENT_SECRET
+            TWITCH_CALLBACK_URL
+            TWITCH_CLIENT_ID
+            TWITCH_CLIENT_SECRET
+            TWITCH_EVENTSUB_SECRET
+            VKVIDEO_AUTHORIZE_URL
+            VKVIDEO_CALLBACK_URL
+            VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE
+            VKVIDEO_CHAT_BOT_ENABLED
+            VKVIDEO_CLIENT_ID
+            VKVIDEO_CLIENT_SECRET
+            VKVIDEO_PUBSUB_REFRESH_SECONDS
+            VKVIDEO_ROLE_STUBS_JSON
+            VKVIDEO_SCOPES
+            VKVIDEO_TOKEN_URL
+            VKVIDEO_USERINFO_URL
+            VPS_HOST
+            VPS_PORT
+            VPS_SSH_KEY
+            VPS_USER
+            WEB_URL
+            YOUTUBE_CALLBACK_URL
+            YOUTUBE_CLIENT_ID
+            YOUTUBE_CLIENT_SECRET
+          )
+
+          for key in "${SYNC_KEYS[@]}"; do
+            val="${!key:-}"
+            if [ -n "$val" ]; then
+              upsert_env "$key" "$val"
             fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.OPENAI_BASE_URL }}" ]; then
-            KEY="OPENAI_BASE_URL"
-            VAL="${{ secrets.OPENAI_BASE_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
-            fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.OPENAI_ASR_MODEL }}" ]; then
-            KEY="OPENAI_ASR_MODEL"
-            VAL="${{ secrets.OPENAI_ASR_MODEL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
-            fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}" ]; then
-            KEY="VKVIDEO_PUBSUB_REFRESH_SECONDS"
-            VAL="${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
-            fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
+          done
 
           # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
           AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
@@ -520,112 +638,6 @@ jobs:
             *)
               ;;
           esac
-
-          # Trovo OAuth (prod)
-          if [ -n "${{ secrets.TROVO_CLIENT_ID }}" ]; then
-            KEY="TROVO_CLIENT_ID"
-            VAL="${{ secrets.TROVO_CLIENT_ID }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_CLIENT_SECRET }}" ]; then
-            KEY="TROVO_CLIENT_SECRET"
-            VAL="${{ secrets.TROVO_CLIENT_SECRET }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_CALLBACK_URL }}" ]; then
-            KEY="TROVO_CALLBACK_URL"
-            VAL="${{ secrets.TROVO_CALLBACK_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_BOT_SCOPES }}" ]; then
-            KEY="TROVO_BOT_SCOPES"
-            VAL="${{ secrets.TROVO_BOT_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_SCOPES }}" ]; then
-            KEY="TROVO_SCOPES"
-            VAL="${{ secrets.TROVO_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_TOKEN_URL }}" ]; then
-            KEY="TROVO_TOKEN_URL"
-            VAL="${{ secrets.TROVO_TOKEN_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_REFRESH_URL }}" ]; then
-            KEY="TROVO_REFRESH_URL"
-            VAL="${{ secrets.TROVO_REFRESH_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_USERINFO_URL }}" ]; then
-            KEY="TROVO_USERINFO_URL"
-            VAL="${{ secrets.TROVO_USERINFO_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-
-          # Kick OAuth (prod)
-          if [ -n "${{ secrets.KICK_CLIENT_ID }}" ]; then
-            KEY="KICK_CLIENT_ID"
-            VAL="${{ secrets.KICK_CLIENT_ID }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_CLIENT_SECRET }}" ]; then
-            KEY="KICK_CLIENT_SECRET"
-            VAL="${{ secrets.KICK_CLIENT_SECRET }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_CALLBACK_URL }}" ]; then
-            KEY="KICK_CALLBACK_URL"
-            VAL="${{ secrets.KICK_CALLBACK_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_AUTHORIZE_URL }}" ]; then
-            KEY="KICK_AUTHORIZE_URL"
-            VAL="${{ secrets.KICK_AUTHORIZE_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_TOKEN_URL }}" ]; then
-            KEY="KICK_TOKEN_URL"
-            VAL="${{ secrets.KICK_TOKEN_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_REFRESH_URL }}" ]; then
-            KEY="KICK_REFRESH_URL"
-            VAL="${{ secrets.KICK_REFRESH_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_USERINFO_URL }}" ]; then
-            KEY="KICK_USERINFO_URL"
-            VAL="${{ secrets.KICK_USERINFO_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_BOT_SCOPES }}" ]; then
-            KEY="KICK_BOT_SCOPES"
-            VAL="${{ secrets.KICK_BOT_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_SCOPES }}" ]; then
-            KEY="KICK_SCOPES"
-            VAL="${{ secrets.KICK_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
 
           DATABASE_URL_RESOLVED=""
           if [ -f "$APP_DIR/.env" ]; then
@@ -826,6 +838,70 @@ jobs:
         id: deploy_beta
         shell: bash
         if: steps.decide.outputs.deploy == 'true'
+        env:
+          AI_METADATA_ENABLED: ${{ secrets.AI_METADATA_ENABLED }}
+          AI_MODERATION_ENABLED: ${{ secrets.AI_MODERATION_ENABLED }}
+          AI_TAG_LIMIT: ${{ secrets.AI_TAG_LIMIT }}
+          AI_VISION_ENABLED: ${{ secrets.AI_VISION_ENABLED }}
+          AI_VISION_MAX_FRAMES: ${{ secrets.AI_VISION_MAX_FRAMES }}
+          AI_VISION_STEP_SECONDS: ${{ secrets.AI_VISION_STEP_SECONDS }}
+          CHATBOT_BACKEND_BASE_URLS: ${{ secrets.CHATBOT_BACKEND_BASE_URLS }}
+          CHATBOT_SYNC_SECONDS: ${{ secrets.CHATBOT_SYNC_SECONDS }}
+          CHAT_BOT_ENABLED: ${{ secrets.CHAT_BOT_ENABLED }}
+          CHAT_BOT_LOGIN: ${{ secrets.CHAT_BOT_LOGIN }}
+          CHAT_BOT_USER_ID: ${{ secrets.CHAT_BOT_USER_ID }}
+          CLOUDFLARE_ORIGIN_CERT: ${{ secrets.CLOUDFLARE_ORIGIN_CERT }}
+          CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_BETA: ${{ secrets.DATABASE_URL_BETA }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_SECRET_BETA: ${{ secrets.JWT_SECRET_BETA }}
+          KICK_AUTHORIZE_URL: ${{ secrets.KICK_AUTHORIZE_URL }}
+          KICK_CALLBACK_URL: ${{ secrets.KICK_CALLBACK_URL }}
+          KICK_CALLBACK_URL_BETA: ${{ secrets.KICK_CALLBACK_URL_BETA }}
+          KICK_CHAT_BOT_ENABLED: ${{ secrets.KICK_CHAT_BOT_ENABLED }}
+          KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}
+          KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
+          KICK_REFRESH_URL: ${{ secrets.KICK_REFRESH_URL }}
+          KICK_TOKEN_URL: ${{ secrets.KICK_TOKEN_URL }}
+          KICK_USERINFO_URL: ${{ secrets.KICK_USERINFO_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ASR_LANGUAGE: ${{ secrets.OPENAI_ASR_LANGUAGE }}
+          OPENAI_ASR_MODEL: ${{ secrets.OPENAI_ASR_MODEL }}
+          OPENAI_MEME_METADATA_MODEL: ${{ secrets.OPENAI_MEME_METADATA_MODEL }}
+          OVERLAY_URL: ${{ secrets.OVERLAY_URL }}
+          RATE_LIMIT_WHITELIST_IPS: ${{ secrets.RATE_LIMIT_WHITELIST_IPS }}
+          TROVO_BOT_SCOPES: ${{ secrets.TROVO_BOT_SCOPES }}
+          TROVO_CALLBACK_URL: ${{ secrets.TROVO_CALLBACK_URL }}
+          TROVO_CALLBACK_URL_BETA: ${{ secrets.TROVO_CALLBACK_URL_BETA }}
+          TROVO_CHAT_BOT_ENABLED: ${{ secrets.TROVO_CHAT_BOT_ENABLED }}
+          TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
+          TROVO_CLIENT_SECRET: ${{ secrets.TROVO_CLIENT_SECRET }}
+          TWITCH_CALLBACK_URL: ${{ secrets.TWITCH_CALLBACK_URL }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          TWITCH_EVENTSUB_SECRET: ${{ secrets.TWITCH_EVENTSUB_SECRET }}
+          VKVIDEO_AUTHORIZE_URL: ${{ secrets.VKVIDEO_AUTHORIZE_URL }}
+          VKVIDEO_CALLBACK_URL: ${{ secrets.VKVIDEO_CALLBACK_URL }}
+          VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: ${{ secrets.VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE }}
+          VKVIDEO_CHAT_BOT_ENABLED: ${{ secrets.VKVIDEO_CHAT_BOT_ENABLED }}
+          VKVIDEO_CLIENT_ID: ${{ secrets.VKVIDEO_CLIENT_ID }}
+          VKVIDEO_CLIENT_SECRET: ${{ secrets.VKVIDEO_CLIENT_SECRET }}
+          VKVIDEO_PUBSUB_REFRESH_SECONDS: ${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}
+          VKVIDEO_ROLE_STUBS_JSON: ${{ secrets.VKVIDEO_ROLE_STUBS_JSON }}
+          VKVIDEO_SCOPES: ${{ secrets.VKVIDEO_SCOPES }}
+          VKVIDEO_TOKEN_URL: ${{ secrets.VKVIDEO_TOKEN_URL }}
+          VKVIDEO_USERINFO_URL: ${{ secrets.VKVIDEO_USERINFO_URL }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          WEB_URL: ${{ secrets.WEB_URL }}
+          YOUTUBE_CALLBACK_URL: ${{ secrets.YOUTUBE_CALLBACK_URL }}
+          YOUTUBE_CALLBACK_URL_BETA: ${{ secrets.YOUTUBE_CALLBACK_URL_BETA }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -1030,57 +1106,135 @@ jobs:
           fi
 
           # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
-          # OpenAI (AI moderation worker) - prefer beta-specific secret when present.
-          if [ -n "${{ secrets.AI_BULLMQ_ENABLED_BETA || secrets.AI_BULLMQ_ENABLED }}" ]; then
-            KEY="AI_BULLMQ_ENABLED"
-            VAL="${{ secrets.AI_BULLMQ_ENABLED_BETA || secrets.AI_BULLMQ_ENABLED }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+          upsert_env() {
+            local key="$1"
+            local val="$2"
+            if [ -z "$val" ]; then
+              return 0
             fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.OPENAI_API_KEY_BETA || secrets.OPENAI_API_KEY }}" ]; then
-            KEY="OPENAI_API_KEY"
-            VAL="${{ secrets.OPENAI_API_KEY_BETA || secrets.OPENAI_API_KEY }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+            KEY="$key" VAL="$val" APP_DIR="$APP_DIR" node - <<'NODE'
+            const fs = require('fs');
+            const path = require('path');
+
+            const appDir = process.env.APP_DIR;
+            const key = process.env.KEY;
+            const rawVal = process.env.VAL ?? '';
+            const envPath = path.join(appDir, '.env');
+
+            const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const normalizeVal = (value) => {
+              if (!value.includes('\n') && !value.includes('\r')) return value;
+              const escaped = value
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\r?\n/g, '\\n');
+              return `"${escaped}"`;
+            };
+
+            let text = fs.readFileSync(envPath, 'utf8');
+            const line = `${key}=${normalizeVal(rawVal)}`;
+            const re = new RegExp(`^${escapeRegex(key)}=.*$`, 'm');
+
+            if (re.test(text)) {
+              text = text.replace(re, line);
+            } else {
+              if (text.length > 0 && !text.endsWith('\n')) {
+                text += '\n';
+              }
+              text += line + '\n';
+            }
+
+            fs.writeFileSync(envPath, text);
+          NODE
+            echo "✅ Upserted ${key} into $APP_DIR/.env"
+          }
+
+          SYNC_KEYS=(
+            AI_METADATA_ENABLED
+            AI_MODERATION_ENABLED
+            AI_TAG_LIMIT
+            AI_VISION_ENABLED
+            AI_VISION_MAX_FRAMES
+            AI_VISION_STEP_SECONDS
+            CHATBOT_BACKEND_BASE_URLS
+            CHATBOT_SYNC_SECONDS
+            CHAT_BOT_ENABLED
+            CHAT_BOT_LOGIN
+            CHAT_BOT_USER_ID
+            CLOUDFLARE_ORIGIN_CERT
+            CLOUDFLARE_ORIGIN_KEY
+            DATABASE_URL
+            DATABASE_URL_BETA
+            DOMAIN
+            JWT_SECRET_BETA
+            KICK_AUTHORIZE_URL
+            KICK_CALLBACK_URL_BETA
+            KICK_CHAT_BOT_ENABLED
+            KICK_CLIENT_ID
+            KICK_CLIENT_SECRET
+            KICK_REFRESH_URL
+            KICK_TOKEN_URL
+            KICK_USERINFO_URL
+            OPENAI_API_KEY
+            OPENAI_ASR_LANGUAGE
+            OPENAI_ASR_MODEL
+            OPENAI_MEME_METADATA_MODEL
+            OVERLAY_URL
+            RATE_LIMIT_WHITELIST_IPS
+            TROVO_BOT_SCOPES
+            TROVO_CALLBACK_URL_BETA
+            TROVO_CHAT_BOT_ENABLED
+            TROVO_CLIENT_ID
+            TROVO_CLIENT_SECRET
+            TWITCH_CALLBACK_URL
+            TWITCH_CLIENT_ID
+            TWITCH_CLIENT_SECRET
+            TWITCH_EVENTSUB_SECRET
+            VKVIDEO_AUTHORIZE_URL
+            VKVIDEO_CALLBACK_URL
+            VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE
+            VKVIDEO_CHAT_BOT_ENABLED
+            VKVIDEO_CLIENT_ID
+            VKVIDEO_CLIENT_SECRET
+            VKVIDEO_PUBSUB_REFRESH_SECONDS
+            VKVIDEO_ROLE_STUBS_JSON
+            VKVIDEO_SCOPES
+            VKVIDEO_TOKEN_URL
+            VKVIDEO_USERINFO_URL
+            VPS_HOST
+            VPS_PORT
+            VPS_SSH_KEY
+            VPS_USER
+            WEB_URL
+            YOUTUBE_CALLBACK_URL_BETA
+            YOUTUBE_CLIENT_ID
+            YOUTUBE_CLIENT_SECRET
+          )
+
+          for key in "${SYNC_KEYS[@]}"; do
+            val="${!key:-}"
+            if [ -n "$val" ]; then
+              upsert_env "$key" "$val"
             fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.OPENAI_BASE_URL_BETA || secrets.OPENAI_BASE_URL }}" ]; then
-            KEY="OPENAI_BASE_URL"
-            VAL="${{ secrets.OPENAI_BASE_URL_BETA || secrets.OPENAI_BASE_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
+          done
+
+          OVERRIDE_KEYS=(
+            JWT_SECRET
+            KICK_CALLBACK_URL
+            TROVO_CALLBACK_URL
+            YOUTUBE_CALLBACK_URL
+          )
+
+          for key in "${OVERRIDE_KEYS[@]}"; do
+            beta_key="${key}_BETA"
+            val_beta="${!beta_key:-}"
+            val_default="${!key:-}"
+            if [ -n "$val_beta" ]; then
+              upsert_env "$key" "$val_beta"
+            elif [ -n "$val_default" ]; then
+              upsert_env "$key" "$val_default"
             fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.OPENAI_ASR_MODEL_BETA || secrets.OPENAI_ASR_MODEL }}" ]; then
-            KEY="OPENAI_ASR_MODEL"
-            VAL="${{ secrets.OPENAI_ASR_MODEL_BETA || secrets.OPENAI_ASR_MODEL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
-            fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}" ]; then
-            KEY="VKVIDEO_PUBSUB_REFRESH_SECONDS"
-            VAL="${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then
-              sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"
-            else
-              echo "${KEY}=${VAL}" >> "$APP_DIR/.env"
-            fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
+          done
 
           # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
           AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
@@ -1095,112 +1249,6 @@ jobs:
             *)
               ;;
           esac
-
-          # Trovo OAuth (beta; falls back to non-suffixed secrets)
-          if [ -n "${{ secrets.TROVO_CLIENT_ID_BETA || secrets.TROVO_CLIENT_ID }}" ]; then
-            KEY="TROVO_CLIENT_ID"
-            VAL="${{ secrets.TROVO_CLIENT_ID_BETA || secrets.TROVO_CLIENT_ID }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_CLIENT_SECRET_BETA || secrets.TROVO_CLIENT_SECRET }}" ]; then
-            KEY="TROVO_CLIENT_SECRET"
-            VAL="${{ secrets.TROVO_CLIENT_SECRET_BETA || secrets.TROVO_CLIENT_SECRET }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_CALLBACK_URL_BETA || secrets.TROVO_CALLBACK_URL }}" ]; then
-            KEY="TROVO_CALLBACK_URL"
-            VAL="${{ secrets.TROVO_CALLBACK_URL_BETA || secrets.TROVO_CALLBACK_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_BOT_SCOPES_BETA || secrets.TROVO_BOT_SCOPES }}" ]; then
-            KEY="TROVO_BOT_SCOPES"
-            VAL="${{ secrets.TROVO_BOT_SCOPES_BETA || secrets.TROVO_BOT_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_SCOPES_BETA || secrets.TROVO_SCOPES }}" ]; then
-            KEY="TROVO_SCOPES"
-            VAL="${{ secrets.TROVO_SCOPES_BETA || secrets.TROVO_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_TOKEN_URL_BETA || secrets.TROVO_TOKEN_URL }}" ]; then
-            KEY="TROVO_TOKEN_URL"
-            VAL="${{ secrets.TROVO_TOKEN_URL_BETA || secrets.TROVO_TOKEN_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_REFRESH_URL_BETA || secrets.TROVO_REFRESH_URL }}" ]; then
-            KEY="TROVO_REFRESH_URL"
-            VAL="${{ secrets.TROVO_REFRESH_URL_BETA || secrets.TROVO_REFRESH_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.TROVO_USERINFO_URL_BETA || secrets.TROVO_USERINFO_URL }}" ]; then
-            KEY="TROVO_USERINFO_URL"
-            VAL="${{ secrets.TROVO_USERINFO_URL_BETA || secrets.TROVO_USERINFO_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-
-          # Kick OAuth (beta; falls back to non-suffixed secrets)
-          if [ -n "${{ secrets.KICK_CLIENT_ID_BETA || secrets.KICK_CLIENT_ID }}" ]; then
-            KEY="KICK_CLIENT_ID"
-            VAL="${{ secrets.KICK_CLIENT_ID_BETA || secrets.KICK_CLIENT_ID }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_CLIENT_SECRET_BETA || secrets.KICK_CLIENT_SECRET }}" ]; then
-            KEY="KICK_CLIENT_SECRET"
-            VAL="${{ secrets.KICK_CLIENT_SECRET_BETA || secrets.KICK_CLIENT_SECRET }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_CALLBACK_URL_BETA || secrets.KICK_CALLBACK_URL }}" ]; then
-            KEY="KICK_CALLBACK_URL"
-            VAL="${{ secrets.KICK_CALLBACK_URL_BETA || secrets.KICK_CALLBACK_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_AUTHORIZE_URL_BETA || secrets.KICK_AUTHORIZE_URL }}" ]; then
-            KEY="KICK_AUTHORIZE_URL"
-            VAL="${{ secrets.KICK_AUTHORIZE_URL_BETA || secrets.KICK_AUTHORIZE_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_TOKEN_URL_BETA || secrets.KICK_TOKEN_URL }}" ]; then
-            KEY="KICK_TOKEN_URL"
-            VAL="${{ secrets.KICK_TOKEN_URL_BETA || secrets.KICK_TOKEN_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_REFRESH_URL_BETA || secrets.KICK_REFRESH_URL }}" ]; then
-            KEY="KICK_REFRESH_URL"
-            VAL="${{ secrets.KICK_REFRESH_URL_BETA || secrets.KICK_REFRESH_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_USERINFO_URL_BETA || secrets.KICK_USERINFO_URL }}" ]; then
-            KEY="KICK_USERINFO_URL"
-            VAL="${{ secrets.KICK_USERINFO_URL_BETA || secrets.KICK_USERINFO_URL }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_BOT_SCOPES_BETA || secrets.KICK_BOT_SCOPES }}" ]; then
-            KEY="KICK_BOT_SCOPES"
-            VAL="${{ secrets.KICK_BOT_SCOPES_BETA || secrets.KICK_BOT_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
-          if [ -n "${{ secrets.KICK_SCOPES_BETA || secrets.KICK_SCOPES }}" ]; then
-            KEY="KICK_SCOPES"
-            VAL="${{ secrets.KICK_SCOPES_BETA || secrets.KICK_SCOPES }}"
-            if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
-            echo "✅ Upserted ${KEY} into $APP_DIR/.env"
-          fi
 
           DATABASE_URL_RESOLVED=""
           DATABASE_URL_KEY="DATABASE_URL"
