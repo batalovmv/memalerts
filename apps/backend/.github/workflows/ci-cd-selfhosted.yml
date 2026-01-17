@@ -548,6 +548,12 @@ jobs:
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 
+          if [ -f "$APP_DIR/.env" ]; then
+            set -a
+            . "$APP_DIR/.env"
+            set +a
+          fi
+
           pnpm install --frozen-lockfile
           pnpm build
           pnpm prisma migrate deploy
@@ -1028,6 +1034,12 @@ jobs:
             VAL="${{ secrets.KICK_SCOPES_BETA || secrets.KICK_SCOPES }}"
             if grep -qE "^${KEY}=" "$APP_DIR/.env"; then sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" "$APP_DIR/.env"; else echo "${KEY}=${VAL}" >> "$APP_DIR/.env"; fi
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
+          fi
+
+          if [ -f "$APP_DIR/.env" ]; then
+            set -a
+            . "$APP_DIR/.env"
+            set +a
           fi
 
           pnpm install --frozen-lockfile
