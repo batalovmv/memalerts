@@ -311,7 +311,6 @@ jobs:
             pnpm build
             pnpm prisma migrate deploy
             pnpm prisma db execute --file prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql
-            pnpm prisma db execute --file prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
@@ -532,7 +531,6 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
           pnpm prisma migrate deploy
-          pnpm prisma db execute --file prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql
           pnpm prisma db execute --file prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
@@ -777,6 +775,7 @@ jobs:
             pnpm install --frozen-lockfile
             pnpm build
             pnpm prisma migrate deploy
+            pnpm prisma db execute --file prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
@@ -994,6 +993,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
           pnpm prisma migrate deploy
+          pnpm prisma db execute --file prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
