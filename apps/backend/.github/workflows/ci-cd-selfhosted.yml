@@ -1164,8 +1164,12 @@ jobs:
               if [ -n "$DATABASE_URL_BETA_RAW" ]; then
                 DATABASE_URL_KEY="DATABASE_URL_BETA"
                 DATABASE_URL_RESOLVED="$DATABASE_URL_BETA_RAW"
+              elif [ -n "$DATABASE_URL_RAW" ]; then
+                echo "WARN: BETA_DB_MODE=separate but DATABASE_URL_BETA is missing; falling back to DATABASE_URL"
+                DATABASE_URL_KEY="DATABASE_URL"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_RAW"
               else
-                echo "❌ BETA_DB_MODE=separate but DATABASE_URL_BETA is missing in $APP_DIR/.env"
+                echo "❌ BETA_DB_MODE=separate but DATABASE_URL_BETA and DATABASE_URL are missing in $APP_DIR/.env"
                 exit 1
               fi
             else
