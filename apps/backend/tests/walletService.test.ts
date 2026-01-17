@@ -128,12 +128,7 @@ describe('WalletService', () => {
     const lockSpy = vi.spyOn(WalletService, 'getWalletForUpdate');
 
     await prisma.$transaction(async (tx) => {
-      await WalletService.setBalance(
-        tx,
-        { userId: user.id, channelId: channel.id },
-        99,
-        { lockedWallet: created }
-      );
+      await WalletService.setBalance(tx, { userId: user.id, channelId: channel.id }, 99, { lockedWallet: created });
     });
 
     const wallet = await prisma.wallet.findUnique({

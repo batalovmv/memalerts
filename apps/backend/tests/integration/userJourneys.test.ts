@@ -18,13 +18,7 @@ import { setupRoutes } from '../../src/routes/index.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { getVideoMetadata } from '../../src/utils/videoValidator.js';
 import { normalizeVideoForPlayback } from '../../src/utils/media/videoNormalization.js';
-import {
-  createChannel,
-  createChannelMeme,
-  createMeme,
-  createMemeAsset,
-  createWallet,
-} from '../factories/index.js';
+import { createChannel, createChannelMeme, createMeme, createMemeAsset, createWallet } from '../factories/index.js';
 
 type LoginResult = {
   cookie: string;
@@ -49,10 +43,7 @@ function cookiePairFromSetCookie(setCookie: string[] | undefined, name: string):
 }
 
 async function login(app: express.Express, role: string, channelSlug?: string): Promise<LoginResult> {
-  const res = await request(app)
-    .post('/test/login')
-    .set('Host', 'example.com')
-    .send({ role, channelSlug });
+  const res = await request(app).post('/test/login').set('Host', 'example.com').send({ role, channelSlug });
   expect(res.status).toBe(200);
   const cookie = cookiePairFromSetCookie(res.header['set-cookie'], 'token');
   return {

@@ -136,7 +136,9 @@ describe('viewer memes list and search', () => {
     expect(cached.status).toBe(304);
 
     const next = await request(makeApp())
-      .get(`/channels/${channel.slug}/memes?cursor=${encodeURIComponent(first.body.nextCursor)}&sortBy=priceCoins&sortOrder=asc`)
+      .get(
+        `/channels/${channel.slug}/memes?cursor=${encodeURIComponent(first.body.nextCursor)}&sortBy=priceCoins&sortOrder=asc`
+      )
       .set('Host', 'example.com');
 
     expect(next.status).toBe(200);
@@ -195,9 +197,7 @@ describe('viewer memes list and search', () => {
       createdByUserId: creator.id,
     } satisfies Prisma.MemeAssetUncheckedCreateInput);
 
-    const res = await request(makeApp())
-      .get(`/channels/${channel.slug}/memes?limit=10`)
-      .set('Host', 'example.com');
+    const res = await request(makeApp()).get(`/channels/${channel.slug}/memes?limit=10`).set('Host', 'example.com');
 
     expect(res.status).toBe(200);
     const ids = (res.body?.items as Array<{ memeAssetId: string }>).map((item) => item.memeAssetId);

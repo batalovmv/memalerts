@@ -12,10 +12,7 @@ import { rejectSubmissionWithRepos } from '../src/services/submission/submission
 import { needsChangesSubmissionWithRepos } from '../src/services/submission/submissionNeedsChanges.js';
 import { createChannel, createSubmission, createUser } from './factories/index.js';
 import { getVideoMetadata } from '../src/utils/videoValidator.js';
-import {
-  emitSubmissionEvent,
-  relaySubmissionEventToPeer,
-} from '../src/realtime/submissionBridge.js';
+import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../src/realtime/submissionBridge.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../src/realtime/walletBridge.js';
 
 vi.mock('../src/utils/videoValidator.js', () => ({

@@ -205,9 +205,8 @@ describe('vkvideo channel', () => {
         error: null,
       });
 
-    const { fetchVkVideoChannel, fetchVkVideoWebsocketToken, fetchVkVideoWebsocketSubscriptionTokens } = await import(
-      '../src/utils/vkvideo/vkvideoChannel.js'
-    );
+    const { fetchVkVideoChannel, fetchVkVideoWebsocketToken, fetchVkVideoWebsocketSubscriptionTokens } =
+      await import('../src/utils/vkvideo/vkvideoChannel.js');
 
     const channel = await fetchVkVideoChannel({
       accessToken: 'token',
@@ -271,9 +270,8 @@ describe('vkvideo channel points', () => {
         error: null,
       });
 
-    const { fetchVkVideoChannelPointBalance, fetchVkVideoChannelPointRewards } = await import(
-      '../src/utils/vkvideo/vkvideoChannelPoints.js'
-    );
+    const { fetchVkVideoChannelPointBalance, fetchVkVideoChannelPointRewards } =
+      await import('../src/utils/vkvideo/vkvideoChannelPoints.js');
 
     const balance = await fetchVkVideoChannelPointBalance({
       accessToken: 'token',

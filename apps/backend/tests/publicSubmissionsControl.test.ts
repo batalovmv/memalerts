@@ -81,9 +81,7 @@ describe('public submissions control', () => {
   });
 
   it('rejects invalid token with 401', async () => {
-    const res = await request(makeApp([]))
-      .get('/public/submissions/status?token=bad-token')
-      .set('Host', 'example.com');
+    const res = await request(makeApp([])).get('/public/submissions/status?token=bad-token').set('Host', 'example.com');
 
     expect(res.status).toBe(401);
     expect(res.body?.errorCode).toBe('UNAUTHORIZED');

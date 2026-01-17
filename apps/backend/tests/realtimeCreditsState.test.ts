@@ -50,17 +50,15 @@ function createMockRedis() {
       const map = hashes.get(key);
       return fields.map((field) => map?.get(field) ?? null);
     }),
-    zAdd: vi.fn(
-      async (key: string, entries: Array<{ score: number; value: string }>, opts?: { NX?: boolean }) => {
-        const map = zsets.get(key) ?? new Map<string, number>();
-        for (const entry of entries) {
-          if (opts?.NX && map.has(entry.value)) continue;
-          map.set(entry.value, entry.score);
-        }
-        zsets.set(key, map);
-        return 0;
+    zAdd: vi.fn(async (key: string, entries: Array<{ score: number; value: string }>, opts?: { NX?: boolean }) => {
+      const map = zsets.get(key) ?? new Map<string, number>();
+      for (const entry of entries) {
+        if (opts?.NX && map.has(entry.value)) continue;
+        map.set(entry.value, entry.score);
       }
-    ),
+      zsets.set(key, map);
+      return 0;
+    }),
     zRange: vi.fn(async (key: string, start: number, stop: number) => {
       const map = zsets.get(key);
       if (!map) return [];

@@ -35,11 +35,7 @@ function createRes(): TestResponse {
   };
 }
 
-function buildReq(params: {
-  userId: string;
-  submissionId: string;
-  body: Record<string, unknown>;
-}): AuthRequest {
+function buildReq(params: { userId: string; submissionId: string; body: Record<string, unknown> }): AuthRequest {
   const { userId, submissionId, body } = params;
   const app = {
     get(key: string) {

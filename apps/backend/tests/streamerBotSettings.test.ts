@@ -67,12 +67,7 @@ import jwt from 'jsonwebtoken';
 
 import { prisma } from '../src/lib/prisma.js';
 import { setupRoutes } from '../src/routes/index.js';
-import {
-  createChannel,
-  createChannelEntitlement,
-  createTwitchBotIntegration,
-  createUser,
-} from './factories/index.js';
+import { createChannel, createChannelEntitlement, createTwitchBotIntegration, createUser } from './factories/index.js';
 
 function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });

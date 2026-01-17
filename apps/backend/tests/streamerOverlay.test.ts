@@ -21,7 +21,10 @@ function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
-function makeApp(ioOverride?: { to?: () => { emit: () => void }; in?: () => { fetchSockets: () => Promise<unknown[]> } }) {
+function makeApp(ioOverride?: {
+  to?: () => { emit: () => void };
+  in?: () => { fetchSockets: () => Promise<unknown[]> };
+}) {
   const app = express();
   app.use(express.json());
   app.use(cookieParser());
@@ -136,5 +139,4 @@ describe('streamer overlay settings', () => {
     expect(overlaySocket.disconnect).toHaveBeenCalledWith(true);
     expect(normalSocket.disconnect).not.toHaveBeenCalled();
   });
-
 });

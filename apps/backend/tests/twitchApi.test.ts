@@ -76,9 +76,7 @@ afterEach(() => {
 
 describe('twitch app token', () => {
   it('fetches an app access token', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'app_token' }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(jsonResponse({ access_token: 'app_token' }));
 
     const { getAppAccessToken } = await import('../src/utils/twitch/twitchAppToken.js');
     const token = await getAppAccessToken();
@@ -171,7 +169,8 @@ describe('twitch rewards', () => {
     const apiModule = await import('../src/utils/twitch/twitchApiRequest.js');
     const requestSpy = vi.spyOn(apiModule, 'twitchApiRequest').mockResolvedValue({ data: [] });
 
-    const { createChannelReward, updateChannelReward, getChannelRewards } = await import('../src/utils/twitch/twitchRewards.js');
+    const { createChannelReward, updateChannelReward, getChannelRewards } =
+      await import('../src/utils/twitch/twitchRewards.js');
 
     await createChannelReward('user-id', 'broadcaster', 'My Reward', 250);
     expect(requestSpy).toHaveBeenCalledWith(
@@ -194,12 +193,18 @@ describe('twitch rewards', () => {
     );
 
     await getChannelRewards('user-id', 'broadcaster');
-    expect(requestSpy).toHaveBeenCalledWith('channel_points/custom_rewards?broadcaster_id=broadcaster', 'GET', 'user-id');
+    expect(requestSpy).toHaveBeenCalledWith(
+      'channel_points/custom_rewards?broadcaster_id=broadcaster',
+      'GET',
+      'user-id'
+    );
   });
 
   it('swallows 204/empty responses on delete', async () => {
     const apiModule = await import('../src/utils/twitch/twitchApiRequest.js');
-    const requestSpy = vi.spyOn(apiModule, 'twitchApiRequest').mockRejectedValueOnce(new Error('Unexpected end of JSON input'));
+    const requestSpy = vi
+      .spyOn(apiModule, 'twitchApiRequest')
+      .mockRejectedValueOnce(new Error('Unexpected end of JSON input'));
 
     const { deleteChannelReward } = await import('../src/utils/twitch/twitchRewards.js');
     await expect(deleteChannelReward('user-id', 'broadcaster', 'reward-id')).resolves.toBeUndefined();
@@ -221,9 +226,8 @@ describe('twitch eventsub', () => {
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
       .mockResolvedValueOnce(new Response(null, { status: 204, statusText: 'No Content' }));
 
-    const { createEventSubSubscription, getEventSubSubscriptions, deleteEventSubSubscription } = await import(
-      '../src/utils/twitch/twitchEventSub.js'
-    );
+    const { createEventSubSubscription, getEventSubSubscriptions, deleteEventSubSubscription } =
+      await import('../src/utils/twitch/twitchEventSub.js');
 
     const created = await createEventSubSubscription('user-id', 'broadcaster', 'https://hook', 'secret');
     expect(created.data?.[0]?.id).toBe('sub-1');

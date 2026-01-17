@@ -192,11 +192,7 @@ describe('streamer twitch rewards', () => {
     expect(res.status).toBe(200);
     expect(twitchApiMocks.updateChannelReward).toHaveBeenCalledTimes(1);
     expect(twitchApiMocks.createChannelReward).not.toHaveBeenCalled();
-    expect(twitchApiMocks.deleteChannelReward).toHaveBeenCalledWith(
-      streamer.id,
-      channel.twitchChannelId,
-      'reward-old'
-    );
+    expect(twitchApiMocks.deleteChannelReward).toHaveBeenCalledWith(streamer.id, channel.twitchChannelId, 'reward-old');
     expect(res.body?.rewardIdForCoins).toBe('reward-keep');
     expect(res.body?.coinIconUrl).toBe('https://cdn.example/new.png');
   });

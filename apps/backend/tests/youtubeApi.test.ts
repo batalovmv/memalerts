@@ -208,9 +208,8 @@ describe('youtube channels', () => {
         ],
       });
 
-    const { fetchMyYouTubeChannelIdByAccessToken, fetchMyYouTubeChannelProfileByAccessToken } = await import(
-      '../src/utils/youtube/youtubeChannels.js'
-    );
+    const { fetchMyYouTubeChannelIdByAccessToken, fetchMyYouTubeChannelProfileByAccessToken } =
+      await import('../src/utils/youtube/youtubeChannels.js');
 
     await expect(fetchMyYouTubeChannelIdByAccessToken('token')).resolves.toBe('channel-1');
     await expect(fetchMyYouTubeChannelProfileByAccessToken('token')).resolves.toEqual({
@@ -290,11 +289,12 @@ describe('youtube live', () => {
       .mockResolvedValueOnce({ items: [{ id: { videoId: 'video-1' } }] })
       .mockResolvedValueOnce({ items: [{ liveStreamingDetails: { activeLiveChatId: 'chat-1' } }] });
 
-    const { fetchLiveVideoIdByChannelId, fetchActiveLiveChatIdByVideoId } = await import(
-      '../src/utils/youtube/youtubeLive.js'
-    );
+    const { fetchLiveVideoIdByChannelId, fetchActiveLiveChatIdByVideoId } =
+      await import('../src/utils/youtube/youtubeLive.js');
 
-    await expect(fetchLiveVideoIdByChannelId({ accessToken: 'token', youtubeChannelId: 'chan' })).resolves.toBe('video-1');
+    await expect(fetchLiveVideoIdByChannelId({ accessToken: 'token', youtubeChannelId: 'chan' })).resolves.toBe(
+      'video-1'
+    );
     await expect(fetchActiveLiveChatIdByVideoId({ accessToken: 'token', videoId: 'video-1' })).resolves.toBe('chat-1');
   });
 

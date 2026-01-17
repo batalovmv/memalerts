@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import type { ZodError} from 'zod';
+import type { ZodError } from 'zod';
 import { z } from 'zod';
 
 const loggerMock = vi.hoisted(() => ({

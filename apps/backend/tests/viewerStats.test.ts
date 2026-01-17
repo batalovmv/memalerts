@@ -4,6 +4,7 @@ import request from 'supertest';
 
 import { setupRoutes } from '../src/routes/index.js';
 import { createChannel, createMeme, createMemeActivation } from './factories/index.js';
+import { uniqueId } from './factories/utils.js';
 
 function makeApp() {
   const app = express();
@@ -32,7 +33,7 @@ describe('viewer meme stats', () => {
   });
 
   it('returns top memes by activations', async () => {
-    const channel = await createChannel({ slug: 'stats-channel', name: 'Stats Channel' });
+    const channel = await createChannel({ slug: uniqueId('stats-channel'), name: 'Stats Channel' });
     const topMeme = await createMeme({ channelId: channel.id, title: 'Top Meme', priceCoins: 100 });
     const secondMeme = await createMeme({ channelId: channel.id, title: 'Second Meme', priceCoins: 50 });
 
@@ -56,7 +57,7 @@ describe('viewer meme stats', () => {
   });
 
   it('returns empty stats and supports ETag caching', async () => {
-    const channel = await createChannel({ slug: 'stats-empty', name: 'Stats Empty' });
+    const channel = await createChannel({ slug: uniqueId('stats-empty'), name: 'Stats Empty' });
 
     const first = await request(makeApp())
       .get(`/memes/stats?channelSlug=${encodeURIComponent(channel.slug)}&period=all&limit=5`)

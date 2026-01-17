@@ -23,7 +23,9 @@ function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
 }
 
-function makeApp(opts: { emitted?: EmitCall[]; sockets?: Array<{ data: Record<string, unknown>; disconnect: () => void }> } = {}) {
+function makeApp(
+  opts: { emitted?: EmitCall[]; sockets?: Array<{ data: Record<string, unknown>; disconnect: () => void }> } = {}
+) {
   const app = express();
   app.use(express.json());
   app.use(cookieParser());

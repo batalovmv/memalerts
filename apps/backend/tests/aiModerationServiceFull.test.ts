@@ -42,7 +42,10 @@ import * as pipelineModule from '../src/services/aiModeration/aiModerationPipeli
 import { runAiModerationPipeline } from '../src/services/aiModeration/aiModerationPipeline.js';
 import { maybeAutoApproveSubmission } from '../src/services/aiModeration/aiModerationAutoApprove.js';
 import { processOneSubmission } from '../src/services/aiModeration/processOneSubmission.js';
-import type { AiModerationPipelineResult, AiModerationSubmission } from '../src/services/aiModeration/aiModerationTypes.js';
+import type {
+  AiModerationPipelineResult,
+  AiModerationSubmission,
+} from '../src/services/aiModeration/aiModerationTypes.js';
 import {
   createChannel,
   createChannelMeme,
@@ -120,9 +123,7 @@ describe('AI moderation service', () => {
       expect.objectContaining({ audioFilePath: 'C:\\tmp\\audio.mp3' })
     );
     expect(aiMocks.moderateTextOpenAI).toHaveBeenCalledWith(expect.objectContaining({ text: 'Hello world' }));
-    expect(aiMocks.extractFramesJpeg).toHaveBeenCalledWith(
-      expect.objectContaining({ maxFrames: 2, stepSeconds: 1 })
-    );
+    expect(aiMocks.extractFramesJpeg).toHaveBeenCalledWith(expect.objectContaining({ maxFrames: 2, stepSeconds: 1 }));
     expect(aiMocks.generateMemeMetadataOpenAI).toHaveBeenCalled();
 
     expect(result.decision).toBe('low');

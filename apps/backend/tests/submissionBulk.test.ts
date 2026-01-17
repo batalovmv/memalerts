@@ -117,7 +117,11 @@ describe('bulk submissions controller', () => {
       res.status(200).json({ ok: true });
     });
 
-    const req = buildReq({ userId: 'user-1', channelId: 'channel-1', body: { ids: [okId, failId], action: 'approve' } });
+    const req = buildReq({
+      userId: 'user-1',
+      channelId: 'channel-1',
+      body: { ids: [okId, failId], action: 'approve' },
+    });
     const res = createRes();
 
     await bulkSubmissionsController.bulk(req, res as unknown as Response);

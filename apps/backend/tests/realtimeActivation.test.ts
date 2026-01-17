@@ -70,11 +70,7 @@ async function waitForRoomJoin(io: Server, room: string, minCount = 1, timeoutMs
   throw new Error(`Timeout waiting for server room join: ${room}`);
 }
 
-async function waitForActivationStatus(
-  activationId: string,
-  status: string,
-  timeoutMs = 2000
-): Promise<void> {
+async function waitForActivationStatus(activationId: string, status: string, timeoutMs = 2000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const activation = await prisma.memeActivation.findUnique({

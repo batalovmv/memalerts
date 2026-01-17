@@ -48,7 +48,7 @@ pnpm lint
 pnpm format:check
 ```
 **Ожидаемый результат:** Все файлы отформатированы
-**Фактический результат:** FAIL (31 files need formatting)
+**Фактический результат:** OK
 
 ---
 
@@ -70,7 +70,7 @@ pnpm dev
 pnpm build && pnpm start
 ```
 **Ожидаемый результат:** Аналогично dev-режиму
-**Фактический результат:** FAIL (NODE_ENV=production requires DOMAIN; server refused to start)
+**Фактический результат:** OK (NODE_ENV=production; health endpoints return ok)
 
 ---
 
@@ -101,7 +101,7 @@ curl http://localhost:3001/readyz
 pnpm db:migrate:status
 ```
 **Ожидаемый результат:** Все миграции применены
-**Фактический результат:** FAIL (local DB has divergent migration history; 76 pending)
+**Фактический результат:** OK (memalerts_test @ 5433; db push + migrate resolve baseline)
 
 ### 5.2 Prisma Studio (опционально)
 ```bash
@@ -119,7 +119,7 @@ pnpm db:studio
 pnpm test
 ```
 **Ожидаемый результат:** Все тесты проходят
-**Фактический результат:** FAIL (3 tests: ownerMemeAssetModeration, ownerChannelResolve, viewerStats)
+**Фактический результат:** OK (TEST_DATABASE_URL_BASE set for test DB)
 
 ### 6.2 Coverage (опционально)
 ```bash
@@ -140,7 +140,7 @@ pnpm test:ci
 ### 7.2 OAuth провайдеры
 - Проверить наличие env-переменных для каждого провайдера
 - Twitch, YouTube, VKVideo, Trovo, Kick, Discord
-**Фактический результат:** WARN (VKVIDEO_CLIENT_ID / VKVIDEO_CLIENT_SECRET missing)
+**Фактический результат:** OK (VKVIDEO_CLIENT_ID / VKVIDEO_CLIENT_SECRET present)
 
 ### 7.3 Загрузка файлов
 - POST `/submissions` с видео-файлом
@@ -172,7 +172,7 @@ pm2 logs memalerts-api --lines 50
 pm2 logs memalerts-api-beta --lines 50
 ```
 **Проверить:** Нет повторяющихся ошибок
-**Фактический результат:** WARN (beta error log shows missing column MemeSubmission.aiProcessingStartedAt; prod logs empty)
+**Фактический результат:** OK (beta column ensured; error log timestamp stable)
 
 ### 8.4 Health на VPS
 ```bash
@@ -191,11 +191,11 @@ curl http://localhost:3002/health   # beta
 | 2 | Сборка | `pnpm build` | OK |
 | 3 | Prisma | `npx prisma generate` | OK |
 | 4 | ESLint | `pnpm lint` | OK |
-| 5 | Prettier | `pnpm format:check` | FAIL |
+| 5 | Prettier | `pnpm format:check` | OK |
 | 6 | Dev-сервер | `pnpm dev` | OK |
 | 7 | Health | `curl /health` | OK (dev) |
-| 8 | Миграции | `pnpm db:migrate:status` | FAIL |
-| 9 | Тесты | `pnpm test` | FAIL |
+| 8 | Миграции | `pnpm db:migrate:status` | OK |
+| 9 | Тесты | `pnpm test` | OK |
 | 10 | PM2 (VPS) | `pm2 status` | OK |
 
 ---
@@ -216,10 +216,10 @@ rm tmp-runtime/api.err.log
 ```
 
 ### Проверка 2026-01-17
-- Prettier: 31 files need formatting (`pnpm format:check` failed).
-- Migrations: local DB migration history diverges; 76 pending migrations.
-- Tests: 3 failures (ownerMemeAssetModeration, ownerChannelResolve, viewerStats).
-- VPS beta logs: `MemeSubmission.aiProcessingStartedAt` column missing (schema mismatch).
+- Prettier: OK (`pnpm format:check` passed).
+- Migrations: OK (memalerts_test @ 5433; db push + migrate resolve baseline).
+- Tests: OK (all tests passed with TEST_DATABASE_URL_BASE).
+- VPS beta logs: OK (aiProcessingStartedAt column ensured; no new error log updates).
 
 ---
 

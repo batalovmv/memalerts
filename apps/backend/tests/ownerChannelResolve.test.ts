@@ -33,23 +33,24 @@ describe('owner channel resolve', () => {
   });
 
   it('resolves twitch channel by external id', async () => {
+    const externalId = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const channel = await createChannel({
-      slug: 'resolve-channel',
+      slug: `resolve-channel-${externalId}`,
       name: 'Resolve Channel',
-      twitchChannelId: '123456',
+      twitchChannelId: externalId,
     });
     const admin = await createUser({ role: 'admin' });
     const token = makeJwt({ userId: admin.id, role: admin.role, channelId: null });
 
     const res = await request(makeApp())
-      .get('/owner/channels/resolve?provider=twitch&externalId=123456')
+      .get(`/owner/channels/resolve?provider=twitch&externalId=${encodeURIComponent(externalId)}`)
       .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.body?.channelId).toBe(channel.id);
     expect(res.body?.provider).toBe('twitch');
-    expect(res.body?.externalId).toBe('123456');
-    expect(res.body?.displayHint?.twitchChannelId).toBe('123456');
+    expect(res.body?.externalId).toBe(externalId);
+    expect(res.body?.displayHint?.twitchChannelId).toBe(externalId);
   });
 
   it('returns not found when channel is missing', async () => {

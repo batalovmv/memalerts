@@ -8,6 +8,7 @@ import { authenticate } from '../src/middleware/auth.js';
 import { requireBetaAccess } from '../src/middleware/betaAccess.js';
 import { ownerRoutes } from '../src/routes/owner.js';
 import { createMemeAsset, createUser } from './factories/index.js';
+import { uniqueId } from './factories/utils.js';
 
 function makeJwt(payload: Record<string, unknown>): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '5m' });
@@ -35,23 +36,24 @@ describe('owner meme asset moderation', () => {
   it('lists hidden meme assets with pagination headers', async () => {
     const admin = await createUser({ role: 'admin' });
     const token = makeJwt({ userId: admin.id, role: admin.role, channelId: null });
+    const hiddenReason = `test-${uniqueId('hidden')}`;
     const hidden = await createMemeAsset({
       poolVisibility: 'hidden',
       poolHiddenAt: new Date(),
       poolHiddenByUserId: admin.id,
-      poolHiddenReason: 'test',
+      poolHiddenReason: hiddenReason,
     });
     await createMemeAsset({ poolVisibility: 'visible' });
 
     const res = await request(makeApp())
-      .get('/owner/meme-assets?status=hidden&limit=20&offset=0')
+      .get(`/owner/meme-assets?status=hidden&limit=20&offset=0&q=${encodeURIComponent(hiddenReason)}`)
       .set('Cookie', [`token=${encodeURIComponent(token)}`]);
 
     expect(res.status).toBe(200);
     expect(res.headers['x-total']).toBe('1');
     expect(res.body).toHaveLength(1);
     expect(res.body[0].id).toBe(hidden.id);
-    expect(res.body[0].hiddenReason).toBe('test');
+    expect(res.body[0].hiddenReason).toBe(hiddenReason);
   });
 
   it('hides and unhides meme assets', async () => {

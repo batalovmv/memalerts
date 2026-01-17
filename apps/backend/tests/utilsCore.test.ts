@@ -16,13 +16,7 @@ import {
 } from '../src/utils/pagination.js';
 import { calculatePriceWithDiscount, getActivePromotion } from '../src/utils/promotions.js';
 import { getOrCreateTags } from '../src/utils/tags.js';
-import {
-  createChannel,
-  createChannelEntitlement,
-  createMeme,
-  createPromotion,
-  createUser,
-} from './factories/index.js';
+import { createChannel, createChannelEntitlement, createMeme, createPromotion, createUser } from './factories/index.js';
 
 describe('utils: core', () => {
   const originalEnv = { ...process.env };
