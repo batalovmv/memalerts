@@ -1666,10 +1666,10 @@
 **Файл теста**: `tests/queues.test.ts`
 
 **Что тестировать**:
-- [ ] AI queue operations
-- [ ] Chat outbox queue
-- [ ] Job retry logic
-- [ ] Dead letter queue
+- [x] AI queue operations
+- [x] Chat outbox queue
+- [x] Job retry logic
+- [x] Dead letter queue
 
 **Acceptance Criteria**:
 ```
