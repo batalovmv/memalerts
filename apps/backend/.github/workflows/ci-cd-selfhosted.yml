@@ -338,26 +338,35 @@ jobs:
           verify_ai_lock_columns() {
             local label="$1"
             local output
-            output="$(DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma db execute --stdin <<'SQL'
-            SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user;
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'MemeSubmission'
-              AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt')
-            ORDER BY column_name;
-          SQL
+            output="$(VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            import { PrismaClient } from '@prisma/client';
+
+            const label = process.env.VERIFY_LABEL || 'unknown';
+            const required = ['aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt'];
+            const prisma = new PrismaClient();
+
+            try {
+              const dbInfo =
+                await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user`;
+              const cols =
+                await prisma.$queryRaw`SELECT column_name FROM information_schema.columns WHERE table_name = 'MemeSubmission' AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt') ORDER BY column_name`;
+              const existing = new Set(cols.map((row) => row.column_name));
+              const missing = required.filter((col) => !existing.has(col));
+
+              console.log(JSON.stringify({ dbInfo, cols, missing }));
+              if (missing.length) {
+                console.error(`Missing columns (${label}): ${missing.join(', ')}`);
+                process.exit(1);
+              }
+            } catch (err) {
+              console.error('verify_ai_lock_columns failed', err);
+              process.exit(1);
+            } finally {
+              await prisma.$disconnect();
+            }
+          NODE
             )"
             echo "$output"
-            local missing=0
-            for col in aiProcessingStartedAt aiLockedBy aiLockExpiresAt; do
-              if ! echo "$output" | grep -q "$col"; then
-                echo "❌ Missing column ${col} in MemeSubmission (${label})"
-                missing=1
-              fi
-            done
-            if [ "$missing" -ne 0 ]; then
-              return 1
-            fi
           }
 
           attempt_rollback() {
@@ -891,26 +900,35 @@ jobs:
           verify_ai_lock_columns() {
             local label="$1"
             local output
-            output="$(DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma db execute --stdin <<'SQL'
-            SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user;
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'MemeSubmission'
-              AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt')
-            ORDER BY column_name;
-          SQL
+            output="$(VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            import { PrismaClient } from '@prisma/client';
+
+            const label = process.env.VERIFY_LABEL || 'unknown';
+            const required = ['aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt'];
+            const prisma = new PrismaClient();
+
+            try {
+              const dbInfo =
+                await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user`;
+              const cols =
+                await prisma.$queryRaw`SELECT column_name FROM information_schema.columns WHERE table_name = 'MemeSubmission' AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt') ORDER BY column_name`;
+              const existing = new Set(cols.map((row) => row.column_name));
+              const missing = required.filter((col) => !existing.has(col));
+
+              console.log(JSON.stringify({ dbInfo, cols, missing }));
+              if (missing.length) {
+                console.error(`Missing columns (${label}): ${missing.join(', ')}`);
+                process.exit(1);
+              }
+            } catch (err) {
+              console.error('verify_ai_lock_columns failed', err);
+              process.exit(1);
+            } finally {
+              await prisma.$disconnect();
+            }
+          NODE
             )"
             echo "$output"
-            local missing=0
-            for col in aiProcessingStartedAt aiLockedBy aiLockExpiresAt; do
-              if ! echo "$output" | grep -q "$col"; then
-                echo "❌ Missing column ${col} in MemeSubmission (${label})"
-                missing=1
-              fi
-            done
-            if [ "$missing" -ne 0 ]; then
-              return 1
-            fi
           }
 
           attempt_rollback() {
