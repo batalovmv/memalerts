@@ -549,13 +549,19 @@ jobs:
           fi
 
           if [ -f "$APP_DIR/.env" ]; then
+            DATABASE_URL_KEY="DATABASE_URL"
             DATABASE_URL_RAW="$(grep -E '^DATABASE_URL=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW%%#*}"
+            DATABASE_URL_RAW="$(printf '%s' "$DATABASE_URL_RAW" | xargs)"
             DATABASE_URL_RAW="${DATABASE_URL_RAW%\"}"
             DATABASE_URL_RAW="${DATABASE_URL_RAW#\"}"
             DATABASE_URL_RAW="${DATABASE_URL_RAW%\'}"
             DATABASE_URL_RAW="${DATABASE_URL_RAW#\'}"
             if [ -n "$DATABASE_URL_RAW" ]; then
               export DATABASE_URL="$DATABASE_URL_RAW"
+              echo "Loaded ${DATABASE_URL_KEY} from $APP_DIR/.env"
+            else
+              echo "WARN: DATABASE_URL not found in $APP_DIR/.env"
             fi
           fi
 
@@ -1042,13 +1048,23 @@ jobs:
           fi
 
           if [ -f "$APP_DIR/.env" ]; then
+            DATABASE_URL_KEY="DATABASE_URL"
             DATABASE_URL_RAW="$(grep -E '^DATABASE_URL=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
+            if [ -z "$DATABASE_URL_RAW" ]; then
+              DATABASE_URL_KEY="DATABASE_URL_BETA"
+              DATABASE_URL_RAW="$(grep -E '^DATABASE_URL_BETA=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
+            fi
+            DATABASE_URL_RAW="${DATABASE_URL_RAW%%#*}"
+            DATABASE_URL_RAW="$(printf '%s' "$DATABASE_URL_RAW" | xargs)"
             DATABASE_URL_RAW="${DATABASE_URL_RAW%\"}"
             DATABASE_URL_RAW="${DATABASE_URL_RAW#\"}"
             DATABASE_URL_RAW="${DATABASE_URL_RAW%\'}"
             DATABASE_URL_RAW="${DATABASE_URL_RAW#\'}"
             if [ -n "$DATABASE_URL_RAW" ]; then
               export DATABASE_URL="$DATABASE_URL_RAW"
+              echo "Loaded ${DATABASE_URL_KEY} from $APP_DIR/.env"
+            else
+              echo "WARN: DATABASE_URL not found in $APP_DIR/.env"
             fi
           fi
 
