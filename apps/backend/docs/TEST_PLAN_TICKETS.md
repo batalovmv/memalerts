@@ -1856,11 +1856,11 @@ End-to-end integration tests для полных user journeys.
 **Файл теста**: `tests/errorScenarios.test.ts`
 
 **Что тестировать**:
-- [ ] Database connection failure
-- [ ] Redis connection failure
-- [ ] External API timeout
-- [ ] Invalid input handling
-- [ ] Graceful shutdown
+- [x] Database connection failure
+- [x] Redis connection failure
+- [x] External API timeout
+- [x] Invalid input handling
+- [x] Graceful shutdown
 
 **Acceptance Criteria**:
 ```
