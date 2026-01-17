@@ -626,6 +626,8 @@ jobs:
       - name: Decide whether to deploy (force or relevant changes)
         id: decide
         shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
 
@@ -640,11 +642,11 @@ jobs:
           fi
 
           # Deploy marker regex: matches "[deploy]" OR "deploy" as a standalone word OR "deploy:"/"deploy," etc.
-          DEPLOY_RE='(\\[deploy\\]|(^|[[:space:]])deploy([[:space:]]|$|[[:punct:]]))'
+          DEPLOY_RE='(\[deploy\]|(^|[[:space:]])deploy([[:space:]]|$|[[:punct:]]))'
 
           # Force deploy if ANY pushed commit message contains "deploy" or "[deploy]"
           # (head_commit.message is not always reliable when multiple commits are pushed at once)
-          if [ -n "${{ github.event.head_commit.message }}" ] && echo "${{ github.event.head_commit.message }}" | grep -Eiq "$DEPLOY_RE"; then
+          if [ -n "$HEAD_COMMIT_MESSAGE" ] && printf '%s' "$HEAD_COMMIT_MESSAGE" | grep -Eiq "$DEPLOY_RE"; then
             echo "Force deploy requested by head commit message."
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -665,7 +667,7 @@ jobs:
           fi
 
           # Check if any relevant paths changed between BEFORE and AFTER.
-          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eiq '^(src/|prisma/|scripts/|package\\.json$|tsconfig\\.json$|\\.github/)'; then
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eiq '^(src/|prisma/|scripts/|package\.json$|tsconfig\.json$|\.github/)'; then
             echo "Relevant changes detected; proceeding with deploy."
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
