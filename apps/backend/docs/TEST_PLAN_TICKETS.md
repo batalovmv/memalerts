@@ -1613,11 +1613,11 @@
 **Файл теста**: `tests/aiModerationServiceFull.test.ts`
 
 **Что тестировать**:
-- [ ] Full pipeline (audio extraction → transcription → analysis)
-- [ ] Auto-approve logic
-- [ ] Reuse existing MemeAsset AI data
-- [ ] Error recovery
-- [ ] Rate limiting / concurrency
+- [x] Full pipeline (audio extraction → transcription → analysis)
+- [x] Auto-approve logic
+- [x] Reuse existing MemeAsset AI data
+- [x] Error recovery
+- [x] Rate limiting / concurrency (N/A: enforced in jobs/queues, not in aiModeration service)
 
 **Мокировать**:
 - OpenAI API (использовать `tests/mocks/openaiApi.mock.ts`)
