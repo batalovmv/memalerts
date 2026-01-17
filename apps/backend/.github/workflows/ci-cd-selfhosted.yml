@@ -44,6 +44,9 @@ jobs:
       NODE_ENV: test
       JWT_SECRET: test_jwt_secret
       TEST_DATABASE_URL_BASE: postgresql://postgres:postgres@localhost:5433/memalerts_test
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      SLACK_SECURITY_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK_URL }}
 
     services:
       postgres:
@@ -93,11 +96,11 @@ jobs:
 
       - name: Snyk scan
         id: snyk_scan
-        if: ${{ secrets.SNYK_TOKEN != '' }}
+        if: ${{ env.SNYK_TOKEN != '' }}
         uses: snyk/actions/node@master
         continue-on-error: true
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high --all-projects
 
@@ -155,10 +158,10 @@ jobs:
           retention-days: 14
 
       - name: Upload coverage to Codecov
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ env.CODECOV_TOKEN }}
           files: coverage/lcov.info
           flags: backend
           fail_ci_if_error: true
@@ -168,7 +171,7 @@ jobs:
           ${{
             always() &&
             (steps.npm_audit.outcome == 'failure' || steps.snyk_scan.outcome == 'failure') &&
-            secrets.SLACK_SECURITY_WEBHOOK_URL != ''
+            env.SLACK_SECURITY_WEBHOOK_URL != ''
           }}
         uses: slackapi/slack-github-action@v1.25.0
         with:
@@ -186,7 +189,7 @@ jobs:
               ]
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_SECURITY_WEBHOOK_URL }}
 
       - name: Fail on security findings
         if: ${{ always() && (steps.npm_audit.outcome == 'failure' || steps.snyk_scan.outcome == 'failure') }}
@@ -201,6 +204,8 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-')
     needs: [test]
     timeout-minutes: 20
+    env:
+      SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
 
     steps:
       - name: Checkout
@@ -582,7 +587,7 @@ jobs:
           ${{
             always() &&
             steps.deploy_production.outputs.rollback_status == 'rolled_back' &&
-            secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+            env.SLACK_DEPLOY_WEBHOOK_URL != ''
           }}
         uses: slackapi/slack-github-action@v1.25.0
         with:
@@ -600,7 +605,7 @@ jobs:
               ]
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_DEPLOY_WEBHOOK_URL }}
 
   deploy-beta:
     name: Deploy beta on VPS (self-hosted)
@@ -608,6 +613,8 @@ jobs:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     needs: [test]
     timeout-minutes: 20
+    env:
+      SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
 
     steps:
       - name: Checkout
@@ -1077,7 +1084,7 @@ jobs:
           ${{
             always() &&
             steps.deploy_beta.outputs.rollback_status == 'rolled_back' &&
-            secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+            env.SLACK_DEPLOY_WEBHOOK_URL != ''
           }}
         uses: slackapi/slack-github-action@v1.25.0
         with:
@@ -1095,4 +1102,4 @@ jobs:
               ]
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_DEPLOY_WEBHOOK_URL }}
