@@ -549,9 +549,14 @@ jobs:
           fi
 
           if [ -f "$APP_DIR/.env" ]; then
-            set -a
-            . "$APP_DIR/.env"
-            set +a
+            DATABASE_URL_RAW="$(grep -E '^DATABASE_URL=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW%\"}"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW#\"}"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW%\'}"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW#\'}"
+            if [ -n "$DATABASE_URL_RAW" ]; then
+              export DATABASE_URL="$DATABASE_URL_RAW"
+            fi
           fi
 
           pnpm install --frozen-lockfile
@@ -1037,9 +1042,14 @@ jobs:
           fi
 
           if [ -f "$APP_DIR/.env" ]; then
-            set -a
-            . "$APP_DIR/.env"
-            set +a
+            DATABASE_URL_RAW="$(grep -E '^DATABASE_URL=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW%\"}"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW#\"}"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW%\'}"
+            DATABASE_URL_RAW="${DATABASE_URL_RAW#\'}"
+            if [ -n "$DATABASE_URL_RAW" ]; then
+              export DATABASE_URL="$DATABASE_URL_RAW"
+            fi
           fi
 
           pnpm install --frozen-lockfile
