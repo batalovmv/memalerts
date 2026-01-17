@@ -264,6 +264,8 @@ jobs:
             exit 1
           fi
 
+          git config --global --add safe.directory "$APP_DIR"
+
           ROLLBACK_DIR="$APP_DIR/.rollback"
           ROLLBACK_COOLDOWN_SECONDS=600
           PREV_SHA=""
@@ -719,6 +721,8 @@ jobs:
             echo "❌ $APP_DIR/.env not found. Create it on VPS first (beta env, token_beta cookie + JWT_SECRET_BETA, etc)."
             exit 1
           fi
+
+          git config --global --add safe.directory "$APP_DIR"
 
           ROLLBACK_DIR="$APP_DIR/.rollback"
           ROLLBACK_COOLDOWN_SECONDS=600
