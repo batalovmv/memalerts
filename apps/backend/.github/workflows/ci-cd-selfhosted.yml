@@ -305,6 +305,61 @@ jobs:
           SQL
           }
 
+          load_env_value() {
+            local key="$1"
+            local line
+            local value
+            if [ ! -f "$APP_DIR/.env" ]; then
+              return 0
+            fi
+            line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$APP_DIR/.env" | tail -n 1 || true)"
+            if [ -z "$line" ]; then
+              return 0
+            fi
+            value="${line#*=}"
+            value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+              value="${value%\"}"
+              value="${value#\"}"
+              printf '%s' "$value"
+              return 0
+            fi
+            if [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
+              value="${value%\'}"
+              value="${value#\'}"
+              printf '%s' "$value"
+              return 0
+            fi
+            value="${value%%#*}"
+            value="$(printf '%s' "$value" | xargs)"
+            printf '%s' "$value"
+          }
+
+          verify_ai_lock_columns() {
+            local label="$1"
+            local output
+            output="$(DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma db execute --stdin <<'SQL'
+            SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user;
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'MemeSubmission'
+              AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt')
+            ORDER BY column_name;
+          SQL
+            )"
+            echo "$output"
+            local missing=0
+            for col in aiProcessingStartedAt aiLockedBy aiLockExpiresAt; do
+              if ! echo "$output" | grep -q "$col"; then
+                echo "❌ Missing column ${col} in MemeSubmission (${label})"
+                missing=1
+              fi
+            done
+            if [ "$missing" -ne 0 ]; then
+              return 1
+            fi
+          }
+
           attempt_rollback() {
             if [ -z "$PREV_SHA" ]; then
               log_rollback_event "skipped" "no_previous_sha"
@@ -329,12 +384,12 @@ jobs:
             git -C "$APP_DIR" checkout "$PREV_SHA"
             pnpm install --frozen-lockfile
             pnpm build
-            pnpm prisma migrate deploy
-            apply_ai_lock_migration
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+            DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
-            pm2 start dist/index.js --name "$PM2_NAME" --update-env
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
             pm2 save
 
             local rollback_ok=0
@@ -548,31 +603,27 @@ jobs:
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 
+          DATABASE_URL_RESOLVED=""
           if [ -f "$APP_DIR/.env" ]; then
-            DATABASE_URL_KEY="DATABASE_URL"
-            DATABASE_URL_RAW="$(grep -E '^DATABASE_URL=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW%%#*}"
-            DATABASE_URL_RAW="$(printf '%s' "$DATABASE_URL_RAW" | xargs)"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW%\"}"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW#\"}"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW%\'}"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW#\'}"
-            if [ -n "$DATABASE_URL_RAW" ]; then
-              export DATABASE_URL="$DATABASE_URL_RAW"
-              echo "Loaded ${DATABASE_URL_KEY} from $APP_DIR/.env"
-            else
-              echo "WARN: DATABASE_URL not found in $APP_DIR/.env"
-            fi
+            DATABASE_URL_RESOLVED="$(load_env_value "DATABASE_URL")"
+          fi
+          if [ -n "$DATABASE_URL_RESOLVED" ]; then
+            export DATABASE_URL="$DATABASE_URL_RESOLVED"
+            echo "Loaded DATABASE_URL from $APP_DIR/.env"
+          else
+            echo "❌ DATABASE_URL not found in $APP_DIR/.env"
+            exit 1
           fi
 
           pnpm install --frozen-lockfile
           pnpm build
-          pnpm prisma migrate deploy
-          apply_ai_lock_migration
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+          DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
+          verify_ai_lock_columns "production"
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
-          pm2 start dist/index.js --name "$PM2_NAME" --update-env
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
           pm2 save
 
           echo "Waiting for healthcheck on :3001 ..."
@@ -807,6 +858,61 @@ jobs:
           SQL
           }
 
+          load_env_value() {
+            local key="$1"
+            local line
+            local value
+            if [ ! -f "$APP_DIR/.env" ]; then
+              return 0
+            fi
+            line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$APP_DIR/.env" | tail -n 1 || true)"
+            if [ -z "$line" ]; then
+              return 0
+            fi
+            value="${line#*=}"
+            value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+              value="${value%\"}"
+              value="${value#\"}"
+              printf '%s' "$value"
+              return 0
+            fi
+            if [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
+              value="${value%\'}"
+              value="${value#\'}"
+              printf '%s' "$value"
+              return 0
+            fi
+            value="${value%%#*}"
+            value="$(printf '%s' "$value" | xargs)"
+            printf '%s' "$value"
+          }
+
+          verify_ai_lock_columns() {
+            local label="$1"
+            local output
+            output="$(DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma db execute --stdin <<'SQL'
+            SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user;
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'MemeSubmission'
+              AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt')
+            ORDER BY column_name;
+          SQL
+            )"
+            echo "$output"
+            local missing=0
+            for col in aiProcessingStartedAt aiLockedBy aiLockExpiresAt; do
+              if ! echo "$output" | grep -q "$col"; then
+                echo "❌ Missing column ${col} in MemeSubmission (${label})"
+                missing=1
+              fi
+            done
+            if [ "$missing" -ne 0 ]; then
+              return 1
+            fi
+          }
+
           attempt_rollback() {
             if [ -z "$PREV_SHA" ]; then
               log_rollback_event "skipped" "no_previous_sha"
@@ -831,12 +937,12 @@ jobs:
             git -C "$APP_DIR" checkout "$PREV_SHA"
             pnpm install --frozen-lockfile
             pnpm build
-            pnpm prisma migrate deploy
-            apply_ai_lock_migration
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+            DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
-            pm2 start dist/index.js --name "$PM2_NAME" --update-env
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
             pm2 save
 
             local rollback_ok=0
@@ -1047,35 +1153,54 @@ jobs:
             echo "✅ Upserted ${KEY} into $APP_DIR/.env"
           fi
 
+          DATABASE_URL_RESOLVED=""
+          DATABASE_URL_KEY="DATABASE_URL"
           if [ -f "$APP_DIR/.env" ]; then
-            DATABASE_URL_KEY="DATABASE_URL"
-            DATABASE_URL_RAW="$(grep -E '^DATABASE_URL=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
-            if [ -z "$DATABASE_URL_RAW" ]; then
-              DATABASE_URL_KEY="DATABASE_URL_BETA"
-              DATABASE_URL_RAW="$(grep -E '^DATABASE_URL_BETA=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2-)"
-            fi
-            DATABASE_URL_RAW="${DATABASE_URL_RAW%%#*}"
-            DATABASE_URL_RAW="$(printf '%s' "$DATABASE_URL_RAW" | xargs)"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW%\"}"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW#\"}"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW%\'}"
-            DATABASE_URL_RAW="${DATABASE_URL_RAW#\'}"
-            if [ -n "$DATABASE_URL_RAW" ]; then
-              export DATABASE_URL="$DATABASE_URL_RAW"
-              echo "Loaded ${DATABASE_URL_KEY} from $APP_DIR/.env"
+            BETA_DB_MODE_RAW="$(load_env_value "BETA_DB_MODE")"
+            BETA_DB_MODE="$(printf '%s' "${BETA_DB_MODE_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+            DATABASE_URL_RAW="$(load_env_value "DATABASE_URL")"
+            DATABASE_URL_BETA_RAW="$(load_env_value "DATABASE_URL_BETA")"
+            if [ "$BETA_DB_MODE" = "separate" ]; then
+              if [ -n "$DATABASE_URL_BETA_RAW" ]; then
+                DATABASE_URL_KEY="DATABASE_URL_BETA"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_BETA_RAW"
+              else
+                echo "❌ BETA_DB_MODE=separate but DATABASE_URL_BETA is missing in $APP_DIR/.env"
+                exit 1
+              fi
             else
-              echo "WARN: DATABASE_URL not found in $APP_DIR/.env"
+              if [ -n "$DATABASE_URL_RAW" ]; then
+                DATABASE_URL_KEY="DATABASE_URL"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_RAW"
+              elif [ -n "$DATABASE_URL_BETA_RAW" ]; then
+                DATABASE_URL_KEY="DATABASE_URL_BETA"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_BETA_RAW"
+                echo "WARN: DATABASE_URL missing; falling back to DATABASE_URL_BETA (BETA_DB_MODE=${BETA_DB_MODE:-shared})"
+              fi
             fi
+            if [ -n "$BETA_DB_MODE" ]; then
+              echo "Beta DB mode: $BETA_DB_MODE"
+            else
+              echo "Beta DB mode: shared"
+            fi
+          fi
+          if [ -n "$DATABASE_URL_RESOLVED" ]; then
+            export DATABASE_URL="$DATABASE_URL_RESOLVED"
+            echo "Loaded ${DATABASE_URL_KEY} from $APP_DIR/.env"
+          else
+            echo "❌ DATABASE_URL not found in $APP_DIR/.env"
+            exit 1
           fi
 
           pnpm install --frozen-lockfile
           pnpm build
-          pnpm prisma migrate deploy
-          apply_ai_lock_migration
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+          DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
+          verify_ai_lock_columns "beta"
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
-          pm2 start dist/index.js --name "$PM2_NAME" --update-env
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
           pm2 save
 
           echo "Waiting for healthcheck on :3002 ..."
