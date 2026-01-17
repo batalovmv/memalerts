@@ -335,6 +335,20 @@ jobs:
             printf '%s' "$value"
           }
 
+          ensure_log_dirs() {
+            local dest
+            local resolved
+            dest="$(load_env_value "LOG_DESTINATION")"
+            if [ -n "$dest" ]; then
+              case "$dest" in
+                /*) resolved="$dest" ;;
+                *) resolved="$APP_DIR/$dest" ;;
+              esac
+              mkdir -p "$(dirname "$resolved")"
+            fi
+            mkdir -p "$APP_DIR/tmp-runtime/logs" "$APP_DIR/logs"
+          }
+
           verify_ai_lock_columns() {
             local label="$1"
             local output
@@ -398,6 +412,7 @@ jobs:
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
+            ensure_log_dirs
             DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
             pm2 save
 
@@ -632,6 +647,7 @@ jobs:
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
+          ensure_log_dirs
           DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
           pm2 save
 
@@ -897,6 +913,20 @@ jobs:
             printf '%s' "$value"
           }
 
+          ensure_log_dirs() {
+            local dest
+            local resolved
+            dest="$(load_env_value "LOG_DESTINATION")"
+            if [ -n "$dest" ]; then
+              case "$dest" in
+                /*) resolved="$dest" ;;
+                *) resolved="$APP_DIR/$dest" ;;
+              esac
+              mkdir -p "$(dirname "$resolved")"
+            fi
+            mkdir -p "$APP_DIR/tmp-runtime/logs" "$APP_DIR/logs"
+          }
+
           verify_ai_lock_columns() {
             local label="$1"
             local output
@@ -960,6 +990,7 @@ jobs:
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
+            ensure_log_dirs
             DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
             pm2 save
 
@@ -1222,6 +1253,7 @@ jobs:
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
+          ensure_log_dirs
           DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
           pm2 save
 
