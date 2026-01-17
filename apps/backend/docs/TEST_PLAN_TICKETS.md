@@ -1831,10 +1831,10 @@ End-to-end integration tests для полных user journeys.
 **Файл теста**: `tests/stress/concurrent.test.ts`
 
 **Что тестировать**:
-- [ ] Multiple activations same meme
-- [ ] Multiple submissions same user
-- [ ] Wallet operations under load
-- [ ] Socket.IO message flood
+- [x] Multiple activations same meme
+- [x] Multiple submissions same user
+- [x] Wallet operations under load
+- [x] Socket.IO message flood
 
 **Acceptance Criteria**:
 ```
