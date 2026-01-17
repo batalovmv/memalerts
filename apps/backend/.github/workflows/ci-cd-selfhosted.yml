@@ -302,7 +302,7 @@ jobs:
               ADD COLUMN IF NOT EXISTS "aiLockExpiresAt" TIMESTAMP(3);
             CREATE INDEX IF NOT EXISTS "MemeSubmission_aiStatus_aiLockExpiresAt_idx"
               ON "MemeSubmission" ("aiStatus", "aiLockExpiresAt");
-            SQL
+          SQL
           }
 
           attempt_rollback() {
@@ -787,7 +787,7 @@ jobs:
               ADD COLUMN IF NOT EXISTS "aiLockExpiresAt" TIMESTAMP(3);
             CREATE INDEX IF NOT EXISTS "MemeSubmission_aiStatus_aiLockExpiresAt_idx"
               ON "MemeSubmission" ("aiStatus", "aiLockExpiresAt");
-            SQL
+          SQL
           }
 
           attempt_rollback() {
