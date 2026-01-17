@@ -86,13 +86,13 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm prisma generate
 
-      - name: npm audit (high+)
+      - name: pnpm audit (high+)
         id: npm_audit
         shell: bash
         continue-on-error: true
         run: |
           set -euo pipefail
-          npm audit --audit-level=high
+          pnpm audit --audit-level=high
 
       - name: Snyk scan
         id: snyk_scan
