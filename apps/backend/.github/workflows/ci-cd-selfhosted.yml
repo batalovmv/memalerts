@@ -346,6 +346,10 @@ jobs:
 
           cd "$APP_DIR"
 
+          if [ -d "$APP_DIR/node_modules" ]; then
+            sudo rm -rf "$APP_DIR/node_modules"
+          fi
+
           # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
           # NOTE: The workflow intentionally excludes .env from rsync, so values must exist on VPS.
           # If you manage some envs via GitHub Secrets, add them here explicitly.
@@ -803,6 +807,10 @@ jobs:
             ./ "$APP_DIR/"
 
           cd "$APP_DIR"
+
+          if [ -d "$APP_DIR/node_modules" ]; then
+            sudo rm -rf "$APP_DIR/node_modules"
+          fi
 
           # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
           # OpenAI (AI moderation worker) - prefer beta-specific secret when present.
