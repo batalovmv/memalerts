@@ -1808,9 +1808,9 @@ End-to-end integration tests для полных user journeys.
 **Файл теста**: `tests/integration/userJourneys.test.ts`
 
 **Что тестировать**:
-- [ ] Viewer: login → browse → activate meme
-- [ ] Streamer: login → upload meme → configure channel
-- [ ] Submission: viewer submit → streamer approve → meme appears
+- [x] Viewer: login → browse → activate meme
+- [x] Streamer: login → upload meme → configure channel
+- [x] Submission: viewer submit → streamer approve → meme appears
 
 **Acceptance Criteria**:
 ```
