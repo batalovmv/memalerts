@@ -244,6 +244,55 @@ export function mockStreamerCreditsTokenRotate(payload: unknown, onCall?: () => 
   });
 }
 
+export function mockStreamerCreditsState(payload: unknown) {
+  return http.get('*/streamer/credits/state', () => HttpResponse.json(payload));
+}
+
+export function mockStreamerCreditsResetOk(onCall?: () => void) {
+  return http.post('*/streamer/credits/reset', () => {
+    onCall?.();
+    return HttpResponse.json({ ok: true });
+  });
+}
+
+export function mockStreamerCreditsReconnectWindow(payload: unknown, onCall?: () => void) {
+  return http.get('*/streamer/credits/reconnect-window', () => {
+    onCall?.();
+    return HttpResponse.json(payload);
+  });
+}
+
+export function mockStreamerCreditsReconnectWindowSetOk(onCall?: (body: unknown) => void) {
+  return http.post('*/streamer/credits/reconnect-window', async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as unknown;
+    onCall?.(body);
+    return HttpResponse.json({ ok: true });
+  });
+}
+
+export function mockStreamerCreditsIgnoredChatters(payload: unknown, onCall?: () => void) {
+  return http.get('*/streamer/credits/ignored-chatters', () => {
+    onCall?.();
+    return HttpResponse.json(payload);
+  });
+}
+
+export function mockStreamerCreditsIgnoredChattersSetOk(onCall?: (body: unknown) => void) {
+  return http.post('*/streamer/credits/ignored-chatters', async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as unknown;
+    onCall?.(body);
+    return HttpResponse.json({ ok: true });
+  });
+}
+
+export function mockStreamerCreditsSettingsSaveOk(onCall?: (body: unknown) => void) {
+  return http.post('*/streamer/credits/settings', async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as unknown;
+    onCall?.(body);
+    return HttpResponse.json({ ok: true });
+  });
+}
+
 export function mockStreamerOverlayPresets(payload: unknown) {
   return http.get('*/streamer/overlay/presets', () => HttpResponse.json(payload));
 }
@@ -489,5 +538,4 @@ export function mockResubmitSubmission(assert?: (data: { id: string; title: stri
     return HttpResponse.json({ ok: true });
   });
 }
-
 
