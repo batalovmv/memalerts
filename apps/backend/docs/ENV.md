@@ -84,18 +84,33 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | TWITCH_CHAT_OUTBOX_CONCURRENCY | no | 2 | Twitch outbox worker concurrency | non-secret |
 | TWITCH_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | Twitch outbox rate limit max | non-secret |
 | TWITCH_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | Twitch outbox rate limit window (ms) | non-secret |
+| TWITCH_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | Twitch per-channel outbox rate limit max | non-secret |
+| TWITCH_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | Twitch per-channel outbox rate limit window (ms) | non-secret |
+| TWITCH_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | Twitch outbox dedup window (ms) | non-secret |
 | YOUTUBE_CHAT_OUTBOX_CONCURRENCY | no | 2 | YouTube outbox worker concurrency | non-secret |
 | YOUTUBE_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 10 | YouTube outbox rate limit max | non-secret |
 | YOUTUBE_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | YouTube outbox rate limit window (ms) | non-secret |
+| YOUTUBE_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | YouTube per-channel outbox rate limit max | non-secret |
+| YOUTUBE_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | YouTube per-channel outbox rate limit window (ms) | non-secret |
+| YOUTUBE_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | YouTube outbox dedup window (ms) | non-secret |
 | VKVIDEO_CHAT_OUTBOX_CONCURRENCY | no | 2 | VKVideo outbox worker concurrency | non-secret |
 | VKVIDEO_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | VKVideo outbox rate limit max | non-secret |
 | VKVIDEO_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | VKVideo outbox rate limit window (ms) | non-secret |
+| VKVIDEO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | VKVideo per-channel outbox rate limit max | non-secret |
+| VKVIDEO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | VKVideo per-channel outbox rate limit window (ms) | non-secret |
+| VKVIDEO_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | VKVideo outbox dedup window (ms) | non-secret |
 | TROVO_CHAT_OUTBOX_CONCURRENCY | no | 2 | Trovo outbox worker concurrency | non-secret |
 | TROVO_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | Trovo outbox rate limit max | non-secret |
 | TROVO_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | Trovo outbox rate limit window (ms) | non-secret |
+| TROVO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | Trovo per-channel outbox rate limit max | non-secret |
+| TROVO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | Trovo per-channel outbox rate limit window (ms) | non-secret |
+| TROVO_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | Trovo outbox dedup window (ms) | non-secret |
 | KICK_CHAT_OUTBOX_CONCURRENCY | no | 2 | Kick outbox worker concurrency | non-secret |
 | KICK_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | Kick outbox rate limit max | non-secret |
 | KICK_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | Kick outbox rate limit window (ms) | non-secret |
+| KICK_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX | no | 10 | Kick per-channel outbox rate limit max | non-secret |
+| KICK_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS | no | 20000 | Kick per-channel outbox rate limit window (ms) | non-secret |
+| KICK_CHAT_OUTBOX_DEDUP_WINDOW_MS | no | 30000 | Kick outbox dedup window (ms) | non-secret |
 | AI_MODERATION_STUCK_MS | no | 900000 | Stuck job timeout (ms) | non-secret |
 | AI_MAX_RETRIES | no | 5 | AI retry count | non-secret |
 | AI_MODERATION_MEDIUM_THRESHOLD | no | 0.4 | Medium threshold | non-secret |

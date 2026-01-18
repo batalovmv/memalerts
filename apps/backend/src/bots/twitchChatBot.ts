@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import tmi, { type ChatUserstate, type Client } from 'tmi.js';
 import { prisma } from '../lib/prisma.js';
-import { getValidAccessToken } from '../utils/twitchApi.js';
+import { getValidAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
 import { addCreditsChatter } from '../realtime/creditsSessionStore.js';
 import { emitCreditsState } from '../realtime/creditsState.js';
 import { logger } from '../utils/logger.js';
@@ -13,6 +13,8 @@ import { getStreamSessionSnapshot } from '../realtime/streamDurationStore.js';
 import { claimPendingCoinGrantsTx } from '../rewards/pendingCoinGrants.js';
 import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
+import { createReconnectBackoff } from './reconnectBackoff.js';
+import { isTwitchAuthError } from './twitchChatbotShared.js';
 
 type RewardTx = Parameters<typeof recordExternalRewardEventTx>[0]['tx'];
 
@@ -201,6 +203,15 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
   let stopped = false;
   let client: Client | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
+  const reconnectBackoff = createReconnectBackoff({ baseMs: 10_000, maxMs: 120_000 });
+
+  const scheduleReconnect = (reason: string, authError: boolean) => {
+    if (stopped) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    const delay = reconnectBackoff.nextDelayMs();
+    logger.warn('chatbot.reconnect_scheduled', { reason, delayMs: delay, authError });
+    reconnectTimer = setTimeout(() => void connect(), delay);
+  };
 
   const connect = async () => {
     if (stopped) return;
@@ -208,14 +219,17 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
     const botUserId = await resolveBotUserId();
     if (!botUserId) {
       logger.warn('chatbot.no_bot_user', { botLogin });
-      reconnectTimer = setTimeout(connect, 30_000);
+      scheduleReconnect('missing_bot_user', false);
       return;
     }
 
-    const accessToken = await getValidAccessToken(botUserId);
+    let accessToken = await getValidAccessToken(botUserId);
+    if (!accessToken) {
+      accessToken = await refreshAccessToken(botUserId);
+    }
     if (!accessToken) {
       logger.warn('chatbot.no_access_token', { botLogin, botUserId });
-      reconnectTimer = setTimeout(connect, 30_000);
+      scheduleReconnect('missing_access_token', false);
       return;
     }
 
@@ -233,9 +247,15 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
 
     activeClient.on('connected', () => {
       logger.info('chatbot.connected', { botLogin, channels });
+      reconnectBackoff.reset();
     });
     activeClient.on('disconnected', (reason: unknown) => {
-      logger.warn('chatbot.disconnected', { botLogin, reason: String(reason || '') });
+      const reasonMsg = String(reason || '');
+      const authError = isTwitchAuthError(reason);
+      logger.warn('chatbot.disconnected', { botLogin, reason: reasonMsg, authError });
+      if (authError && !stopped) {
+        scheduleReconnect('auth_error', true);
+      }
     });
     activeClient.on('message', async (channel: string, tags: ChatUserstate, _message: string, self: boolean) => {
       if (self) return;
@@ -439,8 +459,12 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
     try {
       await activeClient.connect();
     } catch (e: unknown) {
-      logger.warn('chatbot.connect_failed', { botLogin, errorMessage: getErrorMessage(e) });
-      reconnectTimer = setTimeout(connect, 30_000);
+      const authError = isTwitchAuthError(e);
+      logger.warn('chatbot.connect_failed', { botLogin, errorMessage: getErrorMessage(e), authError });
+      if (authError && botUserId) {
+        await refreshAccessToken(botUserId);
+      }
+      scheduleReconnect('connect_failed', authError);
     }
   };
 

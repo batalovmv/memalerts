@@ -38,6 +38,18 @@ export function getErrorCode(err: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
+export function isTwitchAuthError(err: unknown): boolean {
+  const message = getErrorMessage(err).toLowerCase();
+  if (!message) return false;
+  return (
+    message.includes('login authentication failed') ||
+    message.includes('authentication failed') ||
+    message.includes('invalid oauth') ||
+    message.includes('invalid token') ||
+    message.includes('bad oauth')
+  );
+}
+
 export function parseIntSafe(v: unknown, def: number): number {
   const n = Number.parseInt(String(v ?? ''), 10);
   return Number.isFinite(n) ? n : def;

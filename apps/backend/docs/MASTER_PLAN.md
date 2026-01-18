@@ -283,10 +283,10 @@ updates:
 
 | # | Задача | Время | Приоритет |
 |---|--------|-------|-----------|
-| 5.1.1 | Token refresh resilience | 3 ч | 🟠 |
-| 5.1.2 | Reconnect backoff | 2 ч | 🟠 |
-| 5.1.3 | Message dedup (idempotency) | 2 ч | 🟠 |
-| 5.1.4 | Rate limit per channel | 2 ч | 🟡 |
+| 5.1.1 | ✅ Token refresh resilience | 3 ч | 🟠 |
+| 5.1.2 | ✅ Reconnect backoff | 2 ч | 🟠 |
+| 5.1.3 | ✅ Message dedup (idempotency) | 2 ч | 🟠 |
+| 5.1.4 | ✅ Rate limit per channel | 2 ч | 🟡 |
 | 5.1.5 | Bot health dashboard | 2 ч | 🟡 |
 | 5.1.6 | ✅ Outbox cleanup job | 1 ч | 🟡 |
 

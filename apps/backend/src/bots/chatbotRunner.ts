@@ -3,11 +3,24 @@ import '../tracing/init.js';
 import tmi, { type ChatUserstate } from 'tmi.js';
 import type { Worker } from 'bullmq';
 import { prisma } from '../lib/prisma.js';
-import { getValidAccessToken, getValidTwitchBotAccessToken, refreshAccessToken } from '../utils/twitchApi.js';
+import {
+  getValidAccessToken,
+  getValidTwitchBotAccessToken,
+  refreshAccessToken,
+  refreshTwitchBotAccessToken,
+} from '../utils/twitchApi.js';
 import { logger } from '../utils/logger.js';
 import { startServiceHeartbeat } from '../utils/serviceHeartbeat.js';
 import { validateChatbotEnv } from './env.js';
-import { clampInt, normalizeLogin, parseBool, parseIntSafe, type BotClient } from './twitchChatbotShared.js';
+import {
+  clampInt,
+  isTwitchAuthError,
+  normalizeLogin,
+  parseBool,
+  parseIntSafe,
+  type BotClient,
+} from './twitchChatbotShared.js';
+import { createReconnectBackoff } from './reconnectBackoff.js';
 import {
   createTwitchChatCommands,
   type TwitchChatCommandItem,
@@ -59,6 +72,24 @@ async function start() {
     60_000,
     30_000
   );
+  const outboxChannelRateLimitMax = clampInt(
+    parseInt(String(process.env.TWITCH_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX || ''), 10),
+    1,
+    100,
+    10
+  );
+  const outboxChannelRateLimitWindowMs = clampInt(
+    parseInt(String(process.env.TWITCH_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS || ''), 10),
+    1_000,
+    60_000,
+    20_000
+  );
+  const outboxDedupWindowMs = clampInt(
+    parseInt(String(process.env.TWITCH_CHAT_OUTBOX_DEDUP_WINDOW_MS || ''), 10),
+    1_000,
+    5 * 60_000,
+    30_000
+  );
   const outboxLockTtlMs = clampInt(
     parseInt(String(process.env.CHAT_OUTBOX_CHANNEL_LOCK_TTL_MS || ''), 10),
     5_000,
@@ -91,6 +122,7 @@ async function start() {
   let commandsTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
   let outboxWorker: Worker<ChatOutboxJobData> | null = null;
+  const reconnectBackoff = createReconnectBackoff({ baseMs: 10_000, maxMs: 120_000 });
 
   const defaultClientRef: { value: BotClient | null } = { value: null };
   const overrideClients = new Map<string, BotClient>();
@@ -137,27 +169,41 @@ async function start() {
       outboxConcurrency,
       outboxRateLimitMax,
       outboxRateLimitWindowMs,
+      outboxChannelRateLimitMax,
+      outboxChannelRateLimitWindowMs,
+      outboxDedupWindowMs,
       outboxLockTtlMs,
       outboxLockDelayMs,
       stoppedRef,
     },
   });
 
+  const scheduleReconnect = (reason: string, authError: boolean) => {
+    if (stoppedRef.value) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    const delay = reconnectBackoff.nextDelayMs();
+    logger.warn('chatbot.reconnect_scheduled', { reason, delayMs: delay, authError });
+    reconnectTimer = setTimeout(() => void connect(), delay);
+  };
+
   const connect = async () => {
     if (stoppedRef.value) return;
 
     let accessToken: string | null = null;
     let botLogin = defaultBotLogin;
+    let authSource: 'global' | 'user' | null = null;
+    let botUserId: string | null = null;
 
     const dbBot = await getValidTwitchBotAccessToken();
     if (dbBot?.accessToken && dbBot.login) {
       accessToken = dbBot.accessToken;
       botLogin = normalizeLogin(dbBot.login);
+      authSource = 'global';
     } else {
-      const botUserId = defaultBotUserId || (await resolveBotUserId());
+      botUserId = defaultBotUserId || (await resolveBotUserId());
       if (!botUserId) {
         logger.warn('chatbot.no_bot_user', { botLogin });
-        reconnectTimer = setTimeout(connect, 30_000);
+        scheduleReconnect('missing_bot_user', false);
         return;
       }
 
@@ -167,9 +213,10 @@ async function start() {
       }
       if (!accessToken) {
         logger.warn('chatbot.no_access_token', { botLogin, botUserId });
-        reconnectTimer = setTimeout(connect, 30_000);
+        scheduleReconnect('missing_access_token', false);
         return;
       }
+      authSource = 'user';
     }
 
     const client = new tmi.Client({
@@ -182,9 +229,15 @@ async function start() {
 
     client.on('connected', () => {
       logger.info('chatbot.connected', { botLogin });
+      reconnectBackoff.reset();
     });
     client.on('disconnected', (reason: unknown) => {
-      logger.warn('chatbot.disconnected', { botLogin, reason: String(reason || '') });
+      const reasonMsg = String(reason || '');
+      const authError = isTwitchAuthError(reason);
+      logger.warn('chatbot.disconnected', { botLogin, reason: reasonMsg, authError });
+      if (authError && !stoppedRef.value) {
+        scheduleReconnect('auth_error', true);
+      }
     });
     client.on('message', async (channel: string, tags: ChatUserstate, message: string, self: boolean) => {
       if (self) return;
@@ -203,8 +256,20 @@ async function start() {
       if (commandsTimer) clearInterval(commandsTimer);
       commandsTimer = setInterval(() => void chatCommands.refreshCommands(), commandsRefreshSeconds * 1000);
     } catch (e: unknown) {
-      logger.warn('chatbot.connect_failed', { botLogin, errorMessage: e instanceof Error ? e.message : String(e) });
-      reconnectTimer = setTimeout(connect, 30_000);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const authError = isTwitchAuthError(e);
+      logger.warn('chatbot.connect_failed', { botLogin, errorMessage, authError });
+      if (authError) {
+        if (authSource === 'global') {
+          const refreshed = await refreshTwitchBotAccessToken();
+          if (refreshed?.accessToken) {
+            botLogin = normalizeLogin(refreshed.login);
+          }
+        } else if (authSource === 'user' && botUserId) {
+          await refreshAccessToken(botUserId);
+        }
+      }
+      scheduleReconnect('connect_failed', authError);
     }
   };
 

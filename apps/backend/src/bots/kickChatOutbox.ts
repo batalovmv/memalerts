@@ -6,6 +6,8 @@ import {
   computeChatOutboxBackoffMs,
   getChatOutboxQueueName,
 } from '../queues/chatOutboxQueue.js';
+import { isDuplicateChatOutboxMessage } from '../queues/chatOutboxDedup.js';
+import { checkChatOutboxChannelRateLimit } from '../queues/chatOutboxRateLimit.js';
 import { recordChatOutboxQueueLatency } from '../utils/metrics.js';
 import { logger } from '../utils/logger.js';
 import { asRecord, getErrorMessage, prismaAny, type KickChannelState } from './kickChatbotShared.js';
@@ -22,6 +24,9 @@ type KickChatOutboxConfig = {
   outboxConcurrency: number;
   outboxRateLimitMax: number;
   outboxRateLimitWindowMs: number;
+  outboxChannelRateLimitMax: number;
+  outboxChannelRateLimitWindowMs: number;
+  outboxDedupWindowMs: number;
   outboxLockTtlMs: number;
   outboxLockDelayMs: number;
   stoppedRef: { value: boolean };
@@ -33,6 +38,9 @@ export function createKickChatOutbox(states: Map<string, KickChannelState>, conf
     outboxConcurrency,
     outboxRateLimitMax,
     outboxRateLimitWindowMs,
+    outboxChannelRateLimitMax,
+    outboxChannelRateLimitWindowMs,
+    outboxDedupWindowMs,
     outboxLockTtlMs,
     outboxLockDelayMs,
     stoppedRef,
@@ -86,6 +94,36 @@ export function createKickChatOutbox(states: Map<string, KickChannelState>, conf
         if (claim.count !== 1) continue;
 
         try {
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'kick',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.kickChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              continue;
+            }
+            const messageText = String(row.message ?? '');
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'kick',
+              channelId,
+              message: messageText,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'kick', channelId, outboxId: row.id });
+              await prismaAny.kickChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), attempts: Number(row.attempts ?? 0) + 1 },
+              });
+              continue;
+            }
+          }
           const attempts = Number(row.attempts ?? 0) || 0;
           await sendToKickChat({ st, text: String(row.message ?? '') });
           await prismaAny.kickChatBotOutboxMessage.update({
@@ -209,6 +247,39 @@ export function createKickChatOutbox(states: Map<string, KickChannelState>, conf
 
           const latencyMs = Date.now() - (job.timestamp ?? Date.now());
           recordChatOutboxQueueLatency({ platform: 'kick', latencySeconds: Math.max(0, latencyMs / 1000) });
+
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'kick',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.kickChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              const retryDelay = Math.max(outboxLockDelayMs, rate.retryAfterMs);
+              await job.moveToDelayed(Date.now() + retryDelay);
+              throw new DelayedError();
+            }
+            const messageText = String(row.message ?? '');
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'kick',
+              channelId,
+              message: messageText,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'kick', channelId, outboxId: row.id });
+              await prismaAny.kickChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), attempts: Number(row.attempts ?? 0) + 1 },
+              });
+              return;
+            }
+          }
 
           const attempts = Number(row.attempts ?? 0) || 0;
           await sendToKickChat({ st, text: String(row.message ?? '') });

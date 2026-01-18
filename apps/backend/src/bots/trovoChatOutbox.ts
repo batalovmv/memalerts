@@ -6,6 +6,8 @@ import {
   computeChatOutboxBackoffMs,
   getChatOutboxQueueName,
 } from '../queues/chatOutboxQueue.js';
+import { isDuplicateChatOutboxMessage } from '../queues/chatOutboxDedup.js';
+import { checkChatOutboxChannelRateLimit } from '../queues/chatOutboxRateLimit.js';
 import { recordChatOutboxQueueLatency } from '../utils/metrics.js';
 import { logger } from '../utils/logger.js';
 import { asRecord, getErrorMessage, prismaAny, type TrovoChannelState } from './trovoChatbotShared.js';
@@ -20,6 +22,9 @@ type TrovoChatOutboxConfig = {
   outboxConcurrency: number;
   outboxRateLimitMax: number;
   outboxRateLimitWindowMs: number;
+  outboxChannelRateLimitMax: number;
+  outboxChannelRateLimitWindowMs: number;
+  outboxDedupWindowMs: number;
   outboxLockTtlMs: number;
   outboxLockDelayMs: number;
   stoppedRef: { value: boolean };
@@ -31,6 +36,9 @@ export function createTrovoChatOutbox(states: Map<string, TrovoChannelState>, co
     outboxConcurrency,
     outboxRateLimitMax,
     outboxRateLimitWindowMs,
+    outboxChannelRateLimitMax,
+    outboxChannelRateLimitWindowMs,
+    outboxDedupWindowMs,
     outboxLockTtlMs,
     outboxLockDelayMs,
     stoppedRef,
@@ -73,6 +81,36 @@ export function createTrovoChatOutbox(states: Map<string, TrovoChannelState>, co
         if (claim.count !== 1) continue;
 
         try {
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'trovo',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.trovoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              continue;
+            }
+            const messageText = String(row.message ?? '');
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'trovo',
+              channelId,
+              message: messageText,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'trovo', channelId, outboxId: row.id });
+              await prismaAny.trovoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), attempts: Number(row.attempts ?? 0) || 0 },
+              });
+              continue;
+            }
+          }
           const attempts = Number(row.attempts ?? 0) || 0;
           await sendToTrovoChat({ st, text: String(row.message ?? '') });
           await prismaAny.trovoChatBotOutboxMessage.update({
@@ -178,6 +216,38 @@ export function createTrovoChatOutbox(states: Map<string, TrovoChannelState>, co
 
           const latencyMs = Date.now() - (job.timestamp ?? Date.now());
           recordChatOutboxQueueLatency({ platform: 'trovo', latencySeconds: Math.max(0, latencyMs / 1000) });
+
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'trovo',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.trovoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              await job.moveToDelayed(Date.now() + Math.max(outboxLockDelayMs, rate.retryAfterMs));
+              throw new DelayedError();
+            }
+            const messageText = String(row.message ?? '');
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'trovo',
+              channelId,
+              message: messageText,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'trovo', channelId, outboxId: row.id });
+              await prismaAny.trovoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), attempts: Number(row.attempts ?? 0) || 0 },
+              });
+              return;
+            }
+          }
 
           const attempts = Number(row.attempts ?? 0) || 0;
           await sendToTrovoChat({ st, text: String(row.message ?? '') });

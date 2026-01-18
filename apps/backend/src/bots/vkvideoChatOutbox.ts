@@ -6,6 +6,8 @@ import {
   computeChatOutboxBackoffMs,
   getChatOutboxQueueName,
 } from '../queues/chatOutboxQueue.js';
+import { isDuplicateChatOutboxMessage } from '../queues/chatOutboxDedup.js';
+import { checkChatOutboxChannelRateLimit } from '../queues/chatOutboxRateLimit.js';
 import { recordChatOutboxQueueLatency } from '../utils/metrics.js';
 import { logger } from '../utils/logger.js';
 import { asRecord, getErrorMessage, normalizeMessage, prismaAny } from './vkvideoChatbotShared.js';
@@ -19,6 +21,9 @@ type VkvideoChatOutboxConfig = {
   outboxConcurrency: number;
   outboxRateLimitMax: number;
   outboxRateLimitWindowMs: number;
+  outboxChannelRateLimitMax: number;
+  outboxChannelRateLimitWindowMs: number;
+  outboxDedupWindowMs: number;
   outboxLockTtlMs: number;
   outboxLockDelayMs: number;
   stoppedRef: { value: boolean };
@@ -39,6 +44,9 @@ export function createVkvideoChatOutbox(
     outboxConcurrency,
     outboxRateLimitMax,
     outboxRateLimitWindowMs,
+    outboxChannelRateLimitMax,
+    outboxChannelRateLimitWindowMs,
+    outboxDedupWindowMs,
     outboxLockTtlMs,
     outboxLockDelayMs,
     stoppedRef,
@@ -87,6 +95,37 @@ export function createVkvideoChatOutbox(
 
         let lastError: string | null = null;
         try {
+          const mappedChannelId = vkvideoIdToChannelId.get(vkvideoChannelId);
+          const channelId = String(mappedChannelId || '').trim();
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'vkvideo',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.vkVideoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              continue;
+            }
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'vkvideo',
+              channelId,
+              message: msg,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'vkvideo', channelId, outboxId: row.id });
+              await prismaAny.vkVideoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), lastError: null },
+              });
+              continue;
+            }
+          }
           logger.info('vkvideo_chatbot.outbox_send', {
             vkvideoChannelId,
             outboxId: row.id,
@@ -214,6 +253,37 @@ export function createVkvideoChatOutbox(
 
           const latencyMs = Date.now() - (job.timestamp ?? Date.now());
           recordChatOutboxQueueLatency({ platform: 'vkvideo', latencySeconds: Math.max(0, latencyMs / 1000) });
+
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'vkvideo',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.vkVideoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              await job.moveToDelayed(Date.now() + Math.max(outboxLockDelayMs, rate.retryAfterMs));
+              throw new DelayedError();
+            }
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'vkvideo',
+              channelId,
+              message: msg,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'vkvideo', channelId, outboxId: row.id });
+              await prismaAny.vkVideoChatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), lastError: null },
+              });
+              return;
+            }
+          }
 
           logger.info('vkvideo_chatbot.outbox_send', {
             vkvideoChannelId,

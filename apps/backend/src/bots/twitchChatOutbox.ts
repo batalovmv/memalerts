@@ -6,9 +6,11 @@ import {
   computeChatOutboxBackoffMs,
   getChatOutboxQueueName,
 } from '../queues/chatOutboxQueue.js';
+import { isDuplicateChatOutboxMessage } from '../queues/chatOutboxDedup.js';
 import { recordChatOutboxQueueLatency } from '../utils/metrics.js';
 import { logger } from '../utils/logger.js';
 import { asRecord, getErrorMessage, normalizeLogin, prismaAny, type BotClient } from './twitchChatbotShared.js';
+import { checkChatOutboxChannelRateLimit } from '../queues/chatOutboxRateLimit.js';
 
 const MAX_OUTBOX_BATCH = 25;
 const MAX_SEND_ATTEMPTS = 3;
@@ -19,6 +21,9 @@ type TwitchChatOutboxConfig = {
   outboxConcurrency: number;
   outboxRateLimitMax: number;
   outboxRateLimitWindowMs: number;
+  outboxChannelRateLimitMax: number;
+  outboxChannelRateLimitWindowMs: number;
+  outboxDedupWindowMs: number;
   outboxLockTtlMs: number;
   outboxLockDelayMs: number;
   stoppedRef: { value: boolean };
@@ -37,6 +42,9 @@ export function createTwitchChatOutbox(params: {
     outboxConcurrency,
     outboxRateLimitMax,
     outboxRateLimitWindowMs,
+    outboxChannelRateLimitMax,
+    outboxChannelRateLimitWindowMs,
+    outboxDedupWindowMs,
     outboxLockTtlMs,
     outboxLockDelayMs,
     stoppedRef,
@@ -84,6 +92,36 @@ export function createTwitchChatOutbox(params: {
         try {
           const channelId = loginToChannelId.get(login) || null;
           const message = String(row.message ?? '');
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'twitch',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.chatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              continue;
+            }
+
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'twitch',
+              channelId,
+              message,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'twitch', channelId, outboxId: row.id });
+              await prismaAny.chatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), attempts: Number(row.attempts ?? 0) || 0 },
+              });
+              continue;
+            }
+          }
           const attempts = Number(row.attempts ?? 0) || 0;
           await sayForChannel({ channelId, twitchLogin: login, message });
           await prismaAny.chatBotOutboxMessage.update({
@@ -188,6 +226,39 @@ export function createTwitchChatOutbox(params: {
 
           const latencyMs = Date.now() - (job.timestamp ?? Date.now());
           recordChatOutboxQueueLatency({ platform: 'twitch', latencySeconds: Math.max(0, latencyMs / 1000) });
+
+          if (channelId) {
+            const rate = await checkChatOutboxChannelRateLimit({
+              platform: 'twitch',
+              channelId,
+              max: outboxChannelRateLimitMax,
+              windowMs: outboxChannelRateLimitWindowMs,
+            });
+            if (!rate.allowed) {
+              await prismaAny.chatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'pending', processingAt: null, lastError: 'rate_limited' },
+              });
+              await job.moveToDelayed(Date.now() + Math.max(outboxLockDelayMs, rate.retryAfterMs));
+              throw new DelayedError();
+            }
+
+            const message = String(row.message ?? '');
+            const isDup = await isDuplicateChatOutboxMessage({
+              platform: 'twitch',
+              channelId,
+              message,
+              dedupWindowMs: outboxDedupWindowMs,
+            });
+            if (isDup) {
+              logger.info('chat.outbox.dedup_skipped', { platform: 'twitch', channelId, outboxId: row.id });
+              await prismaAny.chatBotOutboxMessage.update({
+                where: { id: row.id },
+                data: { status: 'sent', sentAt: new Date(), attempts: Number(row.attempts ?? 0) || 0 },
+              });
+              return;
+            }
+          }
 
           if (!joinedDefault.has(login)) {
             try {

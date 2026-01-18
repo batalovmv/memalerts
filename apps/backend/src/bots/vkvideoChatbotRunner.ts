@@ -59,6 +59,24 @@ async function start() {
     60_000,
     30_000
   );
+  const outboxChannelRateLimitMax = clampInt(
+    parseInt(String(process.env.VKVIDEO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_MAX || ''), 10),
+    1,
+    60,
+    10
+  );
+  const outboxChannelRateLimitWindowMs = clampInt(
+    parseInt(String(process.env.VKVIDEO_CHAT_OUTBOX_CHANNEL_RATE_LIMIT_WINDOW_MS || ''), 10),
+    1_000,
+    60_000,
+    20_000
+  );
+  const outboxDedupWindowMs = clampInt(
+    parseInt(String(process.env.VKVIDEO_CHAT_OUTBOX_DEDUP_WINDOW_MS || ''), 10),
+    1_000,
+    5 * 60_000,
+    30_000
+  );
   const outboxLockTtlMs = clampInt(
     parseInt(String(process.env.CHAT_OUTBOX_CHANNEL_LOCK_TTL_MS || ''), 10),
     5_000,
@@ -132,6 +150,9 @@ async function start() {
       outboxConcurrency,
       outboxRateLimitMax,
       outboxRateLimitWindowMs,
+      outboxChannelRateLimitMax,
+      outboxChannelRateLimitWindowMs,
+      outboxDedupWindowMs,
       outboxLockTtlMs,
       outboxLockDelayMs,
       stoppedRef,

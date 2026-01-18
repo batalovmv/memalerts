@@ -1,8 +1,11 @@
 import tmi from 'tmi.js';
 import { prisma } from '../lib/prisma.js';
-import { getValidTwitchAccessTokenByExternalAccountId } from '../utils/twitchApi.js';
+import {
+  getValidTwitchAccessTokenByExternalAccountId,
+  refreshTwitchAccessTokenByExternalAccountId,
+} from '../utils/twitchApi.js';
 import { logger } from '../utils/logger.js';
-import { getErrorMessage, normalizeLogin, type BotClient } from './twitchChatbotShared.js';
+import { getErrorMessage, isTwitchAuthError, normalizeLogin, type BotClient } from './twitchChatbotShared.js';
 
 export async function resolveBotUserId(): Promise<string | null> {
   const explicit = String(process.env.CHAT_BOT_USER_ID || '').trim();
@@ -42,39 +45,70 @@ export async function ensureOverrideClient(params: {
   const login = normalizeLogin(String(ext?.login || ''));
   if (!ext || ext.provider !== 'twitch' || !login) return null;
 
-  const accessToken = await getValidTwitchAccessTokenByExternalAccountId(extId);
+  let accessToken = await getValidTwitchAccessTokenByExternalAccountId(extId);
+  if (!accessToken) {
+    accessToken = await refreshTwitchAccessTokenByExternalAccountId(extId);
+  }
   if (!accessToken) return null;
 
-  const client = new tmi.Client({
-    options: { debug: false },
-    connection: { secure: true, reconnect: true },
-    identity: { username: login, password: `oauth:${accessToken}` },
-    channels: [],
-  });
+  const buildClient = (token: string) =>
+    new tmi.Client({
+      options: { debug: false },
+      connection: { secure: true, reconnect: true },
+      identity: { username: login, password: `oauth:${token}` },
+      channels: [],
+    });
 
-  const entry: BotClient = { kind: 'override', login, client, joined: new Set(), externalAccountId: extId };
+  let client = buildClient(accessToken);
+  let entry: BotClient = { kind: 'override', login, client, joined: new Set(), externalAccountId: extId };
   params.overrideClients.set(extId, entry);
 
-  client.on('connected', () => {
-    logger.info('chatbot.override.connected', { botLogin: login, externalAccountId: extId });
-  });
-  client.on('disconnected', (reason: unknown) => {
-    logger.warn('chatbot.override.disconnected', {
-      botLogin: login,
-      externalAccountId: extId,
-      reason: String(reason || ''),
+  const attachListeners = (activeClient: tmi.Client) => {
+    activeClient.on('connected', () => {
+      logger.info('chatbot.override.connected', { botLogin: login, externalAccountId: extId });
     });
-  });
+    activeClient.on('disconnected', (reason: unknown) => {
+      logger.warn('chatbot.override.disconnected', {
+        botLogin: login,
+        externalAccountId: extId,
+        reason: String(reason || ''),
+      });
+    });
+  };
+
+  attachListeners(client);
 
   try {
     await client.connect();
     return entry;
   } catch (e: unknown) {
+    const authError = isTwitchAuthError(e);
     logger.warn('chatbot.override.connect_failed', {
       botLogin: login,
       externalAccountId: extId,
       errorMessage: getErrorMessage(e),
+      authError,
     });
+    if (authError) {
+      const refreshed = await refreshTwitchAccessTokenByExternalAccountId(extId);
+      if (refreshed) {
+        client = buildClient(refreshed);
+        entry = { ...entry, client };
+        params.overrideClients.set(extId, entry);
+        attachListeners(client);
+        try {
+          await client.connect();
+          return entry;
+        } catch (err: unknown) {
+          logger.warn('chatbot.override.connect_failed', {
+            botLogin: login,
+            externalAccountId: extId,
+            errorMessage: getErrorMessage(err),
+            authError: isTwitchAuthError(err),
+          });
+        }
+      }
+    }
     params.overrideClients.delete(extId);
     return null;
   }
