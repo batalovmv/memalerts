@@ -351,6 +351,28 @@ app.set('io', io);
 // Global rate limiting (applied to all routes)
 app.use(globalLimiter);
 
+const deprecationEnabled = process.env.DEPRECATION_ENABLED === '1';
+const deprecationSunset = process.env.DEPRECATION_SUNSET;
+const deprecationSuccessor = process.env.DEPRECATION_SUCCESSOR || '/v1';
+const deprecationExcluded = ['/v1', '/docs', '/uploads', '/health', '/healthz', '/readyz'];
+
+app.use((req, res, next) => {
+  if (!deprecationEnabled) return next();
+  const path = req.path || '';
+  if (deprecationExcluded.some((prefix) => path.startsWith(prefix))) return next();
+
+  if (!res.getHeader('Deprecation')) {
+    res.setHeader('Deprecation', 'true');
+  }
+  if (deprecationSunset && !res.getHeader('Sunset')) {
+    res.setHeader('Sunset', deprecationSunset);
+  }
+  if (deprecationSuccessor && !res.getHeader('Link')) {
+    res.setHeader('Link', `<${deprecationSuccessor}>; rel="successor-version"`);
+  }
+  return next();
+});
+
 // Routes
 const apiRouter = express.Router();
 setupRoutes(apiRouter);

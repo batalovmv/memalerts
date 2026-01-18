@@ -15,6 +15,9 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | WEB_URL | prod | -- | Frontend URL for CORS | non-secret |
 | OVERLAY_URL | no | -- | Overlay URL for CORS | non-secret |
 | DOMAIN | prod | -- | Base domain for API and callbacks | non-secret |
+| DEPRECATION_ENABLED | no | -- | Emit deprecation headers on legacy routes | non-secret |
+| DEPRECATION_SUNSET | no | -- | Sunset date (RFC1123) for legacy routes | non-secret |
+| DEPRECATION_SUCCESSOR | no | /v1 | Successor-version URL for legacy routes | non-secret |
 | JWT_SECRET | yes | -- | JWT signing secret (use different values for beta/prod) | secret |
 | JWT_EXPIRES_IN | no | 7d | JWT expiration duration | non-secret |
 | TWITCH_CLIENT_ID | yes | -- | Twitch OAuth client id | secret |
