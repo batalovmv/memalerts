@@ -207,9 +207,9 @@ updates:
 | # | Задача | Время | Приоритет |
 |---|--------|-------|-----------|
 | 3.1.1 | Security audit (OWASP Top 10) | 4 ч | 🟠 |
-| 3.1.2 | Dependency vulnerability scan (Snyk/npm audit) | 1 ч | 🟠 |
+| 3.1.2 | ✅ Dependency vulnerability scan (Snyk/npm audit) | 1 ч | 🟠 |
 | 3.1.3 | Rate limit tuning per endpoint | 2 ч | 🟡 |
-| 3.1.4 | JWT rotation runbook | 30 мин | 🟡 |
+| 3.1.4 | ✅ JWT rotation runbook | 30 мин | 🟡 |
 
 ---
 
