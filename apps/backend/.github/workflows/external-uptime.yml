@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: read
     env:
-      ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+      ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK || secrets.SLACK_DEPLOY_WEBHOOK_URL }}
       ENDPOINTS: |
         https://twitchmemes.ru/health
         https://beta.twitchmemes.ru/health

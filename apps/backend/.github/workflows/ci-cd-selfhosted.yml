@@ -249,6 +249,7 @@ jobs:
         id: deploy_production
         shell: bash
         env:
+          ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK || secrets.SLACK_DEPLOY_WEBHOOK_URL }}
           AI_METADATA_ENABLED: ${{ secrets.AI_METADATA_ENABLED }}
           AI_MODERATION_ENABLED: ${{ secrets.AI_MODERATION_ENABLED }}
           AI_TAG_LIMIT: ${{ secrets.AI_TAG_LIMIT }}
@@ -558,6 +559,7 @@ jobs:
           }
 
           SYNC_KEYS=(
+            ALERT_WEBHOOK
             AI_METADATA_ENABLED
             AI_MODERATION_ENABLED
             AI_TAG_LIMIT
@@ -612,10 +614,10 @@ jobs:
             VPS_PORT
             VPS_SSH_KEY
             VPS_USER
-            WEB_URL
-            YOUTUBE_CALLBACK_URL
-            YOUTUBE_CLIENT_ID
-            YOUTUBE_CLIENT_SECRET
+          WEB_URL
+          YOUTUBE_CALLBACK_URL
+          YOUTUBE_CLIENT_ID
+          YOUTUBE_CLIENT_SECRET
           )
 
           for key in "${SYNC_KEYS[@]}"; do
@@ -839,6 +841,7 @@ jobs:
         shell: bash
         if: steps.decide.outputs.deploy == 'true'
         env:
+          ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK || secrets.SLACK_DEPLOY_WEBHOOK_URL }}
           AI_METADATA_ENABLED: ${{ secrets.AI_METADATA_ENABLED }}
           AI_MODERATION_ENABLED: ${{ secrets.AI_MODERATION_ENABLED }}
           AI_TAG_LIMIT: ${{ secrets.AI_TAG_LIMIT }}
@@ -1150,6 +1153,7 @@ jobs:
           }
 
           SYNC_KEYS=(
+            ALERT_WEBHOOK
             AI_METADATA_ENABLED
             AI_MODERATION_ENABLED
             AI_TAG_LIMIT

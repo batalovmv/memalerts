@@ -331,7 +331,7 @@ echo "=== All smoke tests passed ==="
 
 **Реализация:**
 - GitHub Actions: `.github/workflows/external-uptime.yml` (каждые 5 минут)
-- Опционально: secret `ALERT_WEBHOOK` для уведомлений
+- Webhook: `ALERT_WEBHOOK` (fallback на `SLACK_DEPLOY_WEBHOOK_URL`, если `ALERT_WEBHOOK` не задан)
 
 **Статус:** ✅ Реализовано
 
@@ -378,7 +378,7 @@ du -sh /var/log/nginx/
 ALERT_WEBHOOK=https://discord.com/api/webhooks/xxx/yyy
 ```
 
-**Статус:** ✅ Реализовано (переменная добавлена, значение можно заполнить позже)
+**Статус:** ✅ Реализовано (значение синхронизируется из GitHub Secrets, fallback на `SLACK_DEPLOY_WEBHOOK_URL`)
 
 ---
 
