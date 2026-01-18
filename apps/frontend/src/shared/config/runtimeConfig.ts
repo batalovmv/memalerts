@@ -18,6 +18,11 @@ export type RuntimeConfig = {
    */
   uploadsBaseUrl?: string;
   /**
+   * Optional S3-compatible public base URL for uploads.
+   * Used when uploadsBaseUrl is not set.
+   */
+  s3PublicBaseUrl?: string;
+  /**
    * Optional public site base URL for building share links.
    * - "" (empty string) means same-origin.
    * - "https://..." for absolute URL.
@@ -28,6 +33,15 @@ export type RuntimeConfig = {
    * If not provided, the UI will show the message without a direct payment link.
    */
   billingUrl?: string;
+  /**
+   * Optional upload size override (in megabytes).
+   */
+  maxUploadSizeMb?: number;
+  /**
+   * Feature flags for AI and Credits overlay.
+   */
+  aiEnabled?: boolean;
+  creditsOverlayEnabled?: boolean;
   /**
    * Optional Socket.IO transports override.
    * Example: ["websocket"] to force WebSocket-only (recommended for production to avoid polling load).
@@ -73,5 +87,4 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
     return cachedConfig;
   }
 }
-
 

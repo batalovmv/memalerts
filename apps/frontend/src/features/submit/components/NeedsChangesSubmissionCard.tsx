@@ -22,6 +22,15 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
   const maxResubmits = 2;
   const left = Math.max(0, maxResubmits - revision);
 
+  const sourceKindLabel =
+    submission.sourceKind === 'upload'
+      ? t('submissions.sourceUpload', { defaultValue: 'Upload' })
+      : submission.sourceKind === 'url'
+        ? t('submissions.sourceUrl', { defaultValue: 'URL' })
+        : submission.sourceKind === 'pool'
+          ? t('submissions.sourcePool', { defaultValue: 'Pool' })
+          : null;
+
   const parsed = parseNeedsChangesPayload(submission.moderatorNotes);
   const codes = parsed?.codes || [];
   const message = parsed?.message || '';
@@ -42,7 +51,14 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
           <div className="font-semibold text-gray-900 dark:text-white truncate">{submission.title}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(submission.createdAt).toLocaleString()}</div>
         </div>
-        <Pill variant="warning">{t('submissions.statusNeedsChanges', { defaultValue: 'needs changes' })}</Pill>
+        <div className="flex items-center gap-2">
+          <Pill variant="warning">{t('submissions.statusNeedsChanges', { defaultValue: 'needs changes' })}</Pill>
+          {sourceKindLabel ? (
+            <Pill variant="neutral" title={t('submissions.sourceLabel', { defaultValue: 'Source' })}>
+              {sourceKindLabel}
+            </Pill>
+          ) : null}
+        </div>
       </header>
 
       <section className="mt-3 text-sm text-gray-700 dark:text-gray-300" aria-label={t('submissions.changesRequested', { defaultValue: 'Changes requested' })}>
@@ -133,7 +149,6 @@ export function NeedsChangesSubmissionCard(props: { submission: MySubmission; on
     </article>
   );
 }
-
 
 
 

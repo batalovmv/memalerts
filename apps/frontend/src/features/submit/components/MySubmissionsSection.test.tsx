@@ -80,7 +80,25 @@ describe('MySubmissionsSection (integration)', () => {
     expect(screen.getByText('Fix me')).toBeTruthy();
     expect(screen.getByText(/approved/i)).toBeTruthy();
   });
+
+  it('shows source kind for history items', () => {
+    const onRefresh = vi.fn();
+    renderWithProviders(
+      <MySubmissionsSection
+        mode="history"
+        submissions={[makeMySubmission({ status: 'approved', title: 'Ok', sourceKind: 'pool' })]}
+        loading={false}
+        onRefresh={onRefresh}
+        title="My submissions"
+      />,
+    );
+
+    expect(screen.getByText('Pool')).toBeTruthy();
+  });
 });
+
+
+
 
 
 

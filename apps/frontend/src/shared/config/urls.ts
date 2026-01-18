@@ -37,6 +37,12 @@ export function getUploadsBaseUrl(): string | null {
     if (v.trim()) return trimTrailingSlash(v.trim());
     return '';
   }
+  const s3 = runtime?.s3PublicBaseUrl;
+  if (typeof s3 === 'string') {
+    if (s3 === '') return '';
+    if (s3.trim()) return trimTrailingSlash(s3.trim());
+    return '';
+  }
   return null;
 }
 
@@ -73,5 +79,4 @@ export function resolveMediaUrl(src: string): string {
 
   return `${trimTrailingSlash(getDevApiBase())}${path}`;
 }
-
 

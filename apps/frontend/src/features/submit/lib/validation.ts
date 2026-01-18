@@ -1,3 +1,5 @@
+import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
+
 export type ValidationResult = {
   valid: boolean;
   errors: string[];
@@ -7,6 +9,17 @@ export type Translator = (key: string, options?: Record<string, unknown>) => str
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 export const MAX_DURATION_SECONDS = 300;
+
+export const getMaxFileSizeBytes = (): number => {
+  const runtime = getRuntimeConfig();
+  const maxMb = runtime?.maxUploadSizeMb;
+  if (typeof maxMb === 'number' && Number.isFinite(maxMb) && maxMb > 0) {
+    return Math.round(maxMb * 1024 * 1024);
+  }
+  return MAX_FILE_SIZE_BYTES;
+};
+
+export const getMaxFileSizeMb = (): number => Math.max(1, Math.round(getMaxFileSizeBytes() / (1024 * 1024)));
 
 export const getVideoDuration = (file: File): Promise<number> => {
   return new Promise((resolve, reject) => {
@@ -38,8 +51,13 @@ export const validateFile = async (
 ): Promise<ValidationResult> => {
   const errors: string[] = [];
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    errors.push(t('submit.errors.fileTooLarge', { defaultValue: 'File is too large. Maximum 50 MB.' }));
+  const maxFileSizeBytes = getMaxFileSizeBytes();
+  const maxFileSizeMb = getMaxFileSizeMb();
+
+  if (file.size > maxFileSizeBytes) {
+    errors.push(
+      t('submit.errors.fileTooLarge', { defaultValue: 'File is too large. Maximum {{maxMb}} MB.', maxMb: maxFileSizeMb }),
+    );
   }
 
   if (!file.type || !file.type.startsWith('video/')) {

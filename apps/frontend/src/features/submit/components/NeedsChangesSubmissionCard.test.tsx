@@ -39,7 +39,7 @@ describe('NeedsChangesSubmissionCard (integration)', () => {
     window.addEventListener('my-submissions:updated', onGlobalUpdated);
 
     try {
-      const submission = makeMySubmission({ id: 'sub_123', title: 'Old', notes: 'old', tags: [] });
+      const submission = makeMySubmission({ id: 'sub_123', title: 'Old', notes: 'old', tags: [], sourceKind: 'url' });
 
       const assert = vi.fn();
       server.use(
@@ -49,6 +49,8 @@ describe('NeedsChangesSubmissionCard (integration)', () => {
       renderWithProviders(<NeedsChangesSubmissionCard submission={submission} onUpdated={onUpdated} />, {
         preloadedState: { auth: { user: { id: 'u1', displayName: 'U', role: 'viewer', channelId: null }, loading: false, error: null } } as any,
       });
+
+      expect(screen.getByText('URL')).toBeInTheDocument();
 
       // Update fields
       const titleInput = screen.getByDisplayValue('Old') as HTMLInputElement;
@@ -116,5 +118,4 @@ describe('NeedsChangesSubmissionCard (integration)', () => {
     expect(onUpdated).not.toHaveBeenCalled();
   });
 });
-
 

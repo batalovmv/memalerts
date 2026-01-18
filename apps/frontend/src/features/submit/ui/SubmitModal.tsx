@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
-import { getVideoDuration, validateFile } from '@/features/submit/lib/validation';
+import { getMaxFileSizeMb, getVideoDuration, validateFile } from '@/features/submit/lib/validation';
 
 import TagInput from '@/components/TagInput';
 import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
@@ -181,7 +181,10 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
     }
     if (typeof errorCode === 'string') {
       if (errorCode === 'FILE_TOO_LARGE') {
-        return t('submit.errors.fileTooLarge', { defaultValue: 'File is too large. Maximum 50 MB.' });
+        return t('submit.errors.fileTooLarge', {
+          defaultValue: 'File is too large. Maximum {{maxMb}} MB.',
+          maxMb: getMaxFileSizeMb(),
+        });
       }
       if (errorCode === 'VIDEO_TOO_LONG') {
         return t('submit.errors.videoTooLong', { defaultValue: 'Video is too long. Maximum 5 minutes.' });

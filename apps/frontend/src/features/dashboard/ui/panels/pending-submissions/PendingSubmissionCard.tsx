@@ -53,6 +53,15 @@ export function PendingSubmissionCard(props: {
   const { resubmitsLeft, maxResubmits, canSendForChanges } = getResubmitsLeft(submission.revision, 2);
   const preview = useSubmissionPreview(src);
 
+  const sourceKindLabel =
+    submission.sourceKind === 'upload'
+      ? t('submissions.sourceUpload', { defaultValue: 'Upload' })
+      : submission.sourceKind === 'url'
+        ? t('submissions.sourceUrl', { defaultValue: 'URL' })
+        : submission.sourceKind === 'pool'
+          ? t('submissions.sourcePool', { defaultValue: 'Pool' })
+          : null;
+
   const aiDecision = submission.aiDecision ?? null;
   const aiStatus = submission.aiStatus ?? null;
   const aiStatusLabel = aiStatus === 'failed_final' ? 'failed' : aiStatus;
@@ -171,6 +180,11 @@ export function PendingSubmissionCard(props: {
                 <div className="mt-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <AttemptsPill left={resubmitsLeft} max={maxResubmits} />
+                    {sourceKindLabel ? (
+                      <Pill variant="neutral" title={t('submissions.sourceLabel', { defaultValue: 'Source' })}>
+                        {sourceKindLabel}
+                      </Pill>
+                    ) : null}
                     {aiDecision ? (
                       <Pill variant={decisionVariant} title={t('submissions.aiDecision', { defaultValue: 'AI decision' })}>
                         AI: {aiDecision}

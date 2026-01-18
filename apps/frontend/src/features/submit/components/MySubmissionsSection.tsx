@@ -28,6 +28,13 @@ function RefreshIcon(props: { spinning?: boolean }) {
   );
 }
 
+function getSourceKindLabel(sourceKind: string | undefined, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (sourceKind === 'upload') return t('submissions.sourceUpload', { defaultValue: 'Upload' });
+  if (sourceKind === 'url') return t('submissions.sourceUrl', { defaultValue: 'URL' });
+  if (sourceKind === 'pool') return t('submissions.sourcePool', { defaultValue: 'Pool' });
+  return null;
+}
+
 export function MySubmissionsSection(props: {
   title?: string;
   mode: MySubmissionsSectionMode;
@@ -79,6 +86,7 @@ export function MySubmissionsSection(props: {
                 );
               }
 
+              const sourceKindLabel = getSourceKindLabel(s.sourceKind, t);
               return (
                 <li key={s.id}>
                   <article className="glass p-4">
@@ -89,15 +97,22 @@ export function MySubmissionsSection(props: {
                           {new Date(s.createdAt).toLocaleString()}
                         </div>
                       </div>
-                      <Pill
-                        variant={s.status === 'approved' ? 'success' : s.status === 'rejected' ? 'danger' : 'neutral'}
-                      >
-                        {s.status === 'approved'
-                          ? t('submissions.statusApproved', { defaultValue: 'approved' })
-                          : s.status === 'rejected'
-                            ? t('submissions.statusRejected', { defaultValue: 'rejected' })
-                            : t('submissions.statusPending', { defaultValue: 'pending' })}
-                      </Pill>
+                      <div className="flex items-center gap-2">
+                        <Pill
+                          variant={s.status === 'approved' ? 'success' : s.status === 'rejected' ? 'danger' : 'neutral'}
+                        >
+                          {s.status === 'approved'
+                            ? t('submissions.statusApproved', { defaultValue: 'approved' })
+                            : s.status === 'rejected'
+                              ? t('submissions.statusRejected', { defaultValue: 'rejected' })
+                              : t('submissions.statusPending', { defaultValue: 'pending' })}
+                        </Pill>
+                        {sourceKindLabel ? (
+                          <Pill variant="neutral" title={t('submissions.sourceLabel', { defaultValue: 'Source' })}>
+                            {sourceKindLabel}
+                          </Pill>
+                        ) : null}
+                      </div>
                     </header>
 
                     {s.status === 'rejected' && (
@@ -125,5 +140,3 @@ export function MySubmissionsSection(props: {
     </section>
   );
 }
-
-

@@ -22,4 +22,25 @@ describe('File validation', () => {
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  it('uses runtime maxUploadSizeMb when provided', async () => {
+    vi.resetModules();
+    (window as any).__MEMALERTS_RUNTIME_CONFIG__ = { maxUploadSizeMb: 1 };
+
+    const { validateFile } = await import('../lib/validation');
+    const tWithInterpolation = (_key: string, options?: Record<string, unknown>) => {
+      const fallback = typeof options?.defaultValue === 'string' ? options.defaultValue : _key;
+      if (typeof options?.maxMb === 'number') {
+        return fallback.replace('{{maxMb}}', String(options.maxMb));
+      }
+      return fallback;
+    };
+
+    const bigFile = new File([new ArrayBuffer(2 * 1024 * 1024)], 'big.mp4', { type: 'video/mp4' });
+    const result = await validateFile(bigFile, tWithInterpolation, async () => 10);
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('Maximum 1 MB');
+
+    delete (window as any).__MEMALERTS_RUNTIME_CONFIG__;
+  });
 });

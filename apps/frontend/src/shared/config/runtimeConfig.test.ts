@@ -33,7 +33,34 @@ describe('runtimeConfig (web)', () => {
     expect(b).toEqual(a);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves optional feature flags and S3 settings', async () => {
+    vi.resetModules();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        s3PublicBaseUrl: 'https://s3.example',
+        maxUploadSizeMb: 75,
+        aiEnabled: true,
+        creditsOverlayEnabled: false,
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+
+    const { loadRuntimeConfig } = await import('./runtimeConfig');
+    const cfg = await loadRuntimeConfig();
+
+    expect(cfg).toMatchObject({
+      s3PublicBaseUrl: 'https://s3.example',
+      maxUploadSizeMb: 75,
+      aiEnabled: true,
+      creditsOverlayEnabled: false,
+    });
+  });
 });
+
+
+
 
 
 
