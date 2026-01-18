@@ -34,6 +34,13 @@
 - **Upload/Submissions**: `FILE_TOO_LARGE`, `INVALID_FILE_TYPE`, `INVALID_FILE_CONTENT`, `VIDEO_TOO_LONG`, `TRANSCODE_FAILED`, `UPLOAD_TIMEOUT`, `UPLOAD_FAILED`
 - **Submissions gating**: `STREAMER_SUBMISSIONS_DISABLED`, `ONLY_WHEN_LIVE`
 
+### Rate limit headers
+
+При ответе `429` API добавляет стандартные заголовки лимитов:
+
+- `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`
+- Legacy-совместимость: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- `Retry-After` (секунды до следующей попытки)
 
 
 
