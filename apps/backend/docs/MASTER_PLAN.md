@@ -79,7 +79,7 @@ updates:
 | 1.2.3 | ✅ Issue templates (.github/ISSUE_TEMPLATE/) | 20 мин | 🟡 |
 | 1.2.4 | ✅ PR template (.github/pull_request_template.md) | 10 мин | 🟡 |
 | 1.2.5 | ✅ CHANGELOG automation (standard-version) | 30 мин | 🟡 |
-| 1.2.6 | OpenAPI docs расширение | 2 ч | 🟢 |
+| 1.2.6 | ✅ OpenAPI docs расширение | 2 ч | 🟢 |
 
 ---
 

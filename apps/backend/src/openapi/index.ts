@@ -36,6 +36,7 @@ const ErrorResponse = registry.register(
     requestId: z.string().optional(),
     traceId: z.string().nullable().optional(),
     details: z.unknown().optional(),
+    hint: z.string().optional(),
   })
 );
 
@@ -186,6 +187,29 @@ type RegisterJsonPathParams = {
   responseExample?: unknown;
 };
 
+function buildErrorResponses(params: {
+  security?: Array<Record<string, string[]>>;
+  hasParams: boolean;
+}) {
+  const isSecured = params.security === undefined ? true : params.security.length > 0;
+  const responses: Record<string, ReturnType<typeof jsonResponse>> = {
+    400: jsonResponse(ErrorResponse, 'Bad Request'),
+    429: jsonResponse(ErrorResponse, 'Too Many Requests'),
+    500: jsonResponse(ErrorResponse, 'Internal Server Error'),
+  };
+
+  if (isSecured) {
+    responses[401] = jsonResponse(ErrorResponse, 'Unauthorized');
+    responses[403] = jsonResponse(ErrorResponse, 'Forbidden');
+  }
+
+  if (params.hasParams) {
+    responses[404] = jsonResponse(ErrorResponse, 'Not Found');
+  }
+
+  return responses;
+}
+
 function registerJsonPath(params: RegisterJsonPathParams) {
   const {
     method,
@@ -199,6 +223,7 @@ function registerJsonPath(params: RegisterJsonPathParams) {
     responseExample,
   } = params;
 
+  const hasParams = Boolean(request?.params);
   registry.registerPath({
     method,
     path,
@@ -208,6 +233,7 @@ function registerJsonPath(params: RegisterJsonPathParams) {
     ...(request ? { request } : {}),
     responses: {
       200: jsonResponse(responseSchema, responseDescription, responseExample),
+      ...buildErrorResponses({ security, hasParams }),
     },
   });
 }
