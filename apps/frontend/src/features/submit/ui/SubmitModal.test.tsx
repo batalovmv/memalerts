@@ -307,7 +307,7 @@ describe('SubmitModal (integration)', () => {
     });
 
     await waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/submissions/import', expect.objectContaining({ title: 'Import test', sourceUrl: expect.any(String), tags: ['t1', 't2'], channelId: 'c1' })),
+      expect(postSpy).toHaveBeenCalledWith('/submissions/import', expect.objectContaining({ title: 'Import test', url: expect.any(String), tags: ['t1', 't2'], channelId: 'c1' })),
     );
 
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -344,7 +344,7 @@ describe('SubmitModal (integration)', () => {
     const call = postSpy.mock.calls.find((c) => c[0] === '/submissions/import');
     expect(call).toBeTruthy();
     const payload = (call?.[1] as Record<string, unknown>) || {};
-    expect(payload).toHaveProperty('sourceUrl');
+    expect(payload).toHaveProperty('url');
     expect(payload).toHaveProperty('channelId', 'c1');
     expect(payload).not.toHaveProperty('title');
 

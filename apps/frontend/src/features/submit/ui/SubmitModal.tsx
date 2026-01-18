@@ -390,11 +390,11 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         return;
       }
 
-      setImportLoading(true);
+        setImportLoading(true);
       try {
         const { api } = await import('@/lib/api');
         const payload: Record<string, unknown> = {
-          sourceUrl: formData.sourceUrl,
+          url: formData.sourceUrl,
           ...(channelId && { channelId }), // Add channelId if provided
         };
         const titleToSend = formData.title.trim();
