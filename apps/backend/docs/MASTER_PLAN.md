@@ -264,7 +264,7 @@ updates:
 |---|--------|-------|-----------|
 | 4.2.1 | Dashboard для bot health | 2 ч | 🟡 |
 | 4.2.2 | Alert rules refinement | 1 ч | 🟡 |
-| 4.2.3 | Log retention policy | 30 мин | 🟢 |
+| 4.2.3 | ✅ Log retention policy | 30 мин | 🟢 |
 
 ---
 
