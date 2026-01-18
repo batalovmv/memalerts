@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { prisma } from '../src/lib/prisma.js';
 import { logger } from '../src/utils/logger.js';
 import { runAiWatchdogOnce } from '../src/jobs/aiQueue.js';

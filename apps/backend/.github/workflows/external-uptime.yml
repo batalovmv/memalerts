@@ -1,0 +1,46 @@
+name: External Uptime Check
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+      ENDPOINTS: |
+        https://twitchmemes.ru/health
+        https://beta.twitchmemes.ru/health
+        https://twitchmemes.ru/readyz
+    steps:
+      - name: Check endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r url; do
+            if [ -z "$url" ]; then
+              continue
+            fi
+            if ! curl -fsS --max-time 10 "$url" >/dev/null; then
+              echo "FAIL: $url"
+              failed=1
+            else
+              echo "OK: $url"
+            fi
+          done <<< "$ENDPOINTS"
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Notify webhook (optional)
+        if: failure() && env.ALERT_WEBHOOK != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload='{"content":"ALERT: External uptime check failed for memalerts-backend. See GitHub Actions."}'
+          curl -sS -X POST -H "Content-Type: application/json" -d "$payload" "$ALERT_WEBHOOK"
