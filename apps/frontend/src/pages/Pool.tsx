@@ -148,8 +148,7 @@ export default function PoolPage() {
         channelId: submitChannelId!,
         ...(title ? { title } : {}),
       });
-      const r = (resp && typeof resp === 'object' ? (resp as Record<string, unknown>) : null) || null;
-      const isDirect = r?.isDirectApproval === true;
+      const isDirect = (resp as { isDirectApproval?: boolean } | null)?.isDirectApproval === true;
       toast.success(
         isDirect
           ? t('pool.addedDirect', { defaultValue: 'Added to your channel.' })
@@ -542,4 +541,3 @@ export default function PoolPage() {
     </PageShell>
   );
 }
-
