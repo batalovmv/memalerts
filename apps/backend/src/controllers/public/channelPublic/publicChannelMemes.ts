@@ -25,7 +25,8 @@ import {
   mergeCursorWhere,
   parseLimit,
 } from '../../../utils/pagination.js';
-import { ifNoneMatchHit, makeEtagFromString } from '../../viewer/cache.js';
+import { getSearchCacheMs, ifNoneMatchHit, makeEtagFromString, pruneOldestEntries, searchCache, SEARCH_CACHE_MAX } from '../../viewer/cache.js';
+import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 
 export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelMemesQuery;
@@ -79,6 +80,41 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
   const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const poolWhereBase = buildChannelPoolWhere(channel.id);
+  const includeTotalRaw = String(query.includeTotal || '')
+    .trim()
+    .toLowerCase();
+  const includeTotal = includeTotalRaw === '1' || includeTotalRaw === 'true';
+  const cacheTtl = getSearchCacheMs();
+  const cacheKey = [
+    'public_channel_memes',
+    channel.id,
+    memeCatalogMode,
+    String(limit),
+    String(offset),
+    sortBy,
+    sortOrder,
+    useCursorMode ? 'cursor' : 'offset',
+    String(query.cursor || ''),
+    includeTotal ? 'total' : 'no_total',
+  ].join('|');
+
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < cacheTtl) {
+    res.setHeader('ETag', cached.etag);
+    if (ifNoneMatchHit(req, cached.etag)) return res.status(304).end();
+    return res.type('application/json').send(cached.body);
+  }
+
+  const redisKey = nsKey('public_channel_memes', cacheKey);
+  const redisCached = await redisGetString(redisKey);
+  if (redisCached) {
+    const etag = makeEtagFromString(redisCached);
+    res.setHeader('ETag', etag);
+    if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+    searchCache.set(cacheKey, { ts: Date.now(), body: redisCached, etag });
+    pruneOldestEntries(searchCache, SEARCH_CACHE_MAX);
+    return res.type('application/json').send(redisCached);
+  }
 
   if (!useCursorMode) {
     let items: PublicChannelMemeListItem[] = [];
@@ -137,16 +173,15 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
       const etag = makeEtagFromString(body);
       res.setHeader('ETag', etag);
       if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+      searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+      pruneOldestEntries(searchCache, SEARCH_CACHE_MAX);
+      void redisSetStringEx(redisKey, Math.ceil(cacheTtl / 1000), body);
       return res.type('application/json').send(body);
     } catch {
       return res.json(items);
     }
   }
 
-  const includeTotalRaw = String(query.includeTotal || '')
-    .trim()
-    .toLowerCase();
-  const includeTotal = includeTotalRaw === '1' || includeTotalRaw === 'true';
   let hasMore = false;
   let items: PublicChannelMemeListItem[] = [];
   let total: number | null = null;
@@ -221,6 +256,9 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
     const etag = makeEtagFromString(body);
     res.setHeader('ETag', etag);
     if (ifNoneMatchHit(req, etag)) return res.status(304).end();
+    searchCache.set(cacheKey, { ts: Date.now(), body, etag });
+    pruneOldestEntries(searchCache, SEARCH_CACHE_MAX);
+    void redisSetStringEx(redisKey, Math.ceil(cacheTtl / 1000), body);
     return res.type('application/json').send(body);
   } catch {
     return res.json(payload);
