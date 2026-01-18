@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import {
   ERROR_MESSAGES,
+  ERROR_MESSAGES_RU,
   defaultErrorCodeForStatus,
   isErrorCode,
   type ApiErrorResponse,
@@ -23,7 +24,20 @@ function pickErrorCode(status: number, body: unknown): ErrorCode {
   return defaultErrorCodeForStatus(status);
 }
 
-function pickErrorMessage(code: ErrorCode, body: unknown): string {
+function pickPreferredLanguage(req: Request): 'ru' | 'en' {
+  const header = req.headers['accept-language'];
+  if (typeof header !== 'string') return 'en';
+
+  const hasRussian = header
+    .toLowerCase()
+    .split(',')
+    .map((entry) => entry.trim())
+    .some((entry) => entry.startsWith('ru'));
+
+  return hasRussian ? 'ru' : 'en';
+}
+
+function pickErrorMessage(code: ErrorCode, body: unknown, language: 'ru' | 'en'): string {
   // Prefer explicit human message if provided.
   // IMPORTANT: Many legacy controllers/middlewares return { error: "Generic", message: "Specific reason" }.
   // errorResponseFormat historically preferred `error`, which hid the useful `message`.
@@ -39,6 +53,7 @@ function pickErrorMessage(code: ErrorCode, body: unknown): string {
       : null;
   if (humanError && humanError.trim().length > 0) return humanError;
 
+  if (language === 'ru') return ERROR_MESSAGES_RU[code] ?? ERROR_MESSAGES[code] ?? 'Error';
   return ERROR_MESSAGES[code] ?? 'Error';
 }
 
@@ -107,7 +122,7 @@ export function errorResponseFormat(req: Request, res: Response, next: NextFunct
     if (status < 400) return originalJson(body);
 
     const code = pickErrorCode(status, body);
-    const error = pickErrorMessage(code, body);
+    const error = pickErrorMessage(code, body, pickPreferredLanguage(req));
     const details =
       body && typeof body === 'object' && 'details' in body ? (body as { details?: unknown }).details : undefined;
     const hint = pickHint(code, body);
