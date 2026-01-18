@@ -13,8 +13,22 @@ type CreditsConfig = {
 };
 
 type CreditsState = {
-  chatters?: Array<{ name: string; avatarUrl?: string | null; messageCount?: number }>;
-  donors?: Array<{ name: string; amount?: number; currency?: string; avatarUrl?: string | null; message?: string }>;
+  chatters?: CreditsChatter[];
+  donors?: CreditsDonor[];
+};
+
+type CreditsChatter = {
+  name: string;
+  avatarUrl: string | null;
+  messageCount: number | undefined;
+};
+
+type CreditsDonor = {
+  name: string;
+  amount: number | undefined;
+  currency: string | undefined;
+  avatarUrl: string | null;
+  message: string | undefined;
 };
 
 type CreditsStatePayload = {
@@ -37,7 +51,7 @@ function normalizeCreditsState(incoming?: CreditsStatePayload | null): CreditsSt
       const messageCount = typeof c.messageCount === 'number' ? c.messageCount : undefined;
       return { name, avatarUrl: c.avatarUrl ?? null, messageCount };
     })
-    .filter((c): c is { name: string; avatarUrl?: string | null; messageCount?: number } => !!c);
+    .filter((c): c is CreditsChatter => !!c);
 
   const donors = donorsRaw
     .map((d) => {
@@ -48,7 +62,7 @@ function normalizeCreditsState(incoming?: CreditsStatePayload | null): CreditsSt
       const message = typeof d.message === 'string' ? d.message : undefined;
       return { name, amount, currency, avatarUrl: d.avatarUrl ?? null, message };
     })
-    .filter((d): d is { name: string; amount?: number; currency?: string; avatarUrl?: string | null; message?: string } => !!d);
+    .filter((d): d is CreditsDonor => !!d);
 
   return { chatters, donors };
 }
@@ -543,4 +557,3 @@ export default function CreditsOverlayView() {
     </>
   );
 }
-
