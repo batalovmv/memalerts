@@ -735,8 +735,21 @@ export default function DashboardPage() {
     if (botsLoading) return;
     try {
       setBotsLoading(true);
-      const resp = await api.get<{ items?: BotIntegration[] }>('/streamer/bots', { timeout: 12000 });
-      const list = Array.isArray(resp?.items) ? resp.items : [];
+      const resp = await api.get<{ items?: BotIntegration[]; bots?: Array<{ provider?: string; enabled?: boolean | null }> }>(
+        '/streamer/bots',
+        { timeout: 12000 }
+      );
+      const list = Array.isArray(resp?.items)
+        ? resp.items
+        : Array.isArray(resp?.bots)
+          ? resp.bots
+              .map((bot) => {
+                const provider = String(bot?.provider || '').trim();
+                if (!provider) return null;
+                return { provider, enabled: bot?.enabled ?? null };
+              })
+              .filter((item): item is BotIntegration => !!item)
+          : [];
       setBots(list);
       setBotsLoaded(true);
     } catch {

@@ -83,6 +83,44 @@ describe('BotSettings (integration)', () => {
     expect(parsed.items?.find((i) => i.provider === 'youtube')?.enabled).toBe(true);
   });
 
+  it('loads integrations from bots response shape', async () => {
+    const user = userEvent.setup();
+
+    const me = makeStreamerUser({
+      role: 'streamer',
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
+      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' } as any],
+    });
+
+    server.use(
+      mockStreamerBotSubscription({ enabled: true }),
+      mockStreamerCustomBotEntitlement({ entitled: true }),
+      mockStreamerFollowGreetings({ followGreetingsEnabled: false, followGreetingTemplate: '' }),
+      http.get('*/streamer/bots', () =>
+        HttpResponse.json({
+          bots: [{ provider: 'youtube', enabled: true, useDefaultBot: true, customBotLinked: true, customBotDisplayName: 'YT' }],
+        })
+      ),
+      mockStreamerBotOverrideStatus('youtube', { enabled: false, updatedAt: null, externalAccountId: null, lockedBySubscription: false }),
+      http.options('*/streamer/bot/commands', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/streamer/bot/commands', () => HttpResponse.json({ items: [] })),
+      http.options('*/streamer/bot/stream-duration', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/streamer/bot/stream-duration', () =>
+        HttpResponse.json({ enabled: false, trigger: '!time', responseTemplate: '', breakCreditMinutes: 60, onlyWhenLive: false })
+      ),
+    );
+
+    renderWithProviders(<BotSettings />, {
+      route: '/settings/bot',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    await user.click(screen.getByRole('button', { name: /^youtube$/i }));
+
+    const checkbox = await screen.findByRole('checkbox', { name: /youtube bot enabled/i });
+    expect(checkbox).toBeChecked();
+  });
+
   it('enables YouTube bot integration via PATCH /streamer/bots/youtube', async () => {
     const user = userEvent.setup();
 
@@ -131,5 +169,4 @@ describe('BotSettings (integration)', () => {
     await waitFor(() => expect(patchAssert).toHaveBeenCalledWith({ enabled: true }));
   });
 });
-
 

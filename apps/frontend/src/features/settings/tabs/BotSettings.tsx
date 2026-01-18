@@ -51,11 +51,25 @@ type StreamerBotIntegration = {
   provider: 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick' | string;
   enabled?: boolean;
   updatedAt?: string | null;
+  useDefaultBot?: boolean;
+  customBotLinked?: boolean;
+  customBotDisplayName?: string | null;
+  channelUrl?: string | null;
   // Optional config fields (provider-specific).
   vkvideoChannelId?: string | null;
   vkvideoChannelUrl?: string | null;
   trovoChannelId?: string | null;
   kickChannelId?: string | null;
+};
+
+type BotStatusApi = {
+  provider?: string;
+  enabled?: boolean;
+  useDefaultBot?: boolean;
+  customBotLinked?: boolean;
+  customBotDisplayName?: string | null;
+  channelUrl?: string | null;
+  updatedAt?: string | null;
 };
 
 type ToggleSwitchProps = {
@@ -386,8 +400,33 @@ export function BotSettings() {
     try {
       setBotsLoading(true);
       const { api } = await import('@/lib/api');
-      const res = await api.get<{ items?: StreamerBotIntegration[] }>('/streamer/bots', { timeout: 8000 });
-      const items = Array.isArray(res?.items) ? res.items : [];
+      const res = await api.get<{ items?: StreamerBotIntegration[]; bots?: BotStatusApi[] }>('/streamer/bots', { timeout: 8000 });
+      let items: StreamerBotIntegration[] = [];
+      if (Array.isArray(res?.items)) {
+        items = res.items
+          .map((item) => ({
+            ...item,
+            provider: String(item?.provider || '').trim().toLowerCase(),
+          }))
+          .filter((item) => item.provider);
+      } else if (Array.isArray(res?.bots)) {
+        items = res.bots
+          .map((bot) => {
+            const provider = String(bot?.provider || '').trim().toLowerCase();
+            if (!provider) return null;
+            return {
+              provider,
+              enabled: bot?.enabled,
+              updatedAt: bot?.updatedAt ?? null,
+              useDefaultBot: bot?.useDefaultBot,
+              customBotLinked: bot?.customBotLinked,
+              customBotDisplayName: bot?.customBotDisplayName ?? null,
+              channelUrl: bot?.channelUrl ?? null,
+              vkvideoChannelUrl: provider === 'vkvideo' ? bot?.channelUrl ?? null : undefined,
+            } as StreamerBotIntegration;
+          })
+          .filter((item): item is StreamerBotIntegration => !!item);
+      }
       setBots(items);
       // If backend now reports YouTube enabled (or integrations were refreshed), clear relink flag.
       const yt = items.find((b) => b.provider === 'youtube');
@@ -3545,5 +3584,3 @@ export function BotSettings() {
     </div>
   );
 }
-
-
