@@ -438,7 +438,7 @@ updates:
 - [x] 0 ESLint errors/warnings
 - [x] 0 security vulnerabilities (npm audit)
 - [x] Все тесты проходят
-- [ ] Load tests baseline зафиксирован
+- [x] Load tests baseline зафиксирован
 - [ ] Документация актуальна
 - [x] Dependabot настроен
 - [ ] VPS мониторинг работает
