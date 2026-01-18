@@ -121,6 +121,47 @@ describe('SocketProvider (realtime)', () => {
     expect(s.emitted.some((e) => e.event === 'join:user' && e.args[0] === 'u1')).toBe(true);
   });
 
+  it('joins channel room for streamer users', async () => {
+    const s = new FakeSocket();
+    const ioMock = vi.fn(() => s as any);
+
+    vi.doMock('socket.io-client', () => ({ io: ioMock }));
+    vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
+
+    const { SocketProvider: ProviderImpl } = await import('./SocketContext');
+
+    const store = createTestStore({
+      auth: {
+        user: {
+          id: 'u1',
+          displayName: 'User',
+          role: 'streamer',
+          channelId: 'c1',
+          channel: { id: 'c1', slug: 'streamer', name: 'Streamer' },
+        } as any,
+        loading: false,
+        error: null,
+      } as any,
+    } as any);
+
+    render(
+      <Provider store={store}>
+        <ProviderImpl>
+          <div>Child</div>
+        </ProviderImpl>
+      </Provider>,
+    );
+
+    act(() => {
+      s.connected = true;
+      s.fire('connect');
+    });
+
+    expect(
+      s.emitted.some((e) => e.event === 'join:channel' && e.args[0]?.channelSlug === 'streamer'),
+    ).toBe(true);
+  });
+
   it('on connect_error with websocket-only and polling fallback allowed, re-inits with polling', async () => {
     const s1 = new FakeSocket();
     const s2 = new FakeSocket();
@@ -322,4 +363,3 @@ describe('SocketProvider (realtime)', () => {
     expect(s.disconnected).toBeGreaterThanOrEqual(1);
   });
 });
-

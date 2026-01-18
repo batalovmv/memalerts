@@ -116,6 +116,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
     return !import.meta.env.PROD;
   };
 
+  const joinRooms = (sock: Socket, nextUser: typeof user) => {
+    if (!nextUser) return;
+    sock.emit('join:user', nextUser.id);
+    const channelSlug = nextUser.channel?.slug;
+    if (channelSlug && (nextUser.role === 'streamer' || nextUser.role === 'admin')) {
+      sock.emit('join:channel', { channelSlug });
+    }
+  };
+
   useEffect(() => {
     // Don't create/disconnect socket while auth is loading.
     if (loading) {
@@ -158,9 +167,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         s.on('connect', () => {
           setIsConnected(true);
           // Join user room for wallet updates
-          if (user) {
-            s.emit('join:user', user.id);
-          }
+          joinRooms(s, user);
         });
 
         s.on('disconnect', () => {
@@ -204,7 +211,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       // Socket already exists, just update rooms if needed
       const socket = socketRef.current;
       if (socket.connected && user) {
-        socket.emit('join:user', user.id);
+        joinRooms(socket, user);
         setIsConnected(true);
       } else if (!socket.connected && user) {
         // Socket exists but not connected - try to connect
