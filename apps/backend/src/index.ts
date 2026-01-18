@@ -24,6 +24,7 @@ import { startMemeDailyStatsRollupScheduler } from './jobs/memeDailyStatsRollup.
 import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
 import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscriptionRewards.js';
 import { startPendingSubmissionFilesCleanupScheduler } from './jobs/cleanupPendingSubmissionFiles.js';
+import { startOutboxCleanupScheduler } from './jobs/cleanupOutboxMessages.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
@@ -471,6 +472,8 @@ async function startServer() {
     // Optional: normalize audio for playback (site + OBS). Disabled by default; guarded by env.
     // Safety: cleanup pending submissions that exceeded AI retry/retention window (avoid disk bloat).
     startPendingSubmissionFilesCleanupScheduler();
+    // Bot outbox cleanup: remove old sent/failed rows to keep tables small.
+    startOutboxCleanupScheduler();
 
     // Optional: Twitch chat bot (collects chatters for credits overlay).
     // Enabled via env (see CHAT_BOT_* vars).

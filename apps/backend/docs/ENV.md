@@ -77,6 +77,10 @@ This table mirrors `ENV.example` and lists all supported environment variables f
 | CHAT_OUTBOX_CHANNEL_LOCK_TTL_MS | no | 30000 | Chat outbox per-channel lock TTL (ms) | non-secret |
 | CHAT_OUTBOX_LOCK_DELAY_MS | no | 1000 | Chat outbox lock delay when busy (ms) | non-secret |
 | CHAT_OUTBOX_PROCESSING_STALE_MS | no | 60000 | Treat processing outbox rows as stale after (ms) | non-secret |
+| CHAT_OUTBOX_CLEANUP_DAYS | no | 14 | Remove sent/failed outbox rows older than N days | non-secret |
+| CHAT_OUTBOX_CLEANUP_BATCH | no | 500 | Max outbox rows per table per cleanup run | non-secret |
+| CHAT_OUTBOX_CLEANUP_INTERVAL_MS | no | 86400000 | Cleanup interval (ms) | non-secret |
+| CHAT_OUTBOX_CLEANUP_INITIAL_DELAY_MS | no | 600000 | Initial delay before first cleanup (ms) | non-secret |
 | TWITCH_CHAT_OUTBOX_CONCURRENCY | no | 2 | Twitch outbox worker concurrency | non-secret |
 | TWITCH_CHAT_OUTBOX_RATE_LIMIT_MAX | no | 20 | Twitch outbox rate limit max | non-secret |
 | TWITCH_CHAT_OUTBOX_RATE_LIMIT_WINDOW_MS | no | 30000 | Twitch outbox rate limit window (ms) | non-secret |
