@@ -405,28 +405,28 @@ updates:
 # 📅 Рекомендуемый порядок
 
 ## Неделя 1-2: Инфраструктура
-- [ ] Quick wins (Dependabot, templates, LICENSE)
-- [ ] Coverage baseline
-- [ ] CHANGELOG automation
+ - [x] Quick wins (Dependabot, templates, LICENSE)
+ - [x] Coverage baseline
+ - [x] CHANGELOG automation
 
 ## Неделя 3-6: Тесты (Фаза 1)
-- [ ] TICKET-004 — TICKET-013
-- [ ] CI load test integration
+ - [x] TICKET-004 — TICKET-013
+ - [x] CI load test integration
 
 ## Неделя 7-10: Тесты (Фаза 2)
-- [ ] TICKET-014 — TICKET-037
+ - [x] TICKET-014 — TICKET-037
 
 ## Неделя 11-14: Тесты (Фаза 3)
-- [ ] TICKET-038 — TICKET-058
+ - [x] TICKET-038 — TICKET-058
 
 ## Неделя 15-16: Тесты (Фаза 4)
-- [ ] TICKET-059 — TICKET-070
-- [ ] Security audit
+ - [x] TICKET-059 — TICKET-070
+ - [x] Security audit
 
 ## Неделя 17+: Polish
-- [ ] Производительность
-- [ ] Боты hardening
-- [ ] API polish
+ - [x] Производительность
+ - [x] Боты hardening
+ - [x] API polish
 
 ---
 
@@ -439,9 +439,9 @@ updates:
 - [x] 0 security vulnerabilities (npm audit)
 - [x] Все тесты проходят
 - [x] Load tests baseline зафиксирован
-- [ ] Документация актуальна
+- [x] Документация актуальна
 - [x] Dependabot настроен
-- [ ] VPS мониторинг работает
+- [x] VPS мониторинг работает
 - [x] Backup + restore протестированы
 
 ---
