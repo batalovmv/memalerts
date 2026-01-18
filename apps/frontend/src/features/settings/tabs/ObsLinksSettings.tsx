@@ -1154,9 +1154,10 @@ export function ObsLinksSettings() {
       if (!opts?.silent) setLoadingCreditsState(true);
       try {
         const resp = await getCreditsState();
+        const respAny = resp as Record<string, unknown>;
         const slug =
-          typeof (resp as { channelSlug?: unknown })?.channelSlug === 'string'
-            ? String((resp as { channelSlug?: string }).channelSlug || '').trim()
+          typeof respAny.channelSlug === 'string'
+            ? String(respAny.channelSlug || '').trim()
             : String(channelSlug || '').trim();
         if (slug) setCreditsChannelSlug(slug);
         const chattersRaw = Array.isArray(resp?.chatters) ? resp.chatters : [];
@@ -1171,17 +1172,17 @@ export function ObsLinksSettings() {
               typeof (c as { messageCount?: unknown })?.messageCount === 'number'
                 ? (c as { messageCount: number }).messageCount
                 : undefined;
-            return { name, messageCount };
+            return messageCount === undefined ? { name } : { name, messageCount };
           })
           .filter((c): c is { name: string; messageCount?: number } => !!c);
         setCreditsChatters(normalizedChatters);
 
         // Back-compat: if backend also includes reconnect window in state, use it.
         const reconnectSeconds =
-          typeof (resp as { reconnectWindowSeconds?: unknown })?.reconnectWindowSeconds === 'number'
-            ? (resp as { reconnectWindowSeconds: number }).reconnectWindowSeconds
-            : typeof (resp as { creditsReconnectWindowMinutes?: unknown })?.creditsReconnectWindowMinutes === 'number'
-              ? Math.max(0, Math.round((resp as { creditsReconnectWindowMinutes: number }).creditsReconnectWindowMinutes * 60))
+          typeof respAny.reconnectWindowSeconds === 'number'
+            ? respAny.reconnectWindowSeconds
+            : typeof respAny.creditsReconnectWindowMinutes === 'number'
+              ? Math.max(0, Math.round(respAny.creditsReconnectWindowMinutes * 60))
               : null;
         if (typeof reconnectSeconds === 'number' && Number.isFinite(reconnectSeconds)) {
           const minutes = Math.max(0, Math.round(reconnectSeconds / 60));
@@ -1223,11 +1224,12 @@ export function ObsLinksSettings() {
     if (!channelSlug) return;
     try {
       const resp = await getReconnectWindow();
+      const respAny = resp as Record<string, unknown>;
       const seconds =
-        typeof resp?.seconds === 'number'
-          ? resp.seconds
-          : typeof (resp as { creditsReconnectWindowMinutes?: unknown })?.creditsReconnectWindowMinutes === 'number'
-            ? Math.round((resp as { creditsReconnectWindowMinutes: number }).creditsReconnectWindowMinutes * 60)
+        typeof respAny.seconds === 'number'
+          ? respAny.seconds
+          : typeof respAny.creditsReconnectWindowMinutes === 'number'
+            ? Math.round(respAny.creditsReconnectWindowMinutes * 60)
             : null;
       if (typeof seconds === 'number' && Number.isFinite(seconds)) {
         const minutes = Math.max(0, Math.round(seconds / 60));
@@ -1337,7 +1339,7 @@ export function ObsLinksSettings() {
           const name = String(c?.displayName ?? c?.name ?? '').trim();
           if (!name) return null;
           const messageCount = typeof c?.messageCount === 'number' ? c.messageCount : undefined;
-          return { name, messageCount };
+          return messageCount === undefined ? { name } : { name, messageCount };
         })
         .filter((c): c is { name: string; messageCount?: number } => !!c);
       setCreditsChatters(normalized);

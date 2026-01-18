@@ -697,7 +697,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
                 </Button>
                 {mode === 'upload' ? (
                   uploadStatus === 'uploading' ? (
-                    <Button type="button" variant="outline" className="flex-1" onClick={handleCancelUpload}>
+                    <Button type="button" variant="secondary" className="flex-1" onClick={handleCancelUpload}>
                       {t('submit.cancel', { defaultValue: 'Cancel' })}
                     </Button>
                   ) : uploadStatus === 'success' ? (

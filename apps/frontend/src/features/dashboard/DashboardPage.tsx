@@ -85,7 +85,7 @@ function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSw
   );
 }
 
-type BotIntegration = { provider: string; enabled?: boolean | null };
+type BotIntegration = { provider: string; enabled: boolean | null };
 type PublicSubmissionsStatus = { enabled: boolean; channelSlug?: string };
 
 type ExpandCard = null | 'submissionsControl' | 'bots';
@@ -735,20 +735,19 @@ export default function DashboardPage() {
     if (botsLoading) return;
     try {
       setBotsLoading(true);
-      const resp = await api.get<{ items?: BotIntegration[]; bots?: Array<{ provider?: string; enabled?: boolean | null }> }>(
+      const resp = await api.get<{ items?: Array<{ provider?: string; enabled?: boolean | null }>; bots?: Array<{ provider?: string; enabled?: boolean | null }> }>(
         '/streamer/bots',
         { timeout: 12000 }
       );
+      const normalizeBot = (bot?: { provider?: string; enabled?: boolean | null } | null): BotIntegration | null => {
+        const provider = String(bot?.provider || '').trim();
+        if (!provider) return null;
+        return { provider, enabled: bot?.enabled ?? null };
+      };
       const list = Array.isArray(resp?.items)
-        ? resp.items
+        ? resp.items.map(normalizeBot).filter((item): item is BotIntegration => !!item)
         : Array.isArray(resp?.bots)
-          ? resp.bots
-              .map((bot) => {
-                const provider = String(bot?.provider || '').trim();
-                if (!provider) return null;
-                return { provider, enabled: bot?.enabled ?? null };
-              })
-              .filter((item): item is BotIntegration => !!item)
+          ? resp.bots.map(normalizeBot).filter((item): item is BotIntegration => !!item)
           : [];
       setBots(list);
       setBotsLoaded(true);
