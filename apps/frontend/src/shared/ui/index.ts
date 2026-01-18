@@ -1,4 +1,5 @@
 export { AttemptsPill } from './AttemptsPill';
+export { AiStatusBadge } from './AiStatusBadge';
 export { SavedOverlay, SavingOverlay } from './StatusOverlays';
 
 export { Button } from './Button/Button';
@@ -32,5 +33,4 @@ export { HelpTooltip } from './Tooltip/HelpTooltip';
 
 export { PageShell } from './PageShell';
 export type { PageShellProps, PageShellVariant } from './PageShell';
-
 

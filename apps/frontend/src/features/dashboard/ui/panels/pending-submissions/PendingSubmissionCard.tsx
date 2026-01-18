@@ -10,7 +10,7 @@ import type { Submission } from '@/types';
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { cn } from '@/shared/lib/cn';
-import { AttemptsPill, Button, Pill, Tooltip } from '@/shared/ui';
+import { AiStatusBadge, AttemptsPill, Button, Pill, Tooltip } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
 export function PendingSubmissionCard(props: {
@@ -189,16 +189,13 @@ export function PendingSubmissionCard(props: {
                     ) : null}
                     {aiEnabled ? (
                       <>
-                        {aiDecision ? (
-                          <Pill variant={decisionVariant} title={t('submissions.aiDecision', { defaultValue: 'AI decision' })}>
-                            AI: {aiDecision}
-                          </Pill>
-                        ) : null}
-                        {aiStatusLabel ? (
-                          <Pill variant={statusVariant} title={t('submissions.aiStatus', { defaultValue: 'AI status' })}>
-                            AI {aiStatusLabel}
-                          </Pill>
-                        ) : null}
+                        <AiStatusBadge
+                          decision={aiDecision}
+                          status={aiStatus}
+                          statusLabel={aiStatusLabel}
+                          decisionTitle={t('submissions.aiDecision', { defaultValue: 'AI decision' })}
+                          statusTitle={t('submissions.aiStatus', { defaultValue: 'AI status' })}
+                        />
                         {aiRetryCount !== null && aiRetryCount > 0 ? (
                           <Pill variant="neutral" title={t('submissions.aiRetryCount', { defaultValue: 'AI retry count' })}>
                             {t('submissions.aiRetryCountLabel', { defaultValue: 'AI retries: {{count}}', count: aiRetryCount })}

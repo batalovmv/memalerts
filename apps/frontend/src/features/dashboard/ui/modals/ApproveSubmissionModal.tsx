@@ -5,7 +5,7 @@ import { XIcon } from './icons';
 
 import TagInput from '@/components/TagInput';
 import type { Submission } from '@/types';
-import { Button, IconButton, Input, Modal, Pill } from '@/shared/ui';
+import { AiStatusBadge, Button, IconButton, Input, Modal } from '@/shared/ui';
 
 export type ApproveSubmissionModalProps = {
   isOpen: boolean;
@@ -37,10 +37,6 @@ export function ApproveSubmissionModal({
     ? (submission?.aiAutoTagNamesJson as unknown[]).filter((x) => typeof x === 'string') as string[]
     : [];
 
-  const decisionVariant = aiDecision === 'low' ? 'success' : aiDecision === 'medium' ? 'warning' : aiDecision === 'high' ? 'danger' : 'neutral';
-  const statusVariant =
-    aiStatus === 'done' ? 'success' : aiStatus === 'pending' || aiStatus === 'processing' ? 'primary' : aiStatus === 'failed' || aiStatus === 'failed_final' ? 'danger' : 'neutral';
-
   return (
     <Modal
       isOpen={isOpen}
@@ -63,8 +59,7 @@ export function ApproveSubmissionModal({
       <div className="p-5 space-y-4">
         {(aiDecision || aiStatus) ? (
           <div className="flex flex-wrap items-center gap-2">
-            {aiDecision ? <Pill variant={decisionVariant}>AI: {aiDecision}</Pill> : null}
-            {aiStatus ? <Pill variant={statusVariant}>AI {aiStatus}</Pill> : null}
+            <AiStatusBadge decision={aiDecision} status={aiStatus} />
           </div>
         ) : null}
 
@@ -125,5 +120,4 @@ export function ApproveSubmissionModal({
     </Modal>
   );
 }
-
 
