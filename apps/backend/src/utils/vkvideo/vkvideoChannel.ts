@@ -5,6 +5,11 @@ import {
   vkvideoPostJson,
   type VkVideoApiResult,
 } from './vkvideoCore.js';
+import type {
+  VkVideoChannelResponse,
+  VkVideoWebsocketSubscriptionTokensResponse,
+  VkVideoWebsocketTokenResponse,
+} from './vkvideoApiTypes.js';
 
 export async function fetchVkVideoChannel(params: {
   accessToken: string;
@@ -31,7 +36,7 @@ export async function fetchVkVideoChannel(params: {
   }
   const url = new URL(`${apiBaseUrl}/v1/channel`);
   url.searchParams.set('channel_url', String(params.channelUrl));
-  const r = await vkvideoGetJson({ accessToken: params.accessToken, url: url.toString() });
+  const r = await vkvideoGetJson<VkVideoChannelResponse>({ accessToken: params.accessToken, url: url.toString() });
   if (!r.ok)
     return { ok: false, status: r.status, streamId: null, webSocketChannels: null, data: r.data, error: r.error };
   const root = asRecord(r.data)?.data ?? r.data ?? null;
@@ -52,9 +57,9 @@ export async function fetchVkVideoWebsocketToken(params: {
     return { ok: false, status: 0, token: null, data: null, error: 'VKVIDEO_API_BASE_URL is not configured' };
   }
   const url = `${apiBaseUrl}/v1/websocket/token`;
-  const r = await vkvideoGetJson({ accessToken: params.accessToken, url });
+  const r = await vkvideoGetJson<VkVideoWebsocketTokenResponse>({ accessToken: params.accessToken, url });
   if (!r.ok) return { ok: false, status: r.status, token: null, data: r.data, error: r.error };
-  const token = String(asRecord(asRecord(r.data)?.data)?.token ?? '').trim() || null;
+  const token = String(r.data?.data?.token ?? '').trim() || null;
   return { ok: Boolean(token), status: r.status, token, data: r.data, error: token ? null : 'missing_token' };
 }
 
@@ -82,16 +87,16 @@ export async function fetchVkVideoWebsocketSubscriptionTokens(params: {
   const chans = Array.from(new Set((params.channels || []).map((c) => String(c || '').trim()).filter(Boolean)));
   const url = new URL(`${apiBaseUrl}/v1/websocket/subscription_token`);
   if (chans.length) url.searchParams.set('channels', chans.join(','));
-  const r = await vkvideoGetJson({ accessToken: params.accessToken, url: url.toString() });
+  const r = await vkvideoGetJson<VkVideoWebsocketSubscriptionTokensResponse>({
+    accessToken: params.accessToken,
+    url: url.toString(),
+  });
   if (!r.ok) return { ok: false, status: r.status, tokensByChannel: new Map(), data: r.data, error: r.error };
-  const list = Array.isArray(asRecord(asRecord(r.data)?.data)?.channel_tokens)
-    ? (asRecord(asRecord(r.data)?.data)?.channel_tokens as unknown[])
-    : [];
+  const list = Array.isArray(r.data?.data?.channel_tokens) ? r.data?.data?.channel_tokens ?? [] : [];
   const map = new Map<string, string>();
   for (const item of list) {
-    const itemRec = asRecord(item);
-    const channel = String(itemRec?.channel || '').trim();
-    const token = String(itemRec?.token || '').trim();
+    const channel = String(item?.channel || '').trim();
+    const token = String(item?.token || '').trim();
     if (channel && token) map.set(channel, token);
   }
   return { ok: true, status: r.status, tokensByChannel: map, data: r.data, error: null };

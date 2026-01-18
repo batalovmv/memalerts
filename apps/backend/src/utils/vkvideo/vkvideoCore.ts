@@ -1,6 +1,6 @@
 import { logger } from '../logger.js';
 
-export type VkVideoApiResult = { ok: boolean; status: number; data: unknown; error: string | null };
+export type VkVideoApiResult<T = unknown> = { ok: boolean; status: number; data: T | null; error: string | null };
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -29,7 +29,10 @@ export function guessVkVideoApiBaseUrl(): string | null {
   }
 }
 
-export async function vkvideoGetJson(params: { accessToken: string; url: string }): Promise<VkVideoApiResult> {
+export async function vkvideoGetJson<T = unknown>(params: {
+  accessToken: string;
+  url: string;
+}): Promise<VkVideoApiResult<T>> {
   try {
     const resp = await fetch(params.url, {
       headers: {
@@ -48,7 +51,7 @@ export async function vkvideoGetJson(params: { accessToken: string; url: string 
       const reason = extractErrorReason(json, text || resp.statusText);
       return { ok: false, status: resp.status, data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
     }
-    return { ok: true, status: resp.status, data: json, error: null };
+    return { ok: true, status: resp.status, data: json as T, error: null };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn('vkvideo.request_failed', { errorMessage: message });
@@ -56,11 +59,11 @@ export async function vkvideoGetJson(params: { accessToken: string; url: string 
   }
 }
 
-export async function vkvideoPostJson(params: {
+export async function vkvideoPostJson<T = unknown>(params: {
   accessToken: string;
   url: string;
   body: unknown;
-}): Promise<VkVideoApiResult> {
+}): Promise<VkVideoApiResult<T>> {
   try {
     const resp = await fetch(params.url, {
       method: 'POST',
@@ -82,7 +85,7 @@ export async function vkvideoPostJson(params: {
       const reason = extractErrorReason(json, text || resp.statusText);
       return { ok: false, status: resp.status, data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
     }
-    return { ok: true, status: resp.status, data: json, error: null };
+    return { ok: true, status: resp.status, data: json as T, error: null };
   } catch (error: unknown) {
     return { ok: false, status: 0, data: null, error: error instanceof Error ? error.message : String(error) };
   }

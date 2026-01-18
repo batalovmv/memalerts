@@ -4,6 +4,7 @@ import { refreshKickToken, type KickTokenResponse } from '../auth/providers/kick
 import { isTransientHttpError } from './httpErrors.js';
 import { fetchWithTimeout, getServiceHttpTimeoutMs } from './httpTimeouts.js';
 import { getServiceRetryConfig, withRetry } from './retry.js';
+import type { KickEventSubscriptionResponse, KickEventSubscriptionsResponse } from './kickApiTypes.js';
 
 export interface KickEventSubscription {
   event?: string;
@@ -38,10 +39,6 @@ function retryKick<T>(
     retryOnResult: options?.retryOnResult,
     isSuccessResult: options?.isSuccessResult,
   });
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
 function isExpired(expiresAt: Date | null | undefined, skewSeconds: number): boolean {
@@ -266,9 +263,8 @@ export async function listKickEventSubscriptions(params: { accessToken: string; 
             },
           },
         });
-        const data = await resp.json().catch(() => null);
-        const dataRecord = asRecord(data);
-        const subs = dataRecord.data ?? dataRecord.subscriptions ?? asRecord(dataRecord.data).subscriptions ?? [];
+        const data = (await resp.json().catch(() => null)) as KickEventSubscriptionsResponse | null;
+        const subs = data?.data?.subscriptions ?? data?.subscriptions ?? [];
         const subscriptions =
           Array.isArray(subs) && subs.every((item) => typeof item === 'object' && item !== null)
             ? (subs as KickEventSubscription[])
@@ -317,11 +313,8 @@ export async function createKickEventSubscription(params: {
             body: JSON.stringify(body),
           },
         });
-        const data = await resp.json().catch(() => null);
-        const dataRecord = asRecord(data);
-        const nestedData = asRecord(dataRecord.data);
-        const idRaw =
-          nestedData.subscription_id ?? nestedData.id ?? dataRecord.subscription_id ?? dataRecord.id ?? null;
+        const data = (await resp.json().catch(() => null)) as KickEventSubscriptionResponse | null;
+        const idRaw = data?.data?.subscription_id ?? data?.data?.id ?? data?.subscription_id ?? data?.id ?? null;
         const subscriptionId = String(idRaw || '').trim() || null;
         return { ok: resp.ok, status: resp.status, raw: data, subscriptionId };
       },

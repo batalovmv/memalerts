@@ -298,7 +298,7 @@ updates:
 
 | # | Задача | Время | Приоритет |
 |---|--------|-------|-----------|
-| 5.2.1 | API response type definitions | 4 ч | 🟡 |
+| 5.2.1 | ✅ API response type definitions | 4 ч | 🟡 |
 | 5.2.2 | Mock server для тестов | 3 ч | 🟡 |
 | 5.2.3 | ✅ API versioning strategy | 2 ч | 🟢 |
 

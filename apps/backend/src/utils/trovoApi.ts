@@ -4,6 +4,7 @@ import { refreshTrovoToken, type TrovoTokenResponse } from '../auth/providers/tr
 import { isTransientHttpError } from './httpErrors.js';
 import { fetchWithTimeout, getServiceHttpTimeoutMs } from './httpTimeouts.js';
 import { getServiceRetryConfig, withRetry } from './retry.js';
+import type { TrovoChatTokenResponse } from './trovoApiTypes.js';
 
 function isExpired(expiresAt: Date | null | undefined, skewSeconds: number): boolean {
   if (!expiresAt) return true;
@@ -190,8 +191,8 @@ export async function fetchTrovoChatToken(params: {
             },
           },
         });
-        const data = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
-        const token = String((data?.data as Record<string, unknown>)?.token ?? data?.token ?? '').trim() || null;
+        const data = (await resp.json().catch(() => null)) as TrovoChatTokenResponse | null;
+        const token = String(data?.data?.token ?? data?.token ?? '').trim() || null;
         return { ok: resp.ok && !!token, status: resp.status, token, raw: data };
       },
       {
