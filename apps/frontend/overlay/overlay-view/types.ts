@@ -5,6 +5,7 @@ export interface Activation {
   memeId: string;
   type: string;
   fileUrl: string;
+  playFileUrl?: string | null;
   durationMs: number;
   title: string;
   senderDisplayName?: string | null;
@@ -52,5 +53,4 @@ export type OverlayPosition =
   | 'bottom-right';
 
 export type OverlayAnim = 'fade' | 'zoom' | 'slide-up' | 'pop' | 'lift' | 'none';
-
 

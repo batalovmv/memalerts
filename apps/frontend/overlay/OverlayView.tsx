@@ -158,8 +158,8 @@ export default function OverlayView() {
   // In demo preview we ALWAYS keep media muted to avoid autoplay restrictions.
   const effectiveMuted = demo ? true : mutedByDefault || volume <= 0;
 
-  const getMediaUrl = (fileUrl: string): string => {
-    return resolveMediaUrl(fileUrl);
+  const getMediaUrl = (fileUrl: string, playFileUrl?: string | null): string => {
+    return resolveMediaUrl(playFileUrl || fileUrl);
   };
 
   useEffect(() => {
@@ -1112,7 +1112,7 @@ export default function OverlayView() {
                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                   {(item.type === 'image' || item.type === 'gif') && (
                     <img
-                      src={getMediaUrl(item.fileUrl)}
+                      src={getMediaUrl(item.fileUrl, item.playFileUrl)}
                       alt={item.title}
                       style={mediaStyle}
                       onLoad={() => {
@@ -1144,7 +1144,7 @@ export default function OverlayView() {
 
                   {(item.type === 'video' || item.type === 'webm') && (
                     <video
-                      src={getMediaUrl(item.fileUrl)}
+                      src={getMediaUrl(item.fileUrl, item.playFileUrl)}
                       autoPlay
                       playsInline
                       muted={effectiveMuted}
@@ -1186,7 +1186,7 @@ export default function OverlayView() {
 
                   {item.type === 'audio' && (
                     <audio
-                      src={getMediaUrl(item.fileUrl)}
+                      src={getMediaUrl(item.fileUrl, item.playFileUrl)}
                       autoPlay
                       muted={effectiveMuted}
                       onLoadedData={(e) => {
@@ -1249,4 +1249,3 @@ export default function OverlayView() {
     </>
   );
 }
-
