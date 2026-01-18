@@ -5,6 +5,7 @@ import { configureStore, type PreloadedState } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 
 import authReducer from '@/store/slices/authSlice';
+import botIntegrationReducer from '@/store/slices/botIntegrationSlice';
 import memesReducer from '@/store/slices/memesSlice';
 import submissionsReducer from '@/store/slices/submissionsSlice';
 import type { RootState } from '@/store';
@@ -13,6 +14,7 @@ export function createTestStore(preloadedState?: PreloadedState<RootState>) {
   return configureStore({
     reducer: {
       auth: authReducer,
+      botIntegration: botIntegrationReducer,
       memes: memesReducer,
       submissions: submissionsReducer,
     },
@@ -47,5 +49,4 @@ export function renderWithProviders(
     ...render(ui, { wrapper: Wrapper, ...(opts?.renderOptions ?? {}) }),
   };
 }
-
 
