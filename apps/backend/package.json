@@ -49,7 +49,9 @@
     "smoke:local": "curl -fsS http://localhost:3001/healthz && curl -fsS http://localhost:3001/readyz",
     "migrate:beta-to-production": "tsx scripts/migrate-beta-to-production.ts",
     "migrate:uploads:s3": "tsx scripts/migrate-local-uploads-to-s3.ts",
-    "audit:consistency": "tsx scripts/audit-consistency.ts"
+    "audit:consistency": "tsx scripts/audit-consistency.ts",
+    "db:explain": "tsx scripts/query-analysis.ts",
+    "db:index-audit": "tsx scripts/index-audit.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.2.0",
