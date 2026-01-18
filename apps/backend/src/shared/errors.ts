@@ -147,6 +147,7 @@ export type ApiErrorResponse = {
   requestId?: string;
   traceId?: string | null;
   details?: unknown;
+  hint?: string;
 };
 
 export function isErrorCode(v: unknown): v is ErrorCode {

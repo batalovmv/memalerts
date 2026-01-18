@@ -42,6 +42,50 @@ function pickErrorMessage(code: ErrorCode, body: unknown): string {
   return ERROR_MESSAGES[code] ?? 'Error';
 }
 
+function pickHint(code: ErrorCode, body: unknown): string | undefined {
+  const explicitHint =
+    body && typeof body === 'object' && typeof (body as { hint?: unknown }).hint === 'string'
+      ? (body as { hint: string }).hint
+      : null;
+  if (explicitHint && explicitHint.trim().length > 0) return explicitHint;
+
+  switch (code) {
+    case 'CSRF_INVALID':
+      return 'Refresh the page and try again.';
+    case 'SESSION_EXPIRED':
+      return 'Please sign in again.';
+    case 'UNAUTHORIZED':
+      return 'Sign in to continue.';
+    case 'FORBIDDEN':
+      return 'You do not have permission for this action.';
+    case 'TOO_MANY_REQUESTS':
+    case 'RATE_LIMITED':
+      return 'Slow down and retry in a moment.';
+    case 'OAUTH_STATE_MISMATCH':
+      return 'Restart the login flow.';
+    case 'UPLOAD_TIMEOUT':
+      return 'Retry the upload with a stable connection.';
+    case 'FILE_TOO_LARGE':
+      return 'Use a smaller file and try again.';
+    case 'VIDEO_TOO_LONG':
+      return 'Shorten the video and try again.';
+    case 'INVALID_MEDIA_URL':
+    case 'INVALID_MEDIA_TYPE':
+    case 'INVALID_FILE_TYPE':
+    case 'INVALID_FILE_CONTENT':
+      return 'Use a supported file format and try again.';
+    case 'BOT_NOT_CONFIGURED':
+    case 'TWITCH_BOT_NOT_CONFIGURED':
+    case 'YOUTUBE_BOT_NOT_CONFIGURED':
+    case 'VKVIDEO_BOT_NOT_CONFIGURED':
+    case 'TROVO_BOT_NOT_CONFIGURED':
+    case 'KICK_BOT_NOT_CONFIGURED':
+      return 'Enable the bot in channel settings.';
+    default:
+      return undefined;
+  }
+}
+
 export function errorResponseFormat(req: Request, res: Response, next: NextFunction) {
   const authReq = req as AuthRequest;
   const requestId =
@@ -66,6 +110,7 @@ export function errorResponseFormat(req: Request, res: Response, next: NextFunct
     const error = pickErrorMessage(code, body);
     const details =
       body && typeof body === 'object' && 'details' in body ? (body as { details?: unknown }).details : undefined;
+    const hint = pickHint(code, body);
 
     const payload: ApiErrorResponse = {
       errorCode: code,
@@ -73,6 +118,7 @@ export function errorResponseFormat(req: Request, res: Response, next: NextFunct
       requestId,
       traceId,
       ...(details !== undefined ? { details } : {}),
+      ...(hint ? { hint } : {}),
     };
     return originalJson(payload);
   }) as Response['json'];
