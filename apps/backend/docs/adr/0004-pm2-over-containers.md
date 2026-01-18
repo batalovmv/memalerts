@@ -16,3 +16,5 @@ Use PM2 to manage the Node.js process (restart on failure, log rotation, simple 
 - Deployments remain lightweight and fast on VPS.
 - Host-level dependencies must be managed (Node, system packages).
 - If we move to containers later, we will revisit process management, logging, and health checks accordingly.
+- A minimal `Dockerfile` + `docker-compose.prod.yml` now exist for optional use/testing,
+  but PM2 remains the current production default.
