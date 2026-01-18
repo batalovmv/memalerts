@@ -410,6 +410,15 @@ jobs:
             mkdir -p "$APP_DIR/tmp-runtime/logs" "$APP_DIR/logs"
           }
 
+          install_healthcheck_script() {
+            local src="$APP_DIR/scripts/memalerts-healthcheck.sh"
+            if [ -f "$src" ]; then
+              sudo install -m 0755 "$src" /usr/local/bin/memalerts-healthcheck.sh
+            fi
+          }
+
+
+
           verify_ai_lock_columns() {
             local label="$1"
             local output
@@ -474,6 +483,7 @@ jobs:
             pm2 stop "$PM2_NAME" 2>/dev/null || true
             pm2 delete "$PM2_NAME" 2>/dev/null || true
             ensure_log_dirs
+            install_healthcheck_script
             DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
             pm2 save
 
@@ -664,6 +674,7 @@ jobs:
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
           ensure_log_dirs
+          install_healthcheck_script
           DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
           pm2 save
 
@@ -1009,6 +1020,13 @@ jobs:
             mkdir -p "$APP_DIR/tmp-runtime/logs" "$APP_DIR/logs"
           }
 
+          install_healthcheck_script() {
+            local src="$APP_DIR/scripts/memalerts-healthcheck.sh"
+            if [ -f "$src" ]; then
+              sudo install -m 0755 "$src" /usr/local/bin/memalerts-healthcheck.sh
+            fi
+          }
+
           verify_ai_lock_columns() {
             local label="$1"
             local output
@@ -1070,11 +1088,12 @@ jobs:
             DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
             DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
 
-            pm2 stop "$PM2_NAME" 2>/dev/null || true
-            pm2 delete "$PM2_NAME" 2>/dev/null || true
-            ensure_log_dirs
-            DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
-            pm2 save
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+          ensure_log_dirs
+          install_healthcheck_script
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
+          pm2 save
 
             local rollback_ok=0
             for i in $(seq 1 30); do
@@ -1310,6 +1329,7 @@ jobs:
           pm2 stop "$PM2_NAME" 2>/dev/null || true
           pm2 delete "$PM2_NAME" 2>/dev/null || true
           ensure_log_dirs
+          install_healthcheck_script
           DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
           pm2 save
 
