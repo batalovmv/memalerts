@@ -3,7 +3,8 @@ set -euo pipefail
 
 DOMAINS="${DOMAINS:-twitchmemes.ru beta.twitchmemes.ru}"
 WARN_DAYS="${WARN_DAYS:-14}"
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 load_env_value() {
   local file="$1"
@@ -32,28 +33,30 @@ load_env_value() {
   printf '%s' "$value"
 }
 
-resolve_alert_webhook() {
-  if [ -n "$ALERT_WEBHOOK" ]; then
+resolve_telegram_config() {
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  ALERT_WEBHOOK="$(load_env_value "/opt/memalerts-backend/.env" "ALERT_WEBHOOK")"
-  if [ -n "$ALERT_WEBHOOK" ]; then
+  TELEGRAM_BOT_TOKEN="$(load_env_value "/opt/memalerts-backend/.env" "TELEGRAM_BOT_TOKEN")"
+  TELEGRAM_CHAT_ID="$(load_env_value "/opt/memalerts-backend/.env" "TELEGRAM_CHAT_ID")"
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  ALERT_WEBHOOK="$(load_env_value "/opt/memalerts-backend-beta/.env" "ALERT_WEBHOOK")"
+  TELEGRAM_BOT_TOKEN="$(load_env_value "/opt/memalerts-backend-beta/.env" "TELEGRAM_BOT_TOKEN")"
+  TELEGRAM_CHAT_ID="$(load_env_value "/opt/memalerts-backend-beta/.env" "TELEGRAM_CHAT_ID")"
 }
 
 send_alert() {
   local message="$1"
-  if [ -z "$ALERT_WEBHOOK" ]; then
+  if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  curl -sS -X POST -H "Content-Type: application/json" \
-    -d "{\"content\":\"WARN: ${message}\"}" \
-    "$ALERT_WEBHOOK" >/dev/null 2>&1 || true
+  curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -d "chat_id=${TELEGRAM_CHAT_ID}" \
+    --data-urlencode "text=WARN: ${message}" >/dev/null 2>&1 || true
 }
 
-resolve_alert_webhook
+resolve_telegram_config
 
 for domain in $DOMAINS; do
   EXPIRY="$(echo | openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null \

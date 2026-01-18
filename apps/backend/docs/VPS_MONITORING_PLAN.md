@@ -51,7 +51,8 @@ set -euo pipefail
 
 PROD_URL="http://127.0.0.1:3001/readyz"
 BETA_URL="http://127.0.0.1:3002/readyz"
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"  # Discord/Telegram/Slack webhook
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 check_health() {
   local name=$1
@@ -59,10 +60,10 @@ check_health() {
   
   if ! curl -fsS --max-time 10 "$url" > /dev/null 2>&1; then
     echo "[ALERT] $name is DOWN at $(date)"
-    if [ -n "$ALERT_WEBHOOK" ]; then
-      curl -X POST -H "Content-Type: application/json" \
-        -d "{\"content\":\"🔴 **$name** is DOWN!\"}" \
-        "$ALERT_WEBHOOK"
+    if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+      curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d "chat_id=${TELEGRAM_CHAT_ID}" \
+        --data-urlencode "text=🔴 ${name} is DOWN!"
     fi
     return 1
   fi
@@ -125,14 +126,16 @@ set -euo pipefail
 
 DISK_THRESHOLD=85
 MEM_THRESHOLD=90
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 alert() {
   local msg=$1
   echo "[WARN] $msg at $(date)"
-  if [ -n "$ALERT_WEBHOOK" ]; then
-    curl -sS -X POST -H "Content-Type: application/json" \
-      -d "{\"content\":\"⚠️ $msg\"}" "$ALERT_WEBHOOK"
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=⚠️ ${msg}"
   fi
 }
 
@@ -183,7 +186,8 @@ set -euo pipefail
 
 DOMAINS="twitchmemes.ru beta.twitchmemes.ru"
 WARN_DAYS=14
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 for domain in $DOMAINS; do
   EXPIRY=$(echo | openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null \
@@ -204,9 +208,10 @@ for domain in $DOMAINS; do
   if [ "$DAYS_LEFT" -lt "$WARN_DAYS" ]; then
     MSG="SSL cert for $domain expires in $DAYS_LEFT days!"
     echo "[WARN] $MSG"
-    if [ -n "$ALERT_WEBHOOK" ]; then
-      curl -sS -X POST -H "Content-Type: application/json" \
-        -d "{\"content\":\"🔒 $MSG\"}" "$ALERT_WEBHOOK"
+    if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+      curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d "chat_id=${TELEGRAM_CHAT_ID}" \
+        --data-urlencode "text=🔒 ${MSG}"
     fi
   fi
 done
@@ -230,14 +235,16 @@ done
 #!/bin/bash
 set -euo pipefail
 
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 alert() {
   local msg=$1
   echo "[ALERT] $msg at $(date)"
-  if [ -n "$ALERT_WEBHOOK" ]; then
-    curl -sS -X POST -H "Content-Type: application/json" \
-      -d "{\"content\":\"🔴 $msg\"}" "$ALERT_WEBHOOK"
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=🔴 ${msg}"
   fi
 }
 
@@ -331,7 +338,7 @@ echo "=== All smoke tests passed ==="
 
 **Реализация:**
 - GitHub Actions: `.github/workflows/external-uptime.yml` (каждые 5 минут)
-- Webhook: `ALERT_WEBHOOK` (fallback на `SLACK_DEPLOY_WEBHOOK_URL`, если `ALERT_WEBHOOK` не задан)
+- Telegram: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (GitHub Secrets)
 
 **Статус:** ✅ Реализовано
 
@@ -365,20 +372,16 @@ du -sh /var/log/nginx/
 
 ### 10. Alerting интеграция
 
-**Цель:** Оповещения в Telegram/Discord/Slack
-
-**Варианты:**
-1. **Discord Webhook** — просто, бесплатно
-2. **Telegram Bot** — требует бот + chat_id
-3. **Slack Incoming Webhook** — корпоративный вариант
+**Цель:** Оповещения в Telegram (админские)
 
 **Настройка:**
 ```bash
 # Добавить в /opt/memalerts-backend/.env (на VPS, не в репо!)
-ALERT_WEBHOOK=https://discord.com/api/webhooks/xxx/yyy
+TELEGRAM_BOT_TOKEN=123456:ABCDEF
+TELEGRAM_CHAT_ID=-1001234567890
 ```
 
-**Статус:** ✅ Реализовано (значение синхронизируется из GitHub Secrets, fallback на `SLACK_DEPLOY_WEBHOOK_URL`)
+**Статус:** ✅ Реализовано (значения синхронизируются из GitHub Secrets)
 
 ---
 
@@ -395,7 +398,7 @@ ALERT_WEBHOOK=https://discord.com/api/webhooks/xxx/yyy
 | 7 | Smoke tests | 🟡 P2 | 15 мин | ✅ |
 | 8 | Внешний uptime | 🟡 P2 | 20 мин | ✅ |
 | 9 | Log rotation audit | 🟡 P2 | 10 мин | ✅ |
-| 10 | Alerting webhook | 🟡 P2 | 15 мин | ✅ |
+| 10 | Alerting Telegram | 🟡 P2 | 15 мин | ✅ |
 
 **Общее время:** ~2 часа
 

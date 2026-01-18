@@ -11,7 +11,8 @@ jobs:
     permissions:
       contents: read
     env:
-      ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK || secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       ENDPOINTS: |
         https://twitchmemes.ru/health
         https://beta.twitchmemes.ru/health
@@ -37,10 +38,12 @@ jobs:
             exit 1
           fi
 
-      - name: Notify webhook (optional)
-        if: failure() && env.ALERT_WEBHOOK != ''
+      - name: Notify Telegram (optional)
+        if: failure() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
         shell: bash
         run: |
           set -euo pipefail
-          payload='{"content":"ALERT: External uptime check failed for memalerts-backend. See GitHub Actions."}'
-          curl -sS -X POST -H "Content-Type: application/json" -d "$payload" "$ALERT_WEBHOOK"
+          message="ALERT: External uptime check failed for memalerts-backend. See GitHub Actions."
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${message}"

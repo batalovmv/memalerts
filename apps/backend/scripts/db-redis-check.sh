@@ -5,7 +5,8 @@ PGHOST="${PGHOST:-127.0.0.1}"
 PGPORT="${PGPORT:-5432}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 load_env_value() {
   local file="$1"
@@ -34,27 +35,30 @@ load_env_value() {
   printf '%s' "$value"
 }
 
-resolve_alert_webhook() {
-  if [ -n "$ALERT_WEBHOOK" ]; then
+resolve_telegram_config() {
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  ALERT_WEBHOOK="$(load_env_value "/opt/memalerts-backend/.env" "ALERT_WEBHOOK")"
-  if [ -n "$ALERT_WEBHOOK" ]; then
+  TELEGRAM_BOT_TOKEN="$(load_env_value "/opt/memalerts-backend/.env" "TELEGRAM_BOT_TOKEN")"
+  TELEGRAM_CHAT_ID="$(load_env_value "/opt/memalerts-backend/.env" "TELEGRAM_CHAT_ID")"
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  ALERT_WEBHOOK="$(load_env_value "/opt/memalerts-backend-beta/.env" "ALERT_WEBHOOK")"
+  TELEGRAM_BOT_TOKEN="$(load_env_value "/opt/memalerts-backend-beta/.env" "TELEGRAM_BOT_TOKEN")"
+  TELEGRAM_CHAT_ID="$(load_env_value "/opt/memalerts-backend-beta/.env" "TELEGRAM_CHAT_ID")"
 }
 
 alert() {
   local msg="$1"
   echo "[ALERT] $msg at $(date)"
-  if [ -n "$ALERT_WEBHOOK" ]; then
-    curl -sS -X POST -H "Content-Type: application/json" \
-      -d "{\"content\":\"ALERT: $msg\"}" "$ALERT_WEBHOOK" >/dev/null 2>&1 || true
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=ALERT: ${msg}" >/dev/null 2>&1 || true
   fi
 }
 
-resolve_alert_webhook
+resolve_telegram_config
 
 if command -v pg_isready >/dev/null 2>&1; then
   if pg_isready -h "$PGHOST" -p "$PGPORT" -q; then

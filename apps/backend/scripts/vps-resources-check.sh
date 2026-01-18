@@ -4,7 +4,8 @@ set -euo pipefail
 DISK_THRESHOLD="${DISK_THRESHOLD:-85}"
 MEM_THRESHOLD="${MEM_THRESHOLD:-90}"
 UPLOADS_DIR="${UPLOADS_DIR:-/opt/memalerts-backend/uploads}"
-ALERT_WEBHOOK="${ALERT_WEBHOOK:-}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 load_env_value() {
   local file="$1"
@@ -33,27 +34,30 @@ load_env_value() {
   printf '%s' "$value"
 }
 
-resolve_alert_webhook() {
-  if [ -n "$ALERT_WEBHOOK" ]; then
+resolve_telegram_config() {
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  ALERT_WEBHOOK="$(load_env_value "/opt/memalerts-backend/.env" "ALERT_WEBHOOK")"
-  if [ -n "$ALERT_WEBHOOK" ]; then
+  TELEGRAM_BOT_TOKEN="$(load_env_value "/opt/memalerts-backend/.env" "TELEGRAM_BOT_TOKEN")"
+  TELEGRAM_CHAT_ID="$(load_env_value "/opt/memalerts-backend/.env" "TELEGRAM_CHAT_ID")"
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     return 0
   fi
-  ALERT_WEBHOOK="$(load_env_value "/opt/memalerts-backend-beta/.env" "ALERT_WEBHOOK")"
+  TELEGRAM_BOT_TOKEN="$(load_env_value "/opt/memalerts-backend-beta/.env" "TELEGRAM_BOT_TOKEN")"
+  TELEGRAM_CHAT_ID="$(load_env_value "/opt/memalerts-backend-beta/.env" "TELEGRAM_CHAT_ID")"
 }
 
 alert() {
   local msg="$1"
   echo "[WARN] $msg at $(date)"
-  if [ -n "$ALERT_WEBHOOK" ]; then
-    curl -sS -X POST -H "Content-Type: application/json" \
-      -d "{\"content\":\"WARN: $msg\"}" "$ALERT_WEBHOOK" >/dev/null 2>&1 || true
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=WARN: ${msg}" >/dev/null 2>&1 || true
   fi
 }
 
-resolve_alert_webhook
+resolve_telegram_config
 
 DISK_USED="$(df / | tail -1 | awk '{print $5}' | tr -d '%')"
 if [ "${DISK_USED:-0}" -gt "$DISK_THRESHOLD" ]; then
