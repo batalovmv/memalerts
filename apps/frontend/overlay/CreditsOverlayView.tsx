@@ -194,8 +194,18 @@ export default function CreditsOverlayView() {
     demoSeqRef.current += 1;
     const nChat = clampInt(parseInt(String(searchParams.get('demoChatters') || '24'), 10), 0, 200);
     const nDon = clampInt(parseInt(String(searchParams.get('demoDonors') || '12'), 10), 0, 200);
-    const chatters = Array.from({ length: nChat }).map((_, i) => ({ name: `Viewer_${i + 1}` }));
-    const donors = Array.from({ length: nDon }).map((_, i) => ({ name: `Donor_${i + 1}`, amount: (i + 1) * 50, currency: 'RUB' }));
+    const chatters = Array.from({ length: nChat }).map((_, i) => ({
+      name: `Viewer_${i + 1}`,
+      avatarUrl: null,
+      messageCount: undefined,
+    }));
+    const donors = Array.from({ length: nDon }).map((_, i) => ({
+      name: `Donor_${i + 1}`,
+      amount: (i + 1) * 50,
+      currency: 'RUB',
+      avatarUrl: null,
+      message: undefined,
+    }));
     setState({ chatters, donors });
   }, [demo, searchParams]);
 
