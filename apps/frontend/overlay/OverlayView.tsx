@@ -191,7 +191,7 @@ export default function OverlayView() {
       setConfig({ overlayMode, overlayShowSender, overlayMaxConcurrent, overlayStyleJson });
     });
 
-    newSocket.on('activation:new', (activation: Activation) => {
+    const pushActivation = (activation: Activation) => {
       setQueue((prev) => [
         ...prev,
         {
@@ -199,6 +199,44 @@ export default function OverlayView() {
           startTime: Date.now(),
         },
       ]);
+    };
+
+    const toOverlayActivation = (incoming: {
+      activationId?: unknown;
+      meme?: Partial<Activation> & { id?: unknown };
+      activator?: { displayName?: unknown };
+    }): Activation | null => {
+      const activationId = String(incoming?.activationId || '').trim();
+      const meme = incoming?.meme ?? {};
+      const memeId = String((meme as { id?: unknown })?.id || '').trim();
+      const type = typeof meme.type === 'string' ? meme.type : '';
+      const fileUrl = typeof meme.fileUrl === 'string' ? meme.fileUrl : '';
+      if (!activationId || !memeId || !type || !fileUrl) return null;
+      const title = typeof meme.title === 'string' ? meme.title : '';
+      const durationMs = typeof meme.durationMs === 'number' && Number.isFinite(meme.durationMs) ? meme.durationMs : 0;
+      const playFileUrl = typeof meme.playFileUrl === 'string' ? meme.playFileUrl : null;
+      const senderDisplayName =
+        typeof incoming?.activator?.displayName === 'string' ? String(incoming.activator.displayName) : null;
+      return {
+        id: activationId,
+        memeId,
+        type,
+        fileUrl,
+        playFileUrl,
+        durationMs,
+        title,
+        senderDisplayName,
+      };
+    };
+
+    newSocket.on('activation:new', (activation: Activation) => {
+      pushActivation(activation);
+    });
+
+    newSocket.on('overlay:meme-play', (incoming: { activationId?: unknown; meme?: Partial<Activation>; activator?: { displayName?: unknown } }) => {
+      const activation = toOverlayActivation(incoming);
+      if (!activation) return;
+      pushActivation(activation);
     });
 
     socketRef.current = newSocket;
