@@ -12,16 +12,21 @@ export type CreditsState = {
   chatters: Array<CreditsEntry & { messageCount?: number }>;
 };
 
-export async function getCreditsToken(): Promise<{ token: string; url: string }> {
-  return api.get<{ token: string; url: string }>('/streamer/credits/token');
+export async function getCreditsToken(): Promise<{ token: string; url: string; styleJson?: string | null; creditsStyleJson?: string | null }> {
+  return api.get<{ token: string; url: string; styleJson?: string | null; creditsStyleJson?: string | null }>('/streamer/credits/token', {
+    timeout: 12000,
+  });
 }
 
 export async function rotateCreditsToken(): Promise<{ token: string; url: string }> {
-  return api.post<{ token: string; url: string }>('/streamer/credits/token/rotate');
+  return api.post<{ token: string; url: string }>('/streamer/credits/token/rotate', null, { timeout: 12000 });
 }
 
 export async function getCreditsState(): Promise<CreditsState> {
-  return api.get<CreditsState>('/streamer/credits/state');
+  return api.get<CreditsState>('/streamer/credits/state', {
+    headers: { 'Cache-Control': 'no-store' },
+    timeout: 12000,
+  });
 }
 
 export async function resetCreditsSession(): Promise<void> {
@@ -29,7 +34,10 @@ export async function resetCreditsSession(): Promise<void> {
 }
 
 export async function getReconnectWindow(): Promise<{ seconds: number }> {
-  return api.get<{ seconds: number }>('/streamer/credits/reconnect-window');
+  return api.get<{ seconds: number }>('/streamer/credits/reconnect-window', {
+    headers: { 'Cache-Control': 'no-store' },
+    timeout: 12000,
+  });
 }
 
 export async function setReconnectWindow(seconds: number): Promise<void> {
@@ -37,7 +45,10 @@ export async function setReconnectWindow(seconds: number): Promise<void> {
 }
 
 export async function getIgnoredChatters(): Promise<{ chatters: string[] }> {
-  return api.get<{ chatters: string[] }>('/streamer/credits/ignored-chatters');
+  return api.get<{ chatters: string[] }>('/streamer/credits/ignored-chatters', {
+    headers: { 'Cache-Control': 'no-store' },
+    timeout: 12000,
+  });
 }
 
 export async function setIgnoredChatters(chatters: string[]): Promise<void> {

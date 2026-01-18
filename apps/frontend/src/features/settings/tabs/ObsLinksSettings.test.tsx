@@ -47,12 +47,12 @@ describe('ObsLinksSettings (integration)', () => {
 
     server.use(
       mockStreamerOverlayToken({ token: 'tok1', overlayMode: 'queue', overlayShowSender: false, overlayMaxConcurrent: 3, overlayStyleJson: null }),
-      mockStreamerCreditsToken({ token: 'ctok1', creditsStyleJson: null }),
+      mockStreamerCreditsToken({ token: 'ctok1', url: 'https://example.com/overlay/credits/t/ctok1', creditsStyleJson: null }),
       mockStreamerOverlayPresets({ presets: [] }),
       mockStreamerOverlayPresetsPut(() => {}),
       mockStreamerOverlayPreviewMemes([]),
       mockStreamerOverlayTokenRotate({ token: 'tok2' }, () => rotateCalls()),
-      mockStreamerCreditsTokenRotate({ token: 'ctok2' }, () => {}),
+      mockStreamerCreditsTokenRotate({ token: 'ctok2', url: 'https://example.com/overlay/credits/t/ctok2' }, () => {}),
     );
 
     renderWithProviders(<ObsLinksSettings />, {
@@ -75,5 +75,4 @@ describe('ObsLinksSettings (integration)', () => {
     });
   });
 });
-
 

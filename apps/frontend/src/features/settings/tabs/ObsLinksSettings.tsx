@@ -14,6 +14,17 @@ import SecretCopyField from '@/components/SecretCopyField';
 import { useSocket } from '@/contexts/SocketContext';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
+import {
+  getCreditsState,
+  getCreditsToken,
+  getIgnoredChatters,
+  getReconnectWindow,
+  resetCreditsSession as resetCreditsSessionApi,
+  rotateCreditsToken,
+  saveCreditsSettings,
+  setIgnoredChatters,
+  setReconnectWindow,
+} from '@/shared/api/creditsOverlay';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, HelpTooltip, IconButton, Input, Textarea } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
@@ -166,6 +177,7 @@ export function ObsLinksSettings() {
 
   // Credits overlay (twitch chat + DonationAlerts) settings
   const [creditsToken, setCreditsToken] = useState<string>('');
+  const [creditsUrl, setCreditsUrl] = useState<string>('');
   const [loadingCreditsToken, setLoadingCreditsToken] = useState(false);
   const [loadingCreditsSettings, setLoadingCreditsSettings] = useState(false);
   const [savingCreditsSettings, setSavingCreditsSettings] = useState(false);
@@ -246,7 +258,7 @@ export function ObsLinksSettings() {
 
   // Credits session state (viewers/chatters, reconnect window, ignore list)
   const [creditsChannelSlug, setCreditsChannelSlug] = useState<string>('');
-  const [creditsChatters, setCreditsChatters] = useState<Array<{ name: string }>>([]);
+  const [creditsChatters, setCreditsChatters] = useState<Array<{ name: string; messageCount?: number }>>([]);
   const [loadingCreditsState, setLoadingCreditsState] = useState(false);
   const [resettingCredits, setResettingCredits] = useState(false);
 
@@ -837,15 +849,21 @@ export function ObsLinksSettings() {
       try {
         setLoadingCreditsToken(true);
         setLoadingCreditsSettings(true);
-        const { api } = await import('@/lib/api');
-        const resp = await api.get<{ token: string; creditsStyleJson?: string | null }>('/streamer/credits/token');
+        const resp = await getCreditsToken();
         if (!mounted) return;
         setCreditsToken(resp?.token || '');
+        setCreditsUrl(resp?.url || '');
 
         let styleFromServer: Record<string, unknown> | null = null;
-        if (resp?.creditsStyleJson) {
+        const rawStyleJson =
+          typeof (resp as { styleJson?: unknown })?.styleJson === 'string'
+            ? String((resp as { styleJson?: string }).styleJson)
+            : typeof (resp as { creditsStyleJson?: unknown })?.creditsStyleJson === 'string'
+              ? String((resp as { creditsStyleJson?: string }).creditsStyleJson)
+              : '';
+        if (rawStyleJson) {
           try {
-            const j: unknown = JSON.parse(resp.creditsStyleJson);
+            const j: unknown = JSON.parse(rawStyleJson);
             styleFromServer = toRecord(j);
           } catch {
             styleFromServer = null;
@@ -1115,7 +1133,10 @@ export function ObsLinksSettings() {
         setLastSavedCreditsSettingsPayload(baselineStyleJson);
         creditsSettingsLoadedRef.current = channelSlug;
       } catch {
-        if (mounted) setCreditsToken('');
+        if (mounted) {
+          setCreditsToken('');
+          setCreditsUrl('');
+        }
       } finally {
         if (mounted) setLoadingCreditsToken(false);
         if (mounted) setLoadingCreditsSettings(false);
@@ -1132,21 +1153,40 @@ export function ObsLinksSettings() {
       if (!channelSlug) return;
       if (!opts?.silent) setLoadingCreditsState(true);
       try {
-        const { api } = await import('@/lib/api');
-        const resp = await api.get<{
-          channelSlug?: string;
-          chatters?: Array<{ name: string }>;
-          donors?: Array<{ name: string; amount?: number; currency?: string }>;
-          creditsReconnectWindowMinutes?: number;
-        }>('/streamer/credits/state', { headers: { 'Cache-Control': 'no-store' } });
-        const slug = String(resp?.channelSlug || channelSlug || '').trim();
+        const resp = await getCreditsState();
+        const slug =
+          typeof (resp as { channelSlug?: unknown })?.channelSlug === 'string'
+            ? String((resp as { channelSlug?: string }).channelSlug || '').trim()
+            : String(channelSlug || '').trim();
         if (slug) setCreditsChannelSlug(slug);
-        setCreditsChatters(Array.isArray(resp?.chatters) ? resp.chatters : []);
+        const chattersRaw = Array.isArray(resp?.chatters) ? resp.chatters : [];
+        const normalizedChatters = chattersRaw
+          .map((c) => {
+            const name = String(
+              (c as { displayName?: unknown })?.displayName ?? (c as { name?: unknown })?.name ?? ''
+            )
+              .trim();
+            if (!name) return null;
+            const messageCount =
+              typeof (c as { messageCount?: unknown })?.messageCount === 'number'
+                ? (c as { messageCount: number }).messageCount
+                : undefined;
+            return { name, messageCount };
+          })
+          .filter((c): c is { name: string; messageCount?: number } => !!c);
+        setCreditsChatters(normalizedChatters);
 
         // Back-compat: if backend also includes reconnect window in state, use it.
-        if (typeof resp?.creditsReconnectWindowMinutes === 'number' && Number.isFinite(resp.creditsReconnectWindowMinutes)) {
-          setCreditsReconnectWindowMinutes(resp.creditsReconnectWindowMinutes);
-          setCreditsReconnectWindowInput(String(resp.creditsReconnectWindowMinutes));
+        const reconnectSeconds =
+          typeof (resp as { reconnectWindowSeconds?: unknown })?.reconnectWindowSeconds === 'number'
+            ? (resp as { reconnectWindowSeconds: number }).reconnectWindowSeconds
+            : typeof (resp as { creditsReconnectWindowMinutes?: unknown })?.creditsReconnectWindowMinutes === 'number'
+              ? Math.max(0, Math.round((resp as { creditsReconnectWindowMinutes: number }).creditsReconnectWindowMinutes * 60))
+              : null;
+        if (typeof reconnectSeconds === 'number' && Number.isFinite(reconnectSeconds)) {
+          const minutes = Math.max(0, Math.round(reconnectSeconds / 60));
+          setCreditsReconnectWindowMinutes(minutes);
+          setCreditsReconnectWindowInput(String(minutes));
         }
       } catch (error: unknown) {
         if (!opts?.silent) {
@@ -1164,11 +1204,8 @@ export function ObsLinksSettings() {
     if (!channelSlug) return;
     setLoadingIgnoredChatters(true);
     try {
-      const { api } = await import('@/lib/api');
-      const resp = await api.get<{ creditsIgnoredChatters?: string[] }>('/streamer/credits/ignored-chatters', {
-        headers: { 'Cache-Control': 'no-store' },
-      });
-      const list = Array.isArray(resp?.creditsIgnoredChatters) ? resp.creditsIgnoredChatters : [];
+      const resp = await getIgnoredChatters();
+      const list = Array.isArray(resp?.chatters) ? resp.chatters : [];
       const cleaned = list.map((v) => String(v || '').trim()).filter(Boolean);
       setCreditsIgnoredChatters(cleaned);
       setCreditsIgnoredChattersText(cleaned.join('\n'));
@@ -1185,14 +1222,17 @@ export function ObsLinksSettings() {
   const loadCreditsReconnectWindow = useCallback(async () => {
     if (!channelSlug) return;
     try {
-      const { api } = await import('@/lib/api');
-      // Not in the minimal contract, but supported by newer backends; ignore if missing.
-      const resp = await api.get<{ creditsReconnectWindowMinutes?: number }>('/streamer/credits/reconnect-window', {
-        headers: { 'Cache-Control': 'no-store' },
-      });
-      if (typeof resp?.creditsReconnectWindowMinutes === 'number' && Number.isFinite(resp.creditsReconnectWindowMinutes)) {
-        setCreditsReconnectWindowMinutes(resp.creditsReconnectWindowMinutes);
-        setCreditsReconnectWindowInput(String(resp.creditsReconnectWindowMinutes));
+      const resp = await getReconnectWindow();
+      const seconds =
+        typeof resp?.seconds === 'number'
+          ? resp.seconds
+          : typeof (resp as { creditsReconnectWindowMinutes?: unknown })?.creditsReconnectWindowMinutes === 'number'
+            ? Math.round((resp as { creditsReconnectWindowMinutes: number }).creditsReconnectWindowMinutes * 60)
+            : null;
+      if (typeof seconds === 'number' && Number.isFinite(seconds)) {
+        const minutes = Math.max(0, Math.round(seconds / 60));
+        setCreditsReconnectWindowMinutes(minutes);
+        setCreditsReconnectWindowInput(String(minutes));
       }
     } catch {
       // ignore (back-compat)
@@ -1210,11 +1250,10 @@ export function ObsLinksSettings() {
     const startedAt = Date.now();
     setSavingReconnectWindow(true);
     try {
-      const { api } = await import('@/lib/api');
-      const resp = await api.post<{ creditsReconnectWindowMinutes?: number }>('/streamer/credits/reconnect-window', { minutes });
-      const next = typeof resp?.creditsReconnectWindowMinutes === 'number' ? resp.creditsReconnectWindowMinutes : minutes;
-      setCreditsReconnectWindowMinutes(next);
-      setCreditsReconnectWindowInput(String(next));
+      const seconds = Math.max(0, Math.round(minutes * 60));
+      await setReconnectWindow(seconds);
+      setCreditsReconnectWindowMinutes(minutes);
+      setCreditsReconnectWindowInput(String(minutes));
       toast.success(t('admin.settingsSaved', { defaultValue: 'Saved' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -1236,8 +1275,7 @@ export function ObsLinksSettings() {
     const startedAt = Date.now();
     setResettingCredits(true);
     try {
-      const { api } = await import('@/lib/api');
-      await api.post('/streamer/credits/reset', {});
+      await resetCreditsSessionApi();
       await loadCreditsState({ silent: true });
       toast.success(t('admin.done', { defaultValue: 'Done' }));
     } catch (error: unknown) {
@@ -1258,12 +1296,8 @@ export function ObsLinksSettings() {
     const startedAt = Date.now();
     setSavingIgnoredChatters(true);
     try {
-      const { api } = await import('@/lib/api');
-      const resp = await api.post<{ creditsIgnoredChatters?: string[] }>('/streamer/credits/ignored-chatters', {
-        creditsIgnoredChatters: lines,
-      });
-      const list = Array.isArray(resp?.creditsIgnoredChatters) ? resp.creditsIgnoredChatters : lines;
-      const cleaned = list.map((v) => String(v || '').trim()).filter(Boolean);
+      await setIgnoredChatters(lines);
+      const cleaned = lines.map((v) => String(v || '').trim()).filter(Boolean);
       setCreditsIgnoredChatters(cleaned);
       setCreditsIgnoredChattersText(cleaned.join('\n'));
       toast.success(t('admin.settingsSaved', { defaultValue: 'Saved' }));
@@ -1294,9 +1328,19 @@ export function ObsLinksSettings() {
 
     socket.emit('join:channel', slug);
 
-    const onCreditsState = (incoming: { chatters?: Array<{ name: string }> } | null | undefined) => {
+    const onCreditsState = (
+      incoming: { chatters?: Array<{ displayName?: string; name?: string; messageCount?: number }> } | null | undefined
+    ) => {
       const next = Array.isArray(incoming?.chatters) ? incoming!.chatters! : [];
-      setCreditsChatters(next);
+      const normalized = next
+        .map((c) => {
+          const name = String(c?.displayName ?? c?.name ?? '').trim();
+          if (!name) return null;
+          const messageCount = typeof c?.messageCount === 'number' ? c.messageCount : undefined;
+          return { name, messageCount };
+        })
+        .filter((c): c is { name: string; messageCount?: number } => !!c);
+      setCreditsChatters(normalized);
     };
 
     socket.on('credits:state', onCreditsState);
@@ -1426,11 +1470,11 @@ export function ObsLinksSettings() {
 
   // Overlay is deployed under /overlay/ and expects /overlay/t/:token
   const overlayUrl = overlayToken ? `${origin}/overlay/t/${overlayToken}` : '';
-  const creditsUrl = creditsToken ? `${apiOrigin || origin}/overlay/credits/t/${creditsToken}` : '';
+  const creditsUrlResolved = creditsUrl || (creditsToken ? `${apiOrigin || origin}/overlay/credits/t/${creditsToken}` : '');
 
   // OBS URL should stay constant.
   const overlayUrlWithDefaults = overlayUrl;
-  const creditsUrlWithDefaults = creditsUrl;
+  const creditsUrlWithDefaults = creditsUrlResolved;
 
   // Preview iframe URL should be stable while tweaking sliders (avoid network reloads).
   // Preview media + seed are pushed via postMessage; iframe src should stay stable.
@@ -1442,11 +1486,11 @@ export function ObsLinksSettings() {
   }, [overlayUrl]);
 
   const creditsPreviewBaseUrl = useMemo(() => {
-    if (!creditsUrl) return '';
-    const u = new URL(creditsUrl);
+    if (!creditsUrlResolved) return '';
+    const u = new URL(creditsUrlResolved);
     u.searchParams.set('demo', '1');
     return u.toString();
-  }, [creditsUrl]);
+  }, [creditsUrlResolved]);
 
   const overlayPreviewParams = useMemo(() => {
     // These values are pushed into the iframe via postMessage to avoid reloading.
@@ -2456,8 +2500,7 @@ export function ObsLinksSettings() {
     const startedAt = Date.now();
     try {
       setSavingCreditsSettings(true);
-      const { api } = await import('@/lib/api');
-      await api.post('/streamer/credits/settings', { creditsStyleJson });
+      await saveCreditsSettings({ styleJson: creditsStyleJson });
       setLastSavedCreditsSettingsPayload(creditsStyleJson);
       toast.success(t('admin.settingsSaved'));
     } catch (error: unknown) {
@@ -2491,9 +2534,9 @@ export function ObsLinksSettings() {
     if (!channelSlug) return;
     try {
       setRotatingCreditsToken(true);
-      const { api } = await import('@/lib/api');
-      const resp = await api.post<{ token: string }>('/streamer/credits/token/rotate', {});
+      const resp = await rotateCreditsToken();
       setCreditsToken(resp?.token || '');
+      setCreditsUrl(resp?.url || '');
       toast.success(t('admin.obsOverlayTokenRotated', { defaultValue: 'Overlay link updated. Paste the new URL into OBS.' }));
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
