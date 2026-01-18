@@ -84,8 +84,8 @@ describe('overlay CreditsOverlayView (integration)', () => {
     // Feed credits state with a donor; component should start rendering.
     act(() => {
       s.fire('credits:state', {
-        donors: [{ name: 'Alice', amount: 50, currency: 'USD' }],
-        chatters: [{ name: 'Bob' }],
+        donors: [{ displayName: 'Alice', amount: 50, currency: 'USD' }],
+        chatters: [{ displayName: 'Bob' }],
       });
     });
 
@@ -99,5 +99,4 @@ describe('overlay CreditsOverlayView (integration)', () => {
     expect(bob.length).toBeGreaterThanOrEqual(1);
   });
 });
-
 

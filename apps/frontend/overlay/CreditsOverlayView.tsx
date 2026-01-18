@@ -9,12 +9,49 @@ import { getSocketBaseUrl } from './urls';
 
 type CreditsConfig = {
   creditsStyleJson?: string | null;
+  styleJson?: string | null;
 };
 
 type CreditsState = {
-  chatters?: Array<{ name: string; avatarUrl?: string | null }>;
-  donors?: Array<{ name: string; amount?: number; currency?: string; avatarUrl?: string | null }>;
+  chatters?: Array<{ name: string; avatarUrl?: string | null; messageCount?: number }>;
+  donors?: Array<{ name: string; amount?: number; currency?: string; avatarUrl?: string | null; message?: string }>;
 };
+
+type CreditsStatePayload = {
+  chatters?: Array<{ displayName?: string; name?: string; avatarUrl?: string | null; messageCount?: number }>;
+  donors?: Array<{ displayName?: string; name?: string; amount?: number; currency?: string; avatarUrl?: string | null; message?: string }>;
+};
+
+function normalizeCreditsName(entry: { displayName?: string; name?: string }): string {
+  return String(entry.displayName ?? entry.name ?? '').trim();
+}
+
+function normalizeCreditsState(incoming?: CreditsStatePayload | null): CreditsState {
+  const chattersRaw = Array.isArray(incoming?.chatters) ? incoming!.chatters! : [];
+  const donorsRaw = Array.isArray(incoming?.donors) ? incoming!.donors! : [];
+
+  const chatters = chattersRaw
+    .map((c) => {
+      const name = normalizeCreditsName(c);
+      if (!name) return null;
+      const messageCount = typeof c.messageCount === 'number' ? c.messageCount : undefined;
+      return { name, avatarUrl: c.avatarUrl ?? null, messageCount };
+    })
+    .filter((c): c is { name: string; avatarUrl?: string | null; messageCount?: number } => !!c);
+
+  const donors = donorsRaw
+    .map((d) => {
+      const name = normalizeCreditsName(d);
+      if (!name) return null;
+      const amount = typeof d.amount === 'number' && Number.isFinite(d.amount) ? d.amount : undefined;
+      const currency = typeof d.currency === 'string' ? d.currency : undefined;
+      const message = typeof d.message === 'string' ? d.message : undefined;
+      return { name, amount, currency, avatarUrl: d.avatarUrl ?? null, message };
+    })
+    .filter((d): d is { name: string; amount?: number; currency?: string; avatarUrl?: string | null; message?: string } => !!d);
+
+  return { chatters, donors };
+}
 
 function hexToRgb(hex: string): [number, number, number] {
   const raw = String(hex || '').trim().replace(/^#/, '');
@@ -123,13 +160,11 @@ export default function CreditsOverlayView() {
     });
 
     newSocket.on('credits:config', (incoming: Partial<CreditsConfig> | null | undefined) => {
-      setConfig({ creditsStyleJson: incoming?.creditsStyleJson ?? null });
+      setConfig({ creditsStyleJson: incoming?.creditsStyleJson ?? incoming?.styleJson ?? null });
     });
 
-    newSocket.on('credits:state', (incoming: CreditsState | null | undefined) => {
-      const chatters = Array.isArray(incoming?.chatters) ? incoming?.chatters : [];
-      const donors = Array.isArray(incoming?.donors) ? incoming?.donors : [];
-      setState({ chatters, donors });
+    newSocket.on('credits:state', (incoming: CreditsStatePayload | null | undefined) => {
+      setState(normalizeCreditsState(incoming));
     });
 
     socketRef.current = newSocket;
@@ -508,5 +543,4 @@ export default function CreditsOverlayView() {
     </>
   );
 }
-
 
