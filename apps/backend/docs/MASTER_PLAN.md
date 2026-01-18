@@ -13,7 +13,7 @@
 | ESLint errors | 0 |
 | ESLint warnings | 0 |
 | Тесты | 225 (все проходят) |
-| Coverage | ~13% → цель 80% |
+| Coverage | ~70.55% → цель 80% |
 | VPS | prod + beta online |
 | Мониторинг | Полный |
 
@@ -116,16 +116,16 @@ updates:
 | TICKET-001 | Viewer Activation Flow | activation.ts | 4-6 ч | ✅ |
 | TICKET-002 | Wallet Service | WalletService.ts | 3-4 ч | ✅ |
 | TICKET-003 | Submission Create Flow | createSubmission.ts | 6-8 ч | ✅ |
-| TICKET-004 | Submission Import | importMeme.ts | 4-5 ч | ⬜ |
-| TICKET-005 | Submission Approve Flow | approveSubmission.ts | 4-5 ч | ⬜ |
-| TICKET-006 | Socket.IO Rooms & Events | socket/index.ts | 4-5 ч | ⬜ |
-| TICKET-007 | Overlay Token & Rotation | overlay.ts | 3-4 ч | ⬜ |
-| TICKET-008 | Twitch Channel Points | twitchRewards.ts | 5-6 ч | ⬜ |
-| TICKET-009 | Beta/Prod Isolation | auth.ts, csrf.ts | 4-5 ч | ⬜ |
-| TICKET-010 | Internal Relay | /internal/* | 3-4 ч | ⬜ |
-| TICKET-011 | Rate Limiting | rateLimit.ts | 3-4 ч | ⬜ |
-| TICKET-012 | OAuth Providers | providers/*.ts | 5-6 ч | ⬜ |
-| TICKET-013 | Credits Overlay | creditsOverlay.ts | 4-5 ч | ⬜ |
+| TICKET-004 | Submission Import | importMeme.ts | 4-5 ч | ✅ |
+| TICKET-005 | Submission Approve Flow | approveSubmission.ts | 4-5 ч | ✅ |
+| TICKET-006 | Socket.IO Rooms & Events | socket/index.ts | 4-5 ч | ✅ |
+| TICKET-007 | Overlay Token & Rotation | overlay.ts | 3-4 ч | ✅ |
+| TICKET-008 | Twitch Channel Points | twitchRewards.ts | 5-6 ч | ✅ |
+| TICKET-009 | Beta/Prod Isolation | auth.ts, csrf.ts | 4-5 ч | ✅ |
+| TICKET-010 | Internal Relay | /internal/* | 3-4 ч | ✅ |
+| TICKET-011 | Rate Limiting | rateLimit.ts | 3-4 ч | ✅ |
+| TICKET-012 | OAuth Providers | providers/*.ts | 5-6 ч | ✅ |
+| TICKET-013 | Credits Overlay | creditsOverlay.ts | 4-5 ч | ✅ |
 
 ### Фаза 2: Вторичные потоки (70-80 ч)
 
