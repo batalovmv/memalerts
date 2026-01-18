@@ -145,6 +145,30 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           pnpm test:ci
 
+      - name: Consistency audit (test schema)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CONSISTENCY_SCHEMA="consistency_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          DATABASE_URL="$(node - <<'NODE'
+          const base = process.env.TEST_DATABASE_URL_BASE;
+          if (!base) {
+            console.error('TEST_DATABASE_URL_BASE is missing');
+            process.exit(1);
+          }
+          const url = new URL(base);
+          url.searchParams.set('schema', process.env.CONSISTENCY_SCHEMA || 'consistency_ci');
+          console.log(url.toString());
+          NODE
+          )"
+
+          export DATABASE_URL
+          pnpm prisma db push --accept-data-loss
+          pnpm audit:consistency
+        env:
+          CONSISTENCY_SCHEMA: consistency_${{ github.run_id }}_${{ github.run_attempt }}
+
       - name: Coverage drop check
         shell: bash
         run: pnpm coverage:check
