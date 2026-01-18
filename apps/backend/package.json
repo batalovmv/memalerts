@@ -12,6 +12,8 @@
     "coverage:update": "tsx scripts/update-coverage-baseline.ts",
     "test:load": "k6 run tests/load/main.k6.js",
     "test:load:smoke": "k6 run --duration 10s --vus 5 tests/load/smoke.k6.js",
+    "test:load:stress": "k6 run tests/load/stress.k6.js",
+    "test:load:spike": "k6 run tests/load/spike.k6.js",
     "load:baseline:update": "tsx scripts/update-load-baseline.ts",
     "load:regression": "tsx scripts/check-load-regression.ts",
     "e2e": "vitest run tests/e2eViewerSubmitStreamerRealtime.test.ts",
