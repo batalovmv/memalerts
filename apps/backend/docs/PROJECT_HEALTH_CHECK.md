@@ -203,9 +203,9 @@ curl http://localhost:3002/health   # beta
 ## ⚠️ Известные проблемы (на момент создания)
 
 ### ESLint Warnings
-- **Количество:** ~960
-- **Тип:** `@typescript-eslint/no-explicit-any`
-- **Влияние:** Не блокирует работу, но может блокировать CI при `--max-warnings 500`
+- **Количество:** ✅ 0 (исправлено 2026-01-18)
+- **Было:** 960 warnings `@typescript-eslint/no-explicit-any`
+- **Проверка:** `pnpm lint -- --max-warnings 0` — OK
 
 ### Исторические логи
 - Файл `tmp-runtime/api.err.log` содержит старые ошибки
