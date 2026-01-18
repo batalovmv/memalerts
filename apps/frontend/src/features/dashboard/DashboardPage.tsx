@@ -19,6 +19,7 @@ import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubm
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
+import { getPublicSubmissionsStatus, rotateSubmissionsControlLink as rotateSubmissionsControlLinkApi } from '@/shared/api/publicSubmissions';
 import { Button, IconButton, Input, PageShell, Pill, Spinner, Textarea, Tooltip } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -84,9 +85,8 @@ function ToggleSwitch({ checked, disabled, busy, onChange, ariaLabel }: ToggleSw
   );
 }
 
-type SubmissionsControlLinks = { enable: string; disable: string; toggle?: string };
 type BotIntegration = { provider: string; enabled?: boolean | null };
-type PublicSubmissionsStatusResponse = { ok: true; submissions: { enabled: boolean; onlyWhenLive: boolean } };
+type PublicSubmissionsStatus = { enabled: boolean; channelSlug?: string };
 
 type ExpandCard = null | 'submissionsControl' | 'bots';
 type DashboardCardId = 'submit' | 'mySubmissions' | 'memes' | 'settings' | 'submissionsControl' | 'bots';
@@ -281,6 +281,7 @@ export default function DashboardPage() {
   const { autoplayMemesEnabled } = useAutoplayMemes();
   const submissionsPanelRef = useRef<HTMLDivElement | null>(null);
   const memesPanelRef = useRef<HTMLDivElement | null>(null);
+  const lastStatusTokenRef = useRef<string>('');
   const [expandedCard, setExpandedCard] = useState<ExpandCard>(null);
   const [dashboardCardOrder, setDashboardCardOrder] = useState<DashboardCardId[]>(DEFAULT_DASHBOARD_ORDER);
   const saveDashboardOrderTimerRef = useRef<number | null>(null);
@@ -290,11 +291,11 @@ export default function DashboardPage() {
   const [savingSubmissionsSettings, setSavingSubmissionsSettings] = useState<null | 'enabled' | 'onlyWhenLive'>(null);
   const [memeCatalogMode, setMemeCatalogMode] = useState<null | 'channel' | 'pool_all'>(null);
   const [savingMemeCatalogMode, setSavingMemeCatalogMode] = useState(false);
-  const [submissionsControl, setSubmissionsControl] = useState<null | { revealable: boolean; token?: string; links?: SubmissionsControlLinks; message?: string }>(
+  const [submissionsControl, setSubmissionsControl] = useState<null | { revealable: boolean; token?: string; url?: string; message?: string }>(
     null
   );
   const [rotatingSubmissionsControl, setRotatingSubmissionsControl] = useState(false);
-  const [submissionsControlStatus, setSubmissionsControlStatus] = useState<null | { enabled: boolean; onlyWhenLive: boolean }>(null);
+  const [submissionsControlStatus, setSubmissionsControlStatus] = useState<null | PublicSubmissionsStatus>(null);
   const [loadingSubmissionsControlStatus, setLoadingSubmissionsControlStatus] = useState(false);
 
   const [bots, setBots] = useState<BotIntegration[]>([]);
@@ -679,16 +680,11 @@ export default function DashboardPage() {
       if (loadingSubmissionsControlStatus) return;
       try {
         setLoadingSubmissionsControlStatus(true);
-        const resp = await api.get<PublicSubmissionsStatusResponse>('/public/submissions/status', {
-          params: { token: trimmed },
-          timeout: 12000,
-          // Avoid caches; this is meant to reflect current state.
-          headers: { 'Cache-Control': 'no-store' },
-        });
-        if (resp?.ok && resp.submissions) {
+        const resp = await getPublicSubmissionsStatus(trimmed);
+        if (resp) {
           setSubmissionsControlStatus({
-            enabled: !!resp.submissions.enabled,
-            onlyWhenLive: !!resp.submissions.onlyWhenLive,
+            enabled: !!resp.enabled,
+            channelSlug: resp.channelSlug,
           });
         }
       } catch (error: unknown) {
@@ -710,14 +706,14 @@ export default function DashboardPage() {
     if (rotatingSubmissionsControl) return;
     try {
       setRotatingSubmissionsControl(true);
-      const resp = await api.post<{ ok: true; token: string; links: SubmissionsControlLinks }>(
-        '/streamer/submissions-control/link/rotate',
-        {},
-        { timeout: 12000 }
-      );
-      if (resp?.ok) {
-        setSubmissionsControl({ revealable: true, token: resp.token, links: resp.links });
-        toast.success(t('dashboard.submissionsControl.rotated', { defaultValue: 'Link generated. Save it — it cannot be shown again.' }));
+      const resp = await rotateSubmissionsControlLinkApi();
+      if (resp?.token && resp?.url) {
+        setSubmissionsControl({ revealable: true, token: resp.token, url: resp.url });
+        lastStatusTokenRef.current = resp.token;
+        void refreshSubmissionsControlStatus(resp.token);
+        toast.success(t('dashboard.submissionsControl.rotated', { defaultValue: 'Link generated. Save it - it cannot be shown again.' }));
+      } else {
+        toast.error(t('dashboard.submissionsControl.failedToRotate', { defaultValue: 'Failed to rotate link' }));
       }
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { error?: string } } };
@@ -725,12 +721,12 @@ export default function DashboardPage() {
     } finally {
       setRotatingSubmissionsControl(false);
     }
-  }, [rotatingSubmissionsControl, t]);
+  }, [refreshSubmissionsControlStatus, rotatingSubmissionsControl, t]);
 
   // Auto-load token status only when token is revealed (Rotate / first reveal).
   useEffect(() => {
     const token = (submissionsControl?.revealable && submissionsControl?.token) ? submissionsControl.token : '';
-    if (!token) return;
+    if (!token || lastStatusTokenRef.current === token) return;
     void refreshSubmissionsControlStatus(token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submissionsControl?.token]);
@@ -1571,12 +1567,12 @@ export default function DashboardPage() {
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <div className="font-medium text-gray-900 dark:text-white">
-                                {t('dashboard.submissionsControl.linkTitle', { defaultValue: 'Ссылки для StreamerBot / StreamDeck' })}
+                                {t('dashboard.submissionsControl.linkTitle', { defaultValue: 'Ссылка для StreamerBot / StreamDeck' })}
                               </div>
                               <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                                 {t('dashboard.submissionsControl.linkHint', {
                                   defaultValue:
-                                    'Нажмите «Сгенерировать» и сохраните ссылки. Посмотреть их повторно будет нельзя — только перегенерировать.',
+                                    'Нажмите «Сгенерировать» и сохраните ссылку. Посмотреть её повторно будет нельзя — только перегенерировать.',
                                 })}
                               </div>
                             </div>
@@ -1599,31 +1595,27 @@ export default function DashboardPage() {
                                 {t('dashboard.submissionsControl.statusSubmits', { defaultValue: 'Submits' })}:{' '}
                                 {submissionsControlStatus.enabled ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
                               </Pill>
-                              <Pill variant="neutral" size="sm">
-                                {t('dashboard.submissionsControl.statusOnlyWhenLive', { defaultValue: 'Only when live' })}:{' '}
-                                {submissionsControlStatus.onlyWhenLive ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
-                              </Pill>
+                              {typeof submissionsOnlyWhenLive === 'boolean' ? (
+                                <Pill variant="neutral" size="sm">
+                                  {t('dashboard.submissionsControl.statusOnlyWhenLive', { defaultValue: 'Only when live' })}:{' '}
+                                  {submissionsOnlyWhenLive ? t('common.on', { defaultValue: 'On' }) : t('common.off', { defaultValue: 'Off' })}
+                                </Pill>
+                              ) : null}
                             </div>
                           )}
 
-                          {submissionsControl?.revealable === true && submissionsControl.links && (
+                          {submissionsControl?.revealable === true && submissionsControl.url && (
                             <div className="mt-4 space-y-3">
                               <SecretCopyField
-                                label={t('dashboard.submissionsControl.enableLink', { defaultValue: 'Ссылка включения' })}
-                                value={submissionsControl.links.enable}
+                                label={t('dashboard.submissionsControl.controlLink', { defaultValue: 'Control link' })}
+                                value={submissionsControl.url}
                                 masked={true}
                                 helpEnabled={helpEnabled}
                               />
-                              <SecretCopyField
-                                label={t('dashboard.submissionsControl.disableLink', { defaultValue: 'Ссылка выключения' })}
-                                value={submissionsControl.links.disable}
-                                masked={true}
-                                helpEnabled={helpEnabled}
-                              />
-                              {submissionsControl.links.toggle ? (
+                              {submissionsControl.token ? (
                                 <SecretCopyField
-                                  label={t('dashboard.submissionsControl.toggleLink', { defaultValue: 'Ссылка переключения (вкл/выкл)' })}
-                                  value={submissionsControl.links.toggle}
+                                  label={t('dashboard.submissionsControl.token', { defaultValue: 'Token (one-time)' })}
+                                  value={submissionsControl.token}
                                   masked={true}
                                   helpEnabled={helpEnabled}
                                 />

@@ -603,17 +603,13 @@ describe('DashboardPage (integration)', () => {
       http.post('*/streamer/submissions-control/link/rotate', ({ request }) => {
         rotateCalls.push(request.method);
         return HttpResponse.json({
-          ok: true,
           token: 'tok_1',
-          links: {
-            enable: 'https://example.com/enable',
-            disable: 'https://example.com/disable',
-            toggle: 'https://example.com/toggle',
-          },
+          url: 'https://example.com/control',
         });
       }),
-      http.get('*/public/submissions/status*', () => {
-        return HttpResponse.json({ ok: true, submissions: { enabled: true, onlyWhenLive: false } });
+      http.get('*/public/submissions/status*', ({ request }) => {
+        void request;
+        return HttpResponse.json({ enabled: true, channelSlug: user.channel!.slug });
       }),
     );
 
@@ -635,9 +631,8 @@ describe('DashboardPage (integration)', () => {
 
     expect(rotateCalls).toEqual(['POST']);
 
-    expect(await screen.findByTestId('secret:Enable (idempotent)')).toHaveTextContent('https://example.com/enable');
-    expect(screen.getByTestId('secret:Disable (idempotent)')).toHaveTextContent('https://example.com/disable');
-    expect(screen.getByTestId('secret:Toggle (non-idempotent)')).toHaveTextContent('https://example.com/toggle');
+    expect(await screen.findByTestId('secret:Control link')).toHaveTextContent('https://example.com/control');
+    expect(screen.getByTestId('secret:Token (one-time)')).toHaveTextContent('tok_1');
   });
 
   it('bots: "Disable all" patches each provider', async () => {
@@ -677,5 +672,3 @@ describe('DashboardPage (integration)', () => {
     expect(patched.sort()).toEqual(['twitch', 'youtube']);
   });
 });
-
-

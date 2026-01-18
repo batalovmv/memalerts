@@ -67,4 +67,12 @@ try {
   // ignore
 }
 
+// JSDOM lacks scrollIntoView; stub to avoid errors in tests that call it.
+try {
+  if (!('scrollIntoView' in Element.prototype)) {
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+  }
+} catch {
+  // ignore
+}
 
