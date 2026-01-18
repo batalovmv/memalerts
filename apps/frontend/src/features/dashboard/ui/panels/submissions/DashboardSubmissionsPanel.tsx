@@ -11,6 +11,7 @@ import type { Submission } from '@/types';
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
 import { useHotkeys } from '@/hooks/useHotkeys';
 import { resolveMediaUrl } from '@/lib/urls';
+import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { cn } from '@/shared/lib/cn';
 import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { Button, IconButton, Input, Modal, Pill, Select, Spinner, Tooltip } from '@/shared/ui';
@@ -87,6 +88,7 @@ export function DashboardSubmissionsPanel({
 }: DashboardSubmissionsPanelProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
+  const aiEnabled = getRuntimeConfig()?.aiEnabled !== false;
   const [previewModal, setPreviewModal] = useState<{ open: boolean; src: string; title: string; submission?: Submission | null }>(() => ({
     open: false,
     src: '',
@@ -365,23 +367,25 @@ export function DashboardSubmissionsPanel({
                 </Select>
               </div>
               <div className="flex flex-col md:flex-row gap-2">
-                <Select
-                  value={pendingFilters.aiStatus}
-                  onChange={(e) =>
-                    onPendingFiltersChange({
-                      ...pendingFilters,
-                      aiStatus: e.target.value as 'all' | 'pending' | 'processing' | 'done' | 'failed',
-                    })
-                  }
-                  className="md:w-48"
-                  aria-label={t('dashboard.submissionsFilters.aiStatusLabel', { defaultValue: 'AI status' })}
-                >
-                  <option value="all">{t('dashboard.submissionsFilters.aiStatusAll', { defaultValue: 'AI: all' })}</option>
-                  <option value="pending">{t('dashboard.submissionsFilters.aiStatusPending', { defaultValue: 'AI: pending' })}</option>
-                  <option value="processing">{t('dashboard.submissionsFilters.aiStatusProcessing', { defaultValue: 'AI: processing' })}</option>
-                  <option value="done">{t('dashboard.submissionsFilters.aiStatusDone', { defaultValue: 'AI: done' })}</option>
-                  <option value="failed">{t('dashboard.submissionsFilters.aiStatusFailed', { defaultValue: 'AI: failed' })}</option>
-                </Select>
+                {aiEnabled ? (
+                  <Select
+                    value={pendingFilters.aiStatus}
+                    onChange={(e) =>
+                      onPendingFiltersChange({
+                        ...pendingFilters,
+                        aiStatus: e.target.value as 'all' | 'pending' | 'processing' | 'done' | 'failed',
+                      })
+                    }
+                    className="md:w-48"
+                    aria-label={t('dashboard.submissionsFilters.aiStatusLabel', { defaultValue: 'AI status' })}
+                  >
+                    <option value="all">{t('dashboard.submissionsFilters.aiStatusAll', { defaultValue: 'AI: all' })}</option>
+                    <option value="pending">{t('dashboard.submissionsFilters.aiStatusPending', { defaultValue: 'AI: pending' })}</option>
+                    <option value="processing">{t('dashboard.submissionsFilters.aiStatusProcessing', { defaultValue: 'AI: processing' })}</option>
+                    <option value="done">{t('dashboard.submissionsFilters.aiStatusDone', { defaultValue: 'AI: done' })}</option>
+                    <option value="failed">{t('dashboard.submissionsFilters.aiStatusFailed', { defaultValue: 'AI: failed' })}</option>
+                  </Select>
+                ) : null}
                 <Select
                   value={pendingFilters.sort}
                   onChange={(e) =>
@@ -671,7 +675,7 @@ export function DashboardSubmissionsPanel({
 
           {(() => {
             const s = previewModal.submission;
-            if (!s) return null;
+            if (!s || !aiEnabled) return null;
             const aiStatus = s.aiStatus ?? null;
             const aiAutoTags = Array.isArray(s.aiAutoTagNamesJson) ? s.aiAutoTagNamesJson.filter((x) => typeof x === 'string') : [];
             const aiAutoDescription = typeof s.aiAutoDescription === 'string' ? s.aiAutoDescription : '';

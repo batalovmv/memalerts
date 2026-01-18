@@ -7,6 +7,7 @@ import { SubmissionPreview } from './ui/SubmissionPreview';
 
 import type { Submission } from '@/types';
 
+import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { cn } from '@/shared/lib/cn';
 import { AttemptsPill, Button, Pill, Tooltip } from '@/shared/ui';
@@ -42,6 +43,7 @@ export function PendingSubmissionCard(props: {
   } = props;
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
+  const aiEnabled = getRuntimeConfig()?.aiEnabled !== false;
   const [aiOpen, setAiOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
@@ -85,7 +87,7 @@ export function PendingSubmissionCard(props: {
     !!aiAutoDescription ||
     !!aiTranscript ||
     !!aiError;
-  const shouldShowAiToggle = hasAi || submission.status === 'pending';
+  const shouldShowAiToggle = aiEnabled && (hasAi || submission.status === 'pending');
 
   const decisionVariant = aiDecision === 'low' ? 'success' : aiDecision === 'medium' ? 'warning' : aiDecision === 'high' ? 'danger' : 'neutral';
   const statusVariant =
@@ -185,49 +187,53 @@ export function PendingSubmissionCard(props: {
                         {sourceKindLabel}
                       </Pill>
                     ) : null}
-                    {aiDecision ? (
-                      <Pill variant={decisionVariant} title={t('submissions.aiDecision', { defaultValue: 'AI decision' })}>
-                        AI: {aiDecision}
-                      </Pill>
-                    ) : null}
-                    {aiStatusLabel ? (
-                      <Pill variant={statusVariant} title={t('submissions.aiStatus', { defaultValue: 'AI status' })}>
-                        AI {aiStatusLabel}
-                      </Pill>
-                    ) : null}
-                    {aiRetryCount !== null && aiRetryCount > 0 ? (
-                      <Pill variant="neutral" title={t('submissions.aiRetryCount', { defaultValue: 'AI retry count' })}>
-                        {t('submissions.aiRetryCountLabel', { defaultValue: 'AI retries: {{count}}', count: aiRetryCount })}
-                      </Pill>
-                    ) : null}
-                    {aiAutoTags.length > 0 ? (
-                      <Pill variant="neutral" title={t('submissions.aiAutoTags', { defaultValue: 'AI теги' })}>
-                        {t('submissions.aiTagsCount', { defaultValue: 'AI tags: {{count}}', count: aiAutoTags.length })}
-                      </Pill>
-                    ) : null}
-                    {aiAutoDescription ? (
-                      <Tooltip delayMs={300} content={t('submissions.aiAutoDescription', { defaultValue: 'AI описание' })}>
-                        <span
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 text-gray-700 dark:text-gray-200 ring-1 ring-black/10 dark:ring-white/10 text-xs font-bold"
-                          aria-label={t('submissions.aiAutoDescription', { defaultValue: 'AI описание' })}
-                        >
-                          i
-                        </span>
-                      </Tooltip>
-                    ) : null}
-                    {isLowConfidence ? <Pill variant="warning">low confidence</Pill> : null}
-                    {(aiStatus === 'failed' || aiStatus === 'failed_final') && aiError ? (
-                      <Tooltip delayMs={300} content={aiErrorShort}>
-                        <span
-                          className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/20 text-xs font-bold"
-                          aria-label={t('submissions.aiError', { defaultValue: 'AI error' })}
-                        >
-                          !
-                        </span>
-                      </Tooltip>
+                    {aiEnabled ? (
+                      <>
+                        {aiDecision ? (
+                          <Pill variant={decisionVariant} title={t('submissions.aiDecision', { defaultValue: 'AI decision' })}>
+                            AI: {aiDecision}
+                          </Pill>
+                        ) : null}
+                        {aiStatusLabel ? (
+                          <Pill variant={statusVariant} title={t('submissions.aiStatus', { defaultValue: 'AI status' })}>
+                            AI {aiStatusLabel}
+                          </Pill>
+                        ) : null}
+                        {aiRetryCount !== null && aiRetryCount > 0 ? (
+                          <Pill variant="neutral" title={t('submissions.aiRetryCount', { defaultValue: 'AI retry count' })}>
+                            {t('submissions.aiRetryCountLabel', { defaultValue: 'AI retries: {{count}}', count: aiRetryCount })}
+                          </Pill>
+                        ) : null}
+                        {aiAutoTags.length > 0 ? (
+                          <Pill variant="neutral" title={t('submissions.aiAutoTags', { defaultValue: 'AI теги' })}>
+                            {t('submissions.aiTagsCount', { defaultValue: 'AI tags: {{count}}', count: aiAutoTags.length })}
+                          </Pill>
+                        ) : null}
+                        {aiAutoDescription ? (
+                          <Tooltip delayMs={300} content={t('submissions.aiAutoDescription', { defaultValue: 'AI описание' })}>
+                            <span
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 text-gray-700 dark:text-gray-200 ring-1 ring-black/10 dark:ring-white/10 text-xs font-bold"
+                              aria-label={t('submissions.aiAutoDescription', { defaultValue: 'AI описание' })}
+                            >
+                              i
+                            </span>
+                          </Tooltip>
+                        ) : null}
+                        {isLowConfidence ? <Pill variant="warning">low confidence</Pill> : null}
+                        {(aiStatus === 'failed' || aiStatus === 'failed_final') && aiError ? (
+                          <Tooltip delayMs={300} content={aiErrorShort}>
+                            <span
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/20 text-xs font-bold"
+                              aria-label={t('submissions.aiError', { defaultValue: 'AI error' })}
+                            >
+                              !
+                            </span>
+                          </Tooltip>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
-                  {aiDecision === 'high' ? (
+                  {aiEnabled && aiDecision === 'high' ? (
                     <div className="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
                       {t('submissions.aiHighApproveBlocked', { defaultValue: 'Approve будет заблокирован (карантин)' })}
                     </div>

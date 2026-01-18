@@ -13,6 +13,7 @@ import { RotateIcon } from './obs/ui/RotateIcon';
 import SecretCopyField from '@/components/SecretCopyField';
 import { useSocket } from '@/contexts/SocketContext';
 import { getApiOriginForRedirect } from '@/shared/auth/login';
+import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, HelpTooltip, IconButton, Input, Textarea } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
@@ -114,6 +115,13 @@ export function ObsLinksSettings() {
   const apiOrigin = typeof window !== 'undefined' ? getApiOriginForRedirect() : '';
 
   const [overlayKind, setOverlayKind] = useState<'memes' | 'credits'>('memes');
+  const creditsEnabled = getRuntimeConfig()?.creditsOverlayEnabled !== false;
+
+  useEffect(() => {
+    if (!creditsEnabled && overlayKind === 'credits') {
+      setOverlayKind('memes');
+    }
+  }, [creditsEnabled, overlayKind]);
 
   const [overlayToken, setOverlayToken] = useState<string>('');
   const [loadingToken, setLoadingToken] = useState(false);
@@ -2774,15 +2782,17 @@ export function ObsLinksSettings() {
           >
             {t('admin.obsOverlayKindMemes', { defaultValue: 'Мемы' })}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={overlayKind === 'credits' ? 'primary' : 'secondary'}
-            className={overlayKind === 'credits' ? '' : 'glass-btn'}
-            onClick={() => setOverlayKind('credits')}
-          >
-            {t('admin.obsOverlayKindCredits', { defaultValue: 'Титры' })}
-          </Button>
+          {creditsEnabled ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={overlayKind === 'credits' ? 'primary' : 'secondary'}
+              className={overlayKind === 'credits' ? '' : 'glass-btn'}
+              onClick={() => setOverlayKind('credits')}
+            >
+              {t('admin.obsOverlayKindCredits', { defaultValue: 'Титры' })}
+            </Button>
+          ) : null}
         </div>
 
         {overlayKind === 'memes' ? (
@@ -5310,5 +5320,3 @@ export function ObsLinksSettings() {
     </div>
   );
 }
-
-
