@@ -5,7 +5,8 @@ function resolveRouteLabel(req: Request): string {
   const routePath = (req as Request & { route?: { path?: string } })?.route?.path;
   const baseUrl = req.baseUrl || '';
   if (routePath) return `${baseUrl}${routePath}` || req.path || 'unknown';
-  return req.path || 'unknown';
+  if (baseUrl) return baseUrl;
+  return 'unmatched';
 }
 
 export function metricsMiddleware(req: Request, res: Response, next: NextFunction) {

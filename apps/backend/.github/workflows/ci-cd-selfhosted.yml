@@ -508,7 +508,8 @@ jobs:
             pm2 delete "$PM2_NAME" 2>/dev/null || true
             ensure_log_dirs
             install_healthcheck_script
-            DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
+            NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+              pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
             pm2 save
 
             local rollback_ok=0
@@ -541,6 +542,9 @@ jobs:
             ./ "$APP_DIR/"
 
           cd "$APP_DIR"
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
 
           if [ -d "$APP_DIR/node_modules" ]; then
             sudo rm -rf "$APP_DIR/node_modules"
@@ -699,7 +703,8 @@ jobs:
           pm2 delete "$PM2_NAME" 2>/dev/null || true
           ensure_log_dirs
           install_healthcheck_script
-          DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
+          NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
           pm2 save
 
           echo "Waiting for healthcheck on :3001 ..."
@@ -1116,7 +1121,8 @@ jobs:
           pm2 delete "$PM2_NAME" 2>/dev/null || true
           ensure_log_dirs
           install_healthcheck_script
-          DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
+          NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
           pm2 save
 
             local rollback_ok=0
@@ -1149,6 +1155,9 @@ jobs:
             ./ "$APP_DIR/"
 
           cd "$APP_DIR"
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
 
           if [ -d "$APP_DIR/node_modules" ]; then
             sudo rm -rf "$APP_DIR/node_modules"
@@ -1354,7 +1363,8 @@ jobs:
           pm2 delete "$PM2_NAME" 2>/dev/null || true
           ensure_log_dirs
           install_healthcheck_script
-          DATABASE_URL="$DATABASE_URL_RESOLVED" pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR"
+          NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
           pm2 save
 
           echo "Waiting for healthcheck on :3002 ..."
@@ -1429,7 +1439,8 @@ jobs:
           fi
 
           cd "$APP_DIR"
-          PORT="$CANARY_PORT" INSTANCE_ID="beta-canary" pm2 start dist/index.js --name "$PM2_NAME" --update-env
+          NODE_OPTIONS="--max-old-space-size=3072" PORT="$CANARY_PORT" INSTANCE_ID="beta-canary" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --max-memory-restart 2600M
           pm2 save
 
           sudo bash .github/scripts/enable-beta-canary.sh 3002 "$CANARY_PORT" "$CANARY_PERCENT"
