@@ -39,9 +39,7 @@ async function main() {
     lines.push('| Schema | Table | Index | idx_scan | Size |');
     lines.push('| --- | --- | --- | --- | --- |');
     for (const row of unusedIndexes) {
-      lines.push(
-        `| ${row.schemaname} | ${row.table_name} | ${row.index_name} | ${row.idx_scan} | ${row.index_size} |`
-      );
+      lines.push(`| ${row.schemaname} | ${row.table_name} | ${row.index_name} | ${row.idx_scan} | ${row.index_size} |`);
     }
   }
   lines.push('');

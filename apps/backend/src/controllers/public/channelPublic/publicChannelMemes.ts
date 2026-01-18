@@ -25,7 +25,14 @@ import {
   mergeCursorWhere,
   parseLimit,
 } from '../../../utils/pagination.js';
-import { getSearchCacheMs, ifNoneMatchHit, makeEtagFromString, pruneOldestEntries, searchCache, SEARCH_CACHE_MAX } from '../../viewer/cache.js';
+import {
+  getSearchCacheMs,
+  ifNoneMatchHit,
+  makeEtagFromString,
+  pruneOldestEntries,
+  searchCache,
+  SEARCH_CACHE_MAX,
+} from '../../viewer/cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 
 export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => {

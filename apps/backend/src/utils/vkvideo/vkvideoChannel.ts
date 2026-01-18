@@ -92,7 +92,7 @@ export async function fetchVkVideoWebsocketSubscriptionTokens(params: {
     url: url.toString(),
   });
   if (!r.ok) return { ok: false, status: r.status, tokensByChannel: new Map(), data: r.data, error: r.error };
-  const list = Array.isArray(r.data?.data?.channel_tokens) ? r.data?.data?.channel_tokens ?? [] : [];
+  const list = Array.isArray(r.data?.data?.channel_tokens) ? (r.data?.data?.channel_tokens ?? []) : [];
   const map = new Map<string, string>();
   for (const item of list) {
     const channel = String(item?.channel || '').trim();

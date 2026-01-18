@@ -26,7 +26,11 @@ if (silent) {
 }
 
 const mockServerEnabled = String(process.env.MOCK_SERVER_ENABLED || '').toLowerCase();
-const shouldStartMockServer = !(mockServerEnabled === '0' || mockServerEnabled === 'false' || mockServerEnabled === 'off');
+const shouldStartMockServer = !(
+  mockServerEnabled === '0' ||
+  mockServerEnabled === 'false' ||
+  mockServerEnabled === 'off'
+);
 
 beforeAll(() => {
   if (shouldStartMockServer) {

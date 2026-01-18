@@ -13,13 +13,9 @@ async function resolvePerfIds() {
   const userIdEnv = String(process.env.PERF_USER_ID || '').trim();
 
   const channelId =
-    channelIdEnv ||
-    (await prisma.channel.findFirst({ select: { id: true }, orderBy: { createdAt: 'asc' } }))?.id ||
-    '';
+    channelIdEnv || (await prisma.channel.findFirst({ select: { id: true }, orderBy: { createdAt: 'asc' } }))?.id || '';
   const userId =
-    userIdEnv ||
-    (await prisma.user.findFirst({ select: { id: true }, orderBy: { createdAt: 'asc' } }))?.id ||
-    '';
+    userIdEnv || (await prisma.user.findFirst({ select: { id: true }, orderBy: { createdAt: 'asc' } }))?.id || '';
 
   return { channelId, userId };
 }

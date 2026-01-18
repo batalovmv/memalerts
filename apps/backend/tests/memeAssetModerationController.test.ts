@@ -155,11 +155,13 @@ describe('moderationMemeAssetController.hide', () => {
       poolHiddenReason: 'bad',
       hiddenReason: 'bad',
     });
-    expect(auditMocks.auditLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'moderation.memeAsset.hide',
-      success: true,
-      actorId: 'user-1',
-    }));
+    expect(auditMocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'moderation.memeAsset.hide',
+        success: true,
+        actorId: 'user-1',
+      })
+    );
   });
 
   it('returns 404 when hide fails', async () => {
@@ -172,10 +174,12 @@ describe('moderationMemeAssetController.hide', () => {
 
     expect(res.statusCode).toBe(404);
     expect(res.body).toMatchObject({ errorCode: 'NOT_FOUND' });
-    expect(auditMocks.auditLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'moderation.memeAsset.hide',
-      success: false,
-    }));
+    expect(auditMocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'moderation.memeAsset.hide',
+        success: false,
+      })
+    );
   });
 });
 
@@ -202,10 +206,12 @@ describe('moderationMemeAssetController.unhide', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ poolVisibility: 'visible' });
-    expect(auditMocks.auditLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'moderation.memeAsset.unhide',
-      success: true,
-    }));
+    expect(auditMocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'moderation.memeAsset.unhide',
+        success: true,
+      })
+    );
   });
 
   it('returns 404 when unhide fails', async () => {
@@ -218,10 +224,12 @@ describe('moderationMemeAssetController.unhide', () => {
 
     expect(res.statusCode).toBe(404);
     expect(res.body).toMatchObject({ errorCode: 'NOT_FOUND' });
-    expect(auditMocks.auditLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'moderation.memeAsset.unhide',
-      success: false,
-    }));
+    expect(auditMocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'moderation.memeAsset.unhide',
+        success: false,
+      })
+    );
   });
 });
 
@@ -275,9 +283,11 @@ describe('moderationMemeAssetController.del', () => {
     expect(updateArg?.data?.poolVisibility).toBe('hidden');
     expect(updateArg?.data?.purgeNotBefore).toBeInstanceOf(Date);
     expect(res.body).toMatchObject({ purgeReason: 'dmca' });
-    expect(auditMocks.auditLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'moderation.memeAsset.delete',
-      success: true,
-    }));
+    expect(auditMocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'moderation.memeAsset.delete',
+        success: true,
+      })
+    );
   });
 });

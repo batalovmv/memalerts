@@ -268,8 +268,8 @@ export async function listKickEventSubscriptions(params: { accessToken: string; 
         const subs = Array.isArray(dataField)
           ? dataField
           : dataField && typeof dataField === 'object'
-            ? (dataField as { subscriptions?: unknown }).subscriptions ?? data?.subscriptions ?? []
-            : data?.subscriptions ?? [];
+            ? ((dataField as { subscriptions?: unknown }).subscriptions ?? data?.subscriptions ?? [])
+            : (data?.subscriptions ?? []);
         const subscriptions =
           Array.isArray(subs) && subs.every((item) => typeof item === 'object' && item !== null)
             ? (subs as KickEventSubscription[])

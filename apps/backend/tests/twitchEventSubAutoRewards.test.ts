@@ -49,10 +49,12 @@ function makeRes(): TestResponse {
   return res;
 }
 
-function makeCtx(overrides: Partial<{
-  subscriptionType: string;
-  event: Record<string, unknown>;
-}> = {}) {
+function makeCtx(
+  overrides: Partial<{
+    subscriptionType: string;
+    event: Record<string, unknown>;
+  }> = {}
+) {
   const res = makeRes();
   return {
     subscriptionType: overrides.subscriptionType || 'channel.subscribe',

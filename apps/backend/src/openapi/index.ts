@@ -187,10 +187,7 @@ type RegisterJsonPathParams = {
   responseExample?: unknown;
 };
 
-function buildErrorResponses(params: {
-  security?: Array<Record<string, string[]>>;
-  hasParams: boolean;
-}) {
+function buildErrorResponses(params: { security?: Array<Record<string, string[]>>; hasParams: boolean }) {
   const isSecured = params.security === undefined ? true : params.security.length > 0;
   const responses: Record<string, ReturnType<typeof jsonResponse>> = {
     400: jsonResponse(ErrorResponse, 'Bad Request'),
