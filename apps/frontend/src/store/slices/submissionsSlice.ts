@@ -4,6 +4,7 @@ import type { ApiError, Submission, SubmissionAiDecision, SubmissionAiStatus } f
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
+import { createIdempotencyKey } from '@/shared/lib/idempotency';
 
 type ResubmitInput = {
   title?: string;
@@ -103,9 +104,11 @@ export const createSubmission = createAsyncThunk<
   { rejectValue: ApiError }
 >('submissions/createSubmission', async (formData, { rejectWithValue }) => {
   try {
+    const idempotencyKey = createIdempotencyKey();
     const response = await api.post<Submission>('/submissions', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
+        'Idempotency-Key': idempotencyKey,
       },
     });
     return response;

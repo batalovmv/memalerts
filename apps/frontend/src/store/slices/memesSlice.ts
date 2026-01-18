@@ -4,6 +4,7 @@ import type { ApiError, Meme } from '@/types';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
+import { createIdempotencyKey } from '@/shared/lib/idempotency';
 
 export interface MemesState {
   memes: Meme[];
@@ -48,7 +49,14 @@ export const activateMeme = createAsyncThunk<
   try {
     // Backend accepts both legacy Meme.id and ChannelMeme.id.
     const params = channelSlug ? { channelSlug } : channelId ? { channelId } : undefined;
-    await api.post(`/memes/${id}/activate`, undefined, params ? { params } : undefined);
+    const idempotencyKey = createIdempotencyKey();
+    await api.post(
+      `/memes/${id}/activate`,
+      undefined,
+      params
+        ? { params, headers: { 'Idempotency-Key': idempotencyKey } }
+        : { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
   } catch (error: unknown) {
     return rejectWithValue(toApiError(error, 'Failed to activate meme'));
   }
@@ -86,4 +94,3 @@ const memesSlice = createSlice({
 
 export const { clearError, clearMemes } = memesSlice.actions;
 export default memesSlice.reducer;
-

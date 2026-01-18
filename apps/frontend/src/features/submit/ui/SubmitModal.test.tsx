@@ -184,6 +184,8 @@ describe('SubmitModal (integration)', () => {
     };
 
     await waitFor(() => expect(postSpy).toHaveBeenCalled());
+    const uploadCall = postSpy.mock.calls.find((call) => call[0] === '/submissions');
+    expect(uploadCall?.[2]?.headers?.['Idempotency-Key']).toBeTruthy();
     expect(toast.success).toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByText(/meme submitted for moderation/i)).toBeInTheDocument();

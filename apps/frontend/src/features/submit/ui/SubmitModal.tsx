@@ -8,6 +8,7 @@ import { getMaxFileSizeMb, getVideoDuration, validateFile } from '@/features/sub
 
 import TagInput from '@/components/TagInput';
 import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
+import { createIdempotencyKey } from '@/shared/lib/idempotency';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMemes } from '@/store/slices/memesSlice';
 import { fetchSubmissions } from '@/store/slices/submissionsSlice';
@@ -300,9 +301,11 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
 
         // Use axios directly for upload progress tracking
         const { api } = await import('@/lib/api');
+        const idempotencyKey = createIdempotencyKey();
         const respData = await api.post<Record<string, unknown>>('/submissions', formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
+            'Idempotency-Key': idempotencyKey,
           },
           onUploadProgress: (progressEvent) => {
             const total = progressEvent.total ?? 0;

@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import reducer, { clearError, clearMemes, fetchMemes } from './memesSlice';
+import reducer, { activateMeme, clearError, clearMemes, fetchMemes } from './memesSlice';
 
 import type { Meme } from '@/types';
+import { api } from '@/lib/api';
 
 describe('memesSlice reducer', () => {
   it('has expected initial state', () => {
@@ -33,7 +34,23 @@ describe('memesSlice reducer', () => {
     expect(next.error).toBeNull();
     expect(next.memes).toEqual(payload);
   });
+
+  it('activateMeme sends idempotency key', async () => {
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({});
+    const dispatch = vi.fn();
+    const getState = vi.fn();
+
+    await activateMeme({ id: 'm1' })(dispatch, getState, undefined);
+
+    const call = postSpy.mock.calls.find((c) => c[0] === '/memes/m1/activate');
+    expect(call?.[2]?.headers?.['Idempotency-Key']).toBeTruthy();
+    postSpy.mockRestore();
+  });
 });
+
+
+
+
 
 
 
