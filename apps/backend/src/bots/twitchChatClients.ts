@@ -63,7 +63,7 @@ export async function ensureOverrideClient(params: {
   let entry: BotClient = { kind: 'override', login, client, joined: new Set(), externalAccountId: extId };
   params.overrideClients.set(extId, entry);
 
-  const attachListeners = (activeClient: tmi.Client) => {
+  const attachListeners = (activeClient: BotClient['client']) => {
     activeClient.on('connected', () => {
       logger.info('chatbot.override.connected', { botLogin: login, externalAccountId: extId });
     });

@@ -49,7 +49,12 @@ export async function vkvideoGetJson<T = unknown>(params: {
     }
     if (!resp.ok) {
       const reason = extractErrorReason(json, text || resp.statusText);
-      return { ok: false, status: resp.status, data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
+      return {
+        ok: false,
+        status: resp.status,
+        data: json as T | null,
+        error: `VKVideo API error: ${resp.status} ${reason}`,
+      };
     }
     return { ok: true, status: resp.status, data: json as T, error: null };
   } catch (error: unknown) {
@@ -83,7 +88,12 @@ export async function vkvideoPostJson<T = unknown>(params: {
     }
     if (!resp.ok) {
       const reason = extractErrorReason(json, text || resp.statusText);
-      return { ok: false, status: resp.status, data: json, error: `VKVideo API error: ${resp.status} ${reason}` };
+      return {
+        ok: false,
+        status: resp.status,
+        data: json as T | null,
+        error: `VKVideo API error: ${resp.status} ${reason}`,
+      };
     }
     return { ok: true, status: resp.status, data: json as T, error: null };
   } catch (error: unknown) {

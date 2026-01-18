@@ -48,10 +48,7 @@ export async function checkChatOutboxChannelRateLimit(params: {
   `;
 
   try {
-    const res = (await client.eval(script, {
-      keys: [key],
-      arguments: [String(windowMs)],
-    })) as unknown as [number, number];
+    const res = (await client.eval(script, 1, key, String(windowMs))) as unknown as [number, number];
     const count = Number(res?.[0] ?? 0);
     const ttl = Number(res?.[1] ?? 0);
     if (count > max) {
