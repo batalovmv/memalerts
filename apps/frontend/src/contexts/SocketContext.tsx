@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus, SubmissionStatus } from '@/types';
-
 import { getRuntimeConfig } from '../lib/runtimeConfig';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { updateChannelSettings, updateWalletBalance } from '../store/slices/authSlice';
@@ -15,6 +13,8 @@ import {
   submissionRejected,
   submissionResubmitted,
 } from '../store/slices/submissionsSlice';
+
+import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus, SubmissionStatus } from '@/types';
 
 interface SocketContextType {
   socket: Socket | null;

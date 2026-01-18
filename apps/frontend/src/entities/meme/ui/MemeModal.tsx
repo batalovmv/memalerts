@@ -2,19 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import { AiRegenerateButton } from './AiRegenerateButton';
+
 import type { Meme } from '@/types';
 
 import { api } from '@/lib/api';
 import { resolveMediaUrl } from '@/lib/urls';
-import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
+import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
 import { Button, HelpTooltip, Input, Pill, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
-
-import { AiRegenerateButton } from './AiRegenerateButton';
 interface MemeModalProps {
   meme: Meme | null;
   isOpen: boolean;
@@ -73,6 +73,7 @@ export default function MemeModal({
   const [deleteReason, setDeleteReason] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastNonZeroVolumeRef = useRef<number>(1);
+  const volumeRef = useRef<number>(1);
 
   const persistAudioToLocalStorage = (nextMuted: boolean, nextVolume: number) => {
     try {
@@ -107,8 +108,9 @@ export default function MemeModal({
     if (videoRef.current) videoRef.current.volume = clamp01(volume);
   }, [isOpen, currentMeme?.id, volume]);
 
-  // Keep last non-zero volume to restore when toggling mute.
+  // Keep last non-zero volume (and the latest value) to restore when toggling mute.
   useEffect(() => {
+    volumeRef.current = volume;
     if (volume > 0) lastNonZeroVolumeRef.current = volume;
   }, [volume]);
 
@@ -129,7 +131,7 @@ export default function MemeModal({
       }
       if (typeof prefs?.memeModalMuted === 'boolean') {
         setIsMuted(prefs.memeModalMuted);
-        const nextVolume = prefs.memeModalMuted ? 0 : clamp01(volume);
+        const nextVolume = prefs.memeModalMuted ? 0 : clamp01(volumeRef.current);
         if (!prefs.memeModalMuted && nextVolume > 0) lastNonZeroVolumeRef.current = nextVolume;
         setVolume(nextVolume);
         persistAudioToLocalStorage(prefs.memeModalMuted, nextVolume);
@@ -740,4 +742,3 @@ export default function MemeModal({
     </Modal>
   );
 }
-

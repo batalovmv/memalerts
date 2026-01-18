@@ -1,8 +1,8 @@
 import type { Meme } from '@/types';
 import type { RefObject } from 'react';
 
-import { cn } from '@/shared/lib/cn';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
+import { cn } from '@/shared/lib/cn';
 import { Tooltip } from '@/shared/ui';
 
 export type MemeCardViewProps = {
@@ -121,5 +121,4 @@ export function MemeCardView({
     </article>
   );
 }
-
 

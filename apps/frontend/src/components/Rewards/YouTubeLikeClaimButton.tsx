@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/shared/ui';
 import { claimYouTubeLike, getYouTubeForceSslLinkUrl, type YouTubeLikeClaimResponse } from '@/shared/api/youtubeLikeReward';
 import { linkExternalAccount } from '@/shared/auth/login';
+import { Button } from '@/shared/ui';
 
 export type YouTubeLikeClaimButtonProps = {
   channelSlug: string;

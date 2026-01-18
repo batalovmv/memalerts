@@ -90,14 +90,6 @@ export function PendingSubmissionCard(props: {
   const shouldShowAiToggle = aiEnabled && (hasAi || submission.status === 'pending');
 
   const decisionVariant = aiDecision === 'low' ? 'success' : aiDecision === 'medium' ? 'warning' : aiDecision === 'high' ? 'danger' : 'neutral';
-  const statusVariant =
-    aiStatus === 'done'
-      ? 'success'
-      : aiStatus === 'pending' || aiStatus === 'processing'
-        ? 'primary'
-        : aiStatus === 'failed' || aiStatus === 'failed_final'
-          ? 'danger'
-          : 'neutral';
   const isLowConfidence = aiLabels.includes('low_confidence');
 
   return (

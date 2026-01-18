@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
+import { getAiRegenerateCooldownUntilMs, setAiRegenerateCooldownUntilMs } from '../lib/aiRegenerateCooldown';
+
 import type { Meme } from '@/types';
 
 import { regenerateMemeAi, getErrorCodeFromError, getRetryAfterSecondsFromError } from '@/shared/api/streamerMemes';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button } from '@/shared/ui';
-
-import { getAiRegenerateCooldownUntilMs, setAiRegenerateCooldownUntilMs } from '../lib/aiRegenerateCooldown';
 
 function formatCountdown(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
