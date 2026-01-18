@@ -2,7 +2,13 @@ import type { Router } from 'express';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { getChatOutboxQueueCounts } from '../../queues/chatOutboxQueue.js';
-import { metricsRegistry, setAiJobMetrics, setBotOutboxMetrics, setChatOutboxQueueDepth } from '../../utils/metrics.js';
+import {
+  metricsRegistry,
+  setAiJobMetrics,
+  setBotOutboxMetrics,
+  setChatOutboxQueueDepth,
+  setServiceHeartbeatState,
+} from '../../utils/metrics.js';
 import { logger } from '../../utils/logger.js';
 
 export function registerMetricsRoutes(app: Router) {
@@ -23,6 +29,7 @@ export function registerMetricsRoutes(app: Router) {
         aiPending,
         aiProcessing,
         aiFailed,
+        heartbeatRows,
         twitchPending,
         twitchFailed,
         youtubePending,
@@ -42,6 +49,7 @@ export function registerMetricsRoutes(app: Router) {
         pendingPromise,
         processingPromise,
         failedPromise,
+        prisma.serviceHeartbeat.findMany({ orderBy: { id: 'asc' } }),
         prisma.chatBotOutboxMessage.count({ where: outboxPendingWhere }),
         prisma.chatBotOutboxMessage.count({ where: outboxFailedWhere }),
         prisma.youTubeChatBotOutboxMessage.count({ where: outboxPendingWhere }),
@@ -65,6 +73,16 @@ export function registerMetricsRoutes(app: Router) {
       setBotOutboxMetrics({ platform: 'vkvideo', pending: vkvideoPending, failedTotal: vkvideoFailed });
       setBotOutboxMetrics({ platform: 'trovo', pending: trovoPending, failedTotal: trovoFailed });
       setBotOutboxMetrics({ platform: 'kick', pending: kickPending, failedTotal: kickFailed });
+
+      const now = Date.now();
+      for (const row of heartbeatRows) {
+        const lastSeenAt = row.lastSeenAt ? row.lastSeenAt.getTime() : 0;
+        const deltaMs = lastSeenAt ? now - lastSeenAt : Number.POSITIVE_INFINITY;
+        let status: 'alive' | 'stale' | 'dead' = 'dead';
+        if (deltaMs <= 60_000) status = 'alive';
+        else if (deltaMs <= 5 * 60_000) status = 'stale';
+        setServiceHeartbeatState(String(row.id || 'unknown'), status);
+      }
 
       const queueDepths: Array<[string, typeof twitchQueueCounts]> = [
         ['twitch', twitchQueueCounts],

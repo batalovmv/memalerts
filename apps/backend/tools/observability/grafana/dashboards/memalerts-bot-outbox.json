@@ -134,6 +134,36 @@
         "x": 0,
         "y": 16
       }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Service Heartbeat State",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "memalerts_service_heartbeat_state",
+          "legendFormat": "{{service}} {{state}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      }
     }
   ]
 }

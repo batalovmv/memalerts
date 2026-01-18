@@ -348,6 +348,12 @@ const circuitState = metricsBackend.gauge({
   labelNames: ['service', 'state'],
 });
 
+const serviceHeartbeatState = metricsBackend.gauge({
+  name: 'memalerts_service_heartbeat_state',
+  help: 'Service heartbeat state (1 = current state)',
+  labelNames: ['service', 'state'],
+});
+
 const httpClientRetryAttemptsTotal = metricsBackend.counter({
   name: 'memalerts_http_client_retry_attempts_total',
   help: 'Total retry attempts for external HTTP calls',
@@ -456,11 +462,19 @@ export function recordFileHashOrphanFile(storage: string) {
 }
 
 const CIRCUIT_STATES = ['closed', 'open', 'half_open'] as const;
+const HEARTBEAT_STATES = ['alive', 'stale', 'dead'] as const;
 
 export function setCircuitState(service: string, state: string) {
   const label = service ? service : 'unknown';
   for (const s of CIRCUIT_STATES) {
     circuitState.set({ service: label, state: s }, s === state ? 1 : 0);
+  }
+}
+
+export function setServiceHeartbeatState(service: string, state: string) {
+  const label = service ? service : 'unknown';
+  for (const s of HEARTBEAT_STATES) {
+    serviceHeartbeatState.set({ service: label, state: s }, s === state ? 1 : 0);
   }
 }
 
