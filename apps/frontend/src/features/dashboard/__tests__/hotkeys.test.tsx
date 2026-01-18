@@ -57,19 +57,25 @@ function renderPanel(override?: Partial<React.ComponentProps<typeof DashboardSub
 
 describe('Moderation hotkeys', () => {
   let restoreIntersectionObserver: (() => void) | null = null;
-  let originalScrollIntoView: typeof HTMLElement.prototype.scrollIntoView | undefined;
+  let originalScrollIntoView: PropertyDescriptor | undefined;
 
   beforeEach(() => {
     restoreIntersectionObserver = installIntersectionObserverOncePerElement();
-    originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = vi.fn();
+    originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView',
+    );
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
   });
 
   afterEach(() => {
     restoreIntersectionObserver?.();
     restoreIntersectionObserver = null;
     if (originalScrollIntoView) {
-      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView);
     } else {
       delete (HTMLElement.prototype as any).scrollIntoView;
     }
