@@ -9,6 +9,7 @@ import {
   type OverlaySharePayload,
 } from './obs/lib/shareCode';
 import { RotateIcon } from './obs/ui/RotateIcon';
+import { CreditsOverlaySettings } from './CreditsOverlaySettings';
 
 import SecretCopyField from '@/components/SecretCopyField';
 import { useSocket } from '@/contexts/SocketContext';
@@ -4398,10 +4399,13 @@ export function ObsLinksSettings() {
             </details>
           </>
         ) : (
-          <div className="glass p-4 space-y-4">
-            {(loadingCreditsSettings || savingCreditsSettings) && <SavingOverlay label={t('admin.saving')} />}
-            {creditsSettingsSavedPulse && !savingCreditsSettings && !loadingCreditsSettings && <SavedOverlay label={t('admin.saved')} />}
-
+          <CreditsOverlaySettings
+            isLoading={loadingCreditsSettings}
+            isSaving={savingCreditsSettings}
+            savedPulse={creditsSettingsSavedPulse}
+            savingLabel={t('admin.saving')}
+            savedLabel={t('admin.saved')}
+          >
             {/* Credits session: collapseable to keep UX clean as more sections appear (donors/raiders/...) */}
             <details className="glass p-3">
               <summary className="cursor-pointer">
@@ -5348,7 +5352,7 @@ export function ObsLinksSettings() {
                 {savingCreditsSettings ? t('admin.saving', { defaultValue: 'Saving...' }) : t('admin.save', { defaultValue: 'Save' })}
               </button>
             </div>
-          </div>
+          </CreditsOverlaySettings>
         )}
 
         <div className="glass p-4">
