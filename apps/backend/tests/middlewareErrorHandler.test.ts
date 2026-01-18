@@ -189,6 +189,7 @@ describe('middleware: errorResponseFormat', () => {
     expect(originalJson).toHaveBeenCalledWith({
       errorCode: ERROR_CODES.FORBIDDEN,
       error: 'Custom message',
+      hint: 'You do not have permission for this action.',
       requestId: 'req-2',
       traceId: 'trace-ctx',
     });

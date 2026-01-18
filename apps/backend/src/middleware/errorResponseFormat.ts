@@ -25,7 +25,7 @@ function pickErrorCode(status: number, body: unknown): ErrorCode {
 }
 
 function pickPreferredLanguage(req: Request): 'ru' | 'en' {
-  const header = req.headers['accept-language'];
+  const header = (req as Partial<Request>)?.headers?.['accept-language'];
   if (typeof header !== 'string') return 'en';
 
   const hasRussian = header

@@ -8,8 +8,11 @@ export type KickEventSubscriptionResponse = {
 };
 
 export type KickEventSubscriptionsResponse = {
-  data?: {
-    subscriptions?: unknown;
-  } | null;
+  data?:
+    | {
+        subscriptions?: unknown;
+      }
+    | unknown[]
+    | null;
   subscriptions?: unknown;
 };
