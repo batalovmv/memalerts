@@ -56,7 +56,13 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   }
 
   if (err instanceof ZodError) {
-    return send(400, ERROR_CODES.VALIDATION_ERROR);
+    return res.status(400).json({
+      errorCode: ERROR_CODES.VALIDATION_ERROR,
+      error: ERROR_MESSAGES[ERROR_CODES.VALIDATION_ERROR] ?? 'Validation failed',
+      requestId,
+      traceId,
+      details: err.issues,
+    });
   }
 
   if (err.name === 'UnauthorizedError' || err.message === 'Unauthorized') {

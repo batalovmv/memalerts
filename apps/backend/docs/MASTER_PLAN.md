@@ -343,7 +343,7 @@ updates:
 |---|--------|-------|-----------|
 | 7.1.1 | Локализация ошибок (RU) | 3 ч | 🟡 |
 | 7.1.2 | Helpful hints в error responses | 2 ч | 🟡 |
-| 7.1.3 | Validation error details | 2 ч | 🟡 |
+| 7.1.3 | ✅ Validation error details | 2 ч | 🟡 |
 
 ---
 
