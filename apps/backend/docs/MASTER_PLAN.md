@@ -244,7 +244,7 @@ updates:
 |---|--------|-------|-----------|
 | 4.1.1 | Redis caching для hot paths | 3 ч | 🟡 |
 | 4.1.2 | ETag для GET endpoints | 2 ч | 🟡 |
-| 4.1.3 | Connection pooling audit | 1 ч | 🟡 |
+| 4.1.3 | ✅ Connection pooling audit | 1 ч | 🟡 |
 | 4.1.4 | Query analysis (EXPLAIN) | 2 ч | 🟢 |
 
 ---
@@ -355,7 +355,7 @@ updates:
 |---|--------|-------|-----------|
 | 7.2.1 | API versioning (/api/v1/) | 4 ч | 🟢 |
 | 7.2.2 | Deprecation headers | 1 ч | 🟢 |
-| 7.2.3 | Rate limit headers | 1 ч | 🟡 |
+| 7.2.3 | ✅ Rate limit headers | 1 ч | 🟡 |
 
 ---
 
