@@ -155,7 +155,7 @@ export default function MemeModal({
 
   if (!isOpen || !currentMeme) return null;
 
-  const videoUrl = resolveMediaUrl(currentMeme.fileUrl);
+  const videoUrl = resolveMediaUrl(currentMeme.playFileUrl || currentMeme.fileUrl);
   const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
   const hasAiFields = 'aiAutoDescription' in currentMeme || 'aiAutoTagNames' in currentMeme;
   const aiTags = Array.isArray(currentMeme.aiAutoTagNames) ? currentMeme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
@@ -740,5 +740,4 @@ export default function MemeModal({
     </Modal>
   );
 }
-
 
