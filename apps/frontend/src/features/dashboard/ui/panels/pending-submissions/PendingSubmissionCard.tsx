@@ -8,6 +8,7 @@ import { SubmissionPreview } from './ui/SubmissionPreview';
 import type { Submission } from '@/types';
 
 import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
+import { cn } from '@/shared/lib/cn';
 import { AttemptsPill, Button, Pill, Tooltip } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 
@@ -19,8 +20,26 @@ export function PendingSubmissionCard(props: {
   onNeedsChanges: (id: string) => void;
   onReject: (id: string) => void;
   helpEnabled?: boolean;
+  isFocused?: boolean;
+  isSelected?: boolean;
+  onToggleSelected?: () => void;
+  onRequestFocus?: () => void;
+  liRef?: (el: HTMLLIElement | null) => void;
 }) {
-  const { submission, resolveMediaUrl, onOpenPreview, onApprove, onNeedsChanges, onReject, helpEnabled } = props;
+  const {
+    submission,
+    resolveMediaUrl,
+    onOpenPreview,
+    onApprove,
+    onNeedsChanges,
+    onReject,
+    helpEnabled,
+    isFocused,
+    isSelected,
+    onToggleSelected,
+    onRequestFocus,
+    liRef,
+  } = props;
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
   const [aiOpen, setAiOpen] = useState(false);
@@ -36,12 +55,16 @@ export function PendingSubmissionCard(props: {
 
   const aiDecision = submission.aiDecision ?? null;
   const aiStatus = submission.aiStatus ?? null;
+  const aiStatusLabel = aiStatus === 'failed_final' ? 'failed' : aiStatus;
   const aiRisk = typeof submission.aiRiskScore === 'number' && Number.isFinite(submission.aiRiskScore) ? submission.aiRiskScore : null;
   const aiLabels = Array.isArray(submission.aiLabelsJson) ? submission.aiLabelsJson.filter((x) => typeof x === 'string') : [];
   const aiAutoTags = Array.isArray(submission.aiAutoTagNamesJson) ? submission.aiAutoTagNamesJson.filter((x) => typeof x === 'string') : [];
   const aiAutoDescription = typeof submission.aiAutoDescription === 'string' ? submission.aiAutoDescription : '';
   const aiTranscript = typeof submission.aiTranscript === 'string' ? submission.aiTranscript : '';
   const aiError = typeof submission.aiError === 'string' ? submission.aiError : '';
+  const aiErrorShort = aiError.length > 80 ? `${aiError.slice(0, 77)}…` : aiError;
+  const aiRetryCount =
+    typeof submission.aiRetryCount === 'number' && Number.isFinite(submission.aiRetryCount) ? submission.aiRetryCount : null;
   const canSeeAiDescription = canViewSubmissionAiDescription(user);
 
   const hasAi =
@@ -57,12 +80,24 @@ export function PendingSubmissionCard(props: {
 
   const decisionVariant = aiDecision === 'low' ? 'success' : aiDecision === 'medium' ? 'warning' : aiDecision === 'high' ? 'danger' : 'neutral';
   const statusVariant =
-    aiStatus === 'done' ? 'success' : aiStatus === 'pending' || aiStatus === 'processing' ? 'primary' : aiStatus === 'failed' || aiStatus === 'failed_final' ? 'danger' : 'neutral';
+    aiStatus === 'done'
+      ? 'success'
+      : aiStatus === 'pending' || aiStatus === 'processing'
+        ? 'primary'
+        : aiStatus === 'failed' || aiStatus === 'failed_final'
+          ? 'danger'
+          : 'neutral';
   const isLowConfidence = aiLabels.includes('low_confidence');
 
   return (
-    <li ref={preview.cardRef}>
-      <article className="glass p-4">
+    <li ref={(el) => { preview.cardRef.current = el; liRef?.(el); }} onClick={onRequestFocus} data-status={submission.status}>
+      <article
+        className={cn(
+          'glass p-4 transition-shadow',
+          isFocused && 'ring-2 ring-primary/40',
+          isSelected && 'bg-emerald-500/5',
+        )}
+      >
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="shrink-0 w-full lg:w-[249px]">
             <div className="relative">
@@ -112,8 +147,21 @@ export function PendingSubmissionCard(props: {
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="font-semibold text-lg dark:text-white truncate">{submission.title}</h3>
+              <div className="min-w-0 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-black/10 dark:border-white/15 bg-white/50 dark:bg-white/10 text-primary focus:ring-2 focus:ring-primary/30"
+                  checked={!!isSelected}
+                  data-testid="submission-checkbox"
+                  aria-label={t('dashboard.bulk.selectItem', { defaultValue: 'Select submission' })}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onToggleSelected?.();
+                    onRequestFocus?.();
+                  }}
+                />
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-lg dark:text-white truncate">{submission.title}</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   {t('dashboard.submittedBy', {
                     defaultValue: 'Submitted by {{name}}',
@@ -128,9 +176,14 @@ export function PendingSubmissionCard(props: {
                         AI: {aiDecision}
                       </Pill>
                     ) : null}
-                    {aiStatus ? (
+                    {aiStatusLabel ? (
                       <Pill variant={statusVariant} title={t('submissions.aiStatus', { defaultValue: 'AI status' })}>
-                        AI {aiStatus}
+                        AI {aiStatusLabel}
+                      </Pill>
+                    ) : null}
+                    {aiRetryCount !== null && aiRetryCount > 0 ? (
+                      <Pill variant="neutral" title={t('submissions.aiRetryCount', { defaultValue: 'AI retry count' })}>
+                        {t('submissions.aiRetryCountLabel', { defaultValue: 'AI retries: {{count}}', count: aiRetryCount })}
                       </Pill>
                     ) : null}
                     {aiAutoTags.length > 0 ? (
@@ -150,7 +203,7 @@ export function PendingSubmissionCard(props: {
                     ) : null}
                     {isLowConfidence ? <Pill variant="warning">low confidence</Pill> : null}
                     {(aiStatus === 'failed' || aiStatus === 'failed_final') && aiError ? (
-                      <Tooltip delayMs={300} content={aiError}>
+                      <Tooltip delayMs={300} content={aiErrorShort}>
                         <span
                           className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/20 text-xs font-bold"
                           aria-label={t('submissions.aiError', { defaultValue: 'AI error' })}
@@ -274,6 +327,7 @@ export function PendingSubmissionCard(props: {
                     ) : null}
                   </div>
                 ) : null}
+                </div>
               </div>
               <div className="flex gap-2 shrink-0">
                 <Button
@@ -335,5 +389,3 @@ export function PendingSubmissionCard(props: {
     </li>
   );
 }
-
-

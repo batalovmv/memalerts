@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus } from '@/types';
+
 import { getRuntimeConfig } from '../lib/runtimeConfig';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { updateWalletBalance } from '../store/slices/authSlice';
+import { updateChannelSettings, updateWalletBalance } from '../store/slices/authSlice';
+import { fetchSubmissions, submissionAiCompleted } from '../store/slices/submissionsSlice';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -226,6 +229,64 @@ export function SocketProvider({ children }: SocketProviderProps) {
     };
   }, [dispatch, isConnected, userId]);
 
+  // Submission/Channel realtime updates (streamer/admin scope).
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !isConnected || !user) return;
+
+    const isModerator = user.role === 'streamer' || user.role === 'admin';
+    const channelId = user.channelId || null;
+
+    const onAiCompleted = (data: {
+      submissionId?: string;
+      channelId?: string;
+      aiStatus?: SubmissionAiStatus;
+      aiDecision?: SubmissionAiDecision;
+      aiRiskScore?: number;
+    }) => {
+      if (!isModerator) return;
+      if (!data?.submissionId || !data?.aiStatus) return;
+      if (channelId && data.channelId && data.channelId !== channelId) return;
+      dispatch(
+        submissionAiCompleted({
+          submissionId: data.submissionId,
+          aiStatus: data.aiStatus,
+          aiDecision: data.aiDecision,
+          aiRiskScore: data.aiRiskScore,
+        }),
+      );
+    };
+
+    const onBulkModerated = (data: { channelId?: string; action?: string; count?: number }) => {
+      if (!isModerator) return;
+      if (channelId && data?.channelId && data.channelId !== channelId) return;
+      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0, includeTotal: true }));
+    };
+
+    const onChannelSettingsChanged = (data: { channelId?: string; settings?: Partial<Channel> }) => {
+      if (!data?.channelId || !data?.settings) return;
+      dispatch(updateChannelSettings({ channelId: data.channelId, settings: data.settings }));
+    };
+
+    const onMemeAssetStatusChanged = (data: { memeAssetId?: string; status?: MemeAssetStatus; changedBy?: string }) => {
+      if (!data?.memeAssetId || !data?.status) return;
+      if (typeof window === 'undefined') return;
+      window.dispatchEvent(new CustomEvent('meme-asset:status-changed', { detail: data }));
+    };
+
+    socket.on('submission:ai-completed', onAiCompleted);
+    socket.on('submissions:bulk-moderated', onBulkModerated);
+    socket.on('channel:settings-changed', onChannelSettingsChanged);
+    socket.on('meme-asset:status-changed', onMemeAssetStatusChanged);
+
+    return () => {
+      socket.off('submission:ai-completed', onAiCompleted);
+      socket.off('submissions:bulk-moderated', onBulkModerated);
+      socket.off('channel:settings-changed', onChannelSettingsChanged);
+      socket.off('meme-asset:status-changed', onMemeAssetStatusChanged);
+    };
+  }, [dispatch, isConnected, user]);
+
   const value = useMemo(() => ({ socket, isConnected }), [socket, isConnected]);
 
   return (
@@ -234,4 +295,3 @@ export function SocketProvider({ children }: SocketProviderProps) {
     </SocketContext.Provider>
   );
 }
-

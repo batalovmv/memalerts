@@ -4,7 +4,7 @@ vi.mock('@/shared/lib/userPreferences', () => ({
   clearUserPreferencesCache: vi.fn(),
 }));
 
-import reducer, { fetchUser, setUnauthenticated, updateWalletBalance } from './authSlice';
+import reducer, { fetchUser, setUnauthenticated, updateChannelSettings, updateWalletBalance } from './authSlice';
 
 import type { User } from '@/types';
 
@@ -66,6 +66,21 @@ describe('authSlice reducer', () => {
     expect(next.user?.wallets?.[0]?.balance).toBe(999);
   });
 
+  it('updateChannelSettings merges into existing channel', () => {
+    const user: User = {
+      id: 'u1',
+      displayName: 'User',
+      role: 'streamer',
+      channelId: 'c1',
+      channel: { id: 'c1', slug: 'test', name: 'Old Name' },
+    };
+    const prev = { user, loading: false, error: null };
+
+    const next = reducer(prev, updateChannelSettings({ channelId: 'c1', settings: { name: 'New Name' } }));
+    expect(next.user?.channel?.name).toBe('New Name');
+    expect(next.user?.channel?.slug).toBe('test');
+  });
+
   it('fetchUser.rejected stores message from payload', () => {
     const prev = reducer(undefined, { type: 'init' });
     const next = reducer(
@@ -77,6 +92,8 @@ describe('authSlice reducer', () => {
     expect(next.error).toBe('Nope');
   });
 });
+
+
 
 
 

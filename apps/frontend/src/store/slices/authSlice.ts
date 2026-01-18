@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
-import type { ApiError, User, Wallet } from '@/types';
+import type { ApiError, Channel, User, Wallet } from '@/types';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
@@ -88,6 +88,11 @@ const authSlice = createSlice({
       };
       state.user.wallets.push(newWallet);
     },
+    updateChannelSettings: (state, action: PayloadAction<{ channelId: string; settings: Partial<Channel> }>) => {
+      if (!state.user?.channel || !state.user.channelId) return;
+      if (state.user.channelId !== action.payload.channelId) return;
+      state.user.channel = { ...state.user.channel, ...action.payload.settings };
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -123,6 +128,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setUnauthenticated, clearError, updateWalletBalance } = authSlice.actions;
+export const { setUnauthenticated, clearError, updateWalletBalance, updateChannelSettings } = authSlice.actions;
 export default authSlice.reducer;
-

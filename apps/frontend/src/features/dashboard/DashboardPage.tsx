@@ -14,13 +14,21 @@ import Header from '@/components/Header';
 import SecretCopyField from '@/components/SecretCopyField';
 import { useHelpMode } from '@/contexts/HelpModeContext';
 import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
-import { NeedsChangesModal } from '@/features/dashboard/ui/modals/NeedsChangesModal';
+import { NeedsChangesModal, type NeedsChangesPreset } from '@/features/dashboard/ui/modals/NeedsChangesModal';
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
 import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
+import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
-import { Button, IconButton, PageShell, Pill, Spinner, Tooltip } from '@/shared/ui';
+import { Button, IconButton, Input, PageShell, Pill, Spinner, Textarea, Tooltip } from '@/shared/ui';
+import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { approveSubmission, fetchSubmissions, needsChangesSubmission, rejectSubmission } from '@/store/slices/submissionsSlice';
+import {
+  approveSubmission,
+  bulkModerateSubmissions,
+  fetchSubmissions,
+  needsChangesSubmission,
+  rejectSubmission,
+} from '@/store/slices/submissionsSlice';
 
 const SubmitModal = lazy(() => import('@/components/SubmitModal'));
 const MemeModal = lazy(() => import('@/components/MemeModal'));
@@ -177,6 +185,11 @@ function SortableCard({
   );
 }
 
+type PendingStatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
+type PendingAiStatusFilter = 'all' | 'pending' | 'processing' | 'done' | 'failed';
+type PendingSortOrder = 'newest-first' | 'oldest-first';
+type BulkActionKind = 'approve' | 'reject' | 'needs_changes';
+
 export default function DashboardPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -215,6 +228,19 @@ export default function DashboardPage() {
   const [mySubmissions, setMySubmissions] = useState<import('@/features/submit/types').MySubmission[]>([]);
   const [mySubmissionsLoading, setMySubmissionsLoading] = useState(false);
   const mySubmissionsLoadedRef = useRef(false);
+  const [pendingFilters, setPendingFilters] = useState<{
+    status: PendingStatusFilter;
+    aiStatus: PendingAiStatusFilter;
+    q: string;
+    sort: PendingSortOrder;
+  }>({
+    status: 'all',
+    aiStatus: 'all',
+    q: '',
+    sort: 'newest-first',
+  });
+  const debouncedPendingQ = useDebounce(pendingFilters.q, 300);
+  const pendingFiltersKeyRef = useRef('');
   const [approveModal, setApproveModal] = useState<{ open: boolean; submissionId: string | null }>({
     open: false,
     submissionId: null,
@@ -236,6 +262,20 @@ export default function DashboardPage() {
     other: false,
   });
   const [needsChangesText, setNeedsChangesText] = useState('');
+  const [bulkModal, setBulkModal] = useState<{ open: boolean; action: BulkActionKind; submissionIds: string[] }>({
+    open: false,
+    action: 'approve',
+    submissionIds: [],
+  });
+  const [bulkPriceCoins, setBulkPriceCoins] = useState('100');
+  const [bulkRejectReason, setBulkRejectReason] = useState('');
+  const [bulkNeedsChangesPreset, setBulkNeedsChangesPreset] = useState<NeedsChangesPreset>({
+    badTitle: false,
+    noTags: false,
+    other: false,
+  });
+  const [bulkNeedsChangesText, setBulkNeedsChangesText] = useState('');
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const { autoplayMemesEnabled } = useAutoplayMemes();
@@ -329,6 +369,13 @@ export default function DashboardPage() {
     if (userId && (userRole === 'streamer' || userRole === 'admin') && userChannelId) {
       const SUBMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       const ERROR_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes before retrying after error
+      const trimmedQ = debouncedPendingQ.trim();
+      const nextFiltersKey = [pendingFilters.status, pendingFilters.aiStatus, trimmedQ, pendingFilters.sort].join('|');
+      const filtersChanged = pendingFiltersKeyRef.current !== nextFiltersKey;
+      if (filtersChanged) {
+        pendingFiltersKeyRef.current = nextFiltersKey;
+        submissionsLoadedRef.current = false;
+      }
       
       // Check if we have fresh data based on timestamp
       const hasFreshData =
@@ -340,20 +387,32 @@ export default function DashboardPage() {
       const hasRecentError =
         submissionsLastErrorAt !== null &&
         (Date.now() - submissionsLastErrorAt) < ERROR_RETRY_DELAY;
+      const shouldBlockForError = hasRecentError && !filtersChanged;
       
       const isLoading = submissionsLoading;
       
       // Only fetch if no fresh data, not loading, no recent error, and not already loaded
-      if (!hasFreshData && !isLoading && !hasRecentError && !submissionsLoadedRef.current) {
+      if ((filtersChanged || !hasFreshData) && !isLoading && !shouldBlockForError && !submissionsLoadedRef.current) {
         submissionsLoadedRef.current = true;
-        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
-      } else if (hasFreshData) {
+        dispatch(
+          fetchSubmissions({
+            status: pendingFilters.status,
+            aiStatus: pendingFilters.aiStatus,
+            q: trimmedQ || undefined,
+            sort: pendingFilters.sort,
+            limit: 20,
+            offset: 0,
+            includeTotal: true,
+          }),
+        );
+      } else if (hasFreshData && !filtersChanged) {
         submissionsLoadedRef.current = true; // Mark as loaded even if we didn't fetch
       }
     }
     // Reset ref when user changes
     if (!userId || !userChannelId) {
       submissionsLoadedRef.current = false;
+      pendingFiltersKeyRef.current = '';
     }
   }, [
     user?.id,
@@ -363,6 +422,10 @@ export default function DashboardPage() {
     submissionsLastFetchedAt,
     submissionsLastErrorAt,
     submissionsLoading,
+    pendingFilters.status,
+    pendingFilters.aiStatus,
+    pendingFilters.sort,
+    debouncedPendingQ,
     dispatch,
   ]); // Use user?.id instead of user to prevent unnecessary re-runs
 
@@ -761,9 +824,9 @@ export default function DashboardPage() {
   );
 
   const pendingSubmissionsCount =
-    typeof submissionsTotal === 'number'
+    pendingFilters.status === 'pending' && typeof submissionsTotal === 'number'
       ? submissionsTotal
-      : submissions.filter(s => s.status === 'pending').length;
+      : submissions.filter((s) => s.status === 'pending').length;
 
   const myChannelMemesCount = memesCount ?? 0;
   const isStreamerAdmin = user?.role === 'streamer' || user?.role === 'admin';
@@ -795,6 +858,115 @@ export default function DashboardPage() {
     [isStreamerAdmin, saveDashboardOrder]
   );
 
+  const buildNeedsChangesPayload = (preset: NeedsChangesPreset, message: string) => {
+    const codes: string[] = [];
+    if (preset.badTitle) codes.push('bad_title');
+    if (preset.noTags) codes.push('no_tags');
+    if (preset.other) codes.push('other');
+    const msg = message.trim();
+    const hasReason = codes.length > 0 || msg.length > 0;
+    const otherNeedsText = preset.other && msg.length === 0;
+    const packed = JSON.stringify({ v: 1, codes, message: msg });
+    return { codes, message: msg, hasReason, otherNeedsText, packed };
+  };
+
+  const openBulkModalFor = (action: BulkActionKind, submissionIds: string[]) => {
+    const uniqueIds = Array.from(new Set(submissionIds));
+    if (uniqueIds.length === 0) return;
+    setBulkModal({ open: true, action, submissionIds: uniqueIds });
+    setBulkActionLoading(false);
+    setBulkPriceCoins(priceCoins);
+    setBulkRejectReason('');
+    setBulkNeedsChangesPreset({ badTitle: false, noTags: false, other: false });
+    setBulkNeedsChangesText('');
+  };
+
+  const handleBulkConfirm = async () => {
+    if (!bulkModal.open || bulkActionLoading) return;
+    const submissionIds = bulkModal.submissionIds.filter(Boolean);
+    if (submissionIds.length === 0) return;
+
+    if (bulkModal.action === 'approve') {
+      const parsed = parseInt(bulkPriceCoins, 10);
+      if (Number.isNaN(parsed) || parsed < 1) {
+        toast.error(t('admin.invalidPrice', { defaultValue: 'Price must be at least 1 coin' }));
+        return;
+      }
+    }
+
+    if (bulkModal.action === 'needs_changes') {
+      const { hasReason, otherNeedsText } = buildNeedsChangesPayload(bulkNeedsChangesPreset, bulkNeedsChangesText);
+      if (!hasReason || otherNeedsText) {
+        toast.error(
+          t('submissions.needsChangesReasonRequired', {
+            defaultValue: 'Select a reason or write a message.',
+          }),
+        );
+        return;
+      }
+    }
+
+    setBulkActionLoading(true);
+    try {
+      const payload: {
+        submissionIds: string[];
+        action: BulkActionKind;
+        moderatorNotes?: string;
+        priceCoins?: number;
+      } = {
+        submissionIds,
+        action: bulkModal.action,
+      };
+
+      if (bulkModal.action === 'approve') {
+        payload.priceCoins = parseInt(bulkPriceCoins, 10);
+      } else if (bulkModal.action === 'needs_changes') {
+        payload.moderatorNotes = buildNeedsChangesPayload(bulkNeedsChangesPreset, bulkNeedsChangesText).packed;
+      } else if (bulkModal.action === 'reject') {
+        const notes = bulkRejectReason.trim();
+        if (notes) payload.moderatorNotes = notes;
+      }
+
+      const result = await dispatch(bulkModerateSubmissions(payload)).unwrap();
+      const successCount = Array.isArray(result?.success) ? result.success.length : 0;
+      const failedCount = Array.isArray(result?.failed) ? result.failed.length : 0;
+
+      if (successCount > 0) {
+        toast.success(
+          t('dashboard.bulk.successToast', {
+            defaultValue: 'Bulk action complete: {{success}} succeeded.',
+            success: successCount,
+          }),
+        );
+      }
+      if (failedCount > 0) {
+        toast.error(
+          t('dashboard.bulk.failedToast', {
+            defaultValue: 'Some items failed: {{failed}}.',
+            failed: failedCount,
+          }),
+        );
+      }
+
+      setBulkModal({ open: false, action: bulkModal.action, submissionIds: [] });
+      dispatch(
+        fetchSubmissions({
+          status: pendingFilters.status,
+          aiStatus: pendingFilters.aiStatus,
+          q: debouncedPendingQ.trim() || undefined,
+          sort: pendingFilters.sort,
+          limit: 20,
+          offset: 0,
+          includeTotal: true,
+        }),
+      );
+    } catch {
+      toast.error(t('dashboard.bulk.failedAllToast', { defaultValue: 'Failed to apply bulk action.' }));
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
   const handleApprove = async () => {
     if (!approveModal.submissionId) return;
     const parsed = parseInt(priceCoins, 10);
@@ -813,7 +985,17 @@ export default function DashboardPage() {
       toast.success(t('admin.approve', { defaultValue: 'Approve' }));
       setApproveModal({ open: false, submissionId: null });
       setApproveTags([]);
-      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+      dispatch(
+        fetchSubmissions({
+          status: pendingFilters.status,
+          aiStatus: pendingFilters.aiStatus,
+          q: debouncedPendingQ.trim() || undefined,
+          sort: pendingFilters.sort,
+          limit: 20,
+          offset: 0,
+          includeTotal: true,
+        }),
+      );
     } catch {
       toast.error(t('admin.failedToApprove', { defaultValue: 'Failed to approve submission' }));
     }
@@ -826,7 +1008,17 @@ export default function DashboardPage() {
       await dispatch(rejectSubmission({ submissionId: rejectModal.submissionId, moderatorNotes: notes })).unwrap();
       toast.success(t('admin.reject', { defaultValue: 'Reject' }));
       setRejectModal({ open: false, submissionId: null });
-      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+      dispatch(
+        fetchSubmissions({
+          status: pendingFilters.status,
+          aiStatus: pendingFilters.aiStatus,
+          q: debouncedPendingQ.trim() || undefined,
+          sort: pendingFilters.sort,
+          limit: 20,
+          offset: 0,
+          includeTotal: true,
+        }),
+      );
     } catch {
       toast.error(t('admin.failedToReject', { defaultValue: 'Failed to reject submission' }));
     }
@@ -834,13 +1026,7 @@ export default function DashboardPage() {
 
   const handleNeedsChanges = async () => {
     if (!needsChangesModal.submissionId) return;
-    const codes: string[] = [];
-    if (needsChangesPreset.badTitle) codes.push('bad_title');
-    if (needsChangesPreset.noTags) codes.push('no_tags');
-    if (needsChangesPreset.other) codes.push('other');
-    const msg = needsChangesText.trim();
-    const hasReason = codes.length > 0 || msg.length > 0;
-    const otherNeedsText = needsChangesPreset.other && msg.length === 0;
+    const { hasReason, otherNeedsText, packed } = buildNeedsChangesPayload(needsChangesPreset, needsChangesText);
     if (!hasReason || otherNeedsText) {
       toast.error(
         t('submissions.needsChangesReasonRequired', {
@@ -849,12 +1035,26 @@ export default function DashboardPage() {
       );
       return;
     }
-    const packed = JSON.stringify({ v: 1, codes, message: msg });
     try {
-      await dispatch(needsChangesSubmission({ submissionId: needsChangesModal.submissionId, moderatorNotes: packed })).unwrap();
+      await dispatch(
+        needsChangesSubmission({
+          submissionId: needsChangesModal.submissionId,
+          moderatorNotes: packed,
+        }),
+      ).unwrap();
       toast.success(t('submissions.sentForChanges', { defaultValue: 'Sent for changes.' }));
       setNeedsChangesModal({ open: false, submissionId: null });
-      dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+      dispatch(
+        fetchSubmissions({
+          status: pendingFilters.status,
+          aiStatus: pendingFilters.aiStatus,
+          q: debouncedPendingQ.trim() || undefined,
+          sort: pendingFilters.sort,
+          limit: 20,
+          offset: 0,
+          includeTotal: true,
+        }),
+      );
     } catch {
       toast.error(t('submissions.failedToSendForChanges', { defaultValue: 'Failed to send for changes.' }));
     }
@@ -865,6 +1065,9 @@ export default function DashboardPage() {
     const revision = Math.max(0, Math.min(2, Number(s?.revision ?? 0) || 0));
     return Math.max(0, 2 - revision);
   })();
+  const bulkCount = bulkModal.submissionIds.length;
+  const bulkCheckboxBase =
+    'h-4 w-4 rounded border-black/10 dark:border-white/15 bg-white/50 dark:bg-white/10 text-primary focus:ring-2 focus:ring-primary/30';
 
   if (authLoading || !user) {
     return (
@@ -1518,15 +1721,36 @@ export default function DashboardPage() {
                       pendingError={submissionsError}
                       pendingCount={pendingSubmissionsCount}
                       total={submissionsTotal}
+                      pendingFilters={pendingFilters}
+                      onPendingFiltersChange={setPendingFilters}
                       onClose={() => setPanel(null)}
                       onLoadMorePending={() => {
                         const offset = submissions.length;
                         // If we know total and already loaded everything, skip.
                         if (typeof submissionsTotal === 'number' && offset >= submissionsTotal) return;
-                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset }));
+                        dispatch(
+                          fetchSubmissions({
+                            status: pendingFilters.status,
+                            aiStatus: pendingFilters.aiStatus,
+                            q: debouncedPendingQ.trim() || undefined,
+                            sort: pendingFilters.sort,
+                            limit: 20,
+                            offset,
+                          }),
+                        );
                       }}
                       onRetryPending={() => {
-                        dispatch(fetchSubmissions({ status: 'pending', limit: 20, offset: 0 }));
+                        dispatch(
+                          fetchSubmissions({
+                            status: pendingFilters.status,
+                            aiStatus: pendingFilters.aiStatus,
+                            q: debouncedPendingQ.trim() || undefined,
+                            sort: pendingFilters.sort,
+                            limit: 20,
+                            offset: 0,
+                            includeTotal: true,
+                          }),
+                        );
                       }}
                       onApprove={(submissionId) => {
                         setApproveModal({ open: true, submissionId });
@@ -1540,6 +1764,9 @@ export default function DashboardPage() {
                         setNeedsChangesModal({ open: true, submissionId });
                         setNeedsChangesPreset({ badTitle: false, noTags: false, other: false });
                         setNeedsChangesText('');
+                      }}
+                      onBulkAction={(action, submissionIds) => {
+                        openBulkModalFor(action, submissionIds);
                       }}
                       mySubmissions={mySubmissions}
                       mySubmissionsLoading={mySubmissionsLoading}
@@ -1644,8 +1871,141 @@ export default function DashboardPage() {
         onClose={() => setRejectModal({ open: false, submissionId: null })}
         onReject={handleReject}
       />
+
+      <ConfirmDialog
+        isOpen={bulkModal.open}
+        onClose={() => {
+          if (bulkActionLoading) return;
+          setBulkModal({ open: false, action: bulkModal.action, submissionIds: [] });
+        }}
+        onConfirm={() => void handleBulkConfirm()}
+        isLoading={bulkActionLoading}
+        title={
+          bulkModal.action === 'approve'
+            ? t('dashboard.bulk.approveTitle', { defaultValue: 'Approve {{count}} submissions', count: bulkCount })
+            : bulkModal.action === 'needs_changes'
+              ? t('dashboard.bulk.needsChangesTitle', { defaultValue: 'Send {{count}} submissions for changes', count: bulkCount })
+              : t('dashboard.bulk.rejectTitle', { defaultValue: 'Reject {{count}} submissions', count: bulkCount })
+        }
+        confirmText={
+          bulkModal.action === 'approve'
+            ? t('admin.approve', { defaultValue: 'Approve' })
+            : bulkModal.action === 'needs_changes'
+              ? t('submissions.sendForChanges', { defaultValue: 'Send' })
+              : t('admin.reject', { defaultValue: 'Reject' })
+        }
+        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
+        confirmButtonClass={
+          bulkModal.action === 'approve'
+            ? 'bg-emerald-600 hover:bg-emerald-700'
+            : bulkModal.action === 'needs_changes'
+              ? 'bg-amber-500 hover:bg-amber-600'
+              : 'bg-red-600 hover:bg-red-700'
+        }
+        message={
+          bulkModal.action === 'approve' ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                {t('dashboard.bulk.confirmHint', {
+                  defaultValue: 'This will apply to {{count}} submissions.',
+                  count: bulkCount,
+                })}
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('admin.priceCoins', { defaultValue: 'Price (coins)' })}
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={bulkPriceCoins}
+                  onChange={(e) => setBulkPriceCoins(e.target.value)}
+                  required
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('admin.priceCoinsDescription', { defaultValue: 'Minimum 1 coin' })}
+                </p>
+              </div>
+            </div>
+          ) : bulkModal.action === 'needs_changes' ? (
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                {t('dashboard.bulk.confirmHint', {
+                  defaultValue: 'This will apply to {{count}} submissions.',
+                  count: bulkCount,
+                })}
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('submissions.quickReasons', { defaultValue: 'Quick reasons' })}
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 select-none">
+                  <input
+                    type="checkbox"
+                    className={bulkCheckboxBase}
+                    checked={bulkNeedsChangesPreset.badTitle}
+                    onChange={(e) => setBulkNeedsChangesPreset({ ...bulkNeedsChangesPreset, badTitle: e.target.checked })}
+                  />
+                  {t('submissions.reasonBadTitle', { defaultValue: 'Title is not OK' })}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 select-none">
+                  <input
+                    type="checkbox"
+                    className={bulkCheckboxBase}
+                    checked={bulkNeedsChangesPreset.noTags}
+                    onChange={(e) => setBulkNeedsChangesPreset({ ...bulkNeedsChangesPreset, noTags: e.target.checked })}
+                  />
+                  {t('submissions.reasonNoTags', { defaultValue: 'No tags' })}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 select-none">
+                  <input
+                    type="checkbox"
+                    className={bulkCheckboxBase}
+                    checked={bulkNeedsChangesPreset.other}
+                    onChange={(e) => setBulkNeedsChangesPreset({ ...bulkNeedsChangesPreset, other: e.target.checked })}
+                  />
+                  {t('submissions.reasonOther', { defaultValue: 'Other (write below)' })}
+                </label>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('submissions.messageToUser', { defaultValue: 'Message to user (optional)' })}
+                </label>
+                <Textarea
+                  value={bulkNeedsChangesText}
+                  onChange={(e) => setBulkNeedsChangesText(e.target.value)}
+                  rows={4}
+                  placeholder={t('submissions.messagePlaceholder', { defaultValue: 'Explain what to fix:' })}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('submissions.messageHint', { defaultValue: 'This will be shown to the submitter.' })}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                {t('dashboard.bulk.confirmHint', {
+                  defaultValue: 'This will apply to {{count}} submissions.',
+                  count: bulkCount,
+                })}
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('dashboard.bulk.rejectReasonLabel', { defaultValue: 'Reject reason (optional)' })}
+                </label>
+                <Textarea
+                  value={bulkRejectReason}
+                  onChange={(e) => setBulkRejectReason(e.target.value)}
+                  rows={4}
+                  placeholder={t('dashboard.bulk.rejectReasonPlaceholder', { defaultValue: 'Reason for rejection (optional)' })}
+                />
+              </div>
+            </div>
+          )
+        }
+      />
     </>
   );
 }
-
-

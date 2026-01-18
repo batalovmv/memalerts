@@ -389,12 +389,56 @@
     },
     "resetLayout": "Reset layout",
     "layoutReset": "Layout reset.",
-    "submissions": {
-      "saved": "Saved",
+      "hotkeys": {
+        "title": "Hotkeys",
+        "approve": "Approve focused",
+        "reject": "Reject (notes)",
+        "needsChanges": "Needs changes (notes)",
+        "prev": "Previous item",
+        "next": "Next item",
+        "toggle": "Toggle selection",
+        "clear": "Clear selection",
+        "help": "Show hotkeys"
+      },
+      "bulk": {
+        "selectAll": "Select all",
+        "selectItem": "Select submission",
+        "selectedCount": "Selected: {{count}}",
+        "approveSelected": "Approve selected",
+        "needsChangesSelected": "Needs changes",
+        "rejectSelected": "Reject selected",
+        "clearSelection": "Clear selection",
+        "confirmHint": "This will apply to {{count}} submissions.",
+        "approveTitle": "Approve {{count}} submissions",
+        "needsChangesTitle": "Send {{count}} submissions for changes",
+        "rejectTitle": "Reject {{count}} submissions",
+        "rejectReasonLabel": "Reject reason (optional)",
+        "rejectReasonPlaceholder": "Reason for rejection (optional)",
+        "successToast": "Bulk action complete: {{success}} succeeded.",
+        "failedToast": "Some items failed: {{failed}}.",
+        "failedAllToast": "Failed to apply bulk action."
+      },
+      "submissions": {
+        "saved": "Saved",
       "enabledTitle": "Allow submissions",
       "enabledHint": "If disabled, viewers will see a message instead of the submit form.",
       "onlyWhenLiveTitle": "Only while stream is live",
       "onlyWhenLiveHint": "If enabled, submissions will be rejected when the stream is offline."
+    },
+    "noSubmissionsFound": "No submissions found.",
+    "submissionsFilters": {
+      "searchPlaceholder": "Search by title or name…",
+      "statusLabel": "Status",
+      "statusAll": "All",
+      "aiStatusLabel": "AI status",
+      "aiStatusAll": "AI: all",
+      "aiStatusPending": "AI: pending",
+      "aiStatusProcessing": "AI: processing",
+      "aiStatusDone": "AI: done",
+      "aiStatusFailed": "AI: failed",
+      "sortLabel": "Sort",
+      "sortNewest": "Newest first",
+      "sortOldest": "Oldest first"
     },
     "submissionsControl": {
       "title": "Submissions",
@@ -454,6 +498,21 @@
     "addTags": "Add tags to help categorize your meme...",
     "notes": "Notes (optional)",
     "submitting": "Submitting...",
+    "uploading": "Uploading...",
+    "cancel": "Cancel",
+    "retry": "Try again",
+    "retryIn": "Try again in {{seconds}}s",
+    "success": "Meme submitted for moderation",
+    "submitAnother": "Submit another",
+    "errors": {
+      "rateLimited": "Too many requests. Please wait {{seconds}} seconds.",
+      "fileTooLarge": "File is too large. Maximum 50 MB.",
+      "videoTooLong": "Video is too long. Maximum 5 minutes.",
+      "invalidType": "Invalid file type. Upload a video.",
+      "cannotReadDuration": "Cannot read video duration.",
+      "networkError": "Network error. Check your connection.",
+      "unknown": "Something went wrong. Please try again."
+    },
     "submitted": "Submission created! Waiting for approval.",
     "importSubmitted": "Meme import submitted! Waiting for approval.",
     "mySubmissions": "My submissions",
@@ -508,7 +567,9 @@
     "resubmitted": "Resubmitted.",
     "failedToResubmit": "Failed to resubmit.",
     "rejectionReasonTitle": "Rejection reason",
-    "noReasonProvided": "No reason provided."
+    "noReasonProvided": "No reason provided.",
+    "aiRetryCount": "AI retry count",
+    "aiRetryCountLabel": "AI retries: {{count}}"
   },
   "meme": {
     "status": {
@@ -1226,7 +1287,7 @@
     "pleaseLogIn": "Please log in to submit memes",
     "pleaseSelectFile": "Please select a file",
     "fileSizeExceeds": "File size exceeds 50MB. Current size: {{size}}MB",
-    "videoDurationExceeds": "Video duration exceeds 15 seconds. Current duration: {{duration}}s",
+    "videoDurationExceeds": "Video duration exceeds 5 minutes. Current duration: {{duration}}s",
     "pleaseEnterUrl": "Please enter a memalerts.com URL",
     "urlMustBeFromMemalerts": "URL must be from memalerts.com or cdns.memealerts.com",
     "uploadTimeout": "Upload timeout. The file may have been uploaded successfully. Please check your submissions.",
@@ -1340,4 +1401,3 @@
     "videoLoadFailed": "Failed to load video source"
   }
 }
-

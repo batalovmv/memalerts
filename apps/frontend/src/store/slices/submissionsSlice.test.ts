@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import reducer, {
+  bulkModerateSubmissions,
   fetchSubmissions,
   removeSubmission,
+  submissionAiCompleted,
   submissionApproved,
   submissionCreated,
   submissionNeedsChanges,
@@ -88,6 +90,16 @@ describe('submissionsSlice reducer', () => {
     expect(next.submissions[0]).toMatchObject({ id: 's9', revision: 1, status: 'pending' });
   });
 
+  it('submissionAiCompleted updates AI fields when item exists', () => {
+    const prev = reducer(undefined, { type: 'init' });
+    const seeded = { ...prev, submissions: [makeSubmission('s1')] };
+    const next = reducer(
+      seeded,
+      submissionAiCompleted({ submissionId: 's1', aiStatus: 'done', aiDecision: 'medium', aiRiskScore: 0.42 }),
+    );
+    expect(next.submissions[0]).toMatchObject({ aiStatus: 'done', aiDecision: 'medium', aiRiskScore: 0.42 });
+  });
+
   it('fetchSubmissions.fulfilled replaces on first page and appends unique on next pages', () => {
     const prev = reducer(undefined, { type: 'init' });
 
@@ -112,7 +124,30 @@ describe('submissionsSlice reducer', () => {
     );
     expect(page2.submissions.map((s) => s.id)).toEqual(['a', 'b', 'c']);
   });
+
+  it('bulkModerateSubmissions.fulfilled removes successful items and updates total', () => {
+    const prev = reducer(undefined, { type: 'init' });
+    const seeded = {
+      ...prev,
+      total: 3,
+      submissions: [makeSubmission('s1'), makeSubmission('s2'), makeSubmission('s3')],
+    };
+
+    const next = reducer(
+      seeded,
+      bulkModerateSubmissions.fulfilled(
+        { success: ['s1', 's3'], failed: [{ id: 's2', error: 'oops' }] },
+        'req1',
+        { submissionIds: ['s1', 's2', 's3'], action: 'approve', priceCoins: 100 },
+      ),
+    );
+
+    expect(next.submissions.map((s) => s.id)).toEqual(['s2']);
+    expect(next.total).toBe(1);
+  });
 });
+
+
 
 
 

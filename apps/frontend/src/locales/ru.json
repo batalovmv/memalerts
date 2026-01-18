@@ -406,12 +406,56 @@
     },
     "resetLayout": "Сбросить порядок",
     "layoutReset": "Порядок сброшен.",
-    "submissions": {
-      "saved": "Сохранено",
+      "hotkeys": {
+        "title": "Горячие клавиши",
+        "approve": "Одобрить выбранный",
+        "reject": "Отклонить (с заметкой)",
+        "needsChanges": "На доработку (с заметкой)",
+        "prev": "Предыдущий элемент",
+        "next": "Следующий элемент",
+        "toggle": "Переключить выбор",
+        "clear": "Сбросить выбор",
+        "help": "Показать подсказку"
+      },
+      "bulk": {
+        "selectAll": "Выбрать все",
+        "selectItem": "Выбрать заявку",
+        "selectedCount": "Выбрано: {{count}}",
+        "approveSelected": "Одобрить выбранные",
+        "needsChangesSelected": "На доработку",
+        "rejectSelected": "Отклонить выбранные",
+        "clearSelection": "Сбросить выбор",
+        "confirmHint": "Действие применится к {{count}} заявкам.",
+        "approveTitle": "Одобрить заявок: {{count}}",
+        "needsChangesTitle": "Отправить на доработку: {{count}}",
+        "rejectTitle": "Отклонить заявок: {{count}}",
+        "rejectReasonLabel": "Причина отклонения (опционально)",
+        "rejectReasonPlaceholder": "Причина отклонения (опционально)",
+        "successToast": "Готово: успешно {{success}}.",
+        "failedToast": "Ошибки: {{failed}}.",
+        "failedAllToast": "Не удалось выполнить массовое действие."
+      },
+      "submissions": {
+        "saved": "Сохранено",
       "enabledTitle": "Разрешить отправку",
       "enabledHint": "Если выключено — зритель увидит сообщение вместо формы отправки.",
       "onlyWhenLiveTitle": "Только когда стрим онлайн",
       "onlyWhenLiveHint": "Если включено — отправка будет отклоняться, когда стрим оффлайн."
+    },
+    "noSubmissionsFound": "Ничего не найдено.",
+    "submissionsFilters": {
+      "searchPlaceholder": "Поиск по названию или имени…",
+      "statusLabel": "Статус",
+      "statusAll": "Все",
+      "aiStatusLabel": "AI статус",
+      "aiStatusAll": "AI: все",
+      "aiStatusPending": "AI: ожидает",
+      "aiStatusProcessing": "AI: обрабатывает",
+      "aiStatusDone": "AI: готово",
+      "aiStatusFailed": "AI: ошибка",
+      "sortLabel": "Сортировка",
+      "sortNewest": "Сначала новые",
+      "sortOldest": "Сначала старые"
     },
     "submissionsControl": {
       "title": "Отправка мемов",
@@ -471,6 +515,21 @@
     "addTags": "Добавьте теги для категоризации мема...",
     "notes": "Заметки (необязательно)",
     "submitting": "Добавление...",
+    "uploading": "Загрузка...",
+    "cancel": "Отменить",
+    "retry": "Повторить",
+    "retryIn": "Повторить через {{seconds}} сек",
+    "success": "Мем отправлен на модерацию",
+    "submitAnother": "Отправить ещё",
+    "errors": {
+      "rateLimited": "Слишком много запросов. Подождите {{seconds}} секунд.",
+      "fileTooLarge": "Файл слишком большой. Максимум 50 МБ.",
+      "videoTooLong": "Видео слишком длинное. Максимум 5 минут.",
+      "invalidType": "Неверный тип файла. Загрузите видео.",
+      "cannotReadDuration": "Не удалось прочитать длительность видео.",
+      "networkError": "Ошибка сети. Проверьте подключение.",
+      "unknown": "Что-то пошло не так. Попробуйте снова."
+    },
     "submitted": "Заявка создана! Ожидает одобрения.",
     "importSubmitted": "Заявка на импорт мема отправлена! Ожидает одобрения.",
     "submitButton": "Добавить",
@@ -525,7 +584,9 @@
     "resubmitted": "Переотправлено.",
     "failedToResubmit": "Не удалось переотправить.",
     "rejectionReasonTitle": "Причина отказа",
-    "noReasonProvided": "Причина не указана."
+    "noReasonProvided": "Причина не указана.",
+    "aiRetryCount": "Повторы AI",
+    "aiRetryCountLabel": "AI попытки: {{count}}"
   },
   "meme": {
     "status": {
@@ -1253,7 +1314,7 @@
     "pleaseLogIn": "Пожалуйста, войдите, чтобы добавлять мемы",
     "pleaseSelectFile": "Пожалуйста, выберите файл",
     "fileSizeExceeds": "Размер файла превышает 50МБ. Текущий размер: {{size}}МБ",
-    "videoDurationExceeds": "Длительность видео превышает 15 секунд. Текущая длительность: {{duration}}с",
+    "videoDurationExceeds": "Длительность видео превышает 5 минут. Текущая длительность: {{duration}}с",
     "pleaseEnterUrl": "Пожалуйста, введите URL с memalerts.com",
     "urlMustBeFromMemalerts": "URL должен быть с memalerts.com или cdns.memealerts.com",
     "uploadTimeout": "Таймаут загрузки. Файл мог быть успешно загружен. Пожалуйста, проверьте ваши заявки.",
@@ -1358,4 +1419,3 @@
     "videoLoadFailed": "Не удалось загрузить видео"
   }
 }
-

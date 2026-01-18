@@ -524,11 +524,32 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       scheduleRefreshPending();
     };
 
+    const onStatusChanged = (data: { submissionId: string; status: string; channelId?: string; submitterId?: string }) => {
+      if (effectiveModeratorChannelId && data.channelId && data.channelId !== effectiveModeratorChannelId) return;
+      if (data.status === 'approved') {
+        dispatch(submissionApproved({ submissionId: data.submissionId }));
+      } else if (data.status === 'rejected') {
+        dispatch(submissionRejected({ submissionId: data.submissionId }));
+      } else if (data.status === 'needs_changes') {
+        dispatch(submissionNeedsChanges({ submissionId: data.submissionId }));
+      } else if (data.status === 'pending') {
+        dispatch(
+          submissionResubmitted({
+            submissionId: data.submissionId,
+            channelId: data.channelId || '',
+            submitterId: data.submitterId,
+          }),
+        );
+        scheduleRefreshPending();
+      }
+    };
+
     socket.on('submission:created', onCreated);
     socket.on('submission:approved', onApproved);
     socket.on('submission:rejected', onRejected);
     socket.on('submission:needs_changes', onNeedsChanges);
     socket.on('submission:resubmitted', onResubmitted);
+    socket.on('submission:status-changed', onStatusChanged);
 
     // Ensure moderators are in their channel room (needed on /dashboard and /settings too)
     if (isConnected && effectiveModeratorChannelSlug) {
@@ -542,6 +563,7 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       socket.off('submission:rejected', onRejected);
       socket.off('submission:needs_changes', onNeedsChanges);
       socket.off('submission:resubmitted', onResubmitted);
+      socket.off('submission:status-changed', onStatusChanged);
     };
   }, [
     socket,
@@ -946,5 +968,4 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
     </>
   );
 }
-
 

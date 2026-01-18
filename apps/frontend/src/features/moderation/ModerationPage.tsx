@@ -57,6 +57,7 @@ export default function ModerationPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const busyIdRef = useRef<string | null>(null);
+  const refreshTimerRef = useRef<number | null>(null);
 
   const [confirm, setConfirm] = useState<null | { kind: 'hide' | 'unhide' | 'quarantine'; asset: ModerationMemeAsset }>(null);
   const [reason, setReason] = useState('');
@@ -130,6 +131,22 @@ export default function ModerationPage() {
       }
     })();
   }, [allowed, loadPage, status, t]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    const onAssetChanged = () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = window.setTimeout(() => {
+        void loadPage(0, false);
+      }, 200);
+    };
+    window.addEventListener('meme-asset:status-changed', onAssetChanged as EventListener);
+    return () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+      window.removeEventListener('meme-asset:status-changed', onAssetChanged as EventListener);
+    };
+  }, [allowed, loadPage]);
 
   const doAction = async (kind: 'hide' | 'unhide' | 'quarantine', asset: ModerationMemeAsset, reasonText?: string) => {
     if (!asset.id) return;
@@ -543,5 +560,4 @@ export default function ModerationPage() {
     </PageShell>
   );
 }
-
 

@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import axios, { AxiosError } from 'axios';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+
+import { getVideoDuration, validateFile } from '@/features/submit/lib/validation';
 
 import TagInput from '@/components/TagInput';
 import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
@@ -17,12 +20,14 @@ export interface SubmitModalProps {
   initialBlockedReason?: null | 'disabled' | 'offline';
 }
 
+type UploadStatus = 'idle' | 'selecting' | 'uploading' | 'success' | 'error';
+
 export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, initialBlockedReason = null }: SubmitModalProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const [loading, setLoading] = useState<boolean>(false);
+  const [importLoading, setImportLoading] = useState<boolean>(false);
   const [blockedReason, setBlockedReason] = useState<null | 'disabled' | 'offline'>(null);
   const [mode, setMode] = useState<'upload' | 'import'>('upload');
   const [formData, setFormData] = useState<{
@@ -37,6 +42,18 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState<number>(0);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [canSubmit, setCanSubmit] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const retryIntervalRef = useRef<number | null>(null);
+  const validationTokenRef = useRef(0);
+
+  const isUploading = uploadStatus === 'uploading';
+  const isSubmitLocked = importLoading || isUploading;
 
   const isOwnerBypassTarget =
     !!user &&
@@ -55,8 +72,19 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
       setFile(null);
       setFilePreview(null);
       setUploadProgress(0);
+      setUploadStatus('idle');
+      setErrorMessage(null);
+      setRetryAfterSeconds(0);
+      setValidationErrors([]);
+      setCanSubmit(false);
+      setIsValidating(false);
       setMode('upload');
       setBlockedReason(null);
+      abortControllerRef.current?.abort();
+      if (retryIntervalRef.current) {
+        window.clearInterval(retryIntervalRef.current);
+        retryIntervalRef.current = null;
+      }
     }
   }, [isOpen]);
 
@@ -76,6 +104,15 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0] || null;
     setFile(selectedFile);
+    setUploadProgress(0);
+    setErrorMessage(null);
+    setRetryAfterSeconds(0);
+    setUploadStatus(selectedFile ? 'selecting' : 'idle');
+    setValidationErrors([]);
+    setCanSubmit(false);
+    setIsValidating(false);
+    validationTokenRef.current += 1;
+    const token = validationTokenRef.current;
 
     if (selectedFile) {
       const reader = new FileReader();
@@ -83,9 +120,126 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         setFilePreview(reader.result as string);
       };
       reader.readAsDataURL(selectedFile);
+      setIsValidating(true);
+      void validateFile(selectedFile, t)
+        .then((result) => {
+          if (validationTokenRef.current !== token) return;
+          setValidationErrors(result.errors);
+          setCanSubmit(result.valid);
+        })
+        .catch(() => {
+          if (validationTokenRef.current !== token) return;
+          setValidationErrors([t('submit.errors.cannotReadDuration', { defaultValue: 'Cannot read video duration.' })]);
+          setCanSubmit(false);
+        })
+        .finally(() => {
+          if (validationTokenRef.current !== token) return;
+          setIsValidating(false);
+        });
     } else {
       setFilePreview(null);
     }
+  };
+
+  const clearRetryTimer = () => {
+    if (retryIntervalRef.current) {
+      window.clearInterval(retryIntervalRef.current);
+      retryIntervalRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      clearRetryTimer();
+    };
+  }, []);
+
+  const startRetryCountdown = (seconds: number) => {
+    clearRetryTimer();
+    const initial = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+    setRetryAfterSeconds(initial);
+    setErrorMessage(t('submit.errors.rateLimited', { seconds: initial }));
+    if (initial <= 0) return;
+    retryIntervalRef.current = window.setInterval(() => {
+      setRetryAfterSeconds((prev) => {
+        if (prev <= 1) {
+          clearRetryTimer();
+          setErrorMessage(t('submit.errors.rateLimited', { seconds: 0 }));
+          return 0;
+        }
+        const next = prev - 1;
+        setErrorMessage(t('submit.errors.rateLimited', { seconds: next }));
+        return next;
+      });
+    }, 1000);
+  };
+
+  const getErrorMessage = (error: AxiosError, errorCode: unknown) => {
+    if (!error.response) {
+      return t('submit.errors.networkError', { defaultValue: 'Network error. Check your connection.' });
+    }
+    if (typeof errorCode === 'string') {
+      if (errorCode === 'FILE_TOO_LARGE') {
+        return t('submit.errors.fileTooLarge', { defaultValue: 'File is too large. Maximum 50 MB.' });
+      }
+      if (errorCode === 'VIDEO_TOO_LONG') {
+        return t('submit.errors.videoTooLong', { defaultValue: 'Video is too long. Maximum 5 minutes.' });
+      }
+    }
+    const rawMessage =
+      error.response?.data && typeof error.response.data === 'object'
+        ? ((error.response.data as Record<string, unknown>).error as string | undefined)
+        : undefined;
+    if (rawMessage) return rawMessage;
+    return t('submit.errors.unknown', { defaultValue: 'Something went wrong. Please try again.' });
+  };
+
+  const handleUploadError = (error: AxiosError) => {
+    const response = error.response;
+    const errorCode =
+      response?.data && typeof response.data === 'object'
+        ? ((response.data as Record<string, unknown>).errorCode as unknown)
+        : null;
+
+    if (response?.status === 429) {
+      const retryAfterRaw = response.headers?.['retry-after'];
+      const retryAfter = Math.max(0, Number.parseInt(String(retryAfterRaw ?? '60'), 10) || 60);
+      startRetryCountdown(retryAfter);
+      return;
+    }
+
+    clearRetryTimer();
+    setRetryAfterSeconds(0);
+    setErrorMessage(getErrorMessage(error, errorCode));
+  };
+
+  const handleCancelUpload = () => {
+    abortControllerRef.current?.abort();
+    setUploadProgress(0);
+    setUploadStatus('idle');
+  };
+
+  const handleRetry = () => {
+    clearRetryTimer();
+    setRetryAfterSeconds(0);
+    setErrorMessage(null);
+    setUploadProgress(0);
+    setUploadStatus('idle');
+  };
+
+  const handleSubmitAnother = () => {
+    clearRetryTimer();
+    setRetryAfterSeconds(0);
+    setErrorMessage(null);
+    setUploadProgress(0);
+    setUploadStatus('idle');
+    setFormData((prev) => ({ ...prev, title: '', tags: [] }));
+    setFile(null);
+    setFilePreview(null);
+    setValidationErrors([]);
+    setCanSubmit(false);
+    setIsValidating(false);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -101,46 +255,25 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         toast.error(t('submitModal.pleaseSelectFile'));
         return;
       }
-
-      // Validate file size (50MB max)
-      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(t('submitModal.fileSizeExceeds', { size: (file.size / 1024 / 1024).toFixed(2) }));
+      if (isValidating || !canSubmit) {
         return;
       }
 
-      // Validate video duration (15 seconds max)
-      // We'll validate this on backend, but show a warning here
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-
-      const durationCheck = new Promise<number>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          window.URL.revokeObjectURL(video.src);
-          resolve(video.duration);
-        };
-        video.onerror = () => {
-          window.URL.revokeObjectURL(video.src);
-          reject(new Error('Failed to load video metadata'));
-        };
-        video.src = URL.createObjectURL(file);
-      });
-
       let durationMsToSend: number | null = null;
       try {
-        const duration = await durationCheck;
-        durationMsToSend = Number.isFinite(duration) ? Math.round(duration * 1000) : null;
-        if (duration > 15) {
-          toast.error(t('submitModal.videoDurationExceeds', { duration: duration.toFixed(2) }));
-          return;
-        }
+        const durationSeconds = await getVideoDuration(file);
+        durationMsToSend = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 1000) : null;
       } catch {
         // If we can't read metadata (codec/browser quirk), continue without duration hint.
         durationMsToSend = null;
       }
 
-      setLoading(true);
+      setUploadStatus('uploading');
       setUploadProgress(0);
+      setErrorMessage(null);
+      setRetryAfterSeconds(0);
+      clearRetryTimer();
+      abortControllerRef.current = new AbortController();
       try {
         const formDataToSend = new FormData();
         formDataToSend.append('file', file);
@@ -169,11 +302,11 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             'Content-Type': 'multipart/form-data',
           },
           onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percentCompleted);
-            }
+            const total = progressEvent.total ?? 0;
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / (total || progressEvent.loaded || 1));
+            setUploadProgress(percentCompleted);
           },
+          signal: abortControllerRef.current.signal,
         });
 
         const d = respData as Record<string, unknown> | null;
@@ -188,7 +321,8 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
               ? t('submit.directApproved', { defaultValue: 'Meme was added to your channel.' })
               : t('submit.submitted'),
         );
-        onClose();
+        setUploadProgress(100);
+        setUploadStatus('success');
 
         // Refresh relevant lists without forcing navigation.
         if (respStatus === 'pending') {
@@ -200,44 +334,41 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
           }
         }
       } catch (error: unknown) {
-        const apiError = error as {
-          response?: { status?: number; data?: { error?: string } };
-          code?: string;
-          message?: string;
-        };
+        const apiError = error as AxiosError;
+        if (axios.isCancel(apiError) || apiError.code === 'ERR_CANCELED') {
+          setUploadStatus('idle');
+          setUploadProgress(0);
+          return;
+        }
+
         const maybeErrorCode =
           apiError.response?.data && typeof apiError.response.data === 'object'
-            ? ((apiError.response.data as unknown as { errorCode?: unknown })?.errorCode ?? null)
+            ? ((apiError.response.data as Record<string, unknown>).errorCode ?? null)
             : null;
         if (apiError.response?.status === 403 && maybeErrorCode === 'SUBMISSIONS_DISABLED') {
           setBlockedReason('disabled');
+          setUploadStatus('idle');
           return;
         }
         if (apiError.response?.status === 403 && maybeErrorCode === 'SUBMISSIONS_OFFLINE') {
           setBlockedReason('offline');
+          setUploadStatus('idle');
           return;
         }
         if (apiError.response?.status === 409 && maybeErrorCode === 'ALREADY_IN_CHANNEL') {
-          toast.error(t('submitModal.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
+          setErrorMessage(t('submitModal.alreadyInChannel', { defaultValue: 'This meme is already in your channel.' }));
+          setUploadStatus('error');
           return;
         }
         if (apiError.response?.status === 410) {
-          toast.error(t('submitModal.uploadBlockedDeleted', { defaultValue: 'This file is deleted/quarantined and cannot be uploaded again.' }));
+          setErrorMessage(t('submitModal.uploadBlockedDeleted', { defaultValue: 'This file is deleted/quarantined and cannot be uploaded again.' }));
+          setUploadStatus('error');
           return;
         }
-        // Handle 524 Cloudflare timeout specifically
-        if (apiError.code === 'ECONNABORTED' || apiError.response?.status === 524 || apiError.message?.includes('timeout')) {
-          toast.error(t('submitModal.uploadTimeout'));
-          // Still close modal - submission might have been created
-          setTimeout(() => {
-            onClose();
-          }, 2000);
-        } else {
-          toast.error(apiError.response?.data?.error || apiError.message || t('submitModal.failedToSubmit'));
-        }
+        handleUploadError(apiError);
+        setUploadStatus('error');
       } finally {
-        setLoading(false);
-        setUploadProgress(0);
+        abortControllerRef.current = null;
       }
     } else {
       // Import mode
@@ -253,7 +384,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         return;
       }
 
-      setLoading(true);
+      setImportLoading(true);
       try {
         const { api } = await import('@/lib/api');
         const payload: Record<string, unknown> = {
@@ -315,7 +446,7 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
         }
         toast.error(apiError.response?.data?.error || t('submitModal.failedToImport'));
       } finally {
-        setLoading(false);
+        setImportLoading(false);
       }
     }
   };
@@ -426,126 +557,168 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'upload' ? (
-            <div role="tabpanel" id="submit-modal-panel-upload" aria-labelledby="submit-modal-tab-upload">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('submit.videoFile')}
-              </label>
-              <HelpTooltip content={t('help.submitModal.file', { defaultValue: 'Choose a video file to upload. Supported: common video formats.' })}>
-                <Input
-                  key="submit-upload-file"
-                  type="file"
-                  onChange={handleFileChange}
-                  required
-                  accept="video/*"
-                />
-              </HelpTooltip>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
-              {filePreview && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('submitModal.preview', 'Preview')}
+              {mode === 'upload' ? (
+                <div role="tabpanel" id="submit-modal-panel-upload" aria-labelledby="submit-modal-tab-upload">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('submit.videoFile')}
                   </label>
-                  <div className="rounded-xl p-4 bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10">
-                    <video src={filePreview} controls className="max-w-full max-h-64 mx-auto rounded" />
+                  <HelpTooltip content={t('help.submitModal.file', { defaultValue: 'Choose a video file to upload. Supported: common video formats.' })}>
+                    <Input
+                      key="submit-upload-file"
+                      type="file"
+                      onChange={handleFileChange}
+                      required
+                      accept="video/*"
+                      disabled={isUploading}
+                    />
+                  </HelpTooltip>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('submit.onlyVideos')}</p>
+                  {filePreview && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('submitModal.preview', 'Preview')}
+                      </label>
+                      <div className="rounded-xl p-4 bg-white/50 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10">
+                        <video src={filePreview} controls className="max-w-full max-h-64 mx-auto rounded" />
+                      </div>
+                    </div>
+                  )}
+                  {validationErrors.length > 0 && (
+                    <div className="mt-3 text-sm text-red-600 dark:text-red-400 space-y-1">
+                      {validationErrors.map((err, index) => (
+                        <p key={`${err}-${index}`}>! {err}</p>
+                      ))}
+                    </div>
+                  )}
+                  {uploadStatus === 'uploading' && (
+                    <div className="mt-4 space-y-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-primary h-2 rounded-full transition-all"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {t('submit.uploading', { defaultValue: 'Uploading...' })} {uploadProgress}%
+                      </span>
+                    </div>
+                  )}
+                  {uploadStatus === 'success' && (
+                    <div className="mt-4 rounded-xl bg-primary/10 ring-1 ring-primary/20 p-3 text-sm text-gray-900 dark:text-white">
+                      {t('submit.success', { defaultValue: 'Meme submitted for moderation' })}
+                    </div>
+                  )}
+                  {uploadStatus === 'error' && errorMessage && (
+                    <div className="mt-4 text-sm text-red-600 dark:text-red-400">{errorMessage}</div>
+                  )}
+                </div>
+              ) : (
+                <div role="tabpanel" id="submit-modal-panel-import" aria-labelledby="submit-modal-tab-import">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('submit.memalertsUrl')}
+                  </label>
+                  <HelpTooltip content={t('help.submitModal.url', { defaultValue: 'Paste a direct link to the media file from Memealerts (cdns.memealerts.com).' })}>
+                    <Input
+                      key="submit-import-url"
+                      type="url"
+                      value={formData.sourceUrl || ''}
+                      onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
+                      required
+                      placeholder={t('submit.memalertsUrlPlaceholder', { defaultValue: 'https://cdns.memealerts.com/.../alert_orig.webm' })}
+                      disabled={importLoading}
+                    />
+                  </HelpTooltip>
+                  <div className="mt-2 p-3 bg-accent/10 rounded-xl ring-1 ring-accent/20">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">{t('submit.howToCopy')}</p>
+                    <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
+                      {(t('submit.copyInstructions', { returnObjects: true }) as string[]).map(
+                        (instruction: string, index: number) => (
+                          <li key={index}>{instruction}</li>
+                        ),
+                      )}
+                    </ol>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      {t('submit.memalertsUrlExample', { defaultValue: 'Example: https://cdns.memealerts.com/p/.../alert_orig.webm' })}
+                    </p>
                   </div>
                 </div>
               )}
-            </div>
-          ) : (
-            <div role="tabpanel" id="submit-modal-panel-import" aria-labelledby="submit-modal-tab-import">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('submit.memalertsUrl')}
-              </label>
-              <HelpTooltip content={t('help.submitModal.url', { defaultValue: 'Paste a direct link to the media file from Memealerts (cdns.memealerts.com).' })}>
-                <Input
-                  key="submit-import-url"
-                  type="url"
-                  value={formData.sourceUrl || ''}
-                  onChange={(e) => setFormData({ ...formData, sourceUrl: e.target.value })}
-                  required
-                  placeholder={t('submit.memalertsUrlPlaceholder', { defaultValue: 'https://cdns.memealerts.com/.../alert_orig.webm' })}
-                />
-              </HelpTooltip>
-              <div className="mt-2 p-3 bg-accent/10 rounded-xl ring-1 ring-accent/20">
-                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">{t('submit.howToCopy')}</p>
-                <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
-                  {(t('submit.copyInstructions', { returnObjects: true }) as string[]).map(
-                    (instruction: string, index: number) => (
-                      <li key={index}>{instruction}</li>
-                    ),
-                  )}
-                </ol>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  {t('submit.memalertsUrlExample', { defaultValue: 'Example: https://cdns.memealerts.com/p/.../alert_orig.webm' })}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t('submit.titleLabel')}
+                </label>
+                <HelpTooltip content={t('help.submitModal.title', { defaultValue: 'Name of the meme in the channel. Viewers will see this title.' })}>
+                  <Input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    disabled={isSubmitLocked}
+                  />
+                </HelpTooltip>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('submit.tags')}</label>
+                <HelpTooltip content={t('help.submitModal.tags', { defaultValue: 'Add a few tags to help search and moderation (optional).' })}>
+                  <div>
+                    <TagInput
+                      tags={formData.tags}
+                      onChange={(tags) => setFormData({ ...formData, tags })}
+                      placeholder={t('submit.addTags')}
+                    />
+                  </div>
+                </HelpTooltip>
+              </div>
+
+              <div className="glass p-3 sm:p-4">
+                <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                  <strong>{t('submitModal.whatHappensNext', { defaultValue: 'What happens next?' })}</strong>{' '}
+                  {isOwnerBypassTarget
+                    ? t('submitModal.directApprovalProcess', {
+                        defaultValue: 'Since you are submitting to your own channel, the meme will be added immediately.',
+                      })
+                    : t('submitModal.approvalProcess', {
+                        defaultValue:
+                          'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.',
+                      })}
                 </p>
               </div>
-            </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('submit.titleLabel')}
-            </label>
-            <HelpTooltip content={t('help.submitModal.title', { defaultValue: 'Name of the meme in the channel. Viewers will see this title.' })}>
-              <Input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </HelpTooltip>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('submit.tags')}</label>
-            <HelpTooltip content={t('help.submitModal.tags', { defaultValue: 'Add a few tags to help search and moderation (optional).' })}>
-              <div>
-                <TagInput
-                  tags={formData.tags}
-                  onChange={(tags) => setFormData({ ...formData, tags })}
-                  placeholder={t('submit.addTags')}
-                />
+              <div className="flex gap-3 pt-4">
+                <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={isSubmitLocked}>
+                  {t('common.cancel')}
+                </Button>
+                {mode === 'upload' ? (
+                  uploadStatus === 'uploading' ? (
+                    <Button type="button" variant="outline" className="flex-1" onClick={handleCancelUpload}>
+                      {t('submit.cancel', { defaultValue: 'Cancel' })}
+                    </Button>
+                  ) : uploadStatus === 'success' ? (
+                    <Button type="button" variant="primary" className="flex-1" onClick={handleSubmitAnother}>
+                      {t('submit.submitAnother', { defaultValue: 'Submit another' })}
+                    </Button>
+                  ) : uploadStatus === 'error' ? (
+                    <Button type="button" variant="primary" className="flex-1" onClick={handleRetry} disabled={retryAfterSeconds > 0}>
+                      {retryAfterSeconds > 0
+                        ? t('submit.retryIn', { defaultValue: 'Try again in {{seconds}}s', seconds: retryAfterSeconds })
+                        : t('submit.retry', { defaultValue: 'Try again' })}
+                    </Button>
+                  ) : (
+                    <HelpTooltip content={t('help.submitModal.submit', { defaultValue: 'Send the meme for review. If this is your own channel, it will be added instantly.' })}>
+                      <Button type="submit" variant="primary" className="flex-1" disabled={!file || !canSubmit || isValidating || isSubmitLocked}>
+                        {t('submit.submitButton', { defaultValue: 'Add' })}
+                      </Button>
+                    </HelpTooltip>
+                  )
+                ) : (
+                  <HelpTooltip content={t('help.submitModal.submit', { defaultValue: 'Send the meme for review. If this is your own channel, it will be added instantly.' })}>
+                    <Button type="submit" variant="primary" className="flex-1" disabled={importLoading}>
+                      {importLoading ? t('submit.submitting') : t('submit.submitButton', { defaultValue: 'Add' })}
+                    </Button>
+                  </HelpTooltip>
+                )}
               </div>
-            </HelpTooltip>
-          </div>
-
-          {loading && uploadProgress > 0 && (
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">
-              <div
-                className="bg-primary h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          )}
-
-          <div className="glass p-3 sm:p-4">
-            <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
-              <strong>{t('submitModal.whatHappensNext', { defaultValue: 'What happens next?' })}</strong>{' '}
-              {isOwnerBypassTarget
-                ? t('submitModal.directApprovalProcess', {
-                    defaultValue: 'Since you are submitting to your own channel, the meme will be added immediately.',
-                  })
-                : t('submitModal.approvalProcess', {
-                    defaultValue:
-                      'Your submission will be reviewed by moderators. Once approved, it will appear in the meme list.',
-                  })}
-            </p>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={loading}>
-              {t('common.cancel')}
-            </Button>
-            <HelpTooltip content={t('help.submitModal.submit', { defaultValue: 'Send the meme for review. If this is your own channel, it will be added instantly.' })}>
-              <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
-                {loading
-                  ? uploadProgress > 0
-                    ? `${t('submit.submitting')} ${uploadProgress}%`
-                    : t('submit.submitting')
-                  : t('submit.submitButton', { defaultValue: 'Add' })}
-              </Button>
-            </HelpTooltip>
-          </div>
             </form>
           </>
         )}
@@ -553,5 +726,3 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
     </Modal>
   );
 }
-
-

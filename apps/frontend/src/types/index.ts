@@ -2,6 +2,74 @@ export type UserRole = 'viewer' | 'streamer' | 'admin';
 
 export type MemeCatalogMode = 'channel' | 'pool_all';
 
+export type StorageProvider = 'local' | 's3';
+
+export type BotProvider = 'twitch' | 'youtube' | 'vkvideo' | 'trovo' | 'kick';
+
+export type SubmissionSourceKind = 'upload' | 'url' | 'pool';
+
+export type MemeAssetStatus = 'active' | 'hidden' | 'quarantined' | 'deleted';
+
+export type AudioNormStatus = 'pending' | 'processing' | 'done' | 'failed' | 'failed_final';
+
+export interface CreditsEntry {
+  displayName: string;
+  amount?: number;
+  message?: string;
+}
+
+export interface CreditsState {
+  donors: CreditsEntry[];
+  chatters: CreditsEntry[];
+}
+
+export interface CreditsStyleJson {
+  backgroundColor?: string;
+  textColor?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  [key: string]: unknown;
+}
+
+export interface BotIntegrationSettings {
+  provider: BotProvider;
+  enabled: boolean;
+  useDefaultBot: boolean;
+  channelUrl?: string | null;
+}
+
+export type EntitlementType = 'custom_bot' | 'extended_overlay' | 'priority_ai';
+
+export interface ChannelEntitlement {
+  id: string;
+  channelId: string;
+  type: EntitlementType;
+  grantedBy: string;
+  grantedAt: string;
+  expiresAt?: string | null;
+}
+
+export interface GlobalModerator {
+  id: string;
+  userId: string;
+  user: {
+    id: string;
+    displayName: string;
+    profileImageUrl?: string | null;
+  };
+  grantedBy: string;
+  grantedAt: string;
+}
+
+export interface PendingCoinGrant {
+  id: string;
+  provider: string;
+  externalAccountId: string;
+  coins: number;
+  reason: string;
+  createdAt: string;
+}
+
 export interface Wallet {
   id: string;
   userId: string;
@@ -32,9 +100,27 @@ export interface Channel {
   submissionRewardCoinsUpload?: number;
   submissionRewardCoinsPool?: number;
   submissionRewardCoins?: number;
+  overlayStyleJson?: string | null;
+  creditsStyleJson?: string | null;
+  botIntegrations?: BotIntegrationSettings[];
+  twitchAutoRewardsJson?: TwitchAutoRewardsV1 | null;
+  kickAutoRewardsJson?: KickAutoRewardsV1 | null;
+  trovoAutoRewardsJson?: TrovoAutoRewardsV1 | null;
+  vkvideoAutoRewardsJson?: VkVideoAutoRewardsV1 | null;
+  youtubeAutoRewardsJson?: YouTubeAutoRewardsV1 | null;
 }
 
-export type ExternalAccountProvider = 'twitch' | string;
+export type ExternalAccountProvider =
+  | 'twitch'
+  | 'youtube'
+  | 'vk'
+  | 'vkvideo'
+  | 'vkplay'
+  | 'kick'
+  | 'trovo'
+  | 'boosty'
+  | 'discord'
+  | string;
 
 export interface ExternalAccount {
   id: string;
@@ -48,6 +134,8 @@ export interface ExternalAccount {
   displayName?: string | null;
   profileImageUrl?: string | null;
   profileUrl?: string | null;
+  linkedAt?: string;
+  lastUsedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -68,6 +156,7 @@ export interface User {
   channel?: Channel;
   wallets?: Wallet[];
   externalAccounts?: ExternalAccount[];
+  pendingCoinGrants?: PendingCoinGrant[];
 }
 
 export type MemeType = 'image' | 'gif' | 'video' | 'audio';
@@ -97,6 +186,7 @@ export interface Meme {
   title: string;
   type: MemeType;
   fileUrl: string;
+  playFileUrl?: string | null;
   fileHash?: string | null;
   /**
    * Optional link to the underlying MemeAsset (when backend includes it in streamer/channel DTOs).
@@ -166,7 +256,7 @@ export interface Submission {
   sourceUrl?: string | null;
   notes: string | null;
   status: SubmissionStatus;
-  sourceKind?: 'upload' | 'url' | 'pool';
+  sourceKind?: SubmissionSourceKind;
   memeAssetId?: string | null;
   moderatorNotes?: string | null;
   revision?: number; // number of resubmits after "needs_changes" (0..2)
@@ -187,11 +277,45 @@ export interface Submission {
   aiRetryCount?: number | null;
   aiNextRetryAt?: string | null;
   aiError?: string | null;
+  aiLockExpiresAt?: string | null;
+  aiProcessingStartedAt?: string | null;
   submitter: {
     id: string;
     displayName: string;
   };
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MemeAsset {
+  id: string;
+  type: MemeType;
+  fileUrl: string;
+  playFileUrl?: string | null;
+  fileHash: string;
+  durationMs?: number | null;
+  mimeType?: string | null;
+  fileSizeBytes?: number | null;
+  status: MemeAssetStatus;
+  hiddenAt?: string | null;
+  hiddenBy?: string | null;
+  quarantinedAt?: string | null;
+  quarantinedBy?: string | null;
+  quarantineReason?: string | null;
+  deletedAt?: string | null;
+  aiStatus?: 'pending' | 'done';
+  aiAutoTitle?: string | null;
+  aiAutoTagNamesJson?: string[] | null;
+  aiAutoDescription?: string | null;
+  aiSearchText?: string | null;
+  aiCompletedAt?: string | null;
+  audioNormStatus?: AudioNormStatus;
+  audioNormRetryCount?: number;
+  audioNormLastTriedAt?: string | null;
+  usageCount?: number;
+  channelCount?: number;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ApiError {
@@ -200,6 +324,17 @@ export interface ApiError {
   errorCode?: string;
   details?: unknown;
   statusCode?: number;
+  requestId?: string;
+  traceId?: string;
+}
+
+export interface ApiErrorResponse {
+  errorCode: string;
+  error: string;
+  message: string;
+  requestId?: string;
+  traceId?: string;
+  details?: unknown;
 }
 
 /**
@@ -238,3 +373,30 @@ export type TwitchAutoRewardsV1 = {
   };
 };
 
+export type KickAutoRewardsV1 = {
+  v: 1;
+  follow?: { enabled?: boolean; coins?: number; onceEver?: boolean; onlyWhenLive?: boolean };
+  subscribe?: { enabled?: boolean; tierCoins?: Record<string, number>; onlyWhenLive?: boolean };
+  giftSub?: { enabled?: boolean; giverCoins?: number; recipientCoins?: number; onlyWhenLive?: boolean };
+};
+
+export type TrovoAutoRewardsV1 = {
+  v: 1;
+  follow?: { enabled?: boolean; coins?: number; onceEver?: boolean; onlyWhenLive?: boolean };
+  subscribe?: { enabled?: boolean; tierCoins?: Record<string, number>; onlyWhenLive?: boolean };
+  raid?: { enabled?: boolean; baseCoins?: number; coinsPerViewer?: number; minViewers?: number };
+};
+
+export type VkVideoAutoRewardsV1 = {
+  v: 1;
+  follow?: { enabled?: boolean; coins?: number; onceEver?: boolean; onlyWhenLive?: boolean };
+  donation?: { enabled?: boolean; coinsPerRuble?: number; minAmount?: number };
+};
+
+export type YouTubeAutoRewardsV1 = {
+  v: 1;
+  subscribe?: { enabled?: boolean; coins?: number; onceEver?: boolean };
+  superchat?: { enabled?: boolean; coinsPerCurrency?: Record<string, number>; minAmount?: number };
+  membership?: { enabled?: boolean; tierCoins?: Record<string, number> };
+  like?: { enabled?: boolean; coins?: number; maxPerStream?: number };
+};

@@ -1,9 +1,23 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
-import type { ApiError, Submission } from '@/types';
+import type { ApiError, Submission, SubmissionAiDecision, SubmissionAiStatus } from '@/types';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/shared/api/toApiError';
+
+type ResubmitInput = {
+  title?: string;
+  notes?: string;
+  tags?: string[];
+};
+
+type BulkSubmissionAction = {
+  submissionIds: string[];
+  action: 'approve' | 'reject' | 'needs_changes';
+  moderatorNotes?: string;
+  priceCoins?: number;
+  durationMs?: number;
+};
 
 export interface SubmissionsState {
   submissions: Submission[];
@@ -35,14 +49,36 @@ function isSubmissionsPage(v: unknown): v is SubmissionsPage {
 
 export const fetchSubmissions = createAsyncThunk<
   SubmissionsPage,
-  { status?: string; limit?: number; offset?: number; append?: boolean; includeTotal?: boolean },
+  {
+    status?: string;
+    aiStatus?: string;
+    q?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+    append?: boolean;
+    includeTotal?: boolean;
+  },
   { rejectValue: ApiError }
->('submissions/fetchSubmissions', async ({ status = 'pending', limit = 20, offset = 0, includeTotal }, { rejectWithValue }) => {
-  try {
+>(
+  'submissions/fetchSubmissions',
+  async ({ status = 'pending', aiStatus, q, sort, limit = 20, offset = 0, includeTotal }, { rejectWithValue }) => {
+    try {
+    const params: Record<string, unknown> = {
+      status,
+      limit,
+      offset,
+      includeTotal: includeTotal ?? (offset === 0 ? 1 : 0),
+      includeTags: 0,
+    };
+    if (typeof aiStatus === 'string' && aiStatus.trim()) params.aiStatus = aiStatus.trim();
+    if (typeof q === 'string' && q.trim()) params.q = q.trim();
+    if (typeof sort === 'string' && sort.trim()) params.sort = sort.trim();
+
     const resp = await api.get<Submission[] | SubmissionsPage>('/streamer/submissions', {
       // includeTotal is only needed for first page (badge/count); skip otherwise to avoid expensive count() on backend.
       // Perf: pending list UI doesn't need tags; skip JOINs by default.
-      params: { status, limit, offset, includeTotal: includeTotal ?? (offset === 0 ? 1 : 0), includeTags: 0 },
+      params,
       timeout: 15000, // 15 seconds timeout
     });
 
@@ -55,10 +91,11 @@ export const fetchSubmissions = createAsyncThunk<
       return { items: resp.items || [], total };
     }
     return { items: [], total: null };
-  } catch (error: unknown) {
-    return rejectWithValue(toApiError(error, 'Failed to fetch submissions'));
+    } catch (error: unknown) {
+      return rejectWithValue(toApiError(error, 'Failed to fetch submissions'));
+    }
   }
-});
+);
 
 export const createSubmission = createAsyncThunk<
   Submission,
@@ -124,6 +161,33 @@ export const needsChangesSubmission = createAsyncThunk<
     });
   } catch (error: unknown) {
     return rejectWithValue(toApiError(error, 'Failed to send submission for changes'));
+  }
+});
+
+export const resubmitSubmission = createAsyncThunk<
+  Submission,
+  { submissionId: string; input: ResubmitInput },
+  { rejectValue: ApiError }
+>('submissions/resubmit', async ({ submissionId, input }, { rejectWithValue }) => {
+  try {
+    return await api.post<Submission>(`/submissions/${submissionId}/resubmit`, input);
+  } catch (error: unknown) {
+    return rejectWithValue(toApiError(error, 'Failed to resubmit submission'));
+  }
+});
+
+export const bulkModerateSubmissions = createAsyncThunk<
+  { success: string[]; failed: Array<{ id: string; error: string }> },
+  BulkSubmissionAction,
+  { rejectValue: ApiError }
+>('submissions/bulkModerate', async (input, { rejectWithValue }) => {
+  try {
+    return await api.post<{ success: string[]; failed: Array<{ id: string; error: string }> }>(
+      '/streamer/submissions/bulk',
+      input,
+    );
+  } catch (error: unknown) {
+    return rejectWithValue(toApiError(error, 'Failed to bulk moderate submissions'));
   }
 });
 
@@ -197,6 +261,21 @@ const submissionsSlice = createSlice({
         revision: 1,
       });
     },
+    submissionAiCompleted: (
+      state,
+      action: PayloadAction<{
+        submissionId: string;
+        aiStatus: SubmissionAiStatus;
+        aiDecision?: SubmissionAiDecision;
+        aiRiskScore?: number;
+      }>,
+    ) => {
+      const submission = state.submissions.find((s) => s.id === action.payload.submissionId);
+      if (!submission) return;
+      submission.aiStatus = action.payload.aiStatus;
+      submission.aiDecision = action.payload.aiDecision;
+      submission.aiRiskScore = action.payload.aiRiskScore;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -259,6 +338,24 @@ const submissionsSlice = createSlice({
         state.submissions = state.submissions.filter((s) => s.id !== id);
         const removed = before !== state.submissions.length;
         if (removed && typeof state.total === 'number' && state.total > 0) state.total -= 1;
+      })
+      // resubmitSubmission
+      .addCase(resubmitSubmission.fulfilled, (state, action) => {
+        const index = state.submissions.findIndex((s) => s.id === action.payload.id);
+        if (index !== -1) {
+          state.submissions[index] = action.payload;
+        }
+      })
+      // bulkModerateSubmissions
+      .addCase(bulkModerateSubmissions.fulfilled, (state, action) => {
+        const successIds = new Set(action.payload.success || []);
+        if (successIds.size === 0) return;
+        const before = state.submissions.length;
+        state.submissions = state.submissions.filter((s) => !successIds.has(s.id));
+        const removed = before - state.submissions.length;
+        if (removed > 0 && typeof state.total === 'number') {
+          state.total = Math.max(0, state.total - removed);
+        }
       });
   },
 });
@@ -271,6 +368,6 @@ export const {
   submissionRejected,
   submissionNeedsChanges,
   submissionResubmitted,
+  submissionAiCompleted,
 } = submissionsSlice.actions;
 export default submissionsSlice.reducer;
-

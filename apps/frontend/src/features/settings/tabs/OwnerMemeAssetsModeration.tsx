@@ -38,6 +38,7 @@ export function OwnerMemeAssetsModeration() {
   const [hasMore, setHasMore] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<null | OwnerMemeAsset>(null);
+  const refreshTimerRef = useRef<number | null>(null);
 
   // Init from URL once (keep keys tab-specific to avoid collisions in settings).
   useEffect(() => {
@@ -103,6 +104,21 @@ export function OwnerMemeAssetsModeration() {
       }
     })();
   }, [loadPage, status, t]);
+
+  useEffect(() => {
+    const onAssetChanged = () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = window.setTimeout(() => {
+        void loadPage(0, false);
+      }, 200);
+    };
+    window.addEventListener('meme-asset:status-changed', onAssetChanged as EventListener);
+    return () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+      window.removeEventListener('meme-asset:status-changed', onAssetChanged as EventListener);
+    };
+  }, [loadPage]);
 
   const doRestore = async (a: OwnerMemeAsset) => {
     if (!a.id) return;
@@ -332,5 +348,4 @@ export function OwnerMemeAssetsModeration() {
     </div>
   );
 }
-
 

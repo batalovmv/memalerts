@@ -141,7 +141,7 @@ function installVideoMetadataMocks(durationSeconds = 1) {
 }
 
 describe('SubmitModal (integration)', () => {
-  it('uploads file and closes on success (status=pending)', async () => {
+  it('uploads file and shows success state (status=pending)', async () => {
     const cleanupVideoMocks = installVideoMetadataMocks(1);
     const userEv = userEvent.setup();
     const onClose = vi.fn();
@@ -167,6 +167,7 @@ describe('SubmitModal (integration)', () => {
     expect(fileInput).toBeTruthy();
     const file = new File([new Uint8Array([1, 2, 3])], 'test.webm', { type: 'video/webm' });
     await userEv.upload(fileInput, file);
+    await waitFor(() => expect(screen.getByRole('button', { name: /add/i })).toBeEnabled());
 
     // Submit (use submit event directly: tooltip wrappers can prevent click-to-submit in jsdom).
     const form = container.querySelector('form') as HTMLFormElement;
@@ -184,7 +185,8 @@ describe('SubmitModal (integration)', () => {
 
     await waitFor(() => expect(postSpy).toHaveBeenCalled());
     expect(toast.success).toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/meme submitted for moderation/i)).toBeInTheDocument();
 
     const { fetchSubmissions } = await import('@/store/slices/submissionsSlice');
     expect(fetchSubmissions).toHaveBeenCalled();
@@ -217,6 +219,7 @@ describe('SubmitModal (integration)', () => {
     const fileInput = container.querySelector('input[type="file"][required]') as HTMLInputElement;
     const file = new File([new Uint8Array([1, 2, 3])], 'test.webm', { type: 'video/webm' });
     await userEv.upload(fileInput, file);
+    await waitFor(() => expect(screen.getByRole('button', { name: /add/i })).toBeEnabled());
 
     const form = container.querySelector('form') as HTMLFormElement;
     expect(form).toBeTruthy();
@@ -225,12 +228,7 @@ describe('SubmitModal (integration)', () => {
       await Promise.resolve();
     });
 
-    const toast = (await import('react-hot-toast')).default as unknown as {
-      success: ReturnType<typeof vi.fn>;
-      error: ReturnType<typeof vi.fn>;
-    };
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('Boom')).toBeInTheDocument());
     expect(onClose).not.toHaveBeenCalled();
 
     postSpy.mockRestore();
@@ -408,5 +406,3 @@ describe('SubmitModal (integration)', () => {
     postSpy.mockRestore();
   });
 });
-
-

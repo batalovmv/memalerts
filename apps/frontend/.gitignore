@@ -9,6 +9,8 @@ build/
 .cache/
 .vite/
 .cursor/
+.claude/
+FRONTEND_BACKEND_INTEGRATION_PLAN.md
 
 # Test/coverage artifacts
 coverage/
