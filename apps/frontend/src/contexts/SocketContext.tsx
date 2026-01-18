@@ -1,12 +1,20 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus } from '@/types';
+import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus, SubmissionStatus } from '@/types';
 
 import { getRuntimeConfig } from '../lib/runtimeConfig';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { updateChannelSettings, updateWalletBalance } from '../store/slices/authSlice';
-import { fetchSubmissions, submissionAiCompleted } from '../store/slices/submissionsSlice';
+import {
+  fetchSubmissions,
+  submissionAiCompleted,
+  submissionApproved,
+  submissionCreated,
+  submissionNeedsChanges,
+  submissionRejected,
+  submissionResubmitted,
+} from '../store/slices/submissionsSlice';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -237,6 +245,57 @@ export function SocketProvider({ children }: SocketProviderProps) {
     const isModerator = user.role === 'streamer' || user.role === 'admin';
     const channelId = user.channelId || null;
 
+    const onSubmissionCreated = (data: { submissionId?: string; channelId?: string; submitterId?: string }) => {
+      if (!isModerator) return;
+      if (!data?.submissionId || !data?.channelId) return;
+      if (channelId && data.channelId !== channelId) return;
+      dispatch(
+        submissionCreated({
+          submissionId: data.submissionId,
+          channelId: data.channelId,
+          submitterId: data.submitterId,
+        }),
+      );
+    };
+
+    const onSubmissionStatusChanged = (data: {
+      submissionId?: string;
+      status?: SubmissionStatus;
+      channelId?: string;
+      submitterId?: string;
+    }) => {
+      if (!isModerator) return;
+      if (!data?.submissionId || !data?.status) return;
+      if (channelId && data.channelId && data.channelId !== channelId) return;
+
+      if (data.status === 'approved') {
+        dispatch(submissionApproved({ submissionId: data.submissionId }));
+        return;
+      }
+
+      if (data.status === 'rejected') {
+        dispatch(submissionRejected({ submissionId: data.submissionId }));
+        return;
+      }
+
+      if (data.status === 'needs_changes') {
+        dispatch(submissionNeedsChanges({ submissionId: data.submissionId }));
+        return;
+      }
+
+      if (data.status === 'pending') {
+        const targetChannelId = data.channelId ?? channelId;
+        if (!targetChannelId) return;
+        dispatch(
+          submissionResubmitted({
+            submissionId: data.submissionId,
+            channelId: targetChannelId,
+            submitterId: data.submitterId,
+          }),
+        );
+      }
+    };
+
     const onAiCompleted = (data: {
       submissionId?: string;
       channelId?: string;
@@ -274,12 +333,16 @@ export function SocketProvider({ children }: SocketProviderProps) {
       window.dispatchEvent(new CustomEvent('meme-asset:status-changed', { detail: data }));
     };
 
+    socket.on('submission:created', onSubmissionCreated);
+    socket.on('submission:status-changed', onSubmissionStatusChanged);
     socket.on('submission:ai-completed', onAiCompleted);
     socket.on('submissions:bulk-moderated', onBulkModerated);
     socket.on('channel:settings-changed', onChannelSettingsChanged);
     socket.on('meme-asset:status-changed', onMemeAssetStatusChanged);
 
     return () => {
+      socket.off('submission:created', onSubmissionCreated);
+      socket.off('submission:status-changed', onSubmissionStatusChanged);
       socket.off('submission:ai-completed', onAiCompleted);
       socket.off('submissions:bulk-moderated', onBulkModerated);
       socket.off('channel:settings-changed', onChannelSettingsChanged);

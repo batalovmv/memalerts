@@ -197,6 +197,103 @@ describe('SocketProvider (realtime)', () => {
     expect(wallets.some((w: any) => w.channelId === 'c1' && w.balance === 123)).toBe(true);
   });
 
+  it('dispatches submissionCreated on submission:created for streamer channel', async () => {
+    const s = new FakeSocket();
+    const ioMock = vi.fn(() => s as any);
+
+    vi.doMock('socket.io-client', () => ({ io: ioMock }));
+    vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
+
+    const { SocketProvider: ProviderImpl } = await import('./SocketContext');
+
+    const store = createTestStore({
+      auth: {
+        user: { id: 'u1', displayName: 'User', role: 'streamer', channelId: 'c1' } as any,
+        loading: false,
+        error: null,
+      } as any,
+    } as any);
+
+    render(
+      <Provider store={store}>
+        <ProviderImpl>
+          <div>Child</div>
+        </ProviderImpl>
+      </Provider>,
+    );
+
+    act(() => {
+      s.connected = true;
+      s.fire('connect');
+    });
+
+    act(() => {
+      s.fire('submission:created', { submissionId: 's1', channelId: 'c1', submitterId: 'u2' });
+    });
+
+    const submissions = store.getState().submissions.submissions;
+    expect(submissions.some((item: any) => item.id === 's1')).toBe(true);
+  });
+
+  it('dispatches submissionApproved on submission:status-changed', async () => {
+    const s = new FakeSocket();
+    const ioMock = vi.fn(() => s as any);
+
+    vi.doMock('socket.io-client', () => ({ io: ioMock }));
+    vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
+
+    const { SocketProvider: ProviderImpl } = await import('./SocketContext');
+
+    const store = createTestStore({
+      auth: {
+        user: { id: 'u1', displayName: 'User', role: 'streamer', channelId: 'c1' } as any,
+        loading: false,
+        error: null,
+      } as any,
+      submissions: {
+        submissions: [
+          {
+            id: 's1',
+            title: 'Test',
+            type: 'video',
+            fileUrlTemp: '',
+            status: 'pending',
+            notes: null,
+            createdAt: '2024-01-01T00:00:00.000Z',
+            submitter: { id: 'u2', displayName: 'Submitter' },
+          },
+        ],
+        loading: false,
+        loadingMore: false,
+        error: null,
+        lastFetchedAt: null,
+        lastErrorAt: null,
+        total: 1,
+      } as any,
+    } as any);
+
+    render(
+      <Provider store={store}>
+        <ProviderImpl>
+          <div>Child</div>
+        </ProviderImpl>
+      </Provider>,
+    );
+
+    act(() => {
+      s.connected = true;
+      s.fire('connect');
+    });
+
+    act(() => {
+      s.fire('submission:status-changed', { submissionId: 's1', status: 'approved', channelId: 'c1' });
+    });
+
+    const next = store.getState().submissions;
+    expect(next.submissions.some((item: any) => item.id === 's1')).toBe(false);
+    expect(next.total).toBe(0);
+  });
+
   it('disconnects socket when user logs out', async () => {
     const s = new FakeSocket();
     const ioMock = vi.fn(() => s as any);
@@ -225,5 +322,4 @@ describe('SocketProvider (realtime)', () => {
     expect(s.disconnected).toBeGreaterThanOrEqual(1);
   });
 });
-
 
