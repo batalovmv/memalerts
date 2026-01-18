@@ -23,32 +23,36 @@ import {
   mockStreamerCreditsToken,
   mockStreamerCreditsTokenRotate,
 } from '@/test/msw/handlers';
+import { makeCreditsState, makeCreditsToken } from '@/test/fixtures/credits';
 
 describe('creditsOverlay API', () => {
   it('loads credits token and rotates it', async () => {
     const rotateCalls = vi.fn();
+    const tokenPayload = makeCreditsToken();
+    const nextTokenPayload = makeCreditsToken({ token: 'tok2', url: 'https://example.com/overlay/credits/t/tok2' });
     server.use(
-      mockStreamerCreditsToken({ token: 'tok1', url: 'https://example.com/overlay/credits/t/tok1' }),
-      mockStreamerCreditsTokenRotate({ token: 'tok2', url: 'https://example.com/overlay/credits/t/tok2' }, rotateCalls),
+      mockStreamerCreditsToken(tokenPayload),
+      mockStreamerCreditsTokenRotate(nextTokenPayload, rotateCalls),
     );
 
     const token = await getCreditsToken();
-    expect(token.token).toBe('tok1');
+    expect(token.token).toBe(tokenPayload.token);
 
     const rotated = await rotateCreditsToken();
-    expect(rotated.token).toBe('tok2');
+    expect(rotated.token).toBe(nextTokenPayload.token);
     expect(rotateCalls).toHaveBeenCalled();
   });
 
   it('fetches and resets credits state', async () => {
     const resetCalls = vi.fn();
+    const statePayload = makeCreditsState();
     server.use(
-      mockStreamerCreditsState({ donors: [{ displayName: 'Donor' }], chatters: [] }),
+      mockStreamerCreditsState(statePayload),
       mockStreamerCreditsResetOk(resetCalls),
     );
 
     const state = await getCreditsState();
-    expect(state.donors[0]?.displayName).toBe('Donor');
+    expect(state.donors[0]?.displayName).toBe(statePayload.donors[0]?.displayName);
 
     await resetCreditsSession();
     expect(resetCalls).toHaveBeenCalled();
