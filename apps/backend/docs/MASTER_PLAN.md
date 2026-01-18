@@ -435,12 +435,12 @@ updates:
 Проект считается "завершённым" когда:
 
 - [x] Coverage ≥ 80% (80.07%)
-- [ ] 0 ESLint errors/warnings
-- [ ] 0 security vulnerabilities (npm audit)
-- [ ] Все тесты проходят
+- [x] 0 ESLint errors/warnings
+- [x] 0 security vulnerabilities (npm audit)
+- [x] Все тесты проходят
 - [ ] Load tests baseline зафиксирован
 - [ ] Документация актуальна
-- [ ] Dependabot настроен
+- [x] Dependabot настроен
 - [ ] VPS мониторинг работает
 - [ ] Backup + restore протестированы
 
@@ -448,4 +448,3 @@ updates:
 
 *Создано: 2026-01-18*  
 *Обновлять по мере выполнения задач*
-
