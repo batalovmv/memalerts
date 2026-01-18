@@ -11,7 +11,7 @@ import MemeCard from '@/components/MemeCard';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemesPool } from '@/shared/api/memesPool';
-import { createPoolSubmission } from '@/shared/api/submissionsPool';
+import { createPoolSubmission } from '@/shared/api/submissions';
 import { PageShell, Button, HelpTooltip, Input, Spinner } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
@@ -542,5 +542,4 @@ export default function PoolPage() {
     </PageShell>
   );
 }
-
 
