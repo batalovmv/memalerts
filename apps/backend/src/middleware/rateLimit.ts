@@ -149,7 +149,7 @@ const logRateLimitEvent = (
 };
 
 const setRetryAfterHeader = (res: Response) => {
-  const resetTime = res.getHeader('X-RateLimit-Reset');
+  const resetTime = res.getHeader('X-RateLimit-Reset') ?? res.getHeader('RateLimit-Reset');
   if (!resetTime) return;
   const resetSeconds = Number(resetTime);
   if (!Number.isFinite(resetSeconds)) return;
@@ -165,7 +165,7 @@ export const globalLimiter = rateLimit({
   limit: 100, // Limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   // Redis-backed store (optional): makes limits consistent across processes/instances.
   // If Redis is not configured, express-rate-limit will use its default memory store.
   store: maybeCreateRateLimitStore('global'),
@@ -246,7 +246,7 @@ export const activateMemeLimiter = rateLimit({
   limit: 1,
   message: 'Too many activation requests, please try again later.',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   store: maybeCreateRateLimitStore('activateMeme'),
   skip: (req) => {
     // Check if IP is whitelisted
@@ -279,7 +279,7 @@ export const uploadLimiter = rateLimit({
   limit: 30,
   message: 'Too many upload requests, please try again later.',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   store: maybeCreateRateLimitStore('upload'),
   keyGenerator: (req) => {
     // Prefer per-user limiting for authenticated routes; fallback to IP.
@@ -320,7 +320,7 @@ export const moderationActionLimiter = rateLimit({
   limit: 60, // 60/min per user (or per IP for guests, but these routes are auth-gated)
   message: 'Too many moderation requests, please try again later.',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   store: maybeCreateRateLimitStore('moderationAction'),
   keyGenerator: (req) => {
     const authReq = req as RequestWithUser;
@@ -350,7 +350,7 @@ export const publicSubmissionsControlLimiter = rateLimit({
   limit: 15, // 15/min per IP
   message: 'Too many control requests, please try again later.',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   store: maybeCreateRateLimitStore('publicSubmissionsControl'),
   keyGenerator: (req) => `ip:${getClientIP(req)}`,
   skip: (req) => {
@@ -383,7 +383,7 @@ export const ownerResolveLimiter = rateLimit({
   limit: 60, // 60/min per user
   message: 'Too many resolve requests, please try again later.',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
   store: maybeCreateRateLimitStore('ownerResolve'),
   keyGenerator: (req) => {
     const authReq = req as RequestWithUser;
