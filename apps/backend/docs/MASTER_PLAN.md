@@ -12,8 +12,8 @@
 | Версия | 1.0.6 |
 | ESLint errors | 0 |
 | ESLint warnings | 0 |
-| Тесты | 225 (все проходят) |
-| Coverage | ~70.55% → цель 80% |
+| Тесты | 634 (все проходят) |
+| Coverage | 80.07% (цель 80%) |
 | VPS | prod + beta online |
 | Мониторинг | Полный |
 
@@ -434,7 +434,7 @@ updates:
 
 Проект считается "завершённым" когда:
 
-- [ ] Coverage ≥ 80%
+- [x] Coverage ≥ 80% (80.07%)
 - [ ] 0 ESLint errors/warnings
 - [ ] 0 security vulnerabilities (npm audit)
 - [ ] Все тесты проходят

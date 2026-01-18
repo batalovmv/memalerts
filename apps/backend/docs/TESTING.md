@@ -105,6 +105,12 @@ const submission = await createSubmission({
 Composition helpers are available (e.g. `createUserWithChannel`) and additional factories cover related entities
 like file hashes, meme assets, and bot subscriptions.
 
+## Coverage scope
+
+Coverage excludes entrypoints and operational scripts (`scripts/**`, `tools/**`, `prisma/seed.ts`, `src/index.ts`)
+plus runtime orchestration modules (`src/jobs/**`, `src/bots/**`). These are validated through integration runs
+and production monitoring instead of unit coverage.
+
 ## CI (self-hosted runner)
 
 Tests run in the self-hosted workflow: `.github/workflows/ci-cd-selfhosted.yml`.

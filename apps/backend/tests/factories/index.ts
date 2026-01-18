@@ -1,5 +1,6 @@
 export { createChannel } from './channelFactory.js';
 export { createExternalAccount, createUser, createUserWithChannel } from './userFactory.js';
+export { createBetaAccess } from './betaAccessFactory.js';
 export {
   createChatBotCommand,
   createChatBotSubscription,

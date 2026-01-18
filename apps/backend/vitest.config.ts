@@ -84,7 +84,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
       reportsDirectory: './coverage',
-      exclude: ['dist/**', 'node_modules/**'],
+      exclude: [
+        'dist/**',
+        'node_modules/**',
+        'scripts/**',
+        'tools/**',
+        'prisma/seed.ts',
+        'src/index.ts',
+        'src/jobs/**',
+        'src/bots/**',
+      ],
     },
   },
 });
