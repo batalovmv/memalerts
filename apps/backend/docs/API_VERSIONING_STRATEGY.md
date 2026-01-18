@@ -6,7 +6,8 @@ Goal: introduce versioned public API while preserving backward compatibility.
 
 ## Approach
 
-- Add a versioned base path: `/api/v1`.
+- Add a versioned base path: `/api/v1` (canonical).
+- Keep `/v1` as a compatibility alias for existing clients.
 - Keep existing unversioned routes during a migration window.
 - Use deprecation headers on legacy routes:
   - `Deprecation: true`
@@ -29,4 +30,3 @@ Goal: introduce versioned public API while preserving backward compatibility.
 ## Observability
 
 - Log route version and client to monitor migration progress.
-*** End Patch"}]} 

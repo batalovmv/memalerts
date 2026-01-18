@@ -354,8 +354,8 @@ app.use(globalLimiter);
 
 const deprecationEnabled = process.env.DEPRECATION_ENABLED === '1';
 const deprecationSunset = process.env.DEPRECATION_SUNSET;
-const deprecationSuccessor = process.env.DEPRECATION_SUCCESSOR || '/v1';
-const deprecationExcluded = ['/v1', '/docs', '/uploads', '/health', '/healthz', '/readyz'];
+const deprecationSuccessor = process.env.DEPRECATION_SUCCESSOR || '/api/v1';
+const deprecationExcluded = ['/v1', '/api/v1', '/docs', '/uploads', '/health', '/healthz', '/readyz'];
 
 app.use((req, res, next) => {
   if (!deprecationEnabled) return next();
@@ -379,6 +379,7 @@ const apiRouter = express.Router();
 setupRoutes(apiRouter);
 app.use('/', apiRouter);
 app.use('/v1', apiRouter);
+app.use('/api/v1', apiRouter);
 
 // 404 handler for unmatched routes
 app.use((req, res) => {

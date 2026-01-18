@@ -1671,10 +1671,11 @@ export function getOpenApiDocument() {
       version: '1.0.0',
       description:
         'API docs generated from code. Auth uses httpOnly cookies (token for prod, token_beta for beta). ' +
-        'Bearer tokens are supported for scripts/testing. Prefer /v1 for new integrations.',
+        'Bearer tokens are supported for scripts/testing. Prefer /api/v1 for new integrations.',
     },
     servers: [
-      { url: '/v1', description: 'v1 (recommended)' },
+      { url: '/api/v1', description: 'v1 (recommended)' },
+      { url: '/v1', description: 'v1 (legacy alias)' },
       { url: '/', description: 'Legacy (unversioned)' },
     ],
     security: authSecurity,
