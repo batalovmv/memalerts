@@ -12,6 +12,7 @@ import {
   type YouTubeCommandItem,
 } from './youtubeChatbotShared.js';
 import { sendToYouTubeChat } from './youtubeChatSender.js';
+import { handleUnifiedChatReward } from './unifiedChatRewards.js';
 
 type YouTubeChatCommandsConfig = {
   backendBaseUrls: string[];
@@ -121,6 +122,14 @@ export function createYouTubeChatCommands(states: Map<string, YouTubeChannelStat
         displayName: authorName,
       });
     }
+
+    // Unified chat rewards (all platforms, only logged-in users)
+    void handleUnifiedChatReward(null, {
+      platform: 'youtube',
+      channelSlug: st.slug,
+      platformUserId: authorChannelId,
+      displayName: authorName,
+    });
 
     const snippetRec = asRecord(msgRec.snippet);
     const msgText = normalizeMessage(String(snippetRec.displayMessage || ''));

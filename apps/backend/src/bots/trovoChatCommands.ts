@@ -16,6 +16,7 @@ import {
   type TrovoChannelState,
   type TrovoCommandItem,
 } from './trovoChatbotShared.js';
+import { handleUnifiedChatReward } from './unifiedChatRewards.js';
 
 type TrovoChatCommandsConfig = {
   backendBaseUrls: string[];
@@ -234,6 +235,14 @@ export function createTrovoChatCommands(states: Map<string, TrovoChannelState>, 
         displayName: incoming.displayName,
       });
     }
+
+    // Unified chat rewards (all platforms, only logged-in users)
+    void handleUnifiedChatReward(null, {
+      platform: 'trovo',
+      channelSlug: st.slug,
+      platformUserId: incoming.userId,
+      displayName: incoming.displayName,
+    });
   };
 
   return { refreshCommands, handleIncomingChat };

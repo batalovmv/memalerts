@@ -89,6 +89,10 @@ model Channel {
   creditsTokenVersion           Int      @default(1)
   // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
   creditsReconnectWindowMinutes Int      @default(60)
+  // Unified chat rewards config (all platforms: twitch, kick, trovo, vkvideo, youtube).
+  // Only logged-in users receive rewards. Stored as JSONB for extensibility.
+  // Example: { "firstMessage": { "enabled": true, "coins": 10, "onlyWhenLive": true } }
+  chatRewardsJson               Json?    @db.JsonB
   // Chat bot "smart" command: stream duration settings (stored as JSON string; validated by API).
   streamDurationCommandJson     String?  @db.Text
   // Chat bot follow greeting settings

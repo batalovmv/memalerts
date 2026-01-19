@@ -28,6 +28,7 @@ import { startOutboxCleanupScheduler } from './jobs/cleanupOutboxMessages.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
+import { startAiEnqueueScheduler } from './jobs/aiEnqueueScheduler.js';
 import { validateEnv } from './config/env.js';
 import { prisma } from './lib/prisma.js';
 import { isShuttingDown } from './utils/shutdownState.js';
@@ -470,6 +471,8 @@ async function startServer() {
     startBoostySubscriptionRewardsScheduler(io);
     // Optional: BullMQ AI worker (horizontal scaling).
     aiModerationWorkerHandle = startAiModerationWorker();
+    // AI enqueue scheduler: periodically finds pending submissions and adds them to BullMQ queue.
+    startAiEnqueueScheduler();
     // Optional: normalize audio for playback (site + OBS). Disabled by default; guarded by env.
     // Safety: cleanup pending submissions that exceeded AI retry/retention window (avoid disk bloat).
     startPendingSubmissionFilesCleanupScheduler();

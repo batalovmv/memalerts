@@ -10,6 +10,7 @@ import {
 } from '../utils/vkvideoApi.js';
 import { logger } from '../utils/logger.js';
 import { handleVkvideoChatAutoRewards } from './vkvideoRewardProcessor.js';
+import { handleUnifiedChatReward } from './unifiedChatRewards.js';
 import {
   asRecord,
   getErrorCode,
@@ -327,6 +328,14 @@ export function createVkvideoChatCommands(state: VkvideoChatCommandState, config
       incoming,
       memalertsUserId,
       autoRewardsCfg,
+    });
+
+    // Unified chat rewards (all platforms, only logged-in users)
+    void handleUnifiedChatReward(null, {
+      platform: 'vkvideo',
+      channelSlug: slug,
+      platformUserId: incoming.userId,
+      displayName: incoming.displayName,
     });
   };
 

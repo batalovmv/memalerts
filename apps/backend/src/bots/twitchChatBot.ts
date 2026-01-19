@@ -15,6 +15,7 @@ import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/e
 import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../realtime/walletBridge.js';
 import { createReconnectBackoff } from './reconnectBackoff.js';
 import { isTwitchAuthError } from './twitchChatbotShared.js';
+import { handleUnifiedChatReward } from './unifiedChatRewards.js';
 
 type RewardTx = Parameters<typeof recordExternalRewardEventTx>[0]['tx'];
 
@@ -283,6 +284,14 @@ export function startTwitchChatBot(io: Server): { stop: () => Promise<void> } | 
 
       await addCreditsChatter(slug, creditsUserId, displayName, null, windowMin);
       void emitCreditsState(io, slug);
+
+      // Unified chat rewards (all platforms, only logged-in users)
+      void handleUnifiedChatReward(io, {
+        platform: 'twitch',
+        channelSlug: slug,
+        platformUserId: twitchUserId,
+        displayName,
+      });
 
       // Twitch auto rewards: chat activity (first message per stream / message thresholds / daily streak).
       // These are best-effort and rely on Redis for lightweight per-user counters.

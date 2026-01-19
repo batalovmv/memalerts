@@ -10,6 +10,7 @@ import {
   type KickChannelState,
 } from './kickChatbotShared.js';
 import { sendToKickChat } from './kickChatSender.js';
+import { handleUnifiedChatReward } from './unifiedChatRewards.js';
 
 type IncomingChat = {
   userId: string;
@@ -150,6 +151,14 @@ export function createKickChatCommands(states: Map<string, KickChannelState>, co
         displayName: incoming.displayName,
       });
     }
+
+    // Unified chat rewards (all platforms, only logged-in users)
+    void handleUnifiedChatReward(null, {
+      platform: 'kick',
+      channelSlug: st.slug,
+      platformUserId: incoming.userId,
+      displayName: incoming.displayName,
+    });
   };
 
   return { refreshCommands, handleIncomingChat };

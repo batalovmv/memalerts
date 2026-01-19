@@ -74,8 +74,9 @@ if (!otelEnabled) {
     });
 
     const successSampleRate = clampRate(process.env.OTEL_SUCCESS_SAMPLE_RATE, 0.1);
-    const maxTraceDurationMs = parseIntEnv(process.env.OTEL_TRACE_MAX_MS, 5 * 60_000);
-    const decisionTtlMs = parseIntEnv(process.env.OTEL_TRACE_DECISION_TTL_MS, 5 * 60_000);
+    // Reduced defaults: 30s max trace, 30s TTL (was 5 min each - caused memory issues)
+    const maxTraceDurationMs = parseIntEnv(process.env.OTEL_TRACE_MAX_MS, 30_000);
+    const decisionTtlMs = parseIntEnv(process.env.OTEL_TRACE_DECISION_TTL_MS, 30_000);
 
     const sdk = new NodeSDK({
       spanProcessor: new ErrorAwareSpanProcessor(exporter, {
@@ -85,15 +86,57 @@ if (!otelEnabled) {
       }),
       instrumentations: [
         getNodeAutoInstrumentations({
+          // === HTTP: Only trace actual API requests ===
           '@opentelemetry/instrumentation-http': {
             ignoreIncomingRequestHook: (req) => {
               const url = String(req.url || '');
-              return url.startsWith('/health') || url.startsWith('/readyz') || url.startsWith('/metrics');
+              // Ignore health checks, metrics, and socket.io polling
+              return (
+                url.startsWith('/health') ||
+                url.startsWith('/readyz') ||
+                url.startsWith('/metrics') ||
+                url.startsWith('/socket.io')
+              );
             },
+            ignoreOutgoingRequestHook: () => true, // Ignore ALL outgoing HTTP (reduces span count significantly)
           },
-          '@opentelemetry/instrumentation-undici': {
-            enabled: true,
-          },
+          '@opentelemetry/instrumentation-express': { enabled: true },
+          // === DISABLE EVERYTHING ELSE ===
+          '@opentelemetry/instrumentation-undici': { enabled: false },
+          '@opentelemetry/instrumentation-fs': { enabled: false },
+          '@opentelemetry/instrumentation-dns': { enabled: false },
+          '@opentelemetry/instrumentation-net': { enabled: false },
+          '@opentelemetry/instrumentation-generic-pool': { enabled: false },
+          '@opentelemetry/instrumentation-connect': { enabled: false },
+          '@opentelemetry/instrumentation-bunyan': { enabled: false },
+          '@opentelemetry/instrumentation-pino': { enabled: false },
+          '@opentelemetry/instrumentation-winston': { enabled: false },
+          '@opentelemetry/instrumentation-socket.io': { enabled: false },
+          '@opentelemetry/instrumentation-redis': { enabled: false },
+          '@opentelemetry/instrumentation-ioredis': { enabled: false },
+          '@opentelemetry/instrumentation-pg': { enabled: false },
+          '@opentelemetry/instrumentation-mysql': { enabled: false },
+          '@opentelemetry/instrumentation-mysql2': { enabled: false },
+          '@opentelemetry/instrumentation-mongodb': { enabled: false },
+          '@opentelemetry/instrumentation-grpc': { enabled: false },
+          '@opentelemetry/instrumentation-aws-sdk': { enabled: false },
+          '@opentelemetry/instrumentation-knex': { enabled: false },
+          '@opentelemetry/instrumentation-koa': { enabled: false },
+          '@opentelemetry/instrumentation-hapi': { enabled: false },
+          '@opentelemetry/instrumentation-fastify': { enabled: false },
+          '@opentelemetry/instrumentation-restify': { enabled: false },
+          '@opentelemetry/instrumentation-nestjs-core': { enabled: false },
+          '@opentelemetry/instrumentation-graphql': { enabled: false },
+          '@opentelemetry/instrumentation-amqplib': { enabled: false },
+          '@opentelemetry/instrumentation-aws-lambda': { enabled: false },
+          '@opentelemetry/instrumentation-cassandra-driver': { enabled: false },
+          '@opentelemetry/instrumentation-cucumber': { enabled: false },
+          '@opentelemetry/instrumentation-dataloader': { enabled: false },
+          '@opentelemetry/instrumentation-lru-memoizer': { enabled: false },
+          '@opentelemetry/instrumentation-memcached': { enabled: false },
+          '@opentelemetry/instrumentation-mongoose': { enabled: false },
+          '@opentelemetry/instrumentation-tedious': { enabled: false },
+          '@opentelemetry/instrumentation-router': { enabled: false },
         }),
       ],
     });
