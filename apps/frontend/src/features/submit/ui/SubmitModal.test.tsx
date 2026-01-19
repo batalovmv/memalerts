@@ -307,7 +307,7 @@ describe('SubmitModal (integration)', () => {
     });
 
     await waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/submissions/import', expect.objectContaining({ title: 'Import test', url: expect.any(String), tags: ['t1', 't2'], channelId: 'c1' })),
+      expect(postSpy).toHaveBeenCalledWith('/submissions/import', expect.objectContaining({ title: 'Import test', sourceUrl: expect.any(String), tags: ['t1', 't2'], channelId: 'c1' })),
     );
 
     expect(onClose).toHaveBeenCalledTimes(1);
