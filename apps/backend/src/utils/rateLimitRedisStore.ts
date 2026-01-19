@@ -14,6 +14,7 @@ export class RedisBackedRateLimitStore implements Store {
   windowMs = 60_000;
   readonly prefix: string;
   private readonly local = new Map<string, LocalEntry>();
+  private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(prefix: string) {
     this.prefix = prefix;
@@ -22,6 +23,7 @@ export class RedisBackedRateLimitStore implements Store {
   init(options: { windowMs?: number } | undefined) {
     const ms = Number(options?.windowMs);
     if (Number.isFinite(ms) && ms > 0) this.windowMs = ms;
+    this.startCleanup();
   }
 
   private key(k: string): string {
@@ -30,6 +32,7 @@ export class RedisBackedRateLimitStore implements Store {
   }
 
   private localIncrement(k: string): IncrementResult {
+    this.pruneLocal();
     const now = safeNowMs();
     const entry = this.local.get(k);
     if (!entry || now >= entry.resetAtMs) {
@@ -39,6 +42,23 @@ export class RedisBackedRateLimitStore implements Store {
     }
     entry.totalHits += 1;
     return { totalHits: entry.totalHits, resetTime: new Date(entry.resetAtMs) };
+  }
+
+  private pruneLocal() {
+    if (this.local.size === 0) return;
+    const now = safeNowMs();
+    for (const [key, entry] of this.local.entries()) {
+      if (now >= entry.resetAtMs) {
+        this.local.delete(key);
+      }
+    }
+  }
+
+  private startCleanup() {
+    if (this.cleanupTimer) return;
+    const intervalMs = Math.max(60_000, Math.floor(this.windowMs / 2));
+    this.cleanupTimer = setInterval(() => this.pruneLocal(), intervalMs);
+    this.cleanupTimer.unref?.();
   }
 
   async increment(key: string): Promise<IncrementResult> {
@@ -110,6 +130,5 @@ export function maybeCreateRateLimitStore(prefix: string): Store | undefined {
   const enabledRaw = String(process.env.RATE_LIMIT_REDIS ?? '').toLowerCase();
   const enabled = !(enabledRaw === '0' || enabledRaw === 'false' || enabledRaw === 'off');
   if (!enabled) return undefined;
-  if (!isRedisEnabled()) return undefined;
   return new RedisBackedRateLimitStore(prefix);
 }
