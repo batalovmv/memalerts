@@ -344,7 +344,7 @@ describe('SubmitModal (integration)', () => {
     const call = postSpy.mock.calls.find((c) => c[0] === '/submissions/import');
     expect(call).toBeTruthy();
     const payload = (call?.[1] as Record<string, unknown>) || {};
-    expect(payload).toHaveProperty('url');
+    expect(payload).toHaveProperty('sourceUrl');
     expect(payload).toHaveProperty('channelId', 'c1');
     expect(payload).not.toHaveProperty('title');
 
