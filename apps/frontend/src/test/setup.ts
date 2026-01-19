@@ -76,3 +76,21 @@ try {
   // ignore
 }
 
+// JSDOM lacks IntersectionObserver; stub for components that rely on it.
+try {
+  if (!('IntersectionObserver' in globalThis)) {
+    class MockIntersectionObserver {
+      constructor(_callback: IntersectionObserverCallback) {}
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    // @ts-expect-error runtime shim
+    globalThis.IntersectionObserver = MockIntersectionObserver;
+  }
+} catch {
+  // ignore
+}
