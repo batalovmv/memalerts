@@ -75,6 +75,20 @@ describe('App routing (integration)', () => {
     expect(await screen.findByText('DashboardPage')).toBeInTheDocument();
   });
 
+  it('keeps /dashboard during auth loading', async () => {
+    sessionStorage.removeItem('memalerts:viewer:home');
+
+    renderWithProviders(<App />, {
+      route: '/dashboard',
+      preloadedState: {
+        auth: { user: null, loading: true, error: null },
+      } as any,
+    });
+
+    expect(await screen.findByText('Loading...')).toBeInTheDocument();
+    expect(screen.queryByText('SearchPage')).not.toBeInTheDocument();
+  });
+
   it('redirects viewer from /admin to viewerHome', async () => {
     sessionStorage.setItem('memalerts:viewer:home', '/channel/someone');
 
@@ -99,7 +113,6 @@ describe('App routing (integration)', () => {
     expect(await screen.findByText('AdminPage')).toBeInTheDocument();
   });
 });
-
 
 
 

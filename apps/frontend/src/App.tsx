@@ -31,7 +31,7 @@ const PostLogin = lazy(() => import('./pages/PostLogin'));
 
 function App() {
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const [betaChecked, setBetaChecked] = useState(false);
   const [betaHasAccess, setBetaHasAccess] = useState<boolean>(true);
   const location = useLocation();
@@ -172,6 +172,16 @@ function App() {
   const showGlobalBackground = !location.pathname.startsWith('/channel/');
   const uiMode = getEffectiveUserMode(user);
   const viewerHome = getViewerHome() || (user?.channel?.slug ? `/channel/${user.channel.slug}` : '/search');
+  const dashboardElement = authLoading ? (
+    <div className="min-h-[50vh] flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
+      <Spinner className="h-5 w-5" />
+      <span>Loading...</span>
+    </div>
+  ) : uiMode === 'viewer' ? (
+    <Navigate to={viewerHome} replace />
+  ) : (
+    <Dashboard />
+  );
 
   return (
     <SocketProvider>
@@ -204,7 +214,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/post-login" element={<PostLogin />} />
-              <Route path="/dashboard" element={uiMode === 'viewer' ? <Navigate to={viewerHome} replace /> : <Dashboard />} />
+              <Route path="/dashboard" element={dashboardElement} />
               <Route path="/channel/:slug" element={<StreamerProfile />} />
               <Route path="/submit" element={<Submit />} />
               <Route path="/settings/*" element={<Admin />} />
@@ -225,5 +235,4 @@ function App() {
 }
 
 export default App;
-
 
