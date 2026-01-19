@@ -67,6 +67,17 @@ function looksLikeSpaHtml(data: unknown): boolean {
   return head.includes('<!doctype html') || head.includes('<html');
 }
 
+/**
+ * Normalize API response to Meme[].
+ * Handles both array responses and { items: [...] } object responses.
+ */
+function extractMemesFromResponse(resp: unknown): Meme[] {
+  if (Array.isArray(resp)) return resp as Meme[];
+  const rec = toRecord(resp);
+  if (rec && Array.isArray(rec.items)) return rec.items as Meme[];
+  return [];
+}
+
 function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
   // Pool items represent MemeAsset (channel-independent). MemeCard expects Meme-like shape.
   const fileUrl =
@@ -395,7 +406,7 @@ export default function StreamerProfile() {
                   headers: { 'Cache-Control': 'no-store' },
                 });
               }
-              const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
+              const memes = extractMemesFromResponse(resp);
               setMemes(memes);
               setHasMore(memes.length === MEMES_PER_PAGE);
             }
@@ -426,7 +437,7 @@ export default function StreamerProfile() {
                 headers: { 'Cache-Control': 'no-store' },
               });
             }
-            const memes = Array.isArray(resp) ? (resp as Meme[]) : [];
+            const memes = extractMemesFromResponse(resp);
             setMemes(memes);
             setHasMore(memes.length === MEMES_PER_PAGE);
           }
@@ -592,7 +603,7 @@ export default function StreamerProfile() {
             headers: { 'Cache-Control': 'no-store' },
           });
         }
-        newMemes = Array.isArray(resp) ? (resp as Meme[]) : [];
+        newMemes = extractMemesFromResponse(resp);
       }
       
       if (newMemes.length > 0) {
@@ -701,7 +712,7 @@ export default function StreamerProfile() {
             }
           }
         }
-        const memes = Array.isArray(memesResp) ? (memesResp as Meme[]) : [];
+        const memes = extractMemesFromResponse(memesResp);
         setSearchResults(memes);
       } catch (error: unknown) {
         setSearchResults([]);
