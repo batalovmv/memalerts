@@ -5,10 +5,11 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import type { Meme, Tag } from '@/types';
 
 import Header from '@/components/Header';
+import { MemeCard } from '@/entities/meme/ui/MemeCard/MemeCard';
 import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
-import { Card, HelpTooltip, Input, PageShell, Select, Spinner } from '@/shared/ui';
+import { HelpTooltip, Input, PageShell, Select, Spinner } from '@/shared/ui';
 
 function XSmallIcon() {
   return (
@@ -233,37 +234,15 @@ export default function Search() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="columns-1 md:columns-2 lg:columns-3 gap-4">
             {memes.map((meme) => (
-              <HelpTooltip
-                key={getMemePrimaryId(meme)}
-                content={t('help.search.openChannel', { defaultValue: 'Open the channel where this meme belongs.' })}
-              >
-                <Card
-                  hoverable
-                  className="cursor-pointer overflow-hidden"
+              <div key={getMemePrimaryId(meme)} className="break-inside-avoid mb-4">
+                <MemeCard
+                  meme={meme}
                   onClick={() => navigate(`/channel/${meme.channelId}`)}
-                >
-                  <div className="p-4">
-                    <h3 className="font-semibold text-lg mb-2 dark:text-white">{meme.title}</h3>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{meme.type.toUpperCase()}</span>
-                      <span className="text-lg font-bold text-primary">
-                        {meme.priceCoins} {t('profile.coins')}
-                      </span>
-                    </div>
-                    {meme.tags && meme.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {meme.tags.map((tagItem, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-accent/15 text-accent rounded-md text-xs ring-1 ring-accent/20">
-                            {tagItem.tag.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </HelpTooltip>
+                  previewMode="hoverMuted"
+                />
+              </div>
             ))}
           </div>
         )}
@@ -271,5 +250,4 @@ export default function Search() {
     </PageShell>
   );
 }
-
 
