@@ -74,27 +74,36 @@ jobs:
 
           cd "$APP_DIR"
 
-          rm -rf dist overlay/dist
+          BUILD_DIR="dist-next"
+          OVERLAY_BUILD_DIR="overlay/dist-next"
+          export BUILD_DIR
+          rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR"
 
           pnpm install --frozen-lockfile
           pnpm lint
           pnpm lint:overlay
           pnpm test:ci
-          pnpm build
-          pnpm build:overlay
+          pnpm build -- --outDir "$BUILD_DIR"
+          pnpm build:overlay -- --outDir "dist-next"
 
-          echo "Writing runtime config: dist/config.json"
+          echo "Writing runtime config: $BUILD_DIR/config.json"
           node - <<'NODE'
           const fs = require('fs');
+          const path = require('path');
+          const buildDir = process.env.BUILD_DIR || 'dist';
           const cfg = {
             uploadsBaseUrl: process.env.UPLOADS_BASE_URL || "",
             apiBaseUrl: "",
             socketUrl: "",
             publicBaseUrl: "",
           };
-          fs.mkdirSync('dist', { recursive: true });
-          fs.writeFileSync('dist/config.json', JSON.stringify(cfg, null, 2));
+          fs.mkdirSync(buildDir, { recursive: true });
+          fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
+
+          rm -rf dist overlay/dist
+          mv "$BUILD_DIR" dist
+          mv "$OVERLAY_BUILD_DIR" overlay/dist
           
           echo "Reloading nginx (best-effort)..."
           sudo nginx -t && sudo systemctl reload nginx || true
@@ -146,29 +155,36 @@ jobs:
 
           cd "$APP_DIR"
 
-          rm -rf dist overlay/dist
+          BUILD_DIR="dist-next"
+          OVERLAY_BUILD_DIR="overlay/dist-next"
+          export BUILD_DIR
+          rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR"
 
           pnpm install --frozen-lockfile
           pnpm lint
           pnpm lint:overlay
           pnpm test:ci
-          pnpm build
-          pnpm build:overlay
+          pnpm build -- --outDir "$BUILD_DIR"
+          pnpm build:overlay -- --outDir "dist-next"
 
-          echo "Writing runtime config: dist/config.json"
+          echo "Writing runtime config: $BUILD_DIR/config.json"
           node - <<'NODE'
           const fs = require('fs');
+          const path = require('path');
+          const buildDir = process.env.BUILD_DIR || 'dist';
           const cfg = {
             uploadsBaseUrl: process.env.UPLOADS_BASE_URL || "",
             apiBaseUrl: "",
             socketUrl: "",
             publicBaseUrl: "",
           };
-          fs.mkdirSync('dist', { recursive: true });
-          fs.writeFileSync('dist/config.json', JSON.stringify(cfg, null, 2));
+          fs.mkdirSync(buildDir, { recursive: true });
+          fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
+
+          rm -rf dist overlay/dist
+          mv "$BUILD_DIR" dist
+          mv "$OVERLAY_BUILD_DIR" overlay/dist
           
           echo "Reloading nginx (best-effort)..."
           sudo nginx -t && sudo systemctl reload nginx || true
-
-

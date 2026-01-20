@@ -266,12 +266,12 @@ export function LinkEditor({ overlayForm, overlaySettings, preview }: LinkEditor
           </div>
 
           {obsUiMode === 'basic' && (
-        <OverlayBasicPanel overlayForm={overlayForm} overlaySettings={overlaySettings} preview={preview} />
-      )}}
+            <OverlayBasicPanel overlayForm={overlayForm} overlaySettings={overlaySettings} preview={preview} />
+          )}
 
-      <OverlayProPanel overlayForm={overlayForm} preview={preview} />
-    </div>
-    </div>
+          <OverlayProPanel overlayForm={overlayForm} preview={preview} />
+        </div>
+      </div>
       </details>
     </>
   );
