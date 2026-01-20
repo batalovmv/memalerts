@@ -74,5 +74,41 @@ describe('ObsLinksSettings (integration)', () => {
       expect(val).toContain('/overlay/t/tok2');
     });
   });
-});
 
+  it('shows credits URL from token and rotates it via /streamer/credits/token/rotate', async () => {
+    const user = userEvent.setup();
+    const me = makeStreamerUser({ channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+
+    const rotateCalls = vi.fn();
+
+    server.use(
+      mockStreamerOverlayToken({ token: 'tok1', overlayMode: 'queue', overlayShowSender: false, overlayMaxConcurrent: 3, overlayStyleJson: null }),
+      mockStreamerCreditsToken({ token: 'ctok1', url: 'https://example.com/overlay/credits/t/ctok1', creditsStyleJson: null }),
+      mockStreamerOverlayPresets({ presets: [] }),
+      mockStreamerOverlayPresetsPut(() => {}),
+      mockStreamerOverlayPreviewMemes([]),
+      mockStreamerOverlayTokenRotate({ token: 'tok2' }, () => {}),
+      mockStreamerCreditsTokenRotate({ token: 'ctok2', url: 'https://example.com/overlay/credits/t/ctok2' }, () => rotateCalls()),
+    );
+
+    renderWithProviders(<ObsLinksSettings />, {
+      route: '/settings?tab=obs',
+      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+    });
+
+    await user.click(await screen.findByRole('button', { name: /титры|credits/i }));
+
+    await waitFor(() => {
+      const val = screen.getByTestId('secret:Credits URL (Browser Source)').textContent || '';
+      expect(val).toContain('/overlay/credits/t/ctok1');
+    });
+
+    await user.click(screen.getByLabelText(/update overlay link/i));
+    await waitFor(() => expect(rotateCalls).toHaveBeenCalled());
+
+    await waitFor(() => {
+      const val = screen.getByTestId('secret:Credits URL (Browser Source)').textContent || '';
+      expect(val).toContain('/overlay/credits/t/ctok2');
+    });
+  });
+});
