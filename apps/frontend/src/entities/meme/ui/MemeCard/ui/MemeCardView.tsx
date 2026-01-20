@@ -1,5 +1,7 @@
-import type { Meme } from '@/types';
+import { memo } from 'react';
 import type { RefObject } from 'react';
+
+import type { Meme } from '@/types';
 
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { cn } from '@/shared/lib/cn';
@@ -23,7 +25,7 @@ export type MemeCardViewProps = {
   onKeyDown: (e: React.KeyboardEvent) => void;
 };
 
-export function MemeCardView({
+function MemeCardViewBase({
   meme,
   mediaUrl,
   previewMode,
@@ -122,3 +124,12 @@ export function MemeCardView({
   );
 }
 
+export const MemeCardView = memo(MemeCardViewBase, (prev, next) => {
+  return (
+    prev.meme.id === next.meme.id &&
+    prev.aspectRatio === next.aspectRatio &&
+    prev.isHovered === next.isHovered &&
+    prev.shouldLoadMedia === next.shouldLoadMedia &&
+    prev.videoMuted === next.videoMuted
+  );
+});

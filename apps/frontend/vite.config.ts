@@ -1,10 +1,13 @@
 import path from 'path';
 
 import react from '@vitejs/plugin-react';
+import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(({ mode: _mode }) => {
+export default defineConfig(({ mode }) => {
   const isBetaBuild = process.env.BETA_BUILD === 'true';
+  const isAnalyze = mode === 'analyze';
 
   const betaApiUrl = process.env.VITE_API_URL_BETA?.trim();
   const domain = process.env.DOMAIN?.trim();
@@ -29,7 +32,30 @@ export default defineConfig(({ mode: _mode }) => {
   }
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
+        injectRegister: 'auto',
+        registerType: 'autoUpdate',
+        manifest: {
+          name: 'Memalerts',
+          short_name: 'Memalerts',
+          start_url: '/',
+          display: 'standalone',
+          theme_color: '#0a84ff',
+          background_color: '#0b0f19',
+        },
+      }),
+      isAnalyze &&
+        visualizer({
+          open: true,
+          filename: 'dist/stats.html',
+          gzipSize: true,
+        }),
+    ].filter(Boolean),
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
@@ -51,6 +77,9 @@ export default defineConfig(({ mode: _mode }) => {
         output: {
           manualChunks: {
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'redux-vendor': ['@reduxjs/toolkit', 'react-redux'],
+            'i18n-vendor': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+            'ui-vendor': ['react-hot-toast'],
           },
         },
       },
@@ -58,5 +87,4 @@ export default defineConfig(({ mode: _mode }) => {
     define: Object.keys(defineConfig).length > 0 ? defineConfig : undefined,
   };
 });
-
 
