@@ -1,0 +1,6 @@
+{
+  "user": {
+    "id": "discord_user_123"
+  },
+  "roles": ["role1", "role2"]
+}

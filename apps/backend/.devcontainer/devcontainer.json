@@ -1,0 +1,23 @@
+{
+  "name": "memalerts-backend",
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "docker-compose.yml"
+  ],
+  "service": "api",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [3001],
+  "postCreateCommand": "corepack enable && pnpm install",
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma"
+      ]
+    }
+  }
+}

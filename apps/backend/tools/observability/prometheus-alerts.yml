@@ -1,0 +1,101 @@
+groups:
+  - name: memalerts-alerts
+    rules:
+      - alert: MemalertsHttp5xxRateHigh
+        expr: sum(rate(memalerts_http_requests_total{status=~"5.."}[5m])) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx rate is high"
+          description: "5xx responses exceed 1 req/s for 5m."
+
+      - alert: MemalertsHttpLatencyP95High
+        expr: histogram_quantile(0.95, sum(rate(memalerts_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP latency p95 is high"
+          description: "p95 latency exceeded 2s for 10m."
+
+      - alert: MemalertsAiFailures
+        expr: sum(rate(memalerts_ai_jobs_failed_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI jobs failing"
+          description: "AI job failure rate is above 0 for 10m."
+
+      - alert: MemalertsAiBacklogHigh
+        expr: sum(memalerts_ai_jobs_pending) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI jobs backlog high"
+          description: "AI pending jobs exceed 100 for 10m."
+
+      - alert: MemalertsChatOutboxBacklog
+        expr: sum(memalerts_chat_outbox_queue_depth{state=~"waiting|delayed"}) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chat outbox backlog building"
+          description: "Chat outbox queue depth is above 50 for 10m."
+
+      - alert: MemalertsChatOutboxLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(memalerts_chat_outbox_queue_latency_seconds_bucket[5m])) by (le)) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chat outbox latency high"
+          description: "p95 chat outbox latency exceeded 5s for 10m."
+
+      - alert: MemalertsBotOutboxFailures
+        expr: sum(rate(memalerts_bot_outbox_failed_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bot outbox failures"
+          description: "Bot outbox failures detected over 10m."
+
+      - alert: MemalertsBotOutboxPendingHigh
+        expr: sum(memalerts_bot_outbox_pending) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bot outbox backlog high"
+          description: "Bot outbox pending exceeds 100 for 10m."
+
+      - alert: MemalertsDbSlowQueriesHigh
+        expr: rate(memalerts_db_slow_queries_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB slow queries increasing"
+          description: "Slow queries exceed 0.1/sec for 10m."
+
+      - alert: MemalertsCircuitOpen
+        expr: sum(memalerts_circuit_state{state="open"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker open"
+          description: "At least one circuit breaker is open."
+
+      - alert: MemalertsFilehashOrphans
+        expr: increase(memalerts_filehash_orphan_files_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Orphaned filehash entries detected"
+          description: "Filehash orphan cleanup detected in last 10m."

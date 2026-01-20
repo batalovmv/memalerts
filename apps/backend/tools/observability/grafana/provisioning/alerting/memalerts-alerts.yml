@@ -1,0 +1,175 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: memalerts
+    folder: Memalerts
+    interval: 1m
+    rules:
+      - uid: memalerts_http_5xx
+        title: HTTP 5xx rate high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: sum(rate(memalerts_http_requests_total{status=~"5.."}[5m]))
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              type: reduce
+              reducer: last
+              expression: A
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              type: threshold
+              expression: B
+              operator: gt
+              value: 1
+              refId: C
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: HTTP 5xx rate is high
+          description: 5xx responses exceed 1 req/s for 5m.
+
+      - uid: memalerts_http_p95
+        title: HTTP latency p95 high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: histogram_quantile(0.95, sum(rate(memalerts_http_request_duration_seconds_bucket[5m])) by (le))
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: reduce
+              reducer: last
+              expression: A
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: B
+              operator: gt
+              value: 2
+              refId: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: HTTP latency p95 is high
+          description: p95 latency exceeded 2s for 10m.
+
+      - uid: memalerts_ai_failures
+        title: AI jobs failing
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: sum(rate(memalerts_ai_jobs_failed_total[10m]))
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: reduce
+              reducer: last
+              expression: A
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: B
+              operator: gt
+              value: 0
+              refId: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: AI jobs failing
+          description: AI job failure rate is above 0 for 10m.
+
+      - uid: memalerts_outbox_backlog
+        title: Chat outbox backlog
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: sum(memalerts_chat_outbox_queue_depth{state=~"waiting|delayed"})
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: reduce
+              reducer: last
+              expression: A
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: B
+              operator: gt
+              value: 50
+              refId: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: Chat outbox backlog building
+          description: Chat outbox queue depth is above 50 for 10m.

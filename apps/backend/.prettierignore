@@ -1,0 +1,6 @@
+dist
+node_modules
+uploads
+prisma/migrations
+pnpm-lock.yaml
+*.log

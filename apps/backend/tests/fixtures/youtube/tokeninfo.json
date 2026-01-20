@@ -1,0 +1,5 @@
+{
+  "sub": "youtube_user_123",
+  "scope": "https://www.googleapis.com/auth/youtube.readonly openid",
+  "email": "yt-user@example.com"
+}

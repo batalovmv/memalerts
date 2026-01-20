@@ -1,0 +1,18 @@
+[sources.memalerts_logs]
+type = "file"
+include = ["/var/log/memalerts-api.log"]
+read_from = "end"
+
+[transforms.memalerts_parse]
+type = "remap"
+inputs = ["memalerts_logs"]
+source = '''
+. = parse_json!(.message)
+'''
+
+[sinks.elasticsearch]
+type = "elasticsearch"
+inputs = ["memalerts_parse"]
+endpoint = "http://elasticsearch:9200"
+index = "memalerts-logs-%Y.%m.%d"
+encoding.codec = "json"

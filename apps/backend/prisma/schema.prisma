@@ -1,0 +1,1546 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Channel {
+  id                            String   @id @default(uuid())
+  // Legacy: Twitch channel id. Optional to support non-Twitch streamers in the future.
+  twitchChannelId               String?  @unique
+  slug                          String   @unique
+  name                          String
+  rewardIdForCoins              String?
+  coinPerPointRatio             Float    @default(1.0)
+  rewardEnabled                 Boolean  @default(false) // Is reward enabled/active
+  rewardTitle                   String? // Title of the reward in Twitch
+  rewardCost                    Int? // Cost in channel points
+  rewardCoins                   Int? // Coins granted per redemption
+  // If true, coins for the Twitch channel points reward are granted only when stream is online.
+  rewardOnlyWhenLive            Boolean  @default(false)
+  // Kick rewards -> coins (non-Twitch provider).
+  kickRewardEnabled             Boolean  @default(false)
+  kickRewardIdForCoins          String?
+  kickCoinPerPointRatio         Float    @default(1.0)
+  kickRewardCoins               Int?
+  kickRewardOnlyWhenLive        Boolean  @default(false)
+  // Kick webhook event subscription id (used for auto-subscribe / re-create flows).
+  kickRewardsSubscriptionId     String?
+  // Trovo spells -> coins.
+  // Interpretation: coins granted per 1 unit of the currency; 0 disables.
+  trovoManaCoinsPerUnit         Int      @default(0)
+  trovoElixirCoinsPerUnit       Int      @default(0)
+  // VKVideo channel points -> coins.
+  vkvideoRewardEnabled          Boolean  @default(false)
+  vkvideoRewardIdForCoins       String?
+  vkvideoCoinPerPointRatio      Float    @default(1.0)
+  vkvideoRewardCoins            Int?
+  vkvideoRewardOnlyWhenLive     Boolean  @default(false)
+  // YouTube "like stream" -> coins (viewer claim).
+  youtubeLikeRewardEnabled      Boolean  @default(false)
+  youtubeLikeRewardCoins        Int      @default(0)
+  youtubeLikeRewardOnlyWhenLive Boolean  @default(false)
+  // Twitch "auto rewards" (follows/subs/bits/raids/chat activity etc). Stored as JSONB object.
+  // Null/empty => disabled (frontend-configured).
+  twitchAutoRewardsJson         Json?    @db.JsonB
+  coinIconUrl                   String? // Custom coin icon URL from Twitch reward
+  primaryColor                  String? // Hex color for primary theme
+  secondaryColor                String? // Hex color for secondary theme
+  accentColor                   String? // Hex color for accent
+  defaultPriceCoins             Int?     @default(100) // Default price for memes in this channel
+  // Which meme catalog is visible/usable on the channel page:
+  // - "channel": only approved ChannelMeme items (current behavior)
+  // - "pool_all": entire global pool (MemeAsset) becomes available for the channel
+  memeCatalogMode               String   @default("channel")
+  // Legacy: Coins granted to submitter when their submission is approved (kept for back-compat).
+  submissionRewardCoins         Int      @default(0)
+  // New: Separate rewards (upload/url vs pool import).
+  submissionRewardCoinsUpload   Int      @default(0)
+  submissionRewardCoinsPool     Int      @default(100)
+  // Legacy: If true, submission approval coins are granted only when stream is online.
+  // NOTE: For pool-import rollout we decided to ALWAYS reward (ignore this flag).
+  submissionRewardOnlyWhenLive  Boolean  @default(false)
+  // Viewer submissions gate (global per-channel).
+  // - submissionsEnabled=false => viewers cannot create new submissions.
+  // - submissionsOnlyWhenLive=true => viewers can submit only while stream is online (best-effort per stream status store).
+  submissionsEnabled            Boolean  @default(true)
+  submissionsOnlyWhenLive       Boolean  @default(false)
+  // Public control token for StreamDeck/StreamerBot-like integrations.
+  // Stored as SHA-256 hex hash (never store raw token).
+  submissionsControlTokenHash   String?  @unique
+  // OBS overlay settings (server-side defaults for tokenized overlay URLs)
+  overlayMode                   String   @default("queue") // queue | simultaneous
+  overlayShowSender             Boolean  @default(false)
+  overlayMaxConcurrent          Int      @default(3)
+  // Advanced OBS overlay appearance/animation settings (stored as JSON string)
+  overlayStyleJson              String?  @db.Text
+  // OBS overlay presets (per-channel, stored as JSON string; validated/size-limited by API)
+  overlayPresetsJson            String?  @db.Text
+  // Increment to invalidate previously issued overlay tokens.
+  overlayTokenVersion           Int      @default(1)
+  // OBS credits overlay (titres) settings (stored as JSON string)
+  creditsStyleJson              String?  @db.Text
+  // Credits overlay: ignore chatters by name (case-insensitive). Stored as JSON array of strings.
+  creditsIgnoredChattersJson    Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  // Increment to invalidate previously issued credits tokens.
+  creditsTokenVersion           Int      @default(1)
+  // Credits session reconnect window in minutes (keep session alive after stream goes offline / bot disconnects).
+  creditsReconnectWindowMinutes Int      @default(60)
+  // Unified chat rewards config (all platforms: twitch, kick, trovo, vkvideo, youtube).
+  // Only logged-in users receive rewards. Stored as JSONB for extensibility.
+  // Example: { "firstMessage": { "enabled": true, "coins": 10, "onlyWhenLive": true } }
+  chatRewardsJson               Json?    @db.JsonB
+  // Chat bot "smart" command: stream duration settings (stored as JSON string; validated by API).
+  streamDurationCommandJson     String?  @db.Text
+  // Chat bot follow greeting settings
+  followGreetingsEnabled        Boolean  @default(false)
+  followGreetingTemplate        String?  @db.Text
+  // Streamer dashboard layout (cross-device). Null => use frontend default order.
+  // Stored as JSON array of card ids (strings). Normalized/validated by API.
+  dashboardCardOrder            Json?    @db.JsonB
+  // Boosty integration (manual token linking; subscription sync awards coins).
+  // Streamer sets their Boosty blog name (e.g. "some-blog-name") and reward amount.
+  boostyBlogName                String?
+  boostyCoinsPerSub             Int      @default(0)
+  // Boosty tiers -> coins mapping for boosty_api mode.
+  // Stored as JSON array of objects: [{ tierKey: "...", coins: 100 }, ...]
+  boostyTierCoinsJson           Json?    @db.JsonB
+  // Legacy (initial rollout): single role id that represents subscription.
+  // Kept for backward compatibility; prefer `boostyDiscordTierRolesJson`.
+  boostyDiscordRoleId           String?
+  // Boosty via Discord roles (tiers): mapping of Boosty tier -> Discord role id in the platform guild.
+  // Stored as JSON array of objects: [{ tier: "tier1", roleId: "123" }, ...]
+  boostyDiscordTierRolesJson    Json?    @db.JsonB
+  // Subscriptions guild for Boosty rewards via Discord roles.
+  // If null, backend falls back to DISCORD_DEFAULT_SUBSCRIPTIONS_GUILD_ID (or legacy DISCORD_SUBSCRIPTIONS_GUILD_ID).
+  discordSubscriptionsGuildId   String?
+  createdAt                     DateTime @default(now())
+
+  users                        User[]
+  wallets                      Wallet[]
+  externalRewardEvents         ExternalRewardEvent[]
+  pendingCoinGrants            PendingCoinGrant[]
+  memes                        Meme[]
+  channelMemes                 ChannelMeme[]
+  submissions                  MemeSubmission[]
+  redemptions                  Redemption[]
+  activations                  MemeActivation[]
+  auditLogs                    AuditLog[]
+  promotions                   Promotion[]
+  dailyStats                   ChannelDailyStats[]
+  userStats30d                 ChannelUserStats30d[]
+  memeStats30d                 ChannelMemeStats30d[]
+  memeDailyStats               ChannelMemeDailyStats[]
+  chatBotSubscriptions         ChatBotSubscription[]
+  chatBotOutboxMessages        ChatBotOutboxMessage[]
+  chatBotCommands              ChatBotCommand[]
+  chatBotEventDedups           ChatBotEventDedup[]
+  vkVideoChatBotSubscriptions  VkVideoChatBotSubscription[]
+  vkVideoChatBotOutboxMessages VkVideoChatBotOutboxMessage[]
+  botIntegrations              BotIntegrationSettings[]
+  youTubeChatBotSubscriptions  YouTubeChatBotSubscription[]
+  youTubeChatBotOutboxMessages YouTubeChatBotOutboxMessage[]
+  youTubeLikeRewardClaims      YouTubeLikeRewardClaim[]
+  trovoChatBotSubscriptions    TrovoChatBotSubscription[]
+  trovoChatBotOutboxMessages   TrovoChatBotOutboxMessage[]
+  kickChatBotSubscriptions     KickChatBotSubscription[]
+  kickChatBotOutboxMessages    KickChatBotOutboxMessage[]
+  youTubeBotIntegration        YouTubeBotIntegration?
+  vkVideoBotIntegration        VkVideoBotIntegration?
+  twitchBotIntegration         TwitchBotIntegration?
+  trovoBotIntegration          TrovoBotIntegration?
+  kickBotIntegration           KickBotIntegration?
+  entitlements                 ChannelEntitlement[]
+  boostySubscriptionRewards    BoostySubscriptionReward[]
+  boostyDiscordRewardsV1       BoostyDiscordSubscriptionReward[]
+  boostyDiscordRewardsV2       BoostyDiscordSubscriptionRewardV2[]
+}
+
+// Dedupe table: coins granted for a "liked live stream video" claim.
+// Exactly-once invariant: one grant per (channel, user, videoId).
+model YouTubeLikeRewardClaim {
+  id            String   @id @default(uuid())
+  channelId      String
+  userId         String
+  videoId        String
+  coinsGranted   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastCheckedAt  DateTime?
+  lastRating     String?
+  lastError      String?  @db.Text
+  awardedAt      DateTime?
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, videoId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([videoId])
+  @@index([awardedAt])
+  @@index([lastCheckedAt])
+}
+
+enum ExternalRewardProvider {
+  kick
+  trovo
+  vkvideo
+  twitch
+}
+
+enum ExternalRewardEventType {
+  kick_reward_redemption
+  trovo_spell
+  vkvideo_channel_points_redemption
+  twitch_follow
+  twitch_subscribe
+  twitch_resub_message
+  twitch_gift_sub
+  twitch_cheer
+  twitch_raid
+  twitch_channel_points_redemption
+  twitch_chat_first_message
+  twitch_chat_messages_threshold
+  twitch_chat_daily_streak
+}
+
+enum ExternalRewardCurrency {
+  kick_channel_points
+  trovo_mana
+  trovo_elixir
+  vkvideo_channel_points
+  twitch_channel_points
+  twitch_bits
+  twitch_units
+}
+
+enum ExternalRewardEventStatus {
+  observed
+  eligible
+  ignored
+  claimed
+  failed
+}
+
+// Append-only (mostly) ledger of external reward events that may result in MemAlerts coin grants.
+// IMPORTANT: This must NOT create new Users. Viewer identity is resolved later via account linking.
+model ExternalRewardEvent {
+  id                String                  @id @default(uuid())
+  provider          ExternalRewardProvider
+  // Unique event identifier within the provider (e.g. webhook message id / redemption id).
+  providerEventId   String
+  channelId         String
+  providerAccountId String
+  eventType         ExternalRewardEventType
+  eventAt           DateTime?
+  receivedAt        DateTime                @default(now())
+  currency          ExternalRewardCurrency
+  // Cost/value in provider currency units (e.g. channel points, mana).
+  amount            Int
+  status            ExternalRewardEventStatus @default(observed)
+  reason            String?
+  rawPayloadJson    String                  @db.Text
+  updatedAt         DateTime                @updatedAt
+
+  channel           Channel                 @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  pendingCoinGrant  PendingCoinGrant?
+  webhookDeliveries ExternalWebhookDeliveryDedup[]
+
+  @@unique([provider, providerEventId])
+  @@index([channelId])
+  @@index([provider, providerAccountId])
+  @@index([provider, status])
+  @@index([eventAt])
+  @@index([receivedAt])
+}
+
+// Delivery-level dedupe for external webhooks (e.g., Kick retries).
+// This is separate from ExternalRewardEvent dedupe (providerEventId), because providers may retry the same delivery.
+model ExternalWebhookDeliveryDedup {
+  id              String               @id @default(uuid())
+  provider        ExternalRewardProvider
+  messageId       String
+  receivedAt      DateTime             @default(now())
+  externalEventId String?
+
+  externalEvent   ExternalRewardEvent? @relation(fields: [externalEventId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, messageId])
+  @@index([receivedAt])
+}
+
+// Pending coin grants to be claimed when the viewer links their external account.
+// Exactly-once invariant is enforced by unique externalEventId + claim update guard.
+model PendingCoinGrant {
+  id             String                @id @default(uuid())
+  provider       ExternalRewardProvider
+  providerAccountId String
+  channelId      String
+  externalEventId String              @unique
+  coinsToGrant   Int
+  createdAt      DateTime             @default(now())
+  claimedAt      DateTime?
+  claimedByUserId String?
+
+  channel        Channel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  claimedBy      User?                @relation("PendingCoinGrantClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  externalEvent  ExternalRewardEvent  @relation(fields: [externalEventId], references: [id], onDelete: Cascade)
+
+  @@index([provider, providerAccountId])
+  @@index([channelId])
+  @@index([claimedAt])
+  @@index([provider, providerAccountId, claimedAt])
+}
+
+// Channel-scoped feature entitlements (subscription gates / feature flags).
+// Additive + safe for shared DB between prod/beta.
+// Example key: "custom_bot" (allows per-channel bot sender override).
+model ChannelEntitlement {
+  id        String    @id @default(uuid())
+  channelId String
+  key       String
+  enabled   Boolean   @default(true)
+  expiresAt DateTime?
+  source    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, key])
+  @@index([channelId])
+  @@index([key, enabled])
+  @@index([expiresAt])
+}
+
+enum BotIntegrationProvider {
+  twitch
+  vkplaylive
+  vkvideo
+  youtube
+  trovo
+  kick
+}
+
+// Per-channel bot integration toggles (survive restarts/deploys).
+// - twitch: gates ChatBotSubscription (Twitch IRC bot joins/parts)
+// - vkplaylive: reserved for VKPlay Live chat integration (uses ENV mapping for now)
+model BotIntegrationSettings {
+  id        String                 @id @default(uuid())
+  channelId String
+  provider  BotIntegrationProvider
+  enabled   Boolean                @default(false)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, provider])
+  @@index([channelId])
+  @@index([provider, enabled])
+  @@index([enabled])
+}
+
+enum ExternalAccountProvider {
+  twitch
+  youtube
+  vk
+  vkvideo
+  vkplay
+  kick
+  trovo
+  boosty
+  discord
+}
+
+// VK Video Live chat bot subscriptions (global bot account joins many channels).
+// Each MemAlerts Channel maps to a single VK Video Live channel identifier used by the chat connection.
+model VkVideoChatBotSubscription {
+  id                String   @id @default(uuid())
+  channelId         String
+  // Channel owner (used to access VKVideo API for roles; optional for backward compatibility).
+  userId            String?
+  vkvideoChannelId  String // platform channel identifier (exact format depends on VKVideo chat API)
+  // Full channel URL on VK Video Live (required to resolve stream_id and websocket channel names via DevAPI).
+  vkvideoChannelUrl String?
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([vkvideoChannelId])
+  @@index([vkvideoChannelUrl])
+  @@index([channelId])
+  @@index([userId])
+}
+
+// VK Video Live chat bot outbox for sending messages via the separate vkvideo chatbot runner process.
+model VkVideoChatBotOutboxMessage {
+  id               String @id @default(uuid())
+  channelId        String
+  vkvideoChannelId String
+  message          String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([vkvideoChannelId, status, createdAt])
+  @@index([createdAt])
+}
+
+// Trovo chat bot subscriptions (per-channel, uses the streamer's linked Trovo account).
+// Each MemAlerts Channel maps to a Trovo channel id used by Trovo Chat APIs / websocket.
+model TrovoChatBotSubscription {
+  id             String   @id @default(uuid())
+  channelId      String
+  userId         String
+  trovoChannelId String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([trovoChannelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Trovo chat bot outbox for sending messages via the separate trovoChatbotRunner process.
+model TrovoChatBotOutboxMessage {
+  id             String @id @default(uuid())
+  channelId      String
+  trovoChannelId String
+  message        String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([trovoChannelId, status, createdAt])
+  @@index([createdAt])
+}
+
+// Kick chat bot subscriptions (per-channel, uses the streamer's linked Kick account).
+// Each MemAlerts Channel maps to a Kick channel id used by Kick Chat APIs / events.
+model KickChatBotSubscription {
+  id            String   @id @default(uuid())
+  channelId     String
+  userId        String
+  kickChannelId String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([kickChannelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Kick chat bot outbox for sending messages via the separate kickChatbotRunner process.
+model KickChatBotOutboxMessage {
+  id            String @id @default(uuid())
+  channelId     String
+  kickChannelId String
+  message       String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+  // Simple backoff scheduling for retries (e.g., after 429 Too Many Requests).
+  nextAttemptAt DateTime @default(now())
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([kickChannelId, status, createdAt])
+  @@index([createdAt])
+}
+
+enum OAuthStateKind {
+  login
+  link
+  bot_link
+}
+
+// Global Twitch IRC bot subscriptions (single bot account joins many channels).
+model ChatBotSubscription {
+  id          String   @id @default(uuid())
+  channelId   String
+  twitchLogin String // lowercase twitch channel login (for JOIN #login)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([twitchLogin])
+  @@index([channelId])
+}
+
+// YouTube chat bot subscriptions (per-channel, uses the streamer's linked YouTube account).
+// Each MemAlerts Channel maps to a single YouTube channelId (owner's channel).
+model YouTubeChatBotSubscription {
+  id               String   @id @default(uuid())
+  channelId        String
+  userId           String
+  youtubeChannelId String
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([enabled])
+  @@index([youtubeChannelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// YouTube chat bot outbox for sending messages via the separate youtubeChatbotRunner process.
+// API enqueues messages here; runner polls, delivers to YouTube Live Chat, then marks sent/failed.
+model YouTubeChatBotOutboxMessage {
+  id               String @id @default(uuid())
+  channelId        String
+  youtubeChannelId String
+  message          String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([youtubeChannelId, status, createdAt])
+  @@index([createdAt])
+}
+
+// Chat bot outbox for sending messages via the separate chatbotRunner process.
+// API enqueues messages here; runner polls, delivers to Twitch IRC, then marks sent/failed.
+model ChatBotOutboxMessage {
+  id          String @id @default(uuid())
+  channelId   String
+  twitchLogin String // lowercase twitch channel login (target channel)
+  message     String @db.Text
+
+  status    String  @default("pending") // pending | processing | sent | failed
+  attempts  Int     @default(0)
+  lastError String? @db.Text
+
+  processingAt DateTime?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
+  @@index([twitchLogin, status, createdAt])
+  @@index([createdAt])
+}
+
+// Per-channel chat bot commands (trigger -> response).
+model ChatBotCommand {
+  id                    String   @id @default(uuid())
+  channelId             String
+  trigger               String
+  triggerNormalized     String
+  response              String   @db.Text
+  enabled               Boolean  @default(true)
+  // If true, bot replies only when stream is online.
+  onlyWhenLive          Boolean  @default(false)
+  // Command audience:
+  // - if both arrays are empty => everyone can trigger the command
+  // - if allowedUsers contains sender login => allowed
+  // - else if allowedRoles contains sender role => allowed
+  // NOTE: "follower" role is currently not resolvable from IRC tags; see chatbotRunner.ts.
+  allowedRoles          Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  allowedUsers          Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  // VKVideo-specific role ids (from VKVideo Channel Roles API).
+  // Stored separately because Twitch allowedRoles are a fixed enum.
+  vkvideoAllowedRoleIds Json     @default(dbgenerated("'[]'::jsonb")) @db.JsonB
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, triggerNormalized])
+  @@index([channelId])
+  @@index([enabled])
+  @@index([channelId, enabled])
+  @@index([triggerNormalized])
+}
+
+// Dedupe table for chat-bot-triggering events (e.g., EventSub follow) to prevent duplicate greetings.
+model ChatBotEventDedup {
+  id        String   @id @default(uuid())
+  channelId String
+  kind      String // e.g. "follow"
+  eventId   String
+  createdAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, eventId])
+  @@index([channelId])
+  @@index([kind])
+  @@index([createdAt])
+}
+
+// Per-user cross-device UI preferences.
+// NOTE: kept additive and isolated to a single row per user (no channel dimension).
+model UserPreference {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  theme                String   @default("light") // light | dark
+  autoplayMemesEnabled Boolean  @default(true)
+  memeModalMuted       Boolean  @default(false)
+  coinsInfoSeen        Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  // Legacy: Twitch user id. Optional to support non-Twitch identities in the future.
+  twitchUserId       String?  @unique
+  displayName        String
+  profileImageUrl    String? // Twitch profile image URL
+  role               String // viewer, streamer, admin
+  channelId          String?
+  twitchAccessToken  String? // Twitch OAuth access token for API calls
+  twitchRefreshToken String? // Twitch OAuth refresh token
+  hasBetaAccess      Boolean  @default(false) // Beta access flag
+  createdAt          DateTime @default(now())
+
+  channel                     Channel?                     @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  preference                  UserPreference?
+  externalAccounts            ExternalAccount[]
+  oauthStates                 OAuthState[]
+  youTubeChatBotSubscriptions YouTubeChatBotSubscription[]
+  youTubeLikeRewardClaims     YouTubeLikeRewardClaim[]
+  vkVideoChatBotSubscriptions VkVideoChatBotSubscription[]
+  trovoChatBotSubscriptions   TrovoChatBotSubscription[]
+  kickChatBotSubscriptions    KickChatBotSubscription[]
+  wallets                     Wallet[]
+  pendingCoinGrantsClaimed    PendingCoinGrant[]         @relation("PendingCoinGrantClaimedBy")
+  boostySubscriptionRewards   BoostySubscriptionReward[]
+  boostyDiscordRewardsV1      BoostyDiscordSubscriptionReward[]
+  boostyDiscordRewardsV2      BoostyDiscordSubscriptionRewardV2[]
+  memesCreated                Meme[]                       @relation("CreatedBy")
+  memesApproved               Meme[]                       @relation("ApprovedBy")
+  memeAssetsCreated           MemeAsset[]                  @relation("MemeAssetCreatedBy")
+  memeAssetsHidden            MemeAsset[]                  @relation("MemeAssetHiddenBy")
+  memeAssetsPurged            MemeAsset[]                  @relation("MemeAssetPurgedBy")
+  channelMemesAdded           ChannelMeme[]                @relation("ChannelMemeAddedBy")
+  channelMemesApproved        ChannelMeme[]                @relation("ChannelMemeApprovedBy")
+  submissions                 MemeSubmission[]
+  redemptions                 Redemption[]
+  activations                 MemeActivation[]
+  channelStats30d             ChannelUserStats30d[]
+  auditLogs                   AuditLog[]
+  betaAccess                  BetaAccess?
+  globalModerator             GlobalModerator?
+  moderatorsGranted           GlobalModerator[]            @relation("GlobalModeratorGrantedBy")
+  moderatorsRevoked           GlobalModerator[]            @relation("GlobalModeratorRevokedBy")
+
+  @@index([twitchUserId])
+  @@index([channelId])
+  @@index([hasBetaAccess])
+}
+
+// Global moderator permission (does NOT change User.role).
+// Used for shared meme pool moderation (MemeAsset visibility + quarantine deletion).
+model GlobalModerator {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  grantedAt       DateTime @default(now())
+  grantedByUserId String?
+  revokedAt       DateTime?
+  revokedByUserId String?
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("GlobalModeratorGrantedBy", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  revokedBy User? @relation("GlobalModeratorRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([grantedAt])
+  @@index([revokedAt])
+}
+
+model ExternalAccount {
+  id                String                  @id @default(uuid())
+  userId            String
+  provider          ExternalAccountProvider
+  providerAccountId String
+
+  // Profile-ish fields (best-effort, provider-dependent)
+  displayName String?
+  login       String?
+  avatarUrl   String?
+  profileUrl  String?
+
+  // OAuth tokens (optional; some providers may not return refresh tokens etc.)
+  accessToken    String?
+  refreshToken   String?
+  // Some providers (e.g. Boosty reverse-engineered clients) use refresh token + device id.
+  deviceId       String?
+  tokenExpiresAt DateTime?
+  scopes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user                       User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  youTubeBotIntegration      YouTubeBotIntegration?
+  globalYouTubeBotCredential GlobalYouTubeBotCredential?
+  vkVideoBotIntegration      VkVideoBotIntegration?
+  globalVkVideoBotCredential GlobalVkVideoBotCredential?
+  twitchBotIntegration       TwitchBotIntegration?
+  globalTwitchBotCredential  GlobalTwitchBotCredential?
+  trovoBotIntegration        TrovoBotIntegration?
+  globalTrovoBotCredential   GlobalTrovoBotCredential?
+  kickBotIntegration         KickBotIntegration?
+  globalKickBotCredential    GlobalKickBotCredential?
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@index([provider])
+  @@index([providerAccountId])
+}
+
+// Dedupe table: coins granted for a Boosty subscription for a specific channel.
+// We currently grant coins once per subscription id (first time we observe it as active).
+model BoostySubscriptionReward {
+  id                   String   @id @default(uuid())
+  channelId             String
+  userId                String
+  boostyBlogName        String
+  boostySubscriptionId  String
+  // Best-effort tier key observed at the time of grant (used to support upgrades via delta).
+  boostyTierKey         String?
+  // Amount already granted for this subscription (source of truth; do NOT recompute from current config).
+  coinsGranted          Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, boostySubscriptionId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([boostyBlogName])
+  @@index([createdAt])
+}
+
+// Dedupe table: coins granted for a Boosty subscription detected via Discord role membership.
+// We currently grant coins once per (channel, user, roleId) when we first observe the role as present.
+model BoostyDiscordSubscriptionReward {
+  id           String   @id @default(uuid())
+  channelId    String
+  userId       String
+  discordRoleId String
+  coinsGranted Int
+  createdAt    DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId, discordRoleId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([discordRoleId])
+  @@index([createdAt])
+}
+
+// V2: dedupe by (channelId, userId) regardless of tier/role, as the reward is "any active subscription".
+model BoostyDiscordSubscriptionRewardV2 {
+  id            String   @id @default(uuid())
+  channelId      String
+  userId         String
+  // Best-effort info for audit/debug
+  discordRoleId  String?
+  discordTier    String?
+  coinsGranted   Int
+  createdAt      DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model OAuthState {
+  // Random state string used as primary key (stored server-side for verification)
+  state    String                  @id
+  provider ExternalAccountProvider
+  kind     OAuthStateKind
+
+  // For link flows: the authenticated user that initiated linking.
+  userId    String?
+  // For bot_link flows: channelId of the streamer who initiated linking.
+  channelId String?
+
+  // Redirect handling
+  redirectTo String?
+  origin     String?
+
+  // PKCE-ready (not used for Twitch currently, but stored for future providers)
+  codeVerifier String?
+
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([provider, kind])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Optional per-channel YouTube "bot account" override.
+// If present, YouTube chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global YouTube bot token (YOUTUBE_BOT_REFRESH_TOKEN).
+model YouTubeBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared YouTube bot credential (single "default MemAlerts bot" account).
+// Linked by admin once; used as sender for YouTube chat messages when a channel has no override.
+model GlobalYouTubeBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel VKVideo "bot account" override.
+// If present, VKVideo chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global VKVideo bot credential.
+model VkVideoBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared VKVideo bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for VKVideo chat messages when a channel has no override.
+model GlobalVkVideoBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel Twitch "bot account" override.
+// If present, Twitch chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global Twitch bot credential.
+model TwitchBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared Twitch bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for Twitch chat messages when a channel has no override.
+model GlobalTwitchBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel Trovo "bot account" override.
+// If present, Trovo chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global Trovo bot credential.
+model TrovoBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared Trovo bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for Trovo chat messages when a channel has no override.
+model GlobalTrovoBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Optional per-channel Kick "bot account" override.
+// If present, Kick chat messages for the channel are sent using this ExternalAccount tokens.
+// If absent, backend falls back to the global Kick bot credential.
+model KickBotIntegration {
+  id                String   @id @default(uuid())
+  channelId         String   @unique
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channel         Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([channelId])
+  @@index([externalAccountId])
+}
+
+// Global shared Kick bot credential (single default MemAlerts bot account).
+// Linked by admin once; used as sender for Kick chat messages when a channel has no override.
+model GlobalKickBotCredential {
+  id                String   @id @default(uuid())
+  externalAccountId String   @unique
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([externalAccountId])
+}
+
+// Lightweight heartbeat table for background workers (bots/AI).
+// No foreign keys to keep it expand-only and deployment-safe.
+model ServiceHeartbeat {
+  id         String   @id
+  lastSeenAt DateTime @updatedAt
+  meta       Json?    @db.JsonB
+  createdAt  DateTime @default(now())
+
+  @@index([lastSeenAt])
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String
+  channelId String
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+model Meme {
+  id               String    @id @default(uuid())
+  channelId        String
+  title            String
+  type             String // image, gif, video, audio
+  fileUrl          String
+  fileHash         String? // SHA-256 hash for deduplication
+  durationMs       Int
+  priceCoins       Int
+  status           String // pending, approved, rejected
+  deletedAt        DateTime?
+  createdByUserId  String?
+  approvedByUserId String?
+  createdAt        DateTime  @default(now())
+
+  channel           Channel                 @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy         User?                   @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy        User?                   @relation("ApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  activations       MemeActivation[]
+  globalStats30d    GlobalMemeStats30d?
+  globalDailyStats  GlobalMemeDailyStats[]
+  tags              MemeTag[]
+  channelStats30d   ChannelMemeStats30d[]
+  channelDailyStats ChannelMemeDailyStats[]
+  fileHashRef       FileHash?               @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
+
+  @@index([channelId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdByUserId])
+  @@index([fileHash])
+  // Common read pattern: list approved memes for a channel ordered by createdAt
+  @@index([channelId, status, createdAt])
+}
+
+// Global meme object (shared pool). Appears in pool once at least one ChannelMeme is approved.
+model MemeAsset {
+  id         String  @id @default(uuid())
+  type       String // image, gif, video, audio (currently video-only for submissions)
+  fileUrl    String?
+  // Preferred playback URL (e.g. audio-normalized derivative). If null, clients should use fileUrl.
+  playFileUrl String?
+  fileHash   String? // SHA-256 hash for deduplication (preferred)
+  durationMs Int
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  // Global AI metadata (per unique asset / fileHash).
+  // Used to avoid re-running analysis on duplicates and to instantly provide tags/description on pool adoption.
+  aiStatus           String   @default("pending") // pending|done
+  aiAutoTitle        String?  @db.VarChar(200)
+  aiAutoTagNamesJson Json?
+  aiAutoDescription  String?  @db.VarChar(2000)
+  aiSearchText       String?  @db.VarChar(4000)
+  aiCompletedAt      DateTime?
+
+  // Audio normalization for playback (site + OBS). Done once per unique asset and reused via playFileUrl.
+  audioNormStatus      String   @default("pending") // pending|processing|done|failed|failed_final
+  audioNormRetryCount  Int      @default(0)
+  audioNormLastTriedAt DateTime?
+  audioNormNextRetryAt DateTime?
+  audioNormError       String?  @db.Text
+  audioNormCompletedAt DateTime?
+
+  // Pool moderation (does not affect already-added channel memes; only hides from pool listing)
+  poolVisibility     String    @default("visible") // visible | hidden
+  poolHiddenAt       DateTime?
+  poolHiddenReason   String?
+  poolHiddenByUserId String?
+
+  // Safe deletion (quarantine)
+  purgeRequestedAt DateTime?
+  purgeNotBefore   DateTime?
+  purgedAt         DateTime?
+  purgeReason      String?
+  purgeByUserId    String?
+
+  createdBy   User?     @relation("MemeAssetCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  hiddenBy    User?     @relation("MemeAssetHiddenBy", fields: [poolHiddenByUserId], references: [id], onDelete: SetNull)
+  purgedBy    User?     @relation("MemeAssetPurgedBy", fields: [purgeByUserId], references: [id], onDelete: SetNull)
+  fileHashRef FileHash? @relation(fields: [fileHash], references: [hash], onDelete: SetNull)
+
+  channelMemes ChannelMeme[]
+  submissions  MemeSubmission[]
+
+  @@index([fileHash])
+  @@index([createdByUserId])
+  @@index([poolVisibility])
+  @@index([poolHiddenAt])
+  @@index([purgeNotBefore])
+  @@index([purgedAt])
+  @@index([createdAt])
+}
+
+// Channel-scoped adoption of a MemeAsset (what streamer actually uses).
+model ChannelMeme {
+  id           String  @id @default(uuid())
+  channelId    String
+  memeAssetId  String
+  // Back-compat bridge during migration: points to legacy Meme.id (optional).
+  legacyMemeId String?
+
+  status    String    @default("approved") // pending | approved | rejected | disabled
+  deletedAt DateTime?
+
+  // Channel-specific fields
+  title      String
+  // Hidden search-only text (not returned in DTOs). Used to include AI-generated description in search.
+  // Keep null/empty if not available; do not display to end-users.
+  searchText String? @db.VarChar(4000)
+  // Hidden AI metadata for moderation/quality control (returned only when explicitly requested by admin/streamer).
+  aiAutoTagNamesJson Json?
+  aiAutoDescription  String? @db.VarChar(2000)
+  priceCoins Int
+
+  addedByUserId    String?
+  approvedByUserId String?
+  approvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+
+  addedBy    User? @relation("ChannelMemeAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  approvedBy User? @relation("ChannelMemeApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  // Activations that referenced this ChannelMeme at the time of activation.
+  // (Opposite side of MemeActivation.channelMeme)
+  activations MemeActivation[]
+
+  @@unique([channelId, memeAssetId])
+  @@index([channelId])
+  @@index([memeAssetId])
+  @@index([legacyMemeId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([channelId, status, createdAt])
+}
+
+model MemeSubmission {
+  id              String   @id @default(uuid())
+  channelId       String
+  submitterUserId String
+  title           String
+  type            String // image, gif, video, audio
+  fileUrlTemp     String
+  sourceUrl       String? // URL of imported meme from memalerts.com
+  memeAssetId     String? // Pool import: references MemeAsset
+  sourceKind      String   @default("upload") // upload | url | pool
+  notes           String?
+  idempotencyKey  String?  @db.VarChar(128)
+  status          String // pending, approved, rejected
+  moderatorNotes  String?
+  // Upload metadata (best-effort; required for AI and better moderation UX).
+  fileHash      String? @db.VarChar(64)
+  durationMs    Int?
+  mimeType      String? @db.VarChar(64)
+  fileSizeBytes Int?
+
+  // AI moderation pipeline state (best-effort; safe defaults for backfill).
+  aiStatus           String   @default("pending") // pending|processing|done|failed
+  aiDecision         String?  @db.VarChar(16)     // low|medium|high
+  aiRiskScore        Float?
+  aiLabelsJson       Json?
+  aiTranscript       String?  @db.VarChar(50000)
+  aiAutoTagNamesJson Json?
+  aiAutoDescription  String?  @db.VarChar(2000)
+  aiModelVersionsJson Json?
+  aiCompletedAt      DateTime?
+  aiRetryCount       Int      @default(0)
+  aiLastTriedAt      DateTime?
+  // Lock/processing fields (used for distributed queue safety).
+  aiProcessingStartedAt DateTime?
+  aiLockedBy         String?  @db.VarChar(128)
+  aiLockExpiresAt    DateTime?
+  aiNextRetryAt      DateTime?
+  aiError            String?  @db.Text
+  // Number of times the submitter resubmitted this submission after "needs_changes".
+  // Used to enforce a small iteration limit for scale (prevents infinite loops).
+  revision        Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  channel   Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  submitter User                @relation(fields: [submitterUserId], references: [id], onDelete: Cascade)
+  memeAsset MemeAsset?          @relation(fields: [memeAssetId], references: [id], onDelete: SetNull)
+  tags      MemeSubmissionTag[]
+
+  @@index([channelId])
+  @@index([status])
+  @@index([submitterUserId])
+  @@index([memeAssetId])
+  @@index([sourceKind])
+  @@index([fileHash])
+  @@index([status, sourceKind, aiStatus, aiNextRetryAt, createdAt])
+  @@index([aiStatus, aiLockExpiresAt])
+  @@index([channelId, status, createdAt(sort: Desc)])
+  @@index([submitterUserId, status, createdAt(sort: Desc)])
+  @@index([submitterUserId, createdAt(sort: Desc)])
+  @@unique([channelId, submitterUserId, idempotencyKey])
+  @@unique([channelId, memeAssetId, status])
+}
+
+model Redemption {
+  id                 String   @id @default(uuid())
+  channelId          String
+  userId             String
+  twitchRedemptionId String   @unique
+  pointsSpent        Int
+  coinsGranted       Int
+  status             String // pending, completed, failed
+  createdAt          DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([userId])
+  @@index([twitchRedemptionId])
+}
+
+model MemeActivation {
+  id            String   @id @default(uuid())
+  channelId     String
+  userId        String
+  memeId        String
+  channelMemeId String?
+  idempotencyKey String? @db.VarChar(128)
+  coinsSpent    Int
+  status        String // queued, playing, done, failed
+  createdAt     DateTime @default(now())
+
+  channel     Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meme        Meme         @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  channelMeme ChannelMeme? @relation(fields: [channelMemeId], references: [id], onDelete: SetNull)
+
+  @@index([channelId])
+  @@index([userId])
+  @@index([status])
+  @@index([memeId])
+  @@index([channelMemeId])
+  @@unique([channelId, userId, idempotencyKey])
+  // Common time-range scans (e.g., daily charts / rollups)
+  @@index([channelId, createdAt])
+  // Admin stats groupBy helpers (group by userId/memeId within a channel)
+  @@index([channelId, userId])
+  @@index([channelId, memeId])
+  // Query helpers:
+  // - popularity ranking: filter by channelId + status + createdAt, group by memeId
+  @@index([channelId, status, createdAt, memeId])
+  // - favorites ranking: filter by channelId + userId + status, group by memeId
+  @@index([channelId, userId, status, memeId])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?
+  channelId   String
+  action      String
+  payloadJson String   @db.Text
+  createdAt   DateTime @default(now())
+
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  memes       MemeTag[]
+  submissions MemeSubmissionTag[]
+
+  @@index([name])
+}
+
+model MemeTag {
+  id     String @id @default(uuid())
+  memeId String
+  tagId  String
+
+  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([memeId, tagId])
+  @@index([memeId])
+  @@index([tagId])
+}
+
+model MemeSubmissionTag {
+  id           String @id @default(uuid())
+  submissionId String
+  tagId        String
+
+  submission MemeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  tag        Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, tagId])
+  @@index([submissionId])
+  @@index([tagId])
+}
+
+model Promotion {
+  id              String   @id @default(uuid())
+  channelId       String
+  name            String
+  discountPercent Float // 0-100, e.g., 50 for 50% discount
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model FileHash {
+  hash           String   @id // SHA-256 hash
+  filePath       String // Path to physical file
+  referenceCount Int      @default(1) // Number of references to this file
+  fileSize       BigInt // File size in bytes
+  mimeType       String // MIME type of the file
+  createdAt      DateTime @default(now())
+
+  memes      Meme[]
+  memeAssets MemeAsset[]
+
+  @@index([referenceCount])
+}
+
+model BetaAccess {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  status      String // pending, approved, rejected
+  requestedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  approvedBy  String? // User ID who approved/rejected
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+// Rollup / pre-aggregations for performance at scale.
+// These tables are additive and safe for shared DB (beta+prod) when deployed with expand/contract strategy.
+model ChannelDailyStats {
+  channelId String
+  day       DateTime // date_trunc('day', createdAt) in UTC
+
+  // All statuses (queued/playing/done/failed/etc). Mirrors admin daily chart semantics.
+  totalActivationsCount Int    @default(0)
+  totalCoinsSpentSum    BigInt @default(0)
+
+  // Completed-only (done/completed). Mirrors viewer stats semantics.
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  // Best-effort unique user counts (all statuses / completed).
+  uniqueUsersCountAll       Int @default(0)
+  uniqueUsersCountCompleted Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, day])
+  @@index([channelId, day])
+  @@index([day])
+}
+
+// 30-day rolling window rollups (min-load strategy):
+// keep expensive groupBy queries off the hot path by precomputing aggregates on a fixed window.
+model ChannelUserStats30d {
+  channelId String
+  userId    String
+
+  // Window boundaries (UTC). Informational; recomputed by job.
+  windowStart DateTime
+  windowEnd   DateTime
+
+  totalActivationsCount     Int    @default(0)
+  totalCoinsSpentSum        BigInt @default(0)
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
+  @@index([channelId])
+  @@index([channelId, totalCoinsSpentSum])
+  @@index([channelId, totalActivationsCount])
+  @@index([updatedAt])
+}
+
+model ChannelMemeStats30d {
+  channelId String
+  memeId    String
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  totalActivationsCount     Int    @default(0)
+  totalCoinsSpentSum        BigInt @default(0)
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, memeId])
+  @@index([channelId])
+  @@index([channelId, completedActivationsCount])
+  @@index([channelId, totalActivationsCount])
+  @@index([updatedAt])
+}
+
+model GlobalMemeStats30d {
+  memeId String
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([memeId])
+  @@index([completedActivationsCount])
+  @@index([updatedAt])
+}
+
+// Daily rollups for viewer stats (day/week/month aggregation without scanning MemeActivation).
+model ChannelMemeDailyStats {
+  channelId String
+  day       DateTime // date_trunc('day', createdAt) in UTC
+  memeId    String
+
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  meme    Meme    @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, day, memeId])
+  @@index([channelId, day])
+  @@index([channelId, memeId])
+  @@index([day])
+}
+
+model GlobalMemeDailyStats {
+  day    DateTime // date_trunc('day', createdAt) in UTC
+  memeId String
+
+  completedActivationsCount Int    @default(0)
+  completedCoinsSpentSum    BigInt @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  meme Meme @relation(fields: [memeId], references: [id], onDelete: Cascade)
+
+  @@id([day, memeId])
+  @@index([day])
+  @@index([memeId])
+}

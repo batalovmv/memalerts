@@ -1,0 +1,1493 @@
+name: Backend Deploy (Self-hosted)
+
+on:
+  push:
+    branches: [main]
+    tags: ['prod-*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deploy even if no relevant changes detected'
+        required: false
+        type: boolean
+        default: false
+      enable_canary:
+        description: 'Enable beta canary deployment (traffic split)'
+        required: false
+        type: boolean
+        default: false
+      canary_percent:
+        description: 'Beta canary traffic percentage (0-50)'
+        required: false
+        default: '10'
+      auto_promote:
+        description: 'Auto-promote canary after 10 minutes of healthy checks'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (self-hosted)
+    runs-on: [self-hosted, linux, x64, memalerts-vps]
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      JWT_SECRET: test_jwt_secret
+      TEST_DATABASE_URL_BASE: postgresql://postgres:postgres@localhost:5433/memalerts_test
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      SLACK_SECURITY_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK_URL }}
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: memalerts_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d memalerts_test"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm prisma generate
+
+      - name: pnpm audit (high+)
+        id: npm_audit
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          pnpm audit --audit-level=high
+
+      - name: Snyk scan
+        id: snyk_scan
+        if: ${{ env.SNYK_TOKEN != '' }}
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+      - name: Typecheck
+        shell: bash
+        run: pnpm typecheck
+
+      - name: Lint
+        shell: bash
+        run: pnpm lint
+
+      - name: Migration lint (warning only)
+        shell: bash
+        run: pnpm migrations:check
+
+      - name: Guard any count
+        shell: bash
+        run: pnpm guard:any
+
+      - name: Format check
+        shell: bash
+        run: pnpm format:check
+
+      - name: Wait for Postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            if (echo > /dev/tcp/127.0.0.1/5433) >/dev/null 2>&1; then
+              echo "✅ Postgres port open"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "❌ Postgres did not become ready"
+          exit 1
+
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          pnpm test:ci
+
+      - name: Consistency audit (test schema)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CONSISTENCY_SCHEMA="consistency_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          DATABASE_URL="$(node - <<'NODE'
+          const base = process.env.TEST_DATABASE_URL_BASE;
+          if (!base) {
+            console.error('TEST_DATABASE_URL_BASE is missing');
+            process.exit(1);
+          }
+          const url = new URL(base);
+          url.searchParams.set('schema', process.env.CONSISTENCY_SCHEMA || 'consistency_ci');
+          console.log(url.toString());
+          NODE
+          )"
+
+          export DATABASE_URL
+          pnpm prisma db push --accept-data-loss
+          pnpm audit:consistency
+        env:
+          CONSISTENCY_SCHEMA: consistency_${{ github.run_id }}_${{ github.run_attempt }}
+
+      - name: Coverage drop check
+        shell: bash
+        run: pnpm coverage:check
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          flags: backend
+          fail_ci_if_error: true
+
+      - name: Notify Slack on security findings
+        if: >-
+          ${{
+            always() &&
+            (steps.npm_audit.outcome == 'failure' || steps.snyk_scan.outcome == 'failure') &&
+            env.SLACK_SECURITY_WEBHOOK_URL != ''
+          }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "Memalerts backend security scan failures in CI.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Security scan findings detected*\nRepository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_SECURITY_WEBHOOK_URL }}
+
+      - name: Fail on security findings
+        if: ${{ always() && (steps.npm_audit.outcome == 'failure' || steps.snyk_scan.outcome == 'failure') }}
+        shell: bash
+        run: |
+          echo "Security scan failures detected."
+          exit 1
+
+  deploy-production:
+    name: Deploy production on VPS (self-hosted)
+    runs-on: [self-hosted, linux, x64, memalerts-vps]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-')
+    needs: [test]
+    timeout-minutes: 20
+    env:
+      SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # We need origin/main to validate that production release is cut from beta HEAD.
+          fetch-depth: 0
+
+      - name: "Guard: production tag must point to beta (main) HEAD"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin main --prune
+
+          MAIN_SHA="$(git rev-parse origin/main)"
+          TAG_SHA="${GITHUB_SHA}"
+
+          echo "origin/main = ${MAIN_SHA}"
+          echo "tag commit  = ${TAG_SHA}"
+
+          if [ "${MAIN_SHA}" != "${TAG_SHA}" ]; then
+            echo "❌ Refusing production deploy: prod tag must point to current origin/main (beta HEAD)."
+            echo "   This prevents deploying an older commit than beta (and avoids branch drift)."
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Deploy production (build + migrate + restart)
+        id: deploy_production
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          AI_METADATA_ENABLED: ${{ secrets.AI_METADATA_ENABLED }}
+          AI_MODERATION_ENABLED: ${{ secrets.AI_MODERATION_ENABLED }}
+          AI_TAG_LIMIT: ${{ secrets.AI_TAG_LIMIT }}
+          AI_VISION_ENABLED: ${{ secrets.AI_VISION_ENABLED }}
+          AI_VISION_MAX_FRAMES: ${{ secrets.AI_VISION_MAX_FRAMES }}
+          AI_VISION_STEP_SECONDS: ${{ secrets.AI_VISION_STEP_SECONDS }}
+          CHATBOT_BACKEND_BASE_URLS: ${{ secrets.CHATBOT_BACKEND_BASE_URLS }}
+          CHATBOT_SYNC_SECONDS: ${{ secrets.CHATBOT_SYNC_SECONDS }}
+          CHAT_BOT_ENABLED: ${{ secrets.CHAT_BOT_ENABLED }}
+          CHAT_BOT_LOGIN: ${{ secrets.CHAT_BOT_LOGIN }}
+          CHAT_BOT_USER_ID: ${{ secrets.CHAT_BOT_USER_ID }}
+          CLOUDFLARE_ORIGIN_CERT: ${{ secrets.CLOUDFLARE_ORIGIN_CERT }}
+          CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          KICK_AUTHORIZE_URL: ${{ secrets.KICK_AUTHORIZE_URL }}
+          KICK_CALLBACK_URL: ${{ secrets.KICK_CALLBACK_URL }}
+          KICK_CHAT_BOT_ENABLED: ${{ secrets.KICK_CHAT_BOT_ENABLED }}
+          KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}
+          KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
+          KICK_REFRESH_URL: ${{ secrets.KICK_REFRESH_URL }}
+          KICK_TOKEN_URL: ${{ secrets.KICK_TOKEN_URL }}
+          KICK_USERINFO_URL: ${{ secrets.KICK_USERINFO_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ASR_LANGUAGE: ${{ secrets.OPENAI_ASR_LANGUAGE }}
+          OPENAI_ASR_MODEL: ${{ secrets.OPENAI_ASR_MODEL }}
+          OPENAI_MEME_METADATA_MODEL: ${{ secrets.OPENAI_MEME_METADATA_MODEL }}
+          OVERLAY_URL: ${{ secrets.OVERLAY_URL }}
+          RATE_LIMIT_WHITELIST_IPS: ${{ secrets.RATE_LIMIT_WHITELIST_IPS }}
+          TROVO_BOT_SCOPES: ${{ secrets.TROVO_BOT_SCOPES }}
+          TROVO_CALLBACK_URL: ${{ secrets.TROVO_CALLBACK_URL }}
+          TROVO_CHAT_BOT_ENABLED: ${{ secrets.TROVO_CHAT_BOT_ENABLED }}
+          TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
+          TROVO_CLIENT_SECRET: ${{ secrets.TROVO_CLIENT_SECRET }}
+          TWITCH_CALLBACK_URL: ${{ secrets.TWITCH_CALLBACK_URL }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          TWITCH_EVENTSUB_SECRET: ${{ secrets.TWITCH_EVENTSUB_SECRET }}
+          VKVIDEO_AUTHORIZE_URL: ${{ secrets.VKVIDEO_AUTHORIZE_URL }}
+          VKVIDEO_CALLBACK_URL: ${{ secrets.VKVIDEO_CALLBACK_URL }}
+          VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: ${{ secrets.VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE }}
+          VKVIDEO_CHAT_BOT_ENABLED: ${{ secrets.VKVIDEO_CHAT_BOT_ENABLED }}
+          VKVIDEO_CLIENT_ID: ${{ secrets.VKVIDEO_CLIENT_ID }}
+          VKVIDEO_CLIENT_SECRET: ${{ secrets.VKVIDEO_CLIENT_SECRET }}
+          VKVIDEO_PUBSUB_REFRESH_SECONDS: ${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}
+          VKVIDEO_ROLE_STUBS_JSON: ${{ secrets.VKVIDEO_ROLE_STUBS_JSON }}
+          VKVIDEO_SCOPES: ${{ secrets.VKVIDEO_SCOPES }}
+          VKVIDEO_TOKEN_URL: ${{ secrets.VKVIDEO_TOKEN_URL }}
+          VKVIDEO_USERINFO_URL: ${{ secrets.VKVIDEO_USERINFO_URL }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          WEB_URL: ${{ secrets.WEB_URL }}
+          YOUTUBE_CALLBACK_URL: ${{ secrets.YOUTUBE_CALLBACK_URL }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+
+          APP_DIR="/opt/memalerts-backend"
+          PM2_NAME="memalerts-api"
+
+          if [ ! -d "$APP_DIR" ]; then
+            echo "❌ $APP_DIR not found. Create it on VPS first."
+            exit 1
+          fi
+
+          if [ ! -f "$APP_DIR/.env" ]; then
+            echo "❌ $APP_DIR/.env not found. Create it on VPS first (prod env)."
+            exit 1
+          fi
+
+          git config --global --add safe.directory "$APP_DIR"
+
+          ROLLBACK_DIR="$APP_DIR/.rollback"
+          ROLLBACK_COOLDOWN_SECONDS=600
+          PREV_SHA=""
+
+          mkdir -p "$ROLLBACK_DIR"
+          if [ -d "$APP_DIR/.git" ]; then
+            PREV_SHA="$(git -C "$APP_DIR" rev-parse HEAD)"
+            echo "$PREV_SHA" > "$ROLLBACK_DIR/previous_sha"
+            echo "$(date -u +%FT%TZ)" > "$ROLLBACK_DIR/previous_recorded_at"
+          fi
+
+          log_rollback_event() {
+            local status="$1"
+            local message="$2"
+            local now
+            now="$(date -u +%FT%TZ)"
+            echo "${now} status=${status} from=${GITHUB_SHA} to=${PREV_SHA:-unknown} reason=healthcheck_failed message=${message}" >> "$ROLLBACK_DIR/rollback.log"
+          }
+
+          apply_ai_lock_migration() {
+            local migration_file="prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            if [ -f "$migration_file" ]; then
+              pnpm prisma db execute --file "$migration_file"
+              return 0
+            fi
+
+            echo "WARN: ${migration_file} not found; applying inline SQL."
+            cat <<'SQL' | pnpm prisma db execute --stdin
+            -- AI moderation lock fields for MemeSubmission (expand-only, safe for shared DB).
+            -- Use IF NOT EXISTS to be resilient across environments.
+            ALTER TABLE "MemeSubmission"
+              ADD COLUMN IF NOT EXISTS "aiProcessingStartedAt" TIMESTAMP(3),
+              ADD COLUMN IF NOT EXISTS "aiLockedBy" VARCHAR(128),
+              ADD COLUMN IF NOT EXISTS "aiLockExpiresAt" TIMESTAMP(3);
+            CREATE INDEX IF NOT EXISTS "MemeSubmission_aiStatus_aiLockExpiresAt_idx"
+              ON "MemeSubmission" ("aiStatus", "aiLockExpiresAt");
+          SQL
+          }
+
+          load_env_value() {
+            local key="$1"
+            local line
+            local value
+            if [ ! -f "$APP_DIR/.env" ]; then
+              return 0
+            fi
+            line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$APP_DIR/.env" | tail -n 1 || true)"
+            if [ -z "$line" ]; then
+              return 0
+            fi
+            value="${line#*=}"
+            value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+              value="${value%\"}"
+              value="${value#\"}"
+              printf '%s' "$value"
+              return 0
+            fi
+            if [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
+              value="${value%\'}"
+              value="${value#\'}"
+              printf '%s' "$value"
+              return 0
+            fi
+            value="${value%%#*}"
+            value="$(printf '%s' "$value" | xargs)"
+            printf '%s' "$value"
+          }
+
+          ensure_log_dirs() {
+            local dest
+            local resolved
+            dest="$(load_env_value "LOG_DESTINATION")"
+            if [ -n "$dest" ]; then
+              case "$dest" in
+                /*) resolved="$dest" ;;
+                *) resolved="$APP_DIR/$dest" ;;
+              esac
+              mkdir -p "$(dirname "$resolved")"
+            fi
+            mkdir -p "$APP_DIR/tmp-runtime/logs" "$APP_DIR/logs"
+          }
+
+          install_healthcheck_script() {
+            local src="$APP_DIR/scripts/memalerts-healthcheck.sh"
+            if [ -f "$src" ]; then
+              sudo install -m 0755 "$src" /usr/local/bin/memalerts-healthcheck.sh
+            fi
+          }
+
+
+
+          verify_ai_lock_columns() {
+            local label="$1"
+            local output
+            output="$(VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            import { PrismaClient } from '@prisma/client';
+
+            const label = process.env.VERIFY_LABEL || 'unknown';
+            const required = ['aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt'];
+            const prisma = new PrismaClient();
+
+            try {
+              const dbInfo =
+                await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user`;
+              const cols =
+                await prisma.$queryRaw`SELECT column_name FROM information_schema.columns WHERE table_name = 'MemeSubmission' AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt') ORDER BY column_name`;
+              const existing = new Set(cols.map((row) => row.column_name));
+              const missing = required.filter((col) => !existing.has(col));
+
+              console.log(JSON.stringify({ dbInfo, cols, missing }));
+              if (missing.length) {
+                console.error(`Missing columns (${label}): ${missing.join(', ')}`);
+                process.exit(1);
+              }
+            } catch (err) {
+              console.error('verify_ai_lock_columns failed', err);
+              process.exit(1);
+            } finally {
+              await prisma.$disconnect();
+            }
+          NODE
+            )"
+            echo "$output"
+          }
+
+          attempt_rollback() {
+            if [ -z "$PREV_SHA" ]; then
+              log_rollback_event "skipped" "no_previous_sha"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            local now
+            now=$(date +%s)
+            local last
+            last=0
+            if [ -f "$ROLLBACK_DIR/last_rollback_at" ]; then
+              last=$(cat "$ROLLBACK_DIR/last_rollback_at" || echo 0)
+            fi
+            if [ $((now - last)) -lt "$ROLLBACK_COOLDOWN_SECONDS" ]; then
+              log_rollback_event "skipped" "cooldown"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            echo "Rolling back to $PREV_SHA ..."
+            git -C "$APP_DIR" checkout "$PREV_SHA"
+            pnpm install --frozen-lockfile
+            pnpm build
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+            DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
+
+            pm2 stop "$PM2_NAME" 2>/dev/null || true
+            pm2 delete "$PM2_NAME" 2>/dev/null || true
+            ensure_log_dirs
+            install_healthcheck_script
+            NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+              pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+            pm2 save
+
+            local rollback_ok=0
+            for i in $(seq 1 30); do
+              if curl -fsS --max-time 2 http://127.0.0.1:3001/health >/dev/null; then
+                rollback_ok=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$rollback_ok" = "1" ]; then
+              echo "$(date +%s)" > "$ROLLBACK_DIR/last_rollback_at"
+              log_rollback_event "rolled_back" "health_ok"
+              echo "rollback_status=rolled_back" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+
+            log_rollback_event "failed" "health_check_failed_after_rollback"
+            echo "rollback_status=failed" >> "$GITHUB_OUTPUT"
+            return 1
+          }
+
+          echo "Syncing repo -> $APP_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude uploads \
+            --exclude .rollback \
+            --exclude .env \
+            ./ "$APP_DIR/"
+
+          cd "$APP_DIR"
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+
+          if [ -d "$APP_DIR/node_modules" ]; then
+            sudo rm -rf "$APP_DIR/node_modules"
+          fi
+
+          # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
+          # NOTE: The workflow intentionally excludes .env from rsync, so values must exist on VPS.
+          # If you manage some envs via GitHub Secrets, add them here explicitly.
+
+          upsert_env() {
+            local key="$1"
+            local val="$2"
+            if [ -z "$val" ]; then
+              return 0
+            fi
+            KEY="$key" VAL="$val" APP_DIR="$APP_DIR" node - <<'NODE'
+            const fs = require('fs');
+            const path = require('path');
+
+            const appDir = process.env.APP_DIR;
+            const key = process.env.KEY;
+            const rawVal = process.env.VAL ?? '';
+            const envPath = path.join(appDir, '.env');
+
+            const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const normalizeVal = (value) => {
+              if (!value.includes('\n') && !value.includes('\r')) return value;
+              const escaped = value
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\r?\n/g, '\\n');
+              return `"${escaped}"`;
+            };
+
+            let text = fs.readFileSync(envPath, 'utf8');
+            const line = `${key}=${normalizeVal(rawVal)}`;
+            const re = new RegExp(`^${escapeRegex(key)}=.*$`, 'm');
+
+            if (re.test(text)) {
+              text = text.replace(re, line);
+            } else {
+              if (text.length > 0 && !text.endsWith('\n')) {
+                text += '\n';
+              }
+              text += line + '\n';
+            }
+
+            fs.writeFileSync(envPath, text);
+          NODE
+            echo "✅ Upserted ${key} into $APP_DIR/.env"
+          }
+
+          SYNC_KEYS=(
+            TELEGRAM_BOT_TOKEN
+            TELEGRAM_CHAT_ID
+            AI_METADATA_ENABLED
+            AI_MODERATION_ENABLED
+            AI_TAG_LIMIT
+            AI_VISION_ENABLED
+            AI_VISION_MAX_FRAMES
+            AI_VISION_STEP_SECONDS
+            CHATBOT_BACKEND_BASE_URLS
+            CHATBOT_SYNC_SECONDS
+            CHAT_BOT_ENABLED
+            CHAT_BOT_LOGIN
+            CHAT_BOT_USER_ID
+            CLOUDFLARE_ORIGIN_CERT
+            CLOUDFLARE_ORIGIN_KEY
+            DATABASE_URL
+            DOMAIN
+            JWT_SECRET
+            KICK_AUTHORIZE_URL
+            KICK_CALLBACK_URL
+            KICK_CHAT_BOT_ENABLED
+            KICK_CLIENT_ID
+            KICK_CLIENT_SECRET
+            KICK_REFRESH_URL
+            KICK_TOKEN_URL
+            KICK_USERINFO_URL
+            OPENAI_API_KEY
+            OPENAI_ASR_LANGUAGE
+            OPENAI_ASR_MODEL
+            OPENAI_MEME_METADATA_MODEL
+            OVERLAY_URL
+            RATE_LIMIT_WHITELIST_IPS
+            TROVO_BOT_SCOPES
+            TROVO_CALLBACK_URL
+            TROVO_CHAT_BOT_ENABLED
+            TROVO_CLIENT_ID
+            TROVO_CLIENT_SECRET
+            TWITCH_CALLBACK_URL
+            TWITCH_CLIENT_ID
+            TWITCH_CLIENT_SECRET
+            TWITCH_EVENTSUB_SECRET
+            VKVIDEO_AUTHORIZE_URL
+            VKVIDEO_CALLBACK_URL
+            VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE
+            VKVIDEO_CHAT_BOT_ENABLED
+            VKVIDEO_CLIENT_ID
+            VKVIDEO_CLIENT_SECRET
+            VKVIDEO_PUBSUB_REFRESH_SECONDS
+            VKVIDEO_ROLE_STUBS_JSON
+            VKVIDEO_SCOPES
+            VKVIDEO_TOKEN_URL
+            VKVIDEO_USERINFO_URL
+            VPS_HOST
+            VPS_PORT
+            VPS_SSH_KEY
+            VPS_USER
+          WEB_URL
+          YOUTUBE_CALLBACK_URL
+          YOUTUBE_CLIENT_ID
+          YOUTUBE_CLIENT_SECRET
+          )
+
+          for key in "${SYNC_KEYS[@]}"; do
+            val="${!key:-}"
+            if [ -n "$val" ]; then
+              upsert_env "$key" "$val"
+            fi
+          done
+
+          # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          case "$AI_ENABLED_NORM" in
+            1|true|yes|on)
+              if ! grep -qE '^OPENAI_API_KEY=.+$' "$APP_DIR/.env"; then
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
+                exit 1
+              fi
+              ;;
+            *)
+              ;;
+          esac
+
+          DATABASE_URL_RESOLVED=""
+          if [ -f "$APP_DIR/.env" ]; then
+            DATABASE_URL_RESOLVED="$(load_env_value "DATABASE_URL")"
+          fi
+          if [ -n "$DATABASE_URL_RESOLVED" ]; then
+            export DATABASE_URL="$DATABASE_URL_RESOLVED"
+            echo "Loaded DATABASE_URL from $APP_DIR/.env"
+          else
+            echo "❌ DATABASE_URL not found in $APP_DIR/.env"
+            exit 1
+          fi
+
+          pnpm install --frozen-lockfile
+          pnpm build
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+          DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
+          verify_ai_lock_columns "production"
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+          ensure_log_dirs
+          install_healthcheck_script
+          NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+          pm2 save
+
+          echo "Waiting for healthcheck on :3001 ..."
+          HEALTH_OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3001/health >/dev/null; then
+              HEALTH_OK=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$HEALTH_OK" != "1" ]; then
+            echo "❌ Healthcheck failed (production). Recent logs:"
+            pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+            attempt_rollback || true
+            exit 1
+          fi
+
+          echo "Checking AI moderation worker startup (production)..."
+          LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+          for i in $(seq 1 25); do
+            if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
+              break
+            fi
+            sleep 1
+          done
+          if [ ! -f "$LOG_FILE" ]; then
+            echo "❌ PM2 log file not found: $LOG_FILE"
+            pm2 logs "$PM2_NAME" --lines 200 --nostream || true
+            exit 1
+          fi
+
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
+            echo "✅ AI moderation worker started (production)"
+          else
+            case "$AI_ENABLED_NORM" in
+              1|true|yes|on)
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
+                echo "Recent worker logs:"
+                grep -nE 'ai\\.queue\\.' "$LOG_FILE" | tail -n 30 || true
+                exit 1
+                ;;
+              *)
+                echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+                ;;
+            esac
+          fi
+
+          echo "✅ Production deployed"
+          echo "rollback_status=none" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Notify Slack on auto-rollback (production)
+        if: >-
+          ${{
+            always() &&
+            steps.deploy_production.outputs.rollback_status == 'rolled_back' &&
+            env.SLACK_DEPLOY_WEBHOOK_URL != ''
+          }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "Memalerts production auto-rollback executed.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Auto-rollback executed (production)*\nRepository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_DEPLOY_WEBHOOK_URL }}
+
+  deploy-beta:
+    name: Deploy beta on VPS (self-hosted)
+    runs-on: [self-hosted, linux, x64, memalerts-vps]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    needs: [test]
+    timeout-minutes: 20
+    env:
+      SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need full history for BEFORE..AFTER diff and for scanning commit messages in the push range.
+          fetch-depth: 0
+
+      - name: Decide whether to deploy (force or relevant changes)
+        id: decide
+        shell: bash
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          # Manual trigger can force deploy (useful for env/secrets changes or simple restart)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_deploy }}" = "true" ]; then
+            echo "Force deploy requested by workflow_dispatch input."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Deploy marker regex: matches "[deploy]" OR "deploy" as a standalone word OR "deploy:"/"deploy," etc.
+          DEPLOY_RE='(\[deploy\]|(^|[[:space:]])deploy([[:space:]]|$|[[:punct:]]))'
+
+          # Force deploy if ANY pushed commit message contains "deploy" or "[deploy]"
+          # (head_commit.message is not always reliable when multiple commits are pushed at once)
+          if [ -n "$HEAD_COMMIT_MESSAGE" ] && printf '%s' "$HEAD_COMMIT_MESSAGE" | grep -Eiq "$DEPLOY_RE"; then
+            echo "Force deploy requested by head commit message."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            if git log --format=%B "$BEFORE..$AFTER" | grep -Eiq "$DEPLOY_RE"; then
+              echo "Force deploy requested by commit message in push range."
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          # If before is empty (first commit) just proceed.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No BEFORE SHA; proceeding with deploy."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Check if any relevant paths changed between BEFORE and AFTER.
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eiq '^(src/|prisma/|scripts/|package\.json$|tsconfig\.json$|\.github/)'; then
+            echo "Relevant changes detected; proceeding with deploy."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "No relevant changes; skipping deploy."
+          echo "deploy=false" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Setup pnpm
+        if: steps.decide.outputs.deploy == 'true'
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        if: steps.decide.outputs.deploy == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      # DANGEROUS (nuclear): rewrites nginx config and removes other site configs.
+      # Run only when explicitly requested via commit message marker.
+      - name: Setup nginx full (optional; requires [nginx-full])
+        if: steps.decide.outputs.deploy == 'true' && contains(github.event.head_commit.message, '[nginx-full]')
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo bash .github/scripts/setup-nginx-full.sh twitchmemes.ru 3001 3002
+
+      - name: Deploy beta (build + migrate + restart)
+        id: deploy_beta
+        shell: bash
+        if: steps.decide.outputs.deploy == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          AI_METADATA_ENABLED: ${{ secrets.AI_METADATA_ENABLED }}
+          AI_MODERATION_ENABLED: ${{ secrets.AI_MODERATION_ENABLED }}
+          AI_TAG_LIMIT: ${{ secrets.AI_TAG_LIMIT }}
+          AI_VISION_ENABLED: ${{ secrets.AI_VISION_ENABLED }}
+          AI_VISION_MAX_FRAMES: ${{ secrets.AI_VISION_MAX_FRAMES }}
+          AI_VISION_STEP_SECONDS: ${{ secrets.AI_VISION_STEP_SECONDS }}
+          CHATBOT_BACKEND_BASE_URLS: ${{ secrets.CHATBOT_BACKEND_BASE_URLS }}
+          CHATBOT_SYNC_SECONDS: ${{ secrets.CHATBOT_SYNC_SECONDS }}
+          CHAT_BOT_ENABLED: ${{ secrets.CHAT_BOT_ENABLED }}
+          CHAT_BOT_LOGIN: ${{ secrets.CHAT_BOT_LOGIN }}
+          CHAT_BOT_USER_ID: ${{ secrets.CHAT_BOT_USER_ID }}
+          CLOUDFLARE_ORIGIN_CERT: ${{ secrets.CLOUDFLARE_ORIGIN_CERT }}
+          CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_BETA: ${{ secrets.DATABASE_URL_BETA }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_SECRET_BETA: ${{ secrets.JWT_SECRET_BETA }}
+          KICK_AUTHORIZE_URL: ${{ secrets.KICK_AUTHORIZE_URL }}
+          KICK_CALLBACK_URL: ${{ secrets.KICK_CALLBACK_URL }}
+          KICK_CALLBACK_URL_BETA: ${{ secrets.KICK_CALLBACK_URL_BETA }}
+          KICK_CHAT_BOT_ENABLED: ${{ secrets.KICK_CHAT_BOT_ENABLED }}
+          KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}
+          KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
+          KICK_REFRESH_URL: ${{ secrets.KICK_REFRESH_URL }}
+          KICK_TOKEN_URL: ${{ secrets.KICK_TOKEN_URL }}
+          KICK_USERINFO_URL: ${{ secrets.KICK_USERINFO_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ASR_LANGUAGE: ${{ secrets.OPENAI_ASR_LANGUAGE }}
+          OPENAI_ASR_MODEL: ${{ secrets.OPENAI_ASR_MODEL }}
+          OPENAI_MEME_METADATA_MODEL: ${{ secrets.OPENAI_MEME_METADATA_MODEL }}
+          OVERLAY_URL: ${{ secrets.OVERLAY_URL }}
+          RATE_LIMIT_WHITELIST_IPS: ${{ secrets.RATE_LIMIT_WHITELIST_IPS }}
+          TROVO_BOT_SCOPES: ${{ secrets.TROVO_BOT_SCOPES }}
+          TROVO_CALLBACK_URL: ${{ secrets.TROVO_CALLBACK_URL }}
+          TROVO_CALLBACK_URL_BETA: ${{ secrets.TROVO_CALLBACK_URL_BETA }}
+          TROVO_CHAT_BOT_ENABLED: ${{ secrets.TROVO_CHAT_BOT_ENABLED }}
+          TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
+          TROVO_CLIENT_SECRET: ${{ secrets.TROVO_CLIENT_SECRET }}
+          TWITCH_CALLBACK_URL: ${{ secrets.TWITCH_CALLBACK_URL }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          TWITCH_EVENTSUB_SECRET: ${{ secrets.TWITCH_EVENTSUB_SECRET }}
+          VKVIDEO_AUTHORIZE_URL: ${{ secrets.VKVIDEO_AUTHORIZE_URL }}
+          VKVIDEO_CALLBACK_URL: ${{ secrets.VKVIDEO_CALLBACK_URL }}
+          VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: ${{ secrets.VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE }}
+          VKVIDEO_CHAT_BOT_ENABLED: ${{ secrets.VKVIDEO_CHAT_BOT_ENABLED }}
+          VKVIDEO_CLIENT_ID: ${{ secrets.VKVIDEO_CLIENT_ID }}
+          VKVIDEO_CLIENT_SECRET: ${{ secrets.VKVIDEO_CLIENT_SECRET }}
+          VKVIDEO_PUBSUB_REFRESH_SECONDS: ${{ secrets.VKVIDEO_PUBSUB_REFRESH_SECONDS }}
+          VKVIDEO_ROLE_STUBS_JSON: ${{ secrets.VKVIDEO_ROLE_STUBS_JSON }}
+          VKVIDEO_SCOPES: ${{ secrets.VKVIDEO_SCOPES }}
+          VKVIDEO_TOKEN_URL: ${{ secrets.VKVIDEO_TOKEN_URL }}
+          VKVIDEO_USERINFO_URL: ${{ secrets.VKVIDEO_USERINFO_URL }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          WEB_URL: ${{ secrets.WEB_URL }}
+          YOUTUBE_CALLBACK_URL: ${{ secrets.YOUTUBE_CALLBACK_URL }}
+          YOUTUBE_CALLBACK_URL_BETA: ${{ secrets.YOUTUBE_CALLBACK_URL_BETA }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+
+          APP_DIR="/opt/memalerts-backend-beta"
+          PM2_NAME="memalerts-api-beta"
+
+          if [ ! -d "$APP_DIR" ]; then
+            echo "❌ $APP_DIR not found. Create it on VPS first."
+            exit 1
+          fi
+
+          if [ ! -f "$APP_DIR/.env" ]; then
+            echo "❌ $APP_DIR/.env not found. Create it on VPS first (beta env, token_beta cookie + JWT_SECRET_BETA, etc)."
+            exit 1
+          fi
+
+          git config --global --add safe.directory "$APP_DIR"
+
+          ROLLBACK_DIR="$APP_DIR/.rollback"
+          ROLLBACK_COOLDOWN_SECONDS=600
+          PREV_SHA=""
+
+          mkdir -p "$ROLLBACK_DIR"
+          if [ -d "$APP_DIR/.git" ]; then
+            PREV_SHA="$(git -C "$APP_DIR" rev-parse HEAD)"
+            echo "$PREV_SHA" > "$ROLLBACK_DIR/previous_sha"
+            echo "$(date -u +%FT%TZ)" > "$ROLLBACK_DIR/previous_recorded_at"
+          fi
+
+          log_rollback_event() {
+            local status="$1"
+            local message="$2"
+            local now
+            now="$(date -u +%FT%TZ)"
+            echo "${now} status=${status} from=${GITHUB_SHA} to=${PREV_SHA:-unknown} reason=healthcheck_failed message=${message}" >> "$ROLLBACK_DIR/rollback.log"
+          }
+
+          apply_ai_lock_migration() {
+            local migration_file="prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            if [ -f "$migration_file" ]; then
+              pnpm prisma db execute --file "$migration_file"
+              return 0
+            fi
+
+            echo "WARN: ${migration_file} not found; applying inline SQL."
+            cat <<'SQL' | pnpm prisma db execute --stdin
+            -- AI moderation lock fields for MemeSubmission (expand-only, safe for shared DB).
+            -- Use IF NOT EXISTS to be resilient across environments.
+            ALTER TABLE "MemeSubmission"
+              ADD COLUMN IF NOT EXISTS "aiProcessingStartedAt" TIMESTAMP(3),
+              ADD COLUMN IF NOT EXISTS "aiLockedBy" VARCHAR(128),
+              ADD COLUMN IF NOT EXISTS "aiLockExpiresAt" TIMESTAMP(3);
+            CREATE INDEX IF NOT EXISTS "MemeSubmission_aiStatus_aiLockExpiresAt_idx"
+              ON "MemeSubmission" ("aiStatus", "aiLockExpiresAt");
+          SQL
+          }
+
+          load_env_value() {
+            local key="$1"
+            local line
+            local value
+            if [ ! -f "$APP_DIR/.env" ]; then
+              return 0
+            fi
+            line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$APP_DIR/.env" | tail -n 1 || true)"
+            if [ -z "$line" ]; then
+              return 0
+            fi
+            value="${line#*=}"
+            value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+              value="${value%\"}"
+              value="${value#\"}"
+              printf '%s' "$value"
+              return 0
+            fi
+            if [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
+              value="${value%\'}"
+              value="${value#\'}"
+              printf '%s' "$value"
+              return 0
+            fi
+            value="${value%%#*}"
+            value="$(printf '%s' "$value" | xargs)"
+            printf '%s' "$value"
+          }
+
+          ensure_log_dirs() {
+            local dest
+            local resolved
+            dest="$(load_env_value "LOG_DESTINATION")"
+            if [ -n "$dest" ]; then
+              case "$dest" in
+                /*) resolved="$dest" ;;
+                *) resolved="$APP_DIR/$dest" ;;
+              esac
+              mkdir -p "$(dirname "$resolved")"
+            fi
+            mkdir -p "$APP_DIR/tmp-runtime/logs" "$APP_DIR/logs"
+          }
+
+          install_healthcheck_script() {
+            local src="$APP_DIR/scripts/memalerts-healthcheck.sh"
+            if [ -f "$src" ]; then
+              sudo install -m 0755 "$src" /usr/local/bin/memalerts-healthcheck.sh
+            fi
+          }
+
+          verify_ai_lock_columns() {
+            local label="$1"
+            local output
+            output="$(VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            import { PrismaClient } from '@prisma/client';
+
+            const label = process.env.VERIFY_LABEL || 'unknown';
+            const required = ['aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt'];
+            const prisma = new PrismaClient();
+
+            try {
+              const dbInfo =
+                await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS schema, current_user AS db_user`;
+              const cols =
+                await prisma.$queryRaw`SELECT column_name FROM information_schema.columns WHERE table_name = 'MemeSubmission' AND column_name IN ('aiProcessingStartedAt', 'aiLockedBy', 'aiLockExpiresAt') ORDER BY column_name`;
+              const existing = new Set(cols.map((row) => row.column_name));
+              const missing = required.filter((col) => !existing.has(col));
+
+              console.log(JSON.stringify({ dbInfo, cols, missing }));
+              if (missing.length) {
+                console.error(`Missing columns (${label}): ${missing.join(', ')}`);
+                process.exit(1);
+              }
+            } catch (err) {
+              console.error('verify_ai_lock_columns failed', err);
+              process.exit(1);
+            } finally {
+              await prisma.$disconnect();
+            }
+          NODE
+            )"
+            echo "$output"
+          }
+
+          attempt_rollback() {
+            if [ -z "$PREV_SHA" ]; then
+              log_rollback_event "skipped" "no_previous_sha"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            local now
+            now=$(date +%s)
+            local last
+            last=0
+            if [ -f "$ROLLBACK_DIR/last_rollback_at" ]; then
+              last=$(cat "$ROLLBACK_DIR/last_rollback_at" || echo 0)
+            fi
+            if [ $((now - last)) -lt "$ROLLBACK_COOLDOWN_SECONDS" ]; then
+              log_rollback_event "skipped" "cooldown"
+              echo "rollback_status=skipped" >> "$GITHUB_OUTPUT"
+              return 1
+            fi
+
+            echo "Rolling back to $PREV_SHA ..."
+            git -C "$APP_DIR" checkout "$PREV_SHA"
+            pnpm install --frozen-lockfile
+            pnpm build
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+            DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+          ensure_log_dirs
+          install_healthcheck_script
+          NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+          pm2 save
+
+            local rollback_ok=0
+            for i in $(seq 1 30); do
+              if curl -fsS --max-time 2 http://127.0.0.1:3002/health >/dev/null; then
+                rollback_ok=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$rollback_ok" = "1" ]; then
+              echo "$(date +%s)" > "$ROLLBACK_DIR/last_rollback_at"
+              log_rollback_event "rolled_back" "health_ok"
+              echo "rollback_status=rolled_back" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+
+            log_rollback_event "failed" "health_check_failed_after_rollback"
+            echo "rollback_status=failed" >> "$GITHUB_OUTPUT"
+            return 1
+          }
+
+          echo "Syncing repo -> $APP_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude uploads \
+            --exclude .rollback \
+            --exclude .env \
+            ./ "$APP_DIR/"
+
+          cd "$APP_DIR"
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+
+          if [ -d "$APP_DIR/node_modules" ]; then
+            sudo rm -rf "$APP_DIR/node_modules"
+          fi
+
+          # Optional env sync from GitHub Secrets -> VPS .env (non-destructive upsert).
+          upsert_env() {
+            local key="$1"
+            local val="$2"
+            if [ -z "$val" ]; then
+              return 0
+            fi
+            KEY="$key" VAL="$val" APP_DIR="$APP_DIR" node - <<'NODE'
+            const fs = require('fs');
+            const path = require('path');
+
+            const appDir = process.env.APP_DIR;
+            const key = process.env.KEY;
+            const rawVal = process.env.VAL ?? '';
+            const envPath = path.join(appDir, '.env');
+
+            const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const normalizeVal = (value) => {
+              if (!value.includes('\n') && !value.includes('\r')) return value;
+              const escaped = value
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\r?\n/g, '\\n');
+              return `"${escaped}"`;
+            };
+
+            let text = fs.readFileSync(envPath, 'utf8');
+            const line = `${key}=${normalizeVal(rawVal)}`;
+            const re = new RegExp(`^${escapeRegex(key)}=.*$`, 'm');
+
+            if (re.test(text)) {
+              text = text.replace(re, line);
+            } else {
+              if (text.length > 0 && !text.endsWith('\n')) {
+                text += '\n';
+              }
+              text += line + '\n';
+            }
+
+            fs.writeFileSync(envPath, text);
+          NODE
+            echo "✅ Upserted ${key} into $APP_DIR/.env"
+          }
+
+          SYNC_KEYS=(
+            TELEGRAM_BOT_TOKEN
+            TELEGRAM_CHAT_ID
+            AI_METADATA_ENABLED
+            AI_MODERATION_ENABLED
+            AI_TAG_LIMIT
+            AI_VISION_ENABLED
+            AI_VISION_MAX_FRAMES
+            AI_VISION_STEP_SECONDS
+            CHATBOT_BACKEND_BASE_URLS
+            CHATBOT_SYNC_SECONDS
+            CHAT_BOT_ENABLED
+            CHAT_BOT_LOGIN
+            CHAT_BOT_USER_ID
+            CLOUDFLARE_ORIGIN_CERT
+            CLOUDFLARE_ORIGIN_KEY
+            DATABASE_URL
+            DATABASE_URL_BETA
+            DOMAIN
+            JWT_SECRET_BETA
+            KICK_AUTHORIZE_URL
+            KICK_CALLBACK_URL_BETA
+            KICK_CHAT_BOT_ENABLED
+            KICK_CLIENT_ID
+            KICK_CLIENT_SECRET
+            KICK_REFRESH_URL
+            KICK_TOKEN_URL
+            KICK_USERINFO_URL
+            OPENAI_API_KEY
+            OPENAI_ASR_LANGUAGE
+            OPENAI_ASR_MODEL
+            OPENAI_MEME_METADATA_MODEL
+            OVERLAY_URL
+            RATE_LIMIT_WHITELIST_IPS
+            TROVO_BOT_SCOPES
+            TROVO_CALLBACK_URL_BETA
+            TROVO_CHAT_BOT_ENABLED
+            TROVO_CLIENT_ID
+            TROVO_CLIENT_SECRET
+            TWITCH_CALLBACK_URL
+            TWITCH_CLIENT_ID
+            TWITCH_CLIENT_SECRET
+            TWITCH_EVENTSUB_SECRET
+            VKVIDEO_AUTHORIZE_URL
+            VKVIDEO_CALLBACK_URL
+            VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE
+            VKVIDEO_CHAT_BOT_ENABLED
+            VKVIDEO_CLIENT_ID
+            VKVIDEO_CLIENT_SECRET
+            VKVIDEO_PUBSUB_REFRESH_SECONDS
+            VKVIDEO_ROLE_STUBS_JSON
+            VKVIDEO_SCOPES
+            VKVIDEO_TOKEN_URL
+            VKVIDEO_USERINFO_URL
+            VPS_HOST
+            VPS_PORT
+            VPS_SSH_KEY
+            VPS_USER
+            WEB_URL
+            YOUTUBE_CALLBACK_URL_BETA
+            YOUTUBE_CLIENT_ID
+            YOUTUBE_CLIENT_SECRET
+          )
+
+          for key in "${SYNC_KEYS[@]}"; do
+            val="${!key:-}"
+            if [ -n "$val" ]; then
+              upsert_env "$key" "$val"
+            fi
+          done
+
+          OVERRIDE_KEYS=(
+            JWT_SECRET
+            KICK_CALLBACK_URL
+            TROVO_CALLBACK_URL
+            YOUTUBE_CALLBACK_URL
+          )
+
+          for key in "${OVERRIDE_KEYS[@]}"; do
+            beta_key="${key}_BETA"
+            val_beta="${!beta_key:-}"
+            val_default="${!key:-}"
+            if [ -n "$val_beta" ]; then
+              upsert_env "$key" "$val_beta"
+            elif [ -n "$val_default" ]; then
+              upsert_env "$key" "$val_default"
+            fi
+          done
+
+          # Guard: if AI moderation is enabled, OPENAI_API_KEY must be present.
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          case "$AI_ENABLED_NORM" in
+            1|true|yes|on)
+              if ! grep -qE '^OPENAI_API_KEY=.+$' "$APP_DIR/.env"; then
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but OPENAI_API_KEY is missing/empty in $APP_DIR/.env"
+                exit 1
+              fi
+              ;;
+            *)
+              ;;
+          esac
+
+          DATABASE_URL_RESOLVED=""
+          DATABASE_URL_KEY="DATABASE_URL"
+          if [ -f "$APP_DIR/.env" ]; then
+            BETA_DB_MODE_RAW="$(load_env_value "BETA_DB_MODE")"
+            BETA_DB_MODE="$(printf '%s' "${BETA_DB_MODE_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+            DATABASE_URL_RAW="$(load_env_value "DATABASE_URL")"
+            DATABASE_URL_BETA_RAW="$(load_env_value "DATABASE_URL_BETA")"
+            if [ "$BETA_DB_MODE" = "separate" ]; then
+              if [ -n "$DATABASE_URL_BETA_RAW" ]; then
+                DATABASE_URL_KEY="DATABASE_URL_BETA"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_BETA_RAW"
+              elif [ -n "$DATABASE_URL_RAW" ]; then
+                echo "WARN: BETA_DB_MODE=separate but DATABASE_URL_BETA is missing; falling back to DATABASE_URL"
+                DATABASE_URL_KEY="DATABASE_URL"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_RAW"
+              else
+                echo "❌ BETA_DB_MODE=separate but DATABASE_URL_BETA and DATABASE_URL are missing in $APP_DIR/.env"
+                exit 1
+              fi
+            else
+              if [ -n "$DATABASE_URL_RAW" ]; then
+                DATABASE_URL_KEY="DATABASE_URL"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_RAW"
+              elif [ -n "$DATABASE_URL_BETA_RAW" ]; then
+                DATABASE_URL_KEY="DATABASE_URL_BETA"
+                DATABASE_URL_RESOLVED="$DATABASE_URL_BETA_RAW"
+                echo "WARN: DATABASE_URL missing; falling back to DATABASE_URL_BETA (BETA_DB_MODE=${BETA_DB_MODE:-shared})"
+              fi
+            fi
+            if [ -n "$BETA_DB_MODE" ]; then
+              echo "Beta DB mode: $BETA_DB_MODE"
+            else
+              echo "Beta DB mode: shared"
+            fi
+          fi
+          if [ -n "$DATABASE_URL_RESOLVED" ]; then
+            export DATABASE_URL="$DATABASE_URL_RESOLVED"
+            echo "Loaded ${DATABASE_URL_KEY} from $APP_DIR/.env"
+          else
+            echo "❌ DATABASE_URL not found in $APP_DIR/.env"
+            exit 1
+          fi
+
+          pnpm install --frozen-lockfile
+          pnpm build
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+          DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
+          verify_ai_lock_columns "beta"
+
+          pm2 stop "$PM2_NAME" 2>/dev/null || true
+          pm2 delete "$PM2_NAME" 2>/dev/null || true
+          ensure_log_dirs
+          install_healthcheck_script
+          NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+          pm2 save
+
+          echo "Waiting for healthcheck on :3002 ..."
+          HEALTH_OK=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3002/health >/dev/null; then
+              HEALTH_OK=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$HEALTH_OK" != "1" ]; then
+            echo "❌ Healthcheck failed (beta). Recent logs:"
+            pm2 logs "$PM2_NAME" --lines 120 --nostream || true
+            attempt_rollback || true
+            exit 1
+          fi
+
+          echo "Checking AI moderation worker startup (beta)..."
+          LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+          for i in $(seq 1 25); do
+            if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
+              break
+            fi
+            sleep 1
+          done
+          if [ ! -f "$LOG_FILE" ]; then
+            echo "❌ PM2 log file not found: $LOG_FILE"
+            pm2 logs "$PM2_NAME" --lines 200 --nostream || true
+            exit 1
+          fi
+
+          AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
+          AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
+            echo "✅ AI moderation worker started (beta)"
+          else
+            case "$AI_ENABLED_NORM" in
+              1|true|yes|on)
+                echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
+                echo "Recent worker logs:"
+                grep -nE 'ai\\.queue\\.' "$LOG_FILE" | tail -n 30 || true
+                exit 1
+                ;;
+              *)
+                echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+                ;;
+            esac
+          fi
+
+          echo "✅ Beta deployed"
+          echo "rollback_status=none" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Start beta canary (optional)
+        if: >-
+          ${{
+            steps.decide.outputs.deploy == 'true' &&
+            (contains(github.event.head_commit.message, '[canary]') || contains(github.event.head_commit.message, '[canary-auto]') || inputs.enable_canary == true)
+          }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_DIR="/opt/memalerts-backend-beta"
+          PM2_NAME="memalerts-api-beta-canary"
+          CANARY_PORT="3003"
+          CANARY_PERCENT="${{ inputs.canary_percent }}"
+          if [ -z "$CANARY_PERCENT" ]; then
+            CANARY_PERCENT="10"
+          fi
+
+          cd "$APP_DIR"
+          NODE_OPTIONS="--max-old-space-size=3072" PORT="$CANARY_PORT" INSTANCE_ID="beta-canary" \
+            pm2 start dist/index.js --name "$PM2_NAME" --update-env --max-memory-restart 2600M
+          pm2 save
+
+          sudo bash .github/scripts/enable-beta-canary.sh 3002 "$CANARY_PORT" "$CANARY_PERCENT"
+
+      - name: Auto-promote beta canary (optional)
+        if: >-
+          ${{
+            steps.decide.outputs.deploy == 'true' &&
+            (contains(github.event.head_commit.message, '[canary-auto]') || inputs.auto_promote == true)
+          }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CANARY_PORT="3003"
+          echo "Waiting 10 minutes for canary health before promotion..."
+          for i in $(seq 1 60); do
+            if ! curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/health" >/dev/null; then
+              echo "❌ Canary health check failed; aborting promotion."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          sudo bash .github/scripts/promote-beta-canary.sh 3002 "$CANARY_PORT"
+
+      - name: Notify Slack on auto-rollback (beta)
+        if: >-
+          ${{
+            always() &&
+            steps.deploy_beta.outputs.rollback_status == 'rolled_back' &&
+            env.SLACK_DEPLOY_WEBHOOK_URL != ''
+          }}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "Memalerts beta auto-rollback executed.",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Auto-rollback executed (beta)*\nRepository: <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_DEPLOY_WEBHOOK_URL }}

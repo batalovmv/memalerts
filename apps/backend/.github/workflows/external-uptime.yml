@@ -1,0 +1,49 @@
+name: External Uptime Check
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      ENDPOINTS: |
+        https://twitchmemes.ru/health
+        https://beta.twitchmemes.ru/health
+        https://twitchmemes.ru/readyz
+    steps:
+      - name: Check endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r url; do
+            if [ -z "$url" ]; then
+              continue
+            fi
+            if ! curl -fsS --max-time 10 "$url" >/dev/null; then
+              echo "FAIL: $url"
+              failed=1
+            else
+              echo "OK: $url"
+            fi
+          done <<< "$ENDPOINTS"
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Notify Telegram (optional)
+        if: failure() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          message="ALERT: External uptime check failed for memalerts-backend. See GitHub Actions."
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${message}"

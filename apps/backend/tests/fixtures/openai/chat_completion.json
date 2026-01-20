@@ -1,0 +1,16 @@
+{
+  "id": "chatcmpl_test_123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "gpt-4o-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Test response"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

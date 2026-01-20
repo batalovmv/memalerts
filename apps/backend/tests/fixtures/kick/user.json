@@ -1,0 +1,8 @@
+{
+  "data": {
+    "id": "kick-user-1",
+    "username": "kickuser",
+    "display_name": "Kick User",
+    "avatar_url": "https://example.com/kick/avatar.png"
+  }
+}

@@ -1,0 +1,501 @@
+import type { Response } from 'express';
+import type { AuthRequest } from '../../middleware/auth.js';
+import type { Server } from 'socket.io';
+import { ZodError } from 'zod';
+import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
+import { approveSubmissionSchema } from '../../shared/schemas.js';
+import { ERROR_CODES } from '../../shared/errors.js';
+import type { AdminSubmissionDeps } from './submissionTypes.js';
+import { approveSubmissionInternal } from '../approveSubmissionInternal.js';
+import { WalletService } from '../WalletService.js';
+import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
+import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../../realtime/walletBridge.js';
+import { logger } from '../../utils/logger.js';
+import { debugLog, debugError } from '../../utils/debug.js';
+import { TransactionEventBuffer } from '../../utils/transactionEventBuffer.js';
+import { assertChannelOwner } from '../../utils/accessControl.js';
+import { decrementFileHashReference } from '../../utils/fileHash.js';
+import { asRecord, getErrorMessage } from './submissionShared.js';
+import { resolveApprovalInputs, type ApprovalSubmission } from './submissionApproveFileOps.js';
+
+type Submission = ApprovalSubmission;
+export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
+  const { submissions, transaction } = deps;
+  const { id } = req.params;
+  const channelId = req.channelId;
+  let fileHashForCleanup: string | null = null;
+  let fileHashRefAdded = false;
+
+  if (!channelId) {
+    return res.status(400).json({ error: 'Channel ID required' });
+  }
+
+  debugLog('[DEBUG] approveSubmission started', { submissionId: id, channelId });
+
+  let submission: Submission | null = null; // Declare submission in outer scope for error handling
+  try {
+    const body = approveSubmissionSchema.parse(req.body);
+    const io: Server = req.app.get('io');
+    const eventBuffer = new TransactionEventBuffer();
+
+    const precheck = await submissions.findUnique({
+      where: { id },
+      select: { id: true, channelId: true },
+    });
+    if (!precheck) {
+      return res.status(404).json({
+        errorCode: 'SUBMISSION_NOT_FOUND',
+        error: 'Submission not found',
+        details: { entity: 'submission', id },
+      });
+    }
+    const ownsChannel = await assertChannelOwner({
+      userId: req.userId,
+      requestChannelId: channelId,
+      channelId: precheck.channelId,
+      res,
+      notFound: { errorCode: ERROR_CODES.SUBMISSION_NOT_FOUND, entity: 'submission', id },
+    });
+    if (!ownsChannel) return;
+
+    // Get submission first to check if it's imported (has sourceUrl)
+    let submissionForBackground: { sourceUrl: string | null } | null = null;
+    try {
+      submissionForBackground = await submissions.findUnique({
+        where: { id },
+        select: { sourceUrl: true },
+      });
+    } catch {
+      // Ignore, will check in transaction
+    }
+    const result = await (async () => {
+      try {
+        const txResult = await transaction(
+          async (txRepos, tx) => {
+            // Get submission WITHOUT tags to avoid transaction abort if MemeSubmissionTag table doesn't exist
+            // The table may not exist on production, so we fetch without tags from the start
+            try {
+              submission = (await txRepos.submissions.findUnique({
+                where: { id },
+              })) as Submission | null;
+              // Back-compat: Some deployments may not have MemeSubmissionTag table.
+              // Keep approve flow working, but best-effort load tags when possible.
+              if (submission) {
+                const submissionWithTags = submission as Submission & { tags?: unknown[] };
+                submissionWithTags.tags = [];
+                try {
+                  submissionWithTags.tags = await txRepos.submissions.findTags({
+                    where: { submissionId: id },
+                    include: { tag: { select: { name: true } } },
+                  });
+                } catch {
+                  // Best-effort: never fail approve because tags couldn't be loaded.
+                  // Common case: table missing (P2021). Other errors are tolerated too.
+                  submissionWithTags.tags = [];
+                }
+              }
+            } catch (error: unknown) {
+              logger.error('admin.submissions.fetch_single_failed', { errorMessage: getErrorMessage(error) });
+              throw new Error('Failed to fetch submission');
+            }
+
+            if (!submission) {
+              throw new Error('SUBMISSION_NOT_FOUND');
+            }
+            if (submission.channelId !== channelId) {
+              throw new Error('SUBMISSION_NOT_FOUND');
+            }
+
+            if (submission.status !== 'pending') {
+              throw new Error('SUBMISSION_NOT_PENDING');
+            }
+
+            // Get channel to use default price and slug for Socket.IO
+            debugLog('[DEBUG] Fetching channel for default price', { channelId });
+
+            const channel = await txRepos.channels.findUnique({
+              where: { id: channelId },
+              select: {
+                defaultPriceCoins: true,
+                slug: true,
+                submissionRewardCoins: true, // legacy
+                submissionRewardCoinsUpload: true,
+                submissionRewardCoinsPool: true,
+                submissionRewardOnlyWhenLive: true, // legacy (ignored for rewards in this rollout)
+              },
+            });
+            const channelSlug = channel?.slug ? String(channel.slug).toLowerCase() : null;
+            const queueSubmissionApproved = () => {
+              if (!channelSlug) return;
+              const evt = {
+                event: 'submission:approved' as const,
+                submissionId: id,
+                channelId,
+                channelSlug,
+                moderatorId: req.userId || undefined,
+                userIds: req.userId ? [req.userId] : undefined,
+                source: 'local' as const,
+              };
+              eventBuffer.add(() => {
+                try {
+                  emitSubmissionEvent(io, evt);
+                  void relaySubmissionEventToPeer(evt);
+                } catch (error) {
+                  logger.error('admin.submissions.emit_approved_failed', { errorMessage: getErrorMessage(error) });
+                }
+              });
+            };
+
+            debugLog('[DEBUG] Channel fetched', {
+              channelId,
+              found: !!channel,
+              defaultPriceCoins: channel?.defaultPriceCoins,
+            });
+
+            const defaultPrice = channel?.defaultPriceCoins ?? 100; // Use channel default or 100 as fallback
+            const sourceKind = String(submission?.sourceKind || '').toLowerCase();
+            const rewardForApproval =
+              sourceKind === 'pool'
+                ? (channel?.submissionRewardCoinsPool ?? 0)
+                : (channel?.submissionRewardCoinsUpload ?? channel?.submissionRewardCoins ?? 0);
+
+            // Pool submission: no file processing. Just create ChannelMeme + legacy Meme from MemeAsset.
+            if (sourceKind === 'pool' && submission?.memeAssetId) {
+              const asset = await txRepos.memes.asset.findUnique({
+                where: { id: String(submission.memeAssetId) },
+                select: { id: true, type: true, fileUrl: true, fileHash: true, durationMs: true, purgedAt: true },
+              });
+              if (!asset || asset.purgedAt) throw new Error('MEME_ASSET_NOT_FOUND');
+              if (!asset.fileUrl) throw new Error('MEDIA_NOT_AVAILABLE');
+
+              // Upsert ChannelMeme
+              const cm = await txRepos.memes.channelMeme.upsert({
+                where: { channelId_memeAssetId: { channelId: submission.channelId, memeAssetId: asset.id } },
+                create: {
+                  channelId: submission.channelId,
+                  memeAssetId: asset.id,
+                  status: 'approved',
+                  title: submission.title,
+                  priceCoins: body.priceCoins || defaultPrice,
+                  addedByUserId: submission.submitterUserId,
+                  approvedByUserId: req.userId!,
+                  approvedAt: new Date(),
+                },
+                update: {
+                  status: 'approved',
+                  deletedAt: null,
+                  title: submission.title,
+                  priceCoins: body.priceCoins || defaultPrice,
+                  approvedByUserId: req.userId!,
+                  approvedAt: new Date(),
+                },
+              });
+
+              // Create legacy Meme if needed (for back-compat, rollups and existing overlay flows).
+              const legacy = cm.legacyMemeId
+                ? await txRepos.memes.meme.findUnique({ where: { id: cm.legacyMemeId } })
+                : await txRepos.memes.meme.create({
+                    data: {
+                      channelId: submission.channelId,
+                      title: submission.title,
+                      type: asset.type,
+                      fileUrl: asset.fileUrl,
+                      fileHash: asset.fileHash,
+                      durationMs: asset.durationMs,
+                      priceCoins: body.priceCoins || defaultPrice,
+                      status: 'approved',
+                      createdByUserId: submission.submitterUserId,
+                      approvedByUserId: req.userId!,
+                    },
+                  });
+
+              if (!cm.legacyMemeId && legacy?.id) {
+                await txRepos.memes.channelMeme.update({
+                  where: { id: cm.id },
+                  data: { legacyMemeId: legacy.id },
+                });
+              }
+
+              // Mark submission approved
+              await txRepos.submissions.update({ where: { id }, data: { status: 'approved' } });
+
+              queueSubmissionApproved();
+
+              // Return legacy-shaped meme for current response compatibility
+              return legacy;
+            }
+
+            const approvalInputs = await resolveApprovalInputs({
+              submission,
+              body,
+              txRepos,
+              channelId: submission.channelId,
+              defaultPrice,
+              req,
+              id,
+              fileHashForCleanup,
+              fileHashRefAdded,
+            });
+            const { finalFileUrl, fileHash, durationMs, priceCoins, tagNames } = approvalInputs;
+            fileHashForCleanup = approvalInputs.fileHashForCleanup;
+            fileHashRefAdded = approvalInputs.fileHashRefAdded;
+
+            // Create approved meme + dual-write via shared internal helper (keeps AI auto-approve consistent).
+            let approved: Awaited<ReturnType<typeof approveSubmissionInternal>>['legacyMeme'];
+            try {
+              const res = await approveSubmissionInternal({
+                tx,
+                submissionId: id,
+                approvedByUserId: req.userId || null,
+                resolved: {
+                  finalFileUrl,
+                  fileHash,
+                  durationMs,
+                  priceCoins,
+                  tagNames,
+                },
+              });
+              approved = res.legacyMeme;
+            } catch (error: unknown) {
+              debugLog('[DEBUG] Error in approveSubmissionInternal', {
+                submissionId: id,
+                errorMessage: getErrorMessage(error),
+                errorName: error instanceof Error ? error.name : undefined,
+              });
+              throw error;
+            }
+
+            // Reward submitter for approved submission (per-channel setting)
+            // Only if enabled (>0) and submitter is not the moderator approving.
+            // Policy: reward is granted ALWAYS (no online check) for both upload/url and pool.
+            if (rewardForApproval > 0 && submission.submitterUserId && submission.submitterUserId !== req.userId) {
+              const updatedWallet = await WalletService.incrementBalance(
+                tx,
+                { userId: submission.submitterUserId, channelId: submission.channelId },
+                rewardForApproval
+              );
+
+              const submissionRewardEvent = {
+                userId: submission.submitterUserId,
+                channelId: submission.channelId,
+                balance: updatedWallet.balance,
+                delta: rewardForApproval,
+                reason: 'submission_approved_reward',
+                channelSlug: channel?.slug,
+              };
+              eventBuffer.add(() => {
+                try {
+                  emitWalletUpdated(io, submissionRewardEvent);
+                  void relayWalletUpdatedToPeer(submissionRewardEvent);
+                } catch (err) {
+                  logger.error('admin.submissions.emit_wallet_reward_failed', { errorMessage: getErrorMessage(err) });
+                }
+              });
+            }
+
+            queueSubmissionApproved();
+
+            return approved;
+          },
+          {
+            timeout: 30000, // 30 second timeout for transaction
+            maxWait: 10000, // 10 second max wait for transaction to start
+          }
+        ).catch((txError: unknown) => {
+          debugLog('[DEBUG] Transaction failed', {
+            submissionId: id,
+            errorMessage: getErrorMessage(txError),
+            errorName: txError instanceof Error ? txError.name : undefined,
+            errorCode: asRecord(txError).code,
+          });
+          throw txError;
+        });
+        eventBuffer.commit();
+        return txResult;
+      } finally {
+        await eventBuffer.flush();
+      }
+    })();
+
+    debugLog('[DEBUG] Transaction completed successfully', { submissionId: id, resultId: asRecord(result).id });
+
+    // Imported memes keep using their original sourceUrl as fileUrl.
+    // This avoids broken local /uploads links if background downloads fail or go to a different instance/dir.
+
+    // NOTE: kept for future background handling (was present in original file).
+    void submissionForBackground;
+
+    res.json(result);
+  } catch (error: unknown) {
+    debugError('[DEBUG] Error in approveSubmission', error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error('admin.submissions.approve_failed', { errorMessage: err.message });
+    const errorMessage = err.message;
+    const submissionRec = asRecord(submission);
+
+    if (fileHashRefAdded && fileHashForCleanup) {
+      try {
+        await decrementFileHashReference(fileHashForCleanup);
+        fileHashRefAdded = false;
+      } catch {
+        // ignore
+      }
+    }
+
+    // Don't send response if headers already sent
+    if (res.headersSent) {
+      logger.error('admin.submissions.approve_failed_after_response', { errorMessage });
+      return;
+    }
+
+    // Handle validation errors (ZodError)
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Validation failed',
+        details: error.errors,
+      });
+    }
+
+    // Handle Prisma errors
+    if (error instanceof PrismaClientKnownRequestError || error instanceof PrismaClientUnknownRequestError) {
+      const errorCode = error instanceof PrismaClientKnownRequestError ? error.code : undefined;
+      const errorMeta = error instanceof PrismaClientKnownRequestError ? error.meta : undefined;
+      const metaRecord = (errorMeta && typeof errorMeta === 'object' ? (errorMeta as Record<string, unknown>) : {}) as {
+        target?: unknown;
+      };
+      const errorTarget = Array.isArray(metaRecord.target)
+        ? metaRecord.target.map((t) => String(t)).join(',')
+        : String(metaRecord.target ?? '');
+
+      debugLog('[DEBUG] Prisma error in approveSubmission', {
+        submissionId: id,
+        errorCode,
+        errorMessage: error.message,
+        meta: errorMeta,
+      });
+      logger.error('admin.submissions.approve_prisma_failed', {
+        submissionId: id,
+        errorMessage: error.message,
+        errorCode,
+        errorMeta,
+      });
+
+      // Handle transaction aborted error (25P02)
+      if (
+        error.message?.includes('current transaction is aborted') ||
+        error.message?.includes('25P02') ||
+        errorCode === 'P2025'
+      ) {
+        return res.status(500).json({
+          error: 'Database transaction error',
+          message: 'Transaction was aborted. Please try again.',
+        });
+      }
+
+      if (errorCode === 'P2002' && errorTarget.includes('channelId') && errorTarget.includes('memeAssetId')) {
+        return res.status(409).json({
+          errorCode: 'SUBMISSION_ALREADY_APPROVED',
+          error: 'Submission already approved for this asset',
+          details: { id, target: errorTarget },
+        });
+      }
+
+      // Handle record not found (P2025)
+      if (errorCode === 'P2025') {
+        return res.status(404).json({
+          error: 'Record not found',
+          message: 'The requested record was not found in the database.',
+        });
+      }
+
+      // Handle other Prisma errors with more detail
+      return res.status(500).json({
+        error: 'Database error',
+        message:
+          process.env.NODE_ENV === 'development'
+            ? `Database error: ${error.message}${errorCode ? ` (code: ${errorCode})` : ''}`
+            : 'An error occurred while processing the request. Please try again.',
+      });
+    }
+
+    // Handle specific error messages
+    if (errorMessage === 'SUBMISSION_NOT_FOUND') {
+      return res.status(404).json({
+        errorCode: 'SUBMISSION_NOT_FOUND',
+        error: 'Submission not found',
+        details: { entity: 'submission', id },
+      });
+    }
+    if (errorMessage === 'SUBMISSION_NOT_PENDING') {
+      return res.status(409).json({
+        errorCode: 'SUBMISSION_NOT_PENDING',
+        error: 'Submission is not pending',
+        details: {
+          entity: 'submission',
+          id,
+          expectedStatus: 'pending',
+          actualStatus: submissionRec.status ?? null,
+        },
+      });
+    }
+
+    if (err.message === 'MEME_ASSET_NOT_FOUND') {
+      return res.status(404).json({
+        errorCode: 'MEME_ASSET_NOT_FOUND',
+        error: 'Meme asset not found',
+        details: { entity: 'memeAsset', id: submissionRec.memeAssetId ?? null },
+      });
+    }
+    if (err.message === 'MEME_ASSET_DELETED') {
+      return res.status(410).json({
+        errorCode: 'ASSET_PURGED_OR_QUARANTINED',
+        error: 'This meme was deleted and cannot be approved',
+        details: { legacyErrorCode: 'MEME_ASSET_DELETED', fileHash: null },
+      });
+    }
+    if (err.message === 'MEDIA_NOT_AVAILABLE') {
+      return res.status(410).json({
+        errorCode: 'MEDIA_NOT_AVAILABLE',
+        error: 'Media not available',
+        details: { entity: 'memeAsset', id: submissionRec.memeAssetId ?? null, reason: 'missing_fileUrl' },
+      });
+    }
+
+    if (err.message === 'Uploaded file not found') {
+      return res.status(404).json({
+        errorCode: 'MEDIA_NOT_AVAILABLE',
+        error: 'Media not available',
+        details: { entity: 'upload', id, path: submissionRec.fileUrlTemp ?? null, reason: 'file_missing_on_disk' },
+      });
+    }
+
+    // Handle file operation errors with more specific messages
+    if (
+      err.message.includes('Hash calculation timeout') ||
+      err.message.includes('file') ||
+      err.message.includes('File') ||
+      err.message.includes('Invalid file path') ||
+      err.message.includes('Uploaded file not found')
+    ) {
+      logger.error('admin.submissions.file_operation_failed', {
+        errorMessage: err.message,
+        submissionId: id,
+        fileUrlTemp: submissionRec.fileUrlTemp,
+        stack: err.stack,
+      });
+      return res.status(500).json({
+        error: 'File operation error',
+        message: err.message.includes('not found')
+          ? 'The uploaded file was not found. Please try uploading again.'
+          : 'An error occurred while processing the file. Please try again.',
+      });
+    }
+
+    // Handle all other errors
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred while processing the request',
+    });
+  }
+};

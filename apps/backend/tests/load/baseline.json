@@ -1,0 +1,8 @@
+{
+  "updated_at": "2026-01-16T00:00:00.000Z",
+  "p95_ms": {
+    "moderation-list": 300,
+    "my-submissions": 300,
+    "channel-memes": 200
+  }
+}
