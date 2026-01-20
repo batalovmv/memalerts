@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+.turbo/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Runtime
+tmp-runtime/
+*.pid
+
+# Coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+apps/backend/prisma/*.db
+
+# Uploads (local dev)
+apps/backend/uploads/

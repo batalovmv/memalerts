@@ -1,0 +1,19 @@
+{
+  "name": "memalerts",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "dev:backend": "pnpm --filter @memalerts/backend dev",
+    "dev:frontend": "pnpm --filter @memalerts/frontend dev",
+    "build:backend": "pnpm --filter @memalerts/backend build",
+    "build:frontend": "pnpm --filter @memalerts/frontend build"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  }
+}
