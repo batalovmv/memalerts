@@ -1,0 +1,7 @@
+/* Dark-theme overrides for design tokens (uses the existing `.dark` class). */
+.dark {
+  --ma-bg: #111827;
+  --ma-fg: #f9fafb;
+}
+
+

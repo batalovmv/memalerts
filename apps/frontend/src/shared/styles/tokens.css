@@ -1,0 +1,24 @@
+:root {
+  /* Base palette */
+  --ma-bg: #f9fafb;
+  --ma-fg: #111827;
+
+  /* Surfaces */
+  --ma-surface-bg: #ffffff;
+  --ma-surface-bg-dark: rgba(31, 41, 55, 0.55);
+
+  /* Radii */
+  --ma-radius-sm: 0.5rem;
+  --ma-radius-md: 0.75rem;
+  --ma-radius-lg: 1rem;
+
+  /* Shadows */
+  --ma-shadow-surface:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --ma-shadow-surface-dark:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+

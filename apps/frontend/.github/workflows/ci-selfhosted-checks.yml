@@ -1,0 +1,75 @@
+name: Frontend CI (Self-hosted checks)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'overlay/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'vitest*.ts'
+      - 'tsconfig*.json'
+      - 'tailwind.config.js'
+      - 'postcss.config.js'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/**'
+      - 'docs/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint + typecheck + tests + build (self-hosted)
+    runs-on: [self-hosted, linux, x64, memalerts-vps]
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (web)
+        run: pnpm lint
+
+      - name: Lint (overlay)
+        run: pnpm lint:overlay
+
+      - name: Typecheck (web)
+        run: pnpm typecheck
+
+      - name: Typecheck (overlay)
+        run: pnpm typecheck:overlay
+
+      - name: Tests (web + overlay)
+        run: pnpm test:coverage
+
+      - name: Build (web)
+        run: pnpm build
+
+      - name: Build (overlay)
+        run: pnpm build:overlay
+
+

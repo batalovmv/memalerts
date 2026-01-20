@@ -1,0 +1,9 @@
+dist
+overlay/dist
+node_modules
+overlay/node_modules
+pnpm-lock.yaml
+*.log
+coverage
+
+
