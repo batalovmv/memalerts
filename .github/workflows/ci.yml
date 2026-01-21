@@ -1417,6 +1417,10 @@ jobs:
           pnpm build -- --outDir "$BUILD_DIR"
           pnpm build:overlay -- --outDir "dist-next"
 
+          if [ ! -d "$OVERLAY_BUILD_DIR" ] && [ -d "overlay/dist" ]; then
+            OVERLAY_BUILD_DIR="overlay/dist"
+          fi
+
           echo "Writing runtime config: $BUILD_DIR/config.json"
           node - <<'NODE'
           const fs = require('fs');
@@ -1432,9 +1436,14 @@ jobs:
           fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
 
-          rm -rf dist overlay/dist
+          rm -rf dist
+          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
+            rm -rf overlay/dist
+          fi
           mv "$BUILD_DIR" dist
-          mv "$OVERLAY_BUILD_DIR" overlay/dist
+          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
+            mv "$OVERLAY_BUILD_DIR" overlay/dist
+          fi
           
           echo "Reloading nginx (best-effort)..."
           sudo nginx -t && sudo systemctl reload nginx || true
@@ -1503,6 +1512,10 @@ jobs:
           pnpm build -- --outDir "$BUILD_DIR"
           pnpm build:overlay -- --outDir "dist-next"
 
+          if [ ! -d "$OVERLAY_BUILD_DIR" ] && [ -d "overlay/dist" ]; then
+            OVERLAY_BUILD_DIR="overlay/dist"
+          fi
+
           echo "Writing runtime config: $BUILD_DIR/config.json"
           node - <<'NODE'
           const fs = require('fs');
@@ -1518,9 +1531,14 @@ jobs:
           fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
 
-          rm -rf dist overlay/dist
+          rm -rf dist
+          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
+            rm -rf overlay/dist
+          fi
           mv "$BUILD_DIR" dist
-          mv "$OVERLAY_BUILD_DIR" overlay/dist
+          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
+            mv "$OVERLAY_BUILD_DIR" overlay/dist
+          fi
           
           echo "Reloading nginx (best-effort)..."
           sudo nginx -t && sudo systemctl reload nginx || true
