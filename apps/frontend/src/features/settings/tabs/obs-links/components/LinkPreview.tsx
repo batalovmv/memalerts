@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 
-import { HelpTooltip } from '@/shared/ui';
-
 import type { OverlayPreviewState } from '../hooks/useOverlayPreview';
+
+import { HelpTooltip } from '@/shared/ui';
 
 type LinkPreviewProps = {
   overlayToken: string;

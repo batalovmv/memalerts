@@ -1,15 +1,15 @@
 import { useTranslation } from 'react-i18next';
 
+import { LinkPreview } from './LinkPreview';
+import { OverlayBasicPanel } from './overlay/OverlayBasicPanel';
+import { OverlayProPanel } from './overlay/OverlayProPanel';
+
 import type { ObsLinkFormState } from '../hooks/useObsLinkForm';
 import type { OverlayPreviewState } from '../hooks/useOverlayPreview';
 import type { OverlaySettingsState } from '../hooks/useOverlaySettings';
 
-import { LinkPreview } from './LinkPreview';
-import { OverlayBasicPanel } from './overlay/OverlayBasicPanel';
-import { OverlayProPanel } from './overlay/OverlayProPanel';
 import { Button, HelpTooltip } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
-
 
 type LinkEditorProps = {
   overlayForm: ObsLinkFormState;

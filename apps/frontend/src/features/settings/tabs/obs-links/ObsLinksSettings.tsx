@@ -1,10 +1,8 @@
 ﻿import { Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 
-
-import { useObsLinks } from './hooks/useObsLinks';
 import { LinksList } from './components/LinksList';
-
+import { useObsLinks } from './hooks/useObsLinks';
 
 const LinkEditor = lazy(() => import('./components/LinkEditor'));
 const CreditsEditor = lazy(() => import('./components/CreditsEditor'));
