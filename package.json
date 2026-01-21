@@ -15,5 +15,18 @@
   },
   "devDependencies": {
     "turbo": "^2.3.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ],
+    "overrides": {
+      "esbuild": "^0.25.0",
+      "ioredis": "5.9.2",
+      "qs": "^6.14.1"
+    }
   }
 }

@@ -125,17 +125,5 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js}": "eslint --max-warnings 0 --fix"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "esbuild",
-      "prisma"
-    ],
-    "overrides": {
-      "esbuild": "^0.25.0",
-      "qs": "^6.14.1"
-    }
   }
 }
