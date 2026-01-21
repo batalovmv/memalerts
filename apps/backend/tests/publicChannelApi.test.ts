@@ -204,6 +204,7 @@ describe('public channel API', () => {
     const itemKeys = Object.keys(res.body[0]).sort();
     expect(itemKeys).toEqual(
       [
+        'activationsCount',
         'channelId',
         'channelMemeId',
         'createdAt',
