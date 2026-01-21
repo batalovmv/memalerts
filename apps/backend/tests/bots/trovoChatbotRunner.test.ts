@@ -52,6 +52,7 @@ afterEach(() => {
 
 describe('trovo chatbot runner', () => {
   it('starts services when enabled', async () => {
+    process.env.TROVO_ENABLED = '1';
     process.env.TROVO_CHAT_BOT_ENABLED = '1';
     process.env.CHATBOT_BACKEND_BASE_URL = 'https://api.example.com';
     process.env.TROVO_CHAT_WS_URL = 'wss://trovo.example/chat';

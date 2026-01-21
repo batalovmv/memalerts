@@ -13,7 +13,13 @@ authRoutes.get('/twitch/complete', authController.completeBetaAuth);
 authRoutes.get('/accounts', authenticate, authController.listAccounts);
 authRoutes.delete('/accounts/:externalAccountId', authenticate, authController.unlinkAccount);
 // Manual linking for providers without OAuth redirects (Boosty).
-authRoutes.post('/boosty/link', authenticate, authController.linkBoosty);
+authRoutes.post('/boosty/link', authenticate, (_req, res) => {
+  res.status(410).json({
+    error: 'BOOSTY_LINK_DEPRECATED',
+    errorCode: 'BOOSTY_LINK_DEPRECATED',
+    message: 'Boosty linking via token is deprecated. Use Discord roles instead.',
+  });
+});
 
 // Special YouTube linking: request force-ssl scope (used for viewer activity rewards like videos.getRating).
 authRoutes.get('/youtube/link/force-ssl', authenticate, authController.initiateYouTubeForceSslLink);

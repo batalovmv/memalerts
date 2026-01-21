@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getResubmitsLeft } from './lib/resubmits';
@@ -26,6 +26,7 @@ export function PendingSubmissionCard(props: {
   onToggleSelected?: () => void;
   onRequestFocus?: () => void;
   liRef?: (el: HTMLLIElement | null) => void;
+  onRegisterPreviewToggle?: (id: string, handler: (() => void) | null) => void;
 }) {
   const {
     submission,
@@ -40,6 +41,7 @@ export function PendingSubmissionCard(props: {
     onToggleSelected,
     onRequestFocus,
     liRef,
+    onRegisterPreviewToggle,
   } = props;
   const { t } = useTranslation();
   const { user } = useAppSelector((s) => s.auth);
@@ -54,6 +56,11 @@ export function PendingSubmissionCard(props: {
   const src = resolveMediaUrl(submission.fileUrlTemp || submission.sourceUrl || '');
   const { resubmitsLeft, maxResubmits, canSendForChanges } = getResubmitsLeft(submission.revision, 2);
   const preview = useSubmissionPreview(src);
+
+  useEffect(() => {
+    onRegisterPreviewToggle?.(submission.id, preview.togglePlay);
+    return () => onRegisterPreviewToggle?.(submission.id, null);
+  }, [onRegisterPreviewToggle, preview.togglePlay, submission.id]);
 
   const sourceKindLabel =
     submission.sourceKind === 'upload'
@@ -97,7 +104,7 @@ export function PendingSubmissionCard(props: {
       <article
         className={cn(
           'glass p-4 transition-shadow',
-          isFocused && 'ring-2 ring-primary/40',
+          isFocused && 'ring-2 ring-primary',
           isSelected && 'bg-emerald-500/5',
         )}
       >

@@ -120,7 +120,17 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
             where: { channelId: channel.id, status: 'approved', deletedAt: null },
             take: 1,
             orderBy: { createdAt: 'desc' },
-            select: { title: true, priceCoins: true },
+            select: {
+              title: true,
+              priceCoins: true,
+              _count: {
+                select: {
+                  activations: {
+                    where: { status: 'done' },
+                  },
+                },
+              },
+            },
           },
         },
       });
@@ -145,6 +155,13 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
               fileUrl: true,
               durationMs: true,
               createdBy: { select: { id: true, displayName: true } },
+            },
+          },
+          _count: {
+            select: {
+              activations: {
+                where: { status: 'done' },
+              },
             },
           },
         },
@@ -190,7 +207,17 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
           where: { channelId: channel.id, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { title: true, priceCoins: true },
+          select: {
+            title: true,
+            priceCoins: true,
+            _count: {
+              select: {
+                activations: {
+                  where: { status: 'done' },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -219,6 +246,13 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
             fileUrl: true,
             durationMs: true,
             createdBy: { select: { id: true, displayName: true } },
+          },
+        },
+        _count: {
+          select: {
+            activations: {
+              where: { status: 'done' },
+            },
           },
         },
       },

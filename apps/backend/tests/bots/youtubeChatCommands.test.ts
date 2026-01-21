@@ -6,7 +6,7 @@ const prismaMock = vi.hoisted(() => ({
 const getStreamDurationSnapshot = vi.hoisted(() => vi.fn());
 const resolveMemalertsUserIdFromChatIdentity = vi.hoisted(() => vi.fn());
 const sendToYouTubeChat = vi.hoisted(() => vi.fn());
-const loggerMock = vi.hoisted(() => ({ warn: vi.fn(), info: vi.fn() }));
+const loggerMock = vi.hoisted(() => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }));
 
 vi.mock('../../src/lib/prisma.js', () => ({ prisma: prismaMock }));
 vi.mock('../../src/realtime/streamDurationStore.js', () => ({ getStreamDurationSnapshot }));

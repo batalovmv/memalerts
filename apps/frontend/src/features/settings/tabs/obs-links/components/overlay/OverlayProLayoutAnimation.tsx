@@ -42,10 +42,7 @@ export function OverlayProLayoutAnimation({ overlayForm, preview }: OverlayProLa
     setAnimEasingY2,
     urlEnterMs,
     setUrlEnterMs,
-    urlExitMs,
     setUrlExitMs,
-    urlRadius,
-    setUrlRadius,
   } = overlayForm;
   const { setPreviewLockPositions, flashSafeGuide } = preview;
 

@@ -55,7 +55,7 @@ describe('auth boosty link', () => {
     process.env.BOOSTY_API_BASE_URL = 'https://api.boosty.to';
   });
 
-  it('links a boosty account with a valid access token', async () => {
+  it('returns 410 and does not link a boosty account', async () => {
     const user = await createUser({ role: 'viewer', hasBetaAccess: true });
     mockBoostyUserId(`boosty-user-${user.id}`);
 
@@ -65,16 +65,13 @@ describe('auth boosty link', () => {
       .set('Cookie', buildAuthCookie(user.id))
       .send({ accessToken: 'boosty-token', blogName: 'myblog' });
 
-    expect(res.status).toBe(200);
-    expect((res.body as { ok?: boolean })?.ok).toBe(true);
+    expect(res.status).toBe(410);
+    expect((res.body as { errorCode?: string })?.errorCode).toBe('BOOSTY_LINK_DEPRECATED');
 
     const account = await prisma.externalAccount.findFirst({
       where: { userId: user.id, provider: 'boosty' },
-      select: { accessToken: true, login: true, profileUrl: true },
     });
-    expect(account?.accessToken).toBe('boosty-token');
-    expect(account?.login).toBe('myblog');
-    expect(account?.profileUrl).toBe('https://boosty.to/myblog');
+    expect(account).toBeNull();
   });
 
   it('rejects invalid access tokens', async () => {
@@ -90,14 +87,14 @@ describe('auth boosty link', () => {
       .set('Cookie', buildAuthCookie(user.id))
       .send({ accessToken: 'bad-token' });
 
-    expect(res.status).toBe(401);
-    expect((res.body as { errorCode?: string })?.errorCode).toBe('BOOSTY_INVALID_TOKEN');
+    expect(res.status).toBe(410);
+    expect((res.body as { errorCode?: string })?.errorCode).toBe('BOOSTY_LINK_DEPRECATED');
 
     const account = await prisma.externalAccount.findFirst({ where: { userId: user.id, provider: 'boosty' } });
     expect(account).toBeNull();
   });
 
-  it('updates the linked account when linking again', async () => {
+  it('returns 410 for repeated link attempts', async () => {
     const user = await createUser({ role: 'viewer', hasBetaAccess: true });
     const boostyUserId = `boosty-user-${user.id}`;
     mockBoostyUserId(boostyUserId);
@@ -108,7 +105,7 @@ describe('auth boosty link', () => {
       .set('Cookie', buildAuthCookie(user.id))
       .send({ accessToken: 'boosty-token-a' });
 
-    expect(first.status).toBe(200);
+    expect(first.status).toBe(410);
 
     const second = await request(makeApp())
       .post('/auth/boosty/link')
@@ -116,12 +113,11 @@ describe('auth boosty link', () => {
       .set('Cookie', buildAuthCookie(user.id))
       .send({ accessToken: 'boosty-token-b' });
 
-    expect(second.status).toBe(200);
+    expect(second.status).toBe(410);
 
     const account = await prisma.externalAccount.findFirst({
       where: { userId: user.id, provider: 'boosty' },
-      select: { accessToken: true },
     });
-    expect(account?.accessToken).toBe('boosty-token-b');
+    expect(account).toBeNull();
   });
 });

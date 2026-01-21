@@ -226,9 +226,11 @@ export function useCreditsSession({ channelSlug, overlayKind, socket, isConnecte
 
     socket.emit('join:channel', slug);
 
-    const onCreditsState = (
-      incoming: { chatters?: Array<{ displayName?: string; name?: string; messageCount?: number }> } | null | undefined
-    ) => {
+    const onCreditsState = (payload?: unknown) => {
+      const incoming = payload as
+        | { chatters?: Array<{ displayName?: string; name?: string; messageCount?: number }> }
+        | null
+        | undefined;
       const next = Array.isArray(incoming?.chatters) ? incoming!.chatters! : [];
       const normalized = next
         .map((c) => {

@@ -21,9 +21,9 @@ test.describe('Moderation bulk actions and hotkeys', () => {
     await expect(page.locator('[data-status="approved"]')).toHaveCount(2);
   });
 
-  test('approve with A hotkey', async ({ page }) => {
+  test('approve with Enter hotkey', async ({ page }) => {
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('a');
+    await page.keyboard.press('Enter');
 
     await expect(page.locator('[data-status="approved"]').first()).toBeVisible();
   });

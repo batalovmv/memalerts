@@ -94,6 +94,15 @@ export function useCreditsSettings(channelSlug: string) {
   const [creditsTitleStrokeOpacity, setCreditsTitleStrokeOpacity] = useState<number>(0.9);
   const [creditsTitleStrokeColor, setCreditsTitleStrokeColor] = useState<string>('#000000');
 
+  const [creditsScrollSpeed, setCreditsScrollSpeed] = useState<number>(48);
+  const [creditsScrollDirection, setCreditsScrollDirection] = useState<'up' | 'down'>('up');
+  const [creditsLoop, setCreditsLoop] = useState<boolean>(true);
+  const [creditsStartDelayMs, setCreditsStartDelayMs] = useState<number>(0);
+  const [creditsEndFadeMs, setCreditsEndFadeMs] = useState<number>(0);
+  const [creditsSectionGapPx, setCreditsSectionGapPx] = useState<number>(24);
+  const [creditsLineGapPx, setCreditsLineGapPx] = useState<number>(8);
+  const [creditsFadeInMs, setCreditsFadeInMs] = useState<number>(600);
+
 
   const [creditsUiMode, setCreditsUiMode] = useState<'quick' | 'advanced'>('quick');
   const [creditsTab, setCreditsTab] = useState<'layout' | 'typography' | 'sections' | 'visual' | 'motion'>('layout');

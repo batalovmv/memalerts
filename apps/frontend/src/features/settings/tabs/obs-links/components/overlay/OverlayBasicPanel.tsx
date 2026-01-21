@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { AnimEasingPreset, ScaleMode, UrlAnim, UrlPosition } from '../../types';
+import type { AnimEasingPreset, UrlAnim, UrlPosition } from '../../types';
 import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
 import type { OverlayPreviewState } from '../../hooks/useOverlayPreview';
 import type { OverlaySettingsState } from '../../hooks/useOverlaySettings';
@@ -20,6 +20,8 @@ export function OverlayBasicPanel({ overlayForm, overlaySettings, preview }: Ove
   const {
     overlayMode,
     setOverlayMode,
+    overlayShowSender,
+    setOverlayShowSender,
     overlayMaxConcurrent,
     setOverlayMaxConcurrent,
     presetName,
@@ -31,25 +33,22 @@ export function OverlayBasicPanel({ overlayForm, overlaySettings, preview }: Ove
     applySharePayload,
     urlPosition,
     setUrlPosition,
+    urlVolume,
+    setUrlVolume,
     scaleMode,
     setScaleMode,
     scaleFixed,
     setScaleFixed,
     scaleMin,
-    setScaleMin,
     scaleMax,
-    setScaleMax,
     safePad,
     setSafePad,
-    urlRadius,
-    setUrlRadius,
     urlAnim,
     setUrlAnim,
     animEasingPreset,
     setAnimEasingPreset,
     urlEnterMs,
     setUrlEnterMs,
-    urlExitMs,
     setUrlExitMs,
     glassEnabled,
     setGlassEnabled,

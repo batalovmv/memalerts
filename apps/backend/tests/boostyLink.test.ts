@@ -57,7 +57,7 @@ describe('POST /auth/boosty/link', () => {
     expect(res.body?.errorCode).toBe('BOOSTY_LINK_DEPRECATED');
   });
 
-  it('400 if no credentials provided in boosty_api mode', async () => {
+  it('410 Gone in boosty_api mode (manual linking deprecated)', async () => {
     process.env.BOOSTY_REWARDS_MODE = 'boosty_api';
     const token = makeJwt({ userId: 'u1', role: 'viewer', channelId: 'c1' });
     const res = await request(makeApp())
@@ -66,7 +66,7 @@ describe('POST /auth/boosty/link', () => {
       .set('Cookie', [`token=${encodeURIComponent(token)}`])
       .send({});
 
-    expect(res.status).toBe(400);
-    expect(res.body?.errorCode).toBe('BOOSTY_LINK_MISSING_CREDENTIALS');
+    expect(res.status).toBe(410);
+    expect(res.body?.errorCode).toBe('BOOSTY_LINK_DEPRECATED');
   });
 });

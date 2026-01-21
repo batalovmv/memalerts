@@ -195,6 +195,8 @@ export interface Meme {
   memeAssetId?: string | null;
   priceCoins: number;
   durationMs: number;
+  activationsCount?: number;
+  _count?: { activations?: number };
   status?: MemeStatus;
   channelId?: string;
   deletedAt?: string | null;

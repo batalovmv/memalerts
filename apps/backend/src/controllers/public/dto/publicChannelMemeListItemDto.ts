@@ -12,6 +12,7 @@ export type PublicChannelMemeListItemDto = {
   fileUrl: string | null;
   durationMs: number;
   priceCoins: number;
+  activationsCount: number;
   createdAt: Date;
   createdBy: { id: string; displayName: string } | null;
 };
@@ -31,8 +32,14 @@ export function toPublicChannelMemeListItemDto(
       durationMs: number;
       createdBy?: { id: string; displayName: string } | null;
     };
+    _count?: { activations: number };
   }
 ): PublicChannelMemeListItemDto {
+  const activationsCount =
+    typeof row._count?.activations === 'number' && Number.isFinite(row._count.activations)
+      ? row._count.activations
+      : 0;
+
   return {
     id: row.legacyMemeId ?? row.id,
     channelId,
@@ -43,6 +50,7 @@ export function toPublicChannelMemeListItemDto(
     fileUrl: row.memeAsset.fileUrl ?? null,
     durationMs: row.memeAsset.durationMs,
     priceCoins: row.priceCoins,
+    activationsCount,
     createdAt: row.createdAt,
     createdBy: row.memeAsset.createdBy
       ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }

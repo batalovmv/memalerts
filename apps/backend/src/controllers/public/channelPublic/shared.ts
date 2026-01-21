@@ -44,7 +44,17 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
       where: { channelId: string; status: 'approved'; deletedAt: null };
       take: 1;
       orderBy: { createdAt: 'desc' };
-      select: { title: true; priceCoins: true };
+      select: {
+        title: true;
+        priceCoins: true;
+        _count: {
+          select: {
+            activations: {
+              where: { status: 'done' };
+            };
+          };
+        };
+      };
     };
   };
 }>;
@@ -190,6 +200,10 @@ export function mapPoolAssetsToDtos(
     const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
     const channelPrice = ch?.priceCoins;
     const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
+    const activationsCount =
+      typeof ch?._count?.activations === 'number' && Number.isFinite(ch._count.activations)
+        ? ch._count.activations
+        : 0;
     return {
       id: r.id,
       channelId,
@@ -200,6 +214,7 @@ export function mapPoolAssetsToDtos(
       fileUrl: r.fileUrl ?? null,
       durationMs: r.durationMs,
       priceCoins,
+      activationsCount,
       createdAt: r.createdAt,
       createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
     };

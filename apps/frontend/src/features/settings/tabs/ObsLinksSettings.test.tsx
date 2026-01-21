@@ -8,7 +8,10 @@ import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
 import {
   mockStreamerCreditsToken,
+  mockStreamerCreditsState,
   mockStreamerCreditsTokenRotate,
+  mockStreamerCreditsReconnectWindow,
+  mockStreamerCreditsIgnoredChatters,
   mockStreamerOverlayPresets,
   mockStreamerOverlayPresetsPut,
   mockStreamerOverlayPreviewMemes,
@@ -48,6 +51,9 @@ describe('ObsLinksSettings (integration)', () => {
     server.use(
       mockStreamerOverlayToken({ token: 'tok1', overlayMode: 'queue', overlayShowSender: false, overlayMaxConcurrent: 3, overlayStyleJson: null }),
       mockStreamerCreditsToken({ token: 'ctok1', url: 'https://example.com/overlay/credits/t/ctok1', creditsStyleJson: null }),
+      mockStreamerCreditsState({ donors: [], chatters: [] }),
+      mockStreamerCreditsReconnectWindow({ seconds: 30 }),
+      mockStreamerCreditsIgnoredChatters({ chatters: [] }),
       mockStreamerOverlayPresets({ presets: [] }),
       mockStreamerOverlayPresetsPut(() => {}),
       mockStreamerOverlayPreviewMemes([]),
@@ -84,6 +90,9 @@ describe('ObsLinksSettings (integration)', () => {
     server.use(
       mockStreamerOverlayToken({ token: 'tok1', overlayMode: 'queue', overlayShowSender: false, overlayMaxConcurrent: 3, overlayStyleJson: null }),
       mockStreamerCreditsToken({ token: 'ctok1', url: 'https://example.com/overlay/credits/t/ctok1', creditsStyleJson: null }),
+      mockStreamerCreditsState({ donors: [], chatters: [] }),
+      mockStreamerCreditsReconnectWindow({ seconds: 30 }),
+      mockStreamerCreditsIgnoredChatters({ chatters: [] }),
       mockStreamerOverlayPresets({ presets: [] }),
       mockStreamerOverlayPresetsPut(() => {}),
       mockStreamerOverlayPreviewMemes([]),

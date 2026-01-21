@@ -24,6 +24,8 @@ export type { TextareaProps } from './Textarea/Textarea';
 export { Spinner } from './Spinner/Spinner';
 export type { SpinnerProps } from './Spinner/Spinner';
 
+export { DropZone } from './DropZone/DropZone';
+
 export { Modal } from './Modal/Modal';
 export type { ModalProps } from './Modal/Modal';
 
@@ -33,4 +35,3 @@ export { HelpTooltip } from './Tooltip/HelpTooltip';
 
 export { PageShell } from './PageShell';
 export type { PageShellProps, PageShellVariant } from './PageShell';
-

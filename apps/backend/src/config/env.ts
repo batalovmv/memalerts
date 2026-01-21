@@ -33,6 +33,7 @@ const envSchemaBase = z.object({
   VK_CLIENT_SECRET: z.string().min(1).optional(),
   VK_CALLBACK_URL: z.string().url().optional(),
 
+  TROVO_ENABLED: z.string().min(1).optional(),
   TROVO_CLIENT_ID: z.string().min(1).optional(),
   TROVO_CLIENT_SECRET: z.string().min(1).optional(),
   TROVO_CALLBACK_URL: z.string().url().optional(),

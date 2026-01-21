@@ -99,6 +99,7 @@ export function DashboardSubmissionsPanel({
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const previewToggleRef = useRef<Record<string, () => void>>({});
   const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   const visibleSubmissions = useMemo(() => submissions, [submissions]);
@@ -178,43 +179,60 @@ export function DashboardSubmissionsPanel({
     [visibleIds],
   );
 
+  const registerPreviewToggle = useCallback((id: string, handler: (() => void) | null) => {
+    if (handler) {
+      previewToggleRef.current[id] = handler;
+    } else {
+      delete previewToggleRef.current[id];
+    }
+  }, []);
+
   useHotkeys(
     (e) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toUpperCase() || '';
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
 
-      const key = e.key.toLowerCase();
-      if (key === 'a') {
+      const key = e.key;
+      if (key === 'Enter') {
         if (focusedId) onApprove(focusedId);
         return;
       }
-      if (key === 'r') {
-        if (focusedId) onReject(focusedId);
+      if (key === 'Backspace' || key === 'Delete') {
+        if (focusedId) {
+          e.preventDefault();
+          onReject(focusedId);
+        }
         return;
       }
-      if (key === 'n') {
+      if (key.toLowerCase() === 'n') {
         if (focusedId) onNeedsChanges(focusedId);
         return;
       }
-      if (key === 'arrowleft' || key === 'arrowup') {
+      if (key === 'ArrowLeft' || key === 'ArrowUp') {
         moveFocus(-1);
         return;
       }
-      if (key === 'arrowright' || key === 'arrowdown') {
+      if (key === 'ArrowRight' || key === 'ArrowDown') {
         moveFocus(1);
         return;
       }
       if (key === ' ') {
         e.preventDefault();
-        toggleSelection(focusedId);
+        if (focusedId) {
+          previewToggleRef.current[focusedId]?.();
+        }
         return;
       }
-      if (key === 'escape') {
-        clearSelection();
+      if (key === 'Escape') {
+        if (previewModal.open) {
+          setPreviewModal({ open: false, src: '', title: '', submission: null });
+        } else {
+          clearSelection();
+        }
       }
     },
-    [focusedId, onApprove, onReject, onNeedsChanges, moveFocus, toggleSelection, clearSelection],
+    [focusedId, onApprove, onReject, onNeedsChanges, moveFocus, clearSelection, previewModal.open],
     isOpen && activeTab === 'pending',
   );
 
@@ -315,13 +333,12 @@ export function DashboardSubmissionsPanel({
               content={
                 <div className="text-xs text-gray-800 dark:text-gray-100 space-y-1">
                   <div className="font-semibold">{t('dashboard.hotkeys.title', { defaultValue: 'Hotkeys' })}</div>
-                  <div>A — {t('dashboard.hotkeys.approve', { defaultValue: 'Approve focused' })}</div>
-                  <div>R — {t('dashboard.hotkeys.reject', { defaultValue: 'Reject (notes)' })}</div>
+                  <div>Enter — {t('dashboard.hotkeys.approve', { defaultValue: 'Approve focused' })}</div>
+                  <div>Backspace / Del — {t('dashboard.hotkeys.reject', { defaultValue: 'Reject focused' })}</div>
                   <div>N — {t('dashboard.hotkeys.needsChanges', { defaultValue: 'Needs changes (notes)' })}</div>
-                  <div>←/↑ — {t('dashboard.hotkeys.prev', { defaultValue: 'Previous item' })}</div>
-                  <div>→/↓ — {t('dashboard.hotkeys.next', { defaultValue: 'Next item' })}</div>
-                  <div>Space — {t('dashboard.hotkeys.toggle', { defaultValue: 'Toggle selection' })}</div>
-                  <div>Esc — {t('dashboard.hotkeys.clear', { defaultValue: 'Clear selection' })}</div>
+                  <div>←/→ — {t('dashboard.hotkeys.prev', { defaultValue: 'Previous / next item' })}</div>
+                  <div>Space — {t('dashboard.hotkeys.preview', { defaultValue: 'Play / pause preview' })}</div>
+                  <div>Esc — {t('dashboard.hotkeys.close', { defaultValue: 'Close modal' })}</div>
                   <div>? — {t('dashboard.hotkeys.help', { defaultValue: 'Show hotkeys' })}</div>
                 </div>
               }
@@ -449,6 +466,7 @@ export function DashboardSubmissionsPanel({
                     resolveMediaUrl={resolveMedia}
                     isFocused={focusedId === submission.id}
                     isSelected={selectedIds.includes(submission.id)}
+                    onRegisterPreviewToggle={registerPreviewToggle}
                     onRequestFocus={() => setFocusedIndex(visibleIds.indexOf(submission.id))}
                     onToggleSelected={() => toggleSelection(submission.id)}
                     liRef={(el) => {

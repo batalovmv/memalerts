@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import type { RefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';
 
@@ -42,6 +43,7 @@ function MemeCardViewBase({
   onTouchStart,
   onKeyDown,
 }: MemeCardViewProps) {
+  const { t } = useTranslation();
   const hasAiFields = 'aiAutoDescription' in meme || 'aiAutoTagNames' in meme;
   const aiTags = Array.isArray(meme.aiAutoTagNames) ? meme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
   const aiDesc = typeof meme.aiAutoDescription === 'string' ? meme.aiAutoDescription : '';
@@ -49,6 +51,17 @@ function MemeCardViewBase({
   const hasAiDesc = !!aiDesc.trim() && !aiDescEffectivelyEmpty;
   const aiDescFirstLine = hasAiDesc ? aiDesc.trim().split('\n')[0]?.slice(0, 120) || '' : '';
   const hasAi = aiTags.length > 0 || hasAiDesc;
+  const activationsCount =
+    typeof meme.activationsCount === 'number' && Number.isFinite(meme.activationsCount)
+      ? meme.activationsCount
+      : typeof meme._count?.activations === 'number' && Number.isFinite(meme._count.activations)
+        ? meme._count.activations
+        : 0;
+  const isPopular = activationsCount >= 100;
+  const activationsLabel = t('memes.activationCountLabel', {
+    defaultValue: '{{count}} activations',
+    count: activationsCount,
+  });
 
   return (
     <article
@@ -58,6 +71,7 @@ function MemeCardViewBase({
         'bg-white/60 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10 shadow-sm',
         'will-change-transform',
         'focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+        isPopular && 'ring-2 ring-orange-500/70',
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -117,6 +131,15 @@ function MemeCardViewBase({
                 AI: pending
               </span>
             ) : null}
+          </div>
+        ) : null}
+
+        {activationsCount > 0 ? (
+          <div className="absolute top-2 right-2 z-30">
+            <span className="inline-flex items-center gap-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">
+              <span aria-hidden="true">🔥</span>
+              <span>{activationsLabel}</span>
+            </span>
           </div>
         ) : null}
       </div>

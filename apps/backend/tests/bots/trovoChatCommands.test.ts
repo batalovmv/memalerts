@@ -8,7 +8,7 @@ const resolveMemalertsUserIdFromChatIdentity = vi.hoisted(() => vi.fn());
 const getValidTrovoAccessTokenByExternalAccountId = vi.hoisted(() => vi.fn());
 const getValidTrovoBotAccessToken = vi.hoisted(() => vi.fn());
 const sendTrovoChatMessage = vi.hoisted(() => vi.fn());
-const loggerMock = vi.hoisted(() => ({ warn: vi.fn() }));
+const loggerMock = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn() }));
 
 vi.mock('../../src/lib/prisma.js', () => ({ prisma: prismaMock }));
 vi.mock('../../src/realtime/streamDurationStore.js', () => ({ getStreamDurationSnapshot }));

@@ -38,6 +38,11 @@ async function start() {
     process.exit(1);
   }
 
+  if (!parseBool(process.env.TROVO_ENABLED)) {
+    logger.info('trovo_chatbot.disabled_by_flag');
+    process.exit(0);
+  }
+
   const enabled = String(process.env.TROVO_CHAT_BOT_ENABLED || '')
     .trim()
     .toLowerCase();

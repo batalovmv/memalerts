@@ -82,11 +82,11 @@ describe('Moderation hotkeys', () => {
     originalScrollIntoView = undefined;
   });
 
-  it('approves on A key', async () => {
+  it('approves on Enter key', async () => {
     const onApprove = vi.fn();
     renderPanel({ onApprove });
 
-    fireEvent.keyDown(window, { key: 'a' });
+    fireEvent.keyDown(window, { key: 'Enter' });
 
     await waitFor(() => expect(onApprove).toHaveBeenCalledWith('s1'));
   });
@@ -98,7 +98,7 @@ describe('Moderation hotkeys', () => {
     const input = screen.getByPlaceholderText(/search/i);
     input.focus();
 
-    fireEvent.keyDown(input, { key: 'a' });
+    fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => expect(onApprove).not.toHaveBeenCalled());
   });

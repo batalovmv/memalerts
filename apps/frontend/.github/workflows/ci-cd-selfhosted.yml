@@ -83,8 +83,10 @@ jobs:
           pnpm lint
           pnpm lint:overlay
           pnpm test:ci
-          pnpm build -- --outDir "$BUILD_DIR"
-          pnpm build:overlay -- --outDir "dist-next"
+          pnpm exec tsc -p tsconfig.prod.json
+          pnpm exec vite build --outDir "$BUILD_DIR"
+          pnpm --dir overlay exec tsc
+          pnpm --dir overlay exec vite build --outDir "dist-next"
 
           echo "Writing runtime config: $BUILD_DIR/config.json"
           node - <<'NODE'
@@ -164,8 +166,10 @@ jobs:
           pnpm lint
           pnpm lint:overlay
           pnpm test:ci
-          pnpm build -- --outDir "$BUILD_DIR"
-          pnpm build:overlay -- --outDir "dist-next"
+          pnpm exec tsc -p tsconfig.prod.json
+          pnpm exec vite build --outDir "$BUILD_DIR"
+          pnpm --dir overlay exec tsc
+          pnpm --dir overlay exec vite build --outDir "dist-next"
 
           echo "Writing runtime config: $BUILD_DIR/config.json"
           node - <<'NODE'

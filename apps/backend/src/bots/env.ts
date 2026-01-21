@@ -31,6 +31,7 @@ const baseRunnerSchema = z.object({
   VKVIDEO_USER_ROLES_CACHE_TTL_MS: z.coerce.number().int().optional(),
   VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: z.string().min(1).optional(),
 
+  TROVO_ENABLED: z.string().min(1).optional(),
   TROVO_CHAT_BOT_ENABLED: z.string().min(1).optional(),
   TROVO_CHATBOT_SYNC_SECONDS: z.coerce.number().int().optional(),
   TROVO_CHATBOT_OUTBOX_POLL_MS: z.coerce.number().int().optional(),
