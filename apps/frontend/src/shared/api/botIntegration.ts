@@ -1,5 +1,6 @@
-import { api } from '@/lib/api';
 import type { BotProvider } from '@/types';
+
+import { api } from '@/lib/api';
 
 export type BotStatus = {
   provider: BotProvider;
