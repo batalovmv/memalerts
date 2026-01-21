@@ -1388,25 +1388,36 @@ jobs:
           set -euo pipefail
 
           APP_DIR="/opt/memalerts-frontend"
+          FRONTEND_DIR="$APP_DIR/apps/frontend"
+          SHARED_DIR="$APP_DIR/packages/shared"
 
           if [ ! -d "$APP_DIR" ]; then
             echo "❌ $APP_DIR not found. Create it on VPS first."
             exit 1
           fi
 
-          echo "Syncing repo -> $APP_DIR ..."
+          sudo mkdir -p "$FRONTEND_DIR" "$SHARED_DIR" "$APP_DIR/overlay"
+
+          echo "Syncing frontend -> $FRONTEND_DIR ..."
           sudo rsync -a --delete \
             --exclude node_modules \
             --exclude dist \
             --exclude overlay/node_modules \
             --exclude overlay/dist \
             --exclude .env \
-            ./ "$APP_DIR/"
+            ./ "$FRONTEND_DIR/"
 
-          cd "$APP_DIR"
+          echo "Syncing shared types -> $SHARED_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .env \
+            ../../packages/shared/ "$SHARED_DIR/"
 
-          BUILD_DIR="dist-next"
-          OVERLAY_BUILD_DIR="overlay/dist-next"
+          cd "$FRONTEND_DIR"
+
+          BUILD_DIR="$APP_DIR/dist-next"
+          OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
           export BUILD_DIR
           rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR"
 
@@ -1415,10 +1426,10 @@ jobs:
           pnpm lint:overlay
           pnpm test:ci
           pnpm build -- --outDir "$BUILD_DIR"
-          pnpm build:overlay -- --outDir "dist-next"
+          pnpm build:overlay -- --outDir "$OVERLAY_BUILD_DIR"
 
-          if [ ! -d "$OVERLAY_BUILD_DIR" ] && [ -d "overlay/dist" ]; then
-            OVERLAY_BUILD_DIR="overlay/dist"
+          if [ ! -d "$OVERLAY_BUILD_DIR" ] && [ -d "$FRONTEND_DIR/overlay/dist" ]; then
+            OVERLAY_BUILD_DIR="$FRONTEND_DIR/overlay/dist"
           fi
 
           echo "Writing runtime config: $BUILD_DIR/config.json"
@@ -1436,13 +1447,13 @@ jobs:
           fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
 
-          rm -rf dist
-          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
-            rm -rf overlay/dist
+          rm -rf "$APP_DIR/dist"
+          if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
+            rm -rf "$APP_DIR/overlay/dist"
           fi
-          mv "$BUILD_DIR" dist
-          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
-            mv "$OVERLAY_BUILD_DIR" overlay/dist
+          mv "$BUILD_DIR" "$APP_DIR/dist"
+          if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
+            mv "$OVERLAY_BUILD_DIR" "$APP_DIR/overlay/dist"
           fi
           
           echo "Reloading nginx (best-effort)..."
@@ -1483,25 +1494,36 @@ jobs:
           set -euo pipefail
 
           APP_DIR="/opt/memalerts-frontend-beta"
+          FRONTEND_DIR="$APP_DIR/apps/frontend"
+          SHARED_DIR="$APP_DIR/packages/shared"
 
           if [ ! -d "$APP_DIR" ]; then
             echo "❌ $APP_DIR not found. Create it on VPS first."
             exit 1
           fi
 
-          echo "Syncing repo -> $APP_DIR ..."
+          sudo mkdir -p "$FRONTEND_DIR" "$SHARED_DIR" "$APP_DIR/overlay"
+
+          echo "Syncing frontend -> $FRONTEND_DIR ..."
           sudo rsync -a --delete \
             --exclude node_modules \
             --exclude dist \
             --exclude overlay/node_modules \
             --exclude overlay/dist \
             --exclude .env \
-            ./ "$APP_DIR/"
+            ./ "$FRONTEND_DIR/"
 
-          cd "$APP_DIR"
+          echo "Syncing shared types -> $SHARED_DIR ..."
+          sudo rsync -a --delete \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .env \
+            ../../packages/shared/ "$SHARED_DIR/"
 
-          BUILD_DIR="dist-next"
-          OVERLAY_BUILD_DIR="overlay/dist-next"
+          cd "$FRONTEND_DIR"
+
+          BUILD_DIR="$APP_DIR/dist-next"
+          OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
           export BUILD_DIR
           rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR"
 
@@ -1510,10 +1532,10 @@ jobs:
           pnpm lint:overlay
           pnpm test:ci
           pnpm build -- --outDir "$BUILD_DIR"
-          pnpm build:overlay -- --outDir "dist-next"
+          pnpm build:overlay -- --outDir "$OVERLAY_BUILD_DIR"
 
-          if [ ! -d "$OVERLAY_BUILD_DIR" ] && [ -d "overlay/dist" ]; then
-            OVERLAY_BUILD_DIR="overlay/dist"
+          if [ ! -d "$OVERLAY_BUILD_DIR" ] && [ -d "$FRONTEND_DIR/overlay/dist" ]; then
+            OVERLAY_BUILD_DIR="$FRONTEND_DIR/overlay/dist"
           fi
 
           echo "Writing runtime config: $BUILD_DIR/config.json"
@@ -1531,13 +1553,13 @@ jobs:
           fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
 
-          rm -rf dist
-          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
-            rm -rf overlay/dist
+          rm -rf "$APP_DIR/dist"
+          if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
+            rm -rf "$APP_DIR/overlay/dist"
           fi
-          mv "$BUILD_DIR" dist
-          if [ "$OVERLAY_BUILD_DIR" != "overlay/dist" ]; then
-            mv "$OVERLAY_BUILD_DIR" overlay/dist
+          mv "$BUILD_DIR" "$APP_DIR/dist"
+          if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
+            mv "$OVERLAY_BUILD_DIR" "$APP_DIR/overlay/dist"
           fi
           
           echo "Reloading nginx (best-effort)..."

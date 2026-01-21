@@ -8,6 +8,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const isBetaBuild = process.env.BETA_BUILD === 'true';
   const isAnalyze = mode === 'analyze';
+  const monorepoRoot = path.resolve(__dirname, '../..');
 
   const betaApiUrl = process.env.VITE_API_URL_BETA?.trim();
   const domain = process.env.DOMAIN?.trim();
@@ -63,6 +64,9 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5173,
+      fs: {
+        allow: [monorepoRoot],
+      },
       proxy: {
         '/api': {
           target: 'http://localhost:3001',
@@ -87,4 +91,3 @@ export default defineConfig(({ mode }) => {
     define: Object.keys(defineConfig).length > 0 ? defineConfig : undefined,
   };
 });
-
