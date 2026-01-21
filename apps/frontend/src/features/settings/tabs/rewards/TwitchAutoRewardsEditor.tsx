@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { TwitchAutoRewardsV1 } from '@/types';
+
 import { Button, Input } from '@/shared/ui';
 
 type KvRow = { key: string; value: string };
@@ -97,18 +98,32 @@ export function AutoRewardsEditor({ value, onChange, disabled, variant = 'all' }
     setDailyStreakRows(rowsFromRecord(base(value).chat?.dailyStreak?.coinsByStreak));
   }, [value]);
 
-  const isEnabled = {
-    follow: bool(v.follow?.enabled),
-    subscribe: bool(v.subscribe?.enabled),
-    resubMessage: bool(v.resubMessage?.enabled),
-    giftSub: bool(v.giftSub?.enabled),
-    cheer: bool(v.cheer?.enabled),
-    raid: bool(v.raid?.enabled),
-    channelPoints: bool(v.channelPoints?.enabled),
-    chatFirstMessage: bool(v.chat?.firstMessage?.enabled),
-    chatThresholds: bool(v.chat?.messageThresholds?.enabled),
-    chatDailyStreak: bool(v.chat?.dailyStreak?.enabled),
-  };
+  const isEnabled = useMemo(
+    () => ({
+      follow: bool(v.follow?.enabled),
+      subscribe: bool(v.subscribe?.enabled),
+      resubMessage: bool(v.resubMessage?.enabled),
+      giftSub: bool(v.giftSub?.enabled),
+      cheer: bool(v.cheer?.enabled),
+      raid: bool(v.raid?.enabled),
+      channelPoints: bool(v.channelPoints?.enabled),
+      chatFirstMessage: bool(v.chat?.firstMessage?.enabled),
+      chatThresholds: bool(v.chat?.messageThresholds?.enabled),
+      chatDailyStreak: bool(v.chat?.dailyStreak?.enabled),
+    }),
+    [
+      v.follow?.enabled,
+      v.subscribe?.enabled,
+      v.resubMessage?.enabled,
+      v.giftSub?.enabled,
+      v.cheer?.enabled,
+      v.raid?.enabled,
+      v.channelPoints?.enabled,
+      v.chat?.firstMessage?.enabled,
+      v.chat?.messageThresholds?.enabled,
+      v.chat?.dailyStreak?.enabled,
+    ]
+  );
 
   const hasAnyEnabled = useMemo(() => {
     if (variant === 'channelPointsOnly') return isEnabled.channelPoints;
