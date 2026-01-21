@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
+import { ToggleSwitch } from '../components/ToggleSwitch';
+
 import type { UseBotCommandsResult } from '../hooks/useBotCommands';
 
 import { Button, HelpTooltip, Input } from '@/shared/ui';
 import { SavingOverlay } from '@/shared/ui/StatusOverlays';
-
-import { ToggleSwitch } from '../components/ToggleSwitch';
 
 type CommandsSectionProps = {
   commands: UseBotCommandsResult;

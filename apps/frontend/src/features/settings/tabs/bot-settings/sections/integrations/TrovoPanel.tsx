@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { Button, Spinner, Textarea } from '@/shared/ui';
-
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
+
+import { Button, Spinner, Textarea } from '@/shared/ui';
 
 type TrovoPanelProps = {
   settings: UseBotSettingsResult;
