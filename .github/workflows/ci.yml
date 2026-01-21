@@ -579,6 +579,13 @@ jobs:
 
           echo "Checking AI moderation worker startup (production)..."
           LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+          LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
+          if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
+            case "$LOG_DESTINATION_RESOLVED" in
+              /*) LOG_FILE="$LOG_DESTINATION_RESOLVED" ;;
+              *) LOG_FILE="$APP_DIR/$LOG_DESTINATION_RESOLVED" ;;
+            esac
+          fi
           for i in $(seq 1 25); do
             if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
               break
@@ -586,7 +593,7 @@ jobs:
             sleep 1
           done
           if [ ! -f "$LOG_FILE" ]; then
-            echo "❌ PM2 log file not found: $LOG_FILE"
+            echo "❌ Log file not found: $LOG_FILE"
             pm2 logs "$PM2_NAME" --lines 200 --nostream || true
             exit 1
           fi
@@ -1241,6 +1248,13 @@ jobs:
 
           echo "Checking AI moderation worker startup (beta)..."
           LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+          LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
+          if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
+            case "$LOG_DESTINATION_RESOLVED" in
+              /*) LOG_FILE="$LOG_DESTINATION_RESOLVED" ;;
+              *) LOG_FILE="$APP_DIR/$LOG_DESTINATION_RESOLVED" ;;
+            esac
+          fi
           for i in $(seq 1 25); do
             if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
               break
@@ -1248,7 +1262,7 @@ jobs:
             sleep 1
           done
           if [ ! -f "$LOG_FILE" ]; then
-            echo "❌ PM2 log file not found: $LOG_FILE"
+            echo "❌ Log file not found: $LOG_FILE"
             pm2 logs "$PM2_NAME" --lines 200 --nostream || true
             exit 1
           fi
