@@ -582,7 +582,7 @@ jobs:
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
           case "$AI_ENABLED_NORM" in
             1|true|yes|on)
-              LOG_FILES="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+              LOG_FILES="$HOME/.pm2/logs/${PM2_NAME}-out.log $HOME/.pm2/logs/${PM2_NAME}-error.log"
               LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
               if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
                 case "$LOG_DESTINATION_RESOLVED" in
@@ -592,7 +592,7 @@ jobs:
               fi
               echo "AI worker logs: $LOG_FILES"
               FOUND_LOG_FILE=""
-              for i in $(seq 1 60); do
+              for i in $(seq 1 120); do
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
                     FOUND_LOG_FILE="$f"
@@ -607,6 +607,8 @@ jobs:
                   if [ -f "$f" ]; then
                     echo "Recent worker logs from $f:"
                     grep -nE 'ai\\.queue\\.' "$f" | tail -n 30 || true
+                    echo "Recent log tail from $f:"
+                    tail -n 80 "$f" || true
                   else
                     echo "Log file not found: $f"
                   fi
@@ -1255,7 +1257,7 @@ jobs:
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
           case "$AI_ENABLED_NORM" in
             1|true|yes|on)
-              LOG_FILES="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+              LOG_FILES="$HOME/.pm2/logs/${PM2_NAME}-out.log $HOME/.pm2/logs/${PM2_NAME}-error.log"
               LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
               if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
                 case "$LOG_DESTINATION_RESOLVED" in
@@ -1265,7 +1267,7 @@ jobs:
               fi
               echo "AI worker logs: $LOG_FILES"
               FOUND_LOG_FILE=""
-              for i in $(seq 1 60); do
+              for i in $(seq 1 120); do
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
                     FOUND_LOG_FILE="$f"
@@ -1280,6 +1282,8 @@ jobs:
                   if [ -f "$f" ]; then
                     echo "Recent worker logs from $f:"
                     grep -nE 'ai\\.queue\\.' "$f" | tail -n 30 || true
+                    echo "Recent log tail from $f:"
+                    tail -n 80 "$f" || true
                   else
                     echo "Log file not found: $f"
                   fi
