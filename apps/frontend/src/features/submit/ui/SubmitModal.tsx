@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
 import axios, { AxiosError } from 'axios';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
-import { getMaxFileSizeMb, getVideoDuration, validateFile } from '@/features/submit/lib/validation';
-
 import TagInput from '@/components/TagInput';
-import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
+import { getMaxFileSizeMb, getVideoDuration, validateFile } from '@/features/submit/lib/validation';
 import { createIdempotencyKey } from '@/shared/lib/idempotency';
+import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMemes } from '@/store/slices/memesSlice';
 import { fetchSubmissions } from '@/store/slices/submissionsSlice';
