@@ -38,6 +38,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [backend, frontend]
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -47,11 +53,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: apps/${{ matrix.app }}/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
       - run: pnpm test
+        if: matrix.app == 'backend'
+      - run: pnpm test:ci
+        if: matrix.app == 'frontend'
 
   deploy-backend-production:
     name: Deploy backend production on VPS (self-hosted)
