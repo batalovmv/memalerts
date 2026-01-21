@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/shared/ui';
-
 import { isSenderFontFamily } from '../../types';
 
 import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
 import type { GlassPreset, SenderStroke } from '../../types';
+
+import { Button } from '@/shared/ui';
 
 type OverlayProGlassSenderProps = {
   overlayForm: ObsLinkFormState;

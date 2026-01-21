@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { toRecord } from '../types';
-import type { CreditsSettingsState } from './useCreditsSettings';
-import type { ObsLinkFormState } from './useObsLinkForm';
+
 import { useOverlayPreviewMemes } from './useOverlayPreviewMemes';
 import { useOverlayPreviewParams } from './useOverlayPreviewParams';
+
+import type { CreditsSettingsState } from './useCreditsSettings';
+import type { ObsLinkFormState } from './useObsLinkForm';
 
 export type OverlayPreviewState = ReturnType<typeof useOverlayPreview>;
 

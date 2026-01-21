@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 import { toRecord } from '../types';
+
 import type { OverlaySharePayload } from '../../obs/lib/shareCode';
 
 type CustomPreset = { id: string; name: string; createdAt: number; payload: OverlaySharePayload };
