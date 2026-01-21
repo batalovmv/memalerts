@@ -1,6 +1,6 @@
-import type { SubmissionAiDecision, SubmissionAiStatus } from '@/types';
-
 import { Pill, type PillSize } from './Pill/Pill';
+
+import type { SubmissionAiDecision, SubmissionAiStatus } from '@/types';
 
 export type AiStatusBadgeProps = {
   decision?: SubmissionAiDecision | null;

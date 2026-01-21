@@ -1,6 +1,6 @@
-import type { ApiError } from '@/types';
-
 import { getErrorMessage } from './errorMessages';
+
+import type { ApiError } from '@/types';
 
 export function toApiError(error: unknown, fallbackMessage: string): ApiError {
   const errObj = (error && typeof error === 'object' ? (error as Record<string, unknown>) : null) ?? null;
@@ -23,4 +23,3 @@ export function toApiError(error: unknown, fallbackMessage: string): ApiError {
 
   return { message, error: err, errorCode, details, statusCode };
 }
-

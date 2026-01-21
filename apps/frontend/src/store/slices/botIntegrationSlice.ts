@@ -1,10 +1,10 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
 import type { ApiError, BotProvider } from '@/types';
-
-import { toApiError } from '@/shared/api/toApiError';
-import { getAllBotStatuses, updateBotSettings } from '@/shared/api/botIntegration';
 import type { BotStatus } from '@/shared/api/botIntegration';
+
+import { getAllBotStatuses, updateBotSettings } from '@/shared/api/botIntegration';
+import { toApiError } from '@/shared/api/toApiError';
 
 export type BotIntegrationState = {
   bots: BotStatus[];

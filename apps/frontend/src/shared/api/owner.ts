@@ -1,5 +1,6 @@
-import { api } from '@/lib/api';
 import type { BotProvider, Channel, ChannelEntitlement } from '@/types';
+
+import { api } from '@/lib/api';
 
 export type WalletListItem = {
   userId: string;
