@@ -25,7 +25,7 @@ on:
         default: '10'
       auto_promote:
         description: 'Auto-promote canary after 10 minutes of healthy checks'
-        required: false,
+        required: false
         type: boolean
         default: false
 
