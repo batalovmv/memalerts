@@ -578,43 +578,47 @@ jobs:
           fi
 
           echo "Checking AI moderation worker startup (production)..."
-          LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
-          LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
-          if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
-            case "$LOG_DESTINATION_RESOLVED" in
-              /*) LOG_FILE="$LOG_DESTINATION_RESOLVED" ;;
-              *) LOG_FILE="$APP_DIR/$LOG_DESTINATION_RESOLVED" ;;
-            esac
-          fi
-          for i in $(seq 1 25); do
-            if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
-              break
-            fi
-            sleep 1
-          done
-          if [ ! -f "$LOG_FILE" ]; then
-            echo "❌ Log file not found: $LOG_FILE"
-            pm2 logs "$PM2_NAME" --lines 200 --nostream || true
-            exit 1
-          fi
-
           AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
-          if grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
-            echo "✅ AI moderation worker started (production)"
-          else
-            case "$AI_ENABLED_NORM" in
-              1|true|yes|on)
+          case "$AI_ENABLED_NORM" in
+            1|true|yes|on)
+              LOG_FILES="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+              LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
+              if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
+                case "$LOG_DESTINATION_RESOLVED" in
+                  /*) LOG_FILES="$LOG_FILES $LOG_DESTINATION_RESOLVED" ;;
+                  *) LOG_FILES="$LOG_FILES $APP_DIR/$LOG_DESTINATION_RESOLVED" ;;
+                esac
+              fi
+              echo "AI worker logs: $LOG_FILES"
+              FOUND_LOG_FILE=""
+              for i in $(seq 1 60); do
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
+                    FOUND_LOG_FILE="$f"
+                    break 2
+                  fi
+                done
+                sleep 1
+              done
+              if [ -z "$FOUND_LOG_FILE" ]; then
                 echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
-                echo "Recent worker logs:"
-                grep -nE 'ai\\.queue\\.' "$LOG_FILE" | tail -n 30 || true
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ]; then
+                    echo "Recent worker logs from $f:"
+                    grep -nE 'ai\\.queue\\.' "$f" | tail -n 30 || true
+                  else
+                    echo "Log file not found: $f"
+                  fi
+                done
                 exit 1
-                ;;
-              *)
-                echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
-                ;;
-            esac
-          fi
+              fi
+              echo "✅ AI moderation worker started (production) (log: $FOUND_LOG_FILE)"
+              ;;
+            *)
+              echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+              ;;
+          esac
 
           echo "✅ Production deployed"
           echo "rollback_status=none" >> "$GITHUB_OUTPUT"
@@ -1247,43 +1251,47 @@ jobs:
           fi
 
           echo "Checking AI moderation worker startup (beta)..."
-          LOG_FILE="$HOME/.pm2/logs/${PM2_NAME}-out.log"
-          LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
-          if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
-            case "$LOG_DESTINATION_RESOLVED" in
-              /*) LOG_FILE="$LOG_DESTINATION_RESOLVED" ;;
-              *) LOG_FILE="$APP_DIR/$LOG_DESTINATION_RESOLVED" ;;
-            esac
-          fi
-          for i in $(seq 1 25); do
-            if [ -f "$LOG_FILE" ] && grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
-              break
-            fi
-            sleep 1
-          done
-          if [ ! -f "$LOG_FILE" ]; then
-            echo "❌ Log file not found: $LOG_FILE"
-            pm2 logs "$PM2_NAME" --lines 200 --nostream || true
-            exit 1
-          fi
-
           AI_ENABLED_RAW="$(grep -E '^AI_BULLMQ_ENABLED=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- || true)"
           AI_ENABLED_NORM="$(echo "${AI_ENABLED_RAW:-}" | tr '[:upper:]' '[:lower:]' | xargs)"
-          if grep -qE 'ai\\.queue\\.worker_started' "$LOG_FILE"; then
-            echo "✅ AI moderation worker started (beta)"
-          else
-            case "$AI_ENABLED_NORM" in
-              1|true|yes|on)
+          case "$AI_ENABLED_NORM" in
+            1|true|yes|on)
+              LOG_FILES="$HOME/.pm2/logs/${PM2_NAME}-out.log"
+              LOG_DESTINATION_RESOLVED="$(load_env_value "LOG_DESTINATION")"
+              if [ -n "$LOG_DESTINATION_RESOLVED" ]; then
+                case "$LOG_DESTINATION_RESOLVED" in
+                  /*) LOG_FILES="$LOG_FILES $LOG_DESTINATION_RESOLVED" ;;
+                  *) LOG_FILES="$LOG_FILES $APP_DIR/$LOG_DESTINATION_RESOLVED" ;;
+                esac
+              fi
+              echo "AI worker logs: $LOG_FILES"
+              FOUND_LOG_FILE=""
+              for i in $(seq 1 60); do
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
+                    FOUND_LOG_FILE="$f"
+                    break 2
+                  fi
+                done
+                sleep 1
+              done
+              if [ -z "$FOUND_LOG_FILE" ]; then
                 echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
-                echo "Recent worker logs:"
-                grep -nE 'ai\\.queue\\.' "$LOG_FILE" | tail -n 30 || true
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ]; then
+                    echo "Recent worker logs from $f:"
+                    grep -nE 'ai\\.queue\\.' "$f" | tail -n 30 || true
+                  else
+                    echo "Log file not found: $f"
+                  fi
+                done
                 exit 1
-                ;;
-              *)
-                echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
-                ;;
-            esac
-          fi
+              fi
+              echo "✅ AI moderation worker started (beta) (log: $FOUND_LOG_FILE)"
+              ;;
+            *)
+              echo "ℹ️ AI moderation is disabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>})"
+              ;;
+          esac
 
           echo "✅ Beta deployed"
           echo "rollback_status=none" >> "$GITHUB_OUTPUT"
