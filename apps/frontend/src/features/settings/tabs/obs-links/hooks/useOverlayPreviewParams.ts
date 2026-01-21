@@ -43,7 +43,6 @@ export function useOverlayPreviewParams({
 }: UseOverlayPreviewParamsOptions) {
   const {
     overlayMode,
-    overlayMaxConcurrent,
     overlayShowSender,
     urlPosition,
     urlVolume,
@@ -274,7 +273,6 @@ export function useOverlayPreviewParams({
     glassPreset,
     glassTintColor,
     glassTintStrength,
-    overlayMaxConcurrent,
     overlayMode,
     overlayShowSender,
     previewBg,

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { clampFloat, clampInt, isHexColor, type OverlaySharePayload } from '../../obs/lib/shareCode';
+
 import type {
   AnimEasingPreset,
   BorderMode,
@@ -9,7 +12,6 @@ import type {
   UrlAnim,
   UrlPosition,
 } from '../types';
-import { clampFloat, clampInt, isHexColor, type OverlaySharePayload } from '../../obs/lib/shareCode';
 export type OverlayStyleState = ReturnType<typeof useOverlayStyleState>;
 
 export function useOverlayStyleState() {
@@ -178,8 +180,8 @@ export function useOverlayStyleState() {
     urlBorderColor,
     urlBorderColor2,
     urlBorderGradientAngle,
-    urlEnterMs,
-    urlExitMs,
+      urlEnterMs,
+      urlExitMs,
     urlPosition,
     urlRadius,
     urlVolume,
@@ -320,6 +322,7 @@ export function useOverlayStyleState() {
       urlBlur,
       urlBorder,
       urlBorderGradientAngle,
+      urlEnterMs,
       urlExitMs,
       urlPosition,
       urlRadius,

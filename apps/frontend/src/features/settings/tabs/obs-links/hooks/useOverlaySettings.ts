@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { SenderFontFamily, UrlAnim, UrlPosition } from '../types';
 import { getNumber, isSenderFontFamily, isUrlAnim, isUrlPosition, toRecord } from '../types';
+
+import type { SenderFontFamily, UrlAnim, UrlPosition } from '../types';
 import type { ObsLinkFormState } from './useObsLinkForm';
 
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
