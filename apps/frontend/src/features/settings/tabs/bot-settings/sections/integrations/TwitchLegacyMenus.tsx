@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
-import type { UseBotCommandsResult } from '../../hooks/useBotCommands';
-import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
 import { TwitchLegacyCommands } from './TwitchLegacyCommands';
 import { TwitchLegacyTestMessage } from './TwitchLegacyTestMessage';
 import { TwitchLegacyTriggers } from './TwitchLegacyTriggers';
+
+import type { UseBotCommandsResult } from '../../hooks/useBotCommands';
+import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
 
 type TwitchLegacyMenusProps = {
   settings: UseBotSettingsResult;

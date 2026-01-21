@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 
-import { Button, HelpTooltip, Textarea } from '@/shared/ui';
-
 import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
+
+import { Button, HelpTooltip, Textarea } from '@/shared/ui';
 
 type TwitchLegacyTestMessageProps = {
   settings: UseBotSettingsResult;
