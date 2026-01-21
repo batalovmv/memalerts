@@ -128,7 +128,7 @@ export function AutoRewardsEditor({ value, onChange, disabled, variant = 'all' }
   const hasAnyEnabled = useMemo(() => {
     if (variant === 'channelPointsOnly') return isEnabled.channelPoints;
     if (variant === 'noChannelPoints') {
-      const { channelPoints: _channelPoints, ...rest } = isEnabled;
+      const rest = Object.fromEntries(Object.entries(isEnabled).filter(([key]) => key !== 'channelPoints'));
       return Object.values(rest).some(Boolean);
     }
     return Object.values(isEnabled).some(Boolean);
