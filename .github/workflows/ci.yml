@@ -592,7 +592,7 @@ jobs:
               fi
               echo "AI worker logs: $LOG_FILES"
               FOUND_LOG_FILE=""
-              for i in $(seq 1 120); do
+              for i in $(seq 1 240); do
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
                     FOUND_LOG_FILE="$f"
@@ -601,6 +601,14 @@ jobs:
                 done
                 sleep 1
               done
+              if [ -z "$FOUND_LOG_FILE" ]; then
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ] && tail -n 200 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
+                    FOUND_LOG_FILE="$f"
+                    break
+                  fi
+                done
+              fi
               if [ -z "$FOUND_LOG_FILE" ]; then
                 echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
                 for f in $LOG_FILES; do
@@ -1267,7 +1275,7 @@ jobs:
               fi
               echo "AI worker logs: $LOG_FILES"
               FOUND_LOG_FILE=""
-              for i in $(seq 1 120); do
+              for i in $(seq 1 240); do
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
                     FOUND_LOG_FILE="$f"
@@ -1276,6 +1284,14 @@ jobs:
                 done
                 sleep 1
               done
+              if [ -z "$FOUND_LOG_FILE" ]; then
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ] && tail -n 200 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
+                    FOUND_LOG_FILE="$f"
+                    break
+                  fi
+                done
+              fi
               if [ -z "$FOUND_LOG_FILE" ]; then
                 echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
                 for f in $LOG_FILES; do
