@@ -20,7 +20,8 @@ on:
         default: false
       canary_percent:
         description: 'Beta canary traffic percentage (0-50)'
-        required: false,
+        required: false
+        type: string
         default: '10'
       auto_promote:
         description: 'Auto-promote canary after 10 minutes of healthy checks'
