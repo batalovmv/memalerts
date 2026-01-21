@@ -1,9 +1,9 @@
-import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
-import type { OverlayPreviewState } from '../../hooks/useOverlayPreview';
-
+import { OverlayProGlassSender } from './OverlayProGlassSender';
 import { OverlayProLayoutAnimation } from './OverlayProLayoutAnimation';
 import { OverlayProShadowBorder } from './OverlayProShadowBorder';
-import { OverlayProGlassSender } from './OverlayProGlassSender';
+
+import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
+import type { OverlayPreviewState } from '../../hooks/useOverlayPreview';
 
 
 type OverlayProPanelProps = {

@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 
-import type { AnimEasingPreset, ScaleMode, UrlAnim, UrlPosition } from '../../types';
 import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
 import type { OverlayPreviewState } from '../../hooks/useOverlayPreview';
+import type { AnimEasingPreset, ScaleMode, UrlAnim, UrlPosition } from '../../types';
 
 
 type OverlayProLayoutAnimationProps = {

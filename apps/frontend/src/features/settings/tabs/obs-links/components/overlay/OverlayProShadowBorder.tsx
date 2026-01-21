@@ -1,9 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { BorderMode, BorderPreset } from '../../types';
 import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
-
-
+import type { BorderMode, BorderPreset } from '../../types';
 
 type OverlayProShadowBorderProps = {
   overlayForm: ObsLinkFormState;
