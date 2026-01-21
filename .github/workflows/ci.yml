@@ -42,9 +42,6 @@ jobs:
     strategy:
       matrix:
         app: [backend, frontend]
-    defaults:
-      run:
-        working-directory: apps/${{ matrix.app }}
     services:
       postgres:
         image: postgres:16
@@ -68,13 +65,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: apps/${{ matrix.app }}/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm build
-      - run: pnpm test
+      - run: pnpm --filter @memalerts/${{ matrix.app }} lint
+      - run: pnpm --filter @memalerts/${{ matrix.app }} build
+      - run: pnpm --filter @memalerts/${{ matrix.app }} test
         if: matrix.app == 'backend'
-      - run: pnpm test:ci
+      - run: pnpm --filter @memalerts/${{ matrix.app }} test:ci
         if: matrix.app == 'frontend'
 
   deploy-backend-production:
@@ -125,7 +122,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-          cache-dependency-path: apps/backend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Deploy production (build + migrate + restart)
         id: deploy_production
@@ -729,7 +726,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-          cache-dependency-path: apps/backend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       # DANGEROUS (nuclear): rewrites nginx config and removes other site configs.
       # Run only when explicitly requested via commit message marker.
@@ -1378,7 +1375,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Deploy production (sync + build + config + nginx)
         shell: bash
@@ -1484,7 +1481,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Deploy beta (sync + build + config + nginx)
         shell: bash
@@ -1564,3 +1561,4 @@ jobs:
           
           echo "Reloading nginx (best-effort)..."
           sudo nginx -t && sudo systemctl reload nginx || true
+
