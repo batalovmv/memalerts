@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { PanelHeader } from '../../PanelHeader';
-import { BulkModerationBar } from './BulkModerationBar';
 import { useLoadMoreOnIntersect } from '../pending-submissions/model/useLoadMoreOnIntersect';
 import { PendingSubmissionCard } from '../pending-submissions/PendingSubmissionCard';
+
+import { BulkModerationBar } from './BulkModerationBar';
 
 import type { MySubmission } from '@/features/submit/types';
 import type { Submission } from '@/types';

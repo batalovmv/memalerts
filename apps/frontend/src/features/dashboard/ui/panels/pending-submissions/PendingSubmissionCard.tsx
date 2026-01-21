@@ -8,8 +8,8 @@ import { SubmissionPreview } from './ui/SubmissionPreview';
 import type { Submission } from '@/types';
 
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
-import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { cn } from '@/shared/lib/cn';
+import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { AiStatusBadge, AttemptsPill, Button, Pill, Tooltip } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 

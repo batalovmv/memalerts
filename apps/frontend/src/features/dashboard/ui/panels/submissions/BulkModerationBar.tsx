@@ -1,5 +1,6 @@
-import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import type { RefObject } from 'react';
 
 import { Button } from '@/shared/ui';
 

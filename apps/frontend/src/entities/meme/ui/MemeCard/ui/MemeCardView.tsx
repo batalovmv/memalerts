@@ -1,5 +1,4 @@
-import { memo } from 'react';
-import type { RefObject } from 'react';
+import { memo, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';

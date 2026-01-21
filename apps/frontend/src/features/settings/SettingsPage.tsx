@@ -1,5 +1,4 @@
-﻿import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -757,4 +756,5 @@ export default function SettingsPage() {
 // ObsLinksSettings moved to src/features/settings/tabs/ObsLinksSettings.tsx
 
 // Tabs moved into src/features/settings/tabs/* for faster navigation and search.
+
 
