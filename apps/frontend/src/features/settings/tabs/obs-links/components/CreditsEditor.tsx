@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next';
 
 import { CreditsOverlaySettings } from '../../CreditsOverlaySettings';
+
 import { CreditsAdvancedTabs } from './credits/CreditsAdvancedTabs';
 import { CreditsQuickControls } from './credits/CreditsQuickControls';
 import { CreditsSessionPanel } from './credits/CreditsSessionPanel';
 
-import type { CreditsSettingsState } from '../hooks/useCreditsSettings';
 import type { CreditsSessionState } from '../hooks/useCreditsSession';
+import type { CreditsSettingsState } from '../hooks/useCreditsSettings';
 import type { OverlayPreviewState } from '../hooks/useOverlayPreview';
 
 type CreditsEditorProps = {

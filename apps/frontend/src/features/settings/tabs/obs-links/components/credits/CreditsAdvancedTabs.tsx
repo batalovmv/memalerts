@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CreditsSettingsState } from '../../hooks/useCreditsSettings';
-
 import { CreditsTabLayout } from './tabs/CreditsTabLayout';
 import { CreditsTabMotion } from './tabs/CreditsTabMotion';
 import { CreditsTabSections } from './tabs/CreditsTabSections';
 import { CreditsTabTypography } from './tabs/CreditsTabTypography';
 import { CreditsTabVisual } from './tabs/CreditsTabVisual';
+
+import type { CreditsSettingsState } from '../../hooks/useCreditsSettings';
 
 type CreditsAdvancedTabsProps = {
   creditsSettings: CreditsSettingsState;

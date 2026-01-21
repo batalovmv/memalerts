@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CreditsBackgroundMode, CreditsScrollDirection, CreditsTextAlign } from '../../types';
 import type { CreditsSettingsState } from '../../hooks/useCreditsSettings';
+import type { CreditsBackgroundMode, CreditsScrollDirection, CreditsTextAlign } from '../../types';
 
 import { Button } from '@/shared/ui';
 

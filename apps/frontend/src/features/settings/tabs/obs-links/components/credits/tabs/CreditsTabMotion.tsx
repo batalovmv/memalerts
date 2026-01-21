@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CreditsScrollDirection } from '../../../types';
 import type { CreditsSettingsState } from '../../../hooks/useCreditsSettings';
+import type { CreditsScrollDirection } from '../../../types';
 
 type CreditsTabMotionProps = {
   creditsSettings: CreditsSettingsState;

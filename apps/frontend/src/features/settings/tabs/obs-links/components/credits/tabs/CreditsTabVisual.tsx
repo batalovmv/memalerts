@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CreditsBackgroundMode } from '../../../types';
 import type { CreditsSettingsState } from '../../../hooks/useCreditsSettings';
+import type { CreditsBackgroundMode } from '../../../types';
 
 type CreditsTabVisualProps = {
   creditsSettings: CreditsSettingsState;

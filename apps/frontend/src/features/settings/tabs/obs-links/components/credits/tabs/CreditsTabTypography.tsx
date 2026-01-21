@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CreditsTitleTransform } from '../../../types';
 import type { CreditsSettingsState } from '../../../hooks/useCreditsSettings';
+import type { CreditsTitleTransform } from '../../../types';
 
 type CreditsTabTypographyProps = {
   creditsSettings: CreditsSettingsState;

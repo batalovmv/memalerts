@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { AnimEasingPreset, UrlAnim, UrlPosition } from '../../types';
 import type { ObsLinkFormState } from '../../hooks/useObsLinkForm';
 import type { OverlayPreviewState } from '../../hooks/useOverlayPreview';
 import type { OverlaySettingsState } from '../../hooks/useOverlaySettings';
+import type { AnimEasingPreset, UrlAnim, UrlPosition } from '../../types';
 
 import { Button, HelpTooltip, Input } from '@/shared/ui';
 

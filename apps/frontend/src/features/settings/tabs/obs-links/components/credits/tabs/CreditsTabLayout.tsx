@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { CreditsAnchorX, CreditsAnchorY } from '../../../types';
 import type { CreditsSettingsState } from '../../../hooks/useCreditsSettings';
+import type { CreditsAnchorX, CreditsAnchorY } from '../../../types';
 
 type CreditsTabLayoutProps = {
   creditsSettings: CreditsSettingsState;
