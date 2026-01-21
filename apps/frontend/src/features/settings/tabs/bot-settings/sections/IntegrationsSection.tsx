@@ -1,7 +1,5 @@
 import { useTranslation } from 'react-i18next';
 
-import type { UseBotCommandsResult } from '../hooks/useBotCommands';
-import type { UseBotSettingsResult } from '../hooks/useBotSettings';
 import { CommandsSection } from './CommandsSection';
 import { TriggersSection } from './TriggersSection';
 import { KickPanel } from './integrations/KickPanel';
@@ -9,6 +7,9 @@ import { TrovoPanel } from './integrations/TrovoPanel';
 import { TwitchPanel } from './integrations/TwitchPanel';
 import { VkPanel } from './integrations/VkPanel';
 import { YouTubePanel } from './integrations/YouTubePanel';
+
+import type { UseBotCommandsResult } from '../hooks/useBotCommands';
+import type { UseBotSettingsResult } from '../hooks/useBotSettings';
 
 type IntegrationsSectionProps = {
   settings: UseBotSettingsResult;

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { BotCommand } from '../types';
 import { useBotTriggers } from './useBotTriggers';
+
+import type { BotCommand } from '../types';
 
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 

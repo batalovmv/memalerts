@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-
 import type { ApiErrorShape, BotStatusApi, StreamerBotIntegration } from '../types';
+
+import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 
 export const useBotIntegrations = () => {
   const { t } = useTranslation();

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import type { CustomBotEntitlementStatus, OverrideStatus } from '../types';
+
 import { getApiOriginForRedirect } from '@/shared/auth/login';
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-
-import type { CustomBotEntitlementStatus, OverrideStatus } from '../types';
 
 type UseBotOverridesOptions = {
   botTab: 'commands' | 'twitch' | 'youtube' | 'vk' | 'trovo' | 'kick';

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { useAppSelector } from '@/store/hooks';
-
 import { useBotIntegrations } from './useBotIntegrations';
 import { useBotOutbox } from './useBotOutbox';
 import { useBotOverrides } from './useBotOverrides';
 import { useBotSubscription } from './useBotSubscription';
+
+import { useAppSelector } from '@/store/hooks';
 
 export const useBotSettings = () => {
   const { user } = useAppSelector((s) => s.auth);

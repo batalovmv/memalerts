@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-
 import type { StreamDurationSettings } from '../types';
+
+import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 
 type UseBotTriggersOptions = {
   showMenus: boolean;
