@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
-import ConfirmDialog from '@/components/ConfirmDialog';
-import { Button } from '@/shared/ui';
-
 import { useBotCommands } from './hooks/useBotCommands';
 import { useBotSettings } from './hooks/useBotSettings';
 import { IntegrationsSection } from './sections/IntegrationsSection';
+
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { Button } from '@/shared/ui';
 
 export function BotSettings() {
   const { t } = useTranslation();

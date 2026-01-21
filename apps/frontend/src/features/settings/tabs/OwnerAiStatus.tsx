@@ -67,8 +67,10 @@ export function OwnerAiStatus() {
     void load();
   }, [load]);
 
-  const counters = data?.counters || {};
-  const counterEntries = useMemo(() => Object.entries(counters).sort((a, b) => a[0].localeCompare(b[0])), [counters]);
+  const counterEntries = useMemo(() => {
+    const counters = data?.counters ?? {};
+    return Object.entries(counters).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [data?.counters]);
 
   const items = data?.processing.items || [];
   const stuckCount = items.reduce((acc, x) => acc + (x.stuck ? 1 : 0), 0);

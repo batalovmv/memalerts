@@ -2,17 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
+import type { TwitchAutoRewardsV1 } from '@/types';
+
 import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
-import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { AutoRewardsEditor } from '@/features/settings/tabs/rewards/TwitchAutoRewardsEditor';
+import { SettingsSection } from '@/features/settings/ui/SettingsSection';
 import { toApiError } from '@/shared/api/toApiError';
 import { getApiOriginForRedirect, login } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, HelpTooltip, Input } from '@/shared/ui';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
-import type { TwitchAutoRewardsV1 } from '@/types';
 
 function toRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== 'object') return null;
@@ -575,7 +576,7 @@ export function RewardsSettings() {
     } catch (error) {
       settingsLoadedRef.current = null;
     }
-  }, [user?.channel?.slug, getChannelData, getCachedChannelData]);
+  }, [user?.channel?.slug, getChannelData, getCachedChannelData, loadTwitchAutoRewardsFromSettings]);
 
   const handleSaveTwitchAutoRewards = useCallback(async (overrideValue?: TwitchAutoRewardsV1 | null) => {
     const startedAt = Date.now();
@@ -2743,5 +2744,3 @@ export function RewardsSettings() {
     </div>
   );
 }
-
-

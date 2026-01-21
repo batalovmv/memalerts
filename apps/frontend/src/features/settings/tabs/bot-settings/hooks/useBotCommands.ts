@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
-
 import type { BotCommand } from '../types';
 import { useBotTriggers } from './useBotTriggers';
+
+import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 
 type UseBotCommandsOptions = {
   showMenus: boolean;
