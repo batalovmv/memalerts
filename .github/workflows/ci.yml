@@ -80,9 +80,6 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-')
     needs: [build]
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: apps/backend
     env:
       SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
 
@@ -192,6 +189,7 @@ jobs:
           set -euo pipefail
 
           APP_DIR="/opt/memalerts-backend"
+          BACKEND_DIR="$APP_DIR/apps/backend"
           PM2_NAME="memalerts-api"
 
           if [ ! -d "$APP_DIR" ]; then
@@ -226,14 +224,14 @@ jobs:
           }
 
           apply_ai_lock_migration() {
-            local migration_file="prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            local migration_file="$BACKEND_DIR/prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
             if [ -f "$migration_file" ]; then
-              pnpm prisma db execute --file "$migration_file"
+              pnpm --filter @memalerts/backend exec prisma db execute --file "$migration_file"
               return 0
             fi
 
             echo "WARN: ${migration_file} not found; applying inline SQL."
-            cat <<'SQL' | pnpm prisma db execute --stdin
+            cat <<'SQL' | pnpm --filter @memalerts/backend exec prisma db execute --stdin
             -- AI moderation lock fields for MemeSubmission (expand-only, safe for shared DB).
             -- Use IF NOT EXISTS to be resilient across environments.
             ALTER TABLE "MemeSubmission"
@@ -290,7 +288,7 @@ jobs:
           }
 
           install_healthcheck_script() {
-            local src="$APP_DIR/scripts/memalerts-healthcheck.sh"
+            local src="$BACKEND_DIR/scripts/memalerts-healthcheck.sh"
             if [ -f "$src" ]; then
               sudo install -m 0755 "$src" /usr/local/bin/memalerts-healthcheck.sh
             fi
@@ -301,7 +299,7 @@ jobs:
           verify_ai_lock_columns() {
             local label="$1"
             local output
-            output="$(VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            output="$(cd "$BACKEND_DIR" && VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
             import { PrismaClient } from '@prisma/client';
 
             const label = process.env.VERIFY_LABEL || 'unknown';
@@ -355,8 +353,8 @@ jobs:
             echo "Rolling back to $PREV_SHA ..."
             git -C "$APP_DIR" checkout "$PREV_SHA"
             pnpm install --frozen-lockfile
-            pnpm build
-            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+            pnpm --filter @memalerts/backend build
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
             DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
 
             pm2 stop "$PM2_NAME" 2>/dev/null || true
@@ -364,7 +362,7 @@ jobs:
             ensure_log_dirs
             install_healthcheck_script
             NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
-              pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+              pm2 start apps/backend/dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
             pm2 save
 
             local rollback_ok=0
@@ -549,8 +547,8 @@ jobs:
           fi
 
           pnpm install --frozen-lockfile
-          pnpm build
-          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+          pnpm --filter @memalerts/backend build
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
           verify_ai_lock_columns "production"
 
@@ -559,7 +557,7 @@ jobs:
           ensure_log_dirs
           install_healthcheck_script
           NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
-            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+            pm2 start apps/backend/dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
           pm2 save
 
           echo "Waiting for healthcheck on :3001 ..."
@@ -647,9 +645,6 @@ jobs:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     needs: [build]
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: apps/backend
     env:
       SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
 
@@ -811,6 +806,7 @@ jobs:
           set -euo pipefail
 
           APP_DIR="/opt/memalerts-backend-beta"
+          BACKEND_DIR="$APP_DIR/apps/backend"
           PM2_NAME="memalerts-api-beta"
 
           if [ ! -d "$APP_DIR" ]; then
@@ -845,14 +841,14 @@ jobs:
           }
 
           apply_ai_lock_migration() {
-            local migration_file="prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
+            local migration_file="$BACKEND_DIR/prisma/migrations/20260117000000_add_ai_lock_fields_to_submission/migration.sql"
             if [ -f "$migration_file" ]; then
-              pnpm prisma db execute --file "$migration_file"
+              pnpm --filter @memalerts/backend exec prisma db execute --file "$migration_file"
               return 0
             fi
 
             echo "WARN: ${migration_file} not found; applying inline SQL."
-            cat <<'SQL' | pnpm prisma db execute --stdin
+            cat <<'SQL' | pnpm --filter @memalerts/backend exec prisma db execute --stdin
             -- AI moderation lock fields for MemeSubmission (expand-only, safe for shared DB).
             -- Use IF NOT EXISTS to be resilient across environments.
             ALTER TABLE "MemeSubmission"
@@ -909,7 +905,7 @@ jobs:
           }
 
           install_healthcheck_script() {
-            local src="$APP_DIR/scripts/memalerts-healthcheck.sh"
+            local src="$BACKEND_DIR/scripts/memalerts-healthcheck.sh"
             if [ -f "$src" ]; then
               sudo install -m 0755 "$src" /usr/local/bin/memalerts-healthcheck.sh
             fi
@@ -918,7 +914,7 @@ jobs:
           verify_ai_lock_columns() {
             local label="$1"
             local output
-            output="$(VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
+            output="$(cd "$BACKEND_DIR" && VERIFY_LABEL="$label" DATABASE_URL="$DATABASE_URL_RESOLVED" node --input-type=module - <<'NODE'
             import { PrismaClient } from '@prisma/client';
 
             const label = process.env.VERIFY_LABEL || 'unknown';
@@ -972,8 +968,8 @@ jobs:
             echo "Rolling back to $PREV_SHA ..."
             git -C "$APP_DIR" checkout "$PREV_SHA"
             pnpm install --frozen-lockfile
-            pnpm build
-            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+            pnpm --filter @memalerts/backend build
+            DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
             DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
 
           pm2 stop "$PM2_NAME" 2>/dev/null || true
@@ -981,7 +977,7 @@ jobs:
           ensure_log_dirs
           install_healthcheck_script
           NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
-            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+            pm2 start apps/backend/dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
           pm2 save
 
             local rollback_ok=0
@@ -1213,8 +1209,8 @@ jobs:
           fi
 
           pnpm install --frozen-lockfile
-          pnpm build
-          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm prisma migrate deploy
+          pnpm --filter @memalerts/backend build
+          DATABASE_URL="$DATABASE_URL_RESOLVED" pnpm --filter @memalerts/backend exec prisma migrate deploy
           DATABASE_URL="$DATABASE_URL_RESOLVED" apply_ai_lock_migration
           verify_ai_lock_columns "beta"
 
@@ -1223,7 +1219,7 @@ jobs:
           ensure_log_dirs
           install_healthcheck_script
           NODE_OPTIONS="--max-old-space-size=3072" DATABASE_URL="$DATABASE_URL_RESOLVED" \
-            pm2 start dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
+            pm2 start apps/backend/dist/index.js --name "$PM2_NAME" --update-env --cwd "$APP_DIR" --max-memory-restart 2600M
           pm2 save
 
           echo "Waiting for healthcheck on :3002 ..."
@@ -1290,6 +1286,7 @@ jobs:
           set -euo pipefail
 
           APP_DIR="/opt/memalerts-backend-beta"
+          BACKEND_DIR="$APP_DIR/apps/backend"
           PM2_NAME="memalerts-api-beta-canary"
           CANARY_PORT="3003"
           CANARY_PERCENT="${{ inputs.canary_percent }}"
@@ -1299,7 +1296,7 @@ jobs:
 
           cd "$APP_DIR"
           NODE_OPTIONS="--max-old-space-size=3072" PORT="$CANARY_PORT" INSTANCE_ID="beta-canary" \
-            pm2 start dist/index.js --name "$PM2_NAME" --update-env --max-memory-restart 2600M
+            pm2 start apps/backend/dist/index.js --name "$PM2_NAME" --update-env --max-memory-restart 2600M
           pm2 save
 
           sudo bash .github/scripts/enable-beta-canary.sh 3002 "$CANARY_PORT" "$CANARY_PERCENT"
