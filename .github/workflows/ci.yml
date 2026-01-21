@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -104,7 +104,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10
+          version: 9.15.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -707,7 +707,7 @@ jobs:
         if: steps.decide.outputs.deploy == 'true'
         uses: pnpm/action-setup@v2
         with:
-          version: 10
+          version: 9.15.0
 
       - name: Setup Node.js
         if: steps.decide.outputs.deploy == 'true'
@@ -1357,7 +1357,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10
+          version: 9.15.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -1443,7 +1443,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10
+          version: 9.15.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
