@@ -1,6 +1,6 @@
-import { getApiOriginForRedirect } from '@/shared/auth/login';
-
 import { api } from './httpClient';
+
+import { getApiOriginForRedirect } from '@/shared/auth/login';
 
 export type YouTubeLikeClaimStatus =
   | 'disabled'
