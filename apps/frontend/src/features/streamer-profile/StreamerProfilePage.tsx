@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 
+import type { MemePoolItem } from '@/shared/api/memesPool';
 import type { Meme, Wallet } from '@/types';
 
 import AuthRequiredModal from '@/components/AuthRequiredModal';
@@ -24,7 +25,6 @@ import { Button, HelpTooltip, IconButton, Input, PageShell, Pill, Spinner } from
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
-import type { MemePoolItem } from '@/shared/api/memesPool';
 
 interface ChannelInfo {
   id: string;
@@ -722,7 +722,7 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [channelInfo?.id, debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
+  }, [channelInfo?.id, channelInfo?.memeCatalogMode, channelInfo?.slug, debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
@@ -1205,5 +1205,3 @@ export default function StreamerProfile() {
     </ChannelThemeProvider>
   );
 }
-
-
