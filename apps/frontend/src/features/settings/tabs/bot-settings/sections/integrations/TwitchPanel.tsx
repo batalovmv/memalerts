@@ -1,13 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { HelpTooltip } from '@/shared/ui';
-import { SavingOverlay } from '@/shared/ui/StatusOverlays';
-
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+
+import { TwitchLegacyMenus } from './TwitchLegacyMenus';
+
 import type { UseBotCommandsResult } from '../../hooks/useBotCommands';
 import type { UseBotSettingsResult } from '../../hooks/useBotSettings';
-import { TwitchLegacyMenus } from './TwitchLegacyMenus';
+
+import { HelpTooltip } from '@/shared/ui';
+import { SavingOverlay } from '@/shared/ui/StatusOverlays';
 
 type TwitchPanelProps = {
   settings: UseBotSettingsResult;
