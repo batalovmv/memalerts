@@ -786,6 +786,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_URL_BETA: ${{ secrets.DATABASE_URL_BETA }}
           DOMAIN: ${{ secrets.DOMAIN }}
+          DOMAIN_BETA: ${{ secrets.DOMAIN_BETA }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_SECRET_BETA: ${{ secrets.JWT_SECRET_BETA }}
           KICK_AUTHORIZE_URL: ${{ secrets.KICK_AUTHORIZE_URL }}
@@ -802,6 +803,7 @@ jobs:
           OPENAI_ASR_MODEL: ${{ secrets.OPENAI_ASR_MODEL }}
           OPENAI_MEME_METADATA_MODEL: ${{ secrets.OPENAI_MEME_METADATA_MODEL }}
           OVERLAY_URL: ${{ secrets.OVERLAY_URL }}
+          OVERLAY_URL_BETA: ${{ secrets.OVERLAY_URL_BETA }}
           RATE_LIMIT_WHITELIST_IPS: ${{ secrets.RATE_LIMIT_WHITELIST_IPS }}
           TROVO_BOT_SCOPES: ${{ secrets.TROVO_BOT_SCOPES }}
           TROVO_CALLBACK_URL: ${{ secrets.TROVO_CALLBACK_URL }}
@@ -810,11 +812,13 @@ jobs:
           TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
           TROVO_CLIENT_SECRET: ${{ secrets.TROVO_CLIENT_SECRET }}
           TWITCH_CALLBACK_URL: ${{ secrets.TWITCH_CALLBACK_URL }}
+          TWITCH_CALLBACK_URL_BETA: ${{ secrets.TWITCH_CALLBACK_URL_BETA }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
           TWITCH_EVENTSUB_SECRET: ${{ secrets.TWITCH_EVENTSUB_SECRET }}
           VKVIDEO_AUTHORIZE_URL: ${{ secrets.VKVIDEO_AUTHORIZE_URL }}
           VKVIDEO_CALLBACK_URL: ${{ secrets.VKVIDEO_CALLBACK_URL }}
+          VKVIDEO_CALLBACK_URL_BETA: ${{ secrets.VKVIDEO_CALLBACK_URL_BETA }}
           VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE: ${{ secrets.VKVIDEO_CHANNEL_ROLES_USER_URL_TEMPLATE }}
           VKVIDEO_CHAT_BOT_ENABLED: ${{ secrets.VKVIDEO_CHAT_BOT_ENABLED }}
           VKVIDEO_CLIENT_ID: ${{ secrets.VKVIDEO_CLIENT_ID }}
@@ -829,6 +833,7 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_USER: ${{ secrets.VPS_USER }}
           WEB_URL: ${{ secrets.WEB_URL }}
+          WEB_URL_BETA: ${{ secrets.WEB_URL_BETA }}
           YOUTUBE_CALLBACK_URL: ${{ secrets.YOUTUBE_CALLBACK_URL }}
           YOUTUBE_CALLBACK_URL_BETA: ${{ secrets.YOUTUBE_CALLBACK_URL_BETA }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -1166,8 +1171,13 @@ jobs:
 
           OVERRIDE_KEYS=(
             JWT_SECRET
+            DOMAIN
+            WEB_URL
+            OVERLAY_URL
             KICK_CALLBACK_URL
             TROVO_CALLBACK_URL
+            TWITCH_CALLBACK_URL
+            VKVIDEO_CALLBACK_URL
             YOUTUBE_CALLBACK_URL
           )
 
