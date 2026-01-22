@@ -592,7 +592,7 @@ jobs:
               fi
               echo "AI worker logs: $LOG_FILES"
               FOUND_LOG_FILE=""
-              for i in $(seq 1 240); do
+              for i in $(seq 1 360); do
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
                     FOUND_LOG_FILE="$f"
@@ -603,7 +603,7 @@ jobs:
               done
               if [ -z "$FOUND_LOG_FILE" ]; then
                 for f in $LOG_FILES; do
-                  if [ -f "$f" ] && tail -n 200 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
+                  if [ -f "$f" ] && tail -n 400 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
                     FOUND_LOG_FILE="$f"
                     break
                   fi
@@ -1275,7 +1275,7 @@ jobs:
               fi
               echo "AI worker logs: $LOG_FILES"
               FOUND_LOG_FILE=""
-              for i in $(seq 1 240); do
+              for i in $(seq 1 360); do
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && grep -qE 'ai\\.queue\\.worker_started' "$f"; then
                     FOUND_LOG_FILE="$f"
@@ -1286,7 +1286,7 @@ jobs:
               done
               if [ -z "$FOUND_LOG_FILE" ]; then
                 for f in $LOG_FILES; do
-                  if [ -f "$f" ] && tail -n 200 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
+                  if [ -f "$f" ] && tail -n 400 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
                     FOUND_LOG_FILE="$f"
                     break
                   fi
