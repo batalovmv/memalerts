@@ -610,6 +610,16 @@ jobs:
                 done
               fi
               if [ -z "$FOUND_LOG_FILE" ]; then
+                echo "AI worker log not found yet; waiting 30s for log flush..."
+                sleep 30
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ] && tail -n 400 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
+                    FOUND_LOG_FILE="$f"
+                    break
+                  fi
+                done
+              fi
+              if [ -z "$FOUND_LOG_FILE" ]; then
                 echo "❌ AI moderation is enabled (AI_BULLMQ_ENABLED=${AI_ENABLED_RAW:-<empty>}) but worker did NOT start (no ai.queue.worker_started in logs)"
                 for f in $LOG_FILES; do
                   if [ -f "$f" ]; then
@@ -1285,6 +1295,16 @@ jobs:
                 sleep 1
               done
               if [ -z "$FOUND_LOG_FILE" ]; then
+                for f in $LOG_FILES; do
+                  if [ -f "$f" ] && tail -n 400 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
+                    FOUND_LOG_FILE="$f"
+                    break
+                  fi
+                done
+              fi
+              if [ -z "$FOUND_LOG_FILE" ]; then
+                echo "AI worker log not found yet; waiting 30s for log flush..."
+                sleep 30
                 for f in $LOG_FILES; do
                   if [ -f "$f" ] && tail -n 400 "$f" | grep -qE 'ai\\.queue\\.worker_started'; then
                     FOUND_LOG_FILE="$f"
