@@ -1,10 +1,10 @@
-# Deployment / Releases (main → beta, develop → production)
+# Deployment / Releases (beta → beta, main → production)
 
 ## TL;DR (как работать без боли)
 
-- Разрабатываем и мерджим фичи в **`main`** → это автоматически деплоится на **beta**.
-- Когда готовы релизиться: делаем PR **`main` → `develop`** (лучше часто и небольшими порциями).
-- После релиза: **back-merge `develop` → `main`**, чтобы ветки не “разъезжались” и следующие мерджи были проще.
+- Разрабатываем и пушим фичи в **`beta`** → это автоматически деплоится на **beta**.
+- Когда готовы релизиться: делаем PR **`beta` → `main`** (лучше часто и небольшими порциями).
+- После релиза: **back-merge `main` → `beta`**, чтобы ветки не “разъезжались” и следующие мерджи были проще.
 
 ## CI/CD (GitHub Actions)
 
@@ -13,8 +13,8 @@ Workflows:
 - `.github/workflows/ci-cd.yml` — PR checks / ручной запуск (GitHub-hosted)
 - `.github/workflows/ci-cd-selfhosted.yml` — деплой на VPS через self-hosted runner (почти без GitHub minutes)
 
-- **push в `main`** → деплой в `/opt/memalerts-backend-beta` (порт 3002)
-- **tag `prod-*`** → деплой в `/opt/memalerts-backend` (порт 3001)
+- **push в `beta`** → деплой в `/opt/memalerts-backend-beta` (порт 3002)
+- **push в `main`** → деплой в `/opt/memalerts-backend` (порт 3001)
 
 Технически деплой делает:
 
@@ -120,10 +120,10 @@ Beta и production смотрят на один `DATABASE_URL`.
 
 Дальше:
 
-- запусти деплой beta (push в `develop` или `Run workflow`)
+- запусти деплой beta (push в `beta` или `Run workflow`)
 - проверь, что на beta и main данные совпадают (одинаковые `channel.slug`, мемы, кошельки)
 
-Важно: если beta и production используют одну и ту же БД, то миграции, попавшие в `develop`, могут:
+Важно: если beta и production используют одну и ту же БД, то миграции, попавшие в `beta`, могут:
 
 - ломать production код **до** релиза (если миграция не обратно‑совместима)
 - создавать “сложные” релизы на `main` (когда нужно чинить прод прямо во время деплоя)
@@ -163,15 +163,15 @@ pnpm migrate:beta-to-production
 
 ### 1) Release PR’ы “маленькими”
 
-Чем меньше PR `develop → main`, тем меньше конфликтов и тем проще откаты.
+Чем меньше PR `beta → main`, тем меньше конфликтов и тем проще откаты.
 
 ### 2) Back-merge после каждого релиза
 
 После merge в `main` сразу делайте PR:
 
-- `main → develop`
+- `main → beta`
 
-Так `develop` всегда содержит продовые hotfix’ы/изменения в workflow/конфиге.
+Так `beta` всегда содержит продовые hotfix’ы/изменения в workflow/конфиге.
 
 ### 3) Миграции — только forward и по возможности обратно-совместимые
 
@@ -184,7 +184,7 @@ pnpm migrate:beta-to-production
 
 Чтобы beta и production были максимально одинаковыми:
 
-- выбирайте конкретный commit SHA из `develop`, который “проверен на beta”
+- выбирайте конкретный commit SHA из `beta`, который “проверен на beta”
 - этот SHA должен попасть в `main` через PR без дополнительных коммитов “в последний момент”
 
 ## PM2 процессы

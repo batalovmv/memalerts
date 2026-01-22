@@ -2,10 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
-    tags: ['prod-*']
+    branches: [main, beta]
   pull_request:
-    branches: [main]
+    branches: [main, beta]
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -77,7 +76,7 @@ jobs:
   deploy-backend-production:
     name: Deploy backend production on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build]
     timeout-minutes: 20
     env:
@@ -86,28 +85,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # We need origin/main to validate that production release is cut from beta HEAD.
-          fetch-depth: 0
-
-      - name: "Guard: production tag must point to beta (main) HEAD"
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git fetch origin main --prune
-
-          MAIN_SHA="$(git rev-parse origin/main)"
-          TAG_SHA="${GITHUB_SHA}"
-
-          echo "origin/main = ${MAIN_SHA}"
-          echo "tag commit  = ${TAG_SHA}"
-
-          if [ "${MAIN_SHA}" != "${TAG_SHA}" ]; then
-            echo "❌ Refusing production deploy: prod tag must point to current origin/main (beta HEAD)."
-            echo "   This prevents deploying an older commit than beta (and avoids branch drift)."
-            exit 1
-          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -673,7 +650,7 @@ jobs:
   deploy-backend-beta:
     name: Deploy backend beta on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/beta') || github.event_name == 'workflow_dispatch'
     needs: [build]
     timeout-minutes: 20
     env:
@@ -1423,7 +1400,7 @@ jobs:
   deploy-frontend-production:
     name: Deploy frontend production on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/prod-')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build]
     timeout-minutes: 20
     defaults:
@@ -1532,7 +1509,7 @@ jobs:
   deploy-frontend-beta:
     name: Deploy frontend beta on VPS (self-hosted)
     runs-on: [self-hosted, linux, x64, memalerts-vps]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/beta') || github.event_name == 'workflow_dispatch'
     needs: [build]
     timeout-minutes: 20
     defaults:
