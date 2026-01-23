@@ -12,7 +12,7 @@ import { mockChannel, mockChannelMemesSearch, mockChannelWallet, mockMemesPool, 
 import { makeMeme } from '@/test/fixtures/memes';
 import { makeViewerUser } from '@/test/fixtures/user';
 
-vi.mock('@/components/ChannelThemeProvider', () => ({
+vi.mock('@/shared/lib/ChannelThemeProvider', () => ({
   default: function ChannelThemeProviderMock(props: { children: React.ReactNode }) {
     return <>{props.children}</>;
   },
@@ -24,7 +24,7 @@ vi.mock('@/components/Header', () => ({
   },
 }));
 
-vi.mock('@/components/MemeCard', () => ({
+vi.mock('@/widgets/meme-card/MemeCard', () => ({
   default: function MemeCardMock(props: { meme: { title: string }; onClick?: () => void }) {
     return (
       <button type="button" onClick={props.onClick} aria-label={`meme:${props.meme.title}`}>
@@ -58,8 +58,10 @@ vi.mock('@/components/CoinsInfoModal', () => ({
   },
 }));
 
-vi.mock('@/hooks/useAutoplayMemes', () => ({
+vi.mock('@/shared/lib/hooks', () => ({
   useAutoplayMemes: () => ({ autoplayMemesEnabled: false }),
+  useDebounce: <T,>(value: T) => value,
+  useHotkeys: () => {},
 }));
 
 function TestRoutes() {

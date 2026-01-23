@@ -22,25 +22,27 @@ export async function handleExistingAssetForUpload(opts: {
   finalTitle: string;
   userProvidedTitle: boolean;
   fileHash: string | null;
+  contentHash: string | null;
   fileHashRefAdded: boolean;
 }): Promise<ExistingAssetResult> {
-  const { deps, req, res, channelId, isOwner, finalTitle, userProvidedTitle, fileHash } = opts;
+  const { deps, req, res, channelId, isOwner, finalTitle, userProvidedTitle, fileHash, contentHash } = opts;
   let fileHashRefAdded = opts.fileHashRefAdded;
 
-  if (!fileHash) {
+  if (!fileHash && !contentHash) {
     return { handled: false, fileHashRefAdded };
   }
 
   const { memes, transaction, submissions, channels } = deps;
 
   const existingAsset = await memes.asset.findFirst({
-    where: { fileHash },
+    where: contentHash ? { contentHash } : { fileHash },
     select: {
       id: true,
       type: true,
       fileUrl: true,
       playFileUrl: true,
       fileHash: true,
+      contentHash: true,
       durationMs: true,
       aiStatus: true,
       aiAutoDescription: true,

@@ -31,7 +31,7 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
-vi.mock('@/components/TagInput', () => ({
+vi.mock('@/shared/ui/TagInput/TagInput', () => ({
   default: function TagInputMock(props: { tags: string[]; onChange: (tags: string[]) => void }) {
     return (
       <div data-testid="tag-input">

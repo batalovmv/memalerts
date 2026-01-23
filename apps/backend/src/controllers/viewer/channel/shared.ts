@@ -15,9 +15,9 @@ export const makePriceCursorSchema = (direction: 'asc' | 'desc'): CursorFieldSch
 export type ChannelWithOwner = Prisma.ChannelGetPayload<{
   include: {
     users: {
-      where: { role: 'streamer' };
-      take: 1;
-      select: { id: true; displayName: true; profileImageUrl: true };
+      take: 5;
+      orderBy: { createdAt: 'asc' };
+      select: { id: true; displayName: true; profileImageUrl: true; role: true };
     };
     _count: {
       select: {
@@ -81,6 +81,15 @@ export type PoolAssetRow = Prisma.MemeAssetGetPayload<{
     fileUrl: true;
     fileHash: true;
     durationMs: true;
+    variants: {
+      select: {
+        format: true;
+        fileUrl: true;
+        status: true;
+        priority: true;
+        fileSizeBytes: true;
+      };
+    };
     createdAt: true;
     aiAutoTitle: true;
     createdBy: { select: { id: true; displayName: true } };
@@ -103,6 +112,17 @@ export type ChannelMemeRow = Prisma.ChannelMemeGetPayload<{
         fileUrl: true;
         fileHash: true;
         durationMs: true;
+        variants: {
+          select: {
+            format: true;
+            fileUrl: true;
+            status: true;
+            priority: true;
+            fileSizeBytes: true;
+          };
+        };
+        aiStatus: true;
+        aiAutoTitle: true;
         createdBy: { select: { id: true; displayName: true } };
       };
     };

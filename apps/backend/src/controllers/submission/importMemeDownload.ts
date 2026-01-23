@@ -1,13 +1,16 @@
 import fs from 'fs';
+import path from 'path';
 import { calculateFileHash, downloadFileFromUrl, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
 import { detectFileTypeByMagicBytes } from '../../utils/fileTypeValidator.js';
 import { getVideoMetadata } from '../../utils/videoValidator.js';
-import { normalizeVideoForPlayback } from '../../utils/media/videoNormalization.js';
+import { transcodeToFormat } from '../../utils/media/videoNormalization.js';
+import { computeContentHash } from '../../utils/media/contentHash.js';
 import { safeUnlink } from './importMemeHelpers.js';
 
 export type ImportFileResult = {
   finalFilePath: string;
   fileHash: string | null;
+  contentHash: string | null;
   detectedDurationMs: number | null;
   fileHashForCleanup: string | null;
   fileHashRefAdded: boolean;
@@ -18,6 +21,7 @@ export async function downloadAndPrepareImportFile(sourceUrl: string): Promise<I
   let tempFileForCleanup: string | null = null;
   let finalFilePath: string | null = null;
   let fileHash: string | null = null;
+  let contentHash: string | null = null;
   let detectedDurationMs: number | null = null;
   let fileHashForCleanup: string | null = null;
   let fileHashRefAdded = false;
@@ -56,10 +60,13 @@ export async function downloadAndPrepareImportFile(sourceUrl: string): Promise<I
       });
     }
 
-    const normalized = await normalizeVideoForPlayback({ inputPath: tempFilePath });
+    contentHash = await computeContentHash(tempFilePath);
+    const baseName = `import-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const outputDir = path.dirname(tempFilePath);
+    const normalized = await transcodeToFormat(tempFilePath, outputDir, 'mp4', baseName);
     const normalizedPath = normalized.outputPath;
 
-    if (!normalized.transcodeSkipped && normalizedPath !== tempFilePath) {
+    if (normalizedPath !== tempFilePath) {
       await safeUnlink(tempFilePath);
     }
     tempFileForCleanup = normalizedPath;
@@ -84,7 +91,7 @@ export async function downloadAndPrepareImportFile(sourceUrl: string): Promise<I
       });
     }
 
-    const hash = await calculateFileHash(normalizedPath);
+    const hash = normalized.fileHash ?? (await calculateFileHash(normalizedPath));
     const stats = await getFileStats(normalizedPath);
     const dedup = await findOrCreateFileHash(normalizedPath, hash, stats.mimeType, stats.size);
     finalFilePath = dedup.filePath;
@@ -108,6 +115,7 @@ export async function downloadAndPrepareImportFile(sourceUrl: string): Promise<I
   return {
     finalFilePath,
     fileHash,
+    contentHash,
     detectedDurationMs,
     fileHashForCleanup,
     fileHashRefAdded,

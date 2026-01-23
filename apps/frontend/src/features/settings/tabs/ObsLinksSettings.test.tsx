@@ -28,7 +28,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 // Make URL visible and easy to assert (real component masks/copies).
-vi.mock('@/components/SecretCopyField', () => ({
+vi.mock('@/shared/ui/SecretCopyField/SecretCopyField', () => ({
   default: function SecretCopyFieldMock(props: { label: string; value: string; description?: string; rightActions?: React.ReactNode }) {
     return (
       <div>

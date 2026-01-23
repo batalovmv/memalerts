@@ -18,7 +18,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 // Replace complex TagInput with a simple input for tests.
-vi.mock('@/components/TagInput', () => ({
+vi.mock('@/shared/ui/TagInput/TagInput', () => ({
   default: function TagInputMock(props: { tags: string[]; onChange: (tags: string[]) => void }) {
     return (
       <div>

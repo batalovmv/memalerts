@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { OwnerAiProcessingItem, OwnerAiStatusResponse } from '@/shared/api/ownerAiStatus';
+import type { OwnerAiProcessingItem, OwnerAiStatusResponse } from '@/shared/api/owner';
 
-import { getOwnerAiStatus } from '@/shared/api/ownerAiStatus';
+import { getOwnerAiStatus } from '@/shared/api/owner';
 import { Button, Input, Spinner, Pill } from '@/shared/ui';
 
 function formatIsoLocal(iso: string | null | undefined): string {

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import type { OwnerModeratorGrant } from '@/shared/api/ownerModerators';
+import type { OwnerModeratorGrant } from '@/shared/api/owner';
 
-import { getOwnerModerators, grantOwnerModerator, revokeOwnerModerator } from '@/shared/api/ownerModerators';
+import { getOwnerModerators, grantOwnerModerator, revokeOwnerModerator } from '@/shared/api/owner';
 import { Button, Input, Spinner } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppDispatch } from '@/store/hooks';

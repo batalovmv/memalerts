@@ -4,17 +4,18 @@ import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 
 import App from '@/App.tsx';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ChannelColorsProvider } from '@/contexts/ChannelColorsContext.tsx';
 import { HelpModeProvider } from '@/contexts/HelpModeContext.tsx';
 import { ThemeProvider } from '@/contexts/ThemeContext.tsx';
+import { setApiBaseUrl } from '@/lib/api';
+import { loadRuntimeConfig } from '@/lib/runtimeConfig';
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
+import { store } from '@/store/index.ts';
+
 import '@/shared/styles/tokens.css';
 import '@/shared/styles/theme.css';
 import './i18n/config';
 import './index.css';
-import { setApiBaseUrl } from '@/lib/api';
-import { loadRuntimeConfig } from '@/lib/runtimeConfig';
-import { store } from '@/store/index.ts';
 
 // In production we don't want any console noise in the browser.
 // Keep console.error intact for real issues.

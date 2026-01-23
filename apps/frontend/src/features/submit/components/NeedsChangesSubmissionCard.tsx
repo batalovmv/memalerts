@@ -6,9 +6,9 @@ import { parseNeedsChangesPayload } from '../lib/parseNeedsChangesPayload';
 
 import type { MySubmission } from '../types';
 
-import TagInput from '@/components/TagInput';
 import { api } from '@/lib/api';
 import { AttemptsPill, Button, Input, Pill, Spinner, Textarea } from '@/shared/ui';
+import TagInput from '@/shared/ui/TagInput/TagInput';
 
 export function NeedsChangesSubmissionCard(props: { submission: MySubmission; onUpdated: () => void }) {
   const { submission, onUpdated } = props;

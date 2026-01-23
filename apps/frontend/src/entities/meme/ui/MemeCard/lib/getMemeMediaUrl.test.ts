@@ -16,12 +16,29 @@ function makeMeme(overrides: Partial<Meme> = {}): Meme {
 }
 
 describe('getMemeMediaUrl', () => {
-  it('prefers playFileUrl when available', () => {
-    const meme = makeMeme({ playFileUrl: 'https://cdn.example.com/normalized.webm' });
+  it('prefers previewUrl when available', () => {
+    const meme = makeMeme({
+      previewUrl: 'https://cdn.example.com/preview.mp4',
+      playFileUrl: 'https://cdn.example.com/normalized.webm',
+    });
+    expect(getMemeMediaUrl(meme)).toBe('https://cdn.example.com/preview.mp4');
+  });
+
+  it('prefers variants when previewUrl is missing', () => {
+    const meme = makeMeme({
+      variants: [
+        {
+          format: 'webm',
+          fileUrl: 'https://cdn.example.com/normalized.webm',
+          sourceType: 'video/webm',
+          fileSizeBytes: 123,
+        },
+      ],
+    });
     expect(getMemeMediaUrl(meme)).toBe('https://cdn.example.com/normalized.webm');
   });
 
-  it('falls back to fileUrl when playFileUrl is missing', () => {
+  it('falls back to fileUrl when variants are missing', () => {
     const meme = makeMeme();
     expect(getMemeMediaUrl(meme)).toBe('https://cdn.example.com/original.webm');
   });

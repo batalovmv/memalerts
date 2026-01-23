@@ -1,4 +1,4 @@
-﻿import Header from '@/components/Header';
+import Header from '@/components/Header';
 import { PageShell } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
 

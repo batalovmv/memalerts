@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';
 
+import { resolveMediaUrl } from '@/lib/urls';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { cn } from '@/shared/lib/cn';
-import { Tooltip } from '@/shared/ui';
+import { Spinner, Tooltip } from '@/shared/ui';
 
 export type MemeCardViewProps = {
   meme: Meme;
@@ -43,9 +44,12 @@ function MemeCardViewBase({
   onKeyDown,
 }: MemeCardViewProps) {
   const { t } = useTranslation();
-  const hasAiFields = 'aiAutoDescription' in meme || 'aiAutoTagNames' in meme;
+  const hasAiFields = 'aiAutoDescription' in meme || 'aiAutoTagNames' in meme || 'aiStatus' in meme || 'aiAutoTitle' in meme;
   const aiTags = Array.isArray(meme.aiAutoTagNames) ? meme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
   const aiDesc = typeof meme.aiAutoDescription === 'string' ? meme.aiAutoDescription : '';
+  const aiStatus = typeof meme.aiStatus === 'string' ? meme.aiStatus : null;
+  const aiStatusLabel = aiStatus === 'failed_final' ? 'failed' : aiStatus;
+  const isAiProcessing = aiStatus === 'pending' || aiStatus === 'processing';
   const aiDescEffectivelyEmpty = isEffectivelyEmptyAiDescription(meme.aiAutoDescription, meme.title);
   const hasAiDesc = !!aiDesc.trim() && !aiDescEffectivelyEmpty;
   const aiDescFirstLine = hasAiDesc ? aiDesc.trim().split('\n')[0]?.slice(0, 120) || '' : '';
@@ -61,6 +65,7 @@ function MemeCardViewBase({
     defaultValue: '{{count}} activations',
     count: activationsCount,
   });
+  const previewUrl = meme.previewUrl ? resolveMediaUrl(meme.previewUrl) : mediaUrl;
 
   return (
     <article
@@ -88,7 +93,7 @@ function MemeCardViewBase({
         ) : meme.type === 'video' ? (
           <video
             ref={videoRef}
-            src={mediaUrl}
+            src={previewUrl}
             muted={videoMuted}
             autoPlay={previewMode === 'autoplayMuted'}
             loop
@@ -100,6 +105,14 @@ function MemeCardViewBase({
         ) : (
           <img src={mediaUrl} alt={meme.title} className="w-full h-full object-contain" loading="lazy" />
         )}
+        {isAiProcessing ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+            <div className="flex items-center gap-2 rounded-full bg-black/70 text-white text-xs font-semibold px-3 py-1.5 animate-pulse">
+              <Spinner className="h-4 w-4 border-white/70 border-t-white" />
+              <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}</span>
+            </div>
+          </div>
+        ) : null}
         {isHovered && (
           <div
             // NOTE: On hover the whole card is slightly scaled (see `src/index.css` .meme-card:hover).
@@ -108,7 +121,15 @@ function MemeCardViewBase({
             className="absolute -bottom-px -left-0.5 -right-0.5 bg-black/70 text-white p-2 text-center transition-opacity duration-200 z-20"
             aria-label={`Meme title: ${meme.title}`}
           >
-            <p className="text-sm font-medium truncate px-2">{meme.title}</p>
+            <p className="text-sm font-medium truncate px-2 flex items-center justify-center gap-2">
+              <span className="truncate">{meme.title}</span>
+              {isAiProcessing ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/90">
+                  <Spinner className="h-3 w-3 border-white/60 border-t-white" />
+                  <span>{t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}</span>
+                </span>
+              ) : null}
+            </p>
           </div>
         )}
 
@@ -127,7 +148,11 @@ function MemeCardViewBase({
               </Tooltip>
             ) : hasAiFields ? (
               <span className="inline-flex items-center rounded-full bg-black/65 text-white text-[11px] font-semibold px-2 py-0.5">
-                AI: pending
+                {isAiProcessing
+                  ? t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })
+                  : aiStatusLabel
+                    ? `AI: ${aiStatusLabel}`
+                    : 'AI: pending'}
               </span>
             ) : null}
           </div>

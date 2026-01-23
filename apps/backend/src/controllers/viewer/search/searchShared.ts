@@ -10,6 +10,13 @@ export type PoolAssetRow = {
   id: string;
   type: string;
   fileUrl: string | null;
+  variants?: Array<{
+    format: string;
+    fileUrl: string;
+    status: string;
+    priority: number;
+    fileSizeBytes?: bigint | null;
+  }>;
   durationMs: number;
   createdAt: Date;
   aiAutoTitle: string | null;
@@ -33,6 +40,15 @@ export type ChannelMemeRow = {
     fileUrl: string | null;
     fileHash: string | null;
     durationMs: number;
+    variants?: Array<{
+      format: string;
+      fileUrl: string;
+      status: string;
+      priority: number;
+      fileSizeBytes?: bigint | null;
+    }>;
+    aiStatus?: string | null;
+    aiAutoTitle?: string | null;
     createdBy: { id: string; displayName: string } | null;
   };
 };

@@ -1,2 +1,3 @@
-export { MemeCard as default } from '@/entities/meme/ui/MemeCard';
-export type { MemeCardProps } from '@/entities/meme/ui/MemeCard';
+/** @deprecated Import from '@/widgets/meme-card/MemeCard' instead */
+export { default } from '@/widgets/meme-card/MemeCard';
+export type { MemeCardProps } from '@/widgets/meme-card/MemeCard';

@@ -2,19 +2,19 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import AdminRedirect from './components/AdminRedirect';
-import BetaAccessRequest from './components/BetaAccessRequest';
-import Footer from './components/Footer';
-import GlobalErrorBanner from './components/GlobalErrorBanner';
 import { SocketProvider } from './contexts/SocketContext';
 import { api } from './lib/api';
 import { Spinner } from './shared/ui';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchUser, setUnauthenticated } from './store/slices/authSlice';
 
+import BetaAccessRequest from '@/features/beta-access/ui/BetaAccessRequest';
+import AdminRedirect from '@/features/settings/ui/AdminRedirect';
 import { getEffectiveUserMode } from '@/shared/lib/uiMode';
 import { setStoredUserMode } from '@/shared/lib/userMode';
 import { getViewerHome, setViewerHome } from '@/shared/lib/viewerHome';
+import GlobalErrorBanner from '@/shared/ui/GlobalErrorBanner';
+import Footer from '@/widgets/footer/Footer';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -235,4 +235,3 @@ function App() {
 }
 
 export default App;
-

@@ -11,6 +11,7 @@ import type { AiModerationPipelineResult, AiModerationSubmission } from './aiMod
 type PersistArgs = {
   submission: AiModerationSubmission;
   fileHash: string;
+  contentHash?: string | null;
   fileUrl: string;
   durationMs: number | null;
   now: Date;
@@ -18,7 +19,7 @@ type PersistArgs = {
 };
 
 export async function persistAiModerationResults(opts: PersistArgs): Promise<void> {
-  const { submission, fileHash, fileUrl, durationMs, now, pipeline } = opts;
+  const { submission, fileHash, contentHash, fileUrl, durationMs, now, pipeline } = opts;
   const { decision, riskScore, labels, autoTags, transcript, aiTitle, metaDescription, modelVersions } = pipeline;
 
   if (decision !== 'low' && durationMs !== null) {
@@ -86,7 +87,7 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
     submission.memeAssetId ??
     (
       await prisma.memeAsset.findFirst({
-        where: { fileHash },
+        where: contentHash ? { contentHash } : { fileHash },
         select: { id: true },
       })
     )?.id ??

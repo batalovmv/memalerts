@@ -9,6 +9,7 @@ export type ApproveSubmissionInternalArgs = {
   resolved: {
     finalFileUrl: string;
     fileHash: string | null;
+    contentHash?: string | null;
     durationMs: number;
     priceCoins: number;
     tagNames?: string[];
@@ -113,8 +114,9 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     },
   });
 
-  const existingAsset =
-    resolved.fileHash !== null
+  const existingAsset = resolved.contentHash
+    ? await tx.memeAsset.findFirst({ where: { contentHash: resolved.contentHash }, select: { id: true } })
+    : resolved.fileHash !== null
       ? await tx.memeAsset.findFirst({ where: { fileHash: resolved.fileHash }, select: { id: true } })
       : await tx.memeAsset.findFirst({
           where: {
@@ -126,20 +128,36 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
           select: { id: true },
         });
 
-  const memeAssetId =
-    existingAsset?.id ??
-    (
-      await tx.memeAsset.create({
-        data: {
-          type: submission.type,
-          fileUrl: resolved.finalFileUrl,
-          fileHash: resolved.fileHash,
-          durationMs: resolved.durationMs,
-          createdByUserId: submission.submitterUserId || null,
-        },
-        select: { id: true },
-      })
-    ).id;
+  let memeAssetId = existingAsset?.id ?? null;
+  if (!memeAssetId) {
+    try {
+      memeAssetId = (
+        await tx.memeAsset.create({
+          data: {
+            type: submission.type,
+            fileUrl: resolved.finalFileUrl,
+            fileHash: resolved.fileHash,
+            contentHash: resolved.contentHash ?? undefined,
+            durationMs: resolved.durationMs,
+            createdByUserId: submission.submitterUserId || null,
+          },
+          select: { id: true },
+        })
+      ).id;
+    } catch (error) {
+      const errCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+      if (errCode === 'P2002' && resolved.contentHash) {
+        const existing = await tx.memeAsset.findFirst({
+          where: { contentHash: resolved.contentHash },
+          select: { id: true },
+        });
+        memeAssetId = existing?.id ?? null;
+      } else {
+        throw error;
+      }
+    }
+  }
+  if (!memeAssetId) throw new Error('MEME_ASSET_CREATE_FAILED');
 
   // Prefer AI-generated title if already available on the asset (dedup/pool reuse).
   const assetForTitle = await tx.memeAsset.findUnique({

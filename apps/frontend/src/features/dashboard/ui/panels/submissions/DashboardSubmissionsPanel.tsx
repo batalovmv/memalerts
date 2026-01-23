@@ -11,10 +11,10 @@ import type { MySubmission } from '@/features/submit/types';
 import type { Submission } from '@/types';
 
 import { NeedsChangesSubmissionCard } from '@/features/submit/components/NeedsChangesSubmissionCard';
-import { useHotkeys } from '@/hooks/useHotkeys';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getRuntimeConfig } from '@/shared/config/runtimeConfig';
 import { cn } from '@/shared/lib/cn';
+import { useHotkeys } from '@/shared/lib/hooks';
 import { canViewSubmissionAiDescription } from '@/shared/lib/permissions';
 import { Button, IconButton, Input, Modal, Pill, Select, Spinner, Tooltip } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';

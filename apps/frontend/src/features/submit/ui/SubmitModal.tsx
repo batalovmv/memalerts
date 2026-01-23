@@ -4,10 +4,10 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
-import TagInput from '@/components/TagInput';
 import { getMaxFileSizeMb, getVideoDuration, validateFile } from '@/features/submit/lib/validation';
 import { createIdempotencyKey } from '@/shared/lib/idempotency';
 import { Button, HelpTooltip, Input, Modal } from '@/shared/ui';
+import TagInput from '@/shared/ui/TagInput/TagInput';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMemes } from '@/store/slices/memesSlice';
 import { fetchSubmissions } from '@/store/slices/submissionsSlice';
@@ -336,6 +336,9 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
           const targetChannelId = channelId || user?.channelId || null;
           if (targetChannelId) {
             dispatch(fetchMemes({ channelId: targetChannelId }));
+            window.dispatchEvent(
+              new CustomEvent('memalerts:channelMemesUpdated', { detail: { channelId: targetChannelId } }),
+            );
           }
         }
       } catch (error: unknown) {
@@ -422,6 +425,9 @@ export default function SubmitModal({ isOpen, onClose, channelSlug, channelId, i
           const targetChannelId = channelId || user?.channelId || null;
           if (targetChannelId) {
             dispatch(fetchMemes({ channelId: targetChannelId }));
+            window.dispatchEvent(
+              new CustomEvent('memalerts:channelMemesUpdated', { detail: { channelId: targetChannelId } }),
+            );
           }
         }
 

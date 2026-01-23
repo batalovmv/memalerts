@@ -9,17 +9,16 @@ import { AllMemesPanel } from '@/components/dashboard/AllMemesPanel';
 import { BulkUploadPanel } from '@/components/dashboard/BulkUploadPanel';
 import { DashboardSubmissionsPanel } from '@/components/dashboard/DashboardSubmissionsPanel';
 import Header from '@/components/Header';
-import SecretCopyField from '@/components/SecretCopyField';
 import { useHelpMode } from '@/contexts/HelpModeContext';
 import { ApproveSubmissionModal } from '@/features/dashboard/ui/modals/ApproveSubmissionModal';
 import { NeedsChangesModal, type NeedsChangesPreset } from '@/features/dashboard/ui/modals/NeedsChangesModal';
 import { RejectSubmissionModal } from '@/features/dashboard/ui/modals/RejectSubmissionModal';
-import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
-import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
-import { getPublicSubmissionsStatus, rotateSubmissionsControlLink as rotateSubmissionsControlLinkApi } from '@/shared/api/publicSubmissions';
+import { getPublicSubmissionsStatus, rotateSubmissionsControlLink as rotateSubmissionsControlLinkApi } from '@/shared/api/submissions';
+import { useAutoplayMemes, useDebounce } from '@/shared/lib/hooks';
 import { Button, IconButton, Input, PageShell, Pill, Spinner, Textarea, Tooltip } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
+import SecretCopyField from '@/shared/ui/SecretCopyField/SecretCopyField';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   approveSubmission,

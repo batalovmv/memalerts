@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -6,8 +6,8 @@ import type { Meme, Tag } from '@/types';
 
 import Header from '@/components/Header';
 import { MemeCard } from '@/entities/meme/ui/MemeCard/MemeCard';
-import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
+import { useDebounce } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { HelpTooltip, Input, PageShell, Select, Spinner } from '@/shared/ui';
 

@@ -85,11 +85,13 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
     let finalFilePath: string | null = null;
     let fileHash: string | null = null;
+    let contentHash: string | null = null;
     let detectedDurationMs: number | null = null;
     try {
       const prepared = await downloadAndPrepareImportFile(body.sourceUrl);
       finalFilePath = prepared.finalFilePath;
       fileHash = prepared.fileHash;
+      contentHash = prepared.contentHash;
       detectedDurationMs = prepared.detectedDurationMs;
       fileHashForCleanup = prepared.fileHashForCleanup;
       fileHashRefAdded = prepared.fileHashRefAdded;
@@ -130,14 +132,15 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (fileHash) {
+    if (fileHash || contentHash) {
       const existingAsset = await prisma.memeAsset.findFirst({
-        where: { fileHash },
+        where: contentHash ? { contentHash } : { fileHash },
         select: {
           id: true,
           type: true,
           fileUrl: true,
           fileHash: true,
+          contentHash: true,
           durationMs: true,
           purgeRequestedAt: true,
           purgedAt: true,
@@ -349,6 +352,7 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         tagIds,
         finalFilePath,
         fileHash,
+        contentHash,
         detectedDurationMs,
         userProvidedTitle,
       });

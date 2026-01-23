@@ -23,7 +23,7 @@ vi.mock('@/shared/lib/ensureMinDuration', () => ({
   ensureMinDuration: async () => {},
 }));
 
-vi.mock('@/hooks/useAutoplayMemes', () => ({
+vi.mock('@/shared/lib/hooks', () => ({
   useAutoplayMemes: () => ({
     autoplayMemesEnabled: true,
     setAutoplayMemesEnabled,

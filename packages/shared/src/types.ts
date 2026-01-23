@@ -185,6 +185,15 @@ export interface Meme {
   legacyMemeId?: string;
   title: string;
   type: MemeType;
+  /**
+   * Optional multi-format variants (preferred playback order).
+   * Backend may omit on older versions.
+   */
+  variants?: MemeVariant[];
+  /**
+   * Preview URL for meme cards (small, muted).
+   */
+  previewUrl?: string | null;
   fileUrl: string;
   playFileUrl?: string | null;
   fileHash?: string | null;
@@ -224,6 +233,13 @@ export interface Meme {
       slug: string;
     };
   };
+}
+
+export interface MemeVariant {
+  format: 'webm' | 'mp4';
+  fileUrl: string;
+  sourceType: string;
+  fileSizeBytes: number | null;
 }
 
 export type SubmissionStatus = 'pending' | 'needs_changes' | 'approved' | 'rejected';

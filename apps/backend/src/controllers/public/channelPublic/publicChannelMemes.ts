@@ -136,6 +136,15 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
           type: true,
           fileUrl: true,
           durationMs: true,
+          variants: {
+            select: {
+              format: true,
+              fileUrl: true,
+              status: true,
+              priority: true,
+              fileSizeBytes: true,
+            },
+          },
           createdAt: true,
           aiAutoTitle: true,
           createdBy: { select: { id: true, displayName: true } },
@@ -177,6 +186,15 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
               type: true,
               fileUrl: true,
               durationMs: true,
+              variants: {
+                select: {
+                  format: true,
+                  fileUrl: true,
+                  status: true,
+                  priority: true,
+                  fileSizeBytes: true,
+                },
+              },
               createdBy: { select: { id: true, displayName: true } },
             },
           },
@@ -222,6 +240,15 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         type: true,
         fileUrl: true,
         durationMs: true,
+        variants: {
+          select: {
+            format: true,
+            fileUrl: true,
+            status: true,
+            priority: true,
+            fileSizeBytes: true,
+          },
+        },
         createdAt: true,
         aiAutoTitle: true,
         createdBy: { select: { id: true, displayName: true } },
@@ -267,6 +294,15 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
             type: true,
             fileUrl: true,
             durationMs: true,
+            variants: {
+              select: {
+                format: true,
+                fileUrl: true,
+                status: true,
+                priority: true,
+                fileSizeBytes: true,
+              },
+            },
             createdBy: { select: { id: true, displayName: true } },
           },
         },

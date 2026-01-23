@@ -115,6 +115,7 @@ async function main() {
     uploaded: 0,
     updated: 0,
     refUpdates: 0,
+    variantUpdated: 0,
     missing: 0,
     skipped: 0,
     errors: 0,
@@ -254,19 +255,35 @@ async function main() {
     });
   }
 
-  const [fileHashLeft, memeLeft, assetLeft, playLeft, submissionLeft] = await prisma.$transaction([
+  const publicBase = cfg.publicBaseUrl.replace(/\/+$/, '');
+  const publicBaseSql = publicBase.replace(/'/g, "''");
+
+  const variantUpdateResult = await prisma.$executeRawUnsafe(
+    `UPDATE "MemeAssetVariant" v
+     SET "fileUrl" = fh."filePath"
+     FROM "FileHash" fh
+     WHERE v."fileHash" = fh."hash"
+       AND v."fileUrl" LIKE '/uploads/%'
+       AND fh."filePath" LIKE '${publicBaseSql}/%';`
+  );
+  stats.variantUpdated += Number(variantUpdateResult) || 0;
+
+  const [fileHashLeft, memeLeft, assetLeft, playLeft, submissionLeft, variantLeftRows] = await prisma.$transaction([
     prisma.fileHash.count({ where: { filePath: { startsWith: '/uploads/' } } }),
     prisma.meme.count({ where: { fileUrl: { startsWith: '/uploads/' } } }),
     prisma.memeAsset.count({ where: { fileUrl: { startsWith: '/uploads/' } } }),
     prisma.memeAsset.count({ where: { playFileUrl: { startsWith: '/uploads/' } } }),
     prisma.memeSubmission.count({ where: { fileUrlTemp: { startsWith: '/uploads/' } } }),
+    prisma.$queryRawUnsafe(`SELECT count(*)::int AS count FROM "MemeAssetVariant" WHERE "fileUrl" LIKE '/uploads/%';`),
   ]);
+  const variantLeft = Number(variantLeftRows?.[0]?.count) || 0;
 
   logger.info('s3.migrate.done', {
     total: stats.total,
     uploaded: stats.uploaded,
     updated: stats.updated,
     refUpdates: stats.refUpdates,
+    variantUpdated: stats.variantUpdated,
     missing: stats.missing,
     skipped: stats.skipped,
     errors: stats.errors,
@@ -276,6 +293,7 @@ async function main() {
       memeAsset: assetLeft,
       playFileUrl: playLeft,
       submission: submissionLeft,
+      memeAssetVariant: variantLeft,
     },
   });
 

@@ -11,6 +11,7 @@ type ShutdownDeps = {
   httpDrainTimeoutMs: number;
   getChatBotHandle: () => { stop?: () => Promise<void> | void } | null;
   getAiModerationWorkerHandle: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
+  getTranscodeWorkerHandle: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
   closeBullmqConnection: () => Promise<void>;
   prismaDisconnect: () => Promise<void>;
 };
@@ -124,6 +125,13 @@ export function setupShutdownHandlers(deps: ShutdownDeps) {
       deadlineAt,
       maxMs: Math.min(15000, deps.shutdownTimeoutMs),
       action: (budgetMs) => deps.getAiModerationWorkerHandle()?.stop({ timeoutMs: budgetMs }) ?? Promise.resolve(),
+    });
+
+    await runShutdownStep({
+      label: 'transcode_worker_stop',
+      deadlineAt,
+      maxMs: Math.min(15000, deps.shutdownTimeoutMs),
+      action: (budgetMs) => deps.getTranscodeWorkerHandle()?.stop({ timeoutMs: budgetMs }) ?? Promise.resolve(),
     });
 
     await runShutdownStep({

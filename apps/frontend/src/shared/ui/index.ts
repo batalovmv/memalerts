@@ -12,6 +12,7 @@ export type { CardProps } from './Card/Card';
 
 export { Input } from './Input/Input';
 export type { InputProps } from './Input/Input';
+export { default as TagInput } from './TagInput/TagInput';
 
 export { Select } from './Select/Select';
 export type { SelectProps } from './Select/Select';
@@ -28,10 +29,12 @@ export { DropZone } from './DropZone/DropZone';
 
 export { Modal } from './Modal/Modal';
 export type { ModalProps } from './Modal/Modal';
+export * from './modals';
 
 export { Tooltip } from './Tooltip/Tooltip';
 export type { TooltipProps } from './Tooltip/Tooltip';
 export { HelpTooltip } from './Tooltip/HelpTooltip';
+export { default as SecretCopyField } from './SecretCopyField/SecretCopyField';
 
 export { PageShell } from './PageShell';
 export type { PageShellProps, PageShellVariant } from './PageShell';

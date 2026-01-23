@@ -3,19 +3,19 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
-import type { MemePoolItem } from '@/shared/api/memesPool';
+import type { MemePoolItem } from '@/shared/api/memes';
 import type { Meme } from '@/types';
 
 import Header from '@/components/Header';
-import MemeCard from '@/components/MemeCard';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
-import { getMemesPool } from '@/shared/api/memesPool';
+import { getMemesPool } from '@/shared/api/memes';
 import { createPoolSubmission } from '@/shared/api/submissions';
 import { PageShell, Button, HelpTooltip, Input, Spinner } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
+import MemeCard from '@/widgets/meme-card/MemeCard';
 
 type PoolItem = MemePoolItem & { _raw?: unknown };
 
@@ -29,11 +29,18 @@ function getPoolMemeAssetId(m: PoolItem): string | null {
 function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
   // MemeCard expects Meme-like shape; pool items are MemeAsset-like (channel-independent).
   // Best-effort mapping with sensible fallbacks.
+  const previewUrl =
+    typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string'
+      ? ((m as unknown as { previewUrl: string }).previewUrl || '').trim() || null
+      : null;
   const fileUrl =
     (typeof (m as unknown as { fileUrl?: unknown }).fileUrl === 'string' && (m as unknown as { fileUrl: string }).fileUrl) ||
-    (typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string' && (m as unknown as { previewUrl: string }).previewUrl) ||
     (typeof (m as unknown as { url?: unknown }).url === 'string' && (m as unknown as { url: string }).url) ||
+    previewUrl ||
     '';
+  const variants = Array.isArray((m as unknown as { variants?: unknown }).variants)
+    ? ((m as unknown as { variants: Meme['variants'] }).variants ?? undefined)
+    : undefined;
 
   const title = (typeof m.sampleTitle === 'string' && m.sampleTitle.trim()) ? m.sampleTitle.trim() : fallbackTitle;
   const priceCoins = typeof m.samplePriceCoins === 'number' && Number.isFinite(m.samplePriceCoins) ? m.samplePriceCoins : 0;
@@ -44,6 +51,8 @@ function toPoolCardMeme(m: PoolItem, fallbackTitle: string): Meme {
     id: String(m.id ?? ''),
     title,
     type,
+    previewUrl,
+    variants,
     fileUrl,
     priceCoins,
     durationMs,

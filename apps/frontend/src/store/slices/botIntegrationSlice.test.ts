@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import reducer, { fetchBotStatuses, updateBotSettingsThunk } from './botIntegrationSlice';
 
-import type { BotStatus } from '@/shared/api/botIntegration';
+import type { BotStatus } from '@/shared/api/bot';
 
 const sampleBot = (overrides: Partial<BotStatus> = {}): BotStatus => ({
   provider: 'twitch',

@@ -21,6 +21,7 @@ export async function handlePendingSubmission(opts: {
   bodyNotes: string | null;
   finalFilePath: string;
   fileHash: string | null;
+  contentHash: string | null;
   effectiveDurationMs: number | null;
   normalizedMimeType: string;
   normalizedSizeBytes: number;
@@ -39,6 +40,7 @@ export async function handlePendingSubmission(opts: {
     bodyNotes,
     finalFilePath,
     fileHash,
+    contentHash,
     effectiveDurationMs,
     normalizedMimeType,
     normalizedSizeBytes,
@@ -66,9 +68,9 @@ export async function handlePendingSubmission(opts: {
   };
 
   try {
-    if (fileHash) {
+    if (fileHash || contentHash) {
       const aiAsset = await memes.asset.findFirst({
-        where: { fileHash, aiStatus: 'done' },
+        where: contentHash ? { contentHash, aiStatus: 'done' } : { fileHash, aiStatus: 'done' },
         select: { aiAutoDescription: true, aiAutoTagNamesJson: true },
       });
       const normalizeAiText = (s: string) =>
