@@ -187,7 +187,7 @@ export default function MemeModal({
   const canRegenerateAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
   const aiStatus = typeof currentMeme.aiStatus === 'string' ? currentMeme.aiStatus : null;
   const isAiProcessing = aiStatus === 'pending' || aiStatus === 'processing';
-  const tagNames = (() => {
+  const manualTagNames = (() => {
     const raw = Array.isArray(currentMeme.tags) ? currentMeme.tags : [];
     const names = raw
       .map((item) => {
@@ -200,6 +200,9 @@ export default function MemeModal({
       .map((name) => name.trim());
     return Array.from(new Set(names));
   })();
+  const aiTagNames = Array.from(
+    new Set(aiTags.map((tag) => tag.trim()).filter((tag) => tag.length > 0))
+  ).filter((tag) => !manualTagNames.includes(tag));
   const canTagSearch = typeof onTagSearch === 'function';
 
   const statusLabel = (() => {
@@ -656,13 +659,13 @@ export default function MemeModal({
             )}
           </div>
 
-          {tagNames.length > 0 && (
+          {(manualTagNames.length > 0 || aiTagNames.length > 0) && (
             <div>
               <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 {t('memeModal.tags', { defaultValue: 'Tags' })}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {tagNames.map((tag) => (
+                {manualTagNames.map((tag) => (
                   <button
                     key={tag}
                     type="button"
@@ -676,6 +679,26 @@ export default function MemeModal({
                     aria-disabled={!canTagSearch}
                     aria-label={t('memeModal.searchByTag', { defaultValue: 'Search by tag {{tag}}', tag })}
                   >
+                    #{tag}
+                  </button>
+                ))}
+                {aiTagNames.map((tag) => (
+                  <button
+                    key={`ai-${tag}`}
+                    type="button"
+                    onClick={() => onTagSearch?.(tag)}
+                    disabled={!canTagSearch}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ring-1 transition-colors ${
+                      canTagSearch
+                        ? 'bg-white/70 text-gray-800 ring-black/5 hover:bg-white dark:bg-white/10 dark:text-gray-100 dark:ring-white/10 dark:hover:bg-white/20'
+                        : 'bg-white/60 text-gray-500 ring-black/5 dark:bg-white/5 dark:text-gray-400 dark:ring-white/10'
+                    }`}
+                    aria-disabled={!canTagSearch}
+                    aria-label={t('memeModal.searchByTag', { defaultValue: 'Search by tag {{tag}}', tag })}
+                  >
+                    <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-700 dark:bg-white/15 dark:text-gray-100">
+                      AI
+                    </span>
                     #{tag}
                   </button>
                 ))}
