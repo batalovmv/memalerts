@@ -56,7 +56,7 @@ export async function handleExistingAssetForUpload(opts: {
   if (!existingAsset) return { handled: false, fileHashRefAdded };
 
   if (existingAsset.purgeRequestedAt || existingAsset.purgedAt) {
-    if (fileHashRefAdded) {
+    if (fileHashRefAdded && fileHash) {
       try {
         await decrementFileHashReference(fileHash);
         fileHashRefAdded = false;
@@ -85,7 +85,7 @@ export async function handleExistingAssetForUpload(opts: {
   });
 
   if (existingCm && !existingCm.deletedAt) {
-    if (fileHashRefAdded) {
+    if (fileHashRefAdded && fileHash) {
       try {
         await decrementFileHashReference(fileHash);
         fileHashRefAdded = false;
@@ -102,7 +102,7 @@ export async function handleExistingAssetForUpload(opts: {
   }
 
   if (isOwner && existingCm && existingCm.deletedAt) {
-    if (fileHashRefAdded) {
+    if (fileHashRefAdded && fileHash) {
       try {
         await decrementFileHashReference(fileHash);
         fileHashRefAdded = false;

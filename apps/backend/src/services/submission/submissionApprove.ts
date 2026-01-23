@@ -22,6 +22,12 @@ import { resolveLocalMediaPath } from '../../utils/media/resolveMediaPath.js';
 import { ensureMemeAssetVariants } from '../memeAsset/ensureVariants.js';
 
 type Submission = ApprovalSubmission;
+type PostApproveVariantInput = {
+  memeAssetId: string;
+  fileUrl: string;
+  fileHash: string | null;
+  durationMs: number;
+};
 export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
   const { submissions, transaction } = deps;
   const { id } = req.params;
@@ -36,9 +42,7 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
   debugLog('[DEBUG] approveSubmission started', { submissionId: id, channelId });
 
   let submission: Submission | null = null; // Declare submission in outer scope for error handling
-  let postApproveVariantInput:
-    | { memeAssetId: string; fileUrl: string; fileHash: string | null; durationMs: number }
-    | null = null;
+  const postApproveVariantInputRef: { value: PostApproveVariantInput | null } = { value: null };
   try {
     const body = approveSubmissionSchema.parse(req.body);
     const io: Server = req.app.get('io');
@@ -278,7 +282,7 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
               });
               approved = res.legacyMeme;
               if (res.memeAssetId && finalFileUrl) {
-                postApproveVariantInput = {
+                postApproveVariantInputRef.value = {
                   memeAssetId: res.memeAssetId,
                   fileUrl: finalFileUrl,
                   fileHash,
@@ -354,6 +358,7 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
     // NOTE: kept for future background handling (was present in original file).
     void submissionForBackground;
 
+    const postApproveVariantInput = postApproveVariantInputRef.value;
     if (postApproveVariantInput) {
       void ensureMemeAssetVariants({
         memeAssetId: postApproveVariantInput.memeAssetId,

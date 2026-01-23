@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import type { MemeVariant } from '@/types';
-
 import { resolveMediaUrl } from '../../lib/urls';
+
+import type { MemeVariant } from '@/types';
 
 interface VideoPreviewProps {
   src?: string;

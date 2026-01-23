@@ -149,11 +149,13 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
       if (existingAsset) {
         if (existingAsset.purgeRequestedAt || existingAsset.purgedAt) {
-          try {
-            await decrementFileHashReference(fileHash);
-            fileHashRefAdded = false;
-          } catch {
-            // ignore
+          if (fileHashRefAdded && fileHash) {
+            try {
+              await decrementFileHashReference(fileHash);
+              fileHashRefAdded = false;
+            } catch {
+              // ignore
+            }
           }
           return res.status(410).json({
             errorCode: 'ASSET_PURGED_OR_QUARANTINED',
@@ -175,11 +177,13 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         });
 
         if (existingCm && !existingCm.deletedAt) {
-          try {
-            await decrementFileHashReference(fileHash);
-            fileHashRefAdded = false;
-          } catch {
-            // ignore
+          if (fileHashRefAdded && fileHash) {
+            try {
+              await decrementFileHashReference(fileHash);
+              fileHashRefAdded = false;
+            } catch {
+              // ignore
+            }
           }
           return res.status(409).json({
             errorCode: 'ALREADY_IN_CHANNEL',
@@ -189,11 +193,13 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
         }
 
         if (isOwner && existingCm && existingCm.deletedAt) {
-          try {
-            await decrementFileHashReference(fileHash);
-            fileHashRefAdded = false;
-          } catch {
-            // ignore
+          if (fileHashRefAdded && fileHash) {
+            try {
+              await decrementFileHashReference(fileHash);
+              fileHashRefAdded = false;
+            } catch {
+              // ignore
+            }
           }
 
           const defaultPrice = channel.defaultPriceCoins ?? 100;

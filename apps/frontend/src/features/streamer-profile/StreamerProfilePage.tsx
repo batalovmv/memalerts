@@ -16,11 +16,11 @@ import { useSocket } from '@/contexts/SocketContext';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
+import { getOwnerAiStatus } from '@/shared/api/owner';
 import ChannelThemeProvider from '@/shared/lib/ChannelThemeProvider';
 import { useAutoplayMemes, useDebounce } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button, HelpTooltip, IconButton, Input, PageShell, Pill, Spinner } from '@/shared/ui';
-import { getOwnerAiStatus } from '@/shared/api/owner';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
@@ -763,7 +763,17 @@ export default function StreamerProfile() {
     };
 
     performSearch();
-  }, [channelInfo?.id, channelInfo?.memeCatalogMode, channelInfo?.slug, debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
+  }, [
+    channelInfo,
+    channelInfo?.id,
+    channelInfo?.memeCatalogMode,
+    channelInfo?.slug,
+    debouncedSearchQuery,
+    normalizedSlug,
+    myFavorites,
+    isAuthed,
+    user,
+  ]);
 
   const hasAiProcessingInList = memes.some((m) => m.aiStatus === 'pending' || m.aiStatus === 'processing');
   const hasOwnerAiProcessing = ownerAiProcessingCount > 0;
