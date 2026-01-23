@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next';
 
 import { RotateIcon } from '../../obs/ui/RotateIcon';
 
-import SecretCopyField from '@/components/SecretCopyField';
 import { Button, HelpTooltip, IconButton } from '@/shared/ui';
+import SecretCopyField from '@/shared/ui/SecretCopyField/SecretCopyField';
 
 type LinksListProps = {
   overlayKind: 'memes' | 'credits';

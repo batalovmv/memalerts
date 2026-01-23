@@ -8,12 +8,13 @@ type AutoApproveArgs = {
   submission: AiModerationSubmission;
   fileUrl: string;
   fileHash: string;
+  contentHash?: string | null;
   durationMs: number | null;
   pipeline: AiModerationPipelineResult;
 };
 
 export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise<void> {
-  const { submission, fileUrl, fileHash, durationMs, pipeline } = opts;
+  const { submission, fileUrl, fileHash, contentHash, durationMs, pipeline } = opts;
   const autoApproveEnabled = parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
   if (!autoApproveEnabled || pipeline.decision !== 'low') return;
   if (!isAllowedPublicFileUrl(fileUrl)) return;
@@ -26,7 +27,7 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
   if (submitter?.role !== 'viewer') return;
 
   const existingAsset = await prisma.memeAsset.findFirst({
-    where: { fileHash },
+    where: contentHash ? { contentHash } : { fileHash },
     select: {
       id: true,
       poolVisibility: true,
@@ -59,6 +60,7 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
       resolved: {
         finalFileUrl: fileUrl,
         fileHash,
+        contentHash: contentHash ?? null,
         durationMs,
         priceCoins,
         tagNames: pipeline.autoTags,

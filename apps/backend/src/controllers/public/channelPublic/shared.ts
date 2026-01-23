@@ -37,6 +37,15 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
     type: true;
     fileUrl: true;
     durationMs: true;
+    variants: {
+      select: {
+        format: true;
+        fileUrl: true;
+        status: true;
+        priority: true;
+        fileSizeBytes: true;
+      };
+    };
     createdAt: true;
     aiAutoTitle: true;
     createdBy: { select: { id: true; displayName: true } };
@@ -204,6 +213,22 @@ export function mapPoolAssetsToDtos(
       typeof ch?._count?.activations === 'number' && Number.isFinite(ch._count.activations)
         ? ch._count.activations
         : 0;
+    const doneVariants = Array.isArray(r.variants)
+      ? r.variants.filter((v) => String(v.status || '') === 'done')
+      : [];
+    const preview = doneVariants.find((v) => String(v.format || '') === 'preview');
+    const variants = doneVariants
+      .filter((v) => String(v.format || '') !== 'preview')
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+      .map((v) => {
+        const format = (String(v.format || '') as 'webm' | 'mp4') || 'mp4';
+        return {
+          format,
+          fileUrl: v.fileUrl,
+          sourceType: getSourceType(format),
+          fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
+        };
+      });
     return {
       id: r.id,
       channelId,
@@ -211,7 +236,9 @@ export function mapPoolAssetsToDtos(
       memeAssetId: r.id,
       title,
       type: r.type,
-      fileUrl: r.fileUrl ?? null,
+      previewUrl: preview?.fileUrl ?? null,
+      variants,
+      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
       durationMs: r.durationMs,
       priceCoins,
       activationsCount,
@@ -219,4 +246,15 @@ export function mapPoolAssetsToDtos(
       createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
     };
   });
+}
+
+function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
+  switch (format) {
+    case 'preview':
+      return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+    case 'webm':
+      return 'video/webm; codecs="vp9, opus"';
+    case 'mp4':
+      return 'video/mp4; codecs="avc1.4d401f, mp4a.40.2"';
+  }
 }

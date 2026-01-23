@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useCreditsPresets } from './useCreditsPresets';
 import { useCreditsSettingsLoader } from './useCreditsSettingsLoader';
 
-import { rotateCreditsToken, saveCreditsSettings } from '@/shared/api/creditsOverlay';
+import { rotateCreditsToken, saveCreditsSettings } from '@/shared/api/overlay';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 
 export type CreditsSettingsState = ReturnType<typeof useCreditsSettings>;

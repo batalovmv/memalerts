@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 
 import type { User } from '@/types';
-import type { ModerationMemeAsset } from '@/shared/api/moderationMemeAssets';
+import type { ModerationMemeAsset } from '@/shared/api/memes';
 
 export type BetaStatus = {
   hasAccess: boolean;

@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next';
 
 import type { Meme } from '@/types';
 
-import MemeCard from '@/components/MemeCard';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button, HelpTooltip, Spinner } from '@/shared/ui';
+import MemeCard from '@/widgets/meme-card/MemeCard';
 
 const skeletonAspectRatios = [1, 4 / 5, 16 / 9, 3 / 4, 1.2, 9 / 16, 5 / 4, 2 / 3] as const;
 

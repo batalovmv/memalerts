@@ -1312,6 +1312,7 @@
     "memes": "memes",
     "users": "users",
     "availableMemes": "Available Memes",
+    "aiProcessingNotice": "AI is processing new memes. They will appear automatically.",
     "noMemes": "No memes available",
     "submitMeme": "Submit a Meme",
     "allMemesLoaded": "All memes loaded",

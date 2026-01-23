@@ -3,9 +3,17 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { Semaphore, parsePositiveIntEnv } from '../semaphore.js';
 import { configureFfmpegPaths } from './configureFfmpeg.js';
+import { calculateFileHash } from '../fileHash.js';
+import {
+  VIDEO_FORMATS,
+  COMMON_VIDEO_ARGS,
+  PREVIEW_VIDEO_ARGS,
+  type VideoFormat,
+} from './videoFormats.js';
+import { buildLowPriorityCommand } from './systemLoad.js';
 
 configureFfmpegPaths();
 
@@ -29,6 +37,18 @@ export interface NormalizedVideoResult {
   mimeType: string;
   transcodeSkipped: boolean;
   durationMs: number | null;
+}
+
+export interface TranscodeResult {
+  format: VideoFormat;
+  outputPath: string;
+  mimeType: string;
+  codec: string;
+  durationMs: number | null;
+  width: number | undefined;
+  height: number | undefined;
+  fileSizeBytes: number;
+  fileHash: string;
 }
 
 interface VideoProbe {
@@ -82,6 +102,55 @@ function getFfmpegPath(): string | null {
   const installer = ffmpegInstaller as { path?: unknown };
   const installerPath = typeof installer.path === 'string' ? installer.path : '';
   return installerPath || null;
+}
+
+async function runFfmpegCli(args: string[], opts?: { timeoutMs?: number; lowPriority?: boolean }): Promise<void> {
+  const ffmpegPath = getFfmpegPath() || 'ffmpeg';
+  const timeoutMs = clampInt(opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS, 1_000, 10 * 60_000, DEFAULT_TIMEOUT_MS);
+
+  const runOnce = (cmd: string, cmdArgs: string[]) =>
+    new Promise<void>((resolve, reject) => {
+      const child = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+      let stderr = '';
+      const timer = setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // ignore
+        }
+        reject(new Error(`ffmpeg_timeout_${timeoutMs}`));
+      }, timeoutMs);
+
+      child.stderr.on('data', (chunk) => {
+        stderr += String(chunk);
+      });
+
+      child.on('error', reject);
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`ffmpeg_exit_${code}${stderr ? `: ${stderr}` : ''}`));
+      });
+    });
+
+  if (!opts?.lowPriority) {
+    return runOnce(ffmpegPath, args);
+  }
+
+  const lowPriority = buildLowPriorityCommand(ffmpegPath, args);
+  try {
+    await runOnce(lowPriority.cmd, lowPriority.args);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err?.code === 'ENOENT') {
+      await runOnce(ffmpegPath, args);
+      return;
+    }
+    throw error;
+  }
 }
 
 function probeWithFfmpegCli(filePath: string): VideoProbe | null {
@@ -219,7 +288,32 @@ function makeFilters(probe: VideoProbe | null, maxWidth: number, maxHeight: numb
   if (needFps) {
     filters.push(`fps=${maxFps}`);
   }
+  const needsEvenDimensions =
+    !probe ||
+    needScale ||
+    (Number.isFinite(probe.width) && (probe.width as number) % 2 !== 0) ||
+    (Number.isFinite(probe.height) && (probe.height as number) % 2 !== 0);
+  if (needsEvenDimensions) {
+    // H.264 yuv420p requires even width/height; clamp to at least 2px to avoid invalid 0 dimensions.
+    filters.push("scale='max(trunc(iw/2)*2,2)':'max(trunc(ih/2)*2,2)'");
+  }
   return filters;
+}
+
+function getShortSide(probe: VideoProbe | null): number | null {
+  if (!probe) return null;
+  if (!Number.isFinite(probe.width as number) || !Number.isFinite(probe.height as number)) return null;
+  return Math.min(Number(probe.width), Number(probe.height));
+}
+
+function shouldCopyPreview(probe: VideoProbe | null): boolean {
+  const shortSide = getShortSide(probe);
+  if (shortSide === null || shortSide > 360) return false;
+  const format = (probe?.formatName || '').toLowerCase();
+  const isMp4Container = format.includes('mp4');
+  const isH264 = (probe?.videoCodec || '').toLowerCase() === 'h264';
+  const fpsOk = !Number.isFinite(probe?.fps as number) || (probe?.fps as number) <= DEFAULT_MAX_FPS;
+  return isMp4Container && isH264 && fpsOk;
 }
 
 async function runTranscode(
@@ -315,4 +409,173 @@ export async function normalizeVideoForPlayback(args: {
       durationMs: outputProbe?.durationMs ?? null,
     };
   });
+}
+
+export async function transcodeToFormat(
+  inputPath: string,
+  outputDir: string,
+  format: VideoFormat,
+  baseName: string,
+  opts?: { timeoutMs?: number; lowPriority?: boolean }
+): Promise<TranscodeResult> {
+  const config = VIDEO_FORMATS[format];
+  const outputPath = path.join(outputDir, `${baseName}.${format}.${config.container}`);
+  const probe = await probeVideo(inputPath);
+  const maxWidth = config.maxWidth ?? DEFAULT_MAX_WIDTH;
+  const maxHeight = config.maxHeight ?? DEFAULT_MAX_HEIGHT;
+  const filters = makeFilters(probe, maxWidth, maxHeight, DEFAULT_MAX_FPS);
+
+  const args = [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    inputPath,
+    ...(filters.length > 0 ? ['-vf', filters.join(',')] : []),
+    ...COMMON_VIDEO_ARGS,
+    ...config.ffmpegArgs,
+    '-y',
+    outputPath,
+  ];
+
+  await runFfmpegCli(args, opts);
+
+  const outputProbe = await probeVideo(outputPath);
+  const stats = await fs.promises.stat(outputPath);
+  const fileHash = await calculateFileHash(outputPath);
+
+  return {
+    format,
+    outputPath,
+    mimeType: config.mimeType,
+    codec: config.codecString,
+    durationMs: outputProbe?.durationMs ?? null,
+    width: outputProbe?.width,
+    height: outputProbe?.height,
+    fileSizeBytes: stats.size,
+    fileHash,
+  };
+}
+
+function getAdaptivePreviewParams(probe: VideoProbe | null): { crf: number; maxrate: string } {
+  if (!probe) return { crf: 28, maxrate: '1M' };
+  const sourceWidth = probe.width ?? 1920;
+  const sourceHeight = probe.height ?? 1080;
+  const shortSide = Math.min(sourceWidth, sourceHeight);
+
+  if (shortSide <= 360) return { crf: 23, maxrate: '600k' };
+  if (shortSide <= 480) return { crf: 25, maxrate: '800k' };
+  if (shortSide <= 720) return { crf: 27, maxrate: '1M' };
+  return { crf: 28, maxrate: '1M' };
+}
+
+export async function transcodeToPreview(
+  inputPath: string,
+  outputDir: string,
+  baseName: string,
+  opts?: { timeoutMs?: number; lowPriority?: boolean }
+): Promise<TranscodeResult> {
+  const config = VIDEO_FORMATS.preview;
+  const outputPath = path.join(outputDir, `${baseName}.preview.${config.container}`);
+  const probe = await probeVideo(inputPath);
+  const adaptive = getAdaptivePreviewParams(probe);
+
+  if (shouldCopyPreview(probe)) {
+    const args = [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      inputPath,
+      '-map',
+      '0:v:0',
+      '-c:v',
+      'copy',
+      '-an',
+      '-movflags',
+      '+faststart',
+      '-y',
+      outputPath,
+    ];
+
+    await runFfmpegCli(args, opts);
+
+    const outputProbe = await probeVideo(outputPath);
+    const stats = await fs.promises.stat(outputPath);
+    const fileHash = await calculateFileHash(outputPath);
+
+    return {
+      format: 'preview',
+      outputPath,
+      mimeType: config.mimeType,
+      codec: config.codecString,
+      durationMs: outputProbe?.durationMs ?? null,
+      width: outputProbe?.width,
+      height: outputProbe?.height,
+      fileSizeBytes: stats.size,
+      fileHash,
+    };
+  }
+
+  const maxWidth = config.maxWidth ?? 854;
+  const maxHeight = config.maxHeight ?? 480;
+  const filters = makeFilters(probe, maxWidth, maxHeight, DEFAULT_MAX_FPS);
+
+  const ffmpegArgs = config.ffmpegArgs.map((arg, index, arr) => {
+    if (arr[index - 1] === '-crf') return String(adaptive.crf);
+    if (arr[index - 1] === '-maxrate') return adaptive.maxrate;
+    return arg;
+  });
+
+  const args = [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    inputPath,
+    ...(filters.length > 0 ? ['-vf', filters.join(',')] : []),
+    ...PREVIEW_VIDEO_ARGS,
+    ...ffmpegArgs,
+    '-y',
+    outputPath,
+  ];
+
+  await runFfmpegCli(args, opts);
+
+  const outputProbe = await probeVideo(outputPath);
+  const stats = await fs.promises.stat(outputPath);
+  const fileHash = await calculateFileHash(outputPath);
+
+  return {
+    format: 'preview',
+    outputPath,
+    mimeType: config.mimeType,
+    codec: config.codecString,
+    durationMs: outputProbe?.durationMs ?? null,
+    width: outputProbe?.width,
+    height: outputProbe?.height,
+    fileSizeBytes: stats.size,
+    fileHash,
+  };
+}
+
+export async function transcodeAllFormats(
+  inputPath: string,
+  outputDir: string,
+  baseName: string,
+  opts?: { timeoutMs?: number; lowPriority?: boolean }
+): Promise<TranscodeResult[]> {
+  const results: TranscodeResult[] = [];
+
+  const [previewResult, mp4Result] = await Promise.all([
+    transcodeToPreview(inputPath, outputDir, baseName, opts),
+    transcodeToFormat(inputPath, outputDir, 'mp4', baseName, opts),
+  ]);
+
+  results.push(previewResult, mp4Result);
+
+  const webmResult = await transcodeToFormat(inputPath, outputDir, 'webm', baseName, opts);
+  results.push(webmResult);
+
+  return results;
 }

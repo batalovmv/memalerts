@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { claimYouTubeLike, getYouTubeForceSslLinkUrl, type YouTubeLikeClaimResponse } from '@/shared/api/youtubeLikeReward';
+import { claimYouTubeLike, getYouTubeForceSslLinkUrl, type YouTubeLikeClaimResponse } from '@/shared/api/rewards';
 import { linkExternalAccount } from '@/shared/auth/login';
 import { Button } from '@/shared/ui';
 

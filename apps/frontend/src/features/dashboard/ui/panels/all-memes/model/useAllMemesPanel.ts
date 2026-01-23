@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Meme, MemeStatus } from '@/types';
 
-import { useDebounce } from '@/hooks/useDebounce';
 import { apiGetWithMeta } from '@/lib/api';
+import { useDebounce } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { useAppSelector } from '@/store/hooks';
 

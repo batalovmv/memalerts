@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../../middleware/auth.js';
 import { prisma } from '../../../lib/prisma.js';
-import { toChannelMemeListItemDto, type ChannelMemeListItemDto } from '../channelMemeListDto.js';
+import { getSourceType, toChannelMemeListItemDto, type ChannelMemeListItemDto } from '../channelMemeListDto.js';
 import {
   PaginationError,
   buildCursorFilter,
@@ -109,7 +109,17 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
         id: true,
         type: true,
         fileUrl: true,
+        fileHash: true,
         durationMs: true,
+        variants: {
+          select: {
+            format: true,
+            fileUrl: true,
+            status: true,
+            priority: true,
+            fileSizeBytes: true,
+          },
+        },
         createdAt: true,
         aiAutoTitle: true,
         createdBy: { select: { id: true, displayName: true } },
@@ -130,6 +140,22 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
       const channelPrice = ch?.priceCoins;
       const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
+      const doneVariants = Array.isArray(r.variants)
+        ? r.variants.filter((v) => String(v.status || '') === 'done')
+        : [];
+      const preview = doneVariants.find((v) => String(v.format || '') === 'preview');
+      const variants = doneVariants
+        .filter((v) => String(v.format || '') !== 'preview')
+        .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+        .map((v) => {
+          const format = (String(v.format || '') as 'webm' | 'mp4') || 'mp4';
+          return {
+            format,
+            fileUrl: v.fileUrl,
+            sourceType: getSourceType(format),
+            fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
+          };
+        });
       return {
         id: r.id,
         channelId: channel.id,
@@ -137,7 +163,9 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
         memeAssetId: r.id,
         title,
         type: r.type,
-        fileUrl: r.fileUrl ?? null,
+        previewUrl: preview?.fileUrl ?? null,
+        variants,
+        fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
         durationMs: r.durationMs,
         priceCoins,
         status: 'approved',
@@ -174,6 +202,17 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
             fileUrl: true,
             fileHash: true,
             durationMs: true,
+            variants: {
+              select: {
+                format: true,
+                fileUrl: true,
+                status: true,
+                priority: true,
+                fileSizeBytes: true,
+              },
+            },
+            aiStatus: true,
+            aiAutoTitle: true,
             createdBy: { select: { id: true, displayName: true } },
           },
         },

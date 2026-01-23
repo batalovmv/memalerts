@@ -5,7 +5,7 @@ import { getAiRegenerateCooldownUntilMs, setAiRegenerateCooldownUntilMs } from '
 
 import type { Meme } from '@/types';
 
-import { regenerateMemeAi, getErrorCodeFromError, getRetryAfterSecondsFromError } from '@/shared/api/streamerMemes';
+import { regenerateMemeAi, getErrorCodeFromError, getRetryAfterSecondsFromError } from '@/shared/api/channel';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button } from '@/shared/ui';

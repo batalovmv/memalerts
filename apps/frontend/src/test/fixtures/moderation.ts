@@ -1,4 +1,4 @@
-import type { ModerationMemeAsset } from '@/shared/api/moderationMemeAssets';
+import type { ModerationMemeAsset } from '@/shared/api/memes';
 
 export function makeModerationAsset(overrides: Partial<ModerationMemeAsset> = {}): ModerationMemeAsset {
   return {

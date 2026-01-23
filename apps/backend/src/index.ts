@@ -28,6 +28,7 @@ import { startOutboxCleanupScheduler } from './jobs/cleanupOutboxMessages.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
+import { startTranscodeWorker } from './workers/transcodeWorker.js';
 import { startAiEnqueueScheduler } from './jobs/aiEnqueueScheduler.js';
 import { validateEnv } from './config/env.js';
 import { prisma } from './lib/prisma.js';
@@ -115,6 +116,7 @@ const httpDrainTimeoutMs = Number.isFinite(HTTP_DRAIN_TIMEOUT_MS)
 
 let chatBotHandle: ReturnType<typeof startTwitchChatBot> | null = null;
 let aiModerationWorkerHandle: ReturnType<typeof startAiModerationWorker> = null;
+let transcodeWorkerHandle: ReturnType<typeof startTranscodeWorker> = null;
 
 setupShutdownHandlers({
   httpServer,
@@ -123,6 +125,7 @@ setupShutdownHandlers({
   httpDrainTimeoutMs,
   getChatBotHandle: () => chatBotHandle,
   getAiModerationWorkerHandle: () => aiModerationWorkerHandle,
+  getTranscodeWorkerHandle: () => transcodeWorkerHandle,
   closeBullmqConnection: () => closeBullmqConnection(),
   prismaDisconnect: () => prisma.$disconnect(),
 });
@@ -471,6 +474,8 @@ async function startServer() {
     startBoostySubscriptionRewardsScheduler(io);
     // Optional: BullMQ AI worker (horizontal scaling).
     aiModerationWorkerHandle = startAiModerationWorker();
+    // Optional: background transcode worker.
+    transcodeWorkerHandle = startTranscodeWorker();
     // AI enqueue scheduler: periodically finds pending submissions and adds them to BullMQ queue.
     startAiEnqueueScheduler();
     // Optional: normalize audio for playback (site + OBS). Disabled by default; guarded by env.

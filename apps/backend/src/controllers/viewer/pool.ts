@@ -12,6 +12,17 @@ import {
 } from './cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 
+function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
+  switch (format) {
+    case 'preview':
+      return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+    case 'webm':
+      return 'video/webm; codecs="vp9, opus"';
+    case 'mp4':
+      return 'video/mp4; codecs="avc1.4d401f, mp4a.40.2"';
+  }
+}
+
 export const getMemePool = async (req: Request, res: Response) => {
   const query = (req.query ?? {}) as Record<string, unknown>;
   const qRaw = query.q ? String(query.q).trim() : '';
@@ -85,6 +96,15 @@ export const getMemePool = async (req: Request, res: Response) => {
       fileUrl: true,
       durationMs: true,
       createdAt: true,
+      variants: {
+        select: {
+          format: true,
+          fileUrl: true,
+          status: true,
+          priority: true,
+          fileSizeBytes: true,
+        },
+      },
       _count: {
         select: {
           channelMemes: true,
@@ -102,16 +122,37 @@ export const getMemePool = async (req: Request, res: Response) => {
     },
   });
 
-  const items = rows.map((r) => ({
-    id: r.id,
-    type: r.type,
-    fileUrl: r.fileUrl,
-    durationMs: r.durationMs,
-    createdAt: r.createdAt,
-    usageCount: r._count.channelMemes,
-    sampleTitle: r.channelMemes?.[0]?.title ?? null,
-    samplePriceCoins: r.channelMemes?.[0]?.priceCoins ?? null,
-  }));
+  const items = rows.map((r) => {
+    const doneVariants = Array.isArray(r.variants)
+      ? r.variants.filter((v) => String(v.status || '') === 'done')
+      : [];
+    const preview = doneVariants.find((v) => String(v.format || '') === 'preview');
+    const variants = doneVariants
+      .filter((v) => String(v.format || '') !== 'preview')
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+      .map((v) => {
+        const format = (String(v.format || '') as 'webm' | 'mp4') || 'mp4';
+        return {
+          format,
+          fileUrl: v.fileUrl,
+          sourceType: getSourceType(format),
+          fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
+        };
+      });
+    return {
+      id: r.id,
+      memeAssetId: r.id,
+      type: r.type,
+      previewUrl: preview?.fileUrl ?? null,
+      variants,
+      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl,
+      durationMs: r.durationMs,
+      createdAt: r.createdAt,
+      usageCount: r._count.channelMemes,
+      sampleTitle: r.channelMemes?.[0]?.title ?? null,
+      samplePriceCoins: r.channelMemes?.[0]?.priceCoins ?? null,
+    };
+  });
 
   // Cache (best-effort)
   try {

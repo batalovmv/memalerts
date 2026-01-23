@@ -175,6 +175,10 @@ Important:
 
 - deploy workflow uses `rsync` **without** `.env`
 - beta and production must use **different secrets** for isolation (especially JWT); see `DEPLOYMENT.md`
+- **dotenv does not override existing env vars by default**. If PM2 process env contains prod values (`WEB_URL`, `DOMAIN`, `OVERLAY_URL`), the beta instance will *not* pick values from `.env`.
+  - Check: `pm2 env <id> | grep -E 'WEB_URL|DOMAIN|OVERLAY_URL|INSTANCE|PORT'`
+  - Fix (beta): `WEB_URL=https://beta.twitchmemes.ru DOMAIN=beta.twitchmemes.ru OVERLAY_URL=https://beta.twitchmemes.ru/overlay INSTANCE=beta PORT=3002 pm2 restart memalerts-api-beta --update-env`
+  - Persist: `pm2 save`
 
 ## DB and Redis
 

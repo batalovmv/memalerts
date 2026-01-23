@@ -10,6 +10,13 @@ import type { AuthRequest } from '../../middleware/auth.js';
 // - fileUrl is stored in DB as either an absolute URL (S3/CDN) or a relative "/uploads/..." path (local).
 //   This DTO intentionally returns `fileUrl` as-is (opaque public path).
 
+export type MemeVariantDto = {
+  format: 'webm' | 'mp4';
+  fileUrl: string;
+  sourceType: string;
+  fileSizeBytes: number | null;
+};
+
 export type ChannelMemeListItemDto = {
   // Back-compat id: legacy Meme.id when available, otherwise ChannelMeme.id.
   id: string;
@@ -21,6 +28,8 @@ export type ChannelMemeListItemDto = {
 
   title: string;
   type: string;
+  previewUrl: string | null;
+  variants: MemeVariantDto[];
   fileUrl: string | null;
   durationMs: number;
   priceCoins: number;
@@ -35,6 +44,8 @@ export type ChannelMemeListItemDto = {
   // Optional hidden AI fields (returned only for owner/admin when explicitly requested).
   aiAutoDescription?: string | null;
   aiAutoTagNames?: string[] | null;
+  aiStatus?: string | null;
+  aiAutoTitle?: string | null;
 };
 
 export function canReturnFileHash(req: Request, channelId: string): boolean {
@@ -61,6 +72,17 @@ export function canReturnAiFields(req: Request, channelId: string): boolean {
   return String(auth.channelId || '') === String(channelId);
 }
 
+export function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
+  switch (format) {
+    case 'preview':
+      return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+    case 'webm':
+      return 'video/webm; codecs="vp9, opus"';
+    case 'mp4':
+      return 'video/mp4; codecs="avc1.4d401f, mp4a.40.2"';
+  }
+}
+
 export function toChannelMemeListItemDto(
   req: Request,
   channelId: string,
@@ -77,7 +99,16 @@ export function toChannelMemeListItemDto(
       fileUrl: string | null;
       fileHash?: string | null;
       durationMs: number;
+      variants?: Array<{
+        format: string;
+        fileUrl: string;
+        status: string;
+        priority: number;
+        fileSizeBytes?: bigint | null;
+      }>;
       createdBy?: { id: string; displayName: string } | null;
+      aiStatus?: string | null;
+      aiAutoTitle?: string | null;
     };
     aiAutoDescription?: string | null;
     aiAutoTagNamesJson?: unknown | null;
@@ -85,6 +116,24 @@ export function toChannelMemeListItemDto(
 ): ChannelMemeListItemDto {
   const exposeHash = canReturnFileHash(req, channelId);
   const exposeAi = canReturnAiFields(req, channelId);
+  const doneVariants = Array.isArray(row.memeAsset.variants)
+    ? row.memeAsset.variants.filter((v) => String(v.status || '') === 'done')
+    : [];
+
+  const preview = doneVariants.find((v) => String(v.format || '') === 'preview');
+  const variants = doneVariants
+    .filter((v) => String(v.format || '') !== 'preview')
+    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+    .map((v) => {
+      const format = (String(v.format || '') as 'webm' | 'mp4') || 'mp4';
+      return {
+        format,
+        fileUrl: v.fileUrl,
+        sourceType: getSourceType(format),
+        fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
+      };
+    });
+
   return {
     id: row.legacyMemeId ?? row.id,
     channelId,
@@ -92,7 +141,9 @@ export function toChannelMemeListItemDto(
     memeAssetId: row.memeAssetId,
     title: row.title,
     type: row.memeAsset.type,
-    fileUrl: row.memeAsset.fileUrl ?? null,
+    previewUrl: preview?.fileUrl ?? null,
+    variants,
+    fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.memeAsset.fileUrl ?? null,
     durationMs: row.memeAsset.durationMs,
     priceCoins: row.priceCoins,
     status: row.status,
@@ -106,6 +157,8 @@ export function toChannelMemeListItemDto(
       ? {
           aiAutoDescription: row.aiAutoDescription ?? null,
           aiAutoTagNames: Array.isArray(row.aiAutoTagNamesJson) ? (row.aiAutoTagNamesJson as string[]) : null,
+          aiStatus: row.memeAsset.aiStatus ?? null,
+          aiAutoTitle: row.memeAsset.aiAutoTitle ?? null,
         }
       : {}),
   };

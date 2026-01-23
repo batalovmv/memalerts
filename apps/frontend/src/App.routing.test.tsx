@@ -10,8 +10,8 @@ vi.mock('./contexts/SocketContext', () => ({
   SocketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('./components/GlobalErrorBanner', () => ({ default: () => null }));
-vi.mock('./components/Footer', () => ({ default: () => null }));
+vi.mock('@/shared/ui/GlobalErrorBanner', () => ({ default: () => null }));
+vi.mock('@/widgets/footer/Footer', () => ({ default: () => null }));
 
 // Avoid network and unrelated flows for these routing tests.
 vi.mock('./store/slices/authSlice', async () => {
@@ -113,7 +113,6 @@ describe('App routing (integration)', () => {
     expect(await screen.findByText('AdminPage')).toBeInTheDocument();
   });
 });
-
 
 
 

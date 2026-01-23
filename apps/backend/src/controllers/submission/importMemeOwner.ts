@@ -6,6 +6,7 @@ import { makeAutoDescription } from '../../utils/ai/description.js';
 import { generateTagNames } from '../../utils/ai/tagging.js';
 import { enqueueAiModerationJob } from '../../queues/aiModerationQueue.js';
 import { logger } from '../../utils/logger.js';
+import { ensureMemeAssetVariants } from '../../services/memeAsset/ensureVariants.js';
 
 export async function createOwnerImportMeme(params: {
   req: AuthRequest;
@@ -16,6 +17,7 @@ export async function createOwnerImportMeme(params: {
   tagIds: string[];
   finalFilePath: string;
   fileHash: string | null;
+  contentHash: string | null;
   detectedDurationMs: number | null;
   userProvidedTitle: boolean;
 }): Promise<Response> {
@@ -28,6 +30,7 @@ export async function createOwnerImportMeme(params: {
     tagIds,
     finalFilePath,
     fileHash,
+    contentHash,
     detectedDurationMs,
     userProvidedTitle,
   } = params;
@@ -73,27 +76,44 @@ export async function createOwnerImportMeme(params: {
             : undefined,
       });
 
-      const existingAsset = fileHash
-        ? await tx.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
-        : await tx.memeAsset.findFirst({
-            where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs: durationMsSafe },
-            select: { id: true },
-          });
+      const existingAsset = contentHash
+        ? await tx.memeAsset.findFirst({ where: { contentHash }, select: { id: true } })
+        : fileHash
+          ? await tx.memeAsset.findFirst({ where: { fileHash }, select: { id: true } })
+          : await tx.memeAsset.findFirst({
+              where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs: durationMsSafe },
+              select: { id: true },
+            });
 
-      const memeAssetId =
-        existingAsset?.id ??
-        (
-          await tx.memeAsset.create({
-            data: {
-              type: 'video',
-              fileUrl: finalFilePath,
-              fileHash,
-              durationMs: durationMsSafe,
-              createdByUserId: req.userId!,
-            },
-            select: { id: true },
-          })
-        ).id;
+      let memeAssetId = existingAsset?.id ?? null;
+      if (!memeAssetId) {
+        try {
+          memeAssetId = (
+            await tx.memeAsset.create({
+              data: {
+                type: 'video',
+                fileUrl: finalFilePath,
+                fileHash,
+                contentHash: contentHash ?? undefined,
+                durationMs: durationMsSafe,
+                createdByUserId: req.userId!,
+              },
+              select: { id: true },
+            })
+          ).id;
+        } catch (error) {
+          const errCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+          if (errCode === 'P2002' && contentHash) {
+            const existing = await tx.memeAsset.findFirst({ where: { contentHash }, select: { id: true } });
+            memeAssetId = existing?.id ?? null;
+          } else {
+            throw error;
+          }
+        }
+      }
+      if (!memeAssetId) {
+        throw new Error('MEME_ASSET_CREATE_FAILED');
+      }
 
       const cm = await tx.channelMeme.upsert({
         where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId } },
@@ -199,6 +219,22 @@ export async function createOwnerImportMeme(params: {
       channelId: String(channelId),
       reason: 'memeSubmission_create_failed',
       errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (memeAssetId) {
+    void ensureMemeAssetVariants({
+      memeAssetId,
+      sourceFileUrl: finalFilePath,
+      sourceFileHash: fileHash,
+      sourceDurationMs: durationMsSafe > 0 ? durationMsSafe : null,
+    }).catch((error) => {
+      logger.warn('submission.owner_import.ensure_variants_failed', {
+        requestId: req.requestId ?? null,
+        channelId: String(channelId),
+        memeAssetId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
     });
   }
 

@@ -1,30 +1,30 @@
-﻿import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 
-import type { MemePoolItem } from '@/shared/api/memesPool';
+import type { MemePoolItem } from '@/shared/api/memes';
 import type { Meme, Wallet } from '@/types';
 
 import AuthRequiredModal from '@/components/AuthRequiredModal';
-import ChannelThemeProvider from '@/components/ChannelThemeProvider';
 import CoinsInfoModal from '@/components/CoinsInfoModal';
 import Header from '@/components/Header';
-import MemeCard from '@/components/MemeCard';
 import MemeModal from '@/components/MemeModal';
 import { YouTubeLikeClaimButton } from '@/components/Rewards/YouTubeLikeClaimButton';
 import SubmitModal from '@/components/SubmitModal';
 import { useSocket } from '@/contexts/SocketContext';
-import { useAutoplayMemes } from '@/hooks/useAutoplayMemes';
-import { useDebounce } from '@/hooks/useDebounce';
 import { api } from '@/lib/api';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
+import ChannelThemeProvider from '@/shared/lib/ChannelThemeProvider';
+import { useAutoplayMemes, useDebounce } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button, HelpTooltip, IconButton, Input, PageShell, Pill, Spinner } from '@/shared/ui';
+import { getOwnerAiStatus } from '@/shared/api/owner';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { updateWalletBalance } from '@/store/slices/authSlice';
 import { activateMeme } from '@/store/slices/memesSlice';
+import MemeCard from '@/widgets/meme-card/MemeCard';
 
 interface ChannelInfo {
   id: string;
@@ -78,13 +78,28 @@ function extractMemesFromResponse(resp: unknown): Meme[] {
   return [];
 }
 
+function mergeMemesById(prev: Meme[], next: Meme[]): Meme[] {
+  if (next.length === 0) return prev;
+  const nextById = new Map(next.map((m) => [getMemePrimaryId(m), m]));
+  const seen = new Set(nextById.keys());
+  const tail = prev.filter((m) => !seen.has(getMemePrimaryId(m)));
+  return [...next, ...tail];
+}
+
 function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
   // Pool items represent MemeAsset (channel-independent). MemeCard expects Meme-like shape.
+  const previewUrl =
+    typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string'
+      ? ((m as unknown as { previewUrl: string }).previewUrl || '').trim() || null
+      : null;
   const fileUrl =
     (typeof (m as unknown as { fileUrl?: unknown }).fileUrl === 'string' && (m as unknown as { fileUrl: string }).fileUrl) ||
-    (typeof (m as unknown as { previewUrl?: unknown }).previewUrl === 'string' && (m as unknown as { previewUrl: string }).previewUrl) ||
     (typeof (m as unknown as { url?: unknown }).url === 'string' && (m as unknown as { url: string }).url) ||
+    previewUrl ||
     '';
+  const variants = Array.isArray((m as unknown as { variants?: unknown }).variants)
+    ? ((m as unknown as { variants: Meme['variants'] }).variants ?? undefined)
+    : undefined;
 
   const title =
     typeof m.sampleTitle === 'string' && m.sampleTitle.trim() ? m.sampleTitle.trim() : typeof fallbackTitle === 'string' ? fallbackTitle : '';
@@ -104,6 +119,8 @@ function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
     id: memeAssetId,
     title,
     type,
+    previewUrl,
+    variants,
     fileUrl,
     priceCoins,
     durationMs,
@@ -270,8 +287,22 @@ export default function StreamerProfile() {
     window.addEventListener('memalerts:memeDeleted', handler as EventListener);
     return () => window.removeEventListener('memalerts:memeDeleted', handler as EventListener);
   }, []);
+
+  // Refresh meme list when owner uploads/imports a meme (SubmitModal dispatches this).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ channelId?: string }>;
+      const channelId = ce.detail?.channelId;
+      if (!channelId || !channelInfo?.id) return;
+      if (String(channelId) !== String(channelInfo.id)) return;
+      setReloadNonce((n) => n + 1);
+    };
+    window.addEventListener('memalerts:channelMemesUpdated', handler as EventListener);
+    return () => window.removeEventListener('memalerts:channelMemesUpdated', handler as EventListener);
+  }, [channelInfo?.id]);
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [ownerAiProcessingCount, setOwnerAiProcessingCount] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
@@ -279,6 +310,8 @@ export default function StreamerProfile() {
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
+  const canIncludeAi = !!(user && channelInfo && (user.role === 'admin' || user.channelId === channelInfo.id));
+  const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
   const lastLoadKeyRef = useRef<string>(''); // prevents duplicate initial loads when auth state hydrates
 
   // (Removed) public-profile hover-sound toggle: keep current behavior without a user-visible switch.
@@ -370,6 +403,7 @@ export default function StreamerProfile() {
         setMemesLoading(true);
         try {
           const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
+          const canIncludeAi = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
           // NOTE: Some backends expose pool_all catalog via `/public/channels/:slug/memes/search`.
           // Prefer it for pool_all mode, but keep a fallback to `/channels/memes/search` for back-compat.
           if (channelInfo.memeCatalogMode === 'pool_all') {
@@ -388,6 +422,7 @@ export default function StreamerProfile() {
               listParams.set('sortBy', 'createdAt');
               listParams.set('sortOrder', 'desc');
               if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+              if (canIncludeAi) listParams.set('includeAi', '1');
               listParams.set('_ts', String(Date.now()));
               let resp: unknown = null;
               try {
@@ -418,6 +453,7 @@ export default function StreamerProfile() {
             listParams.set('sortBy', 'createdAt');
             listParams.set('sortOrder', 'desc');
             if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+            if (canIncludeAi) listParams.set('includeAi', '1');
             // Avoid stale cache after recent settings toggles.
             listParams.set('_ts', String(Date.now()));
             let resp: unknown = null;
@@ -570,6 +606,7 @@ export default function StreamerProfile() {
     try {
       const nextOffset = memesOffset + MEMES_PER_PAGE;
       const canIncludeFileHash = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
+      const canIncludeAi = !!(user && (user.role === 'admin' || user.channelId === channelInfo.id));
       let newMemes: Meme[] = [];
       if (channelInfo.memeCatalogMode === 'pool_all') {
         try {
@@ -585,6 +622,7 @@ export default function StreamerProfile() {
         listParams.set('sortBy', 'createdAt');
         listParams.set('sortOrder', 'desc');
         if (canIncludeFileHash) listParams.set('includeFileHash', '1');
+        if (canIncludeAi) listParams.set('includeAi', '1');
         listParams.set('_ts', String(Date.now()));
 
         let resp: unknown;
@@ -659,6 +697,7 @@ export default function StreamerProfile() {
           setSearchResults([]);
           return;
         }
+        const canIncludeAi = !!(user && channelInfo && (user.role === 'admin' || user.channelId === channelInfo.id));
 
         const params = new URLSearchParams();
         if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
@@ -672,6 +711,7 @@ export default function StreamerProfile() {
             const p = new URLSearchParams(params);
             p.set('channelSlug', normalizedSlug);
             p.set('favorites', '1');
+            if (canIncludeAi) p.set('includeAi', '1');
             return p.toString();
           })()}`);
         } else {
@@ -687,6 +727,7 @@ export default function StreamerProfile() {
             // Back-compat only.
             searchParams.set('channelId', channelInfo.id);
           }
+          if (canIncludeAi) searchParams.set('includeAi', '1');
           // Avoid stale cache after recent toggles.
           searchParams.set('_ts', String(Date.now()));
 
@@ -723,6 +764,114 @@ export default function StreamerProfile() {
 
     performSearch();
   }, [channelInfo?.id, channelInfo?.memeCatalogMode, channelInfo?.slug, debouncedSearchQuery, normalizedSlug, myFavorites, isAuthed]);
+
+  const hasAiProcessingInList = memes.some((m) => m.aiStatus === 'pending' || m.aiStatus === 'processing');
+  const hasOwnerAiProcessing = ownerAiProcessingCount > 0;
+  const hasAiProcessing = hasAiProcessingInList || hasOwnerAiProcessing;
+
+  // Owner AI status polling (drives visible processing indicator + list refresh even before the meme appears).
+  useEffect(() => {
+    const channelSlug = String(channelInfo?.slug || normalizedSlug).toLowerCase();
+    if (!isOwner || !channelSlug) return;
+    if (channelInfo?.memeCatalogMode === 'pool_all') return;
+
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const load = async () => {
+      try {
+        const res = await getOwnerAiStatus({ take: 50 });
+        const items = res.processing.items.filter(
+          (item) => String(item.channelSlug || '').toLowerCase() === channelSlug,
+        );
+        if (!cancelled) setOwnerAiProcessingCount(items.length);
+        const nextDelay = items.length > 0 ? 6000 : 12000;
+        if (!cancelled) {
+          timer = window.setTimeout(load, nextDelay);
+        }
+      } catch {
+        if (!cancelled) setOwnerAiProcessingCount(0);
+        if (!cancelled) {
+          timer = window.setTimeout(load, 12000);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [channelInfo?.memeCatalogMode, channelInfo?.slug, isOwner, normalizedSlug]);
+
+  // Auto-refresh AI-enriched fields while AI is processing (owner/admin only).
+  useEffect(() => {
+    const channelId = channelInfo?.id || '';
+    const channelSlug = String(channelInfo?.slug || normalizedSlug).toLowerCase();
+    if (!canIncludeAi || !channelId) return;
+    if (channelInfo?.memeCatalogMode === 'pool_all') return;
+    if (memesLoading || loadingMore) return;
+    if (searchQuery.trim() || myFavorites) return;
+    if (!hasAiProcessing) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (cancelled) return;
+      try {
+        const listParams = new URLSearchParams();
+        listParams.set('channelSlug', channelSlug);
+        listParams.set('limit', String(Math.max(MEMES_PER_PAGE, Math.min(memes.length || 0, 200))));
+        listParams.set('offset', '0');
+        listParams.set('sortBy', 'createdAt');
+        listParams.set('sortOrder', 'desc');
+        listParams.set('includeAi', '1');
+        listParams.set('_ts', String(Date.now()));
+
+        let resp: unknown;
+        try {
+          resp = await fetchChannelMemesSearch({
+            channelSlug,
+            params: listParams,
+            timeoutMs: 15000,
+          });
+        } catch {
+          const fallbackParams = new URLSearchParams(listParams);
+          fallbackParams.delete('channelSlug');
+          fallbackParams.set('channelId', channelId);
+          resp = await api.get<unknown>(`/channels/memes/search?${fallbackParams.toString()}`, {
+            timeout: 15000,
+            headers: { 'Cache-Control': 'no-store' },
+          });
+        }
+
+        const latest = extractMemesFromResponse(resp);
+        if (!cancelled && latest.length > 0) {
+          setMemes((prev) => mergeMemesById(prev, latest));
+        }
+      } catch {
+        // ignore background refresh errors
+      }
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    canIncludeAi,
+    channelInfo?.id,
+    channelInfo?.slug,
+    channelInfo?.memeCatalogMode,
+    hasAiProcessing,
+    memesLoading,
+    loadingMore,
+    searchQuery,
+    myFavorites,
+    normalizedSlug,
+    memes.length,
+    MEMES_PER_PAGE,
+  ]);
 
   const handleActivate = async (memeId: string): Promise<void> => {
     if (!user) {
@@ -835,9 +984,6 @@ export default function StreamerProfile() {
       </PageShell>
     );
   }
-
-  // Check if current user is the owner of this channel
-  const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
 
   // Show page structure immediately, even if channel info is still loading
   return (
@@ -1084,6 +1230,16 @@ export default function StreamerProfile() {
 
         {/* Memes List */}
         <h2 className="text-2xl font-bold mb-4 dark:text-white">{t('profile.availableMemes')}</h2>
+        {isOwner && hasAiProcessing ? (
+          <div className="mb-4 rounded-xl bg-amber-50/80 dark:bg-amber-400/10 border border-amber-200/70 dark:border-amber-400/30 p-3 flex items-center gap-3">
+            <Spinner className="h-4 w-4 border-amber-300/70 border-t-amber-500" />
+            <div className="text-sm text-amber-900 dark:text-amber-200">
+              {t('profile.aiProcessingNotice', {
+                defaultValue: 'AI is processing new memes. They will appear automatically.',
+              })}
+            </div>
+          </div>
+        ) : null}
         {(() => {
           // If favorites is enabled, we always render searchResults (even with empty query).
           // Otherwise, only render searchResults when user is actually searching.

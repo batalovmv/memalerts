@@ -103,9 +103,9 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
       memeCatalogMode: true,
       defaultPriceCoins: true,
       users: {
-        where: { role: 'streamer' },
-        take: 1,
-        select: { id: true, displayName: true, profileImageUrl: true },
+        take: 5,
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, displayName: true, profileImageUrl: true, role: true },
       },
       _count: {
         select: {
@@ -122,7 +122,11 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
       .json({ errorCode: 'CHANNEL_NOT_FOUND', error: 'Channel not found', details: { entity: 'channel', slug } });
   }
 
-  const owner = channel.users[0] || null;
+  const owner =
+    channel.users.find((u) => u.role === 'streamer') ||
+    channel.users.find((u) => u.role === 'admin') ||
+    channel.users[0] ||
+    null;
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
   const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const response: PublicChannelResponse = {
@@ -164,6 +168,15 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
           type: true,
           fileUrl: true,
           durationMs: true,
+          variants: {
+            select: {
+              format: true,
+              fileUrl: true,
+              status: true,
+              priority: true,
+              fileSizeBytes: true,
+            },
+          },
           createdAt: true,
           aiAutoTitle: true,
           createdBy: { select: { id: true, displayName: true } },
@@ -212,6 +225,15 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
               type: true,
               fileUrl: true,
               durationMs: true,
+              variants: {
+                select: {
+                  format: true,
+                  fileUrl: true,
+                  status: true,
+                  priority: true,
+                  fileSizeBytes: true,
+                },
+              },
               createdBy: { select: { id: true, displayName: true } },
             },
           },

@@ -1100,6 +1100,8 @@ model MemeAsset {
   // Preferred playback URL (e.g. audio-normalized derivative). If null, clients should use fileUrl.
   playFileUrl String?
   fileHash   String? // SHA-256 hash for deduplication (preferred)
+  // Perceptual content hash for dedup across formats/bitrates (versioned: "v2:<sha256>")
+  contentHash String? @db.VarChar(70)
   durationMs Int
 
   createdByUserId String?
@@ -1142,14 +1144,54 @@ model MemeAsset {
 
   channelMemes ChannelMeme[]
   submissions  MemeSubmission[]
+  variants     MemeAssetVariant[]
 
   @@index([fileHash])
+  @@index([contentHash])
+  @@unique([contentHash])
   @@index([createdByUserId])
   @@index([poolVisibility])
   @@index([poolHiddenAt])
   @@index([purgeNotBefore])
   @@index([purgedAt])
   @@index([createdAt])
+}
+
+model MemeAssetVariant {
+  id          String   @id @default(uuid())
+  memeAssetId String
+  memeAsset   MemeAsset @relation(fields: [memeAssetId], references: [id], onDelete: Cascade)
+
+  // Format info
+  format    String // preview | webm | mp4
+  codec     String // avc1.42E01E | vp9 | avc1.4d401f
+  container String // mp4 | webm
+  mimeType  String // video/mp4 | video/webm
+
+  // File info
+  fileUrl       String
+  fileHash      String? @db.VarChar(64)
+  fileSizeBytes BigInt?
+
+  durationMs Int?
+  width      Int?
+  height     Int?
+  bitrate    Int?
+
+  status       String   @default("pending")
+  priority     Int      @default(0)
+  errorMessage String?  @db.Text
+  retryCount   Int      @default(0)
+  lastTriedAt  DateTime?
+  completedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([memeAssetId, format])
+  @@index([memeAssetId])
+  @@index([status])
+  @@index([format])
 }
 
 // Channel-scoped adoption of a MemeAsset (what streamer actually uses).

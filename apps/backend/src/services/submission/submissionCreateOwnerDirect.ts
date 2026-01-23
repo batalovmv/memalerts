@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger.js';
 import { logFileUpload } from '../../utils/auditLogger.js';
 import { makeAutoDescription } from '../../utils/ai/description.js';
 import { generateTagNames } from '../../utils/ai/tagging.js';
+import { ensureMemeAssetVariants } from '../memeAsset/ensureVariants.js';
 
 export async function handleOwnerDirectSubmission(opts: {
   deps: SubmissionDeps;
@@ -19,6 +20,7 @@ export async function handleOwnerDirectSubmission(opts: {
   tagIds: string[];
   finalFilePath: string;
   fileHash: string | null;
+  contentHash: string | null;
   normalizedMimeType: string;
   normalizedSizeBytes: number;
   effectiveDurationMs: number | null;
@@ -34,6 +36,7 @@ export async function handleOwnerDirectSubmission(opts: {
     tagIds,
     finalFilePath,
     fileHash,
+    contentHash,
     normalizedMimeType,
     normalizedSizeBytes,
     effectiveDurationMs,
@@ -89,27 +92,44 @@ export async function handleOwnerDirectSubmission(opts: {
             : undefined,
       });
 
-      const existingAsset = fileHash
-        ? await txRepos.memes.asset.findFirst({ where: { fileHash }, select: { id: true } })
-        : await txRepos.memes.asset.findFirst({
-            where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs },
-            select: { id: true },
-          });
+      const existingAsset = contentHash
+        ? await txRepos.memes.asset.findFirst({ where: { contentHash }, select: { id: true } })
+        : fileHash
+          ? await txRepos.memes.asset.findFirst({ where: { fileHash }, select: { id: true } })
+          : await txRepos.memes.asset.findFirst({
+              where: { fileHash: null, fileUrl: finalFilePath, type: 'video', durationMs },
+              select: { id: true },
+            });
 
-      const memeAssetId =
-        existingAsset?.id ??
-        (
-          await txRepos.memes.asset.create({
-            data: {
-              type: 'video',
-              fileUrl: finalFilePath,
-              fileHash,
-              durationMs,
-              createdByUserId: req.userId!,
-            },
-            select: { id: true },
-          })
-        ).id;
+      let memeAssetId = existingAsset?.id ?? null;
+      if (!memeAssetId) {
+        try {
+          memeAssetId = (
+            await txRepos.memes.asset.create({
+              data: {
+                type: 'video',
+                fileUrl: finalFilePath,
+                fileHash,
+                contentHash: contentHash ?? undefined,
+                durationMs,
+                createdByUserId: req.userId!,
+              },
+              select: { id: true },
+            })
+          ).id;
+        } catch (error) {
+          const errCode = typeof error === 'object' && error !== null ? (error as { code?: string }).code : null;
+          if (errCode === 'P2002' && contentHash) {
+            const existing = await txRepos.memes.asset.findFirst({ where: { contentHash }, select: { id: true } });
+            memeAssetId = existing?.id ?? null;
+          } else {
+            throw error;
+          }
+        }
+      }
+      if (!memeAssetId) {
+        throw new Error('MEME_ASSET_CREATE_FAILED');
+      }
 
       const cm = await txRepos.memes.channelMeme.upsert({
         where: { channelId_memeAssetId: { channelId: String(channelId), memeAssetId } },
@@ -229,6 +249,22 @@ export async function handleOwnerDirectSubmission(opts: {
   }
 
   await logFileUpload(req.userId!, channelId as string, finalFilePath, normalizedSizeBytes, true, req);
+
+  if (memeAssetId) {
+    void ensureMemeAssetVariants({
+      memeAssetId,
+      sourceFileUrl: finalFilePath,
+      sourceFileHash: fileHash,
+      sourceDurationMs: durationMs > 0 ? durationMs : null,
+    }).catch((error) => {
+      logger.warn('submission.owner.ensure_variants_failed', {
+        requestId: req.requestId ?? null,
+        channelId: String(channelId),
+        memeAssetId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
 
   res.status(201).json({
     ...meme,

@@ -12,12 +12,13 @@ import type { AiModerationSubmission } from './aiModerationTypes.js';
 export async function tryReuseAiResults(opts: {
   submission: AiModerationSubmission;
   fileHash: string;
+  contentHash?: string | null;
   now: Date;
 }): Promise<boolean> {
-  const { submission, fileHash, now } = opts;
+  const { submission, fileHash, contentHash, now } = opts;
 
   const existingAsset = await prisma.memeAsset.findFirst({
-    where: { fileHash, aiStatus: 'done' },
+    where: contentHash ? { contentHash, aiStatus: 'done' } : { fileHash, aiStatus: 'done' },
     select: { id: true, aiAutoTitle: true, aiAutoDescription: true, aiAutoTagNamesJson: true, aiSearchText: true },
   });
 
@@ -33,6 +34,7 @@ export async function tryReuseAiResults(opts: {
     logger.info('ai_moderation.dedup.skip_reuse_placeholder', {
       submissionId: submission.id,
       fileHash,
+      contentHash: contentHash ?? null,
       memeAssetId: existingAsset.id,
       reason: 'placeholder_ai_fields',
     });

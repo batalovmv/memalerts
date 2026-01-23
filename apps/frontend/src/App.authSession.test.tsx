@@ -10,11 +10,11 @@ vi.mock('./contexts/SocketContext', () => ({
   SocketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('./components/GlobalErrorBanner', () => ({
+vi.mock('@/shared/ui/GlobalErrorBanner', () => ({
   default: () => null,
 }));
 
-vi.mock('./components/Footer', () => ({
+vi.mock('@/widgets/footer/Footer', () => ({
   default: () => null,
 }));
 
@@ -54,5 +54,4 @@ describe('App auth/session orchestration (integration)', () => {
     await waitFor(() => expect(store.getState().auth.user).toBeNull());
   });
 });
-
 

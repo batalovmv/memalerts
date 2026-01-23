@@ -28,8 +28,10 @@ vi.mock('@/contexts/HelpModeContext', () => ({
   useHelpMode: () => ({ enabled: false, setEnabled: vi.fn() }),
 }));
 
-vi.mock('@/hooks/useAutoplayMemes', () => ({
+vi.mock('@/shared/lib/hooks', () => ({
   useAutoplayMemes: () => ({ autoplayMemesEnabled: false }),
+  useDebounce: <T,>(value: T) => value,
+  useHotkeys: () => {},
 }));
 
 vi.mock('@/components/SubmitModal', () => ({
@@ -44,7 +46,7 @@ vi.mock('@/components/MemeModal', () => ({
   },
 }));
 
-vi.mock('@/components/SecretCopyField', () => ({
+vi.mock('@/shared/ui/SecretCopyField/SecretCopyField', () => ({
   default: function SecretCopyFieldMock(props: { label: string; value: string }) {
     return (
       <div data-testid="secret-copy-field">

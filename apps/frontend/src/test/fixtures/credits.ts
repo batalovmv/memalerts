@@ -1,4 +1,4 @@
-import type { CreditsState } from '@/shared/api/creditsOverlay';
+import type { CreditsState } from '@/shared/api/overlay';
 import type { CreditsEntry } from '@/types';
 
 export function makeCreditsEntry(overrides: Partial<CreditsEntry> = {}): CreditsEntry {

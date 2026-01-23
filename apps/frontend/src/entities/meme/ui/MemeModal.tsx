@@ -11,7 +11,7 @@ import { resolveMediaUrl } from '@/lib/urls';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
 import { getMemeIdForActivation, getMemePrimaryId } from '@/shared/lib/memeIds';
 import { getUserPreferences, patchUserPreferences } from '@/shared/lib/userPreferences';
-import { Button, HelpTooltip, Input, Pill, Textarea } from '@/shared/ui';
+import { Button, HelpTooltip, Input, Pill, Spinner, Textarea } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 import { useAppSelector } from '@/store/hooks';
@@ -72,8 +72,12 @@ export default function MemeModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const lastNonZeroVolumeRef = useRef<number>(1);
   const volumeRef = useRef<number>(1);
+  const lastPreviewTimeRef = useRef<number>(0);
+  const lastActivePlayingRef = useRef<boolean>(true);
+  const [isFullReady, setIsFullReady] = useState(false);
 
   const persistAudioToLocalStorage = (nextMuted: boolean, nextVolume: number) => {
     try {
@@ -95,6 +99,11 @@ export default function MemeModal({
       setIsEditing(false);
     }
   }, [meme]);
+
+  useEffect(() => {
+    setIsFullReady(false);
+    lastPreviewTimeRef.current = 0;
+  }, [currentMeme?.id]);
 
   // Sync mute onto the element as soon as the meme changes / modal opens.
   useEffect(() => {
@@ -144,20 +153,27 @@ export default function MemeModal({
 
   // Auto-play video when modal opens
   useEffect(() => {
-    if (isOpen && videoRef.current && currentMeme) {
-      videoRef.current.play().catch(() => {
+    if (isOpen && currentMeme) {
+      const target = isFullReady ? videoRef.current : previewVideoRef.current;
+      target?.play().catch(() => {
         // Ignore autoplay errors
       });
       setIsPlaying(true);
-    } else if (!isOpen && videoRef.current) {
-      videoRef.current.pause();
+      lastActivePlayingRef.current = true;
+    } else {
+      previewVideoRef.current?.pause();
+      videoRef.current?.pause();
       setIsPlaying(false);
+      lastActivePlayingRef.current = false;
     }
-  }, [isOpen, currentMeme]);
+  }, [isOpen, currentMeme, isFullReady]);
 
   if (!isOpen || !currentMeme) return null;
 
-  const videoUrl = resolveMediaUrl(currentMeme.playFileUrl || currentMeme.fileUrl);
+  const variants = Array.isArray(currentMeme?.variants) ? currentMeme.variants : [];
+  const previewUrl = currentMeme.previewUrl ? resolveMediaUrl(currentMeme.previewUrl) : '';
+  const hasPreview = Boolean(previewUrl);
+  const videoUrl = resolveMediaUrl(variants[0]?.fileUrl || currentMeme.playFileUrl || currentMeme.fileUrl);
   const creatorName = currentMeme.createdBy?.displayName || 'Unknown';
   const hasAiFields = 'aiAutoDescription' in currentMeme || 'aiAutoTagNames' in currentMeme;
   const aiTags = Array.isArray(currentMeme.aiAutoTagNames) ? currentMeme.aiAutoTagNames.filter((x) => typeof x === 'string') : [];
@@ -167,6 +183,8 @@ export default function MemeModal({
   const hasAiDesc = !!aiDesc.trim() && !aiDescEffectivelyEmpty;
   const hasAi = aiTags.length > 0 || hasAiDesc;
   const canRegenerateAi = mode === 'admin' && (!!isOwner || user?.role === 'admin');
+  const aiStatus = typeof currentMeme.aiStatus === 'string' ? currentMeme.aiStatus : null;
+  const isAiProcessing = aiStatus === 'pending' || aiStatus === 'processing';
 
   const statusLabel = (() => {
     const s = (currentMeme.status || '').toLowerCase();
@@ -195,15 +213,21 @@ export default function MemeModal({
   };
   const source = getSource();
 
+  const getActiveVideo = () => (isFullReady || !hasPreview ? videoRef.current : previewVideoRef.current);
+
   const handlePlayPause = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        videoRef.current.play();
-        setIsPlaying(true);
-      }
+    const active = getActiveVideo();
+    if (!active) return;
+    if (isPlaying) {
+      active.pause();
+      setIsPlaying(false);
+      lastActivePlayingRef.current = false;
+    } else {
+      active.play().catch(() => {
+        // ignore autoplay errors
+      });
+      setIsPlaying(true);
+      lastActivePlayingRef.current = true;
     }
   };
 
@@ -345,34 +369,102 @@ export default function MemeModal({
       >
         {/* Blurred background to avoid black bars on vertical videos */}
         <video
-          src={videoUrl}
+          src={hasPreview ? previewUrl : variants.length === 0 ? videoUrl : undefined}
           muted
           loop
           playsInline
           className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
           preload="auto"
           aria-hidden="true"
-        />
+        >
+          {!hasPreview && variants.length > 0
+            ? variants.map((variant) => (
+                <source key={variant.format} src={resolveMediaUrl(variant.fileUrl)} type={variant.sourceType} />
+              ))
+            : null}
+        </video>
         <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
 
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          muted={isMuted}
-          loop
-          playsInline
-          className="relative z-10 w-full h-full object-contain"
-          preload="auto"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onError={() => {
-            toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
-          }}
-          aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
-        />
+        <div className="absolute inset-0 z-10">
+          {hasPreview ? (
+            <video
+              ref={previewVideoRef}
+              src={previewUrl}
+              muted
+              loop
+              playsInline
+              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
+                isFullReady ? 'opacity-0' : 'opacity-100'
+              }`}
+              preload="auto"
+              onPlay={() => {
+                setIsPlaying(true);
+                lastActivePlayingRef.current = true;
+              }}
+              onPause={() => {
+                setIsPlaying(false);
+                lastActivePlayingRef.current = false;
+              }}
+              onTimeUpdate={() => {
+                if (previewVideoRef.current) {
+                  lastPreviewTimeRef.current = previewVideoRef.current.currentTime || 0;
+                }
+              }}
+              aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
+            />
+          ) : null}
+
+          <video
+            ref={videoRef}
+            src={variants.length === 0 ? videoUrl : undefined}
+            muted={isMuted}
+            loop
+            playsInline
+            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
+              !hasPreview || isFullReady ? 'opacity-100' : 'opacity-0'
+            }`}
+            preload="auto"
+            onPlay={() => {
+              setIsPlaying(true);
+              lastActivePlayingRef.current = true;
+            }}
+            onPause={() => {
+              setIsPlaying(false);
+              lastActivePlayingRef.current = false;
+            }}
+            onCanPlay={() => {
+              if (isFullReady) return;
+              const previewTime = lastPreviewTimeRef.current;
+              if (videoRef.current && Number.isFinite(previewTime)) {
+                try {
+                  videoRef.current.currentTime = Math.max(0, previewTime);
+                } catch {
+                  // ignore seek errors
+                }
+              }
+              if (lastActivePlayingRef.current) {
+                videoRef.current?.play().catch(() => {
+                  // ignore autoplay errors
+                });
+              }
+              previewVideoRef.current?.pause();
+              setIsFullReady(true);
+            }}
+            onError={() => {
+              toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
+            }}
+            aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${currentMeme.title}`}
+          >
+            {variants.length > 0
+              ? variants.map((variant) => (
+                  <source key={variant.format} src={resolveMediaUrl(variant.fileUrl)} type={variant.sourceType} />
+                ))
+              : null}
+          </video>
+        </div>
 
         {/* Custom Video Controls */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2">
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2">
           <button
             type="button"
             onClick={handlePlayPause}
@@ -529,8 +621,14 @@ export default function MemeModal({
                 disabled={!isEditing}
               />
             ) : (
-              <h2 id="meme-modal-title" className="text-2xl font-bold dark:text-white">
-                {currentMeme.title}
+              <h2 id="meme-modal-title" className="text-2xl font-bold dark:text-white flex flex-wrap items-center gap-3">
+                <span>{currentMeme.title}</span>
+                {canViewAi && isAiProcessing ? (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-black/5 dark:bg-white/10 px-2.5 py-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    <Spinner className="h-3 w-3" />
+                    {t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}
+                  </span>
+                ) : null}
               </h2>
             )}
           </div>

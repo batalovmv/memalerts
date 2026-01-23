@@ -1,17 +1,21 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import fs from 'fs';
+import path from 'path';
 import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../../utils/fileHash.js';
 import { validateFileContent } from '../../utils/fileTypeValidator.js';
 import { logSecurityEvent } from '../../utils/auditLogger.js';
 import { getVideoMetadata } from '../../utils/videoValidator.js';
-import { normalizeVideoForPlayback } from '../../utils/media/videoNormalization.js';
+import { transcodeToFormat } from '../../utils/media/videoNormalization.js';
+import { VIDEO_FORMATS } from '../../utils/media/videoFormats.js';
+import { computeContentHash } from '../../utils/media/contentHash.js';
 import { logger } from '../../utils/logger.js';
 import { localPathToPublicUploadsPath, resolveUploadFilePath, safeUnlink } from './submissionShared.js';
 
 export type SubmissionUploadResult = {
   finalFilePath: string;
   fileHash: string | null;
+  contentHash: string | null;
   normalizedMimeType: string;
   normalizedSizeBytes: number;
   effectiveDurationMs: number | null;
@@ -119,15 +123,21 @@ export async function processSubmissionUpload(opts: {
   let normalizedMimeType = 'video/mp4';
   let normalizedDurationMs: number | null = null;
   let normalizedPublicPath: string | null = null;
+  let normalizedFileHash: string | null = null;
+  let contentHash: string | null = null;
   try {
-    const normalized = await normalizeVideoForPlayback({ inputPath: filePath });
+    contentHash = await computeContentHash(filePath);
+    const baseName = `upload-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const outputDir = fs.realpathSync(path.dirname(filePath));
+    const normalized = await transcodeToFormat(filePath, outputDir, 'mp4', baseName);
     normalizedPath = normalized.outputPath;
-    normalizedMimeType = normalized.mimeType;
+    normalizedMimeType = VIDEO_FORMATS.mp4.mimeType;
     normalizedDurationMs = normalized.durationMs;
+    normalizedFileHash = normalized.fileHash;
     normalizedPublicPath = localPathToPublicUploadsPath(normalizedPath);
     tempFileForCleanup = normalizedPath;
 
-    if (!normalized.transcodeSkipped && normalizedPath !== filePath) {
+    if (normalizedPath !== filePath) {
       await safeUnlink(filePath);
     }
   } catch (error) {
@@ -169,12 +179,14 @@ export async function processSubmissionUpload(opts: {
   let fileHash: string | null = null;
   tempFileForCleanup = normalizedPath;
   try {
-    const hashPromise = calculateFileHash(normalizedPath);
-    const hashTimeout = new Promise<string>((_, reject) => {
-      setTimeout(() => reject(new Error('Hash calculation timeout')), 30000);
-    });
-
-    const hash = await Promise.race([hashPromise, hashTimeout]);
+    const hash =
+      normalizedFileHash ??
+      (await Promise.race([
+        calculateFileHash(normalizedPath),
+        new Promise<string>((_, reject) => {
+          setTimeout(() => reject(new Error('Hash calculation timeout')), 30000);
+        }),
+      ]));
     const stats = await getFileStats(normalizedPath);
     const result = await findOrCreateFileHash(normalizedPath, hash, stats.mimeType, stats.size);
     finalFilePath = result.filePath;
@@ -202,6 +214,7 @@ export async function processSubmissionUpload(opts: {
   return {
     finalFilePath,
     fileHash,
+    contentHash,
     normalizedMimeType,
     normalizedSizeBytes,
     effectiveDurationMs,

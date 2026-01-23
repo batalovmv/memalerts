@@ -17,6 +17,9 @@ import { assertChannelOwner } from '../../utils/accessControl.js';
 import { decrementFileHashReference } from '../../utils/fileHash.js';
 import { asRecord, getErrorMessage } from './submissionShared.js';
 import { resolveApprovalInputs, type ApprovalSubmission } from './submissionApproveFileOps.js';
+import { computeContentHash } from '../../utils/media/contentHash.js';
+import { resolveLocalMediaPath } from '../../utils/media/resolveMediaPath.js';
+import { ensureMemeAssetVariants } from '../memeAsset/ensureVariants.js';
 
 type Submission = ApprovalSubmission;
 export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
@@ -33,6 +36,9 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
   debugLog('[DEBUG] approveSubmission started', { submissionId: id, channelId });
 
   let submission: Submission | null = null; // Declare submission in outer scope for error handling
+  let postApproveVariantInput:
+    | { memeAssetId: string; fileUrl: string; fileHash: string | null; durationMs: number }
+    | null = null;
   try {
     const body = approveSubmissionSchema.parse(req.body);
     const io: Server = req.app.get('io');
@@ -239,6 +245,20 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
             const { finalFileUrl, fileHash, durationMs, priceCoins, tagNames } = approvalInputs;
             fileHashForCleanup = approvalInputs.fileHashForCleanup;
             fileHashRefAdded = approvalInputs.fileHashRefAdded;
+            let contentHash: string | null = null;
+            try {
+              const fileUrlForHash = finalFileUrl || submission.fileUrlTemp;
+              if (fileUrlForHash) {
+                const resolved = await resolveLocalMediaPath(fileUrlForHash);
+                if (resolved) {
+                  contentHash = await computeContentHash(resolved.localPath);
+                  await resolved.cleanup();
+                }
+              }
+            } catch (hashError) {
+              const msg = hashError instanceof Error ? hashError.message : String(hashError);
+              logger.warn('submission.approve.contenthash_failed', { submissionId: id, errorMessage: msg });
+            }
 
             // Create approved meme + dual-write via shared internal helper (keeps AI auto-approve consistent).
             let approved: Awaited<ReturnType<typeof approveSubmissionInternal>>['legacyMeme'];
@@ -250,12 +270,21 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
                 resolved: {
                   finalFileUrl,
                   fileHash,
+                  contentHash,
                   durationMs,
                   priceCoins,
                   tagNames,
                 },
               });
               approved = res.legacyMeme;
+              if (res.memeAssetId && finalFileUrl) {
+                postApproveVariantInput = {
+                  memeAssetId: res.memeAssetId,
+                  fileUrl: finalFileUrl,
+                  fileHash,
+                  durationMs,
+                };
+              }
             } catch (error: unknown) {
               debugLog('[DEBUG] Error in approveSubmissionInternal', {
                 submissionId: id,
@@ -324,6 +353,21 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
 
     // NOTE: kept for future background handling (was present in original file).
     void submissionForBackground;
+
+    if (postApproveVariantInput) {
+      void ensureMemeAssetVariants({
+        memeAssetId: postApproveVariantInput.memeAssetId,
+        sourceFileUrl: postApproveVariantInput.fileUrl,
+        sourceFileHash: postApproveVariantInput.fileHash,
+        sourceDurationMs: postApproveVariantInput.durationMs,
+      }).catch((err) => {
+        logger.warn('submission.approve.ensure_variants_failed', {
+          submissionId: id,
+          memeAssetId: postApproveVariantInput?.memeAssetId,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
 
     res.json(result);
   } catch (error: unknown) {

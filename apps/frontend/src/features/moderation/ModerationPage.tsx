@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
 import Header from '@/components/Header';
-import { useDebounce } from '@/hooks/useDebounce';
 import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
 import {
@@ -14,8 +13,9 @@ import {
   moderationHideMemeAsset,
   moderationQuarantineMemeAsset,
   moderationUnhideMemeAsset,
-} from '@/shared/api/moderationMemeAssets';
+} from '@/shared/api/memes';
 import { cn } from '@/shared/lib/cn';
+import { useDebounce } from '@/shared/lib/hooks';
 import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { Button, HelpTooltip, Input, PageShell, Spinner, Textarea } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';

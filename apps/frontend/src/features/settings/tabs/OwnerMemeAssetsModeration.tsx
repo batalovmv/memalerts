@@ -3,12 +3,12 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
-import type { OwnerMemeAsset, OwnerMemeAssetStatus } from '@/shared/api/ownerMemeAssets';
+import type { OwnerMemeAsset, OwnerMemeAssetStatus } from '@/shared/api/memes';
 
-import { useDebounce } from '@/hooks/useDebounce';
 import { resolveMediaUrl } from '@/lib/urls';
-import { getOwnerMemeAssets, ownerRestoreMemeAsset } from '@/shared/api/ownerMemeAssets';
+import { getOwnerMemeAssets, ownerRestoreMemeAsset } from '@/shared/api/memes';
 import { cn } from '@/shared/lib/cn';
+import { useDebounce } from '@/shared/lib/hooks';
 import { Button, Input, Spinner } from '@/shared/ui';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
 

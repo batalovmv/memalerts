@@ -12,6 +12,7 @@ build/
 .claude/
 FRONTEND_BACKEND_INTEGRATION_PLAN.md
 OPTIMIZATION_PLAN.md
+REFACTORING_PLAN.md
 
 # Test/coverage artifacts
 coverage/

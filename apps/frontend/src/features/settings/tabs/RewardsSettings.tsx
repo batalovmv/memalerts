@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import type { TwitchAutoRewardsV1 } from '@/types';
 
-import SecretCopyField from '@/components/SecretCopyField';
 import { useChannelColors } from '@/contexts/ChannelColorsContext';
 import { AutoRewardsEditor } from '@/features/settings/tabs/rewards/TwitchAutoRewardsEditor';
 import { SettingsSection } from '@/features/settings/ui/SettingsSection';
@@ -12,6 +11,7 @@ import { toApiError } from '@/shared/api/toApiError';
 import { getApiOriginForRedirect, login } from '@/shared/auth/login';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 import { Button, HelpTooltip, Input } from '@/shared/ui';
+import SecretCopyField from '@/shared/ui/SecretCopyField/SecretCopyField';
 import { SavedOverlay, SavingOverlay } from '@/shared/ui/StatusOverlays';
 import { useAppSelector } from '@/store/hooks';
 

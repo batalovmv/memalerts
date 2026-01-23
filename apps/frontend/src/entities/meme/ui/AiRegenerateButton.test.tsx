@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { Meme } from '@/types';
 
-import { regenerateMemeAi } from '@/shared/api/streamerMemes';
+import { regenerateMemeAi } from '@/shared/api/channel';
 import { AiRegenerateButton } from './AiRegenerateButton';
 
 vi.mock('react-hot-toast', () => ({
@@ -13,7 +13,7 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
-vi.mock('@/shared/api/streamerMemes', async (orig) => {
+vi.mock('@/shared/api/channel', async (orig) => {
   const mod = (await orig()) as object;
   return {
     ...(mod as any),

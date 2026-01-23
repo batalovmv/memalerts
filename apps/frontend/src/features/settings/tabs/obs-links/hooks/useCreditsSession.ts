@@ -9,7 +9,7 @@ import {
   resetCreditsSession as resetCreditsSessionApi,
   setIgnoredChatters,
   setReconnectWindow,
-} from '@/shared/api/creditsOverlay';
+} from '@/shared/api/overlay';
 import { ensureMinDuration } from '@/shared/lib/ensureMinDuration';
 
 export type CreditsSessionState = ReturnType<typeof useCreditsSession>;

@@ -12,7 +12,7 @@ import {
 
 import type { CreditsSettingsLoaderState } from './creditsSettingsLoaderTypes';
 
-import { getCreditsToken } from '@/shared/api/creditsOverlay';
+import { getCreditsToken } from '@/shared/api/overlay';
 
 export function useCreditsSettingsLoader(channelSlug: string, state: CreditsSettingsLoaderState) {
   const {
