@@ -118,6 +118,15 @@ jobs:
           CLOUDFLARE_ORIGIN_CERT: ${{ secrets.CLOUDFLARE_ORIGIN_CERT }}
           CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          UPLOAD_STORAGE: ${{ secrets.UPLOAD_STORAGE }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_PUBLIC_BASE_URL: ${{ secrets.S3_PUBLIC_BASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ secrets.S3_REGION }}
+          S3_KEY_PREFIX: ${{ secrets.S3_KEY_PREFIX }}
+          S3_FORCE_PATH_STYLE: ${{ secrets.S3_FORCE_PATH_STYLE }}
           DOMAIN: ${{ secrets.DOMAIN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           KICK_AUTHORIZE_URL: ${{ secrets.KICK_AUTHORIZE_URL }}
@@ -444,6 +453,15 @@ jobs:
             CLOUDFLARE_ORIGIN_CERT
             CLOUDFLARE_ORIGIN_KEY
             DATABASE_URL
+            UPLOAD_STORAGE
+            S3_ACCESS_KEY_ID
+            S3_SECRET_ACCESS_KEY
+            S3_BUCKET
+            S3_PUBLIC_BASE_URL
+            S3_ENDPOINT
+            S3_REGION
+            S3_KEY_PREFIX
+            S3_FORCE_PATH_STYLE
             DOMAIN
             JWT_SECRET
             KICK_AUTHORIZE_URL
@@ -762,6 +780,17 @@ jobs:
           CLOUDFLARE_ORIGIN_KEY: ${{ secrets.CLOUDFLARE_ORIGIN_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_URL_BETA: ${{ secrets.DATABASE_URL_BETA }}
+          UPLOAD_STORAGE: ${{ secrets.UPLOAD_STORAGE }}
+          UPLOAD_STORAGE_BETA: ${{ secrets.UPLOAD_STORAGE_BETA }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_PUBLIC_BASE_URL: ${{ secrets.S3_PUBLIC_BASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ secrets.S3_REGION }}
+          S3_KEY_PREFIX: ${{ secrets.S3_KEY_PREFIX }}
+          S3_KEY_PREFIX_BETA: ${{ secrets.S3_KEY_PREFIX_BETA }}
+          S3_FORCE_PATH_STYLE: ${{ secrets.S3_FORCE_PATH_STYLE }}
           DOMAIN: ${{ secrets.DOMAIN }}
           DOMAIN_BETA: ${{ secrets.DOMAIN_BETA }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -1093,6 +1122,15 @@ jobs:
             CLOUDFLARE_ORIGIN_KEY
             DATABASE_URL
             DATABASE_URL_BETA
+            UPLOAD_STORAGE
+            S3_ACCESS_KEY_ID
+            S3_SECRET_ACCESS_KEY
+            S3_BUCKET
+            S3_PUBLIC_BASE_URL
+            S3_ENDPOINT
+            S3_REGION
+            S3_KEY_PREFIX
+            S3_FORCE_PATH_STYLE
             DOMAIN
             JWT_SECRET_BETA
             KICK_AUTHORIZE_URL
@@ -1151,6 +1189,15 @@ jobs:
             DOMAIN
             WEB_URL
             OVERLAY_URL
+            UPLOAD_STORAGE
+            S3_ACCESS_KEY_ID
+            S3_SECRET_ACCESS_KEY
+            S3_BUCKET
+            S3_PUBLIC_BASE_URL
+            S3_ENDPOINT
+            S3_REGION
+            S3_KEY_PREFIX
+            S3_FORCE_PATH_STYLE
             KICK_CALLBACK_URL
             TROVO_CALLBACK_URL
             TWITCH_CALLBACK_URL
