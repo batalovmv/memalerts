@@ -10,7 +10,6 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../src/lib/prisma.js';
-import { calculateFileHash } from '../src/utils/fileHash.js';
 import { configureFfmpegPaths } from '../src/utils/media/configureFfmpeg.js';
 import { createChannel, createUser } from './factories/index.js';
 
@@ -214,8 +213,6 @@ describe('video normalization on upload', () => {
       inputPath,
     ]);
 
-    const originalHash = await calculateFileHash(inputPath);
-
     const token = makeJwt({ userId: viewer.id, role: 'viewer', channelId: null });
     const app = await makeApp();
     const res = await request(app)
@@ -230,8 +227,10 @@ describe('video normalization on upload', () => {
     expect(res.status).toBe(201);
     const publicPath = String(res.body?.fileUrlTemp || '');
     const localPath = publicToLocal(publicPath, uploadRoot);
-    const storedHash = await calculateFileHash(localPath);
-    expect(storedHash).toBe(originalHash);
+    const probe = probeVideo(localPath);
+    expect(probe.videoCodec).toBe('h264');
+    expect(probe.audioCodec).toBe('aac');
+    expect(Number(probe.durationSec || 0)).toBeLessThanOrEqual(15);
   });
 
   it('Transcode fails -> cleanup', async () => {

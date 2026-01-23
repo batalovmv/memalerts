@@ -13,14 +13,15 @@ import { repositories } from '../../src/repositories/index.js';
 import { emitSubmissionEvent } from '../../src/realtime/submissionBridge.js';
 import { createChannel, createMeme, createUser, createWallet } from '../factories/index.js';
 import { getVideoMetadata } from '../../src/utils/videoValidator.js';
-import { normalizeVideoForPlayback } from '../../src/utils/media/videoNormalization.js';
+import { processSubmissionUpload } from '../../src/services/submission/submissionCreateUpload.js';
+import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../../src/utils/fileHash.js';
 
 vi.mock('../../src/utils/videoValidator.js', () => ({
   getVideoMetadata: vi.fn(),
 }));
 
-vi.mock('../../src/utils/media/videoNormalization.js', () => ({
-  normalizeVideoForPlayback: vi.fn(),
+vi.mock('../../src/services/submission/submissionCreateUpload.js', () => ({
+  processSubmissionUpload: vi.fn(),
 }));
 
 type EmitCall = { room: string; event: string; payload: unknown };
@@ -197,12 +198,22 @@ describe('stress: concurrent operations', () => {
     process.env.UPLOAD_DIR = uploadDir;
 
     vi.mocked(getVideoMetadata).mockResolvedValue({ duration: 5, size: 1024 });
-    vi.mocked(normalizeVideoForPlayback).mockImplementation(async ({ inputPath }) => ({
-      outputPath: inputPath,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
-    }));
+    vi.mocked(processSubmissionUpload).mockImplementation(async ({ req }) => {
+      const hash = await calculateFileHash(req.file.path);
+      const stats = await getFileStats(req.file.path);
+      const result = await findOrCreateFileHash(req.file.path, hash, stats.mimeType, stats.size);
+      return {
+        finalFilePath: result.filePath,
+        fileHash: hash,
+        contentHash: null,
+        normalizedMimeType: stats.mimeType,
+        normalizedSizeBytes: Number(stats.size),
+        effectiveDurationMs: 5000,
+        tempFileForCleanup: null,
+        fileHashForCleanup: hash,
+        fileHashRefAdded: true,
+      };
+    });
   });
 
   afterEach(() => {

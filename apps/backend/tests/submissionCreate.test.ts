@@ -225,11 +225,6 @@ describe('submission create flow', () => {
     const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
     const filePath = await writeTempFile(mp4Header, 'owner.mp4');
 
-    vi.mocked(processSubmissionUpload).mockImplementationOnce(async ({ res }) => {
-      res.status(400).json({ errorCode: 'INVALID_FILE_CONTENT' });
-      return null;
-    });
-
     const emitted: EmitCall[] = [];
     const req = buildRequest({
       userId: owner.id,
@@ -258,7 +253,7 @@ describe('submission create flow', () => {
     const filePath = await writeTempFile(junk, 'junk.mp4');
 
     vi.mocked(processSubmissionUpload).mockImplementationOnce(async ({ res }) => {
-      res.status(413).json({ errorCode: 'FILE_TOO_LARGE' });
+      res.status(400).json({ errorCode: 'INVALID_FILE_CONTENT' });
       return null;
     });
 
@@ -288,6 +283,11 @@ describe('submission create flow', () => {
 
     const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
     const filePath = await writeTempFile(mp4Header, 'large.mp4');
+
+    vi.mocked(processSubmissionUpload).mockImplementationOnce(async ({ res }) => {
+      res.status(413).json({ errorCode: 'FILE_TOO_LARGE' });
+      return null;
+    });
 
     const emitted: EmitCall[] = [];
     const req = buildRequest({
