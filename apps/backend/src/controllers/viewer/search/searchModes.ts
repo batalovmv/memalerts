@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma.js';
-import { getSourceType, toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
 import { parseTagNames } from '../cache.js';
 import { sendSearchResponse, type ChannelMemeRow, type PoolAssetRow, type SearchContext } from './searchShared.js';
 
@@ -159,7 +159,12 @@ export async function handleChannelListingMode(ctx: SearchContext) {
     },
   })) as ChannelMemeRow[];
 
-  const items = rows.map((r) => toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const items = rows.map((r) => {
+    const item = toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r);
+    const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+    return tags && tags.length > 0 ? { ...item, tags } : item;
+  });
   return sendSearchResponse(ctx.req, ctx.res, items);
 }
 
@@ -360,6 +365,11 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     },
   })) as ChannelMemeRow[];
 
-  const items = rows.map((r) => toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r));
+  const legacyTagsById = await loadLegacyTagsById(rows.map((r) => r.legacyMemeId));
+  const items = rows.map((r) => {
+    const item = toChannelMemeListItemDto(ctx.req, ctx.targetChannelId!, r);
+    const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+    return tags && tags.length > 0 ? { ...item, tags } : item;
+  });
   return sendSearchResponse(ctx.req, ctx.res, items);
 }

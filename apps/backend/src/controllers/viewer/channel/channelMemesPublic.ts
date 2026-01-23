@@ -2,7 +2,12 @@ import type { Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../../middleware/auth.js';
 import { prisma } from '../../../lib/prisma.js';
-import { getSourceType, toChannelMemeListItemDto, type ChannelMemeListItemDto } from '../channelMemeListDto.js';
+import {
+  getSourceType,
+  loadLegacyTagsById,
+  toChannelMemeListItemDto,
+  type ChannelMemeListItemDto,
+} from '../channelMemeListDto.js';
 import {
   PaginationError,
   buildCursorFilter,
@@ -223,7 +228,12 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
 
     hasMore = rows.length > limit;
     const sliced = hasMore ? rows.slice(0, limit) : rows;
-    items = (sliced as ChannelMemeRow[]).map((r) => toChannelMemeListItemDto(req, channel.id, r));
+    const legacyTagsById = await loadLegacyTagsById(sliced.map((r) => r.legacyMemeId));
+    items = (sliced as ChannelMemeRow[]).map((r) => {
+      const item = toChannelMemeListItemDto(req, channel.id, r);
+      const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+      return tags && tags.length > 0 ? { ...item, tags } : item;
+    });
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

@@ -1331,6 +1331,12 @@ export default function StreamerProfile() {
             setIsModalOpen(false);
             setSelectedMeme(null);
           }}
+          onTagSearch={(tag) => {
+            setMyFavorites(false);
+            setSearchQuery(tag);
+            setIsModalOpen(false);
+            setSelectedMeme(null);
+          }}
           onUpdate={() => {
             // Wallet will be updated via Socket.IO automatically
             // Sync from Redux store if available

@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
+import { prisma } from '../../lib/prisma.js';
 
 // Canonical list item for "channel memes listing" used by:
 // - GET /channels/:slug/memes
@@ -15,6 +16,13 @@ export type MemeVariantDto = {
   fileUrl: string;
   sourceType: string;
   fileSizeBytes: number | null;
+};
+
+export type MemeTagDto = {
+  tag: {
+    id: string;
+    name: string;
+  };
 };
 
 export type ChannelMemeListItemDto = {
@@ -37,6 +45,7 @@ export type ChannelMemeListItemDto = {
   deletedAt: null; // always null in listing responses (by filter)
   createdAt: Date;
   createdBy: { id: string; displayName: string } | null;
+  tags?: MemeTagDto[];
 
   // Optional internal-ish dedup key (SHA-256 of bytes). Returned only for owner/admin when requested.
   fileHash: string | null;
@@ -162,4 +171,39 @@ export function toChannelMemeListItemDto(
         }
       : {}),
   };
+}
+
+export async function loadLegacyTagsById(
+  legacyIds: Array<string | null | undefined>
+): Promise<Map<string, MemeTagDto[]>> {
+  const ids = Array.from(
+    new Set(
+      legacyIds
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        .map((id) => id.trim())
+    )
+  );
+  if (ids.length === 0) return new Map();
+
+  try {
+    const rows = await prisma.meme.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        tags: {
+          select: {
+            tag: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
+
+    return new Map(
+      rows.map((row) => [row.id, Array.isArray(row.tags) ? (row.tags as MemeTagDto[]) : []])
+    );
+  } catch {
+    return new Map();
+  }
 }

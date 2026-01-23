@@ -13,7 +13,7 @@ import {
 } from '../cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
 import { normalizeDashboardCardOrder } from '../../../utils/dashboardCardOrder.js';
-import { getSourceType, toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
 import type { ChannelMemeRow, ChannelResponse, ChannelWithOwner, PoolAssetRow } from './shared.js';
 
 export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
@@ -314,7 +314,12 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
           },
         });
 
-        response.memes = (rows as ChannelMemeRow[]).map((r) => toChannelMemeListItemDto(req, channel.id, r));
+        const legacyTagsById = await loadLegacyTagsById((rows as ChannelMemeRow[]).map((r) => r.legacyMemeId));
+        response.memes = (rows as ChannelMemeRow[]).map((r) => {
+          const item = toChannelMemeListItemDto(req, channel.id, r);
+          const tags = legacyTagsById.get(r.legacyMemeId ?? '');
+          return tags && tags.length > 0 ? { ...item, tags } : item;
+        });
         response.memesPage = {
           limit: memesLimit,
           offset: memesOffset,
