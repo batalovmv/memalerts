@@ -1,11 +1,20 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import crypto from 'crypto';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 
 const CONTENT_HASH_VERSION = 'v2';
 
 function getFfmpegBinary(): string {
   const envPath = String(process.env.FFMPEG_PATH || '').trim();
-  return envPath || 'ffmpeg';
+  if (envPath) return envPath;
+
+  const installerPath = String(ffmpegInstaller?.path || '').trim();
+  if (installerPath && fs.existsSync(installerPath)) {
+    return installerPath;
+  }
+
+  return 'ffmpeg';
 }
 
 /**

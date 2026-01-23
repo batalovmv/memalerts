@@ -194,6 +194,7 @@ describe('utils: media', () => {
     expect(ffmpegMocks.state.commands[0].videoFilters).toHaveBeenCalledWith([
       "scale='min(320,iw)':'min(240,ih)':force_original_aspect_ratio=decrease",
       'fps=24',
+      "scale='max(trunc(iw/2)*2,2)':'max(trunc(ih/2)*2,2)'",
     ]);
   });
 

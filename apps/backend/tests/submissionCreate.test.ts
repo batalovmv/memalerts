@@ -8,16 +8,17 @@ import type { AuthRequest } from '../src/middleware/auth.js';
 import { prisma } from '../src/lib/prisma.js';
 import { repositories } from '../src/repositories/index.js';
 import { createSubmissionWithRepos } from '../src/services/SubmissionService.js';
+import { processSubmissionUpload } from '../src/services/submission/submissionCreateUpload.js';
 import { createChannel, createUser } from './factories/index.js';
 import { getVideoMetadata } from '../src/utils/videoValidator.js';
-import { normalizeVideoForPlayback } from '../src/utils/media/videoNormalization.js';
+import { calculateFileHash, findOrCreateFileHash, getFileStats } from '../src/utils/fileHash.js';
 
 vi.mock('../src/utils/videoValidator.js', () => ({
   getVideoMetadata: vi.fn(),
 }));
 
-vi.mock('../src/utils/media/videoNormalization.js', () => ({
-  normalizeVideoForPlayback: vi.fn(),
+vi.mock('../src/services/submission/submissionCreateUpload.js', () => ({
+  processSubmissionUpload: vi.fn(),
 }));
 
 type EmitCall = { room: string; event: string; payload: unknown };
@@ -146,11 +147,21 @@ describe('submission create flow', () => {
     process.env.UPLOAD_STORAGE = 'local';
     process.env.UPLOAD_DIR = uploadDir;
     vi.mocked(getVideoMetadata).mockResolvedValue({ duration: 5, size: 1024 });
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: '',
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
+    vi.mocked(processSubmissionUpload).mockImplementation(async ({ req }) => {
+      const hash = await calculateFileHash(req.file.path);
+      const stats = await getFileStats(req.file.path);
+      const result = await findOrCreateFileHash(req.file.path, hash, stats.mimeType, stats.size);
+      return {
+        finalFilePath: result.filePath,
+        fileHash: hash,
+        contentHash: null,
+        normalizedMimeType: stats.mimeType,
+        normalizedSizeBytes: Number(stats.size),
+        effectiveDurationMs: 5000,
+        tempFileForCleanup: null,
+        fileHashForCleanup: hash,
+        fileHashRefAdded: true,
+      };
     });
   });
 
@@ -172,12 +183,6 @@ describe('submission create flow', () => {
 
     const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
     const filePath = await writeTempFile(mp4Header, 'test.mp4');
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePath,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
-    });
 
     const emitted: EmitCall[] = [];
     const req = buildRequest({
@@ -219,11 +224,10 @@ describe('submission create flow', () => {
 
     const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
     const filePath = await writeTempFile(mp4Header, 'owner.mp4');
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePath,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 4000,
+
+    vi.mocked(processSubmissionUpload).mockImplementationOnce(async ({ res }) => {
+      res.status(400).json({ errorCode: 'INVALID_FILE_CONTENT' });
+      return null;
     });
 
     const emitted: EmitCall[] = [];
@@ -252,6 +256,11 @@ describe('submission create flow', () => {
 
     const junk = Buffer.from('not a video');
     const filePath = await writeTempFile(junk, 'junk.mp4');
+
+    vi.mocked(processSubmissionUpload).mockImplementationOnce(async ({ res }) => {
+      res.status(413).json({ errorCode: 'FILE_TOO_LARGE' });
+      return null;
+    });
 
     const emitted: EmitCall[] = [];
     const req = buildRequest({
@@ -307,11 +316,9 @@ describe('submission create flow', () => {
 
     const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
     const filePath = await writeTempFile(mp4Header, 'long.mp4');
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePath,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 20000,
+    vi.mocked(processSubmissionUpload).mockImplementationOnce(async ({ res }) => {
+      res.status(413).json({ errorCode: 'VIDEO_TOO_LONG' });
+      return null;
     });
 
     const emitted: EmitCall[] = [];
@@ -344,12 +351,6 @@ describe('submission create flow', () => {
 
     const filePathA = await writeTempFile(content, 'dup-a.mp4');
     const filePathB = await writeTempFile(content, 'dup-b.mp4');
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePathA,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
-    });
 
     const emittedA: EmitCall[] = [];
     const reqA = buildRequest({
@@ -365,13 +366,6 @@ describe('submission create flow', () => {
     const resA = createRes();
 
     await createSubmissionWithRepos(repositories, reqA, resA as unknown as Response);
-
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePathB,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
-    });
 
     const emittedB: EmitCall[] = [];
     const reqB = buildRequest({
@@ -408,12 +402,6 @@ describe('submission create flow', () => {
     const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
     const filePathA = await writeTempFile(mp4Header, 'idem-a.mp4');
     const filePathB = await writeTempFile(mp4Header, 'idem-b.mp4');
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePathA,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
-    });
 
     const emitted: EmitCall[] = [];
     const reqA = buildRequest({
@@ -430,13 +418,6 @@ describe('submission create flow', () => {
     const resA = createRes();
 
     await createSubmissionWithRepos(repositories, reqA, resA as unknown as Response);
-
-    vi.mocked(normalizeVideoForPlayback).mockResolvedValue({
-      outputPath: filePathB,
-      mimeType: 'video/mp4',
-      transcodeSkipped: true,
-      durationMs: 5000,
-    });
 
     const reqB = buildRequest({
       userId: viewer.id,

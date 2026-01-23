@@ -214,8 +214,10 @@ describe('public channel API', () => {
         'id',
         'memeAssetId',
         'priceCoins',
+        'previewUrl',
         'title',
         'type',
+        'variants',
       ].sort()
     );
     expect(Object.keys(res.body[0].createdBy).sort()).toEqual(['displayName', 'id']);
