@@ -9,12 +9,18 @@ function defaultPriceCoinsFromChannel(ctx: SearchContext): number {
   return Number.isFinite(raw as number) ? Number(raw) : 100;
 }
 
-function mapPoolRows(rows: PoolAssetRow[], channelId: string, defaultPriceCoins: number) {
+function mapPoolRows(
+  rows: PoolAssetRow[],
+  channelId: string,
+  defaultPriceCoins: number,
+  legacyTagsById?: Map<string, { tag: { id: string; name: string } }[]>
+) {
   return rows.map((r) => {
     const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
     const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
     const channelPrice = ch?.priceCoins;
     const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
+    const legacyTags = legacyTagsById?.get(ch?.legacyMemeId ?? '');
     const doneVariants = Array.isArray(r.variants)
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
@@ -48,6 +54,7 @@ function mapPoolRows(rows: PoolAssetRow[], channelId: string, defaultPriceCoins:
       createdAt: r.createdAt,
       createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
       fileHash: null,
+      ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
     };
   });
 }
@@ -106,12 +113,19 @@ export async function handleChannelListingMode(ctx: SearchContext) {
           where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { title: true, priceCoins: true },
+          select: { title: true, priceCoins: true, legacyMemeId: true },
         },
       },
     })) as PoolAssetRow[];
 
-    const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx));
+    const legacyTagsById = await loadLegacyTagsById(
+      rows.flatMap((row) =>
+        Array.isArray(row.channelMemes)
+          ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+          : []
+      )
+    );
+    const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
     return sendSearchResponse(ctx.req, ctx.res, items);
   }
 
@@ -238,12 +252,19 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
         where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true },
+        select: { title: true, priceCoins: true, legacyMemeId: true },
       },
     },
   })) as PoolAssetRow[];
 
-  const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx));
+  const legacyTagsById = await loadLegacyTagsById(
+    rows.flatMap((row) =>
+      Array.isArray(row.channelMemes)
+        ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+        : []
+    )
+  );
+  const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
   return sendSearchResponse(ctx.req, ctx.res, items);
 }
 
@@ -299,12 +320,19 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
           where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { title: true, priceCoins: true },
+          select: { title: true, priceCoins: true, legacyMemeId: true },
         },
       },
     })) as PoolAssetRow[];
 
-    const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx));
+    const legacyTagsById = await loadLegacyTagsById(
+      rows.flatMap((row) =>
+        Array.isArray(row.channelMemes)
+          ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+          : []
+      )
+    );
+    const items = mapPoolRows(rows, ctx.targetChannelId!, defaultPriceCoinsFromChannel(ctx), legacyTagsById);
     return sendSearchResponse(ctx.req, ctx.res, items);
   }
 

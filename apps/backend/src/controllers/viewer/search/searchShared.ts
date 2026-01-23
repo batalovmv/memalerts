@@ -21,7 +21,7 @@ export type PoolAssetRow = {
   createdAt: Date;
   aiAutoTitle: string | null;
   createdBy: { id: string; displayName: string } | null;
-  channelMemes: Array<{ title: string; priceCoins: number } | null>;
+  channelMemes: Array<{ title: string; priceCoins: number; legacyMemeId: string | null } | null>;
 };
 
 export type ChannelMemeRow = {

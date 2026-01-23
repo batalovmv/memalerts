@@ -93,7 +93,7 @@ export type PoolAssetRow = Prisma.MemeAssetGetPayload<{
     createdAt: true;
     aiAutoTitle: true;
     createdBy: { select: { id: true; displayName: true } };
-    channelMemes: { select: { title: true; priceCoins: true } };
+    channelMemes: { select: { title: true; priceCoins: true; legacyMemeId: true } };
   };
 }>;
 

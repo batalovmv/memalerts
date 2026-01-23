@@ -225,17 +225,25 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
               where: { channelId: channel.id, status: 'approved', deletedAt: null },
               take: 1,
               orderBy: { createdAt: 'desc' },
-              select: { title: true, priceCoins: true },
+              select: { title: true, priceCoins: true, legacyMemeId: true },
             },
           },
         });
 
         const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins) ? channel.defaultPriceCoins : 100;
+        const legacyTagsById = await loadLegacyTagsById(
+          (rows as PoolAssetRow[]).flatMap((row) =>
+            Array.isArray(row.channelMemes)
+              ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+              : []
+          )
+        );
         response.memes = (rows as PoolAssetRow[]).map((r) => {
           const ch = Array.isArray(r.channelMemes) && r.channelMemes.length > 0 ? r.channelMemes[0] : null;
           const title = String(ch?.title || r.aiAutoTitle || 'Meme').slice(0, 200);
           const channelPrice = ch?.priceCoins;
           const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
+          const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
           const doneVariants = Array.isArray(r.variants)
             ? r.variants.filter((v) => String(v.status || '') === 'done')
             : [];
@@ -269,6 +277,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             createdAt: r.createdAt,
             createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
             fileHash: null,
+            ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
           };
         });
         response.memesPage = {
