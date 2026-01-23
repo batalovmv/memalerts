@@ -360,11 +360,11 @@ export default function MemeModal({
       closeOnEsc
       useGlass={false}
       overlayClassName="items-center bg-black/75"
-      contentClassName="bg-white dark:bg-gray-800 rounded-xl max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row"
+      contentClassName="bg-white dark:bg-gray-800 rounded-xl max-w-7xl max-h-[92vh] overflow-hidden flex flex-col md:flex-row"
     >
       {/* Video Section - Left */}
       <section
-        className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[55vh] md:h-auto overflow-hidden"
+        className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[65vh] md:h-[82vh] overflow-hidden"
         aria-label="Video player"
       >
         {/* Blurred background to avoid black bars on vertical videos */}
@@ -464,11 +464,11 @@ export default function MemeModal({
         </div>
 
         {/* Custom Video Controls */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-3 bg-black bg-opacity-60 rounded-full px-4 py-2">
+        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 rounded-full bg-black/55 px-2 py-2 backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
           <button
             type="button"
             onClick={handlePlayPause}
-            className="text-white hover:text-gray-300 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white shadow-sm transition-colors hover:bg-white/20"
             aria-label={
               isPlaying
                 ? t('common.pause', { defaultValue: 'Пауза' })
@@ -486,39 +486,44 @@ export default function MemeModal({
               </svg>
             )}
           </button>
-          <button
-            type="button"
-            onClick={handleMute}
-            className="text-white hover:text-gray-300 transition-colors"
-            aria-label={
-              isMuted ? t('common.soundOn', { defaultValue: 'Со звуком' }) : t('common.mute', { defaultValue: 'Без звука' })
-            }
-            aria-pressed={isMuted}
-          >
-            {isMuted ? (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-              </svg>
-            )}
-          </button>
 
-          <label className="flex items-center">
-            <span className="sr-only">{t('common.volume', { defaultValue: 'Громкость' })}</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={volume}
-              onChange={(e) => handleVolumeChange(Number(e.target.value))}
-              className="w-28 accent-white"
-              aria-label={t('common.volume', { defaultValue: 'Громкость' })}
-            />
-          </label>
+          <div className="flex items-center gap-2 pr-2">
+            <button
+              type="button"
+              onClick={handleMute}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white shadow-sm transition-colors hover:bg-white/20"
+              aria-label={
+                isMuted
+                  ? t('common.soundOn', { defaultValue: 'Со звуком' })
+                  : t('common.mute', { defaultValue: 'Без звука' })
+              }
+              aria-pressed={isMuted}
+            >
+              {isMuted ? (
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                </svg>
+              )}
+            </button>
+
+            <label className="flex items-center">
+              <span className="sr-only">{t('common.volume', { defaultValue: 'Громкость' })}</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                className="h-1 w-24 cursor-pointer rounded-full bg-white/40 accent-white"
+                aria-label={t('common.volume', { defaultValue: 'Громкость' })}
+              />
+            </label>
+          </div>
         </div>
       </section>
 
