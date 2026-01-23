@@ -10,6 +10,7 @@ import {
   searchCache,
   setSearchCacheHeaders,
 } from './cache.js';
+import { loadLegacyTagsById } from './channelMemeListDto.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
 
 function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
@@ -38,7 +39,7 @@ export const getMemePool = async (req: Request, res: Response) => {
   // Non-personalized → allow short cache + ETag/304
   setSearchCacheHeaders(req, res);
 
-  const cacheKey = ['pool', 'v1', q.toLowerCase(), String(limit), String(offset)].join('|');
+  const cacheKey = ['pool', 'v2', q.toLowerCase(), String(limit), String(offset)].join('|');
 
   const ttl = getSearchCacheMs();
   const cached = searchCache.get(cacheKey);
@@ -96,6 +97,7 @@ export const getMemePool = async (req: Request, res: Response) => {
       fileUrl: true,
       durationMs: true,
       createdAt: true,
+      aiAutoTagNamesJson: true,
       variants: {
         select: {
           format: true,
@@ -117,12 +119,26 @@ export const getMemePool = async (req: Request, res: Response) => {
           title: true,
           priceCoins: true,
           channelId: true,
+          legacyMemeId: true,
         },
       },
     },
   });
 
+  const legacyTagsById = await loadLegacyTagsById(
+    rows.flatMap((row) =>
+      Array.isArray(row.channelMemes)
+        ? row.channelMemes.map((ch) => ch?.legacyMemeId ?? null)
+        : []
+    )
+  );
+
   const items = rows.map((r) => {
+    const aiAutoTagNames = Array.isArray(r.aiAutoTagNamesJson)
+      ? (r.aiAutoTagNamesJson as unknown[])
+          .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+          .map((tag) => tag.trim())
+      : null;
     const doneVariants = Array.isArray(r.variants)
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
@@ -139,6 +155,7 @@ export const getMemePool = async (req: Request, res: Response) => {
           fileSizeBytes: typeof v.fileSizeBytes === 'bigint' ? Number(v.fileSizeBytes) : null,
         };
       });
+    const legacyTags = legacyTagsById.get(r.channelMemes?.[0]?.legacyMemeId ?? '');
     return {
       id: r.id,
       memeAssetId: r.id,
@@ -151,6 +168,8 @@ export const getMemePool = async (req: Request, res: Response) => {
       usageCount: r._count.channelMemes,
       sampleTitle: r.channelMemes?.[0]?.title ?? null,
       samplePriceCoins: r.channelMemes?.[0]?.priceCoins ?? null,
+      aiAutoTagNames,
+      ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
     };
   });
 

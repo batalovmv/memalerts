@@ -100,6 +100,12 @@ function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
   const variants = Array.isArray((m as unknown as { variants?: unknown }).variants)
     ? ((m as unknown as { variants: Meme['variants'] }).variants ?? undefined)
     : undefined;
+  const tags = Array.isArray((m as unknown as { tags?: unknown }).tags)
+    ? ((m as unknown as { tags: Meme['tags'] }).tags ?? undefined)
+    : undefined;
+  const aiAutoTagNames = Array.isArray((m as unknown as { aiAutoTagNames?: unknown }).aiAutoTagNames)
+    ? ((m as unknown as { aiAutoTagNames: Meme['aiAutoTagNames'] }).aiAutoTagNames ?? undefined)
+    : undefined;
 
   const title =
     typeof m.sampleTitle === 'string' && m.sampleTitle.trim() ? m.sampleTitle.trim() : typeof fallbackTitle === 'string' ? fallbackTitle : '';
@@ -124,6 +130,8 @@ function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
     fileUrl,
     priceCoins,
     durationMs,
+    tags,
+    aiAutoTagNames,
   };
 }
 
