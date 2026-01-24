@@ -10,7 +10,6 @@ import { TransactionEventBuffer } from '../utils/transactionEventBuffer.js';
 import {
   type KickWebhookRequest,
   emptyWalletEvents,
-  errCode,
   extractKickActorUserId,
   extractKickChannelId,
   extractKickCount,
@@ -74,23 +73,19 @@ export async function handleKickAutoRewardEvents(params: {
         }
       };
 
-      try {
-        await tx.externalWebhookDeliveryDedup.create({
-          data: {
-            provider: 'kick',
-            messageId,
-          },
-          select: { id: true },
-        });
-      } catch (e: unknown) {
-        if (errCode(e) === 'P2002') {
-          return {
-            httpStatus: 200,
-            body: { ok: true, duplicate: true },
-            claimedWalletEvents: emptyWalletEvents<WalletUpdatedEvent>(),
-          };
-        }
-        throw e;
+      const dedup = await tx.externalWebhookDeliveryDedup.createMany({
+        data: {
+          provider: 'kick',
+          messageId,
+        },
+        skipDuplicates: true,
+      });
+      if (dedup.count === 0) {
+        return {
+          httpStatus: 200,
+          body: { ok: true, duplicate: true },
+          claimedWalletEvents: emptyWalletEvents<WalletUpdatedEvent>(),
+        };
       }
 
       if (!kickChannelId) {

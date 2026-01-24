@@ -19,7 +19,6 @@ import {
   asRecord,
   canTriggerCommand,
   emptyWalletEvents,
-  errCode,
   normalizeAllowedRolesList,
   normalizeAllowedUsersList,
   normalizeLogin,
@@ -138,26 +137,22 @@ export async function handleKickChatMessageSent(params: {
         }
       };
       // 1) Delivery-level idempotency (dedup by Kick-Event-Message-Id).
-      try {
-        await tx.externalWebhookDeliveryDedup.create({
-          data: {
-            provider: 'kick',
-            messageId,
-          },
-          select: { id: true },
-        });
-      } catch (e: unknown) {
-        if (errCode(e) === 'P2002') {
-          return {
-            httpStatus: 200,
-            body: { ok: true, duplicate: true },
-            channelId: null,
-            channelSlug: null,
-            credits: null,
-            claimedWalletEvents: emptyWalletEvents<WalletUpdatedEvent>(),
-          };
-        }
-        throw e;
+      const dedup = await tx.externalWebhookDeliveryDedup.createMany({
+        data: {
+          provider: 'kick',
+          messageId,
+        },
+        skipDuplicates: true,
+      });
+      if (dedup.count === 0) {
+        return {
+          httpStatus: 200,
+          body: { ok: true, duplicate: true },
+          channelId: null,
+          channelSlug: null,
+          credits: null,
+          claimedWalletEvents: emptyWalletEvents<WalletUpdatedEvent>(),
+        };
       }
 
       if (!chat.kickChannelId || !chat.platformUserId || !chat.text) {

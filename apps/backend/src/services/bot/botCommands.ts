@@ -97,6 +97,14 @@ export const botCommandsHandlers = {
         .json({ error: 'Bad Request', message: `Response is too long (max ${BOT_RESPONSE_MAX_LEN})` });
     }
 
+    const duplicate = await prisma.chatBotCommand.findFirst({
+      where: { channelId, triggerNormalized },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return res.status(409).json({ error: 'Conflict', message: 'Command trigger already exists' });
+    }
+
     try {
       const row = await prisma.chatBotCommand.create({
         data: {

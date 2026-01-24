@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { getStreamDurationSnapshot } from '../realtime/streamDurationStore.js';
 import { recordExternalRewardEventTx, stableProviderEventId } from '../rewards/externalRewardEvents.js';
-import { errCode, extractKickRewardRedemption } from './kickWebhookShared.js';
+import { extractKickRewardRedemption } from './kickWebhookShared.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -24,19 +24,15 @@ export async function handleKickRewardRedemption(params: {
 
   const outcome = await prisma.$transaction(async (tx: TxClient) => {
     // 1) Delivery-level idempotency (dedup by Kick-Event-Message-Id).
-    try {
-      await tx.externalWebhookDeliveryDedup.create({
-        data: {
-          provider: 'kick',
-          messageId,
-        },
-        select: { id: true },
-      });
-    } catch (e: unknown) {
-      if (errCode(e) === 'P2002') {
-        return { httpStatus: 200, body: { ok: true, duplicate: true } };
-      }
-      throw e;
+    const dedup = await tx.externalWebhookDeliveryDedup.createMany({
+      data: {
+        provider: 'kick',
+        messageId,
+      },
+      skipDuplicates: true,
+    });
+    if (dedup.count === 0) {
+      return { httpStatus: 200, body: { ok: true, duplicate: true } };
     }
 
     // MVP: accept only reward redemption updates that are "accepted".
