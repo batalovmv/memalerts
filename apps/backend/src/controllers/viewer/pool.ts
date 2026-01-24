@@ -71,19 +71,24 @@ export const getMemePool = async (req: Request, res: Response) => {
   const where: Prisma.MemeAssetWhereInput = {
     poolVisibility: 'visible',
     purgedAt: null,
-    ...(q
-      ? {
-          channelMemes: {
-            some: {
-              title: {
-                contains: q,
-                mode: 'insensitive',
-              },
+  };
+
+  if (q) {
+    where.OR = [
+      { aiAutoTitle: { contains: q, mode: 'insensitive' } },
+      { aiSearchText: { contains: q, mode: 'insensitive' } },
+      {
+        channelMemes: {
+          some: {
+            title: {
+              contains: q,
+              mode: 'insensitive',
             },
           },
-        }
-      : {}),
-  };
+        },
+      },
+    ];
+  }
 
   // Order by most recently created asset; later можно заменить на popularity rollups.
   const rows = await prisma.memeAsset.findMany({
