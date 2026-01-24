@@ -1509,7 +1509,7 @@ jobs:
           BUILD_DIR="$APP_DIR/dist-next"
           OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
           export BUILD_DIR
-          rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
+          sudo rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
 
           pnpm install --frozen-lockfile
           pnpm lint
@@ -1540,13 +1540,13 @@ jobs:
           fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
 
-          rm -rf "$APP_DIR/dist"
+          sudo rm -rf "$APP_DIR/dist"
           if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
-            rm -rf "$APP_DIR/overlay/dist"
+            sudo rm -rf "$APP_DIR/overlay/dist"
           fi
-          mv "$BUILD_DIR" "$APP_DIR/dist"
+          sudo mv "$BUILD_DIR" "$APP_DIR/dist"
           if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
-            mv "$OVERLAY_BUILD_DIR" "$APP_DIR/overlay/dist"
+            sudo mv "$OVERLAY_BUILD_DIR" "$APP_DIR/overlay/dist"
           fi
           
           echo "Reloading nginx (best-effort)..."
@@ -1618,7 +1618,7 @@ jobs:
           BUILD_DIR="$APP_DIR/dist-next"
           OVERLAY_BUILD_DIR="$APP_DIR/overlay/dist-next"
           export BUILD_DIR
-          rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
+          sudo rm -rf "$BUILD_DIR" "$OVERLAY_BUILD_DIR" "$FRONTEND_DIR/dist" "$FRONTEND_DIR/overlay/dist"
 
           pnpm install --frozen-lockfile
           pnpm lint
@@ -1649,13 +1649,13 @@ jobs:
           fs.writeFileSync(path.join(buildDir, 'config.json'), JSON.stringify(cfg, null, 2));
           NODE
 
-          rm -rf "$APP_DIR/dist"
+          sudo rm -rf "$APP_DIR/dist"
           if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
-            rm -rf "$APP_DIR/overlay/dist"
+            sudo rm -rf "$APP_DIR/overlay/dist"
           fi
-          mv "$BUILD_DIR" "$APP_DIR/dist"
+          sudo mv "$BUILD_DIR" "$APP_DIR/dist"
           if [ "$OVERLAY_BUILD_DIR" != "$FRONTEND_DIR/overlay/dist" ]; then
-            mv "$OVERLAY_BUILD_DIR" "$APP_DIR/overlay/dist"
+            sudo mv "$OVERLAY_BUILD_DIR" "$APP_DIR/overlay/dist"
           fi
           
           echo "Reloading nginx (best-effort)..."
