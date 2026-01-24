@@ -23,6 +23,7 @@ type MigrationStats = {
   legacyVariantsRemoved: number;
   missingFileUrl: number;
   missingSource: number;
+  fallbackSources: number;
   errors: number;
 };
 
@@ -46,6 +47,12 @@ type MemeAssetSnapshot = {
   contentHash: string | null;
   purgeRequestedAt: Date | null;
   purgedAt: Date | null;
+  variants?: Array<{
+    format: string;
+    status: string;
+    fileUrl: string;
+    priority: number;
+  }>;
 };
 
 const DEFAULT_BATCH = 100;
@@ -78,6 +85,25 @@ function pickCanonical(candidates: MemeAssetSnapshot[]): MemeAssetSnapshot {
       if (scoreDiff !== 0) return scoreDiff;
       return a.createdAt.getTime() - b.createdAt.getTime();
     })[0]!;
+}
+
+function pickFallbackVariant(
+  variants: Array<{ format: string; status: string; fileUrl: string; priority: number }> | undefined | null
+): { url: string; format: 'mp4' | 'webm' } | null {
+  if (!Array.isArray(variants) || variants.length === 0) return null;
+  const order: Array<'mp4' | 'webm'> = ['mp4', 'webm'];
+  for (const format of order) {
+    const candidate = variants.find(
+      (variant) =>
+        String(variant.format || '') === format &&
+        String(variant.status || '') === 'done' &&
+        String(variant.fileUrl || '').trim().length > 0
+    );
+    if (candidate?.fileUrl) {
+      return { url: candidate.fileUrl, format };
+    }
+  }
+  return null;
 }
 
 async function mergeDuplicateAsset(params: {
@@ -158,6 +184,7 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
     legacyVariantsRemoved: 0,
     missingFileUrl: 0,
     missingSource: 0,
+    fallbackSources: 0,
     errors: 0,
   };
 
@@ -205,6 +232,14 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
         contentHash: true,
         purgeRequestedAt: true,
         purgedAt: true,
+        variants: {
+          select: {
+            format: true,
+            status: true,
+            fileUrl: true,
+            priority: true,
+          },
+        },
       },
     });
 
@@ -214,12 +249,42 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
     for (const asset of assets as MemeAssetSnapshot[]) {
       stats.processed += 1;
 
-      if (!asset.fileUrl) {
-        stats.missingFileUrl += 1;
-        continue;
+      let sourceFileUrl = asset.fileUrl ?? '';
+      let usedFallback = false;
+
+      if (!sourceFileUrl) {
+        const fallback = pickFallbackVariant(asset.variants);
+        if (fallback) {
+          sourceFileUrl = fallback.url;
+          usedFallback = true;
+          stats.fallbackSources += 1;
+          logger.warn('migration.multi_format.fallback_source', {
+            assetId: asset.id,
+            fallbackFormat: fallback.format,
+            fallbackUrl: fallback.url,
+          });
+        } else {
+          stats.missingFileUrl += 1;
+          continue;
+        }
       }
 
-      const resolved = await resolveLocalMediaPath(asset.fileUrl);
+      let resolved = await resolveLocalMediaPath(sourceFileUrl);
+      if (!resolved && !usedFallback) {
+        const fallback = pickFallbackVariant(asset.variants);
+        if (fallback) {
+          sourceFileUrl = fallback.url;
+          usedFallback = true;
+          stats.fallbackSources += 1;
+          logger.warn('migration.multi_format.fallback_source', {
+            assetId: asset.id,
+            fallbackFormat: fallback.format,
+            fallbackUrl: fallback.url,
+          });
+          resolved = await resolveLocalMediaPath(sourceFileUrl);
+        }
+      }
+
       if (!resolved) {
         stats.missingSource += 1;
         continue;
@@ -273,12 +338,16 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
           if (!ensuredVariants.has(canonical.id)) {
             const fallback = duplicates.find((item) => item.fileUrl) ?? null;
             const sourceFileUrl = canonical.fileUrl ?? fallback?.fileUrl ?? null;
+            const sourceFileHash =
+              canonical.fileUrl && canonical.fileHash ? canonical.fileHash : fallback?.fileHash ?? canonical.fileHash;
+            const sourceDurationMs =
+              canonical.fileUrl && canonical.durationMs ? canonical.durationMs : fallback?.durationMs ?? canonical.durationMs;
             if (!dryRun && sourceFileUrl) {
               await ensureMemeAssetVariants({
                 memeAssetId: canonical.id,
                 sourceFileUrl,
-                sourceFileHash: canonical.fileHash ?? fallback?.fileHash ?? undefined,
-                sourceDurationMs: canonical.durationMs ?? fallback?.durationMs ?? undefined,
+                sourceFileHash: sourceFileHash ?? undefined,
+                sourceDurationMs: sourceDurationMs ?? undefined,
               });
             }
             ensuredVariants.add(canonical.id);
@@ -301,8 +370,8 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
           if (!dryRun) {
             await ensureMemeAssetVariants({
               memeAssetId: asset.id,
-              sourceFileUrl: asset.fileUrl,
-              sourceFileHash: asset.fileHash ?? undefined,
+              sourceFileUrl,
+              sourceFileHash: usedFallback ? undefined : asset.fileHash ?? undefined,
               sourceDurationMs: asset.durationMs ?? undefined,
             });
           }
@@ -347,6 +416,7 @@ async function main() {
   console.log(`ChannelMemes disabled: ${stats.channelMemesDisabled}`);
   console.log(`Missing fileUrl: ${stats.missingFileUrl}`);
   console.log(`Missing source: ${stats.missingSource}`);
+  console.log(`Fallback sources: ${stats.fallbackSources}`);
   console.log(`Errors: ${stats.errors}`);
 }
 
