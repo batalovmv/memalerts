@@ -15,17 +15,6 @@ const getSourceType = (format: 'webm' | 'mp4' | 'preview'): string => {
   }
 };
 
-const getSourceType = (format: 'webm' | 'mp4' | 'preview'): string => {
-  switch (format) {
-    case 'preview':
-      return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
-    case 'webm':
-      return 'video/webm; codecs="vp9, opus"';
-    case 'mp4':
-      return 'video/mp4; codecs="avc1.4d401f, mp4a.40.2"';
-  }
-};
-
 export const getMemes = async (req: AuthRequest, res: Response) => {
   const channelId = req.channelId;
 
