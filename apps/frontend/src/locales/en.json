@@ -1317,7 +1317,7 @@
     "twitchAutoRewardsHint": "Все секции опциональны. Если enabled=false или coins/… = 0 — награда не начисляется. Twitch: channelPoints → byRewardId (reward.id). VKVideo: follow/subscribe/chat используют те же секции (subscribe.primeCoins = coins). Если channelPoints.enabled=false — остаётся legacy-настройка rewardIdForCoins.",
     "twitchExternalId": "Twitch externalId (broadcaster_id)",
     "walletHint": "Tip: choose a viewer and a streamer channel — streamer self-wallets are hidden (unlimited).",
-    "youtubeBotIntegrationLabel": "Включить YouTube-бота для канала.",
+    "youtubeBotIntegrationLabel": "YouTube bot enabled",
     "youtubeEnableRequiredToSend": "Сначала включите YouTube-бота для канала.",
     "youtubeOverrideTitle": "Свой бот"
   },
