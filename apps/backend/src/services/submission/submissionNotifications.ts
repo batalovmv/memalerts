@@ -3,7 +3,7 @@ import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/
 import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } from '../../realtime/walletBridge.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorMessage } from './submissionShared.js';
-import { TransactionEventBuffer } from '../../utils/transactionEventBuffer.js';
+import type { TransactionEventBuffer } from '../../utils/transactionEventBuffer.js';
 
 export function enqueueSubmissionApprovedEvent(opts: {
   io: Server;

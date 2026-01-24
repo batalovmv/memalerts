@@ -75,7 +75,7 @@ describe('middleware: errorHandler', () => {
       error: 'Bad payload',
       requestId: 'req-1',
       traceId: 'trace-1',
-      details: { field: 'title' },
+      details: [{ field: 'title' }],
     });
   });
 

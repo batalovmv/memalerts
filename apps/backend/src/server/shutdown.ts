@@ -12,7 +12,7 @@ type ShutdownDeps = {
   httpDrainTimeoutMs: number;
   getChatBotHandle: () => { stop?: () => Promise<void> | void } | null;
   getAiModerationWorkerHandle: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
-  getTranscodeWorkerHandle: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
+  getTranscodeWorkerHandle?: () => { stop: (opts: { timeoutMs: number }) => Promise<void> } | null;
   closeBullmqConnection: () => Promise<void>;
   prismaDisconnect: () => Promise<void>;
 };
@@ -132,7 +132,8 @@ export function setupShutdownHandlers(deps: ShutdownDeps) {
       label: 'transcode_worker_stop',
       deadlineAt,
       maxMs: Math.min(15000, deps.shutdownTimeoutMs),
-      action: (budgetMs) => deps.getTranscodeWorkerHandle()?.stop({ timeoutMs: budgetMs }) ?? Promise.resolve(),
+      action: (budgetMs) =>
+        deps.getTranscodeWorkerHandle?.()?.stop({ timeoutMs: budgetMs }) ?? Promise.resolve(),
     });
 
     await runShutdownStep({
@@ -150,6 +151,11 @@ export function setupShutdownHandlers(deps: ShutdownDeps) {
         new Promise<void>((resolve, reject) => {
           try {
             shutdownSocketIO(deps.io);
+          } catch (error) {
+            const err = error as Error;
+            logger.warn('shutdown.socketio_emit_failed', { errorMessage: err?.message || String(error) });
+          }
+          try {
             void deps.io.close(() => resolve());
           } catch (error) {
             reject(error);
