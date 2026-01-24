@@ -700,6 +700,9 @@ model User {
   globalModerator             GlobalModerator?
   moderatorsGranted           GlobalModerator[]            @relation("GlobalModeratorGrantedBy")
   moderatorsRevoked           GlobalModerator[]            @relation("GlobalModeratorRevokedBy")
+  tasteProfile                UserTasteProfile?
+  tagActivities               UserTagActivity[]
+  tagSuggestionsReviewed      TagSuggestion[]              @relation("TagSuggestionReviewedBy")
 
   @@index([twitchUserId])
   @@index([channelId])
@@ -1113,6 +1116,7 @@ model MemeAsset {
   aiAutoTitle        String?  @db.VarChar(200)
   aiAutoTagNamesJson Json?
   aiAutoDescription  String?  @db.VarChar(2000)
+  aiTranscript       String?  @db.VarChar(50000)
   aiSearchText       String?  @db.VarChar(4000)
   aiCompletedAt      DateTime?
 
@@ -1371,14 +1375,96 @@ model AuditLog {
 }
 
 model Tag {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String?
+  categoryId  String?
+  status      String   @default("active") // active | pending | deprecated
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
 
+  category   TagCategory? @relation(fields: [categoryId], references: [id])
+  aliases    TagAlias[]
   memes       MemeTag[]
   submissions MemeSubmissionTag[]
 
   @@index([name])
+  @@index([categoryId])
+  @@index([status])
+  @@index([usageCount])
+}
+
+model TagCategory {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  displayName String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  tags Tag[]
+
+  @@index([sortOrder])
+}
+
+model TagAlias {
+  id        String   @id @default(uuid())
+  alias     String   @unique
+  tagId     String
+  createdAt DateTime @default(now())
+
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@index([tagId])
+}
+
+model TagSuggestion {
+  id            String   @id @default(uuid())
+  rawTag        String
+  normalizedTag String   @unique
+  memeAssetId   String?
+  count         Int      @default(1)
+  status        String   @default("pending") // pending | approved | rejected | mapped
+  mappedToTagId String?
+  createdAt     DateTime @default(now())
+  reviewedAt    DateTime?
+  reviewedById  String?
+
+  memeAsset  MemeAsset? @relation(fields: [memeAssetId], references: [id], onDelete: SetNull)
+  mappedTo   Tag?       @relation(fields: [mappedToTagId], references: [id], onDelete: SetNull)
+  reviewedBy User?      @relation("TagSuggestionReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, count])
+}
+
+model UserTasteProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  tagWeightsJson     Json     @default("{}")
+  categoryWeightsJson Json    @default("{}")
+  topTagsJson        Json     @default("[]")
+  totalActivations   Int      @default(0)
+  profileVersion     Int      @default(1)
+  lastActivationAt   DateTime?
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserTagActivity {
+  id        String   @id @default(uuid())
+  userId    String
+  tagId     String
+  weight    Float    @default(1.0)
+  source    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tagId])
+  @@index([userId, createdAt])
 }
 
 model MemeTag {

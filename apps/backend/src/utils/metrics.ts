@@ -49,6 +49,19 @@ const aiJobsFailedTotal = metricsBackend.counter({
   help: 'Total AI jobs failed',
 });
 
+const tagAutoApprovalTotal = metricsBackend.counter({
+  name: 'memalerts_tag_auto_approval_total',
+  help: 'Total tag auto-approval decisions',
+  labelNames: ['action', 'reason'],
+});
+
+const tagAiValidationDurationSeconds = metricsBackend.histogram({
+  name: 'memalerts_tag_ai_validation_duration_seconds',
+  help: 'AI tag validation duration in seconds',
+  labelNames: ['outcome'],
+  buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+});
+
 const botOutboxPending = metricsBackend.gauge({
   name: 'memalerts_bot_outbox_pending',
   help: 'Bot outbox messages pending delivery',
@@ -179,6 +192,18 @@ export function setAiJobMetrics(params: { pending: number; processing: number; f
   aiJobsPending.set(Math.max(0, Math.floor(params.pending)));
   aiJobsProcessing.set(Math.max(0, Math.floor(params.processing)));
   applyCounterTotal(aiJobsFailedTotal, params.failedTotal);
+}
+
+export function recordTagAutoApproval(params: { action: string; reason?: string }) {
+  const action = params.action ? params.action : 'unknown';
+  const reason = params.reason ? params.reason : 'unknown';
+  tagAutoApprovalTotal.inc({ action, reason }, 1);
+}
+
+export function recordTagAiValidationDuration(params: { durationMs: number; outcome: 'success' | 'failure' }) {
+  const outcome = params.outcome || 'failure';
+  const durationSeconds = Math.max(0, params.durationMs) / 1000;
+  tagAiValidationDurationSeconds.observe({ outcome }, durationSeconds);
 }
 
 export function setBotOutboxMetrics(params: { platform: string; pending: number; failedTotal: number }) {

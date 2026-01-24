@@ -19,7 +19,14 @@ export async function tryReuseAiResults(opts: {
 
   const existingAsset = await prisma.memeAsset.findFirst({
     where: contentHash ? { contentHash, aiStatus: 'done' } : { fileHash, aiStatus: 'done' },
-    select: { id: true, aiAutoTitle: true, aiAutoDescription: true, aiAutoTagNamesJson: true, aiSearchText: true },
+    select: {
+      id: true,
+      aiAutoTitle: true,
+      aiAutoDescription: true,
+      aiAutoTagNamesJson: true,
+      aiTranscript: true,
+      aiSearchText: true,
+    },
   });
 
   if (!existingAsset) return false;
@@ -65,7 +72,7 @@ export async function tryReuseAiResults(opts: {
       aiDecision: null,
       aiRiskScore: null,
       aiLabelsJson: Prisma.DbNull,
-      aiTranscript: null,
+      aiTranscript: existingAsset.aiTranscript ?? null,
       aiAutoTagNamesJson: tagNamesJson,
       aiAutoDescription: existingAsset.aiAutoDescription ?? null,
       aiModelVersionsJson: reuseModelVersions,
@@ -79,14 +86,28 @@ export async function tryReuseAiResults(opts: {
   });
 
   const assetId = submission.memeAssetId ?? existingAsset.id;
+  const fallbackSearchText = (() => {
+    const tagNames = Array.isArray(existingAsset.aiAutoTagNamesJson)
+      ? (existingAsset.aiAutoTagNamesJson as unknown[]).map((t) => normalizeAiText(String(t ?? ''))).filter(Boolean)
+      : [];
+    const parts = [
+      existingAsset.aiAutoTitle ? String(existingAsset.aiAutoTitle) : submission.title ? String(submission.title) : '',
+      tagNames.length > 0 ? tagNames.join(' ') : '',
+      existingAsset.aiAutoDescription ? String(existingAsset.aiAutoDescription) : '',
+      existingAsset.aiTranscript ? String(existingAsset.aiTranscript) : '',
+    ]
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    const merged = parts.join('\n');
+    return merged ? merged.slice(0, 4000) : null;
+  })();
   await prisma.channelMeme.updateMany({
     where: { channelId: submission.channelId, memeAssetId: assetId },
     data: {
       aiAutoDescription: existingAsset.aiAutoDescription ?? null,
       aiAutoTagNamesJson: tagNamesJson,
       searchText:
-        existingAsset.aiSearchText ??
-        (existingAsset.aiAutoDescription ? String(existingAsset.aiAutoDescription).slice(0, 4000) : null),
+        existingAsset.aiSearchText ?? fallbackSearchText,
     },
   });
 

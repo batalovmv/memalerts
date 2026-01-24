@@ -7,6 +7,8 @@ import { activateMemeSchema } from '../../shared/schemas.js';
 import { getActivePromotion, calculatePriceWithDiscount } from '../../utils/promotions.js';
 import { WalletService } from '../WalletService.js';
 import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } from '../../realtime/walletBridge.js';
+import { logger } from '../../utils/logger.js';
+import { TasteProfileService } from '../taste/TasteProfileService.js';
 
 type PoolChannelRow = {
   id: string;
@@ -326,6 +328,15 @@ export const activateMeme = async (req: AuthRequest, res: Response) => {
         emitWalletUpdated(io, walletUpdateData);
         void relayWalletUpdatedToPeer(walletUpdateData);
       }
+
+      void TasteProfileService.recordActivation({
+        userId: req.userId!,
+        memeId: result.activation.memeId,
+        channelMemeId: result.resolvedChannelMemeId,
+      }).catch((error) => {
+        const errMsg = error instanceof Error ? error.message : String(error ?? 'unknown');
+        logger.warn('taste_profile.record_failed', { userId: req.userId, memeId: result.activation.memeId, error: errMsg });
+      });
     }
 
     res.json({

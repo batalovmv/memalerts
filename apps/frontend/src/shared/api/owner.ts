@@ -2,4 +2,5 @@
 export * from './owner/ownerApi';
 export * from './owner/ownerAiStatus';
 export * from './owner/ownerModerators';
+export * from './owner/ownerTagModeration';
 export * from './wallet/walletApi';

@@ -165,6 +165,12 @@ export function SettingsMoreMenu({ activeTab, isMoreTabActive, isStreamerAdmin, 
       icon: TicketIcon,
       visible: user?.role === 'admin',
     },
+    {
+      tab: 'ownerTagModeration',
+      label: getSettingsTabLabel(t, 'ownerTagModeration'),
+      icon: TicketIcon,
+      visible: user?.role === 'admin',
+    },
   ];
 
   return (

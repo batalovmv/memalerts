@@ -11,4 +11,5 @@ export type SettingsTab =
   | 'entitlements'
   | 'ownerMemeAssets'
   | 'ownerModerators'
-  | 'ownerAiStatus';
+  | 'ownerAiStatus'
+  | 'ownerTagModeration';

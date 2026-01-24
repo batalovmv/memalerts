@@ -12,6 +12,7 @@ import { memeAssetModerationController } from '../controllers/owner/memeAssetMod
 import { moderatorsController } from '../controllers/owner/moderatorsController.js';
 import { ownerResolveLimiter } from '../middleware/rateLimit.js';
 import { aiStatusController } from '../controllers/owner/aiStatusController.js';
+import { tagModerationController } from '../controllers/owner/tagModeration.js';
 import { assertAdmin } from '../utils/accessControl.js';
 
 // Owner-only API (role: admin).
@@ -71,6 +72,14 @@ ownerRoutes.post('/meme-assets/:id/hide', memeAssetModerationController.hide);
 ownerRoutes.post('/meme-assets/:id/unhide', memeAssetModerationController.unhide);
 ownerRoutes.post('/meme-assets/:id/purge', memeAssetModerationController.purge);
 ownerRoutes.post('/meme-assets/:id/restore', memeAssetModerationController.restore);
+
+// Tag moderation (admin-only)
+ownerRoutes.get('/tag-suggestions', tagModerationController.listSuggestions);
+ownerRoutes.post('/tag-suggestions/:id/approve', tagModerationController.approveSuggestion);
+ownerRoutes.post('/tag-suggestions/:id/map', tagModerationController.mapSuggestion);
+ownerRoutes.post('/tag-suggestions/:id/reject', tagModerationController.rejectSuggestion);
+ownerRoutes.get('/tags', tagModerationController.listTags);
+ownerRoutes.get('/tag-categories', tagModerationController.listCategories);
 
 // Global moderators management (admin-only)
 ownerRoutes.get('/moderators', moderatorsController.list);

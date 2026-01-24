@@ -30,11 +30,13 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     title: string | null | undefined;
     tagNames: string[];
     description: string | null | undefined;
+    transcript?: string | null | undefined;
   }): string | null => {
     const parts = [
       args.title ? String(args.title) : '',
       Array.isArray(args.tagNames) && args.tagNames.length > 0 ? args.tagNames.join(' ') : '',
       args.description ? String(args.description) : '',
+      args.transcript ? String(args.transcript) : '',
     ]
       .map((s) => String(s || '').trim())
       .filter(Boolean);
@@ -54,6 +56,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       memeAssetId: true,
       aiAutoDescription: true,
       aiAutoTagNamesJson: true,
+      aiTranscript: true,
     },
   });
 
@@ -84,6 +87,8 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
     typeof submission.aiAutoDescription === 'string'
       ? String(submission.aiAutoDescription).trim().slice(0, 2000) || null
       : null;
+  const aiTranscript =
+    typeof submission.aiTranscript === 'string' ? String(submission.aiTranscript).trim().slice(0, 50000) || null : null;
 
   const aiAutoTagNamesJson = submission.aiAutoTagNamesJson ?? null;
   const aiAutoTags =
@@ -166,13 +171,14 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
   });
   const channelTitle = assetForTitle?.aiAutoTitle ? String(assetForTitle.aiAutoTitle).slice(0, 80) : submission.title;
 
-  // Keep AI search text consistent with `aiModerationSubmissions.ts`:
-  // title + (AI tags + applied tags) + AI description.
+  // Keep AI search text consistent with AI moderation persistence:
+  // title + (AI tags + applied tags) + AI description + transcript.
   const mergedTagNames = Array.from(new Set([...(aiAutoTags || []), ...(tagNames || [])])).filter(Boolean);
   const aiSearchText = buildAiSearchText({
     title: channelTitle,
     tagNames: mergedTagNames,
     description: aiAutoDescription,
+    transcript: aiTranscript,
   });
 
   // Best-effort: persist AI results globally on MemeAsset so future duplicates/pool adoptions can reuse them.
@@ -182,6 +188,7 @@ export async function approveSubmissionInternal(args: ApproveSubmissionInternalA
       aiStatus: 'done',
       aiAutoDescription,
       aiAutoTagNamesJson: aiAutoTags.length > 0 ? aiAutoTags : undefined,
+      aiTranscript: aiTranscript || undefined,
       aiSearchText,
       aiCompletedAt: new Date(),
     };

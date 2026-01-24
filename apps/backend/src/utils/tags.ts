@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { mapTagsToCanonical, normalizeTagName } from './ai/tagMapping.js';
 
 /**
  * Create or find tags by name
@@ -11,7 +12,7 @@ export async function getOrCreateTags(tagNames: string[]): Promise<string[]> {
 
   // Normalize tag names (lowercase, trim)
   const normalizedTags = tagNames
-    .map((name) => name.trim().toLowerCase())
+    .map((name) => normalizeTagName(name))
     .filter((name) => name.length > 0)
     .filter((name, index, self) => self.indexOf(name) === index); // Remove duplicates
 
@@ -19,17 +20,26 @@ export async function getOrCreateTags(tagNames: string[]): Promise<string[]> {
     return [];
   }
 
+  const { mapped, unmapped } = await mapTagsToCanonical(normalizedTags);
+  const canonicalNames = mapped.map((tag) => tag.canonicalName);
+  const unmappedNormalized = unmapped.map((name) => normalizeTagName(name)).filter((name) => name.length > 0);
+  const finalTagNames = Array.from(new Set([...canonicalNames, ...unmappedNormalized]));
+
+  if (finalTagNames.length === 0) {
+    return [];
+  }
+
   // Find existing tags
   const existingTags = await prisma.tag.findMany({
     where: {
       name: {
-        in: normalizedTags,
+        in: finalTagNames,
       },
     },
   });
 
   const existingTagNames = new Set(existingTags.map((t) => t.name));
-  const newTagNames = normalizedTags.filter((name) => !existingTagNames.has(name));
+  const newTagNames = finalTagNames.filter((name) => !existingTagNames.has(name));
 
   // Create new tags
   if (newTagNames.length > 0) {
@@ -43,7 +53,7 @@ export async function getOrCreateTags(tagNames: string[]): Promise<string[]> {
   const allTags = await prisma.tag.findMany({
     where: {
       name: {
-        in: normalizedTags,
+        in: finalTagNames,
       },
     },
   });

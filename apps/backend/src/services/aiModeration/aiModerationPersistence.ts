@@ -6,6 +6,7 @@ import {
   upsertQuarantineAsset,
   validateAiOutputOrThrow,
 } from './aiModerationHelpers.js';
+import { mapTagsToCanonical, recordUnmappedTag } from '../../utils/ai/tagMapping.js';
 import type { AiModerationPipelineResult, AiModerationSubmission } from './aiModerationTypes.js';
 
 type PersistArgs = {
@@ -18,7 +19,9 @@ type PersistArgs = {
   pipeline: AiModerationPipelineResult;
 };
 
-export async function persistAiModerationResults(opts: PersistArgs): Promise<void> {
+export async function persistAiModerationResults(
+  opts: PersistArgs
+): Promise<{ canonicalTagNames: string[] }> {
   const { submission, fileHash, contentHash, fileUrl, durationMs, now, pipeline } = opts;
   const { decision, riskScore, labels, autoTags, transcript, aiTitle, metaDescription, modelVersions } = pipeline;
 
@@ -52,6 +55,32 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
 
   validateAiOutputOrThrow({ title: String(submission.title || ''), autoDescription, autoTags });
 
+  const rawTagNames = Array.isArray(autoTags) ? autoTags : [];
+  const { mapped, unmapped } = await mapTagsToCanonical(rawTagNames);
+  const canonicalTagNames = mapped.map((tag) => tag.canonicalName);
+  const canonicalTagIds = Array.from(new Set(mapped.map((tag) => tag.canonicalTagId)));
+
+  const assetToUpdate =
+    submission.memeAssetId ??
+    (
+      await prisma.memeAsset.findFirst({
+        where: contentHash ? { contentHash } : { fileHash },
+        select: { id: true },
+      })
+    )?.id ??
+    null;
+
+  if (unmapped.length > 0) {
+    await Promise.all(unmapped.map((tag) => recordUnmappedTag(tag, assetToUpdate)));
+  }
+
+  if (canonicalTagIds.length > 0) {
+    await prisma.tag.updateMany({
+      where: { id: { in: canonicalTagIds }, status: 'active' },
+      data: { usageCount: { increment: 1 } },
+    });
+  }
+
   await prisma.memeSubmission.update({
     where: { id: submission.id },
     data: {
@@ -60,7 +89,7 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
       aiRiskScore: riskScore,
       aiLabelsJson: labels,
       aiTranscript: transcriptText,
-      aiAutoTagNamesJson: autoTags,
+      aiAutoTagNamesJson: canonicalTagNames,
       aiAutoDescription: autoDescription,
       aiModelVersionsJson: modelVersions,
       aiCompletedAt: now,
@@ -75,23 +104,15 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
   const aiSearchText = (() => {
     const parts = [
       aiTitle ? String(aiTitle) : submission.title ? String(submission.title) : '',
-      Array.isArray(autoTags) && autoTags.length > 0 ? autoTags.join(' ') : '',
+      canonicalTagNames.length > 0 ? canonicalTagNames.join(' ') : '',
       autoDescription ? String(autoDescription) : '',
+      transcriptText ? String(transcriptText) : '',
     ]
       .map((s) => String(s || '').trim())
       .filter(Boolean);
     const merged = parts.join('\n');
     return merged ? merged.slice(0, 4000) : null;
   })();
-  const assetToUpdate =
-    submission.memeAssetId ??
-    (
-      await prisma.memeAsset.findFirst({
-        where: contentHash ? { contentHash } : { fileHash },
-        select: { id: true },
-      })
-    )?.id ??
-    null;
 
   if (assetToUpdate) {
     await prisma.memeAsset.update({
@@ -100,7 +121,8 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
         aiStatus: 'done',
         aiAutoTitle: aiTitle ? String(aiTitle).slice(0, 80) : null,
         aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
-        aiAutoTagNamesJson: autoTags,
+        aiAutoTagNamesJson: canonicalTagNames,
+        aiTranscript: transcriptText ? String(transcriptText).slice(0, 50000) : null,
         aiSearchText,
         aiCompletedAt: now,
       },
@@ -113,7 +135,7 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
       where: { channelId: submission.channelId, memeAssetId: assetIdForChannelMeme },
       data: {
         aiAutoDescription: autoDescription ? String(autoDescription).slice(0, 2000) : null,
-        aiAutoTagNamesJson: autoTags,
+        aiAutoTagNamesJson: canonicalTagNames,
         searchText: aiSearchText,
       },
     });
@@ -125,4 +147,6 @@ export async function persistAiModerationResults(opts: PersistArgs): Promise<voi
       });
     }
   }
+
+  return { canonicalTagNames };
 }

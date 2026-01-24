@@ -25,6 +25,7 @@ import { startMemeAssetPurgeScheduler } from './jobs/purgeMemeAssets.js';
 import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscriptionRewards.js';
 import { startPendingSubmissionFilesCleanupScheduler } from './jobs/cleanupPendingSubmissionFiles.js';
 import { startOutboxCleanupScheduler } from './jobs/cleanupOutboxMessages.js';
+import { startTagAutoApprovalScheduler } from './jobs/tagAutoApprovalScheduler.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
@@ -496,6 +497,8 @@ async function startServer() {
     startPendingSubmissionFilesCleanupScheduler();
     // Bot outbox cleanup: remove old sent/failed rows to keep tables small.
     startOutboxCleanupScheduler();
+    // AI tag auto-approval + deprecation scheduler.
+    startTagAutoApprovalScheduler();
 
     // Optional: Twitch chat bot (collects chatters for credits overlay).
     // Enabled via env (see CHAT_BOT_* vars).

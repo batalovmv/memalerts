@@ -9,8 +9,10 @@ import Header from '@/components/Header';
 import { useSocket } from '@/contexts/SocketContext';
 import { useStreamerProfileChannel } from '@/features/streamer-profile/model/useStreamerProfileChannel';
 import { useStreamerProfileMemes } from '@/features/streamer-profile/model/useStreamerProfileMemes';
+import { useStreamerProfilePersonalizedMemes } from '@/features/streamer-profile/model/useStreamerProfilePersonalizedMemes';
 import { useStreamerProfileSubmissionsStatus } from '@/features/streamer-profile/model/useStreamerProfileSubmissionsStatus';
 import { useStreamerProfileWallet } from '@/features/streamer-profile/model/useStreamerProfileWallet';
+import { PersonalizedMemesSection } from '@/features/streamer-profile/ui/PersonalizedMemesSection';
 import { StreamerProfileErrorState } from '@/features/streamer-profile/ui/StreamerProfileErrorState';
 import { StreamerProfileHeader } from '@/features/streamer-profile/ui/StreamerProfileHeader';
 import { StreamerProfileMemesSection } from '@/features/streamer-profile/ui/StreamerProfileMemesSection';
@@ -79,6 +81,19 @@ const StreamerProfile = memo(function StreamerProfile() {
     isAuthed,
     reloadNonce,
     onReloadChannel: handleReloadChannel,
+  });
+
+  const {
+    memes: personalizedMemes,
+    loading: personalizedLoading,
+    profileReady,
+    totalActivations,
+    mode: personalizedMode,
+  } = useStreamerProfilePersonalizedMemes({
+    channelInfo,
+    normalizedSlug,
+    isAuthed,
+    reloadNonce,
   });
 
   const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
@@ -234,6 +249,18 @@ const StreamerProfile = memo(function StreamerProfile() {
           searchResultsCount={searchResults.length}
           mix={mix}
         />
+
+        {isAuthed && (personalizedLoading || personalizedMemes.length > 0) ? (
+          <PersonalizedMemesSection
+            memes={personalizedMemes}
+            loading={personalizedLoading}
+            profileReady={profileReady}
+            totalActivations={totalActivations}
+            mode={personalizedMode}
+            autoplayMemesEnabled={autoplayMemesEnabled}
+            onSelectMeme={handleSelectMeme}
+          />
+        ) : null}
 
         <StreamerProfileMemesSection
           memes={memes}

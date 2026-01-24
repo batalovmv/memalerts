@@ -9,6 +9,8 @@ import * as activation from './viewer/activation.js';
 import * as preferences from './viewer/preferences.js';
 import * as boostyAccess from './viewer/boostyAccess.js';
 import * as youtubeLikeReward from './viewer/youtubeLikeReward.js';
+import * as tasteProfile from './viewer/tasteProfile.js';
+import * as personalizedMemes from './viewer/personalizedMemes.js';
 
 // Back-compat facade: keep `viewerController` shape stable for routes.
 export const viewerController = {
@@ -23,4 +25,6 @@ export const viewerController = {
   ...preferences,
   ...boostyAccess,
   ...youtubeLikeReward,
+  ...tasteProfile,
+  ...personalizedMemes,
 };

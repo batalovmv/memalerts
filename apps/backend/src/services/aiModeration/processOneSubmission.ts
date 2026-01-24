@@ -60,6 +60,14 @@ export async function processOneSubmission(submissionId: string): Promise<void> 
   }
 
   const pipeline = await runAiModerationPipeline({ submission, fileUrl, localPath });
-  await persistAiModerationResults({ submission, fileHash, contentHash, fileUrl, durationMs, now, pipeline });
-  await maybeAutoApproveSubmission({ submission, fileUrl, fileHash, contentHash, durationMs, pipeline });
+  const { canonicalTagNames } = await persistAiModerationResults({
+    submission,
+    fileHash,
+    contentHash,
+    fileUrl,
+    durationMs,
+    now,
+    pipeline,
+  });
+  await maybeAutoApproveSubmission({ submission, fileUrl, fileHash, contentHash, durationMs, pipeline, canonicalTagNames });
 }

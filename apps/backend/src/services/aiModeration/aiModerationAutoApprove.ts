@@ -11,10 +11,11 @@ type AutoApproveArgs = {
   contentHash?: string | null;
   durationMs: number | null;
   pipeline: AiModerationPipelineResult;
+  canonicalTagNames?: string[];
 };
 
 export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise<void> {
-  const { submission, fileUrl, fileHash, contentHash, durationMs, pipeline } = opts;
+  const { submission, fileUrl, fileHash, contentHash, durationMs, pipeline, canonicalTagNames } = opts;
   const autoApproveEnabled = parseBool(process.env.AI_LOW_AUTOPROVE_ENABLED);
   if (!autoApproveEnabled || pipeline.decision !== 'low') return;
   if (!isAllowedPublicFileUrl(fileUrl)) return;
@@ -51,6 +52,7 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
   });
 
   const priceCoins = channel?.defaultPriceCoins ?? 100;
+  const resolvedTagNames = Array.isArray(canonicalTagNames) && canonicalTagNames.length > 0 ? canonicalTagNames : pipeline.autoTags;
 
   await prisma.$transaction(async (tx) => {
     const res = await approveSubmissionInternal({
@@ -63,7 +65,7 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
         contentHash: contentHash ?? null,
         durationMs,
         priceCoins,
-        tagNames: pipeline.autoTags,
+        tagNames: resolvedTagNames,
       },
     });
 
@@ -78,7 +80,7 @@ export async function maybeAutoApproveSubmission(opts: AutoApproveArgs): Promise
           aiDecision: 'low',
           aiRiskScore: pipeline.riskScore,
           labels: pipeline.labels,
-          tagNames: pipeline.autoTags,
+          tagNames: resolvedTagNames,
           pipelineVersion: pipeline.modelVersions?.pipelineVersion ?? null,
           memeAssetId: res.memeAssetId,
           channelMemeId: res.channelMemeId,

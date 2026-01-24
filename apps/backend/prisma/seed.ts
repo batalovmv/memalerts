@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { seedTagCatalog } from './seed-tags.js';
 
 const prisma = new PrismaClient();
 
@@ -6,6 +7,8 @@ const demoHash = '00000000000000000000000000000000000000000000000000000000000000
 
 async function main() {
   console.log('Seeding database...');
+
+  await seedTagCatalog(prisma);
 
   const channel = await prisma.channel.upsert({
     where: { slug: 'demo' },

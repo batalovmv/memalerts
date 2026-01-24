@@ -12,6 +12,7 @@ export const MORE_TABS: SettingsTab[] = [
   'ownerMemeAssets',
   'ownerModerators',
   'ownerAiStatus',
+  'ownerTagModeration',
 ];
 
 export const TAB_QUERY_TABS: SettingsTab[] = [
@@ -24,6 +25,7 @@ export const TAB_QUERY_TABS: SettingsTab[] = [
   'entitlements',
   'ownerMemeAssets',
   'ownerModerators',
+  'ownerTagModeration',
   'promotions',
   'statistics',
   'beta',

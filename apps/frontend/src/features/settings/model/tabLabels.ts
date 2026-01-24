@@ -13,6 +13,7 @@ export function getSettingsTabLabel(t: TFunction, tab: SettingsTab): string {
   if (tab === 'ownerMemeAssets') return t('ownerModeration.memeAssetsTab', { defaultValue: 'Owner: Meme assets' });
   if (tab === 'ownerModerators') return t('ownerModerators.tab', { defaultValue: 'Owner: Moderators' });
   if (tab === 'ownerAiStatus') return t('ownerAiStatus.tab', { defaultValue: 'Owner: AI status' });
+  if (tab === 'ownerTagModeration') return t('ownerTagModeration.tab', { defaultValue: 'Owner: Tags' });
   if (tab === 'beta') return t('admin.betaAccess', { defaultValue: 'Beta access' });
   if (tab === 'accounts') return t('settings.accounts', { defaultValue: 'Accounts' });
   return tab;

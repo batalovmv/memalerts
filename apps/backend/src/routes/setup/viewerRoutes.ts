@@ -8,6 +8,7 @@ import { viewerController } from '../../controllers/viewerController.js';
 
 export function registerViewerRoutes(app: Router) {
   app.get('/me', authenticate, requireBetaAccess, viewerController.getMe);
+  app.get('/me/taste-profile', authenticate, requireBetaAccess, viewerController.getTasteProfile);
   app.get('/me/preferences', authenticate, requireBetaAccess, viewerController.getMePreferences);
   app.patch('/me/preferences', authenticate, requireBetaAccess, viewerController.patchMePreferences);
   app.get('/wallet', authenticate, requireBetaAccess, viewerController.getWallet);
@@ -27,6 +28,7 @@ export function registerViewerRoutes(app: Router) {
   });
 
   app.get('/channels/:slug/wallet', authenticate, requireBetaAccess, viewerController.getWalletForChannel);
+  app.get('/channels/:slug/memes/personalized', authenticate, requireBetaAccess, viewerController.getPersonalizedMemes);
 
   app.get('/channels/:slug/memes', (req, res) => {
     if (isBetaDomain(req)) {

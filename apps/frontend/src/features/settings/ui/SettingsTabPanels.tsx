@@ -33,6 +33,9 @@ const OwnerModeratorsTab = lazy(() =>
 const OwnerAiStatusTab = lazy(() =>
   import('@/features/settings/tabs/OwnerAiStatus').then((m) => ({ default: m.OwnerAiStatus })),
 );
+const OwnerTagModerationTab = lazy(() =>
+  import('@/features/settings/tabs/OwnerTagModeration').then((m) => ({ default: m.OwnerTagModeration })),
+);
 const PromotionManagementTab = lazy(() =>
   import('@/features/settings/tabs/PromotionManagement').then((m) => ({ default: m.PromotionManagement })),
 );
@@ -104,6 +107,10 @@ export function SettingsTabPanels({ activeTab, isStreamerAdmin, user, getTabButt
 
         <div role="tabpanel" aria-label={tabLabel('ownerAiStatus')} hidden={activeTab !== 'ownerAiStatus'}>
           {activeTab === 'ownerAiStatus' && user?.role === 'admin' && <OwnerAiStatusTab />}
+        </div>
+
+        <div role="tabpanel" aria-label={tabLabel('ownerTagModeration')} hidden={activeTab !== 'ownerTagModeration'}>
+          {activeTab === 'ownerTagModeration' && user?.role === 'admin' && <OwnerTagModerationTab />}
         </div>
 
         <div role="tabpanel" aria-label={tabLabel('promotions')} hidden={activeTab !== 'promotions'}>
