@@ -186,6 +186,21 @@ function cleanupPendingRequests(): void {
 // NOTE: We intentionally avoid a global setInterval here.
 // Cleanup is done opportunistically per request to avoid unnecessary timers when the app is idle.
 
+function isBetaHost(hostname: string): boolean {
+  return hostname.includes('beta.');
+}
+
+function shouldIgnoreEnvApiUrl(envUrl: string): boolean {
+  if (!import.meta.env.PROD) return false;
+  try {
+    const envHost = new URL(envUrl).hostname;
+    const pageHost = window.location.hostname;
+    return isBetaHost(envHost) !== isBetaHost(pageHost);
+  } catch {
+    return false;
+  }
+}
+
 // Use relative URL in production (same domain), absolute in development
 const getApiUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -195,6 +210,10 @@ const getApiUrl = () => {
   if (envUrl !== undefined) {
     if (envUrl === '') {
       // Empty string means use relative URLs - return empty string for axios baseURL
+      return '';
+    }
+    if (shouldIgnoreEnvApiUrl(envUrl)) {
+      // Prevent accidental prod<->beta cross-calls when a stale VITE_API_URL leaks into the build env.
       return '';
     }
     return envUrl;
@@ -526,5 +545,4 @@ axiosInstance.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
 

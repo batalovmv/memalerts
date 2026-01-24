@@ -2,21 +2,21 @@
 
 This cheat sheet reflects the **actual deploy triggers** in the current CI/CD:
 
-- **beta**: `push` to branch **`main`** → deploy to VPS (port **3002**, PM2 **`memalerts-api-beta`**, directory **`/opt/memalerts-backend-beta`**)
-- **production**: `push` a tag **`prod-*`** → deploy to VPS (port **3001**, PM2 **`memalerts-api`**, directory **`/opt/memalerts-backend`**)
+- **beta**: `push` to branch **`beta`** → deploy to VPS (port **3002**, PM2 **`memalerts-api-beta`**, directory **`/opt/memalerts-backend-beta`**)
+- **production**: `push` to branch **`main`** → deploy to VPS (port **3001**, PM2 **`memalerts-api`**, directory **`/opt/memalerts-backend`**)
 
-Source of truth: `.github/workflows/ci-cd-selfhosted.yml` (see also `DEPLOYMENT.md` and `docs/SELF_HOSTED_RUNNER.md`).
+Source of truth: `.github/workflows/ci.yml` (see also `DEPLOYMENT.md` and `docs/SELF_HOSTED_RUNNER.md`).
 
 ## Quick deploy (beta)
 
-Typical workflow (change code → push to `main` → self-hosted runner deploys beta automatically):
+Typical workflow (change code → push to `beta` → self-hosted runner deploys beta automatically):
 
 ```bash
-git switch main \
+git switch beta \
   && git pull --rebase \
   && git add -A \
   && git commit -m "dev: <short description>" \
-  && git push origin main
+  && git push origin beta
 ```
 
 ### Important: deploy can be skipped
@@ -30,26 +30,10 @@ To **force a deploy** (e.g. you need a restart / pull env/secrets / restart jobs
 
 ## Quick deploy (production)
 
-Production deploys **only via a tag** `prod-*`. There is also a guard: **the tag must point to the current `origin/main` (beta HEAD)** — otherwise the workflow will refuse to deploy.
+Production deploys on **push to `main`**. Recommended flow:
 
-Commands:
-
-```bash
-git switch main && git pull --rebase
-TAG="prod-$(date +%Y%m%d-%H%M)"
-git tag "$TAG"
-git push origin "$TAG"
-```
-
-If you’re not in bash (Windows PowerShell), just pick a name manually:
-
-- `prod-20260105-1530`
-
-and push the tag:
-
-```bash
-git push origin prod-20260105-1530
-```
+1) Open a PR `beta` → `main` and merge it.
+2) `main` push triggers the production deploy job.
 
 ## Mini checklist (to avoid shooting yourself in the foot)
 
