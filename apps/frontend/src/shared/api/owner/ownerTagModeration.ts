@@ -78,6 +78,16 @@ function asObj(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function getNullableString(value: unknown): string | null | undefined {
+  if (typeof value === 'string') return value;
+  if (value === null) return null;
+  return undefined;
+}
+
 function getMetaNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim()) {
@@ -93,6 +103,8 @@ export async function getOwnerTagSuggestions(query: OwnerTagSuggestionsQuery = {
   const itemsRaw = Array.isArray(res) ? res : ((obj?.items as unknown) ?? []);
   const items = (Array.isArray(itemsRaw) ? itemsRaw : []).map((x) => {
     const r = asObj(x);
+    const mappedToRaw = asObj(r?.mappedTo);
+    const memeAssetRaw = asObj(r?.memeAsset);
     return {
       id: typeof r?.id === 'string' ? r.id : '',
       rawTag: typeof r?.rawTag === 'string' ? r.rawTag : undefined,
@@ -102,36 +114,18 @@ export async function getOwnerTagSuggestions(query: OwnerTagSuggestionsQuery = {
       mappedToTagId: typeof r?.mappedToTagId === 'string' ? r.mappedToTagId : r?.mappedToTagId === null ? null : undefined,
       createdAt: typeof r?.createdAt === 'string' ? r.createdAt : undefined,
       reviewedAt: typeof r?.reviewedAt === 'string' ? r.reviewedAt : r?.reviewedAt === null ? null : undefined,
-      mappedTo: r?.mappedTo
+      mappedTo: mappedToRaw
         ? {
-            id: typeof (r.mappedTo as Record<string, unknown>).id === 'string' ? (r.mappedTo as Record<string, unknown>).id : '',
-            name:
-              typeof (r.mappedTo as Record<string, unknown>).name === 'string'
-                ? (r.mappedTo as Record<string, unknown>).name
-                : '',
-            displayName:
-              typeof (r.mappedTo as Record<string, unknown>).displayName === 'string'
-                ? (r.mappedTo as Record<string, unknown>).displayName
-                : (r.mappedTo as Record<string, unknown>).displayName === null
-                  ? null
-                  : undefined,
+            id: getString(mappedToRaw.id) ?? '',
+            name: getString(mappedToRaw.name) ?? '',
+            displayName: getNullableString(mappedToRaw.displayName),
           }
         : undefined,
-      memeAsset: r?.memeAsset
+      memeAsset: memeAssetRaw
         ? {
-            id: typeof (r.memeAsset as Record<string, unknown>).id === 'string' ? (r.memeAsset as Record<string, unknown>).id : '',
-            aiAutoTitle:
-              typeof (r.memeAsset as Record<string, unknown>).aiAutoTitle === 'string'
-                ? (r.memeAsset as Record<string, unknown>).aiAutoTitle
-                : (r.memeAsset as Record<string, unknown>).aiAutoTitle === null
-                  ? null
-                  : undefined,
-            fileUrl:
-              typeof (r.memeAsset as Record<string, unknown>).fileUrl === 'string'
-                ? (r.memeAsset as Record<string, unknown>).fileUrl
-                : (r.memeAsset as Record<string, unknown>).fileUrl === null
-                  ? null
-                  : undefined,
+            id: getString(memeAssetRaw.id) ?? '',
+            aiAutoTitle: getNullableString(memeAssetRaw.aiAutoTitle),
+            fileUrl: getNullableString(memeAssetRaw.fileUrl),
           }
         : undefined,
       _raw: x,
@@ -152,20 +146,18 @@ export async function getOwnerTags(query: OwnerTagsQuery = {}): Promise<OwnerTag
   const itemsRaw = Array.isArray(res) ? res : ((obj?.items as unknown) ?? []);
   const items = (Array.isArray(itemsRaw) ? itemsRaw : []).map((x) => {
     const r = asObj(x);
+    const categoryRaw = asObj(r?.category);
     return {
       id: typeof r?.id === 'string' ? r.id : '',
       name: typeof r?.name === 'string' ? r.name : '',
       displayName: typeof r?.displayName === 'string' ? r.displayName : r?.displayName === null ? null : undefined,
       status: typeof r?.status === 'string' ? (r.status as OwnerTagStatus) : undefined,
       usageCount: typeof r?.usageCount === 'number' ? r.usageCount : undefined,
-      category: r?.category
+      category: categoryRaw
         ? {
-            id: typeof (r.category as Record<string, unknown>).id === 'string' ? (r.category as Record<string, unknown>).id : '',
-            slug: typeof (r.category as Record<string, unknown>).slug === 'string' ? (r.category as Record<string, unknown>).slug : '',
-            displayName:
-              typeof (r.category as Record<string, unknown>).displayName === 'string'
-                ? (r.category as Record<string, unknown>).displayName
-                : '',
+            id: getString(categoryRaw.id) ?? '',
+            slug: getString(categoryRaw.slug) ?? '',
+            displayName: getString(categoryRaw.displayName) ?? '',
           }
         : undefined,
       _raw: x,
