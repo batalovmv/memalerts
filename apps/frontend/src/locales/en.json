@@ -30,7 +30,15 @@
     "off": "Off",
     "tooManyRequests": "Too many requests. Please try again later.",
     "goHome": "Go home",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "clear": "Clear",
+    "loadMore": "Load more",
+    "mute": "Без звука",
+    "open": "Open",
+    "pause": "Пауза",
+    "play": "Воспроизвести",
+    "soundOn": "Со звуком",
+    "volume": "Громкость"
   },
   "help": {
     "header": {
@@ -67,7 +75,8 @@
       "search": "Search your memes by title, id, etc.",
       "sort": "Choose how to sort the list.",
       "searchScope": "Choose what fields the search uses.",
-      "open": "Open meme details. Here you can edit or delete it."
+      "open": "Open meme details. Here you can edit or delete it.",
+      "filterStatus": "Filter Status"
     },
     "search": {
       "query": "Search by title, tags, uploader, etc. Results update automatically.",
@@ -123,7 +132,9 @@
         "approvedOnlyWhenLive": "If enabled, coins are granted only when your stream is live.",
         "approvedUploadCoins": "Coins for approved submissions from upload/URL. Use 0 to disable.",
         "approvedPoolCoins": "Coins for approved submissions from the Pool. Use 0 to disable.",
-        "quickAdd100": "Quickly add +100 coins."
+        "quickAdd100": "Quickly add +100 coins.",
+        "enableKickReward": "Enable/disable Kick rewards → coins.",
+        "onlyWhenLiveKick": "If enabled, Kick rewards grant coins only when live."
       },
       "bot": {
         "enable": "Turn the bot on/off for this channel. When on, it can respond in chat.",
@@ -326,7 +337,9 @@
       "accountAccess": "Account & access",
       "insightsGrowth": "Insights & growth",
       "adminOwner": "Admin / owner"
-    }
+    },
+    "accountsUnlinkAction": "Disconnect",
+    "accountsUnlinkConfirm": "Accounts Unlink Confirm"
   },
   "auth": {
     "login": "Log in with Twitch",
@@ -422,41 +435,46 @@
       "openAllMemes": "Open",
       "settings": "Settings",
       "settingsDescription": "Configure your channel and preferences",
-      "settingsButton": "Open Settings"
+      "settingsButton": "Open Settings",
+      "mySubmissions": "My submissions",
+      "mySubmissionsButton": "Open",
+      "mySubmissionsDescription": "Track the submissions you sent to other channels"
     },
     "resetLayout": "Reset layout",
     "layoutReset": "Layout reset.",
-      "hotkeys": {
-        "title": "Hotkeys",
-        "approve": "Approve focused",
-        "reject": "Reject (notes)",
-        "needsChanges": "Needs changes (notes)",
-        "prev": "Previous item",
-        "next": "Next item",
-        "toggle": "Toggle selection",
-        "clear": "Clear selection",
-        "help": "Show hotkeys"
-      },
-      "bulk": {
-        "selectAll": "Select all",
-        "selectItem": "Select submission",
-        "selectedCount": "Selected: {{count}}",
-        "approveSelected": "Approve selected",
-        "needsChangesSelected": "Needs changes",
-        "rejectSelected": "Reject selected",
-        "clearSelection": "Clear selection",
-        "confirmHint": "This will apply to {{count}} submissions.",
-        "approveTitle": "Approve {{count}} submissions",
-        "needsChangesTitle": "Send {{count}} submissions for changes",
-        "rejectTitle": "Reject {{count}} submissions",
-        "rejectReasonLabel": "Reject reason (optional)",
-        "rejectReasonPlaceholder": "Reason for rejection (optional)",
-        "successToast": "Bulk action complete: {{success}} succeeded.",
-        "failedToast": "Some items failed: {{failed}}.",
-        "failedAllToast": "Failed to apply bulk action."
-      },
-      "submissions": {
-        "saved": "Saved",
+    "hotkeys": {
+      "title": "Hotkeys",
+      "approve": "Approve focused",
+      "reject": "Reject (notes)",
+      "needsChanges": "Needs changes (notes)",
+      "prev": "Previous item",
+      "next": "Next item",
+      "toggle": "Toggle selection",
+      "clear": "Clear selection",
+      "help": "Show hotkeys",
+      "close": "Close modal",
+      "preview": "Play / pause preview"
+    },
+    "bulk": {
+      "selectAll": "Select all",
+      "selectItem": "Select submission",
+      "selectedCount": "Selected: {{count}}",
+      "approveSelected": "Approve selected",
+      "needsChangesSelected": "Needs changes",
+      "rejectSelected": "Reject selected",
+      "clearSelection": "Clear selection",
+      "confirmHint": "This will apply to {{count}} submissions.",
+      "approveTitle": "Approve {{count}} submissions",
+      "needsChangesTitle": "Send {{count}} submissions for changes",
+      "rejectTitle": "Reject {{count}} submissions",
+      "rejectReasonLabel": "Reject reason (optional)",
+      "rejectReasonPlaceholder": "Reason for rejection (optional)",
+      "successToast": "Bulk action complete: {{success}} succeeded.",
+      "failedToast": "Some items failed: {{failed}}.",
+      "failedAllToast": "Failed to apply bulk action."
+    },
+    "submissions": {
+      "saved": "Saved",
       "enabledTitle": "Allow submissions",
       "enabledHint": "If disabled, viewers will see a message instead of the submit form.",
       "onlyWhenLiveTitle": "Only while stream is live",
@@ -507,8 +525,39 @@
       "failedAll": "Failed to update bots",
       "failedPartial": "Some bots failed to update. Please retry.",
       "none": "No bot integrations found.",
-      "allOn": "All on"
-    }
+      "allOn": "All on",
+      "hint": "Список берётся с сервера. Если YouTube просит re-link — переподключите в Settings → Bot."
+    },
+    "bulkUpload": {
+      "dropHint": "Drag and drop or click to select files",
+      "dropTitle": "Drop videos here",
+      "dropZone": "Drop videos to upload",
+      "subtitle": "Drop up to {{maxFiles}} videos (max {{maxMb}}MB, {{maxSeconds}}s each).",
+      "title": "Bulk upload"
+    },
+    "failedToLoadMemes": "Failed to load memes.",
+    "failedToLoadPendingSubmissions": "Failed to load pending submissions.",
+    "memeCatalogMode": {
+      "hint": "Выберите, что будет показываться на странице канала: только ваши одобренные мемы или весь пул.",
+      "saved": "Saved",
+      "state": {
+        "channelOnly": "Сейчас: только мои одобренные мемы.",
+        "poolAll": "Сейчас: весь пул (пользователи могут активировать любой мем)."
+      },
+      "title": "Каталог мемов на публичной странице",
+      "toggleAria": "Show all pool memes on channel page"
+    },
+    "noMemesHint": "Submit your first meme to build your library.",
+    "noPendingSubmissionsHint": "New submissions will appear here automatically.",
+    "submissionsPanel": {
+      "channelTab": "Заявки канала",
+      "historyTab": "История",
+      "myHint": "Here you will see the submissions you sent to other channels.",
+      "myTab": "My submissions",
+      "pendingTab": "Pending approvals",
+      "title": "Submissions"
+    },
+    "submittedBy": "Submitted by {{name}}"
   },
   "submit": {
     "title": "Submit a Meme",
@@ -569,9 +618,10 @@
     "filterByUser": "Filter by this user",
     "unknownUser": "Unknown",
     "noChannelSubmissions": "No submissions found for the current filters.",
-    "failedToLoadChannelSubmissions": "Failed to load channel submissions."
+    "failedToLoadChannelSubmissions": "Failed to load channel submissions.",
+    "directApproved": "Meme was added to your channel.",
+    "submitButton": "Add"
   },
-
   "submissions": {
     "statusPending": "pending",
     "statusApproved": "approved",
@@ -608,7 +658,12 @@
     "rejectionReasonTitle": "Rejection reason",
     "noReasonProvided": "No reason provided.",
     "aiRetryCount": "AI retry count",
-    "aiRetryCountLabel": "AI retries: {{count}}"
+    "aiRetryCountLabel": "AI retries: {{count}}",
+    "aiDecision": "AI decision",
+    "aiShow": "Показать AI анализ",
+    "aiStatus": "AI status",
+    "openPreview": "Open preview",
+    "preview": "Submission preview"
   },
   "meme": {
     "status": {
@@ -641,7 +696,7 @@
     "vkvideoChannelUrlModalBody": "We couldn't resolve vkvideoChannelUrl automatically. Paste your VKVideo Live channel URL and click “Save”.",
     "vkvideoMigrationHint": "VKVideo was enabled before the update and vkvideoChannelUrl might be missing. Disable → enable VKVideo so the server can store the channel URL.",
     "vkvideoCandidatesHint": "Before enabling, we'll try to find your VKVideo channels automatically.",
-    "vkvideoNotLinked": "First link VKVideo in 'Accounts'.",
+    "vkvideoNotLinked": "VKVideo account is not linked. Link VKVideo in Settings → Accounts.",
     "vkvideoMultipleCandidates": "Multiple VKVideo channels found. Pick one and click “Enable”.",
     "vkvideoCandidatesTitle": "Choose VKVideo channel",
     "vkvideoCandidatesPickHint": "Candidates were found. Select channel URL and click “Enable”.",
@@ -1087,7 +1142,6 @@
     "vkvideoCoinsRewardTitle": "Coins reward (VKVideo)",
     "vkvideoCoinsRewardDescription": "Viewers redeem a reward on VKVideo and receive coins on the site.",
     "vkvideoRewardsPrereqHint": "Important: also configure the integration in the Bots tab (vkvideoChannelId/vkvideoChannelUrl).",
-    "vkvideoNotLinked": "VKVideo account is not linked. Link VKVideo in Settings → Accounts.",
     "vkvideoRewardOnlyWhenLiveHint": "If enabled, coins are granted only when your VKVideo stream is live.",
     "vkvideoRewardIdForCoins": "vkvideoRewardIdForCoins (optional)",
     "vkvideoRewardIdPlaceholder": "(empty = any reward)",
@@ -1133,7 +1187,6 @@
     "adjusting": "Adjusting...",
     "amount": "Amount",
     "enterAmount": "Enter a valid amount",
-
     "by": "by",
     "rewardIdForCoins": "Reward ID for Coins",
     "coinPerPointRatio": "Coins per Point Ratio",
@@ -1217,12 +1270,56 @@
     "betaAccessRevokedBadge": "revoked",
     "revokedAt": "Revoked:",
     "submissionRewardCoins": "Reward for approved submission (coins)",
-    "submissionRewardCoinsDescription": "Coins granted to the viewer when you approve their submission. Set 0 to disable."
-    ,
+    "submissionRewardCoinsDescription": "Coins granted to the viewer when you approve their submission. Set 0 to disable.",
     "submissionRewardCoinsUpload": "Reward (upload / URL) (coins)",
     "submissionRewardCoinsPool": "Reward (pool) (coins)",
     "submissionRewardCoinsDescriptionSplit": "Coins granted to the viewer when you approve their submission. Pool and upload/URL can have different rewards. Set 0 to disable.",
-    "quickAdd100": "+100"
+    "quickAdd100": "+100",
+    "addRow": "Добавить строку",
+    "advanced": "Advanced (manual by channelId)",
+    "allWallets": "All wallets (advanced)",
+    "autoRewardsGiftRecipientCoins": "Монеты получателя",
+    "autoRewardsTwitchOnlyHint": "Twitch-only: channel points mapping. Stored in the same auto-rewards JSON.",
+    "boostyBlogName": "boostyBlogName",
+    "boostyBlogNameHint": "Какой Boosty-блог считать “подпиской на канал”.",
+    "boostyBlogNamePlaceholder": "например: memalerts",
+    "boostyCoinsPerSub": "boostyCoinsPerSub (fallback)",
+    "boostyCoinsPerSubHint": "Награда по умолчанию, если tier не сопоставлен (0 = отключить).",
+    "boostyRewardsDescription": "Настройка наград за подписку Boosty (fallback и таблица tier→coins).",
+    "boostyRewardsDisabledWarning": "Награды отключены: укажите fallback (boostyCoinsPerSub) или таблицу tier→coins, иначе монеты начисляться не будут.",
+    "boostyRewardsTitle": "Boosty",
+    "boostyTierCoinsEmpty": "Таблица пуста.",
+    "boostyTierCoinsTitle": "boostyTierCoins (tier→coins)",
+    "botTestMessageHintYoutube": "Send a message from the bot into your YouTube live chat. This helps confirm the bot is connected.",
+    "channelDesignDescription": "Настройки внешнего вида и поведения интерфейса на сайте.",
+    "channelId": "channelId",
+    "confirmRevoke": "Отозвать entitlement custom-bot для этого channelId?",
+    "copy": "Copy",
+    "discount": "discount",
+    "grant": "Grant",
+    "grantByProvider": "Grant (by provider)",
+    "loaded": "Loaded.",
+    "noData": "No data.",
+    "obsCreditsUrl": "Credits URL (Browser Source)",
+    "obsOverlayKindMemes": "Мемы",
+    "ownerEntitlementsHint": "Рациональный и безопасный способ: резолвим channelId по Twitch broadcaster_id (externalId) и выдаём entitlement. Ни логинов, ни email здесь нет.",
+    "ownerEntitlementsResult": "Result",
+    "ownerEntitlementsTitle": "Owner: Entitlements",
+    "preferencesHint": "Небольшие настройки, которые влияют на UX внутри панели.",
+    "resolve": "Resolve",
+    "resolved": "Resolved.",
+    "resolvedSummary": "Найдено",
+    "resolveHint": "Grant (by provider) сам резолвит канал и делает upsert entitlement custom_bot.",
+    "rewardsDescription": "Настройка наград и начисления монет за действия зрителей.",
+    "status": "Status",
+    "submissions": "Заявки",
+    "twitchAutoRewardsDescription": "Автоматическое начисление монет за события (Twitch/Kick/Trovo/VKVideo). Настройка хранится в виде JSON и применяется бэкендом best-effort.",
+    "twitchAutoRewardsHint": "Все секции опциональны. Если enabled=false или coins/… = 0 — награда не начисляется. Twitch: channelPoints → byRewardId (reward.id). VKVideo: follow/subscribe/chat используют те же секции (subscribe.primeCoins = coins). Если channelPoints.enabled=false — остаётся legacy-настройка rewardIdForCoins.",
+    "twitchExternalId": "Twitch externalId (broadcaster_id)",
+    "walletHint": "Tip: choose a viewer and a streamer channel — streamer self-wallets are hidden (unlimited).",
+    "youtubeBotIntegrationLabel": "Включить YouTube-бота для канала.",
+    "youtubeEnableRequiredToSend": "Сначала включите YouTube-бота для канала.",
+    "youtubeOverrideTitle": "Свой бот"
   },
   "search": {
     "title": "Mem Alerts - Search",
@@ -1246,7 +1343,17 @@
     "descending": "Descending",
     "filterByTags": "Filter by Tags",
     "noResults": "No memes found matching your criteria",
-    "enterQuery": "Enter a search query or select tags to find memes"
+    "enterQuery": "Enter a search query or select tags to find memes",
+    "aiHint": "Search includes tags and hidden AI description.",
+    "statusActive": "Status Active",
+    "statusAll": "Status All",
+    "statusApproved": "Status Approved",
+    "statusDeleted": "Status Deleted",
+    "statusDisabled": "Status Disabled",
+    "statusInactive": "Status Inactive",
+    "statusPending": "Status Pending",
+    "statusRejected": "Status Rejected",
+    "tryAdjusting": "Try changing filters or removing some tags."
   },
   "pool": {
     "title": "Meme pool",
@@ -1271,8 +1378,7 @@
     "submissionCreated": "Submitted for approval.",
     "alreadyInChannel": "This meme is already in your channel.",
     "deletedBlocked": "This meme is deleted/quarantined and cannot be used.",
-    "failedToSubmit": "Failed to submit."
-    ,
+    "failedToSubmit": "Failed to submit.",
     "submitTimeout": "Request timed out. The submission may still have been created — check your submissions."
   },
   "footer": {
@@ -1335,10 +1441,13 @@
     "failedToImport": "Failed to import meme",
     "unavailableTitle": "Submission unavailable",
     "submissionsDisabled": "Submissions are disabled by the streamer",
-    "submissionsOffline": "Submissions are allowed only while the stream is live"
-    ,
+    "submissionsOffline": "Submissions are allowed only while the stream is live",
     "openPool": "Open pool",
-    "uploadBlockedDeleted": "This file is deleted/quarantined and cannot be uploaded again."
+    "uploadBlockedDeleted": "This file is deleted/quarantined and cannot be uploaded again.",
+    "directApprovalProcess": "Since you are submitting to your own channel, the meme will be added immediately.",
+    "mode": "Submit mode",
+    "preview": "Preview",
+    "whatHappensNext": "What happens next?"
   },
   "profile": {
     "balanceFor": "Your Balance for",
@@ -1382,7 +1491,8 @@
   },
   "tagInput": {
     "pressEnterToAdd": "Press Enter, space, or comma to add a tag. Tag is one word. Maximum 50 characters per tag.",
-    "removeTag": "Remove tag"
+    "removeTag": "Remove tag",
+    "label": "Tags"
   },
   "toast": {
     "channelNotFound": "Channel not found",
@@ -1426,8 +1536,7 @@
     "hasAccess": "You already have beta access.",
     "blacklistedTitle": "Access denied",
     "blacklistedDescription": "Sorry, you cannot get beta access because you are on the blacklist."
-  }
-  ,
+  },
   "memeModal": {
     "price": "Price",
     "priceValue": "{{price}} coins",
@@ -1444,6 +1553,27 @@
     "yourBalance": "Your balance: {{balance}} coins",
     "insufficientCoins": "Insufficient coins (need {{price}})",
     "deleteMeme": "Delete Meme",
-    "videoLoadFailed": "Failed to load video source"
+    "videoLoadFailed": "Failed to load video source",
+    "ariaVideo": "Видео",
+    "deleteConfirm": "Are you sure you want to delete \"{{title}}\"?",
+    "deleteReasonLabel": "Reason (optional)",
+    "deleteReasonPlaceholder": "Write a short note… (optional)",
+    "deleteWarning": "This action cannot be undone."
+  },
+  "memes": {
+    "activationCountLabel_one": "{{count}} activation",
+    "activationCountLabel_other": "{{count}} activations"
+  },
+  "subscription": {
+    "boostyAccessDescription": "Статус доступа определяется через Discord roles. Никаких Boosty-токенов больше не нужно.",
+    "boostyAccessLinkDiscordCta": "Привязать Discord",
+    "boostyAccessNeedDiscordBody": "Привяжите Discord, затем мы проверим роли на сервере.",
+    "boostyAccessNeedDiscordTitle": "Нужно привязать Discord",
+    "boostyAccessRequiredGuild": "Discord сервер (guildId)",
+    "boostyAccessSubscribedTitle": "Подписка активна",
+    "boostyAccessTier": "Tier",
+    "boostyAccessTitle": "Подписка / Boosty rewards",
+    "requiredBody": "Подключение \"своего бота\" доступно по заявкам.",
+    "requiredTitle": "Доступно по заявкам"
   }
 }
