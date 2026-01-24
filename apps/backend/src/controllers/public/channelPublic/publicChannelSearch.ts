@@ -26,6 +26,7 @@ import {
   parseLimit,
 } from '../../../utils/pagination.js';
 import { ifNoneMatchHit, makeEtagFromString } from '../../viewer/cache.js';
+import { parseQueryBool } from '../../../shared/utils/queryParsers.js';
 
 export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelSearchQuery;
@@ -189,10 +190,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
     }
   }
 
-  const includeTotalRaw = String(req.query.includeTotal || '')
-    .trim()
-    .toLowerCase();
-  const includeTotal = includeTotalRaw === '1' || includeTotalRaw === 'true';
+  const includeTotal = parseQueryBool(req.query.includeTotal);
   let hasMore = false;
   let items: PublicChannelMemeListItem[] = [];
   let total: number | null = null;

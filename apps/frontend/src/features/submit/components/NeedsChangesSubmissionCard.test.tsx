@@ -9,6 +9,7 @@ import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
 import { mockResubmitSubmission } from '@/test/msw/handlers';
 import { makeMySubmission } from '@/test/fixtures/submissions';
+import { makeViewerUser } from '@/test/fixtures/user';
 
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -47,7 +48,7 @@ describe('NeedsChangesSubmissionCard (integration)', () => {
       );
 
       renderWithProviders(<NeedsChangesSubmissionCard submission={submission} onUpdated={onUpdated} />, {
-        preloadedState: { auth: { user: { id: 'u1', displayName: 'U', role: 'viewer', channelId: null }, loading: false, error: null } } as any,
+        preloadedState: { auth: { user: makeViewerUser({ id: 'u1', displayName: 'U' }), loading: false, error: null } },
       });
 
       expect(screen.getByText('URL')).toBeInTheDocument();
@@ -85,7 +86,7 @@ describe('NeedsChangesSubmissionCard (integration)', () => {
     server.use(mockResubmitSubmission((d) => assert(d)));
 
     renderWithProviders(<NeedsChangesSubmissionCard submission={submission} onUpdated={onUpdated} />, {
-      preloadedState: { auth: { user: { id: 'u1', displayName: 'U', role: 'viewer', channelId: null }, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: makeViewerUser({ id: 'u1', displayName: 'U' }), loading: false, error: null } },
     });
 
     // Clear title -> button should be disabled
@@ -108,7 +109,7 @@ describe('NeedsChangesSubmissionCard (integration)', () => {
     );
 
     renderWithProviders(<NeedsChangesSubmissionCard submission={submission} onUpdated={onUpdated} />, {
-      preloadedState: { auth: { user: { id: 'u1', displayName: 'U', role: 'viewer', channelId: null }, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: makeViewerUser({ id: 'u1', displayName: 'U' }), loading: false, error: null } },
     });
 
     await userEv.click(screen.getByRole('button', { name: /fix & resubmit/i }));

@@ -19,11 +19,14 @@ i18n
     },
     fallbackLng: 'en',
     debug: false,
+    saveMissing: true,
+    missingKeyHandler: (_lng, _ns, key) => {
+      console.warn(`Missing i18n key: ${key}`);
+    },
     interpolation: {
       escapeValue: false,
     },
   });
 
 export default i18n;
-
 

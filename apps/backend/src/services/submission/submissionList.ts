@@ -10,6 +10,7 @@ import {
   parseLimit,
   safeDecodeCursor,
 } from '../../utils/pagination.js';
+import { parseQueryBool } from '../../shared/utils/queryParsers.js';
 import type { AdminSubmissionDeps } from './submissionTypes.js';
 import { asRecord, getErrorMessage } from './submissionShared.js';
 
@@ -23,14 +24,8 @@ export const getSubmissionsWithRepos = async (deps: AdminSubmissionDeps, req: Au
   const cursorRaw = req.query.cursor;
   const includeTotalRaw = req.query.includeTotal as string | undefined;
   const includeTagsRaw = req.query.includeTags as string | undefined;
-  const includeTotal =
-    includeTotalRaw !== undefined &&
-    (includeTotalRaw === '1' || includeTotalRaw.toLowerCase() === 'true' || includeTotalRaw.toLowerCase() === 'yes');
-  const includeTags =
-    includeTagsRaw === undefined ||
-    includeTagsRaw === '1' ||
-    includeTagsRaw.toLowerCase() === 'true' ||
-    includeTagsRaw.toLowerCase() === 'yes';
+  const includeTotal = parseQueryBool(includeTotalRaw);
+  const includeTags = includeTagsRaw === undefined || parseQueryBool(includeTagsRaw);
 
   // Defensive paging (admin endpoints can still be abused).
   const maxFromEnv = parseInt(String(process.env.ADMIN_SUBMISSIONS_PAGE_MAX || ''), 10);

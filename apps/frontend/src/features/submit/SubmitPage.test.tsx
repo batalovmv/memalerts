@@ -66,7 +66,7 @@ describe('SubmitPage (integration)', () => {
 
     renderWithProviders(<SubmitPage />, {
       route: '/submit',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await waitFor(() => expect(calls).toBe(1));

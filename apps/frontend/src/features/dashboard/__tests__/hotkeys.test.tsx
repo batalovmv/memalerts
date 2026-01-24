@@ -51,7 +51,7 @@ function renderPanel(override?: Partial<React.ComponentProps<typeof DashboardSub
   };
 
   return renderWithProviders(<DashboardSubmissionsPanel {...props} />, {
-    preloadedState: { auth: { user: null, loading: false, error: null } } as any,
+    preloadedState: { auth: { user: null, loading: false, error: null } },
   });
 }
 
@@ -77,7 +77,7 @@ describe('Moderation hotkeys', () => {
     if (originalScrollIntoView) {
       Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView);
     } else {
-      delete (HTMLElement.prototype as any).scrollIntoView;
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }
     originalScrollIntoView = undefined;
   });

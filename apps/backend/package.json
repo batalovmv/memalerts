@@ -109,6 +109,7 @@
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",
     "@vitest/coverage-v8": "^2.1.9",
+    "@squoosh/lib": "^0.5.3",
     "eslint": "^9.20.1",
     "eslint-plugin-import": "^2.29.1",
     "husky": "^9.0.7",
@@ -116,6 +117,7 @@
     "msw": "^2.12.7",
     "prettier": "^3.4.0",
     "prisma": "^5.22.0",
+    "sharp": "^0.33.5",
     "socket.io-client": "^4.5.4",
     "standard-version": "^9.5.0",
     "supertest": "^7.2.2",
@@ -124,6 +126,9 @@
     "vitest": "^2.1.9"
   },
   "lint-staged": {
-    "*.{ts,tsx,js}": "eslint --max-warnings 0 --fix"
+    "*.{ts,tsx,js}": [
+      "eslint --max-warnings 0 --fix",
+      "prettier --write"
+    ]
   }
 }

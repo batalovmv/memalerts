@@ -57,6 +57,20 @@ vi.mock('@/shared/ui/SecretCopyField/SecretCopyField', () => ({
   },
 }));
 
+function stubMatchMedia(matches = false) {
+  const mql: MediaQueryList = {
+    matches,
+    media: '',
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  };
+  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(mql));
+}
+
 // Keep dashboard tests lightweight: verify that actions open the correct modal,
 // but don't mount the full modal UI (focus traps/portals/etc).
 vi.mock('@/features/dashboard/ui/modals/ApproveSubmissionModal', () => ({
@@ -80,7 +94,7 @@ describe('DashboardPage (integration)', () => {
       observe() {}
       unobserve() {}
       disconnect() {}
-      constructor(_cb: any, _opts?: any) {}
+      constructor(_cb: IntersectionObserverCallback, _opts?: IntersectionObserverInit) {}
     };
   });
 
@@ -97,11 +111,11 @@ describe('DashboardPage (integration)', () => {
       mockMySubmissions([]),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard?tab=submissions',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     // Panels are always mounted; open/close is controlled via Tailwind `hidden`/`block` classes.
@@ -121,11 +135,11 @@ describe('DashboardPage (integration)', () => {
     );
 
     // Avoid mobile scroll side effects.
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     const panel = screen.getByLabelText(/all memes/i, { selector: 'section' });
@@ -154,11 +168,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     await userEv.click(screen.getByRole('button', { name: /all memes/i }));
@@ -179,11 +193,11 @@ describe('DashboardPage (integration)', () => {
       mockStreamerMemes({ items: [], hasMore: false, totalCount: 0 }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     await userEv.click(screen.getByRole('button', { name: /all memes/i }));
@@ -208,11 +222,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     await userEv.click(screen.getByRole('button', { name: /all memes/i }));
@@ -263,26 +277,26 @@ describe('DashboardPage (integration)', () => {
     // @ts-expect-error test env polyfill
     globalThis.IntersectionObserver = class IO {
       private cb: (entries: Array<{ isIntersecting: boolean; target: Element }>) => void;
-      constructor(cb: any) {
+      constructor(cb: IntersectionObserverCallback) {
         this.cb = cb;
       }
-      observe(el: any) {
+      observe(el: Element) {
         if (el && typeof el === 'object') {
           if (seen.has(el)) return;
           seen.add(el);
         }
-        this.cb([{ isIntersecting: true, target: el }]);
+        this.cb([{ isIntersecting: true, target: el } as IntersectionObserverEntry]);
       }
       unobserve() {}
       disconnect() {}
     };
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     try {
       renderWithProviders(<DashboardPage />, {
         route: '/dashboard',
-        preloadedState: { auth: { user, loading: false, error: null } } as any,
+        preloadedState: { auth: { user, loading: false, error: null } },
       });
 
       await userEv.click(screen.getByRole('button', { name: /all memes/i }));
@@ -321,11 +335,11 @@ describe('DashboardPage (integration)', () => {
       mockMySubmissions([]),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard?tab=submissions',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     const submissionsPanel = await screen.findByLabelText(/^submissions$/i, { selector: 'section' });
@@ -365,11 +379,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard?tab=submissions',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     expect(await screen.findByText(/failed to load pending submissions/i)).toBeInTheDocument();
@@ -437,26 +451,26 @@ describe('DashboardPage (integration)', () => {
     // @ts-expect-error test env polyfill
     globalThis.IntersectionObserver = class IO {
       private cb: (entries: Array<{ isIntersecting: boolean; target: Element }>) => void;
-      constructor(cb: any) {
+      constructor(cb: IntersectionObserverCallback) {
         this.cb = cb;
       }
-      observe(el: any) {
+      observe(el: Element) {
         if (el && typeof el === 'object') {
           if (seen.has(el)) return;
           seen.add(el);
         }
-        this.cb([{ isIntersecting: true, target: el }]);
+        this.cb([{ isIntersecting: true, target: el } as IntersectionObserverEntry]);
       }
       unobserve() {}
       disconnect() {}
     };
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     try {
       renderWithProviders(<DashboardPage />, {
         route: '/dashboard?tab=submissions',
-        preloadedState: { auth: { user, loading: false, error: null } } as any,
+        preloadedState: { auth: { user, loading: false, error: null } },
       });
 
       expect(await screen.findByText('Pending 0')).toBeInTheDocument();
@@ -480,11 +494,11 @@ describe('DashboardPage (integration)', () => {
       mockMySubmissions([], mySubmissionsCalls),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     const mySubmissionsButtons = screen.getAllByRole('button', { name: /my submissions/i });
@@ -505,7 +519,7 @@ describe('DashboardPage (integration)', () => {
     const userEv = userEvent.setup();
     const user = makeStreamerUser();
 
-    const patchCalls: unknown[] = [];
+    const patchCalls: Array<{ submissionsEnabled?: boolean }> = [];
     server.use(
       mockChannel(user.channel!.slug, { stats: { memesCount: 0 }, submissionsEnabled: true, submissionsOnlyWhenLive: false, dashboardCardOrder: null }),
       mockStreamerBots([]),
@@ -519,11 +533,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     // Open submissions control expandable card.
@@ -542,14 +556,14 @@ describe('DashboardPage (integration)', () => {
 
     // PATCH should have been sent with submissionsEnabled: false (best-effort).
     expect(patchCalls.length).toBeGreaterThanOrEqual(1);
-    expect(patchCalls.some((b: any) => b && b.submissionsEnabled === false)).toBe(true);
+    expect(patchCalls.some((b) => b.submissionsEnabled === false)).toBe(true);
   });
 
   it('submissions control: toggles meme catalog mode via PATCH /streamer/channel/settings', async () => {
     const userEv = userEvent.setup();
     const user = makeStreamerUser();
 
-    const patchCalls: unknown[] = [];
+    const patchCalls: Array<{ memeCatalogMode?: string }> = [];
     server.use(
       mockChannel(user.channel!.slug, {
         stats: { memesCount: 0 },
@@ -567,11 +581,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     // Open submissions control expandable card.
@@ -589,7 +603,7 @@ describe('DashboardPage (integration)', () => {
     await userEv.click(catalogToggle);
 
     expect(patchCalls.length).toBeGreaterThanOrEqual(1);
-    expect(patchCalls.some((b: any) => b && b.memeCatalogMode === 'pool_all')).toBe(true);
+    expect(patchCalls.some((b) => b.memeCatalogMode === 'pool_all')).toBe(true);
   });
 
   it('submissions control: rotates link and renders returned links + status', async () => {
@@ -615,11 +629,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     const submissionsTitles = await screen.findAllByText(/^submissions$/i);
@@ -644,7 +658,7 @@ describe('DashboardPage (integration)', () => {
     const patched: string[] = [];
     server.use(
       mockChannel(user.channel!.slug, { stats: { memesCount: 0 }, submissionsEnabled: true, submissionsOnlyWhenLive: false, dashboardCardOrder: null }),
-      mockStreamerBots([{ provider: 'twitch', enabled: true }, { provider: 'youtube', enabled: true }] as any),
+      mockStreamerBots([{ provider: 'twitch', enabled: true }, { provider: 'youtube', enabled: true }]),
       mockStreamerSubmissions({ items: [], total: 0 }),
       mockMySubmissions([]),
       http.patch('*/streamer/bots/:provider', ({ params, request }) => {
@@ -654,11 +668,11 @@ describe('DashboardPage (integration)', () => {
       }),
     );
 
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false } as any));
+    stubMatchMedia();
 
     renderWithProviders(<DashboardPage />, {
       route: '/dashboard',
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     // Open bots expandable card.

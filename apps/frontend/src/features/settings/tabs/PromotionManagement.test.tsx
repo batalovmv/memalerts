@@ -20,7 +20,15 @@ describe('PromotionManagement (integration)', () => {
   it('loads promotions and toggles active (PATCH + refresh)', async () => {
     const user = userEvent.setup();
 
-    let promotions: any[] = [
+    type Promotion = {
+      id: string;
+      name: string;
+      discountPercent: number;
+      startDate: string;
+      endDate: string;
+      isActive: boolean;
+    };
+    let promotions: Promotion[] = [
       {
         id: 'p1',
         name: 'Promo',
@@ -41,7 +49,7 @@ describe('PromotionManagement (integration)', () => {
       }),
       mockStreamerPromotionPatchOk(({ id, body }) => {
         patchAssert({ id, body });
-        promotions = promotions.map((p) => (p.id === id ? { ...p, isActive: !(p as any).isActive } : p));
+        promotions = promotions.map((p) => (p.id === id ? { ...p, isActive: !p.isActive } : p));
       }),
     );
 
@@ -63,7 +71,21 @@ describe('PromotionManagement (integration)', () => {
   it('creates a promotion (POST) and refreshes list', async () => {
     const user = userEvent.setup();
 
-    let promotions: any[] = [];
+    type Promotion = {
+      id: string;
+      name: string;
+      discountPercent: number;
+      startDate: string;
+      endDate: string;
+      isActive: boolean;
+    };
+    type PromotionPayload = {
+      name: string;
+      discountPercent: number;
+      startDate: string;
+      endDate: string;
+    };
+    let promotions: Promotion[] = [];
     const createBody = vi.fn();
     const listCalls = vi.fn();
 
@@ -74,13 +96,14 @@ describe('PromotionManagement (integration)', () => {
       }),
       mockStreamerPromotionCreateOk((body) => {
         createBody(body);
+        const payload = body as PromotionPayload;
         promotions = [
           {
             id: 'p_new',
-            name: (body as any).name,
-            discountPercent: (body as any).discountPercent,
-            startDate: (body as any).startDate,
-            endDate: (body as any).endDate,
+            name: payload.name,
+            discountPercent: payload.discountPercent,
+            startDate: payload.startDate,
+            endDate: payload.endDate,
             isActive: true,
           },
         ];
@@ -112,7 +135,7 @@ describe('PromotionManagement (integration)', () => {
     await user.click(screen.getByRole('button', { name: /^create$/i }));
 
     await waitFor(() => expect(createBody).toHaveBeenCalledTimes(1));
-    const body = createBody.mock.calls[0]![0] as any;
+    const body = createBody.mock.calls[0]![0] as PromotionPayload;
     expect(body.name).toBe('New Promo');
     expect(body.discountPercent).toBe(12.5);
     expect(typeof body.startDate).toBe('string');
@@ -126,5 +149,4 @@ describe('PromotionManagement (integration)', () => {
     expect(await screen.findByText('New Promo')).toBeInTheDocument();
   });
 });
-
 

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Suspense, lazy, memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
@@ -21,7 +21,7 @@ export interface HeaderProps {
   rewardTitle?: string | null;
 }
 
-export default function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
+const Header = memo(function Header({ channelSlug, channelId, primaryColor, coinIconUrl, rewardTitle }: HeaderProps) {
   const { t } = useTranslation();
   const { user } = useAppSelector((state) => state.auth);
   const uiMode = getEffectiveUserMode(user);
@@ -335,4 +335,6 @@ export default function Header({ channelSlug, channelId, primaryColor, coinIconU
       </Suspense>
     </>
   );
-}
+});
+
+export default Header;

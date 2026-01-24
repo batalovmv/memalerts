@@ -25,7 +25,7 @@ describe('File validation', () => {
 
   it('uses runtime maxUploadSizeMb when provided', async () => {
     vi.resetModules();
-    (window as any).__MEMALERTS_RUNTIME_CONFIG__ = { maxUploadSizeMb: 1 };
+    window.__MEMALERTS_RUNTIME_CONFIG__ = { maxUploadSizeMb: 1 };
 
     const { validateFile } = await import('../lib/validation');
     const tWithInterpolation = (_key: string, options?: Record<string, unknown>) => {
@@ -41,6 +41,6 @@ describe('File validation', () => {
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('Maximum 1 MB');
 
-    delete (window as any).__MEMALERTS_RUNTIME_CONFIG__;
+    delete window.__MEMALERTS_RUNTIME_CONFIG__;
   });
 });

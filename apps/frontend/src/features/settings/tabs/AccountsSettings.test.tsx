@@ -8,6 +8,9 @@ import { AccountsSettings } from './AccountsSettings';
 import { renderWithProviders } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
 import { mockAuthAccountDeleteOk, mockAuthAccounts } from '@/test/msw/handlers';
+import { makeViewerUser } from '@/test/fixtures/user';
+
+import type { User } from '@/types';
 
 vi.mock('@/shared/auth/useAuthQueryErrorToast', () => ({
   useAuthQueryErrorToast: () => {},
@@ -33,13 +36,11 @@ describe('AccountsSettings (integration)', () => {
     const userEv = userEvent.setup();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-    let me: any = {
+    let me: User = makeViewerUser({
       id: 'u1',
       displayName: 'User',
-      role: 'viewer',
-      channelId: null,
       externalAccounts: [{ id: 'acc_yt', provider: 'youtube', login: 'myyt' }],
-    };
+    });
 
     const deleteAssert = vi.fn();
     let meCalls = 0;
@@ -58,7 +59,7 @@ describe('AccountsSettings (integration)', () => {
 
     renderWithProviders(<AccountsSettings />, {
       route: '/settings/accounts',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     // Linked indicator should show for the YouTube row.
@@ -79,7 +80,6 @@ describe('AccountsSettings (integration)', () => {
     confirmSpy.mockRestore();
   });
 });
-
 
 
 

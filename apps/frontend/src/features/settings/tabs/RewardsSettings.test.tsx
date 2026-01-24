@@ -105,6 +105,15 @@ vi.mock('@/contexts/ChannelColorsContext', () => ({
 }));
 
 describe('RewardsSettings (integration)', () => {
+  type ChannelSettingsPatch = {
+    twitchAutoRewards?: { v?: number; follow?: { coins?: number } };
+    submissionRewardCoinsUpload?: number;
+    submissionRewardCoinsPool?: number;
+    submissionRewardOnlyWhenLive?: boolean;
+    kickRewardEnabled?: boolean;
+    kickCoinPerPointRatio?: number;
+  };
+
   const defaultBoostyAccess = () =>
     HttpResponse.json({
       status: 'need_discord_link',
@@ -113,7 +122,7 @@ describe('RewardsSettings (integration)', () => {
 
   it('renders Discord link CTA when boosty-access status=need_discord_link', async () => {
     const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     server.use(
       http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
@@ -129,7 +138,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await userEv.click(await screen.findByRole('button', { name: /boosty/i }));
@@ -139,7 +148,7 @@ describe('RewardsSettings (integration)', () => {
 
   it('renders subscribed state when boosty-access status=subscribed', async () => {
     const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     server.use(
       http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
@@ -156,7 +165,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await userEv.click(await screen.findByRole('button', { name: /boosty/i }));
@@ -167,7 +176,7 @@ describe('RewardsSettings (integration)', () => {
 
   it('saves twitchAutoRewards JSON via /streamer/channel/settings', async () => {
     const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     const bodies: unknown[] = [];
     server.use(
@@ -179,7 +188,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'save_twitchAutoRewards' });
@@ -201,14 +210,15 @@ describe('RewardsSettings (integration)', () => {
     await userEv.click(saveBtn);
 
     await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as any;
-    expect(last.twitchAutoRewards?.v).toBe(1);
-    expect(last.twitchAutoRewards?.follow?.coins).toBe(10);
+    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
+    expect(last).toBeTruthy();
+    expect(last?.twitchAutoRewards?.v).toBe(1);
+    expect(last?.twitchAutoRewards?.follow?.coins).toBe(10);
   });
 
   it('shows Channel Points mapping editor on Twitch tab (and not in Common)', async () => {
     const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     server.use(
       http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
@@ -219,7 +229,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     // Twitch tab: the Channel Points mapping section is visible and scoped (no Follow toggle inside).
@@ -241,8 +251,8 @@ describe('RewardsSettings (integration)', () => {
     const userEv = userEvent.setup();
     const me = makeStreamerUser({
       channelId: 'c1',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: null } as any,
-      externalAccounts: [{ id: 'ea_kick', provider: 'kick' } as any],
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: null },
+      externalAccounts: [{ id: 'ea_kick', provider: 'kick' }],
     });
 
     const bodies: unknown[] = [];
@@ -255,7 +265,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_tab_autoRewards' });
@@ -276,14 +286,15 @@ describe('RewardsSettings (integration)', () => {
     await userEv.click(saveBtn);
 
     await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as any;
-    expect(last.twitchAutoRewards?.v).toBe(1);
-    expect(last.twitchAutoRewards?.follow?.coins).toBe(10);
+    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
+    expect(last).toBeTruthy();
+    expect(last?.twitchAutoRewards?.v).toBe(1);
+    expect(last?.twitchAutoRewards?.follow?.coins).toBe(10);
   });
 
   it('autosaves approved meme reward via /streamer/channel/settings (payload uses numbers)', async () => {
     const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     const bodies: unknown[] = [];
     server.use(
@@ -295,7 +306,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await userEv.click(await screen.findByRole('button', { name: /(заявки|submissions)/i }));
@@ -313,15 +324,16 @@ describe('RewardsSettings (integration)', () => {
     });
 
     await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as any;
-    expect(last.submissionRewardCoinsUpload).toBe(10);
-    expect(last.submissionRewardCoinsPool).toBe(0);
-    expect(last.submissionRewardOnlyWhenLive).toBe(false);
+    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
+    expect(last).toBeTruthy();
+    expect(last?.submissionRewardCoinsUpload).toBe(10);
+    expect(last?.submissionRewardCoinsPool).toBe(0);
+    expect(last?.submissionRewardOnlyWhenLive).toBe(false);
   });
 
   it('invalid approved meme reward (empty) shows toast error and does not PATCH', async () => {
     const userEv = userEvent.setup();
-    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     server.use(
       http.options('*/channels/:channelId/boosty-access', () => HttpResponse.text('', { status: 204 })),
@@ -332,7 +344,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await userEv.click(await screen.findByRole('button', { name: /(заявки|submissions)/i }));
@@ -355,8 +367,8 @@ describe('RewardsSettings (integration)', () => {
     const userEv = userEvent.setup();
     const me = makeStreamerUser({
       channelId: 'c1',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
-      externalAccounts: [{ id: 'ea_kick', provider: 'kick' } as any],
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' },
+      externalAccounts: [{ id: 'ea_kick', provider: 'kick' }],
     });
 
     const bodies: unknown[] = [];
@@ -374,7 +386,7 @@ describe('RewardsSettings (integration)', () => {
 
     renderWithProviders(<RewardsSettings />, {
       route: '/settings?tab=rewards',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     logRewardsSnapshot({ runId: 'pre-fix', test: 'kick_reward_autosave' });
@@ -395,10 +407,10 @@ describe('RewardsSettings (integration)', () => {
     });
 
     await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as any;
-    expect(last.kickRewardEnabled).toBe(true);
-    expect(last.kickCoinPerPointRatio).toBe(2);
+    const last = bodies.at(-1) as ChannelSettingsPatch | undefined;
+    expect(last).toBeTruthy();
+    expect(last?.kickRewardEnabled).toBe(true);
+    expect(last?.kickCoinPerPointRatio).toBe(2);
   });
 });
-
 

@@ -5,7 +5,7 @@ import { createPoolSubmission } from '@/shared/api/submissions';
 
 describe('createPoolSubmission', () => {
   it('posts normalized pool submission payload', async () => {
-    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({} as any);
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({});
 
     await createPoolSubmission({
       memeAssetId: 'asset-1',

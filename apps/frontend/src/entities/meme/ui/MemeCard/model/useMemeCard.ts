@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { Meme } from '@/types';
 
-import { useHasUserInteracted } from '@/lib/userInteraction';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
+import { useHasUserInteracted } from '@/shared/lib/userInteraction';
 
 export type MemeCardPreviewMode = 'hoverWithSound' | 'hoverMuted' | 'autoplayMuted';
 
@@ -170,5 +170,3 @@ export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode:
     },
   };
 }
-
-

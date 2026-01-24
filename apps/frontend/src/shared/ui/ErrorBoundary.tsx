@@ -38,8 +38,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   render() {
-    // We still render children; the global banner will show details and user can refresh.
-    if (this.state.hasError) return null;
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 px-6 text-center">
+          <h2 className="text-lg font-semibold text-gray-900">Something went wrong</h2>
+          <p className="text-sm text-gray-600">Please reload the page.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
     return this.props.children;
   }
 }

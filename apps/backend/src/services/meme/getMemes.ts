@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { asRecord } from './memeShared.js';
+import { parseQueryBool } from '../../shared/utils/queryParsers.js';
 
 const getSourceType = (format: 'webm' | 'mp4' | 'preview'): string => {
   switch (format) {
@@ -22,8 +23,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
   }
 
   const queryRec = asRecord(req.query);
-  const includeAiRaw = String(queryRec.includeAi ?? '').toLowerCase();
-  const includeAi = includeAiRaw === '1' || includeAiRaw === 'true' || includeAiRaw === 'yes' || includeAiRaw === 'on';
+  const includeAi = parseQueryBool(queryRec.includeAi);
 
   const clampInt = (n: number, min: number, max: number, fallback: number): number => {
     if (!Number.isFinite(n)) return fallback;
@@ -33,7 +33,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
   };
 
   const all = String(req.query.all || '').toLowerCase();
-  const includeTotal = String(req.query.includeTotal || '').toLowerCase() === '1';
+  const includeTotal = parseQueryBool(req.query.includeTotal);
   const qRaw = String(req.query.q || '').trim();
   const q = qRaw.length > 100 ? qRaw.slice(0, 100) : qRaw;
 

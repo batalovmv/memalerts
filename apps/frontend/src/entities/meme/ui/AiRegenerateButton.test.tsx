@@ -14,9 +14,9 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 vi.mock('@/shared/api/channel', async (orig) => {
-  const mod = (await orig()) as object;
+  const mod = (await orig()) as typeof import('@/shared/api/channel');
   return {
-    ...(mod as any),
+    ...mod,
     regenerateMemeAi: vi.fn().mockResolvedValue({ data: {}, meta: { status: 202, headers: {} } }),
   };
 });

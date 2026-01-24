@@ -13,7 +13,7 @@ describe('runtimeConfig (web)', () => {
 
     expect(cfg).toEqual({});
     expect(getRuntimeConfig()).toEqual({});
-    expect((window as any).__MEMALERTS_RUNTIME_CONFIG__).toEqual({});
+    expect(window.__MEMALERTS_RUNTIME_CONFIG__).toEqual({});
   });
 
   it('caches the loaded config and does not refetch', async () => {

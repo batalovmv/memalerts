@@ -19,7 +19,9 @@ describe('BetaAccessManagement (integration)', () => {
   it('approves a pending request and refreshes lists', async () => {
     const userEv = userEvent.setup();
 
-    let requests: any[] = [
+    type BetaUser = { id: string; displayName: string; twitchUserId?: string; role?: string };
+    type BetaRequest = { id: string; status: string; requestedAt: string; user: BetaUser };
+    let requests: BetaRequest[] = [
       {
         id: 'req1',
         status: 'pending',
@@ -27,8 +29,8 @@ describe('BetaAccessManagement (integration)', () => {
         user: { id: 'u_req', displayName: 'Requester', twitchUserId: '123' },
       },
     ];
-    let granted: any[] = [];
-    let revoked: any[] = [];
+    let granted: BetaUser[] = [];
+    let revoked: Array<{ id: string; approvedAt: string; user: BetaUser }> = [];
 
     server.use(
       http.get('*/owner/beta/requests', () => HttpResponse.json(requests)),
@@ -63,9 +65,10 @@ describe('BetaAccessManagement (integration)', () => {
     const userEv = userEvent.setup();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-    let requests: any[] = [];
-    let granted: any[] = [{ id: 'u1', displayName: 'Alice', twitchUserId: '111', role: 'viewer' }];
-    let revoked: any[] = [];
+    type BetaUser = { id: string; displayName: string; twitchUserId?: string; role?: string };
+    let requests: Array<{ id: string; status: string; requestedAt: string; user: BetaUser }> = [];
+    let granted: BetaUser[] = [{ id: 'u1', displayName: 'Alice', twitchUserId: '111', role: 'viewer' }];
+    let revoked: Array<{ id: string; approvedAt: string; user: BetaUser }> = [];
 
     server.use(
       http.get('*/owner/beta/requests', () => HttpResponse.json(requests)),
@@ -107,5 +110,4 @@ describe('BetaAccessManagement (integration)', () => {
     confirmSpy.mockRestore();
   });
 });
-
 

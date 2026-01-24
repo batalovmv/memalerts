@@ -80,11 +80,7 @@ export function isUrlAnim(v: string): v is UrlAnim {
   return (URL_ANIMS as ReadonlyArray<string>).includes(v);
 }
 
-export function toRecord(v: unknown): Record<string, unknown> | null {
-  if (!v || typeof v !== 'object') return null;
-  if (Array.isArray(v)) return null;
-  return v as Record<string, unknown>;
-}
+export { toRecord } from '@/shared/lib/parsing';
 
 export function getNumber(obj: Record<string, unknown> | null, key: string): number | undefined {
   const v = obj?.[key];

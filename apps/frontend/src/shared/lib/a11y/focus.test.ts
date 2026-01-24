@@ -5,7 +5,9 @@ import { getFocusableElements } from './focus';
 function makeVisible(el: HTMLElement) {
   // jsdom returns empty rects by default, but our implementation treats that as "not visible".
   // Override per element to emulate a rendered layout box.
-  (el as any).getClientRects = () => [{ x: 0, y: 0, width: 10, height: 10 }];
+  const node = el as HTMLElement & { getClientRects: () => DOMRectList };
+  node.getClientRects = () =>
+    [{ x: 0, y: 0, width: 10, height: 10 } as DOMRect] as unknown as DOMRectList;
 }
 
 describe('getFocusableElements', () => {

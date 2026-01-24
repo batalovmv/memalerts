@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
+import { parseQueryBool } from '../../shared/utils/queryParsers.js';
 
 // Canonical list item for "channel memes listing" used by:
 // - GET /channels/:slug/memes
@@ -59,8 +60,7 @@ export type ChannelMemeListItemDto = {
 
 export function canReturnFileHash(req: Request, channelId: string): boolean {
   const query = (req.query as Record<string, unknown>) ?? {};
-  const flag = String(query.includeFileHash ?? '').toLowerCase();
-  const wants = flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on';
+  const wants = parseQueryBool(query.includeFileHash);
   if (!wants) return false;
   const auth = req as AuthRequest;
   if (!auth.userId) return false;
@@ -71,8 +71,7 @@ export function canReturnFileHash(req: Request, channelId: string): boolean {
 
 export function canReturnAiFields(req: Request, channelId: string): boolean {
   const query = (req.query as Record<string, unknown>) ?? {};
-  const flag = String(query.includeAi ?? '').toLowerCase();
-  const wants = flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on';
+  const wants = parseQueryBool(query.includeAi);
   if (!wants) return false;
   const auth = req as AuthRequest;
   if (!auth.userId) return false;

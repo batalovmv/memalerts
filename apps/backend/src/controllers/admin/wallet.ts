@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { WalletService } from '../../services/WalletService.js';
+import { parseQueryBool } from '../../shared/utils/queryParsers.js';
 
 function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -56,10 +57,7 @@ export const getAllWallets = async (req: AuthRequest, res: Response) => {
   const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
   const channelId = typeof req.query.channelId === 'string' ? req.query.channelId.trim() : '';
   const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
-  const includeTotalRaw = typeof req.query.includeTotal === 'string' ? req.query.includeTotal : undefined;
-  const includeTotal =
-    includeTotalRaw !== undefined &&
-    (includeTotalRaw === '1' || includeTotalRaw.toLowerCase() === 'true' || includeTotalRaw.toLowerCase() === 'yes');
+  const includeTotal = parseQueryBool(req.query.includeTotal);
 
   const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
   const offsetRaw = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : undefined;

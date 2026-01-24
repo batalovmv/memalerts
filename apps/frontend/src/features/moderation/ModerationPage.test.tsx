@@ -38,7 +38,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     expect(await screen.findByText(/pool moderation/i)).toBeInTheDocument();
@@ -58,7 +58,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     await screen.findByText(/pool moderation/i);
@@ -82,7 +82,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('Asset asset_12')).toBeInTheDocument();
@@ -139,7 +139,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('Asset asset_hi')).toBeInTheDocument();
@@ -167,7 +167,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     const input = await screen.findByPlaceholderText(/search by id\/hash/i);
@@ -209,7 +209,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('Asset asset_00')).toBeInTheDocument();
@@ -234,7 +234,7 @@ describe('ModerationPage (integration)', () => {
       route: '/moderation',
       preloadedState: {
         auth: { user: makeGlobalModeratorUser(), loading: false, error: null },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('Asset asset_fa')).toBeInTheDocument();

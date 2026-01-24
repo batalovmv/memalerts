@@ -8,14 +8,9 @@ import type { MySubmission } from './types';
 
 import Header from '@/components/Header';
 import { api } from '@/lib/api';
+import { toRecord } from '@/shared/lib/parsing';
 import { PageShell } from '@/shared/ui';
 import { useAppSelector } from '@/store/hooks';
-
-function toRecord(v: unknown): Record<string, unknown> | null {
-  if (!v || typeof v !== 'object') return null;
-  if (Array.isArray(v)) return null;
-  return v as Record<string, unknown>;
-}
 
 export default function Submit() {
   const { t } = useTranslation();

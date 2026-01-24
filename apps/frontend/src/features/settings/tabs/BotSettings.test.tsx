@@ -44,8 +44,8 @@ describe('BotSettings (integration)', () => {
 
     const me = makeStreamerUser({
       role: 'streamer',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
-      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' } as any],
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' },
+      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' }],
     });
 
     server.use(
@@ -65,7 +65,7 @@ describe('BotSettings (integration)', () => {
 
     renderWithProviders(<BotSettings />, {
       route: '/settings/bot',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await user.click(screen.getByRole('button', { name: /^youtube$/i }));
@@ -88,8 +88,8 @@ describe('BotSettings (integration)', () => {
 
     const me = makeStreamerUser({
       role: 'streamer',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
-      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' } as any],
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' },
+      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' }],
     });
 
     server.use(
@@ -112,7 +112,7 @@ describe('BotSettings (integration)', () => {
 
     renderWithProviders(<BotSettings />, {
       route: '/settings/bot',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await user.click(screen.getByRole('button', { name: /^youtube$/i }));
@@ -126,8 +126,8 @@ describe('BotSettings (integration)', () => {
 
     const me = makeStreamerUser({
       role: 'streamer',
-      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any,
-      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' } as any],
+      channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' },
+      externalAccounts: [{ id: 'acc_yt', provider: 'youtube', providerAccountId: 'yt1', login: 'myyt', displayName: 'YT' }],
     });
 
     const patchAssert = vi.fn();
@@ -155,7 +155,7 @@ describe('BotSettings (integration)', () => {
 
     renderWithProviders(<BotSettings />, {
       route: '/settings/bot',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     // Navigate to YouTube tab.
@@ -169,4 +169,3 @@ describe('BotSettings (integration)', () => {
     await waitFor(() => expect(patchAssert).toHaveBeenCalledWith({ enabled: true }));
   });
 });
-

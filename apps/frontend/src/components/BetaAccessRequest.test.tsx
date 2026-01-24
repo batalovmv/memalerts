@@ -35,7 +35,7 @@ describe('BetaAccessRequest (integration)', () => {
     );
 
     renderWithProviders(<BetaAccessRequest />, {
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     // Wait until the loading state resolves.
@@ -64,7 +64,7 @@ describe('BetaAccessRequest (integration)', () => {
     );
 
     renderWithProviders(<BetaAccessRequest />, {
-      preloadedState: { auth: { user, loading: false, error: null } } as any,
+      preloadedState: { auth: { user, loading: false, error: null } },
     });
 
     const btn = await screen.findByRole('button', { name: /request beta access/i });
@@ -75,5 +75,4 @@ describe('BetaAccessRequest (integration)', () => {
     expect(screen.queryByRole('button', { name: /request beta access/i })).not.toBeInTheDocument();
   });
 });
-
 

@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import reducer, { fetchUser, logout } from './authSlice';
 import { createTestStore } from '@/test/test-utils';
 import { server } from '@/test/msw/server';
+import { makeViewerUser } from '@/test/fixtures/user';
 
 vi.mock('@/shared/lib/userPreferences', () => ({
   clearUserPreferencesCache: vi.fn(),
@@ -29,7 +30,7 @@ describe('authSlice thunks (integration via MSW)', () => {
     );
 
     const store = createTestStore();
-    await store.dispatch(fetchUser() as any);
+    await store.dispatch(fetchUser());
 
     const s = store.getState().auth;
     expect(s.loading).toBe(false);
@@ -41,7 +42,7 @@ describe('authSlice thunks (integration via MSW)', () => {
     server.use(http.get('*/me', () => HttpResponse.json({ error: 'Nope' }, { status: 500 })));
 
     const store = createTestStore();
-    await store.dispatch(fetchUser() as any);
+    await store.dispatch(fetchUser());
 
     const s = store.getState().auth;
     expect(s.loading).toBe(false);
@@ -61,13 +62,13 @@ describe('authSlice thunks (integration via MSW)', () => {
 
     const store = createTestStore({
       auth: {
-        user: { id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any,
+        user: makeViewerUser({ id: 'u1' }),
         loading: false,
         error: null,
       },
-    } as any);
+    });
 
-    await store.dispatch(logout() as any);
+    await store.dispatch(logout());
 
     expect(calls).toEqual([{ method: 'POST', path: '/auth/logout' }]);
     const s = store.getState().auth;
@@ -82,11 +83,11 @@ describe('authSlice thunks (integration via MSW)', () => {
   it('logout.fulfilled clears userPreferencesCache even when reducer is invoked directly', async () => {
     const prev = reducer(
       {
-        user: { id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any,
+        user: makeViewerUser({ id: 'u1' }),
         loading: true,
         error: 'x',
       },
-      { type: 'init' } as any,
+      { type: 'init' },
     );
 
     const next = reducer(prev, logout.fulfilled(undefined, 'req1', undefined));
@@ -98,5 +99,4 @@ describe('authSlice thunks (integration via MSW)', () => {
     expect(clearUserPreferencesCache).toHaveBeenCalledTimes(1);
   });
 });
-
 

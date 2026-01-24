@@ -34,6 +34,7 @@ import {
   SEARCH_CACHE_MAX,
 } from '../../viewer/cache.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../../utils/redisCache.js';
+import { parseQueryBool } from '../../../shared/utils/queryParsers.js';
 
 export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelMemesQuery;
@@ -87,10 +88,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
   const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const poolWhereBase = buildChannelPoolWhere(channel.id);
-  const includeTotalRaw = String(query.includeTotal || '')
-    .trim()
-    .toLowerCase();
-  const includeTotal = includeTotalRaw === '1' || includeTotalRaw === 'true';
+  const includeTotal = parseQueryBool(query.includeTotal);
   const cacheTtl = getSearchCacheMs();
   const cacheKey = [
     'public_channel_memes',

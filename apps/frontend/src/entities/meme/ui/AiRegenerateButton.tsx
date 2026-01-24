@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
 import { getAiRegenerateCooldownUntilMs, setAiRegenerateCooldownUntilMs } from '../lib/aiRegenerateCooldown';
@@ -7,6 +7,7 @@ import type { Meme } from '@/types';
 
 import { regenerateMemeAi, getErrorCodeFromError, getRetryAfterSecondsFromError } from '@/shared/api/channel';
 import { isEffectivelyEmptyAiDescription } from '@/shared/lib/aiText';
+import { useSharedNow } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Button } from '@/shared/ui';
 
@@ -34,7 +35,6 @@ export type AiRegenerateButtonProps = {
 };
 
 export function AiRegenerateButton({ meme, show = true }: AiRegenerateButtonProps) {
-  const [now, setNow] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
 
   const key = useMemo(() => getRegenerateKey(meme), [meme]);
@@ -57,23 +57,17 @@ export function AiRegenerateButton({ meme, show = true }: AiRegenerateButtonProp
     return createdAtMs + 5 * 60_000;
   }, [createdAtMs]);
 
-  const cooldownUntilMs = useMemo(() => (key ? getAiRegenerateCooldownUntilMs(key) : null), [key]);
+  const cooldownUntilMs = key ? getAiRegenerateCooldownUntilMs(key) : null;
   const disabledUntilMs = useMemo(() => {
     const vals = [ageGateUntilMs, cooldownUntilMs].filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
     if (vals.length === 0) return null;
     return Math.max(...vals);
   }, [ageGateUntilMs, cooldownUntilMs]);
 
+  const shouldTick = typeof disabledUntilMs === 'number' && disabledUntilMs > Date.now();
+  const now = useSharedNow({ enabled: shouldTick, untilMs: disabledUntilMs ?? null });
   const remainingSeconds = disabledUntilMs && disabledUntilMs > now ? Math.ceil((disabledUntilMs - now) / 1000) : 0;
   const disabled = submitting || remainingSeconds > 0;
-
-  // Best-effort countdown ticker (only while disabled by time).
-  useEffect(() => {
-    if (!disabledUntilMs) return;
-    if (disabledUntilMs <= Date.now()) return;
-    const id = window.setInterval(() => setNow(Date.now()), 500);
-    return () => window.clearInterval(id);
-  }, [disabledUntilMs]);
 
   if (!show) return null;
   if (!key) return null;
@@ -120,7 +114,6 @@ export function AiRegenerateButton({ meme, show = true }: AiRegenerateButtonProp
           }
         } finally {
           setSubmitting(false);
-          setNow(Date.now());
         }
       }}
       onMouseDown={(e) => {

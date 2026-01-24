@@ -26,6 +26,15 @@ if (import.meta.env.PROD) {
   console.warn = () => {};
 }
 
+if (import.meta.env.DEV) {
+  void (async () => {
+    const axe = (await import('@axe-core/react')).default;
+    const React = await import('react');
+    const ReactDOM = await import('react-dom/client');
+    axe(React, ReactDOM, 1000);
+  })();
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element not found');

@@ -25,6 +25,7 @@ export function ChannelSettings() {
   const [loading, setLoading] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
+  const savedPulseTimerRef = useRef<number | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null); // Track which channel's settings were loaded
 
@@ -95,6 +96,15 @@ export function ChannelSettings() {
     }
   }, [loadSettings, user?.channelId, user?.channel?.slug]);
 
+  useEffect(() => {
+    return () => {
+      if (savedPulseTimerRef.current) {
+        window.clearTimeout(savedPulseTimerRef.current);
+        savedPulseTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // Auto-save channel design settings (no explicit Save button).
   useEffect(() => {
     if (!user?.channelId) return;
@@ -129,7 +139,8 @@ export function ChannelSettings() {
           await ensureMinDuration(startedAt, 1000);
           setLoading(false);
           setSavedPulse(true);
-          window.setTimeout(() => setSavedPulse(false), 700);
+          if (savedPulseTimerRef.current) window.clearTimeout(savedPulseTimerRef.current);
+          savedPulseTimerRef.current = window.setTimeout(() => setSavedPulse(false), 700);
         }
       })();
     }, 350);

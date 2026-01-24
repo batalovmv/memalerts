@@ -1,25 +1,22 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../../middleware/auth.js';
 import type { Server } from 'socket.io';
-import { ZodError } from 'zod';
-import { PrismaClientKnownRequestError, PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import { approveSubmissionSchema } from '../../shared/schemas.js';
 import { ERROR_CODES } from '../../shared/errors.js';
 import type { AdminSubmissionDeps } from './submissionTypes.js';
 import { approveSubmissionInternal } from '../approveSubmissionInternal.js';
 import { WalletService } from '../WalletService.js';
-import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
-import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../../realtime/walletBridge.js';
 import { logger } from '../../utils/logger.js';
-import { debugLog, debugError } from '../../utils/debug.js';
+import { debugLog } from '../../utils/debug.js';
 import { TransactionEventBuffer } from '../../utils/transactionEventBuffer.js';
 import { assertChannelOwner } from '../../utils/accessControl.js';
-import { decrementFileHashReference } from '../../utils/fileHash.js';
 import { asRecord, getErrorMessage } from './submissionShared.js';
 import { resolveApprovalInputs, type ApprovalSubmission } from './submissionApproveFileOps.js';
 import { computeContentHash } from '../../utils/media/contentHash.js';
 import { resolveLocalMediaPath } from '../../utils/media/resolveMediaPath.js';
 import { ensureMemeAssetVariants } from '../memeAsset/ensureVariants.js';
+import { enqueueSubmissionApprovedEvent, enqueueWalletRewardEvent } from './submissionNotifications.js';
+import { handleApproveSubmissionError } from './submissionApproveErrors.js';
 
 type Submission = ApprovalSubmission;
 type PostApproveVariantInput = {
@@ -136,23 +133,13 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
             });
             const channelSlug = channel?.slug ? String(channel.slug).toLowerCase() : null;
             const queueSubmissionApproved = () => {
-              if (!channelSlug) return;
-              const evt = {
-                event: 'submission:approved' as const,
+              enqueueSubmissionApprovedEvent({
+                io,
+                eventBuffer,
                 submissionId: id,
                 channelId,
                 channelSlug,
-                moderatorId: req.userId || undefined,
-                userIds: req.userId ? [req.userId] : undefined,
-                source: 'local' as const,
-              };
-              eventBuffer.add(() => {
-                try {
-                  emitSubmissionEvent(io, evt);
-                  void relaySubmissionEventToPeer(evt);
-                } catch (error) {
-                  logger.error('admin.submissions.emit_approved_failed', { errorMessage: getErrorMessage(error) });
-                }
+                moderatorId: req.userId,
               });
             };
 
@@ -316,14 +303,7 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
                 reason: 'submission_approved_reward',
                 channelSlug: channel?.slug,
               };
-              eventBuffer.add(() => {
-                try {
-                  emitWalletUpdated(io, submissionRewardEvent);
-                  void relayWalletUpdatedToPeer(submissionRewardEvent);
-                } catch (err) {
-                  logger.error('admin.submissions.emit_wallet_reward_failed', { errorMessage: getErrorMessage(err) });
-                }
-              });
+              enqueueWalletRewardEvent({ io, eventBuffer, event: submissionRewardEvent });
             }
 
             queueSubmissionApproved();
@@ -376,175 +356,14 @@ export const approveSubmissionWithRepos = async (deps: AdminSubmissionDeps, req:
 
     res.json(result);
   } catch (error: unknown) {
-    debugError('[DEBUG] Error in approveSubmission', error);
-    const err = error instanceof Error ? error : new Error(String(error));
-    logger.error('admin.submissions.approve_failed', { errorMessage: err.message });
-    const errorMessage = err.message;
-    const submissionRec = asRecord(submission);
-
-    if (fileHashRefAdded && fileHashForCleanup) {
-      try {
-        await decrementFileHashReference(fileHashForCleanup);
-        fileHashRefAdded = false;
-      } catch {
-        // ignore
-      }
-    }
-
-    // Don't send response if headers already sent
-    if (res.headersSent) {
-      logger.error('admin.submissions.approve_failed_after_response', { errorMessage });
-      return;
-    }
-
-    // Handle validation errors (ZodError)
-    if (error instanceof ZodError) {
-      return res.status(400).json({
-        error: 'Validation error',
-        message: 'Validation failed',
-        details: error.errors,
-      });
-    }
-
-    // Handle Prisma errors
-    if (error instanceof PrismaClientKnownRequestError || error instanceof PrismaClientUnknownRequestError) {
-      const errorCode = error instanceof PrismaClientKnownRequestError ? error.code : undefined;
-      const errorMeta = error instanceof PrismaClientKnownRequestError ? error.meta : undefined;
-      const metaRecord = (errorMeta && typeof errorMeta === 'object' ? (errorMeta as Record<string, unknown>) : {}) as {
-        target?: unknown;
-      };
-      const errorTarget = Array.isArray(metaRecord.target)
-        ? metaRecord.target.map((t) => String(t)).join(',')
-        : String(metaRecord.target ?? '');
-
-      debugLog('[DEBUG] Prisma error in approveSubmission', {
-        submissionId: id,
-        errorCode,
-        errorMessage: error.message,
-        meta: errorMeta,
-      });
-      logger.error('admin.submissions.approve_prisma_failed', {
-        submissionId: id,
-        errorMessage: error.message,
-        errorCode,
-        errorMeta,
-      });
-
-      // Handle transaction aborted error (25P02)
-      if (
-        error.message?.includes('current transaction is aborted') ||
-        error.message?.includes('25P02') ||
-        errorCode === 'P2025'
-      ) {
-        return res.status(500).json({
-          error: 'Database transaction error',
-          message: 'Transaction was aborted. Please try again.',
-        });
-      }
-
-      if (errorCode === 'P2002' && errorTarget.includes('channelId') && errorTarget.includes('memeAssetId')) {
-        return res.status(409).json({
-          errorCode: 'SUBMISSION_ALREADY_APPROVED',
-          error: 'Submission already approved for this asset',
-          details: { id, target: errorTarget },
-        });
-      }
-
-      // Handle record not found (P2025)
-      if (errorCode === 'P2025') {
-        return res.status(404).json({
-          error: 'Record not found',
-          message: 'The requested record was not found in the database.',
-        });
-      }
-
-      // Handle other Prisma errors with more detail
-      return res.status(500).json({
-        error: 'Database error',
-        message:
-          process.env.NODE_ENV === 'development'
-            ? `Database error: ${error.message}${errorCode ? ` (code: ${errorCode})` : ''}`
-            : 'An error occurred while processing the request. Please try again.',
-      });
-    }
-
-    // Handle specific error messages
-    if (errorMessage === 'SUBMISSION_NOT_FOUND') {
-      return res.status(404).json({
-        errorCode: 'SUBMISSION_NOT_FOUND',
-        error: 'Submission not found',
-        details: { entity: 'submission', id },
-      });
-    }
-    if (errorMessage === 'SUBMISSION_NOT_PENDING') {
-      return res.status(409).json({
-        errorCode: 'SUBMISSION_NOT_PENDING',
-        error: 'Submission is not pending',
-        details: {
-          entity: 'submission',
-          id,
-          expectedStatus: 'pending',
-          actualStatus: submissionRec.status ?? null,
-        },
-      });
-    }
-
-    if (err.message === 'MEME_ASSET_NOT_FOUND') {
-      return res.status(404).json({
-        errorCode: 'MEME_ASSET_NOT_FOUND',
-        error: 'Meme asset not found',
-        details: { entity: 'memeAsset', id: submissionRec.memeAssetId ?? null },
-      });
-    }
-    if (err.message === 'MEME_ASSET_DELETED') {
-      return res.status(410).json({
-        errorCode: 'ASSET_PURGED_OR_QUARANTINED',
-        error: 'This meme was deleted and cannot be approved',
-        details: { legacyErrorCode: 'MEME_ASSET_DELETED', fileHash: null },
-      });
-    }
-    if (err.message === 'MEDIA_NOT_AVAILABLE') {
-      return res.status(410).json({
-        errorCode: 'MEDIA_NOT_AVAILABLE',
-        error: 'Media not available',
-        details: { entity: 'memeAsset', id: submissionRec.memeAssetId ?? null, reason: 'missing_fileUrl' },
-      });
-    }
-
-    if (err.message === 'Uploaded file not found') {
-      return res.status(404).json({
-        errorCode: 'MEDIA_NOT_AVAILABLE',
-        error: 'Media not available',
-        details: { entity: 'upload', id, path: submissionRec.fileUrlTemp ?? null, reason: 'file_missing_on_disk' },
-      });
-    }
-
-    // Handle file operation errors with more specific messages
-    if (
-      err.message.includes('Hash calculation timeout') ||
-      err.message.includes('file') ||
-      err.message.includes('File') ||
-      err.message.includes('Invalid file path') ||
-      err.message.includes('Uploaded file not found')
-    ) {
-      logger.error('admin.submissions.file_operation_failed', {
-        errorMessage: err.message,
-        submissionId: id,
-        fileUrlTemp: submissionRec.fileUrlTemp,
-        stack: err.stack,
-      });
-      return res.status(500).json({
-        error: 'File operation error',
-        message: err.message.includes('not found')
-          ? 'The uploaded file was not found. Please try uploading again.'
-          : 'An error occurred while processing the file. Please try again.',
-      });
-    }
-
-    // Handle all other errors
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred while processing the request',
+    await handleApproveSubmissionError({
+      error,
+      res,
+      submission,
+      submissionId: id,
+      fileHashRefAdded,
+      fileHashForCleanup,
     });
+    return;
   }
 };

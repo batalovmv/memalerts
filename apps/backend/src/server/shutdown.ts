@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'http';
 import type { Socket } from 'net';
 import type { Server as SocketIOServer } from 'socket.io';
 import { logger } from '../utils/logger.js';
+import { shutdownSocketIO } from '../socket/index.js';
 import { isShuttingDown, markShuttingDown } from '../utils/shutdownState.js';
 
 type ShutdownDeps = {
@@ -148,6 +149,7 @@ export function setupShutdownHandlers(deps: ShutdownDeps) {
       action: () =>
         new Promise<void>((resolve, reject) => {
           try {
+            shutdownSocketIO(deps.io);
             void deps.io.close(() => resolve());
           } catch (error) {
             reject(error);

@@ -46,16 +46,25 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
 
   if (err instanceof ApiError) {
     const errorMsg = err.message && err.message !== err.errorCode ? err.message : undefined;
+    const details =
+      err.details !== undefined ? (Array.isArray(err.details) ? err.details : [err.details]) : undefined;
     return res.status(err.status).json({
       errorCode: err.errorCode,
       error: errorMsg ?? ERROR_MESSAGES[err.errorCode] ?? 'Error',
       requestId,
       traceId,
-      ...(err.details !== undefined ? { details: err.details } : {}),
+      ...(details !== undefined ? { details } : {}),
     });
   }
 
   if (err instanceof ZodError) {
+    logger.warn('http.validation_failed', {
+      requestId,
+      traceId,
+      method: req.method,
+      path: req.path,
+      issues: err.issues,
+    });
     return res.status(400).json({
       errorCode: ERROR_CODES.VALIDATION_ERROR,
       error: ERROR_MESSAGES[ERROR_CODES.VALIDATION_ERROR] ?? 'Validation failed',

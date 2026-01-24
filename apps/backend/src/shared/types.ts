@@ -1,54 +1,18 @@
-export type UserRole = 'viewer' | 'streamer' | 'admin';
-
-export type MemeType = 'image' | 'gif' | 'video' | 'audio';
-
-export type MemeStatus = 'pending' | 'approved' | 'rejected';
-
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+/** @deprecated Import from '@memalerts/shared' instead */
+export type {
+  AuditLog,
+  Channel,
+  Meme,
+  MemeStatus,
+  MemeType,
+  SubmissionStatus,
+  User,
+  UserRole,
+  Wallet,
+} from '../../../packages/shared/src/types';
 
 export type ActivationStatus = 'queued' | 'playing' | 'done' | 'failed';
-
 export type RedemptionStatus = 'pending' | 'completed' | 'failed';
-
-export interface Channel {
-  id: string;
-  twitchChannelId: string;
-  slug: string;
-  name: string;
-  rewardIdForCoins: string | null;
-  coinPerPointRatio: number;
-  createdAt: Date;
-}
-
-export interface User {
-  id: string;
-  twitchUserId: string;
-  displayName: string;
-  role: UserRole;
-  channelId: string | null;
-  createdAt: Date;
-}
-
-export interface Wallet {
-  id: string;
-  userId: string;
-  balance: number;
-  updatedAt: Date;
-}
-
-export interface Meme {
-  id: string;
-  channelId: string;
-  title: string;
-  type: MemeType;
-  fileUrl: string;
-  durationMs: number;
-  priceCoins: number;
-  status: MemeStatus;
-  createdByUserId: string | null;
-  approvedByUserId: string | null;
-  createdAt: Date;
-}
 
 export interface MemeSubmission {
   id: string;
@@ -81,14 +45,5 @@ export interface MemeActivation {
   memeId: string;
   coinsSpent: number;
   status: ActivationStatus;
-  createdAt: Date;
-}
-
-export interface AuditLog {
-  id: string;
-  actorId: string | null;
-  channelId: string;
-  action: string;
-  payloadJson: string;
   createdAt: Date;
 }

@@ -5,26 +5,11 @@ import type { Meme, MemeStatus } from '@/types';
 import { apiGetWithMeta } from '@/lib/api';
 import { useDebounce } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
+import { parseBool, parseNumber } from '@/shared/lib/parsing';
 import { useAppSelector } from '@/store/hooks';
 
 export type AllMemesSortOrder = 'asc' | 'desc';
 export type AllMemesStatusFilter = 'all' | MemeStatus;
-
-function parseBoolHeader(v: unknown): boolean | null {
-  if (typeof v === 'boolean') return v;
-  if (typeof v !== 'string') return null;
-  const s = v.trim().toLowerCase();
-  if (s === '1' || s === 'true' || s === 'yes') return true;
-  if (s === '0' || s === 'false' || s === 'no') return false;
-  return null;
-}
-
-function parseNumberHeader(v: unknown): number | null {
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v !== 'string') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
 export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; includeFileHash?: boolean }) {
   const { isOpen, channelId, includeFileHash } = params;
@@ -101,9 +86,9 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
     try {
       const first = await loadPage(0, { includeTotal: true });
       setItems(first.data);
-      const hm = parseBoolHeader(first.meta.headers['x-has-more']);
+      const hm = parseBool(first.meta.headers['x-has-more']);
       setHasMore(hm ?? first.data.length === limit);
-      setTotalCount(parseNumberHeader(first.meta.headers['x-total-count']));
+      setTotalCount(parseNumber(first.meta.headers['x-total-count']));
     } catch {
       setItems([]);
       setHasMore(false);
@@ -140,7 +125,7 @@ export function useAllMemesPanel(params: { isOpen: boolean; channelId: string; i
               try {
                 const next = await loadPage(items.length);
                 setItems((prev) => [...prev, ...next.data]);
-                const hm = parseBoolHeader(next.meta.headers['x-has-more']);
+                const hm = parseBool(next.meta.headers['x-has-more']);
                 setHasMore(hm ?? next.data.length === limit);
               } catch {
                 setHasMore(false);

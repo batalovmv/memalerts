@@ -4,6 +4,7 @@ import { act, screen, waitFor } from '@testing-library/react';
 
 import App from './App';
 import { renderWithProviders } from '@/test/test-utils';
+import { makeViewerUser } from '@/test/fixtures/user';
 
 // Keep this test focused on auth/session orchestration.
 vi.mock('./contexts/SocketContext', () => ({
@@ -37,11 +38,11 @@ describe('App auth/session orchestration (integration)', () => {
       route: '/',
       preloadedState: {
         auth: {
-          user: { id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any,
+          user: makeViewerUser({ id: 'u1' }),
           loading: false,
           error: null,
         },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('Landing')).toBeInTheDocument();

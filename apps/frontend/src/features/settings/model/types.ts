@@ -1,0 +1,14 @@
+export type SettingsTab =
+  | 'settings'
+  | 'rewards'
+  | 'obs'
+  | 'bot'
+  | 'accounts'
+  | 'wallets'
+  | 'promotions'
+  | 'statistics'
+  | 'beta'
+  | 'entitlements'
+  | 'ownerMemeAssets'
+  | 'ownerModerators'
+  | 'ownerAiStatus';

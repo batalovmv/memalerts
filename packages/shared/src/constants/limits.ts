@@ -1,0 +1,5 @@
+export const LIMITS = {
+  MAX_MEMES_PER_PAGE: 500,
+  MAX_FILE_SIZE: 50 * 1024 * 1024,
+  MAX_DESCRIPTION_LENGTH: 500,
+} as const;

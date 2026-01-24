@@ -34,7 +34,7 @@ describe('MemeModal', () => {
 
     renderWithProviders(
       <MemeModal meme={meme} isOpen onClose={onClose} onUpdate={onUpdate} isOwner={false} mode="viewer" />,
-      { preloadedState: { auth: { user: null, loading: false, error: null } } as any },
+      { preloadedState: { auth: { user: null, loading: false, error: null } } },
     );
 
     const video = document.querySelector('video');

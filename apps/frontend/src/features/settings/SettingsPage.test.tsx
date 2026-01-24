@@ -4,7 +4,7 @@ import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { renderWithProviders } from '@/test/test-utils';
-import type { User } from '@/types';
+import { makeStreamerUser } from '@/test/fixtures/user';
 
 import SettingsPage from './SettingsPage';
 
@@ -45,16 +45,12 @@ vi.mock('@/features/settings/tabs/ChannelStatistics', () => ({
 }));
 
 function makeVisible(el: HTMLElement) {
-  (el as any).getClientRects = () => [{ x: 0, y: 0, width: 10, height: 10 }];
+  const node = el as HTMLElement & { getClientRects: () => DOMRectList };
+  node.getClientRects = () =>
+    [{ x: 0, y: 0, width: 10, height: 10 } as DOMRect] as unknown as DOMRectList;
 }
 
-const streamerUser: User = {
-  id: 'u1',
-  displayName: 'Streamer',
-  role: 'streamer',
-  channelId: 'c1',
-  channel: { id: 'c1', slug: 's1', name: 'S' },
-};
+const streamerUser = makeStreamerUser({ id: 'u1', displayName: 'Streamer' });
 
 describe('SettingsPage (integration)', () => {
   it('supports ArrowRight/ArrowLeft keyboard navigation on tabs (roving tabindex + focus follows selection)', async () => {
@@ -68,7 +64,7 @@ describe('SettingsPage (integration)', () => {
 
     renderWithProviders(<SettingsPage />, {
       route: '/settings',
-      preloadedState: { auth: { user: streamerUser, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: streamerUser, loading: false, error: null } },
     });
 
     const tabs = screen.getAllByRole('tab');
@@ -107,7 +103,7 @@ describe('SettingsPage (integration)', () => {
 
     renderWithProviders(<SettingsPage />, {
       route: '/settings',
-      preloadedState: { auth: { user: streamerUser, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: streamerUser, loading: false, error: null } },
     });
 
     const moreBtn = screen.getByRole('button', { name: /more/i });
@@ -158,7 +154,7 @@ describe('SettingsPage (integration)', () => {
 
     renderWithProviders(<SettingsPage />, {
       route: '/settings',
-      preloadedState: { auth: { user: streamerUser, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: streamerUser, loading: false, error: null } },
     });
 
     const moreBtn = screen.getByRole('button', { name: /more/i });

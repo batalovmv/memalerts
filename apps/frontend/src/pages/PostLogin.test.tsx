@@ -7,6 +7,7 @@ import { Provider } from 'react-redux';
 
 import PostLogin from './PostLogin';
 import { createTestStore } from '@/test/test-utils';
+import { makeStreamerUser, makeViewerUser } from '@/test/fixtures/user';
 
 vi.mock('@/components/Header', () => ({
   default: () => null,
@@ -35,11 +36,11 @@ describe('PostLogin routing (integration)', () => {
 
     const store = createTestStore({
       auth: {
-        user: { id: 'u_streamer', displayName: 'Streamer', role: 'streamer', channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S' } } as any,
+        user: makeStreamerUser({ id: 'u_streamer' }),
         loading: false,
         error: null,
       },
-    } as any);
+    });
 
     renderPostLogin(store, '/post-login');
 
@@ -49,11 +50,11 @@ describe('PostLogin routing (integration)', () => {
   it('redirects viewer (no streamer capability) to /search', async () => {
     const store = createTestStore({
       auth: {
-        user: { id: 'u_viewer', displayName: 'Viewer', role: 'viewer', channelId: null } as any,
+        user: makeViewerUser({ id: 'u_viewer' }),
         loading: false,
         error: null,
       },
-    } as any);
+    });
 
     renderPostLogin(store, '/post-login');
     expect(await screen.findByText('SearchDest')).toBeInTheDocument();
@@ -63,11 +64,11 @@ describe('PostLogin routing (integration)', () => {
     const userEv = userEvent.setup();
     const store = createTestStore({
       auth: {
-        user: { id: 'u_streamer', displayName: 'Streamer', role: 'streamer', channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S' } } as any,
+        user: makeStreamerUser({ id: 'u_streamer' }),
         loading: false,
         error: null,
       },
-    } as any);
+    });
 
     renderPostLogin(store, '/post-login');
 

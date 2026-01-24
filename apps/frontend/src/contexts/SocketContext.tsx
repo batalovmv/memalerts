@@ -16,6 +16,8 @@ import {
 
 import type { Channel, MemeAssetStatus, SubmissionAiDecision, SubmissionAiStatus, SubmissionStatus } from '@/types';
 
+import { parseBool } from '@/shared/lib/parsing';
+
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
@@ -41,15 +43,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const attemptedPollingFallbackRef = useRef(false);
-
-  const parseBool = (v: unknown): boolean | null => {
-    if (v === true) return true;
-    if (v === false) return false;
-    const s = String(v ?? '').trim().toLowerCase();
-    if (s === '1' || s === 'true' || s === 'yes' || s === 'on') return true;
-    if (s === '0' || s === 'false' || s === 'no' || s === 'off') return false;
-    return null;
-  };
 
   // Get API URL for Socket.IO
   const getSocketUrl = () => {
@@ -156,6 +149,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
           reconnection: true,
           reconnectionDelay: 2000, // Start with 2 seconds
           reconnectionDelayMax: 10000, // Max 10 seconds between attempts
+          randomizationFactor: 0.5, // Add jitter to backoff
           reconnectionAttempts: 3, // Only 3 attempts to prevent infinite loops
           timeout: 10000, // 10 seconds timeout (reduced from 20)
           forceNew,

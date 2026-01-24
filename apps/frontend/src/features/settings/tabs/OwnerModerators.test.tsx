@@ -14,7 +14,7 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 vi.mock('@/store/slices/authSlice', async () => {
-  const actual = await vi.importActual<any>('@/store/slices/authSlice');
+  const actual = await vi.importActual<typeof import('@/store/slices/authSlice')>('@/store/slices/authSlice');
   return {
     ...actual,
     fetchUser: vi.fn(() => ({ type: 'auth/fetchUser/mock' })),
@@ -75,5 +75,4 @@ describe('OwnerModerators (integration)', () => {
     expect(await screen.findByText(/revoked/i)).toBeInTheDocument();
   });
 });
-
 

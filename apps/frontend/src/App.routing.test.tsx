@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 
 import App from './App';
 import { renderWithProviders } from '@/test/test-utils';
+import { makeStreamerUser, makeViewerUser } from '@/test/fixtures/user';
 
 vi.mock('./contexts/SocketContext', () => ({
   SocketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -38,8 +39,8 @@ describe('App routing (integration)', () => {
     renderWithProviders(<App />, {
       route: '/dashboard',
       preloadedState: {
-        auth: { user: { id: 'u1', displayName: 'Viewer', role: 'viewer', channelId: null } as any, loading: false, error: null },
-      } as any,
+        auth: { user: makeViewerUser({ id: 'u1' }), loading: false, error: null },
+      },
     });
 
     expect(await screen.findByText('ChannelPage:test-channel')).toBeInTheDocument();
@@ -51,8 +52,8 @@ describe('App routing (integration)', () => {
     renderWithProviders(<App />, {
       route: '/dashboard',
       preloadedState: {
-        auth: { user: { id: 'u1', displayName: 'Viewer', role: 'viewer', channelId: null } as any, loading: false, error: null },
-      } as any,
+        auth: { user: makeViewerUser({ id: 'u1' }), loading: false, error: null },
+      },
     });
 
     expect(await screen.findByText('SearchPage')).toBeInTheDocument();
@@ -65,11 +66,11 @@ describe('App routing (integration)', () => {
       route: '/dashboard',
       preloadedState: {
         auth: {
-          user: { id: 'u_streamer', displayName: 'Streamer', role: 'streamer', channelId: 'c1', channel: { id: 'c1', slug: 's1', name: 'S' } } as any,
+          user: makeStreamerUser({ id: 'u_streamer' }),
           loading: false,
           error: null,
         },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('DashboardPage')).toBeInTheDocument();
@@ -82,7 +83,7 @@ describe('App routing (integration)', () => {
       route: '/dashboard',
       preloadedState: {
         auth: { user: null, loading: true, error: null },
-      } as any,
+      },
     });
 
     expect(await screen.findByText('Loading...')).toBeInTheDocument();
@@ -95,8 +96,8 @@ describe('App routing (integration)', () => {
     renderWithProviders(<App />, {
       route: '/admin',
       preloadedState: {
-        auth: { user: { id: 'u1', displayName: 'Viewer', role: 'viewer', channelId: null } as any, loading: false, error: null },
-      } as any,
+        auth: { user: makeViewerUser({ id: 'u1' }), loading: false, error: null },
+      },
     });
 
     expect(await screen.findByText('ChannelPage:someone')).toBeInTheDocument();
@@ -106,8 +107,8 @@ describe('App routing (integration)', () => {
     renderWithProviders(<App />, {
       route: '/settings/accounts',
       preloadedState: {
-        auth: { user: { id: 'u1', displayName: 'Viewer', role: 'viewer', channelId: null } as any, loading: false, error: null },
-      } as any,
+        auth: { user: makeViewerUser({ id: 'u1' }), loading: false, error: null },
+      },
     });
 
     expect(await screen.findByText('AdminPage')).toBeInTheDocument();

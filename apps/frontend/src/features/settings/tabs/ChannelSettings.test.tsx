@@ -11,6 +11,11 @@ import { mockStreamerChannelSettingsPatch } from '@/test/msw/handlers';
 import { makeStreamerUser } from '@/test/fixtures/user';
 
 const setAutoplayMemesEnabled = vi.fn();
+type ChannelSettingsPatchBody = {
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  accentColor?: string | null;
+};
 
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -55,7 +60,7 @@ describe('ChannelSettings (integration)', () => {
 
     renderWithProviders(<ChannelSettings />, {
       route: '/settings?tab=channel',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     // Initial load comes from cached channel data; should not autosave immediately.
@@ -74,10 +79,11 @@ describe('ChannelSettings (integration)', () => {
     });
 
     await waitFor(() => expect(bodies.length).toBeGreaterThanOrEqual(1));
-    const last = bodies.at(-1) as any;
-    expect(last.primaryColor).toBe('#abcdef');
-    expect(last.secondaryColor).toBe('#222222');
-    expect(last.accentColor).toBe('#333333');
+    const last = bodies.at(-1) as ChannelSettingsPatchBody | undefined;
+    expect(last).toBeTruthy();
+    expect(last?.primaryColor).toBe('#abcdef');
+    expect(last?.secondaryColor).toBe('#222222');
+    expect(last?.accentColor).toBe('#333333');
   });
 
   it('shows toast.error when autosave fails', async () => {
@@ -90,7 +96,7 @@ describe('ChannelSettings (integration)', () => {
 
     renderWithProviders(<ChannelSettings />, {
       route: '/settings?tab=channel',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     const primaryInput = (await screen.findByPlaceholderText('#9333ea')) as HTMLInputElement;

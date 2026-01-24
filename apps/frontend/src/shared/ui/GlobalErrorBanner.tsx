@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type GlobalErrorKind = 'api' | 'render';
@@ -49,6 +49,7 @@ export default function GlobalErrorBanner() {
   const [err, setErr] = useState<GlobalErrorPayload | null>(null);
   const [openDetails, setOpenDetails] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<number | null>(null);
 
   const showIdInline = useMemo(() => isBeta(), []);
 
@@ -61,7 +62,13 @@ export default function GlobalErrorBanner() {
       setCopied(false);
     };
     window.addEventListener('memalerts:globalError', onApiError as EventListener);
-    return () => window.removeEventListener('memalerts:globalError', onApiError as EventListener);
+    return () => {
+      window.removeEventListener('memalerts:globalError', onApiError as EventListener);
+      if (copyTimerRef.current) {
+        window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = null;
+      }
+    };
   }, []);
 
   if (!err) return null;
@@ -76,7 +83,10 @@ export default function GlobalErrorBanner() {
     if (!id) return;
     const ok = await copyToClipboard(id);
     setCopied(ok);
-    if (ok) window.setTimeout(() => setCopied(false), 1500);
+    if (ok) {
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => setCopied(false), 1500);
+    }
   };
 
   return (

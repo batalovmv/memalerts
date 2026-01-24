@@ -286,7 +286,16 @@ export function setupSocketIO(io: Server) {
       } catch {
         // ignore
       }
+      // Explicitly drop per-socket listeners to keep the disconnect path lean.
+      socket.removeAllListeners();
       debugLog('Client disconnected:', socket.id);
     });
+  });
+}
+
+export function shutdownSocketIO(io: Server) {
+  io.sockets.sockets.forEach((socket) => {
+    socket.emit('server_shutdown');
+    socket.disconnect(true);
   });
 }

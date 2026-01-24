@@ -2,16 +2,20 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { Provider } from 'react-redux';
+import type { PreloadedState } from '@reduxjs/toolkit';
 
 import { createTestStore } from '@/test/test-utils';
 import { fetchUser, setUnauthenticated } from '@/store/slices/authSlice';
+import type { RootState } from '@/store';
+import type { Submission, User, Wallet } from '@/types';
 
-type Listener = (...args: any[]) => void;
+type Listener = (...args: unknown[]) => void;
+type EmittedEvent = { event: string; args: unknown[] };
 
 class FakeSocket {
   public connected = false;
   public listeners = new Map<string, Set<Listener>>();
-  public emitted: Array<{ event: string; args: any[] }> = [];
+  public emitted: EmittedEvent[] = [];
   public disconnected = 0;
   public connectCalls = 0;
 
@@ -28,7 +32,7 @@ class FakeSocket {
     return this;
   }
 
-  emit(event: string, ...args: any[]) {
+  emit(event: string, ...args: unknown[]) {
     this.emitted.push({ event, args });
     return this;
   }
@@ -44,10 +48,35 @@ class FakeSocket {
     return this;
   }
 
-  fire(event: string, ...args: any[]) {
+  fire(event: string, ...args: unknown[]) {
     const set = this.listeners.get(event) ?? new Set();
     for (const cb of set) cb(...args);
   }
+}
+
+function makePreloadedState(state: PreloadedState<RootState>) {
+  return state;
+}
+
+function makeViewerUser(overrides: Partial<User> = {}): User {
+  return {
+    id: 'u1',
+    displayName: 'User',
+    role: 'viewer',
+    channelId: null,
+    ...overrides,
+  };
+}
+
+function makeStreamerUser(overrides: Partial<User> = {}): User {
+  return {
+    id: 'u1',
+    displayName: 'User',
+    role: 'streamer',
+    channelId: 'c1',
+    channel: { id: 'c1', slug: 'streamer', name: 'Streamer' },
+    ...overrides,
+  };
 }
 
 describe('SocketProvider (realtime)', () => {
@@ -57,14 +86,16 @@ describe('SocketProvider (realtime)', () => {
   });
 
   it('does not create socket while auth user is null (loading)', async () => {
-    const ioMock = vi.fn(() => new FakeSocket() as any);
+    const ioMock = vi.fn(() => new FakeSocket());
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: { user: null, loading: true, error: null } as any,
-    } as any);
+    const store = createTestStore(
+      makePreloadedState({
+        auth: { user: null, loading: true, error: null },
+      }),
+    );
 
     render(
       <Provider store={store}>
@@ -79,7 +110,7 @@ describe('SocketProvider (realtime)', () => {
 
   it('creates socket and joins user room on connect', async () => {
     const s = new FakeSocket();
-    const ioMock = vi.fn(() => s as any);
+    const ioMock = vi.fn(() => s);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({
@@ -92,7 +123,9 @@ describe('SocketProvider (realtime)', () => {
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({ auth: { user: null, loading: true, error: null } as any } as any);
+    const store = createTestStore(
+      makePreloadedState({ auth: { user: null, loading: true, error: null } }),
+    );
     render(
       <Provider store={store}>
         <ProviderImpl>
@@ -103,9 +136,8 @@ describe('SocketProvider (realtime)', () => {
 
     // Auth becomes loaded.
     await act(async () => {
-      await store.dispatch(
-        fetchUser.fulfilled({ id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any, 'req', undefined) as any,
-      );
+      const user = makeViewerUser();
+      store.dispatch(fetchUser.fulfilled(user, 'req', undefined));
     });
 
     expect(ioMock).toHaveBeenCalledTimes(1);
@@ -123,26 +155,22 @@ describe('SocketProvider (realtime)', () => {
 
   it('joins channel room for streamer users', async () => {
     const s = new FakeSocket();
-    const ioMock = vi.fn(() => s as any);
+    const ioMock = vi.fn(() => s);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: {
-        user: {
-          id: 'u1',
-          displayName: 'User',
-          role: 'streamer',
-          channelId: 'c1',
-          channel: { id: 'c1', slug: 'streamer', name: 'Streamer' },
-        } as any,
-        loading: false,
-        error: null,
-      } as any,
-    } as any);
+    const store = createTestStore(
+      makePreloadedState({
+        auth: {
+          user: makeStreamerUser(),
+          loading: false,
+          error: null,
+        },
+      }),
+    );
 
     render(
       <Provider store={store}>
@@ -166,8 +194,8 @@ describe('SocketProvider (realtime)', () => {
     const s1 = new FakeSocket();
     const s2 = new FakeSocket();
     const ioMock = vi.fn()
-      .mockImplementationOnce(() => s1 as any)
-      .mockImplementationOnce(() => s2 as any);
+      .mockImplementationOnce(() => s1)
+      .mockImplementationOnce(() => s2);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({
@@ -180,9 +208,11 @@ describe('SocketProvider (realtime)', () => {
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: { user: { id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any, loading: false, error: null },
-    } as any);
+    const store = createTestStore(
+      makePreloadedState({
+        auth: { user: makeViewerUser(), loading: false, error: null },
+      }),
+    );
 
     render(
       <Provider store={store}>
@@ -206,16 +236,18 @@ describe('SocketProvider (realtime)', () => {
 
   it('dispatches updateWalletBalance on wallet:updated for current user', async () => {
     const s = new FakeSocket();
-    const ioMock = vi.fn(() => s as any);
+    const ioMock = vi.fn(() => s);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: { user: { id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any, loading: false, error: null },
-    } as any);
+    const store = createTestStore(
+      makePreloadedState({
+        auth: { user: makeViewerUser({ wallets: [] }), loading: false, error: null },
+      }),
+    );
 
     render(
       <Provider store={store}>
@@ -234,26 +266,28 @@ describe('SocketProvider (realtime)', () => {
       s.fire('wallet:updated', { userId: 'u1', channelId: 'c1', balance: 123 });
     });
 
-    const wallets = store.getState().auth.user?.wallets ?? [];
-    expect(wallets.some((w: any) => w.channelId === 'c1' && w.balance === 123)).toBe(true);
+    const wallets: Wallet[] = store.getState().auth.user?.wallets ?? [];
+    expect(wallets.some((w) => w.channelId === 'c1' && w.balance === 123)).toBe(true);
   });
 
   it('dispatches submissionCreated on submission:created for streamer channel', async () => {
     const s = new FakeSocket();
-    const ioMock = vi.fn(() => s as any);
+    const ioMock = vi.fn(() => s);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: {
-        user: { id: 'u1', displayName: 'User', role: 'streamer', channelId: 'c1' } as any,
-        loading: false,
-        error: null,
-      } as any,
-    } as any);
+    const store = createTestStore(
+      makePreloadedState({
+        auth: {
+          user: makeStreamerUser({ channel: undefined }),
+          loading: false,
+          error: null,
+        },
+      }),
+    );
 
     render(
       <Provider store={store}>
@@ -272,46 +306,48 @@ describe('SocketProvider (realtime)', () => {
       s.fire('submission:created', { submissionId: 's1', channelId: 'c1', submitterId: 'u2' });
     });
 
-    const submissions = store.getState().submissions.submissions;
-    expect(submissions.some((item: any) => item.id === 's1')).toBe(true);
+    const submissions: Submission[] = store.getState().submissions.submissions;
+    expect(submissions.some((item) => item.id === 's1')).toBe(true);
   });
 
   it('dispatches submissionApproved on submission:status-changed', async () => {
     const s = new FakeSocket();
-    const ioMock = vi.fn(() => s as any);
+    const ioMock = vi.fn(() => s);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: {
-        user: { id: 'u1', displayName: 'User', role: 'streamer', channelId: 'c1' } as any,
-        loading: false,
-        error: null,
-      } as any,
-      submissions: {
-        submissions: [
-          {
-            id: 's1',
-            title: 'Test',
-            type: 'video',
-            fileUrlTemp: '',
-            status: 'pending',
-            notes: null,
-            createdAt: '2024-01-01T00:00:00.000Z',
-            submitter: { id: 'u2', displayName: 'Submitter' },
-          },
-        ],
-        loading: false,
-        loadingMore: false,
-        error: null,
-        lastFetchedAt: null,
-        lastErrorAt: null,
-        total: 1,
-      } as any,
-    } as any);
+    const seededSubmission: Submission = {
+      id: 's1',
+      title: 'Test',
+      type: 'video',
+      fileUrlTemp: '',
+      status: 'pending',
+      notes: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      submitter: { id: 'u2', displayName: 'Submitter' },
+    };
+
+    const store = createTestStore(
+      makePreloadedState({
+        auth: {
+          user: makeStreamerUser({ channel: undefined }),
+          loading: false,
+          error: null,
+        },
+        submissions: {
+          submissions: [seededSubmission],
+          loading: false,
+          loadingMore: false,
+          error: null,
+          lastFetchedAt: null,
+          lastErrorAt: null,
+          total: 1,
+        },
+      }),
+    );
 
     render(
       <Provider store={store}>
@@ -331,22 +367,24 @@ describe('SocketProvider (realtime)', () => {
     });
 
     const next = store.getState().submissions;
-    expect(next.submissions.some((item: any) => item.id === 's1')).toBe(false);
+    expect(next.submissions.some((item) => item.id === 's1')).toBe(false);
     expect(next.total).toBe(0);
   });
 
   it('disconnects socket when user logs out', async () => {
     const s = new FakeSocket();
-    const ioMock = vi.fn(() => s as any);
+    const ioMock = vi.fn(() => s);
 
     vi.doMock('socket.io-client', () => ({ io: ioMock }));
     vi.doMock('../lib/runtimeConfig', () => ({ getRuntimeConfig: () => ({ socketUrl: 'http://socket.example' }) }));
 
     const { SocketProvider: ProviderImpl } = await import('./SocketContext');
 
-    const store = createTestStore({
-      auth: { user: { id: 'u1', displayName: 'User', role: 'viewer', channelId: null } as any, loading: false, error: null },
-    } as any);
+    const store = createTestStore(
+      makePreloadedState({
+        auth: { user: makeViewerUser(), loading: false, error: null },
+      }),
+    );
 
     render(
       <Provider store={store}>

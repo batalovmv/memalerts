@@ -122,22 +122,48 @@ body {
   color: var(--accent-color);
 }
 
+@media (prefers-contrast: more) {
+  :root {
+    --ma-fg: #0f172a;
+  }
+
+  .text-gray-400 {
+    color: #4b5563;
+  }
+  .text-gray-500 {
+    color: #374151;
+  }
+  .text-gray-600 {
+    color: #1f2937;
+  }
+
+  .dark .text-gray-400 {
+    color: #d1d5db;
+  }
+  .dark .text-gray-500 {
+    color: #e5e7eb;
+  }
+  .dark .text-gray-600 {
+    color: #f3f4f6;
+  }
+}
+
 /* Channel theme styles - applied only on public channel pages */
 .channel-theme .channel-theme-nav {
-  background-color: var(--primary-color) !important;
+  background-color: var(--primary-color);
 }
 
 .channel-theme .channel-theme-nav h1 {
-  color: #ffffff !important;
+  color: #ffffff;
 }
 
 .channel-theme .channel-theme-nav .text-primary {
-  color: #ffffff !important;
+  color: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   .dark .channel-theme .channel-theme-nav {
-    background-color: var(--primary-color) !important;
+    background-color: var(--primary-color);
   }
 }
 

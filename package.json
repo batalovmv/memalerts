@@ -21,7 +21,8 @@
       "@prisma/client",
       "@prisma/engines",
       "esbuild",
-      "prisma"
+      "prisma",
+      "sharp"
     ],
     "overrides": {
       "esbuild": "^0.25.0",

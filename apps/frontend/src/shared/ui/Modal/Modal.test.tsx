@@ -7,7 +7,9 @@ import { renderWithProviders } from '@/test/test-utils';
 import { Modal } from './Modal';
 
 function makeVisible(el: HTMLElement) {
-  (el as any).getClientRects = () => [{ x: 0, y: 0, width: 10, height: 10 }];
+  const node = el as HTMLElement & { getClientRects: () => DOMRectList };
+  node.getClientRects = () =>
+    [{ x: 0, y: 0, width: 10, height: 10 } as DOMRect] as unknown as DOMRectList;
 }
 
 describe('Modal', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -32,6 +32,44 @@ export function ChannelStatistics() {
     fetchStats();
   }, [fetchStats]);
 
+  const daily = useMemo(
+    () => (stats?.daily as Array<{ day: string; activations: number; coins: number }> | undefined) ?? [],
+    [stats],
+  );
+  const maxDailyActivations = useMemo(
+    () => daily.reduce((m, d) => Math.max(m, d.activations || 0), 0) || 1,
+    [daily],
+  );
+  const maxDailyCoins = useMemo(() => daily.reduce((m, d) => Math.max(m, d.coins || 0), 0) || 1, [daily]);
+  const dailyActivations = useMemo(
+    () =>
+      daily.slice(-14).map((d) => {
+        const value = d.activations || 0;
+        const h = Math.round((value / maxDailyActivations) * 100);
+        return {
+          day: d.day,
+          label: new Date(d.day).toLocaleDateString(),
+          value,
+          heightStyle: { height: `${Math.max(3, h)}%` },
+        };
+      }),
+    [daily, maxDailyActivations],
+  );
+  const dailyCoins = useMemo(
+    () =>
+      daily.slice(-14).map((d) => {
+        const value = d.coins || 0;
+        const h = Math.round((value / maxDailyCoins) * 100);
+        return {
+          day: d.day,
+          label: new Date(d.day).toLocaleDateString(),
+          value,
+          heightStyle: { height: `${Math.max(3, h)}%` },
+        };
+      }),
+    [daily, maxDailyCoins],
+  );
+
   if (loading) {
     return (
       <div className="py-10 flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
@@ -44,10 +82,6 @@ export function ChannelStatistics() {
   if (!stats) {
     return <div className="text-center py-8 text-gray-500 dark:text-gray-400">{t('admin.noStatistics')}</div>;
   }
-
-  const daily = (stats.daily as Array<{ day: string; activations: number; coins: number }> | undefined) || [];
-  const maxDailyActivations = daily.reduce((m, d) => Math.max(m, d.activations || 0), 0) || 1;
-  const maxDailyCoins = daily.reduce((m, d) => Math.max(m, d.coins || 0), 0) || 1;
 
   return (
     <div className="space-y-6">
@@ -67,15 +101,13 @@ export function ChannelStatistics() {
                 {t('admin.dailyActivations', { defaultValue: 'Daily activations' })}
               </div>
               <div className="grid grid-cols-14 gap-1 items-end h-24">
-                {daily.slice(-14).map((d) => {
-                  const h = Math.round(((d.activations || 0) / maxDailyActivations) * 100);
-                  const label = new Date(d.day).toLocaleDateString();
+                {dailyActivations.map((d) => {
                   return (
                     <div key={`a-${d.day}`} className="h-full flex items-end">
-                      <HelpTooltip content={`${label}: ${d.activations || 0}`}>
+                      <HelpTooltip content={`${d.label}: ${d.value}`}>
                         <div
                           className="w-full rounded bg-primary/70"
-                          style={{ height: `${Math.max(3, h)}%` }}
+                          style={d.heightStyle}
                         />
                       </HelpTooltip>
                     </div>
@@ -89,15 +121,13 @@ export function ChannelStatistics() {
                 {t('admin.dailyCoinsSpent', { defaultValue: 'Daily coins spent' })}
               </div>
               <div className="grid grid-cols-14 gap-1 items-end h-24">
-                {daily.slice(-14).map((d) => {
-                  const h = Math.round(((d.coins || 0) / maxDailyCoins) * 100);
-                  const label = new Date(d.day).toLocaleDateString();
+                {dailyCoins.map((d) => {
                   return (
                     <div key={`c-${d.day}`} className="h-full flex items-end">
-                      <HelpTooltip content={`${label}: ${d.coins || 0}`}>
+                      <HelpTooltip content={`${d.label}: ${d.value}`}>
                         <div
                           className="w-full rounded bg-accent/70"
-                          style={{ height: `${Math.max(3, h)}%` }}
+                          style={d.heightStyle}
                         />
                       </HelpTooltip>
                     </div>
@@ -186,5 +216,3 @@ export function ChannelStatistics() {
     </div>
   );
 }
-
-

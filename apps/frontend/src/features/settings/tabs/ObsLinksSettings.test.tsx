@@ -44,7 +44,7 @@ vi.mock('@/shared/ui/SecretCopyField/SecretCopyField', () => ({
 describe('ObsLinksSettings (integration)', () => {
   it('shows overlay URL from token and rotates it via /streamer/overlay/token/rotate', async () => {
     const user = userEvent.setup();
-    const me = makeStreamerUser({ channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     const rotateCalls = vi.fn();
 
@@ -63,7 +63,7 @@ describe('ObsLinksSettings (integration)', () => {
 
     renderWithProviders(<ObsLinksSettings />, {
       route: '/settings?tab=obs',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await waitFor(() => {
@@ -83,7 +83,7 @@ describe('ObsLinksSettings (integration)', () => {
 
   it('shows credits URL from token and rotates it via /streamer/credits/token/rotate', async () => {
     const user = userEvent.setup();
-    const me = makeStreamerUser({ channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } as any });
+    const me = makeStreamerUser({ channel: { id: 'c1', slug: 's1', name: 'S', twitchChannelId: 't1' } });
 
     const rotateCalls = vi.fn();
 
@@ -102,7 +102,7 @@ describe('ObsLinksSettings (integration)', () => {
 
     renderWithProviders(<ObsLinksSettings />, {
       route: '/settings?tab=obs',
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     await user.click(await screen.findByRole('button', { name: /титры|credits/i }));

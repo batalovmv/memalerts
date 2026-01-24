@@ -31,6 +31,7 @@ import { startAiModerationWorker } from './workers/aiModerationWorker.js';
 import { startTranscodeWorker } from './workers/transcodeWorker.js';
 import { startAiEnqueueScheduler } from './jobs/aiEnqueueScheduler.js';
 import { validateEnv } from './config/env.js';
+import { loadSecrets } from './config/secrets.js';
 import { prisma } from './lib/prisma.js';
 import { isShuttingDown } from './utils/shutdownState.js';
 import { closeBullmqConnection } from './queues/bullmqConnection.js';
@@ -217,6 +218,17 @@ const cspNonce = (_req: IncomingMessage, res: ServerResponse) => {
   const expressRes = res as ExpressResponse;
   return `'nonce-${expressRes.locals.cspNonce}'`;
 };
+const wsOrigins = allowedOrigins
+  .map((origin) => {
+    const normalized = String(origin || '').trim();
+    if (!normalized) return null;
+    if (normalized.startsWith('wss://') || normalized.startsWith('ws://')) return normalized;
+    if (normalized.startsWith('https://')) return `wss://${normalized.slice('https://'.length)}`;
+    if (normalized.startsWith('http://')) return `ws://${normalized.slice('http://'.length)}`;
+    return null;
+  })
+  .filter((origin): origin is string => Boolean(origin));
+
 const cspDirectives = {
   defaultSrc: ["'self'"],
   scriptSrc: ["'self'", cspNonce],
@@ -236,8 +248,8 @@ const cspDirectives = {
   ],
   connectSrc: [
     "'self'",
-    'wss:', // WebSocket for Socket.IO
-    'ws:', // WebSocket for Socket.IO (dev)
+    ...allowedOrigins,
+    ...wsOrigins,
     'https://id.twitch.tv', // Twitch OAuth
     'https://api.twitch.tv', // Twitch API (if used)
     'https://static-cdn.jtvnw.net', // Twitch CDN
@@ -406,6 +418,7 @@ function parseBool(value: string | undefined): boolean {
 
 // Test database connection before starting server
 async function startServer() {
+  await loadSecrets();
   validateEnv();
 
   const skipDbConnect = parseBool(process.env.SKIP_DB_CONNECT);

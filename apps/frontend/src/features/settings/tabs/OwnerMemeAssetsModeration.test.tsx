@@ -20,7 +20,16 @@ describe('OwnerMemeAssetsModeration (integration)', () => {
   it('loads owner meme assets list and restores an asset (POST /restore + refresh)', async () => {
     const user = userEvent.setup();
 
-    let items: any[] = [
+    type OwnerAsset = {
+      id: string;
+      type: string;
+      fileUrl: string | null;
+      fileHash: string;
+      poolVisibility: string;
+      purgeRequestedAt: string;
+      purgedAt: string | null;
+    };
+    let items: OwnerAsset[] = [
       {
         id: 'asset_1234567890abcdef',
         type: 'image',

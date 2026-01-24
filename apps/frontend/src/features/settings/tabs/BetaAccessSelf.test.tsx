@@ -30,7 +30,7 @@ describe('BetaAccessSelf (integration)', () => {
 
     renderWithProviders(<BetaAccessSelf />, {
       route: '/settings?tab=beta',
-      preloadedState: { auth: { user: makeViewerUser(), loading: false, error: null } } as any,
+      preloadedState: { auth: { user: makeViewerUser(), loading: false, error: null } },
     });
 
     // Initial: not requested -> button exists.
@@ -46,7 +46,7 @@ describe('BetaAccessSelf (integration)', () => {
 
     renderWithProviders(<BetaAccessSelf />, {
       route: '/settings?tab=beta',
-      preloadedState: { auth: { user: makeViewerUser(), loading: false, error: null } } as any,
+      preloadedState: { auth: { user: makeViewerUser(), loading: false, error: null } },
     });
 
     expect(await screen.findByText(/already have beta access/i)).toBeInTheDocument();
@@ -58,11 +58,10 @@ describe('BetaAccessSelf (integration)', () => {
 
     renderWithProviders(<BetaAccessSelf />, {
       route: '/settings?tab=beta',
-      preloadedState: { auth: { user: makeViewerUser(), loading: false, error: null } } as any,
+      preloadedState: { auth: { user: makeViewerUser(), loading: false, error: null } },
     });
 
     expect(await screen.findByText(/access denied/i)).toBeInTheDocument();
   });
 });
-
 

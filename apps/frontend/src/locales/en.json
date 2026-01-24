@@ -29,7 +29,8 @@
     "on": "On",
     "off": "Off",
     "tooManyRequests": "Too many requests. Please try again later.",
-    "goHome": "Go home"
+    "goHome": "Go home",
+    "skipToContent": "Skip to content"
   },
   "help": {
     "header": {

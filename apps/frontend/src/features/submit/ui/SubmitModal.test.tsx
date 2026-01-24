@@ -2,14 +2,17 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import type { PreloadedState } from '@reduxjs/toolkit';
 
 import SubmitModal from './SubmitModal';
 import { renderWithProviders } from '@/test/test-utils';
 import { makeStreamerUser } from '@/test/fixtures/user';
 import { api } from '@/lib/api';
+import type { RootState } from '@/store';
+import type { MockApiError } from '@/test/types';
 
 vi.mock('@/store/slices/submissionsSlice', async () => {
-  const actual = await vi.importActual<any>('@/store/slices/submissionsSlice');
+  const actual = await vi.importActual<typeof import('@/store/slices/submissionsSlice')>('@/store/slices/submissionsSlice');
   return {
     ...actual,
     fetchSubmissions: vi.fn(() => ({ type: 'submissions/fetchSubmissions/mock' })),
@@ -17,7 +20,7 @@ vi.mock('@/store/slices/submissionsSlice', async () => {
 });
 
 vi.mock('@/store/slices/memesSlice', async () => {
-  const actual = await vi.importActual<any>('@/store/slices/memesSlice');
+  const actual = await vi.importActual<typeof import('@/store/slices/memesSlice')>('@/store/slices/memesSlice');
   return {
     ...actual,
     fetchMemes: vi.fn(() => ({ type: 'memes/fetchMemes/mock' })),
@@ -44,12 +47,15 @@ vi.mock('@/shared/ui/TagInput/TagInput', () => ({
   },
 }));
 
+type VideoElementWithSrc = HTMLVideoElement & { _src?: string };
+type SubmitResponse = { status: string; isDirectApproval?: boolean };
+
 function installVideoMetadataMocks(durationSeconds = 1) {
   const originalCreateElement = document.createElement.bind(document);
-  const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: any) => {
+  const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
     if (String(tagName).toLowerCase() !== 'video') return originalCreateElement(tagName);
 
-    const el = originalCreateElement('video') as HTMLVideoElement;
+    const el = originalCreateElement('video') as VideoElementWithSrc;
     // Ensure duration is readable and finite in jsdom.
     try {
       Object.defineProperty(el, 'duration', {
@@ -63,16 +69,16 @@ function installVideoMetadataMocks(durationSeconds = 1) {
     }
     // Trigger onloadedmetadata as soon as src is set.
     Object.defineProperty(el, 'src', {
-      set(_v) {
-        (el as any)._src = _v;
+      set(_v: string) {
+        el._src = _v;
         const trigger = () => {
           try {
-            el.onloadedmetadata?.(new Event('loadedmetadata') as any);
+            el.onloadedmetadata?.(new Event('loadedmetadata'));
           } catch {
             // ignore
           }
           try {
-            el.onerror?.(new Event('error') as any);
+            el.onerror?.(new Event('error'));
           } catch {
             // ignore
           }
@@ -81,7 +87,7 @@ function installVideoMetadataMocks(durationSeconds = 1) {
         queueMicrotask(trigger);
       },
       get() {
-        return (el as any)._src ?? '';
+        return el._src ?? '';
       },
       configurable: true,
     });
@@ -90,14 +96,14 @@ function installVideoMetadataMocks(durationSeconds = 1) {
   });
 
   // jsdom may not implement these; install if missing, otherwise spy.
-  const hadCreateObjectURL = typeof (URL as any).createObjectURL === 'function';
-  const hadRevokeObjectURL = typeof (URL as any).revokeObjectURL === 'function';
+  const hadCreateObjectURL = typeof URL.createObjectURL === 'function';
+  const hadRevokeObjectURL = typeof URL.revokeObjectURL === 'function';
 
   let createObjectURLSpy: ReturnType<typeof vi.spyOn> | null = null;
   let revokeObjectURLSpy: ReturnType<typeof vi.spyOn> | null = null;
 
   if (hadCreateObjectURL) {
-    createObjectURLSpy = vi.spyOn(URL as any, 'createObjectURL').mockReturnValue('blob:mock');
+    createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
   } else {
     Object.defineProperty(URL, 'createObjectURL', {
       value: () => 'blob:mock',
@@ -107,7 +113,7 @@ function installVideoMetadataMocks(durationSeconds = 1) {
   }
 
   if (hadRevokeObjectURL) {
-    revokeObjectURLSpy = vi.spyOn(URL as any, 'revokeObjectURL').mockImplementation(() => {});
+    revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
   } else {
     Object.defineProperty(URL, 'revokeObjectURL', {
       value: () => {},
@@ -123,7 +129,7 @@ function installVideoMetadataMocks(durationSeconds = 1) {
       // Remove our shim.
       try {
         // @ts-expect-error runtime delete
-        delete (URL as any).createObjectURL;
+        delete (URL as { createObjectURL?: unknown }).createObjectURL;
       } catch {
         // ignore
       }
@@ -132,12 +138,16 @@ function installVideoMetadataMocks(durationSeconds = 1) {
     else {
       try {
         // @ts-expect-error runtime delete
-        delete (URL as any).revokeObjectURL;
+        delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
       } catch {
         // ignore
       }
     }
   };
+}
+
+function makePreloadedState(user: ReturnType<typeof makeStreamerUser>): PreloadedState<RootState> {
+  return { auth: { user, loading: false, error: null } };
 }
 
 describe('SubmitModal (integration)', () => {
@@ -147,13 +157,13 @@ describe('SubmitModal (integration)', () => {
     const onClose = vi.fn();
     const me = makeStreamerUser({ id: 'u1', channelId: 'c1' });
 
-    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as any);
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as SubmitResponse);
 
     const { container } = renderWithProviders(
       <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
       {
         route: '/dashboard',
-        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+        preloadedState: makePreloadedState(me),
       },
     );
 
@@ -203,16 +213,17 @@ describe('SubmitModal (integration)', () => {
     const onClose = vi.fn();
     const me = makeStreamerUser({ id: 'u1', channelId: 'c1' });
 
-    const postSpy = vi.spyOn(api, 'post').mockRejectedValue({
+    const errorResponse: MockApiError = {
       response: { status: 500, data: { error: 'Boom' } },
       message: 'Request failed',
-    } as any);
+    };
+    const postSpy = vi.spyOn(api, 'post').mockRejectedValue(errorResponse);
 
     const { container } = renderWithProviders(
       <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
       {
         route: '/dashboard',
-        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+        preloadedState: makePreloadedState(me),
       },
     );
 
@@ -242,13 +253,13 @@ describe('SubmitModal (integration)', () => {
     const onClose = vi.fn();
     const me = makeStreamerUser({ id: 'u1', channelId: 'c1' });
 
-    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as any);
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as SubmitResponse);
 
     const { container } = renderWithProviders(
       <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
       {
         route: '/dashboard',
-        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+        preloadedState: makePreloadedState(me),
       },
     );
 
@@ -278,13 +289,15 @@ describe('SubmitModal (integration)', () => {
     const onClose = vi.fn();
     const me = makeStreamerUser({ id: 'u1', channelId: 'c1' });
 
-    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'approved', isDirectApproval: true } as any);
+    const postSpy = vi
+      .spyOn(api, 'post')
+      .mockResolvedValue({ status: 'approved', isDirectApproval: true } as SubmitResponse);
 
     const { container } = renderWithProviders(
       <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
       {
         route: '/dashboard',
-        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+        preloadedState: makePreloadedState(me),
       },
     );
 
@@ -319,13 +332,13 @@ describe('SubmitModal (integration)', () => {
     const onClose = vi.fn();
     const me = makeStreamerUser({ id: 'u1', channelId: 'c1' });
 
-    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as any);
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ status: 'pending' } as SubmitResponse);
 
     const { container } = renderWithProviders(
       <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
       {
         route: '/dashboard',
-        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+        preloadedState: makePreloadedState(me),
       },
     );
 
@@ -358,14 +371,14 @@ describe('SubmitModal (integration)', () => {
 
     const postSpy = vi
       .spyOn(api, 'post')
-      .mockRejectedValueOnce({ response: { status: 500, data: { error: 'Boom' } } } as any)
-      .mockResolvedValueOnce({ status: 'pending' } as any);
+      .mockRejectedValueOnce({ response: { status: 500, data: { error: 'Boom' } } } as MockApiError)
+      .mockResolvedValueOnce({ status: 'pending' } as SubmitResponse);
 
     const { container } = renderWithProviders(
       <SubmitModal isOpen onClose={onClose} channelSlug={me.channel!.slug} channelId={me.channelId!} />,
       {
         route: '/dashboard',
-        preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+        preloadedState: makePreloadedState(me),
       },
     );
 

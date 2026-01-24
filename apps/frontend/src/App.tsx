@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { SocketProvider } from './contexts/SocketContext';
@@ -31,6 +32,7 @@ const PostLogin = lazy(() => import('./pages/PostLogin'));
 
 function App() {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { user, loading: authLoading } = useAppSelector((state) => state.auth);
   const [betaChecked, setBetaChecked] = useState(false);
   const [betaHasAccess, setBetaHasAccess] = useState<boolean>(true);
@@ -188,6 +190,12 @@ function App() {
       <Toaster position="top-right" />
       <GlobalErrorBanner />
       <div className="relative flex flex-col min-h-screen overflow-x-hidden">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:rounded-md focus:bg-white focus:text-gray-900 focus:shadow-lg"
+        >
+          {t('common.skipToContent', { defaultValue: 'Skip to content' })}
+        </a>
         {showGlobalBackground ? (
           <div
             aria-hidden="true"
@@ -202,7 +210,7 @@ function App() {
             }}
           />
         ) : null}
-        <div className="flex-1 flex flex-col">
+        <main id="main-content" className="flex-1 flex flex-col">
           <Suspense
             fallback={
               <div className="min-h-[50vh] flex items-center justify-center gap-3 text-gray-600 dark:text-gray-300">
@@ -227,7 +235,7 @@ function App() {
               <Route path="/privacy" element={<PrivacyPolicy />} />
             </Routes>
           </Suspense>
-        </div>
+        </main>
         <Footer />
       </div>
     </SocketProvider>

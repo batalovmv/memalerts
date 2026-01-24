@@ -83,7 +83,7 @@ describe('StreamerProfilePage (integration)', () => {
       observe() {}
       unobserve() {}
       disconnect() {}
-      constructor(_cb: any, _opts?: any) {}
+      constructor(_cb: IntersectionObserverCallback, _opts?: IntersectionObserverInit) {}
     };
   });
 
@@ -192,7 +192,7 @@ describe('StreamerProfilePage (integration)', () => {
 
     renderWithProviders(<TestRoutes />, {
       route: `/channel/${slug}`,
-      preloadedState: { auth: { user: me, loading: false, error: null } } as any,
+      preloadedState: { auth: { user: me, loading: false, error: null } },
     });
 
     const submitBtn = await screen.findByRole('button', { name: /submit.*meme/i });
