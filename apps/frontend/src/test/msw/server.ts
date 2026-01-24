@@ -19,6 +19,24 @@ const corsHeaders = {
  * Keeping them in `setupServer(...)` makes them survive `server.resetHandlers()`.
  */
 export const server = setupServer(
+  // Taste profile + personalized memes (used on StreamerProfilePage for authed viewers).
+  http.get('*/me/taste-profile', () =>
+    HttpResponse.json({
+      totalActivations: 0,
+      lastActivationAt: null,
+      topTags: [],
+      categoryWeights: {},
+      profileReady: false,
+    })
+  ),
+  http.get('*/channels/:slug/memes/personalized*', () =>
+    HttpResponse.json({
+      items: [],
+      profileReady: false,
+      totalActivations: 0,
+      mode: 'fallback',
+    })
+  ),
   // Agent/debug telemetry (used by some integration tests for snapshots/logs).
   http.options(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => new HttpResponse(null, { status: 204, headers: corsHeaders })),
   http.post(/http:\/\/127\.0\.0\.1:7245\/ingest\/.+/, () => HttpResponse.json({ ok: true }, { headers: corsHeaders })),
