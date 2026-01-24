@@ -36,3 +36,9 @@ apps/backend/prisma/*.db
 
 # Uploads (local dev)
 apps/backend/uploads/
+
+# Local tooling / artifacts
+.claude/
+_deploy/
+PLAN_PREVIEW_FULL_FORMATS.md
+packages/shared/src/types/**/*.js
