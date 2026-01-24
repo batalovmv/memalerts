@@ -18,6 +18,7 @@ export type MemeCardViewProps = {
   videoMuted: boolean;
   setCardEl: (node: HTMLElement | null) => void;
   videoRef: RefObject<HTMLVideoElement>;
+  onMediaError: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   onClick: () => void;
@@ -36,6 +37,7 @@ function MemeCardViewBase({
   videoMuted,
   setCardEl,
   videoRef,
+  onMediaError,
   onMouseEnter,
   onMouseLeave,
   onClick,
@@ -67,6 +69,8 @@ function MemeCardViewBase({
   });
   const previewUrl = meme.previewUrl ? resolveMediaUrl(meme.previewUrl) : mediaUrl;
 
+  const hasMedia = Boolean(previewUrl);
+
   return (
     <article
       ref={setCardEl}
@@ -88,12 +92,13 @@ function MemeCardViewBase({
       onKeyDown={onKeyDown}
     >
       <div className="relative w-full bg-gray-900 z-0" style={{ aspectRatio }}>
-        {!shouldLoadMedia ? (
+        {!shouldLoadMedia || !hasMedia ? (
           <div className="w-full h-full bg-gray-900" aria-hidden="true" />
         ) : meme.type === 'video' ? (
           <video
             ref={videoRef}
             src={previewUrl}
+            onError={onMediaError}
             muted={videoMuted}
             autoPlay={previewMode === 'autoplayMuted'}
             loop
@@ -103,7 +108,13 @@ function MemeCardViewBase({
             aria-label={`Video preview: ${meme.title}`}
           />
         ) : (
-          <img src={mediaUrl} alt={meme.title} className="w-full h-full object-contain" loading="lazy" />
+          <img
+            src={mediaUrl}
+            alt={meme.title}
+            className="w-full h-full object-contain"
+            loading="lazy"
+            onError={onMediaError}
+          />
         )}
         {isAiProcessing ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">

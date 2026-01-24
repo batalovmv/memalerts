@@ -49,7 +49,7 @@ export function useMemeCard(params: { meme: Meme; mediaUrl: string; previewMode:
   useEffect(() => {
     let cancelled = false;
 
-    if (!shouldLoadMedia) return;
+    if (!shouldLoadMedia || !mediaUrl) return;
 
     if (meme.type === 'video') {
       const video = videoRef.current;
