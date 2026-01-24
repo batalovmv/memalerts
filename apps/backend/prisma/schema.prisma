@@ -1148,6 +1148,7 @@ model MemeAsset {
 
   channelMemes ChannelMeme[]
   submissions  MemeSubmission[]
+  tagSuggestions TagSuggestion[]
   variants     MemeAssetVariant[]
 
   @@index([fileHash])
@@ -1385,6 +1386,8 @@ model Tag {
 
   category   TagCategory? @relation(fields: [categoryId], references: [id])
   aliases    TagAlias[]
+  mappedSuggestions TagSuggestion[] @relation("TagSuggestionMappedTo")
+  tagActivities UserTagActivity[]
   memes       MemeTag[]
   submissions MemeSubmissionTag[]
 
@@ -1430,7 +1433,7 @@ model TagSuggestion {
   reviewedById  String?
 
   memeAsset  MemeAsset? @relation(fields: [memeAssetId], references: [id], onDelete: SetNull)
-  mappedTo   Tag?       @relation(fields: [mappedToTagId], references: [id], onDelete: SetNull)
+  mappedTo   Tag?       @relation("TagSuggestionMappedTo", fields: [mappedToTagId], references: [id], onDelete: SetNull)
   reviewedBy User?      @relation("TagSuggestionReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([status, count])
