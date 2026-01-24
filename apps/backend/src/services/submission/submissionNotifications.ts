@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io';
 import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/submissionBridge.js';
-import { emitWalletUpdated, relayWalletUpdatedToPeer } from '../../realtime/walletBridge.js';
+import { emitWalletUpdated, relayWalletUpdatedToPeer, type WalletUpdatedEvent } from '../../realtime/walletBridge.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorMessage } from './submissionShared.js';
 import { TransactionEventBuffer } from '../../utils/transactionEventBuffer.js';
@@ -47,10 +47,14 @@ export function enqueueWalletRewardEvent(opts: {
   };
 }): void {
   const { io, eventBuffer, event } = opts;
+  const sanitized: WalletUpdatedEvent = {
+    ...event,
+    channelSlug: event.channelSlug || undefined,
+  };
   eventBuffer.add(() => {
     try {
-      emitWalletUpdated(io, event);
-      void relayWalletUpdatedToPeer(event);
+      emitWalletUpdated(io, sanitized);
+      void relayWalletUpdatedToPeer(sanitized);
     } catch (err) {
       logger.error('admin.submissions.emit_wallet_reward_failed', { errorMessage: getErrorMessage(err) });
     }
