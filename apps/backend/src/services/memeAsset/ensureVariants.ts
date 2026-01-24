@@ -32,6 +32,12 @@ function getFileExt(fileUrl: string | null | undefined): string {
   }
 }
 
+function hasExpectedExtension(fileUrl: string | null | undefined, expected: string): boolean {
+  if (!fileUrl) return false;
+  const ext = getFileExt(fileUrl);
+  return ext === expected;
+}
+
 function toMs(durationSec?: number | null): number | null {
   if (!Number.isFinite(durationSec as number)) return null;
   const value = Number(durationSec);
@@ -127,6 +133,7 @@ async function ensurePendingVariant(params: { memeAssetId: string; format: 'prev
       status: 'pending',
       errorMessage: null,
       priority: config.priority,
+      fileUrl: '',
     },
   });
 }
@@ -158,6 +165,8 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
   });
   const byFormat = new Map(existing.map((v) => [String(v.format), v]));
   const hasDone = (format: string) => byFormat.get(format)?.status === 'done';
+  const hasValidPreview = hasDone('preview') && hasExpectedExtension(byFormat.get('preview')?.fileUrl, '.mp4');
+  const hasValidWebm = hasDone('webm') && hasExpectedExtension(byFormat.get('webm')?.fileUrl, '.webm');
   const mp4Variant = byFormat.get('mp4');
   const hasValidMp4 =
     mp4Variant?.status === 'done' && getFileExt(mp4Variant.fileUrl) === '.mp4';
@@ -280,7 +289,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
       });
     }
 
-    if (!hasDone('preview')) {
+    if (!hasValidPreview) {
       const queued = await enqueueTranscode({
         memeAssetId,
         inputFileUrl: resolvedSourceUrl,
@@ -311,7 +320,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
       }
     }
 
-    if (!hasDone('webm')) {
+    if (!hasValidWebm) {
       const queued = await enqueueTranscode({
         memeAssetId,
         inputFileUrl: resolvedSourceUrl,

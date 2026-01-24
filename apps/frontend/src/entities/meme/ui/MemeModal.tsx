@@ -52,6 +52,7 @@ const MemeModal = memo(function MemeModal({
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
+  const [previewDisabled, setPreviewDisabled] = useState(false);
 
   // Update currentMeme when meme prop changes
   useEffect(() => {
@@ -62,11 +63,12 @@ const MemeModal = memo(function MemeModal({
         priceCoins: meme.priceCoins,
       });
       setIsEditing(false);
+      setPreviewDisabled(false);
     }
   }, [meme]);
 
   const previewUrl = currentMeme?.previewUrl ? resolveMediaUrl(currentMeme.previewUrl) : '';
-  const hasPreview = Boolean(previewUrl);
+  const hasPreview = Boolean(previewUrl) && !previewDisabled;
 
   const {
     isPlaying,
@@ -265,6 +267,7 @@ const MemeModal = memo(function MemeModal({
         onPreviewPlay={handlePreviewPlay}
         onPreviewPause={handlePreviewPause}
         onPreviewTimeUpdate={handlePreviewTimeUpdate}
+        onPreviewError={() => setPreviewDisabled(true)}
         onFullPlay={handleFullPlay}
         onFullPause={handleFullPause}
         onFullCanPlay={handleFullCanPlay}

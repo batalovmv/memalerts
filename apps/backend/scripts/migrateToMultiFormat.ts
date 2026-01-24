@@ -1,3 +1,4 @@
+import path from 'path';
 import { prisma } from '../src/lib/prisma.js';
 import { logger } from '../src/utils/logger.js';
 import { computeContentHash, isCurrentHashVersion } from '../src/utils/media/contentHash.js';
@@ -11,6 +12,7 @@ import { ensureMemeAssetVariants } from '../src/services/memeAsset/ensureVariant
  *   pnpm tsx scripts/migrateToMultiFormat.ts --dry-run
  *   pnpm tsx scripts/migrateToMultiFormat.ts --batch=200
  *   pnpm tsx scripts/migrateToMultiFormat.ts --checkpoint=<last-asset-id>
+ *   pnpm tsx scripts/migrateToMultiFormat.ts --verify-urls --verify-timeout=8000
  */
 
 type MigrationStats = {
@@ -24,6 +26,7 @@ type MigrationStats = {
   missingFileUrl: number;
   missingSource: number;
   fallbackSources: number;
+  remoteMissing: number;
   errors: number;
 };
 
@@ -31,6 +34,8 @@ type MigrationOptions = {
   dryRun: boolean;
   batchSize: number;
   checkpoint?: string;
+  verifyUrls: boolean;
+  verifyTimeoutMs: number;
 };
 
 type MemeAssetSnapshot = {
@@ -57,6 +62,7 @@ type MemeAssetSnapshot = {
 
 const DEFAULT_BATCH = 100;
 const LOG_EVERY = 100;
+const DEFAULT_VERIFY_TIMEOUT_MS = 8000;
 
 function parseArgs(argv: string[]): MigrationOptions {
   const dryRun = argv.includes('--dry-run');
@@ -64,7 +70,13 @@ function parseArgs(argv: string[]): MigrationOptions {
   const batchSize = Math.max(10, parseInt(batchSizeArg?.split('=')[1] ?? '', 10) || DEFAULT_BATCH);
   const checkpointArg = argv.find((arg) => arg.startsWith('--checkpoint='));
   const checkpoint = checkpointArg?.split('=')[1];
-  return { dryRun, batchSize, checkpoint };
+  const verifyUrls = argv.includes('--verify-urls');
+  const verifyTimeoutArg = argv.find((arg) => arg.startsWith('--verify-timeout='));
+  const verifyTimeoutMs = Math.max(
+    1000,
+    parseInt(verifyTimeoutArg?.split('=')[1] ?? '', 10) || DEFAULT_VERIFY_TIMEOUT_MS
+  );
+  return { dryRun, batchSize, checkpoint, verifyUrls, verifyTimeoutMs };
 }
 
 function scoreCanonical(asset: MemeAssetSnapshot): number {
@@ -104,6 +116,33 @@ function pickFallbackVariant(
     }
   }
   return null;
+}
+
+function expectedExt(format: string): string {
+  if (format === 'webm') return '.webm';
+  return '.mp4';
+}
+
+function hasValidExtension(variant: { format: string; fileUrl: string }): boolean {
+  const ext = path.extname(String(variant.fileUrl || '')).toLowerCase();
+  return ext === expectedExt(variant.format);
+}
+
+async function urlExists(url: string, timeoutMs: number): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-0' },
+      signal: controller.signal,
+    });
+    return res.status === 200 || res.status === 206;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function mergeDuplicateAsset(params: {
@@ -173,7 +212,7 @@ async function mergeDuplicateAsset(params: {
 }
 
 async function migrateExistingAssets(options: MigrationOptions): Promise<MigrationStats> {
-  const { dryRun, batchSize, checkpoint } = options;
+  const { dryRun, batchSize, checkpoint, verifyUrls, verifyTimeoutMs } = options;
   const stats: MigrationStats = {
     processed: 0,
     hashesSet: 0,
@@ -185,6 +224,7 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
     missingFileUrl: 0,
     missingSource: 0,
     fallbackSources: 0,
+    remoteMissing: 0,
     errors: 0,
   };
 
@@ -216,6 +256,9 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
           { variants: { none: { format: 'preview', status: 'done' } } },
           { variants: { none: { format: 'webm', status: 'done' } } },
           { variants: { none: { format: 'mp4', status: 'done' } } },
+          { variants: { some: { format: 'preview', status: 'done', fileUrl: { not: { endsWith: '.mp4' } } } } },
+          { variants: { some: { format: 'mp4', status: 'done', fileUrl: { not: { endsWith: '.mp4' } } } } },
+          { variants: { some: { format: 'webm', status: 'done', fileUrl: { not: { endsWith: '.webm' } } } } },
         ],
       },
       select: {
@@ -291,6 +334,32 @@ async function migrateExistingAssets(options: MigrationOptions): Promise<Migrati
       }
 
       try {
+        if (verifyUrls && Array.isArray(asset.variants) && asset.variants.length > 0) {
+          const doneVariants = asset.variants.filter((v) => String(v.status || '') === 'done' && v.fileUrl);
+          const invalidExt = doneVariants.filter((v) => !hasValidExtension(v));
+          const missingRemote: string[] = [];
+
+          for (const variant of doneVariants) {
+            const ok = await urlExists(variant.fileUrl, verifyTimeoutMs);
+            if (!ok) {
+              missingRemote.push(variant.format);
+            }
+          }
+
+          if ((invalidExt.length > 0 || missingRemote.length > 0) && !dryRun) {
+            const formats = Array.from(
+              new Set([...invalidExt.map((v) => v.format), ...missingRemote])
+            );
+            if (formats.length > 0) {
+              await prisma.memeAssetVariant.updateMany({
+                where: { memeAssetId: asset.id, format: { in: formats } },
+                data: { status: 'failed', errorMessage: 'missing_or_invalid', fileUrl: '' },
+              });
+              stats.remoteMissing += formats.length;
+            }
+          }
+        }
+
         const needsHash = !asset.contentHash || !isCurrentHashVersion(asset.contentHash);
         const contentHash = needsHash ? await computeContentHash(resolved.localPath) : asset.contentHash;
 
@@ -417,6 +486,7 @@ async function main() {
   console.log(`Missing fileUrl: ${stats.missingFileUrl}`);
   console.log(`Missing source: ${stats.missingSource}`);
   console.log(`Fallback sources: ${stats.fallbackSources}`);
+  console.log(`Missing remote variants: ${stats.remoteMissing}`);
   console.log(`Errors: ${stats.errors}`);
 }
 
