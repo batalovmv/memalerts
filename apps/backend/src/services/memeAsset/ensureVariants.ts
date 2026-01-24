@@ -17,6 +17,11 @@ type EnsureVariantsParams = {
   sourceDurationMs?: number | null;
 };
 
+type FallbackSource = {
+  url: string;
+  format: 'mp4' | 'webm';
+};
+
 function getFileExt(fileUrl: string | null | undefined): string {
   const raw = String(fileUrl ?? '').trim();
   if (!raw) return '';
@@ -126,6 +131,21 @@ async function ensurePendingVariant(params: { memeAssetId: string; format: 'prev
   });
 }
 
+function pickFallbackSource(
+  existing: Array<{ format: string; status: string; fileUrl: string }>
+): FallbackSource | null {
+  const order: FallbackSource['format'][] = ['mp4', 'webm'];
+  for (const format of order) {
+    const candidate = existing.find(
+      (item) => String(item.format || '') === format && String(item.status || '') === 'done' && item.fileUrl
+    );
+    if (candidate?.fileUrl) {
+      return { url: candidate.fileUrl, format };
+    }
+  }
+  return null;
+}
+
 export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Promise<void> {
   const memeAssetId = String(params.memeAssetId || '').trim();
   if (!memeAssetId) return;
@@ -142,10 +162,37 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
   const hasValidMp4 =
     mp4Variant?.status === 'done' && getFileExt(mp4Variant.fileUrl) === '.mp4';
 
-  const resolved = await resolveLocalMediaPath(sourceFileUrl);
+  let resolved = await resolveLocalMediaPath(sourceFileUrl);
+  let resolvedSourceUrl = sourceFileUrl;
+  let fallbackSource: FallbackSource | null = null;
+  let usedFallback = false;
+
   if (!resolved) {
-    logger.warn('memeasset.variants.source_missing', { memeAssetId, sourceFileUrl });
-    return;
+    fallbackSource = pickFallbackSource(existing);
+    if (fallbackSource?.url && fallbackSource.url !== sourceFileUrl) {
+      const resolvedFallback = await resolveLocalMediaPath(fallbackSource.url);
+      if (resolvedFallback) {
+        resolved = resolvedFallback;
+        resolvedSourceUrl = fallbackSource.url;
+        usedFallback = true;
+        logger.warn('memeasset.variants.source_fallback', {
+          memeAssetId,
+          sourceFileUrl,
+          fallbackUrl: fallbackSource.url,
+          fallbackFormat: fallbackSource.format,
+        });
+      } else {
+        logger.warn('memeasset.variants.source_missing', {
+          memeAssetId,
+          sourceFileUrl,
+          fallbackUrl: fallbackSource.url,
+        });
+        return;
+      }
+    } else {
+      logger.warn('memeasset.variants.source_missing', { memeAssetId, sourceFileUrl });
+      return;
+    }
   }
 
   const localPath = resolved.localPath;
@@ -174,7 +221,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
     }
 
     if (fileHash && !params.sourceFileHash) {
-      await ensureFileHashReference(fileHash, sourceFileUrl, localPath);
+      await ensureFileHashReference(fileHash, resolvedSourceUrl, localPath);
     }
 
     if (!hasValidMp4) {
@@ -182,7 +229,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
       if (isMp4Source) {
         await ensureMp4Variant({
           memeAssetId,
-          fileUrl: sourceFileUrl,
+          fileUrl: resolvedSourceUrl,
           fileHash,
           fileSizeBytes: Number.isFinite(fileSizeBytes as number) ? Number(fileSizeBytes) : null,
           durationMs,
@@ -192,7 +239,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
       } else {
         const queued = await enqueueTranscode({
           memeAssetId,
-          inputFileUrl: sourceFileUrl,
+          inputFileUrl: resolvedSourceUrl,
           format: 'mp4',
         });
 
@@ -221,19 +268,22 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
       }
     }
 
-    await prisma.memeAsset.updateMany({
-      where: { id: memeAssetId, OR: [{ fileUrl: null }, { fileHash: null }, { durationMs: 0 }] },
-      data: {
-        fileUrl: sourceFileUrl,
-        fileHash: fileHash ?? undefined,
-        durationMs: durationMs ?? undefined,
-      },
-    });
+    const sourceFileUrlForUpdate = usedFallback ? resolvedSourceUrl : sourceFileUrl;
+    if (sourceFileUrlForUpdate) {
+      await prisma.memeAsset.updateMany({
+        where: { id: memeAssetId, OR: [{ fileUrl: null }, { fileHash: null }, { durationMs: 0 }] },
+        data: {
+          fileUrl: sourceFileUrlForUpdate,
+          fileHash: fileHash ?? undefined,
+          durationMs: durationMs ?? undefined,
+        },
+      });
+    }
 
     if (!hasDone('preview')) {
       const queued = await enqueueTranscode({
         memeAssetId,
-        inputFileUrl: sourceFileUrl,
+        inputFileUrl: resolvedSourceUrl,
         format: 'preview',
       });
 
@@ -264,7 +314,7 @@ export async function ensureMemeAssetVariants(params: EnsureVariantsParams): Pro
     if (!hasDone('webm')) {
       const queued = await enqueueTranscode({
         memeAssetId,
-        inputFileUrl: sourceFileUrl,
+        inputFileUrl: resolvedSourceUrl,
         format: 'webm',
       });
 

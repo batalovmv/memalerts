@@ -56,27 +56,35 @@ export function MemeModalVideo({
   onFullCanPlay,
 }: MemeModalVideoProps) {
   const { t } = useTranslation();
+  const showBackdropVideo = !hasPreview;
 
   return (
     <section
       className="bg-black flex items-center justify-center relative w-full md:flex-1 h-[65vh] md:h-[82vh] overflow-hidden"
       aria-label="Video player"
     >
-      <video
-        src={hasPreview ? previewUrl : variants.length === 0 ? videoUrl : undefined}
-        muted
-        loop
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
-        preload="auto"
-        aria-hidden="true"
-      >
-        {!hasPreview && variants.length > 0
-          ? variants.map((variant) => (
-              <source key={variant.format} src={resolveMediaUrl(variant.fileUrl)} type={variant.sourceType} />
-            ))
-          : null}
-      </video>
+      {showBackdropVideo ? (
+        <video
+          src={variants.length === 0 ? videoUrl : undefined}
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
+          preload="metadata"
+          aria-hidden="true"
+        >
+          {variants.length > 0
+            ? variants.map((variant) => (
+                <source key={variant.format} src={resolveMediaUrl(variant.fileUrl)} type={variant.sourceType} />
+              ))
+            : null}
+        </video>
+      ) : (
+        <div
+          className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%)]"
+          aria-hidden="true"
+        />
+      )}
       <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
 
       <div className="absolute inset-0 z-10">
@@ -107,7 +115,7 @@ export function MemeModalVideo({
           className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
             !hasPreview || isFullReady ? 'opacity-100' : 'opacity-0'
           }`}
-          preload="auto"
+          preload={hasPreview && !isFullReady ? 'metadata' : 'auto'}
           onPlay={onFullPlay}
           onPause={onFullPause}
           onCanPlay={onFullCanPlay}
