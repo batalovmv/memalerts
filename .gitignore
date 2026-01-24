@@ -42,3 +42,5 @@ apps/backend/uploads/
 _deploy/
 PLAN_PREVIEW_FULL_FORMATS.md
 packages/shared/src/types/**/*.js
+packages/shared/src/types.js
+apps/frontend/MEME_FEATURES_PLAN.md
