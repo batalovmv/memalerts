@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -28,6 +29,7 @@ type MemeModalVideoProps = {
   onPreviewPlay: () => void;
   onPreviewPause: () => void;
   onPreviewTimeUpdate: () => void;
+  onPreviewError: () => void;
   onFullPlay: () => void;
   onFullPause: () => void;
   onFullCanPlay: () => void;
@@ -51,12 +53,48 @@ export function MemeModalVideo({
   onPreviewPlay,
   onPreviewPause,
   onPreviewTimeUpdate,
+  onPreviewError,
   onFullPlay,
   onFullPause,
   onFullCanPlay,
 }: MemeModalVideoProps) {
   const { t } = useTranslation();
   const showBackdropVideo = !hasPreview;
+  const fullCandidates = useMemo(() => {
+    const urls = variants
+      .map((variant) => ({
+        url: resolveMediaUrl(variant.fileUrl),
+        sourceType: variant.sourceType,
+      }))
+      .filter((entry) => Boolean(entry.url));
+
+    if (videoUrl) {
+      urls.push({ url: resolveMediaUrl(videoUrl), sourceType: '' });
+    }
+
+    const seen = new Set<string>();
+    return urls.filter((entry) => {
+      if (!entry.url) return false;
+      if (seen.has(entry.url)) return false;
+      seen.add(entry.url);
+      return true;
+    });
+  }, [variants, videoUrl]);
+  const [fullIndex, setFullIndex] = useState(0);
+
+  useEffect(() => {
+    setFullIndex(0);
+  }, [meme.id]);
+
+  const fullCandidate = fullCandidates[fullIndex];
+  const handleFullError = () => {
+    const next = fullIndex + 1;
+    if (next < fullCandidates.length) {
+      setFullIndex(next);
+      return;
+    }
+    toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
+  };
 
   return (
     <section
@@ -102,13 +140,14 @@ export function MemeModalVideo({
             onPlay={onPreviewPlay}
             onPause={onPreviewPause}
             onTimeUpdate={onPreviewTimeUpdate}
+            onError={onPreviewError}
             aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${meme.title}`}
           />
         ) : null}
 
         <video
           ref={videoRef}
-          src={variants.length === 0 ? videoUrl : undefined}
+          src={fullCandidate?.url}
           muted={isMuted}
           loop
           playsInline
@@ -119,17 +158,9 @@ export function MemeModalVideo({
           onPlay={onFullPlay}
           onPause={onFullPause}
           onCanPlay={onFullCanPlay}
-          onError={() => {
-            toast.error(t('memeModal.videoLoadFailed', { defaultValue: 'Не удалось загрузить видео' }));
-          }}
+          onError={handleFullError}
           aria-label={t('memeModal.ariaVideo', { defaultValue: 'Видео' }) + `: ${meme.title}`}
-        >
-          {variants.length > 0
-            ? variants.map((variant) => (
-                <source key={variant.format} src={resolveMediaUrl(variant.fileUrl)} type={variant.sourceType} />
-              ))
-            : null}
-        </video>
+        />
       </div>
 
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2 rounded-full bg-white/15 px-2 py-2 backdrop-blur-md ring-1 ring-white/20 shadow-[0_10px_24px_rgba(0,0,0,0.35)]">
