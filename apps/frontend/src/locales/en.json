@@ -284,6 +284,9 @@
     "revokeConfirm": "Revoke moderator access for this user?",
     "sessionHint": "If you granted rights to yourself, refresh the page (or relog) to update access."
   },
+  "ownerAiStatus": {
+    "tab": "Owner: AI status"
+  },
   "nav": {
     "home": "Home",
     "dashboard": "Dashboard",
@@ -318,6 +321,7 @@
     "accountsNotFound": "Account not found or doesn't belong to you.",
     "noLinkedAccounts": "No linked accounts yet.",
     "noLinkedAccountsHint": "Link at least one account to avoid losing access.",
+    "tabs": "Settings tabs",
     "moreGroups": {
       "accountAccess": "Account & access",
       "insightsGrowth": "Insights & growth",
@@ -615,6 +619,7 @@
   },
   "admin": {
     "more": "More",
+    "entitlements": "Entitlements",
     "activityLast14Days": "Activity (last 14 days)",
     "noActivityYet": "No activity yet.",
     "dailyActivations": "Daily activations",
