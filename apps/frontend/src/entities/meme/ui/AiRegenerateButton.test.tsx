@@ -21,6 +21,15 @@ vi.mock('@/shared/api/channel', async (orig) => {
   };
 });
 
+vi.mock('@/shared/lib/hooks', async (orig) => {
+  const mod = (await orig()) as typeof import('@/shared/lib/hooks');
+  return {
+    ...mod,
+    // Avoid interval-driven state updates in tests (prevents act() warnings).
+    useSharedNow: () => Date.now(),
+  };
+});
+
 function makeMeme(partial: Partial<Meme>): Meme {
   return {
     id: partial.id || 'm1',

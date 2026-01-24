@@ -25,7 +25,7 @@
     "guard:any": "tsx scripts/guard-any.ts",
     "migrations:check": "tsx scripts/check-migrations.ts",
     "schema:check": "tsx scripts/check-prisma-schema.ts",
-    "prepare": "husky install",
+    "prepare": "husky",
     "prebuild": "pnpm -s schema:check && prisma generate",
     "build": "tsc",
     "typecheck": "npx tsc --noEmit",

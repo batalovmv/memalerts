@@ -4,7 +4,7 @@ import { resetMockHandlers, startMockServer, stopMockServer } from './mocks/serv
 
 const silent = process.env.LOG_SILENT_TESTS === '1' || process.env.NODE_ENV === 'test';
 if (!process.env.LOG_LEVEL) {
-  process.env.LOG_LEVEL = 'error';
+  process.env.LOG_LEVEL = 'silent';
 }
 if (!process.env.LOG_SILENT_TESTS) {
   process.env.LOG_SILENT_TESTS = '1';

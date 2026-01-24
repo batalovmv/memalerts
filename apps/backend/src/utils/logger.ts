@@ -2,11 +2,11 @@ import pino from 'pino';
 import { getRequestContext } from './asyncContext.js';
 import { getActiveTraceId } from '../tracing/traceContext.js';
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 function getMinLevel(): LogLevel {
   const raw = String(process.env.LOG_LEVEL || '').toLowerCase();
-  if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error') return raw;
+  if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error' || raw === 'silent') return raw;
   // Default: be conservative in production, verbose elsewhere.
   return process.env.NODE_ENV === 'production' ? 'info' : 'debug';
 }

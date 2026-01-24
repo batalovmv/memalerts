@@ -64,6 +64,9 @@ process.env.DATABASE_URL = appendSchemaToPostgresUrl(base, schema);
 
 // Provide safe defaults for modules that expect these envs to exist (but tests shouldn’t depend on real secrets).
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret';
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+process.env.LOG_SILENT_TESTS = process.env.LOG_SILENT_TESTS || '1';
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'silent';
 
 export default defineConfig({
   test: {
