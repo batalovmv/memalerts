@@ -141,6 +141,17 @@ export function useStreamerProfileMemes({
   const [ownerAiProcessingCount, setOwnerAiProcessingCount] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const lastLoadKeyRef = useRef<string>('');
+  const listCacheRef = useRef<
+    Map<
+      string,
+      {
+        items: Meme[];
+        offset: number;
+        hasMore: boolean;
+        timestamp: number;
+      }
+    >
+  >(new Map());
 
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const isForYou = listMode === 'forYou';
@@ -238,15 +249,24 @@ export function useStreamerProfileMemes({
   useEffect(() => {
     if (!channelInfo?.id) return;
 
-    const loadKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${reloadNonce}:${listMode}:${trendingScope}:${trendingPeriod}`;
+    const cacheKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${listMode}:${trendingScope}:${trendingPeriod}`;
+    const loadKey = `${cacheKey}:${reloadNonce}`;
     if (lastLoadKeyRef.current === loadKey) return;
     lastLoadKeyRef.current = loadKey;
 
-    setMemesLoading(true);
-    setMemes([]);
+    const cached = listCacheRef.current.get(cacheKey);
+
+    setMemesLoading(!cached);
+    if (cached) {
+      setMemes(cached.items);
+      setHasMore(cached.hasMore);
+      setMemesOffset(cached.offset);
+    } else {
+      setMemes([]);
+      setHasMore(true);
+      setMemesOffset(0);
+    }
     setSearchResults([]);
-    setHasMore(true);
-    setMemesOffset(0);
 
     const load = async () => {
       try {
@@ -270,6 +290,13 @@ export function useStreamerProfileMemes({
           const initial = extractMemesFromResponse(resp);
           setMemes(initial);
           setHasMore(initial.length === MEMES_PER_PAGE);
+          setMemesOffset(0);
+          listCacheRef.current.set(cacheKey, {
+            items: initial,
+            offset: 0,
+            hasMore: initial.length === MEMES_PER_PAGE,
+            timestamp: Date.now(),
+          });
           return;
         }
 
@@ -287,6 +314,13 @@ export function useStreamerProfileMemes({
             });
             setMemes(poolMemes);
             setHasMore(poolMemes.length === MEMES_PER_PAGE);
+            setMemesOffset(0);
+            listCacheRef.current.set(cacheKey, {
+              items: poolMemes,
+              offset: 0,
+              hasMore: poolMemes.length === MEMES_PER_PAGE,
+              timestamp: Date.now(),
+            });
           } catch {
             // If pool is not accessible (beta gating / auth), fall back to channel listings.
             const listParams = new URLSearchParams();
@@ -318,6 +352,13 @@ export function useStreamerProfileMemes({
             const initial = extractMemesFromResponse(resp);
             setMemes(initial);
             setHasMore(initial.length === MEMES_PER_PAGE);
+            setMemesOffset(0);
+            listCacheRef.current.set(cacheKey, {
+              items: initial,
+              offset: 0,
+              hasMore: initial.length === MEMES_PER_PAGE,
+              timestamp: Date.now(),
+            });
           }
         } else {
           const listParams = new URLSearchParams();
@@ -350,6 +391,13 @@ export function useStreamerProfileMemes({
           const initial = extractMemesFromResponse(resp);
           setMemes(initial);
           setHasMore(initial.length === MEMES_PER_PAGE);
+          setMemesOffset(0);
+          listCacheRef.current.set(cacheKey, {
+            items: initial,
+            offset: 0,
+            hasMore: initial.length === MEMES_PER_PAGE,
+            timestamp: Date.now(),
+          });
         }
       } catch {
         // Continue without memes - they can be loaded later.
@@ -442,7 +490,17 @@ export function useStreamerProfileMemes({
       }
 
       if (newMemes.length > 0) {
-        setMemes((prev) => [...prev, ...newMemes]);
+        setMemes((prev) => {
+          const merged = [...prev, ...newMemes];
+          const cacheKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${listMode}:${trendingScope}:${trendingPeriod}`;
+          listCacheRef.current.set(cacheKey, {
+            items: merged,
+            offset: nextOffset,
+            hasMore: newMemes.length === MEMES_PER_PAGE,
+            timestamp: Date.now(),
+          });
+          return merged;
+        });
         setMemesOffset(nextOffset);
         setHasMore(newMemes.length === MEMES_PER_PAGE);
       } else {
@@ -710,6 +768,27 @@ export function useStreamerProfileMemes({
     normalizedSlug,
     searchQuery,
     tagFilter,
+  ]);
+
+  useEffect(() => {
+    if (!channelInfo?.id) return;
+    if (listMode === 'forYou') return;
+    const cacheKey = `${channelInfo.id}:${channelInfo.memeCatalogMode || 'channel'}:${listMode}:${trendingScope}:${trendingPeriod}`;
+    listCacheRef.current.set(cacheKey, {
+      items: memes,
+      offset: memesOffset,
+      hasMore,
+      timestamp: Date.now(),
+    });
+  }, [
+    channelInfo?.id,
+    channelInfo?.memeCatalogMode,
+    hasMore,
+    listMode,
+    memes,
+    memesOffset,
+    trendingPeriod,
+    trendingScope,
   ]);
 
   return {
