@@ -221,7 +221,12 @@ describe('AI moderation service', () => {
     });
     auditMocks.auditLog.mockResolvedValue(undefined);
 
-    const channel = await createChannel({ slug: 'ai-auto', name: 'AI Auto', defaultPriceCoins: 250 });
+    const channel = await createChannel({
+      slug: 'ai-auto',
+      name: 'AI Auto',
+      defaultPriceCoins: 250,
+      autoApproveEnabled: true,
+    });
     const submitter = await createUser({ role: 'viewer', channelId: channel.id });
     const submission = await createSubmission({
       channelId: channel.id,
