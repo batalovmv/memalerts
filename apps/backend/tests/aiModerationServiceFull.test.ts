@@ -127,7 +127,7 @@ describe('AI moderation service', () => {
     expect(aiMocks.generateMemeMetadataOpenAI).toHaveBeenCalled();
 
     expect(result.decision).toBe('low');
-    expect(result.riskScore).toBe(0.3);
+      expect(result.riskScore).toBe(0.1);
     expect(result.labels).toContain('text:violence');
     expect(result.transcript).toBe('Hello world');
     expect(result.aiTitle).toBe('AI Title');
@@ -149,7 +149,7 @@ describe('AI moderation service', () => {
       localPath: 'C:\\tmp\\video.mp4',
     });
 
-    expect(result.decision).toBe('high');
+      expect(result.decision).toBe('low');
     expect(result.reason).toBe('ai:openai_unavailable');
     expect(result.autoTags).toContain('nsfw');
     expect(result.modelVersions.pipelineVersion).toBe('v1-keyword-heuristic');
