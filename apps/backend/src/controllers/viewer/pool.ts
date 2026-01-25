@@ -13,6 +13,7 @@ import {
 } from './cache.js';
 import { loadLegacyTagsById } from './channelMemeListDto.js';
 import { nsKey, redisGetString, redisSetStringEx } from '../../utils/redisCache.js';
+import { buildSearchTerms } from '../../shared/utils/searchTerms.js';
 
 function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
   switch (format) {
@@ -76,20 +77,22 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
   };
 
   if (q) {
-    where.OR = [
-      { aiAutoTitle: { contains: q, mode: 'insensitive' } },
-      { aiSearchText: { contains: q, mode: 'insensitive' } },
+    const terms = buildSearchTerms(q);
+    const searchTerms = terms.length > 0 ? terms : [q];
+    where.OR = searchTerms.flatMap((term) => [
+      { aiAutoTitle: { contains: term, mode: 'insensitive' } },
+      { aiSearchText: { contains: term, mode: 'insensitive' } },
       {
         channelMemes: {
           some: {
             title: {
-              contains: q,
+              contains: term,
               mode: 'insensitive',
             },
           },
         },
       },
-    ];
+    ]);
   }
 
   // Order by most recently created asset; later можно заменить на popularity rollups.

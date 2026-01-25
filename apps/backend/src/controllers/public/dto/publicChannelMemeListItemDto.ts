@@ -22,6 +22,8 @@ export type PublicChannelMemeListItemDto = {
   activationsCount: number;
   createdAt: Date;
   createdBy: { id: string; displayName: string } | null;
+  tags?: Array<{ tag: { id: string; name: string } }>;
+  aiAutoTagNames?: string[] | null;
 };
 
 function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
@@ -57,6 +59,7 @@ export function toPublicChannelMemeListItemDto(
       }>;
       createdBy?: { id: string; displayName: string } | null;
     };
+    aiAutoTagNamesJson?: unknown | null;
     _count?: { activations: number };
   }
 ): PublicChannelMemeListItemDto {
@@ -82,6 +85,12 @@ export function toPublicChannelMemeListItemDto(
       };
     });
 
+  const aiAutoTagNames = Array.isArray(row.aiAutoTagNamesJson)
+    ? (row.aiAutoTagNamesJson as unknown[])
+        .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+        .map((tag) => tag.trim())
+    : null;
+
   return {
     id: row.legacyMemeId ?? row.id,
     channelId,
@@ -99,5 +108,6 @@ export function toPublicChannelMemeListItemDto(
     createdBy: row.memeAsset.createdBy
       ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }
       : null,
+    ...(aiAutoTagNames && aiAutoTagNames.length > 0 ? { aiAutoTagNames } : {}),
   };
 }

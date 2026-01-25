@@ -3,6 +3,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
 import { parseTagNames } from '../cache.js';
 import { sendSearchResponse, type ChannelMemeRow, type PoolAssetRow, type SearchContext } from './searchShared.js';
+import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
 
 function defaultPriceCoinsFromChannel(ctx: SearchContext): number {
   const raw = ctx.targetChannel?.defaultPriceCoins ?? null;
@@ -216,11 +217,13 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
   if (and.length > 0) poolWhere.AND = and;
 
   if (ctx.qStr) {
-    poolWhere.OR = [
-      { aiAutoTitle: { contains: ctx.qStr, mode: 'insensitive' } },
-      { aiSearchText: { contains: ctx.qStr, mode: 'insensitive' } },
-      { channelMemes: { some: { title: { contains: ctx.qStr, mode: 'insensitive' } } } },
-    ];
+    const terms = buildSearchTerms(ctx.qStr);
+    const searchTerms = terms.length > 0 ? terms : [ctx.qStr];
+    poolWhere.OR = searchTerms.flatMap((term) => [
+      { aiAutoTitle: { contains: term, mode: 'insensitive' } },
+      { aiSearchText: { contains: term, mode: 'insensitive' } },
+      { channelMemes: { some: { title: { contains: term, mode: 'insensitive' } } } },
+    ]);
     if (ctx.includeUploaderEnabled) {
       poolWhere.OR.push({ createdBy: { displayName: { contains: ctx.qStr, mode: 'insensitive' } } });
     }
@@ -294,11 +297,13 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
         },
       },
     };
-    where.OR = [
-      { aiAutoTitle: { contains: ctx.qStr, mode: 'insensitive' } },
-      { aiSearchText: { contains: ctx.qStr, mode: 'insensitive' } },
-      { channelMemes: { some: { title: { contains: ctx.qStr, mode: 'insensitive' } } } },
-    ];
+    const terms = buildSearchTerms(ctx.qStr);
+    const searchTerms = terms.length > 0 ? terms : [ctx.qStr];
+    where.OR = searchTerms.flatMap((term) => [
+      { aiAutoTitle: { contains: term, mode: 'insensitive' } },
+      { aiSearchText: { contains: term, mode: 'insensitive' } },
+      { channelMemes: { some: { title: { contains: term, mode: 'insensitive' } } } },
+    ]);
     if (ctx.includeUploaderEnabled) {
       where.OR.push({ createdBy: { displayName: { contains: ctx.qStr, mode: 'insensitive' } } });
     }
@@ -346,10 +351,12 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
     status: 'approved',
     deletedAt: null,
   };
-  where.OR = [
-    { title: { contains: ctx.qStr, mode: 'insensitive' } },
-    { searchText: { contains: ctx.qStr, mode: 'insensitive' } },
-  ];
+  const terms = buildSearchTerms(ctx.qStr);
+  const searchTerms = terms.length > 0 ? terms : [ctx.qStr];
+  where.OR = searchTerms.flatMap((term) => [
+    { title: { contains: term, mode: 'insensitive' } },
+    { searchText: { contains: term, mode: 'insensitive' } },
+  ]);
   if (ctx.includeUploaderEnabled) {
     where.OR.push({ memeAsset: { createdBy: { displayName: { contains: ctx.qStr, mode: 'insensitive' } } } });
   }
