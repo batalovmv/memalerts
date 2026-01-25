@@ -25,14 +25,8 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { activateMeme } from '@/store/slices/memesSlice';
 
 type StreamerListMode = 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
-const AUTH_REQUIRED_LIST_MODES: StreamerListMode[] = [
-  'favorites',
-  'frequent',
-  'recent',
-  'hidden',
-  'blocked',
-  'forYou',
-];
+const AUTH_REQUIRED_LIST_MODES: StreamerListMode[] = ['favorites', 'frequent', 'forYou'];
+const PUBLIC_LIST_MODES: StreamerListMode[] = ['forYou', 'all', 'favorites', 'frequent'];
 
 const StreamerProfile = memo(function StreamerProfile() {
   const { t } = useTranslation();
@@ -119,6 +113,12 @@ const StreamerProfile = memo(function StreamerProfile() {
       setListMode('all');
     }
   }, [isAuthed, listMode]);
+
+  useEffect(() => {
+    if (!PUBLIC_LIST_MODES.includes(listMode)) {
+      setListMode('all');
+    }
+  }, [listMode]);
 
   useEffect(() => {
     if (listMode === 'blocked' && !canViewBlocked) {
@@ -340,7 +340,6 @@ const StreamerProfile = memo(function StreamerProfile() {
           trendingPeriod={trendingPeriod}
           onChangeTrendingScope={setTrendingScope}
           onChangeTrendingPeriod={setTrendingPeriod}
-          canViewBlocked={canViewBlocked}
           isAuthed={isAuthed}
           onRequireAuth={handleOpenAuthModal}
           isSearching={isSearching}
