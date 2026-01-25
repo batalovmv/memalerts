@@ -10,6 +10,7 @@ type UseStreamerProfilePersonalizedMemesParams = {
   normalizedSlug: string;
   isAuthed: boolean;
   reloadNonce: number;
+  limit?: number;
 };
 
 type UseStreamerProfilePersonalizedMemesState = {
@@ -26,6 +27,7 @@ export function useStreamerProfilePersonalizedMemes({
   normalizedSlug,
   isAuthed,
   reloadNonce,
+  limit,
 }: UseStreamerProfilePersonalizedMemesParams): UseStreamerProfilePersonalizedMemesState {
   const [memes, setMemes] = useState<Meme[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,9 +52,10 @@ export function useStreamerProfilePersonalizedMemes({
 
     const run = async () => {
       try {
+        const personalizedLimit = Number.isFinite(limit ?? NaN) ? (limit as number) : 12;
         const [profileResult, personalizedResult] = await Promise.allSettled([
           getTasteProfile(),
-          getPersonalizedMemes(normalizedSlug, { limit: 12 }),
+          getPersonalizedMemes(normalizedSlug, { limit: personalizedLimit }),
         ]);
         if (cancelled) return;
         const profile = profileResult.status === 'fulfilled' ? profileResult.value : null;
@@ -84,7 +87,7 @@ export function useStreamerProfilePersonalizedMemes({
     return () => {
       cancelled = true;
     };
-  }, [channelInfo?.id, isAuthed, normalizedSlug, reloadNonce]);
+  }, [channelInfo?.id, isAuthed, normalizedSlug, reloadNonce, limit]);
 
   return { memes, loading, profileReady, totalActivations, topTags, mode };
 }

@@ -35,9 +35,10 @@
     "tooManyRequests": "Слишком много запросов. Попробуйте позже.",
     "goHome": "На главную",
     "skipToContent": "Перейти к содержимому",
-    "clear": "Clear",
-    "loadMore": "Load more",
-    "open": "Open",
+      "clear": "Clear",
+      "loadMore": "Load more",
+      "seeAll": "Посмотреть все",
+      "open": "Open",
     "volume": "Громкость"
   },
   "help": {

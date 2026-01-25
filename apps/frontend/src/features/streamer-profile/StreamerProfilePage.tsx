@@ -37,6 +37,8 @@ const StreamerProfile = memo(function StreamerProfile() {
   const [isMemeModalOpen, setIsMemeModalOpen] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [personalizedLimit, setPersonalizedLimit] = useState(12);
+  const [personalizedExpanded, setPersonalizedExpanded] = useState(false);
 
   const normalizedSlug = (slug || '').trim().toLowerCase();
   const isAuthed = !!user;
@@ -94,6 +96,7 @@ const StreamerProfile = memo(function StreamerProfile() {
     normalizedSlug,
     isAuthed,
     reloadNonce,
+    limit: personalizedLimit,
   });
 
   const isOwner = !!(user && channelInfo && user.channelId === channelInfo.id);
@@ -167,6 +170,10 @@ const StreamerProfile = memo(function StreamerProfile() {
   }, []);
   const handleClearSearchQuery = useCallback(() => setSearchQuery(''), [setSearchQuery]);
   const handleToggleFavorites = useCallback(() => setMyFavorites((v) => !v), [setMyFavorites]);
+  const handleShowAllPersonalized = useCallback(() => {
+    setPersonalizedExpanded(true);
+    setPersonalizedLimit(60);
+  }, []);
   const handleTagSearch = useCallback(
     (tag: string) => {
       setMyFavorites(false);
@@ -259,6 +266,8 @@ const StreamerProfile = memo(function StreamerProfile() {
             mode={personalizedMode}
             autoplayMemesEnabled={autoplayMemesEnabled}
             onSelectMeme={handleSelectMeme}
+            showAll={personalizedExpanded}
+            onShowAll={handleShowAllPersonalized}
           />
         ) : null}
 
