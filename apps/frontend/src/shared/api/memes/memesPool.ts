@@ -24,6 +24,9 @@ export type MemePoolItem = {
   durationMs?: number;
   tags?: Array<{ tag: { id: string; name: string } }>;
   aiAutoTagNames?: string[] | null;
+  aiAutoTitle?: string | null;
+  aiAutoDescription?: string | null;
+  aiStatus?: string | null;
 
   sampleTitle?: string | null;
   samplePriceCoins?: number | null;

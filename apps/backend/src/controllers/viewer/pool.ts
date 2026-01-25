@@ -1,4 +1,5 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthRequest } from '../../middleware/auth.js';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import {
@@ -24,12 +25,13 @@ function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
   }
 }
 
-export const getMemePool = async (req: Request, res: Response) => {
+export const getMemePool = async (req: AuthRequest, res: Response) => {
   const query = (req.query ?? {}) as Record<string, unknown>;
   const qRaw = query.q ? String(query.q).trim() : '';
   const q = qRaw.length > 100 ? qRaw.slice(0, 100) : qRaw;
   const limitRaw = query.limit ? parseInt(String(query.limit), 10) : 50;
   const offsetRaw = query.offset ? parseInt(String(query.offset), 10) : 0;
+  const isAdmin = String(req.userRole || '') === 'admin';
 
   const maxFromEnv = parseInt(String(process.env.SEARCH_PAGE_MAX || ''), 10);
   const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 50;
@@ -39,7 +41,7 @@ export const getMemePool = async (req: Request, res: Response) => {
   // Non-personalized → allow short cache + ETag/304
   setSearchCacheHeaders(req, res);
 
-  const cacheKey = ['pool', 'v2', q.toLowerCase(), String(limit), String(offset)].join('|');
+  const cacheKey = ['pool', 'v2', isAdmin ? 'admin' : 'public', q.toLowerCase(), String(limit), String(offset)].join('|');
 
   const ttl = getSearchCacheMs();
   const cached = searchCache.get(cacheKey);
@@ -102,7 +104,9 @@ export const getMemePool = async (req: Request, res: Response) => {
       fileUrl: true,
       durationMs: true,
       createdAt: true,
+      aiAutoTitle: true,
       aiAutoTagNamesJson: true,
+      ...(isAdmin ? { aiStatus: true, aiAutoDescription: true } : {}),
       variants: {
         select: {
           format: true,
@@ -144,6 +148,15 @@ export const getMemePool = async (req: Request, res: Response) => {
           .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
           .map((tag) => tag.trim())
       : null;
+    const aiAutoTitle = typeof (r as { aiAutoTitle?: unknown }).aiAutoTitle === 'string'
+      ? String((r as { aiAutoTitle?: string }).aiAutoTitle).trim()
+      : null;
+    const aiAutoDescription = isAdmin && typeof (r as { aiAutoDescription?: unknown }).aiAutoDescription === 'string'
+      ? String((r as { aiAutoDescription?: string }).aiAutoDescription)
+      : null;
+    const aiStatus = isAdmin && typeof (r as { aiStatus?: unknown }).aiStatus === 'string'
+      ? String((r as { aiStatus?: string }).aiStatus)
+      : null;
     const doneVariants = Array.isArray(r.variants)
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
@@ -173,7 +186,9 @@ export const getMemePool = async (req: Request, res: Response) => {
       usageCount: r._count.channelMemes,
       sampleTitle: r.channelMemes?.[0]?.title ?? null,
       samplePriceCoins: r.channelMemes?.[0]?.priceCoins ?? null,
+      aiAutoTitle,
       aiAutoTagNames,
+      ...(isAdmin ? { aiAutoDescription, aiStatus } : {}),
       ...(legacyTags && legacyTags.length > 0 ? { tags: legacyTags } : {}),
     };
   });

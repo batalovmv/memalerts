@@ -16,6 +16,24 @@ function getDefaultQuarantineDays(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 14;
 }
 
+function buildAiSearchText(args: {
+  title?: string | null;
+  tagNames?: string[];
+  description?: string | null;
+  transcript?: string | null;
+}): string | null {
+  const parts = [
+    args.title ? String(args.title) : '',
+    Array.isArray(args.tagNames) && args.tagNames.length > 0 ? args.tagNames.join(' ') : '',
+    args.description ? String(args.description) : '',
+    args.transcript ? String(args.transcript) : '',
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+  const merged = parts.join('\n');
+  return merged ? merged.slice(0, 4000) : null;
+}
+
 type MemeAssetModerationRow = {
   poolHiddenReason?: string | null;
   poolHiddenByUserId?: string | null;
@@ -282,6 +300,90 @@ export const moderationMemeAssetController = {
         error: (error as Error).message,
       });
       return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
+    }
+  },
+
+  // POST /moderation/meme-assets/:id/title  body: { title?: string | null }
+  rename: async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id || '');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const titleRaw =
+      typeof body.title === 'string'
+        ? body.title
+        : typeof body.aiAutoTitle === 'string'
+          ? body.aiAutoTitle
+          : '';
+    const title = String(titleRaw || '').trim().slice(0, 200) || null;
+    const { ipAddress, userAgent } = getRequestMetadata(req);
+
+    try {
+      const existing = await prisma.memeAsset.findUnique({
+        where: { id },
+        select: {
+          aiAutoTagNamesJson: true,
+          aiAutoDescription: true,
+          aiTranscript: true,
+        },
+      });
+      if (!existing) {
+        await auditLog({
+          action: 'moderation.memeAsset.rename',
+          actorId: req.userId || null,
+          payload: { memeAssetId: id, title },
+          ipAddress,
+          userAgent,
+          success: false,
+          error: 'Not found',
+        });
+        return res.status(404).json({ errorCode: 'NOT_FOUND', error: 'Not found', requestId: req.requestId });
+      }
+
+      const tagNames = Array.isArray(existing.aiAutoTagNamesJson)
+        ? (existing.aiAutoTagNamesJson as unknown[])
+            .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+            .map((tag) => tag.trim())
+        : [];
+      const aiSearchText = buildAiSearchText({
+        title,
+        tagNames,
+        description: typeof existing.aiAutoDescription === 'string' ? existing.aiAutoDescription : null,
+        transcript: typeof existing.aiTranscript === 'string' ? existing.aiTranscript : null,
+      });
+
+      const updated = await prisma.memeAsset.update({
+        where: { id },
+        data: {
+          aiAutoTitle: title,
+          aiSearchText,
+        },
+        select: {
+          id: true,
+          aiAutoTitle: true,
+          aiSearchText: true,
+        },
+      });
+
+      await auditLog({
+        action: 'moderation.memeAsset.rename',
+        actorId: req.userId!,
+        payload: { memeAssetId: id, title },
+        ipAddress,
+        userAgent,
+        success: true,
+      });
+
+      return res.json(updated);
+    } catch (error) {
+      await auditLog({
+        action: 'moderation.memeAsset.rename',
+        actorId: req.userId || null,
+        payload: { memeAssetId: id, title },
+        ipAddress,
+        userAgent,
+        success: false,
+        error: (error as Error).message,
+      });
+      return res.status(500).json({ errorCode: 'INTERNAL_ERROR', error: 'Internal error', requestId: req.requestId });
     }
   },
 };

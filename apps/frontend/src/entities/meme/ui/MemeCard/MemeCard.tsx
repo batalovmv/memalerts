@@ -11,9 +11,10 @@ export interface MemeCardProps {
   onClick: () => void;
   isOwner?: boolean;
   previewMode?: MemeCardPreviewMode;
+  showAiBadges?: boolean;
 }
 
-export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: MemeCardProps) {
+export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound', showAiBadges = false }: MemeCardProps) {
   const mediaCandidates = useMemo(() => getMemeMediaCandidates(meme), [meme]);
   const [mediaIndex, setMediaIndex] = useState(0);
   const initialSrc = mediaCandidates[0] || '';
@@ -49,6 +50,7 @@ export function MemeCard({ meme, onClick, previewMode = 'hoverWithSound' }: Meme
       onMouseDown={vm.onMouseDown}
       onTouchStart={vm.onTouchStart}
       onKeyDown={vm.onKeyDown}
+      showAiBadges={showAiBadges}
     />
   );
 }
