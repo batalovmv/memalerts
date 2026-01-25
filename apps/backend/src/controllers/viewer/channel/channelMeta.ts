@@ -475,6 +475,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
         submissionRewardOnlyWhenLive: false,
         submissionsEnabled: true,
         submissionsOnlyWhenLive: false,
+        autoApproveEnabled: false,
         coinIconUrl: null,
         primaryColor: null,
         secondaryColor: null,
