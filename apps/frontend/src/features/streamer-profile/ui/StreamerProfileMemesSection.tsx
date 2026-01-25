@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import type { Meme } from '@/types';
 import type { MutableRefObject } from 'react';
 
-import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { cn } from '@/shared/lib/cn';
+import { getMemePrimaryId } from '@/shared/lib/memeIds';
 import { Spinner } from '@/shared/ui';
 import MemeCard from '@/widgets/meme-card/MemeCard';
 

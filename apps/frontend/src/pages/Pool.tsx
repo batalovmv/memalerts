@@ -11,10 +11,10 @@ import { login } from '@/lib/auth';
 import { resolveMediaUrl } from '@/lib/urls';
 import { getMemesPool, moderationHideMemeAsset, moderationQuarantineMemeAsset, moderationUpdateMemeAssetTitle } from '@/shared/api/memes';
 import { createPoolSubmission } from '@/shared/api/submissions';
+import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { PageShell, Button, HelpTooltip, Input, Spinner, Textarea, Pill } from '@/shared/ui';
 import { Modal } from '@/shared/ui/Modal/Modal';
 import ConfirmDialog from '@/shared/ui/modals/ConfirmDialog';
-import { canModerateGlobalPool } from '@/shared/lib/permissions';
 import { useAppSelector } from '@/store/hooks';
 import MemeCard from '@/widgets/meme-card/MemeCard';
 
@@ -167,7 +167,7 @@ export default function PoolPage() {
     );
     setAdminTitle(initialTitle);
     setAdminReason('');
-  }, [selectedItem?.id]);
+  }, [selectedItem]);
 
   const runAdd = async (memeAssetId: string, title: string | null) => {
     try {
