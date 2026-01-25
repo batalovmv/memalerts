@@ -15,6 +15,82 @@ import { getOwnerAiStatus } from '@/shared/api/owner';
 import { useDebounce } from '@/shared/lib/hooks';
 import { getMemePrimaryId } from '@/shared/lib/memeIds';
 
+const normalizeSearchQuery = (value: string): string =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/["'<>]/g, '')
+    .replace(/[^\p{L}0-9]+/giu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const extractTagNames = (meme: Meme): string[] => {
+  const names = new Set<string>();
+  if (Array.isArray(meme.aiAutoTagNames)) {
+    meme.aiAutoTagNames.forEach((tag) => {
+      if (typeof tag === 'string' && tag.trim()) names.add(tag.trim().toLowerCase());
+    });
+  }
+  if (Array.isArray(meme.tags)) {
+    meme.tags.forEach((item) => {
+      const name = item?.tag?.name;
+      if (typeof name === 'string' && name.trim()) names.add(name.trim().toLowerCase());
+    });
+  }
+  return Array.from(names);
+};
+
+const scoreTermMatch = (text: string, term: string): number => {
+  if (!text || !term) return 0;
+  if (text === term) return 100;
+  if (text.startsWith(term)) return 80;
+  if (text.includes(term)) return 60;
+  if (term.startsWith(text) && text.length >= 3) return 40;
+  return 0;
+};
+
+const scoreTextMatch = (text: string, term: string, tokens: string[]): number => {
+  const normalized = normalizeSearchQuery(text);
+  if (!normalized) return 0;
+  let best = scoreTermMatch(normalized, term);
+  for (const token of tokens) {
+    best = Math.max(best, scoreTermMatch(normalized, token));
+  }
+  return best;
+};
+
+const scoreMemeMatch = (meme: Meme, term: string, tokens: string[]): number => {
+  const titleScore = scoreTextMatch(meme.title || '', term, tokens) * 2;
+  const descScore =
+    typeof meme.aiAutoDescription === 'string'
+      ? scoreTextMatch(meme.aiAutoDescription, term, tokens)
+      : 0;
+  const tagNames = extractTagNames(meme);
+  let tagScore = 0;
+  for (const tag of tagNames) {
+    tagScore = Math.max(tagScore, scoreTermMatch(tag, term));
+    for (const token of tokens) {
+      tagScore = Math.max(tagScore, scoreTermMatch(tag, token));
+    }
+  }
+  return tagScore * 3 + titleScore + descScore;
+};
+
+const rankSearchResults = (items: Meme[], query: string): Meme[] => {
+  const normalized = normalizeSearchQuery(query);
+  if (!normalized) return items;
+  const tokens = normalized.split(' ').filter(Boolean);
+  const scored = items.map((meme, index) => ({
+    meme,
+    index,
+    score: scoreMemeMatch(meme, normalized, tokens),
+  }));
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.index - b.index;
+  });
+  return scored.map((item) => item.meme);
+};
+
 type UseStreamerProfileMemesParams = {
   channelInfo: ChannelInfo | null;
   normalizedSlug: string;
@@ -32,6 +108,8 @@ type UseStreamerProfileMemesState = {
   loadMoreRef: MutableRefObject<HTMLDivElement | null>;
   searchQuery: string;
   setSearchQuery: (next: string) => void;
+  tagFilter: string;
+  setTagFilter: (next: string) => void;
   myFavorites: boolean;
   setMyFavorites: (next: boolean | ((prev: boolean) => boolean)) => void;
   searchResults: Meme[];
@@ -57,6 +135,7 @@ export function useStreamerProfileMemes({
   const [searchResults, setSearchResults] = useState<Meme[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
   const [myFavorites, setMyFavorites] = useState(false);
   const [ownerAiProcessingCount, setOwnerAiProcessingCount] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -209,7 +288,7 @@ export function useStreamerProfileMemes({
 
   // Load more memes function
   const loadMoreMemes = useCallback(async () => {
-    if (!channelInfo || loadingMore || !hasMore || searchQuery.trim()) {
+    if (!channelInfo || loadingMore || !hasMore || searchQuery.trim() || tagFilter.trim() || myFavorites) {
       return;
     }
 
@@ -265,11 +344,22 @@ export function useStreamerProfileMemes({
     } finally {
       setLoadingMore(false);
     }
-  }, [canIncludeAi, canIncludeFileHash, channelInfo, hasMore, loadingMore, memesOffset, normalizedSlug, searchQuery]);
+  }, [
+    canIncludeAi,
+    canIncludeFileHash,
+    channelInfo,
+    hasMore,
+    loadingMore,
+    memesOffset,
+    myFavorites,
+    normalizedSlug,
+    searchQuery,
+    tagFilter,
+  ]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
-    if (!loadMoreRef.current || searchQuery.trim() || !channelInfo?.id) {
+    if (!loadMoreRef.current || searchQuery.trim() || tagFilter.trim() || myFavorites || !channelInfo?.id) {
       return;
     }
 
@@ -288,11 +378,13 @@ export function useStreamerProfileMemes({
     return () => {
       observer.disconnect();
     };
-  }, [channelInfo?.id, hasMore, loadMoreMemes, loadingMore, memesLoading, searchQuery]);
+  }, [channelInfo?.id, hasMore, loadMoreMemes, loadingMore, memesLoading, myFavorites, searchQuery, tagFilter]);
 
   // Perform search when debounced query changes
   useEffect(() => {
-    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !myFavorites)) {
+    const tagValue = tagFilter.trim();
+    const hasTagFilter = tagValue.length > 0;
+    if (!normalizedSlug || (!debouncedSearchQuery.trim() && !myFavorites && !hasTagFilter)) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -309,6 +401,7 @@ export function useStreamerProfileMemes({
 
         const params = new URLSearchParams();
         if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
+        if (hasTagFilter) params.set('tags', tagValue);
         params.set('limit', '100');
         params.set('sortBy', 'createdAt');
         params.set('sortOrder', 'desc');
@@ -326,8 +419,16 @@ export function useStreamerProfileMemes({
           );
         } else {
           if (channelInfo?.memeCatalogMode === 'pool_all') {
-            const pool = await fetchMemesPool({ limit: 100, offset: 0, q: debouncedSearchQuery.trim(), timeoutMs: 15000 });
-            setSearchResults(pool);
+            const poolQuery = debouncedSearchQuery.trim();
+            const pool = await fetchMemesPool({
+              limit: 100,
+              offset: 0,
+              q: poolQuery || undefined,
+              tags: hasTagFilter ? tagValue : undefined,
+              timeoutMs: 15000,
+            });
+            const ranked = poolQuery ? rankSearchResults(pool, poolQuery) : pool;
+            setSearchResults(ranked);
             return;
           }
           const searchParams = new URLSearchParams(params);
@@ -364,7 +465,8 @@ export function useStreamerProfileMemes({
           }
         }
         const found = extractMemesFromResponse(memesResp);
-        setSearchResults(found);
+        const ranked = debouncedSearchQuery.trim() ? rankSearchResults(found, debouncedSearchQuery) : found;
+        setSearchResults(ranked);
       } catch {
         setSearchResults([]);
       } finally {
@@ -373,7 +475,7 @@ export function useStreamerProfileMemes({
     };
 
     void performSearch();
-  }, [canIncludeAi, channelInfo, debouncedSearchQuery, isAuthed, myFavorites, normalizedSlug]);
+  }, [canIncludeAi, channelInfo, debouncedSearchQuery, isAuthed, myFavorites, normalizedSlug, tagFilter]);
 
   const hasAiProcessingInList = memes.some((m) => m.aiStatus === 'pending' || m.aiStatus === 'processing');
   const hasOwnerAiProcessing = ownerAiProcessingCount > 0;
@@ -420,7 +522,7 @@ export function useStreamerProfileMemes({
     if (!canIncludeAi || !channelId) return;
     if (channelInfo?.memeCatalogMode === 'pool_all') return;
     if (memesLoading || loadingMore) return;
-    if (searchQuery.trim() || myFavorites) return;
+    if (searchQuery.trim() || myFavorites || tagFilter.trim()) return;
     if (!hasAiProcessing) return;
 
     let cancelled = false;
@@ -478,6 +580,7 @@ export function useStreamerProfileMemes({
     myFavorites,
     normalizedSlug,
     searchQuery,
+    tagFilter,
   ]);
 
   return {
@@ -488,6 +591,8 @@ export function useStreamerProfileMemes({
     loadMoreRef,
     searchQuery,
     setSearchQuery,
+    tagFilter,
+    setTagFilter,
     myFavorites,
     setMyFavorites,
     searchResults,

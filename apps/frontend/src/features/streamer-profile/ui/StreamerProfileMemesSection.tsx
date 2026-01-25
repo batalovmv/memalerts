@@ -12,6 +12,7 @@ type StreamerProfileMemesSectionProps = {
   memes: Meme[];
   searchResults: Meme[];
   searchQuery: string;
+  tagFilter: string;
   listMode: 'all' | 'favorites' | 'forYou';
   onChangeListMode: (next: 'all' | 'favorites' | 'forYou') => void;
   isAuthed: boolean;
@@ -38,6 +39,7 @@ export function StreamerProfileMemesSection({
   memes,
   searchResults,
   searchQuery,
+  tagFilter,
   listMode,
   onChangeListMode,
   isAuthed,
@@ -60,7 +62,8 @@ export function StreamerProfileMemesSection({
   const { t } = useTranslation();
   const isForYou = listMode === 'forYou';
   const isFavorites = listMode === 'favorites';
-  const showSearchResults = !isForYou && (isFavorites || searchQuery.trim());
+  const hasSearch = searchQuery.trim().length > 0 || tagFilter.trim().length > 0;
+  const showSearchResults = !isForYou && (isFavorites || hasSearch);
   const memesToDisplay = isForYou ? personalizedMemes : showSearchResults ? searchResults : memes;
   const remaining = Math.max(0, MIN_ACTIVATIONS - personalizedTotalActivations);
   const forYouHint = personalizedProfileReady
@@ -173,7 +176,7 @@ export function StreamerProfileMemesSection({
               </div>
             );
           }
-        } else if (memesLoading && !searchQuery.trim() && !isFavorites) {
+        } else if (memesLoading && !hasSearch && !isFavorites) {
           return (
             <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-0" style={{ columnGap: 0 }}>
               {[...Array(6)].map((_, i) => (
@@ -194,11 +197,11 @@ export function StreamerProfileMemesSection({
           return (
             <div className="surface p-6 text-center">
               <div className="text-base font-semibold text-gray-900 dark:text-white">
-                {searchQuery.trim()
+                {hasSearch
                   ? t('search.noResults', { defaultValue: 'No memes found matching your criteria' })
                   : t('profile.noMemes', { defaultValue: 'No memes yet' })}
               </div>
-              {searchQuery.trim() && (
+              {hasSearch && (
                 <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   {t('search.tryAdjusting', { defaultValue: 'Try changing filters or removing some tags.' })}
                 </div>
@@ -221,7 +224,7 @@ export function StreamerProfileMemesSection({
               ))}
             </div>
             {/* Infinite scroll trigger and loading indicator */}
-            {!isForYou && !isFavorites && !searchQuery.trim() && (
+            {!isForYou && !isFavorites && !hasSearch && (
               <div ref={loadMoreRef} className="mt-4">
                 {loadingMore && (
                   <div className="flex items-center justify-center gap-3 py-4 text-gray-600 dark:text-gray-300">

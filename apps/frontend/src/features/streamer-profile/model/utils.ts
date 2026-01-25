@@ -82,11 +82,18 @@ export function toPoolCardMeme(m: MemePoolItem, fallbackTitle: string): Meme {
   };
 }
 
-export async function fetchMemesPool(opts: { limit: number; offset: number; q?: string; timeoutMs?: number }): Promise<Meme[]> {
+export async function fetchMemesPool(opts: {
+  limit: number;
+  offset: number;
+  q?: string;
+  tags?: string;
+  timeoutMs?: number;
+}): Promise<Meme[]> {
   const params = new URLSearchParams();
   params.set('limit', String(opts.limit));
   params.set('offset', String(opts.offset));
   if (typeof opts.q === 'string' && opts.q.trim()) params.set('q', opts.q.trim());
+  if (typeof opts.tags === 'string' && opts.tags.trim()) params.set('tags', opts.tags.trim());
   // Avoid stale cache after recent toggles (proxy/CDN/browser).
   params.set('_ts', String(Date.now()));
 

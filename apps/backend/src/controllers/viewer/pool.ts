@@ -7,6 +7,7 @@ import {
   getSearchCacheMs,
   ifNoneMatchHit,
   makeEtagFromString,
+  parseTagNames,
   SEARCH_CACHE_MAX,
   searchCache,
   setSearchCacheHeaders,
@@ -30,6 +31,8 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
   const query = (req.query ?? {}) as Record<string, unknown>;
   const qRaw = query.q ? String(query.q).trim() : '';
   const q = qRaw.length > 100 ? qRaw.slice(0, 100) : qRaw;
+  const tagsRaw = query.tags ? String(query.tags).trim() : '';
+  const tagNames = parseTagNames(tagsRaw);
   const limitRaw = query.limit ? parseInt(String(query.limit), 10) : 50;
   const offsetRaw = query.offset ? parseInt(String(query.offset), 10) : 0;
   const isAdmin = String(req.userRole || '') === 'admin';
@@ -42,7 +45,16 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
   // Non-personalized → allow short cache + ETag/304
   setSearchCacheHeaders(req, res);
 
-  const cacheKey = ['pool', 'v2', isAdmin ? 'admin' : 'public', q.toLowerCase(), String(limit), String(offset)].join('|');
+  const tagsKey = tagNames.join(',');
+  const cacheKey = [
+    'pool',
+    'v2',
+    isAdmin ? 'admin' : 'public',
+    q.toLowerCase(),
+    tagsKey,
+    String(limit),
+    String(offset),
+  ].join('|');
 
   const ttl = getSearchCacheMs();
   const cached = searchCache.get(cacheKey);
@@ -75,6 +87,10 @@ export const getMemePool = async (req: AuthRequest, res: Response) => {
     poolVisibility: 'visible',
     purgedAt: null,
   };
+
+  if (tagNames.length > 0) {
+    where.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+  }
 
   if (q) {
     const terms = buildSearchTerms(q);

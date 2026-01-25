@@ -29,6 +29,7 @@ import { ifNoneMatchHit, makeEtagFromString } from '../../viewer/cache.js';
 import { parseQueryBool } from '../../../shared/utils/queryParsers.js';
 import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
 import { loadLegacyTagsById } from '../../viewer/channelMemeListDto.js';
+import { parseTagNames } from '../../viewer/cache.js';
 
 export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelSearchQuery;
@@ -36,6 +37,8 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   const q = String(query.q || '')
     .trim()
     .slice(0, 100);
+  const tagsStr = String(query.tags || '').trim();
+  const tagNames = parseTagNames(tagsStr);
 
   const maxFromEnv = parseInt(String(process.env.SEARCH_PAGE_MAX || ''), 10);
   const MAX_PAGE = Number.isFinite(maxFromEnv) && maxFromEnv > 0 ? maxFromEnv : 50;
@@ -85,6 +88,9 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   const memeCatalogMode = channel.memeCatalogMode ?? 'channel';
   const defaultPriceCoins = Number.isFinite(channel.defaultPriceCoins ?? NaN) ? (channel.defaultPriceCoins ?? 0) : 100;
   const poolWhereBase = buildChannelPoolWhere(channel.id);
+  if (tagNames.length > 0) {
+    poolWhereBase.AND = tagNames.map((tag) => ({ aiSearchText: { contains: tag, mode: 'insensitive' } }));
+  }
   if (q) {
     const terms = buildSearchTerms(q);
     const searchTerms = terms.length > 0 ? terms : [q];
@@ -97,6 +103,9 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
   }
 
   const channelWhereBase = buildChannelMemeWhere(channel.id);
+  if (tagNames.length > 0) {
+    channelWhereBase.AND = tagNames.map((tag) => ({ searchText: { contains: tag, mode: 'insensitive' } }));
+  }
   if (q) {
     const terms = buildSearchTerms(q);
     const searchTerms = terms.length > 0 ? terms : [q];

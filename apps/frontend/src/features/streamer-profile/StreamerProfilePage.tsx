@@ -69,6 +69,8 @@ const StreamerProfile = memo(function StreamerProfile() {
     loadMoreRef,
     searchQuery,
     setSearchQuery,
+    tagFilter,
+    setTagFilter,
     setMyFavorites,
     searchResults,
     isSearching,
@@ -178,7 +180,20 @@ const StreamerProfile = memo(function StreamerProfile() {
     setSelectedMeme(meme);
     setIsMemeModalOpen(true);
   }, []);
-  const handleClearSearchQuery = useCallback(() => setSearchQuery(''), [setSearchQuery]);
+  const handleClearSearchQuery = useCallback(() => {
+    setSearchQuery('');
+    if (tagFilter.trim()) setTagFilter('');
+  }, [setSearchQuery, setTagFilter, tagFilter]);
+  const handleClearTagFilter = useCallback(() => setTagFilter(''), [setTagFilter]);
+  const handleSearchQueryChange = useCallback(
+    (next: string) => {
+      if (tagFilter.trim()) {
+        setTagFilter('');
+      }
+      setSearchQuery(next);
+    },
+    [setSearchQuery, setTagFilter, tagFilter],
+  );
   const handleChangeListMode = useCallback(
     (nextMode: 'all' | 'favorites' | 'forYou') => {
       if (nextMode === 'forYou') {
@@ -188,6 +203,7 @@ const StreamerProfile = memo(function StreamerProfile() {
         }
         setListMode('forYou');
         setMyFavorites(false);
+        if (tagFilter.trim()) setTagFilter('');
         if (searchQuery.trim()) setSearchQuery('');
         return;
       }
@@ -198,22 +214,24 @@ const StreamerProfile = memo(function StreamerProfile() {
         }
         setListMode('favorites');
         setMyFavorites(true);
+        if (tagFilter.trim()) setTagFilter('');
         return;
       }
       setListMode('all');
       setMyFavorites(false);
     },
-    [isAuthed, searchQuery, setMyFavorites, setSearchQuery],
+    [isAuthed, searchQuery, setMyFavorites, setSearchQuery, tagFilter, setTagFilter],
   );
   const handleTagSearch = useCallback(
     (tag: string) => {
       setListMode('all');
       setMyFavorites(false);
-      setSearchQuery(tag);
+      setTagFilter(tag);
+      setSearchQuery('');
       setIsMemeModalOpen(false);
       setSelectedMeme(null);
     },
-    [setMyFavorites, setSearchQuery],
+    [setMyFavorites, setSearchQuery, setTagFilter],
   );
   const handleAuthCta = useCallback(() => {
     setAuthModalOpen(false);
@@ -278,8 +296,10 @@ const StreamerProfile = memo(function StreamerProfile() {
 
         <StreamerProfileSearch
           searchQuery={searchQuery}
-          onChangeSearchQuery={setSearchQuery}
+          onChangeSearchQuery={handleSearchQueryChange}
           onClearSearchQuery={handleClearSearchQuery}
+          tagFilter={tagFilter}
+          onClearTagFilter={handleClearTagFilter}
           isSearching={isSearching}
           searchResultsCount={searchResults.length}
           mix={mix}
@@ -288,6 +308,7 @@ const StreamerProfile = memo(function StreamerProfile() {
           memes={memes}
           searchResults={searchResults}
           searchQuery={searchQuery}
+          tagFilter={tagFilter}
           listMode={listMode}
           onChangeListMode={handleChangeListMode}
           isAuthed={isAuthed}
