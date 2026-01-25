@@ -8,6 +8,44 @@ import { prisma } from '../../lib/prisma.js';
 
 export type AiModerationDecision = 'low' | 'medium' | 'high';
 
+const DEFAULT_HARD_BLOCKLIST = [
+  'негр',
+  'пидор',
+  'пидорас',
+  'педераст',
+  'nigger',
+  'faggot',
+  'fag',
+];
+
+function normalizeForKeywordScan(value: string): string {
+  return normalizeAiText(value).replace(/[^a-z0-9а-яё]+/gi, ' ').trim();
+}
+
+export function getHardBlocklistKeywords(): string[] {
+  const raw = String(process.env.AI_HARD_BLOCKLIST || '').trim();
+  const base = raw
+    ? raw.split(/[,;|]+/g)
+    : DEFAULT_HARD_BLOCKLIST;
+  const cleaned = base
+    .map((item) => normalizeForKeywordScan(String(item || '')))
+    .map((item) => item.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  return Array.from(new Set(cleaned));
+}
+
+export function findHardBlocklistMatch(textRaw: string): string | null {
+  const haystack = normalizeForKeywordScan(String(textRaw || ''));
+  if (!haystack) return null;
+  const keywords = getHardBlocklistKeywords();
+  if (keywords.length === 0) return null;
+  for (const keyword of keywords) {
+    if (!keyword) continue;
+    if (haystack.includes(keyword)) return keyword;
+  }
+  return null;
+}
+
 export function tryExtractSha256FromUploadsPath(fileUrlOrPath: string | null | undefined): string | null {
   const s = String(fileUrlOrPath || '');
   const m = s.match(/\/uploads\/memes\/([a-f0-9]{64})(?:\.[a-z0-9]+)?$/i);
