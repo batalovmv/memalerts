@@ -96,6 +96,7 @@ export const getMemes = async (req: AuthRequest, res: Response) => {
     variants,
     fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.memeAsset.fileUrl,
     durationMs: r.memeAsset.durationMs,
+    qualityScore: r.memeAsset.qualityScore ?? null,
     priceCoins: r.priceCoins,
     status: r.status,
     createdAt: r.createdAt,

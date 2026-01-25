@@ -74,7 +74,9 @@ const DashboardPage = memo(function DashboardPage() {
     memesCount,
     submissionsEnabled,
     submissionsOnlyWhenLive,
+    autoApproveEnabled,
     savingSubmissionsSettings,
+    savingAutoApprove,
     memeCatalogMode,
     savingMemeCatalogMode,
     submissionsControl,
@@ -82,8 +84,10 @@ const DashboardPage = memo(function DashboardPage() {
     rotatingSubmissionsControl,
     setSubmissionsEnabled,
     setSubmissionsOnlyWhenLive,
+    setAutoApproveEnabled,
     setMemeCatalogMode,
     saveSubmissionSettings,
+    saveAutoApproveEnabled,
     saveMemeCatalogMode,
     rotateSubmissionsControlLink,
   } = useDashboardSubmissionsControl({ user });
@@ -233,7 +237,9 @@ const DashboardPage = memo(function DashboardPage() {
                   helpEnabled={helpEnabled}
                   submissionsEnabled={submissionsEnabled}
                   submissionsOnlyWhenLive={submissionsOnlyWhenLive}
+                  autoApproveEnabled={autoApproveEnabled}
                   savingSubmissionsSettings={savingSubmissionsSettings}
+                  savingAutoApprove={savingAutoApprove}
                   onToggleSubmissionsEnabled={(next) => {
                     setSubmissionsEnabled(next);
                     void saveSubmissionSettings({ submissionsEnabled: next }, 'enabled');
@@ -241,6 +247,10 @@ const DashboardPage = memo(function DashboardPage() {
                   onToggleOnlyWhenLive={(next) => {
                     setSubmissionsOnlyWhenLive(next);
                     void saveSubmissionSettings({ submissionsOnlyWhenLive: next }, 'onlyWhenLive');
+                  }}
+                  onToggleAutoApprove={(next) => {
+                    setAutoApproveEnabled(next);
+                    void saveAutoApproveEnabled(next);
                   }}
                   memeCatalogMode={memeCatalogMode}
                   savingMemeCatalogMode={savingMemeCatalogMode}

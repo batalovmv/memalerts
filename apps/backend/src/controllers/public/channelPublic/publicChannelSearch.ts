@@ -162,6 +162,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
           type: true,
           fileUrl: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -221,6 +222,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
               type: true,
               fileUrl: true,
               durationMs: true,
+              qualityScore: true,
               createdBy: { select: { id: true, displayName: true } },
             },
           },
@@ -282,6 +284,7 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
           type: true,
           fileUrl: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
           select: {
             format: true,
@@ -345,9 +348,10 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
           memeAsset: {
             select: {
               type: true,
-            fileUrl: true,
-            durationMs: true,
-            variants: {
+              fileUrl: true,
+              durationMs: true,
+              qualityScore: true,
+              variants: {
               select: {
                 format: true,
                 fileUrl: true,

@@ -37,6 +37,7 @@ export type MemeAssetPoolRow = Prisma.MemeAssetGetPayload<{
     type: true;
     fileUrl: true;
     durationMs: true;
+    qualityScore: true;
     variants: {
       select: {
         format: true;
@@ -252,6 +253,7 @@ export function mapPoolAssetsToDtos(
       activationsCount,
       createdAt: r.createdAt,
       createdBy: r.createdBy ? { id: r.createdBy.id, displayName: r.createdBy.displayName } : null,
+      qualityScore: r.qualityScore ?? null,
       ...(aiAutoTagNames && aiAutoTagNames.length > 0 ? { aiAutoTagNames } : {}),
     };
   });

@@ -15,6 +15,7 @@ import { enqueueAiModerationJob } from '../../queues/aiModerationQueue.js';
 import { createOwnerImportMeme } from './importMemeOwner.js';
 import { downloadAndPrepareImportFile } from './importMemeDownload.js';
 import { getChannelIdFromRequest } from './importMemeHelpers.js';
+import { evaluateAndApplySpamBan, getActiveSpamBan } from '../../services/spamBan.js';
 
 type ImportMemeInput = z.infer<typeof importMemeSchema>;
 
@@ -48,6 +49,24 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
     !!req.channelId &&
     (req.userRole === 'streamer' || req.userRole === 'admin') &&
     String(req.channelId) === String(channelId);
+
+  if (!isOwner && req.userId) {
+    const banState = await getActiveSpamBan(req.userId);
+    if (banState.isBanned) {
+      if (banState.retryAfterSeconds) {
+        res.setHeader('Retry-After', String(banState.retryAfterSeconds));
+      }
+      return res.status(429).json({
+        errorCode: 'USER_SPAM_BANNED',
+        error: 'User is temporarily banned from submissions',
+        details: {
+          banUntil: banState.banUntil,
+          banCount: banState.banCount,
+          reason: banState.reason,
+        },
+      });
+    }
+  }
 
   if (!isOwner && !channel.submissionsEnabled) {
     return res.status(403).json({
@@ -443,6 +462,10 @@ export const importMeme = async (req: AuthRequest, res: Response) => {
 
     logger.info('ai.enqueue', { submissionId: submission.id, reason: 'import_submission' });
     void enqueueAiModerationJob(submission.id, { reason: 'import_submission' });
+
+    if (req.userId && !isOwner) {
+      void evaluateAndApplySpamBan(req.userId);
+    }
 
     return res.status(201).json(submission);
   } catch (error) {

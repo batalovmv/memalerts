@@ -64,6 +64,7 @@ export interface Meme {
    * Optional AI title proposal (additive; backend may omit).
    */
   aiAutoTitle?: string | null;
+  qualityScore?: number | null;
   /**
    * Viewer-specific flags (optional; only when authenticated).
    */
@@ -102,6 +103,7 @@ export interface MemeAsset {
   aiAutoDescription?: string | null;
   aiSearchText?: string | null;
   aiCompletedAt?: string | null;
+  qualityScore?: number | null;
   audioNormStatus?: AudioNormStatus;
   audioNormRetryCount?: number;
   audioNormLastTriedAt?: string | null;

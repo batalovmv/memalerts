@@ -135,6 +135,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
           type: true,
           fileUrl: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -193,6 +194,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
               type: true,
               fileUrl: true,
               durationMs: true,
+              qualityScore: true,
               variants: {
                 select: {
                   format: true,
@@ -252,6 +254,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
         type: true,
         fileUrl: true,
         durationMs: true,
+        qualityScore: true,
         variants: {
           select: {
             format: true,
@@ -316,6 +319,7 @@ export const getPublicChannelMemes = async (req: AuthRequest, res: Response) => 
             type: true,
             fileUrl: true,
             durationMs: true,
+            qualityScore: true,
             variants: {
               select: {
                 format: true,

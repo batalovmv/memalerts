@@ -59,6 +59,7 @@ function mapPoolRows(
       variants,
       fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
       durationMs: r.durationMs,
+      qualityScore: r.qualityScore ?? null,
       priceCoins,
       status: 'approved',
       deletedAt: null,
@@ -248,6 +249,7 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
             fileUrl: true,
             fileHash: true,
             durationMs: true,
+            qualityScore: true,
             variants: {
               select: {
                 format: true,
@@ -275,6 +277,7 @@ async function loadFavorites(ctx: SearchContext): Promise<SearchRowsResult | nul
       type: true,
       fileUrl: true,
       durationMs: true,
+      qualityScore: true,
       variants: {
         select: {
           format: true,
@@ -369,6 +372,7 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
             fileUrl: true,
             fileHash: true,
             durationMs: true,
+            qualityScore: true,
             variants: {
               select: {
                 format: true,
@@ -396,6 +400,7 @@ async function loadHidden(ctx: SearchContext): Promise<SearchRowsResult | null> 
       type: true,
       fileUrl: true,
       durationMs: true,
+      qualityScore: true,
       variants: {
         select: {
           format: true,
@@ -449,6 +454,7 @@ async function loadBlocked(ctx: SearchContext): Promise<SearchRowsResult | null>
       type: true,
       fileUrl: true,
       durationMs: true,
+      qualityScore: true,
       variants: {
         select: {
           format: true,
@@ -528,6 +534,7 @@ async function loadFrequent(ctx: SearchContext): Promise<SearchRowsResult | null
           fileUrl: true,
           fileHash: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -607,6 +614,7 @@ async function loadRecent(ctx: SearchContext): Promise<SearchRowsResult | null> 
           fileUrl: true,
           fileHash: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -722,6 +730,7 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
             fileUrl: true,
             fileHash: true,
             durationMs: true,
+            qualityScore: true,
             variants: {
               select: {
                 format: true,
@@ -776,6 +785,7 @@ async function loadTrending(ctx: SearchContext): Promise<SearchRowsResult | null
       type: true,
       fileUrl: true,
       durationMs: true,
+      qualityScore: true,
       variants: {
         select: {
           format: true,

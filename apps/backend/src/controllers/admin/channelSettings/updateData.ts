@@ -90,6 +90,8 @@ export function buildChannelUpdateData(params: {
       bodyRec.submissionsOnlyWhenLive !== undefined
         ? bodyRec.submissionsOnlyWhenLive
         : channelRec.submissionsOnlyWhenLive,
+    autoApproveEnabled:
+      bodyRec.autoApproveEnabled !== undefined ? bodyRec.autoApproveEnabled : channelRec.autoApproveEnabled,
     primaryColor: body.primaryColor !== undefined ? body.primaryColor : channelRec.primaryColor,
     secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : channelRec.secondaryColor,
     accentColor: body.accentColor !== undefined ? body.accentColor : channelRec.accentColor,

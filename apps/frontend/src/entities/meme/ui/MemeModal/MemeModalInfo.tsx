@@ -41,6 +41,7 @@ type MemeModalInfoProps = {
   isGuestViewer: boolean;
   walletBalance?: number;
   onActivate: () => void;
+  isActivating: boolean;
   viewerCanInteract: boolean;
   isFavorite: boolean;
   isHidden: boolean;
@@ -88,6 +89,7 @@ export function MemeModalInfo({
   isGuestViewer,
   walletBalance,
   onActivate,
+  isActivating,
   viewerCanInteract,
   isFavorite,
   isHidden,
@@ -101,6 +103,19 @@ export function MemeModalInfo({
   canModerateChannel,
 }: MemeModalInfoProps) {
   const { t } = useTranslation();
+  const activateLabel = isActivating
+    ? t('memeModal.activating', { defaultValue: 'Sending…' })
+    : isGuestViewer
+      ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
+      : walletBalance === undefined
+        ? t('common.loading', { defaultValue: 'Loading…' })
+        : walletBalance < (meme.priceCoins || 0)
+          ? t('memeModal.insufficientCoins', {
+              defaultValue: 'Insufficient coins (need {{price}})',
+              price: meme.priceCoins,
+            })
+          : t('dashboard.activate', { defaultValue: 'Activate' });
+  const activateDisabled = (!canActivate && !isGuestViewer) || isActivating;
 
   return (
     <aside
@@ -442,17 +457,28 @@ export function MemeModalInfo({
 
             {mode === 'viewer' && (
               <div className="pt-4 border-t border-black/5 dark:border-white/10">
-                <Button type="button" onClick={onActivate} disabled={!canActivate && !isGuestViewer} variant="primary" className="w-full">
-                  {isGuestViewer
-                    ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
-                    : walletBalance === undefined
-                      ? t('common.loading', { defaultValue: 'Loading…' })
-                      : walletBalance < (meme.priceCoins || 0)
-                        ? t('memeModal.insufficientCoins', {
-                            defaultValue: 'Insufficient coins (need {{price}})',
-                            price: meme.priceCoins,
-                          })
-                        : t('dashboard.activate', { defaultValue: 'Activate' })}
+                <Button
+                  type="button"
+                  onClick={onActivate}
+                  disabled={activateDisabled}
+                  variant="primary"
+                  className={`relative w-full overflow-hidden ${isActivating ? 'disabled:opacity-100' : ''}`}
+                  aria-busy={isActivating}
+                >
+                  {isActivating ? (
+                    <>
+                      <span className="pointer-events-none absolute inset-0 bg-white/10" aria-hidden="true" />
+                      <span
+                        className="pointer-events-none absolute -inset-10 opacity-70 bg-[conic-gradient(from_90deg,rgba(255,255,255,0.28),transparent_35%,rgba(255,255,255,0.16),transparent_70%)] animate-[spin_2.4s_linear_infinite]"
+                        aria-hidden="true"
+                      />
+                      <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/40 animate-pulse" aria-hidden="true" />
+                    </>
+                  ) : null}
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    {isActivating ? <Spinner className="h-4 w-4" /> : null}
+                    {activateLabel}
+                  </span>
                 </Button>
                 {walletBalance !== undefined && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">

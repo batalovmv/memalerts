@@ -74,6 +74,7 @@ export interface ChannelSettings {
   submissionRewardOnlyWhenLive?: boolean;
   submissionsEnabled?: boolean;
   submissionsOnlyWhenLive?: boolean;
+  autoApproveEnabled?: boolean;
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
@@ -112,6 +113,7 @@ export interface Channel {
   submissionRewardCoinsUpload?: number;
   submissionRewardCoinsPool?: number;
   submissionRewardCoins?: number;
+  autoApproveEnabled?: boolean;
   overlayStyleJson?: string | null;
   creditsStyleJson?: string | null;
   botIntegrations?: BotIntegrationSettings[];

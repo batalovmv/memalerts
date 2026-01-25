@@ -64,6 +64,7 @@ const MemeModal = memo(function MemeModal({
   const [hiddenLoading, setHiddenLoading] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const [channelBlocked, setChannelBlocked] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
 
   // Update currentMeme when meme prop changes
   useEffect(() => {
@@ -79,6 +80,7 @@ const MemeModal = memo(function MemeModal({
       setHiddenLoading(false);
       setBlockLoading(false);
       setChannelBlocked(listMode === 'blocked');
+      setIsActivating(false);
     }
   }, [listMode, meme]);
 
@@ -241,10 +243,14 @@ const MemeModal = memo(function MemeModal({
   };
 
   const handleActivate = async () => {
-    if (onActivate && currentMeme) {
+    if (!onActivate || !currentMeme || isActivating) return;
+    setIsActivating(true);
+    try {
       await onActivate(getMemeIdForActivation(currentMeme));
-      onClose();
+    } finally {
+      setIsActivating(false);
     }
+    onClose();
   };
 
   const canActivate =
@@ -415,6 +421,7 @@ const MemeModal = memo(function MemeModal({
         isGuestViewer={isGuestViewer}
         walletBalance={walletBalance}
         onActivate={handleActivate}
+        isActivating={isActivating}
         viewerCanInteract={viewerCanInteract}
         isFavorite={!!currentMeme.isFavorite}
         isHidden={!!currentMeme.isHidden}

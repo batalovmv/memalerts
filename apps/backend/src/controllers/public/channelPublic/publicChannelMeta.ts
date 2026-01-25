@@ -169,6 +169,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
           type: true,
           fileUrl: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -234,6 +235,7 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
               type: true,
               fileUrl: true,
               durationMs: true,
+              qualityScore: true,
               variants: {
                 select: {
                   format: true,

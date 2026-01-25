@@ -58,6 +58,7 @@ async function loadChannelCandidates(channelId: string, limit: number, userId?: 
           fileUrl: true,
           fileHash: true,
           durationMs: true,
+          qualityScore: true,
           variants: {
             select: {
               format: true,
@@ -101,9 +102,10 @@ async function loadPoolCandidates(channelId: string, limit: number, userId?: str
     take: limit,
     select: {
       id: true,
-      type: true,
-      fileUrl: true,
-      durationMs: true,
+    type: true,
+    fileUrl: true,
+    durationMs: true,
+    qualityScore: true,
       variants: {
         select: {
           format: true,
@@ -307,12 +309,13 @@ function mapPoolAssetToItem(
   channelId: string,
   row: {
     id: string;
-    type: string;
-    fileUrl: string | null;
-    durationMs: number;
-    variants?: Array<{
-      format: string;
-      fileUrl: string;
+      type: string;
+      fileUrl: string | null;
+      durationMs: number;
+      qualityScore?: number | null;
+      variants?: Array<{
+        format: string;
+        fileUrl: string;
       status: string;
       priority: number;
       fileSizeBytes?: bigint | null;
@@ -360,9 +363,10 @@ function mapPoolAssetToItem(
     type: row.type,
     previewUrl: preview?.fileUrl ?? null,
     variants,
-    fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.fileUrl ?? null,
-    durationMs: row.durationMs,
-    priceCoins,
+      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.fileUrl ?? null,
+      durationMs: row.durationMs,
+      qualityScore: row.qualityScore ?? null,
+      priceCoins,
     status: 'approved',
     deletedAt: null,
     createdAt: row.createdAt,

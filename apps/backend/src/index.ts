@@ -26,6 +26,9 @@ import { startBoostySubscriptionRewardsScheduler } from './jobs/boostySubscripti
 import { startPendingSubmissionFilesCleanupScheduler } from './jobs/cleanupPendingSubmissionFiles.js';
 import { startOutboxCleanupScheduler } from './jobs/cleanupOutboxMessages.js';
 import { startTagAutoApprovalScheduler } from './jobs/tagAutoApprovalScheduler.js';
+import { startMemeAssetQualityScoreScheduler } from './jobs/memeAssetQualityScore.js';
+import { startDuplicateMergeScheduler } from './jobs/duplicateMerge.js';
+import { startHealthMonitorScheduler } from './jobs/healthMonitor.js';
 import { logger } from './utils/logger.js';
 import { startTwitchChatBot } from './bots/twitchChatBot.js';
 import { startAiModerationWorker } from './workers/aiModerationWorker.js';
@@ -499,6 +502,12 @@ async function startServer() {
     startOutboxCleanupScheduler();
     // AI tag auto-approval + deprecation scheduler.
     startTagAutoApprovalScheduler();
+    // Quality score recalculation for MemeAssets.
+    startMemeAssetQualityScoreScheduler();
+    // Auto-merge duplicate meme assets by content hash.
+    startDuplicateMergeScheduler();
+    // Health monitoring + alerting.
+    startHealthMonitorScheduler();
 
     // Optional: Twitch chat bot (collects chatters for credits overlay).
     // Enabled via env (see CHAT_BOT_* vars).

@@ -24,6 +24,7 @@ export type PublicChannelMemeListItemDto = {
   createdBy: { id: string; displayName: string } | null;
   tags?: Array<{ tag: { id: string; name: string } }>;
   aiAutoTagNames?: string[] | null;
+  qualityScore?: number | null;
 };
 
 function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
@@ -50,6 +51,7 @@ export function toPublicChannelMemeListItemDto(
       type: string;
       fileUrl: string | null;
       durationMs: number;
+      qualityScore?: number | null;
       variants?: Array<{
         format: string;
         fileUrl: string;
@@ -108,6 +110,7 @@ export function toPublicChannelMemeListItemDto(
     createdBy: row.memeAsset.createdBy
       ? { id: row.memeAsset.createdBy.id, displayName: row.memeAsset.createdBy.displayName }
       : null,
+    qualityScore: row.memeAsset.qualityScore ?? null,
     ...(aiAutoTagNames && aiAutoTagNames.length > 0 ? { aiAutoTagNames } : {}),
   };
 }

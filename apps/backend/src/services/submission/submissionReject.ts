@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { assertChannelOwner } from '../../utils/accessControl.js';
 import { logAdminAction } from '../../utils/auditLogger.js';
 import { getErrorMessage } from './submissionShared.js';
+import { evaluateAndApplySpamBan } from '../spamBan.js';
 export const rejectSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: AuthRequest, res: Response) => {
   const { channels, submissions } = deps;
   const { id } = req.params;
@@ -24,7 +25,7 @@ export const rejectSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: 
 
     const submission = await submissions.findUnique({
       where: { id },
-      select: { id: true, channelId: true, status: true },
+      select: { id: true, channelId: true, status: true, submitterUserId: true },
     });
 
     if (!submission) {
@@ -98,6 +99,14 @@ export const rejectSubmissionWithRepos = async (deps: AdminSubmissionDeps, req: 
     } catch (error) {
       logger.error('admin.submissions.emit_rejected_failed', { errorMessage: getErrorMessage(error) });
       // Don't fail the request if Socket.IO emit fails
+    }
+
+    if (submission.submitterUserId) {
+      try {
+        await evaluateAndApplySpamBan(submission.submitterUserId);
+      } catch (spamError) {
+        logger.warn('submission.spam_ban_check_failed', { errorMessage: getErrorMessage(spamError) });
+      }
     }
 
     res.json(updated);

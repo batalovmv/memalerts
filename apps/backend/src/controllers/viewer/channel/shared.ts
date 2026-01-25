@@ -81,6 +81,7 @@ export type PoolAssetRow = Prisma.MemeAssetGetPayload<{
     fileUrl: true;
     fileHash: true;
     durationMs: true;
+    qualityScore: true;
     variants: {
       select: {
         format: true;
@@ -112,6 +113,7 @@ export type ChannelMemeRow = Prisma.ChannelMemeGetPayload<{
         fileUrl: true;
         fileHash: true;
         durationMs: true;
+        qualityScore: true;
         variants: {
           select: {
             format: true;

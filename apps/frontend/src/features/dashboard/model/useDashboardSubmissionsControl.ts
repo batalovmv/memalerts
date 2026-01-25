@@ -17,7 +17,9 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
   const [memesCount, setMemesCount] = useState<number | null>(null);
   const [submissionsEnabled, setSubmissionsEnabled] = useState<boolean | null>(null);
   const [submissionsOnlyWhenLive, setSubmissionsOnlyWhenLive] = useState<boolean | null>(null);
+  const [autoApproveEnabled, setAutoApproveEnabled] = useState<boolean | null>(null);
   const [savingSubmissionsSettings, setSavingSubmissionsSettings] = useState<null | 'enabled' | 'onlyWhenLive'>(null);
+  const [savingAutoApprove, setSavingAutoApprove] = useState(false);
   const [memeCatalogMode, setMemeCatalogMode] = useState<null | 'channel' | 'pool_all'>(null);
   const [savingMemeCatalogMode, setSavingMemeCatalogMode] = useState(false);
   const [submissionsControl, setSubmissionsControl] = useState<SubmissionsControlState | null>(null);
@@ -36,6 +38,7 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
           stats?: { memesCount?: number };
           submissionsEnabled?: boolean;
           submissionsOnlyWhenLive?: boolean;
+          autoApproveEnabled?: boolean;
           memeCatalogMode?: 'channel' | 'pool_all' | null;
         }>(`/channels/${slug}`, {
           // Avoid stale cached channel settings after a recent PATCH (CDN/proxy/browser caches).
@@ -46,6 +49,7 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
         if (typeof count === 'number') setMemesCount(count);
         if (typeof data?.submissionsEnabled === 'boolean') setSubmissionsEnabled(data.submissionsEnabled);
         if (typeof data?.submissionsOnlyWhenLive === 'boolean') setSubmissionsOnlyWhenLive(data.submissionsOnlyWhenLive);
+        if (typeof data?.autoApproveEnabled === 'boolean') setAutoApproveEnabled(data.autoApproveEnabled);
         if (data?.memeCatalogMode === 'pool_all' || data?.memeCatalogMode === 'channel') setMemeCatalogMode(data.memeCatalogMode);
         else setMemeCatalogMode('channel');
       } catch {
@@ -136,6 +140,32 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
     [memeCatalogMode, savingMemeCatalogMode, t, user?.channel?.slug, user?.channelId],
   );
 
+  const saveAutoApproveEnabled = useCallback(
+    async (next: boolean) => {
+      if (!user?.channelId) return;
+      if (savingAutoApprove) return;
+      try {
+        setSavingAutoApprove(true);
+        const resp = await api.patch<{ autoApproveEnabled?: boolean }>(
+          '/streamer/channel/settings',
+          { autoApproveEnabled: next },
+        );
+        if (typeof resp?.autoApproveEnabled === 'boolean') {
+          setAutoApproveEnabled(resp.autoApproveEnabled);
+        } else {
+          setAutoApproveEnabled(next);
+        }
+        toast.success(t('dashboard.submissions.autoApproveSaved', { defaultValue: 'Saved' }));
+      } catch (error: unknown) {
+        const apiError = error as { response?: { data?: { error?: string } } };
+        toast.error(apiError.response?.data?.error || t('admin.failedToSaveSettings', { defaultValue: 'Failed to save settings' }));
+      } finally {
+        setSavingAutoApprove(false);
+      }
+    },
+    [savingAutoApprove, t, user?.channelId],
+  );
+
   const refreshSubmissionsControlStatus = useCallback(
     async (token: string) => {
       const trimmed = String(token || '').trim();
@@ -197,7 +227,9 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
     memesCount,
     submissionsEnabled,
     submissionsOnlyWhenLive,
+    autoApproveEnabled,
     savingSubmissionsSettings,
+    savingAutoApprove,
     memeCatalogMode,
     savingMemeCatalogMode,
     submissionsControl,
@@ -205,8 +237,10 @@ export function useDashboardSubmissionsControl({ user }: UseDashboardSubmissions
     rotatingSubmissionsControl,
     setSubmissionsEnabled,
     setSubmissionsOnlyWhenLive,
+    setAutoApproveEnabled,
     setMemeCatalogMode,
     saveSubmissionSettings,
+    saveAutoApproveEnabled,
     saveMemeCatalogMode,
     rotateSubmissionsControlLink,
   };

@@ -154,21 +154,22 @@ export function useSubmitModalState({
     }
   };
 
-  const startRetryCountdown = (seconds: number) => {
+  const startRetryCountdown = (seconds: number, mode: 'rateLimit' | 'spamBan' = 'rateLimit') => {
     clearRetryTimer();
     const initial = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
     setRetryAfterSeconds(initial);
-    setErrorMessage(t('submit.errors.rateLimited', { seconds: initial }));
+    const key = mode === 'spamBan' ? 'submit.errors.spamBanned' : 'submit.errors.rateLimited';
+    setErrorMessage(t(key, { seconds: initial }));
     if (initial <= 0) return;
     retryIntervalRef.current = window.setInterval(() => {
       setRetryAfterSeconds((prev) => {
         if (prev <= 1) {
           clearRetryTimer();
-          setErrorMessage(t('submit.errors.rateLimited', { seconds: 0 }));
+          setErrorMessage(t(key, { seconds: 0 }));
           return 0;
         }
         const next = prev - 1;
-        setErrorMessage(t('submit.errors.rateLimited', { seconds: next }));
+        setErrorMessage(t(key, { seconds: next }));
         return next;
       });
     }, 1000);
@@ -187,6 +188,9 @@ export function useSubmitModalState({
       }
       if (errorCode === 'VIDEO_TOO_LONG') {
         return t('submit.errors.videoTooLong', { defaultValue: 'Video is too long. Maximum 5 minutes.' });
+      }
+      if (errorCode === 'USER_SPAM_BANNED') {
+        return t('submit.errors.spamBanned', { defaultValue: 'Temporarily blocked from submitting memes.' });
       }
     }
     const rawMessage =
@@ -207,7 +211,8 @@ export function useSubmitModalState({
     if (response?.status === 429) {
       const retryAfterRaw = response.headers?.['retry-after'];
       const retryAfter = Math.max(0, Number.parseInt(String(retryAfterRaw ?? '60'), 10) || 60);
-      startRetryCountdown(retryAfter);
+      const mode = errorCode === 'USER_SPAM_BANNED' ? 'spamBan' : 'rateLimit';
+      startRetryCountdown(retryAfter, mode);
       return;
     }
 

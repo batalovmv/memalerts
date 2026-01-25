@@ -8,6 +8,7 @@ import { emitSubmissionEvent, relaySubmissionEventToPeer } from '../../realtime/
 import { logger } from '../../utils/logger.js';
 import { maybeFailDualWrite } from '../../utils/dualWriteTestHooks.js';
 import { ZodError } from 'zod';
+import { evaluateAndApplySpamBan, getActiveSpamBan } from '../../services/spamBan.js';
 
 export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
   const startedAt = Date.now();
@@ -159,6 +160,24 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       !!req.channelId &&
       (req.userRole === 'streamer' || req.userRole === 'admin') &&
       String(req.channelId) === String(body.channelId);
+    if (!isOwner) {
+      const banState = await getActiveSpamBan(userId);
+      if (banState.isBanned) {
+        if (banState.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(banState.retryAfterSeconds));
+        }
+        return res.status(429).json({
+          errorCode: 'USER_SPAM_BANNED',
+          error: 'User is temporarily banned from submissions',
+          details: {
+            banUntil: banState.banUntil,
+            banCount: banState.banCount,
+            reason: banState.reason,
+          },
+          requestId,
+        });
+      }
+    }
     if (isOwner) {
       const defaultPrice = channel.defaultPriceCoins ?? 100;
       const now = new Date();
@@ -344,6 +363,7 @@ export const createPoolSubmission = async (req: AuthRequest, res: Response) => {
       status: 201,
       durationMs: Date.now() - startedAt,
     });
+    void evaluateAndApplySpamBan(userId);
     return res.status(201).json(created);
   } catch (error: unknown) {
     // Critical: without this, async errors can leave the HTTP request hanging (no status/headers).

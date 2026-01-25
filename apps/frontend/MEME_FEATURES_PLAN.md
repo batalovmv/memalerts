@@ -1869,17 +1869,17 @@ const AUTO_CLEANUP_CONFIG = {
 ## Автономность (A)
 
 ### A1: Strict Auto-Approve
-- [ ] Миграция: поля autoApprove в Channel
-- [ ] Backend: `contentPolicy.ts` — правила Twitch/YouTube
-- [ ] Backend: `autoApprove.ts` — проверка всех условий
-- [ ] Backend: интеграция после AI moderation
-- [ ] Frontend: настройки для стримера
+- [x] Миграция: поля autoApprove в Channel
+- [x] Backend: `contentPolicy.ts` — правила Twitch/YouTube
+- [x] Backend: `autoApprove.ts` — проверка всех условий
+- [x] Backend: интеграция после AI moderation
+- [x] Frontend: настройки для стримера
 
 ### A2: Quality Score
-- [ ] Backend: `qualityScore.ts` — расчёт метрики
-- [ ] Backend: фоновый пересчёт для всех мемов
-- [ ] Backend: добавить `qualityScore` в MemeAsset
-- [ ] Frontend: badge S/A/B/C на карточке
+- [x] Backend: `qualityScore.ts` — расчёт метрики
+- [x] Backend: фоновый пересчёт для всех мемов
+- [x] Backend: добавить `qualityScore` в MemeAsset
+- [x] Frontend: badge S/A/B/C на карточке
 
 ### A3: Smart Pricing
 - [ ] Миграция: поля dynamicPricing в Channel
@@ -1893,23 +1893,23 @@ const AUTO_CLEANUP_CONFIG = {
 - [ ] Frontend: onboarding flow для новых стримеров
 
 ### A5: Progressive Spam Ban
-- [ ] Миграция: `UserBanState`
-- [ ] Backend: `spamBan.ts` — логика прогрессии и decay
-- [ ] Backend: триггеры проверки
-- [ ] Frontend: уведомление о бане
+- [x] Миграция: `UserBanState`
+- [x] Backend: `spamBan.ts` — логика прогрессии и decay
+- [x] Backend: триггеры проверки
+- [x] Frontend: уведомление о бане
 
 ### A6: Health Monitoring
-- [ ] Backend: `healthMonitor.ts` — проверки
-- [ ] Backend: scheduler каждые 5 минут
-- [ ] Backend: Telegram alerting
+- [x] Backend: `healthMonitor.ts` — проверки
+- [x] Backend: scheduler каждые 5 минут
+- [x] Backend: Telegram alerting
 
 ### A7: Engagement Visibility
 - [ ] Backend: `visibilityScore.ts`
 - [ ] Backend: индекс для сортировки
 
 ### A8: Auto-Merge дубликатов
-- [ ] Backend: `duplicateMerge.ts`
-- [ ] Backend: scheduler раз в день
+- [x] Backend: `duplicateMerge.ts`
+- [x] Backend: scheduler раз в день
 
 ### A9: Auto-Cleanup (отложено)
 - [ ] Подготовлено, включить при необходимости

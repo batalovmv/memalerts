@@ -25,7 +25,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { activateMeme } from '@/store/slices/memesSlice';
 
 type StreamerListMode = 'all' | 'favorites' | 'frequent' | 'recent' | 'hidden' | 'trending' | 'blocked' | 'forYou';
-const AUTH_REQUIRED_LIST_MODES: StreamerListMode[] = ['favorites', 'forYou'];
+const AUTH_REQUIRED_LIST_MODES: StreamerListMode[] = ['favorites', 'forYou', 'hidden'];
 const PUBLIC_LIST_MODES: StreamerListMode[] = ['forYou', 'all', 'favorites'];
 
 const StreamerProfile = memo(function StreamerProfile() {
@@ -91,6 +91,28 @@ const StreamerProfile = memo(function StreamerProfile() {
     trendingPeriod,
   });
 
+  const availableTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    const pushTag = (raw: unknown) => {
+      if (typeof raw !== 'string') return;
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    };
+    memes.forEach((meme) => {
+      if (Array.isArray(meme.aiAutoTagNames)) {
+        meme.aiAutoTagNames.forEach((tag) => pushTag(tag));
+      }
+      if (Array.isArray(meme.tags)) {
+        meme.tags.forEach((item) => pushTag(item?.tag?.name));
+      }
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+      .map(([tag]) => tag);
+  }, [memes]);
+
   const {
     memes: personalizedMemes,
     loading: personalizedLoading,
@@ -115,10 +137,10 @@ const StreamerProfile = memo(function StreamerProfile() {
   }, [isAuthed, listMode]);
 
   useEffect(() => {
-    if (!PUBLIC_LIST_MODES.includes(listMode)) {
-      setListMode('all');
-    }
-  }, [listMode]);
+    if (PUBLIC_LIST_MODES.includes(listMode)) return;
+    if (isAuthed && listMode === 'hidden') return;
+    setListMode('all');
+  }, [isAuthed, listMode]);
 
   useEffect(() => {
     if (listMode === 'blocked' && !canViewBlocked) {
@@ -212,6 +234,14 @@ const StreamerProfile = memo(function StreamerProfile() {
       setSearchQuery(next);
     },
     [setSearchQuery, setTagFilter, tagFilter],
+  );
+  const handleTagSelect = useCallback(
+    (tag: string) => {
+      setListMode('all');
+      setTagFilter(tag);
+      if (searchQuery.trim()) setSearchQuery('');
+    },
+    [searchQuery, setSearchQuery, setTagFilter],
   );
   const handleChangeListMode = useCallback(
     (nextMode: StreamerListMode) => {
@@ -325,6 +355,8 @@ const StreamerProfile = memo(function StreamerProfile() {
           onClearSearchQuery={handleClearSearchQuery}
           tagFilter={tagFilter}
           onClearTagFilter={handleClearTagFilter}
+          availableTags={availableTags}
+          onSelectTag={handleTagSelect}
           isSearching={isSearching}
           searchResultsCount={searchResults.length}
           mix={mix}

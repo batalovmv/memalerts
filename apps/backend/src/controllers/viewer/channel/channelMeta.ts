@@ -161,6 +161,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
       submissionRewardOnlyWhenLive: channel.submissionRewardOnlyWhenLive ?? false,
       submissionsEnabled: channel.submissionsEnabled ?? true,
       submissionsOnlyWhenLive: channel.submissionsOnlyWhenLive ?? false,
+      autoApproveEnabled: channel.autoApproveEnabled ?? false,
       coinIconUrl: channel.coinIconUrl ?? null,
       primaryColor: channel.primaryColor ?? null,
       secondaryColor: channel.secondaryColor ?? null,
@@ -216,6 +217,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
             fileUrl: true,
             fileHash: true,
             durationMs: true,
+            qualityScore: true,
             variants: {
               select: {
                 format: true,
@@ -336,6 +338,7 @@ export const getChannelBySlug = async (req: AuthRequest, res: Response) => {
                 fileUrl: true,
                 fileHash: true,
                 durationMs: true,
+                qualityScore: true,
                 variants: {
                   select: {
                     format: true,

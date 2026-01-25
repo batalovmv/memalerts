@@ -76,6 +76,8 @@ function pickHint(code: ErrorCode, body: unknown): string | undefined {
     case 'TOO_MANY_REQUESTS':
     case 'RATE_LIMITED':
       return 'Slow down and retry in a moment.';
+    case 'USER_SPAM_BANNED':
+      return 'Please wait before submitting again.';
     case 'OAUTH_STATE_MISMATCH':
       return 'Restart the login flow.';
     case 'UPLOAD_TIMEOUT':
