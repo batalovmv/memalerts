@@ -55,6 +55,7 @@ const MemeModal = memo(function MemeModal({
   const [formData, setFormData] = useState({
     title: '',
     priceCoins: 0,
+    cooldownMinutes: 0,
   });
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -65,6 +66,7 @@ const MemeModal = memo(function MemeModal({
   const [blockLoading, setBlockLoading] = useState(false);
   const [channelBlocked, setChannelBlocked] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState<number | null>(null);
 
   // Update currentMeme when meme prop changes
   useEffect(() => {
@@ -73,6 +75,10 @@ const MemeModal = memo(function MemeModal({
       setFormData({
         title: meme.title,
         priceCoins: meme.priceCoins,
+        cooldownMinutes:
+          typeof meme.cooldownMinutes === 'number' && Number.isFinite(meme.cooldownMinutes)
+            ? Math.max(0, Math.floor(meme.cooldownMinutes))
+            : 0,
       });
       setIsEditing(false);
       setPreviewDisabled(false);
@@ -81,8 +87,33 @@ const MemeModal = memo(function MemeModal({
       setBlockLoading(false);
       setChannelBlocked(listMode === 'blocked');
       setIsActivating(false);
+      const initialCooldown =
+        typeof meme.cooldownSecondsRemaining === 'number' && Number.isFinite(meme.cooldownSecondsRemaining)
+          ? Math.max(0, Math.floor(meme.cooldownSecondsRemaining))
+          : 0;
+      setCooldownSecondsLeft(initialCooldown > 0 ? initialCooldown : null);
     }
   }, [listMode, meme]);
+
+  useEffect(() => {
+    if (!currentMeme?.id) return;
+    const initial =
+      typeof currentMeme.cooldownSecondsRemaining === 'number' && Number.isFinite(currentMeme.cooldownSecondsRemaining)
+        ? Math.max(0, Math.floor(currentMeme.cooldownSecondsRemaining))
+        : 0;
+    if (!initial) {
+      setCooldownSecondsLeft(null);
+      return;
+    }
+    setCooldownSecondsLeft(initial);
+    const timer = window.setInterval(() => {
+      setCooldownSecondsLeft((prev) => {
+        if (!prev || prev <= 1) return null;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [currentMeme?.id, currentMeme?.cooldownSecondsRemaining]);
 
   const previewUrl = currentMeme?.previewUrl ? resolveMediaUrl(currentMeme.previewUrl) : '';
   const hasPreview = Boolean(previewUrl) && !previewDisabled;
@@ -197,6 +228,10 @@ const MemeModal = memo(function MemeModal({
       setFormData({
         title: currentMeme.title,
         priceCoins: currentMeme.priceCoins,
+        cooldownMinutes:
+          typeof currentMeme.cooldownMinutes === 'number' && Number.isFinite(currentMeme.cooldownMinutes)
+            ? Math.max(0, Math.floor(currentMeme.cooldownMinutes))
+            : 0,
       });
     }
   };
@@ -244,6 +279,7 @@ const MemeModal = memo(function MemeModal({
 
   const handleActivate = async () => {
     if (!onActivate || !currentMeme || isActivating) return;
+    if (cooldownSecondsLeft && cooldownSecondsLeft > 0) return;
     setIsActivating(true);
     try {
       await onActivate(getMemeIdForActivation(currentMeme));
@@ -253,11 +289,17 @@ const MemeModal = memo(function MemeModal({
     onClose();
   };
 
+  const effectivePrice =
+    typeof currentMeme.dynamicPriceCoins === 'number' && Number.isFinite(currentMeme.dynamicPriceCoins)
+      ? currentMeme.dynamicPriceCoins
+      : currentMeme.priceCoins;
+  const isCooldownActive = typeof cooldownSecondsLeft === 'number' && cooldownSecondsLeft > 0;
   const canActivate =
     mode === 'viewer' &&
     !!onActivate &&
     walletBalance !== undefined &&
-    walletBalance >= currentMeme.priceCoins;
+    walletBalance >= effectivePrice &&
+    !isCooldownActive;
   const isGuestViewer = mode === 'viewer' && !!onActivate && walletBalance === undefined;
   const memeAssetId =
     (typeof currentMeme.memeAssetId === 'string' && currentMeme.memeAssetId) ||
@@ -395,8 +437,12 @@ const MemeModal = memo(function MemeModal({
         loading={loading}
         title={formData.title}
         priceCoins={formData.priceCoins}
+        cooldownMinutes={formData.cooldownMinutes}
         onTitleChange={(value) => setFormData((prev) => ({ ...prev, title: value }))}
         onPriceChange={(value) => setFormData((prev) => ({ ...prev, priceCoins: value }))}
+        onCooldownChange={(value) =>
+          setFormData((prev) => ({ ...prev, cooldownMinutes: Math.max(0, Math.floor(value)) }))
+        }
         onEdit={handleEdit}
         onCancel={handleCancel}
         onSave={handleSave}
@@ -422,6 +468,7 @@ const MemeModal = memo(function MemeModal({
         walletBalance={walletBalance}
         onActivate={handleActivate}
         isActivating={isActivating}
+        cooldownSecondsRemaining={cooldownSecondsLeft}
         viewerCanInteract={viewerCanInteract}
         isFavorite={!!currentMeme.isFavorite}
         isHidden={!!currentMeme.isHidden}
@@ -463,7 +510,7 @@ const MemeModal = memo(function MemeModal({
                 onChange={(e) => setDeleteReason(e.target.value)}
                 rows={3}
                 className="w-full"
-                placeholder={t('memeModal.deleteReasonPlaceholder', { defaultValue: 'Write a short note… (optional)' })}
+                placeholder={t('memeModal.deleteReasonPlaceholder', { defaultValue: 'Write a short note... (optional)' })}
               />
             </div>
           </div>

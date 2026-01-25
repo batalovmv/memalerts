@@ -58,6 +58,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   ASSET_PURGED_OR_QUARANTINED: 'Asset is deleted or quarantined',
   MEME_INSUFFICIENT_COINS: 'Insufficient coins',
   MEME_ACTIVATION_RATE_LIMITED: 'Meme activation rate limited',
+  MEME_COOLDOWN_ACTIVE: 'This meme is cooling down. Try again soon.',
 
   // Upload/media
   INVALID_TITLE: 'Invalid title',

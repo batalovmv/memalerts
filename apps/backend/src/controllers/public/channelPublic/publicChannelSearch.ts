@@ -31,6 +31,12 @@ import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
 import { loadLegacyTagsById } from '../../viewer/channelMemeListDto.js';
 import { parseTagNames } from '../../viewer/cache.js';
 import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../../viewer/memeViewerState.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 
 export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelSearchQuery;
@@ -80,7 +86,14 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: queryMode } },
-    select: { id: true, memeCatalogMode: true, defaultPriceCoins: true },
+    select: {
+      id: true,
+      memeCatalogMode: true,
+      defaultPriceCoins: true,
+      dynamicPricingEnabled: true,
+      dynamicPricingMinMult: true,
+      dynamicPricingMaxMult: true,
+    },
   });
   if (!channel)
     return res
@@ -181,9 +194,12 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
             take: 1,
             orderBy: { createdAt: 'desc' },
             select: {
+              id: true,
               title: true,
               priceCoins: true,
               legacyMemeId: true,
+              cooldownMinutes: true,
+              lastActivatedAt: true,
               _count: {
                 select: {
                   activations: {
@@ -214,6 +230,8 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
           memeAssetId: true,
           title: true,
           priceCoins: true,
+          cooldownMinutes: true,
+          lastActivatedAt: true,
           aiAutoTagNamesJson: true,
           status: true,
           createdAt: true,
@@ -242,6 +260,19 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
       items = await attachViewerState(items);
+    }
+
+    if (items.length > 0) {
+      const dynamicSettings = normalizeDynamicPricingSettings(channel);
+      const snapshot = await loadDynamicPricingSnapshot({
+        channelId: channel.id,
+        channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+        settings: dynamicSettings,
+      });
+      items = applyDynamicPricingToItems(
+        items as Array<Record<string, unknown>>,
+        snapshot,
+      ) as PublicChannelMemeListItem[];
     }
 
     try {
@@ -279,13 +310,13 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
       where,
       orderBy: orderings.memeAsset,
       take: limit + 1,
-        select: {
-          id: true,
-          type: true,
-          fileUrl: true,
-          durationMs: true,
-          qualityScore: true,
-          variants: {
+      select: {
+        id: true,
+        type: true,
+        fileUrl: true,
+        durationMs: true,
+        qualityScore: true,
+        variants: {
           select: {
             format: true,
             fileUrl: true,
@@ -293,30 +324,33 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
             priority: true,
             fileSizeBytes: true,
           },
-          },
-          createdAt: true,
-          aiAutoTitle: true,
-          aiAutoTagNamesJson: true,
-          createdBy: { select: { id: true, displayName: true } },
-          channelMemes: {
-            where: { channelId: channel.id, status: 'approved', deletedAt: null },
-            take: 1,
-            orderBy: { createdAt: 'desc' },
-            select: {
-              title: true,
-              priceCoins: true,
-              legacyMemeId: true,
-              _count: {
-                select: {
-                  activations: {
-                    where: { status: 'done' },
-                  },
+        },
+        createdAt: true,
+        aiAutoTitle: true,
+        aiAutoTagNamesJson: true,
+        createdBy: { select: { id: true, displayName: true } },
+        channelMemes: {
+          where: { channelId: channel.id, status: 'approved', deletedAt: null },
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            title: true,
+            priceCoins: true,
+            legacyMemeId: true,
+            cooldownMinutes: true,
+            lastActivatedAt: true,
+            _count: {
+              select: {
+                activations: {
+                  where: { status: 'done' },
+                },
               },
             },
           },
         },
       },
-      });
+    });
     hasMore = rows.length > limit;
     const sliced = hasMore ? rows.slice(0, limit) : rows;
     const legacyTagsById = await loadLegacyTagsById(
@@ -336,22 +370,24 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
       where,
       orderBy: orderings.channelMeme,
       take: limit + 1,
-        select: {
-          id: true,
-          legacyMemeId: true,
-          memeAssetId: true,
-          title: true,
-          priceCoins: true,
-          aiAutoTagNamesJson: true,
-          status: true,
-          createdAt: true,
-          memeAsset: {
-            select: {
-              type: true,
-              fileUrl: true,
-              durationMs: true,
-              qualityScore: true,
-              variants: {
+      select: {
+        id: true,
+        legacyMemeId: true,
+        memeAssetId: true,
+        title: true,
+        priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
+        aiAutoTagNamesJson: true,
+        status: true,
+        createdAt: true,
+        memeAsset: {
+          select: {
+            type: true,
+            fileUrl: true,
+            durationMs: true,
+            qualityScore: true,
+            variants: {
               select: {
                 format: true,
                 fileUrl: true,
@@ -370,8 +406,8 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
             },
           },
         },
-        },
-      });
+      },
+    });
     hasMore = rows.length > limit;
     const sliced = hasMore ? rows.slice(0, limit) : rows;
     const legacyTagsById = await loadLegacyTagsById(sliced.map((row) => row.legacyMemeId));
@@ -386,6 +422,19 @@ export const searchPublicChannelMemes = async (req: AuthRequest, res: Response) 
         where: channelWhereBase,
       });
     }
+  }
+
+  if (items.length > 0) {
+    const dynamicSettings = normalizeDynamicPricingSettings(channel);
+    const snapshot = await loadDynamicPricingSnapshot({
+      channelId: channel.id,
+      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+      settings: dynamicSettings,
+    });
+    items = applyDynamicPricingToItems(
+      items as Array<Record<string, unknown>>,
+      snapshot,
+    ) as PublicChannelMemeListItem[];
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

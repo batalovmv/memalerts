@@ -15,8 +15,10 @@ type MemeModalInfoProps = {
   loading: boolean;
   title: string;
   priceCoins: number;
+  cooldownMinutes: number;
   onTitleChange: (value: string) => void;
   onPriceChange: (value: number) => void;
+  onCooldownChange: (value: number) => void;
   onEdit: () => void;
   onCancel: () => void;
   onSave: (event: FormEvent) => void;
@@ -42,6 +44,7 @@ type MemeModalInfoProps = {
   walletBalance?: number;
   onActivate: () => void;
   isActivating: boolean;
+  cooldownSecondsRemaining?: number | null;
   viewerCanInteract: boolean;
   isFavorite: boolean;
   isHidden: boolean;
@@ -63,8 +66,10 @@ export function MemeModalInfo({
   loading,
   title,
   priceCoins,
+  cooldownMinutes,
   onTitleChange,
   onPriceChange,
+  onCooldownChange,
   onEdit,
   onCancel,
   onSave,
@@ -90,6 +95,7 @@ export function MemeModalInfo({
   walletBalance,
   onActivate,
   isActivating,
+  cooldownSecondsRemaining,
   viewerCanInteract,
   isFavorite,
   isHidden,
@@ -103,19 +109,53 @@ export function MemeModalInfo({
   canModerateChannel,
 }: MemeModalInfoProps) {
   const { t } = useTranslation();
+  const basePrice =
+    typeof meme.basePriceCoins === 'number' && Number.isFinite(meme.basePriceCoins)
+      ? meme.basePriceCoins
+      : meme.priceCoins;
+  const dynamicPrice =
+    typeof meme.dynamicPriceCoins === 'number' && Number.isFinite(meme.dynamicPriceCoins)
+      ? meme.dynamicPriceCoins
+      : null;
+  const effectivePrice =
+    typeof dynamicPrice === 'number' && Number.isFinite(dynamicPrice) ? dynamicPrice : meme.priceCoins;
+  const hasDynamicDiff =
+    typeof dynamicPrice === 'number' &&
+    Number.isFinite(dynamicPrice) &&
+    Number.isFinite(basePrice) &&
+    dynamicPrice !== basePrice;
+  const priceTrend =
+    meme.priceTrend ||
+    (hasDynamicDiff ? (dynamicPrice > basePrice ? 'rising' : 'falling') : 'stable');
+  const cooldownRemaining =
+    typeof cooldownSecondsRemaining === 'number' && Number.isFinite(cooldownSecondsRemaining)
+      ? Math.max(0, Math.floor(cooldownSecondsRemaining))
+      : typeof meme.cooldownSecondsRemaining === 'number' && Number.isFinite(meme.cooldownSecondsRemaining)
+        ? Math.max(0, Math.floor(meme.cooldownSecondsRemaining))
+        : 0;
+  const cooldownActive = cooldownRemaining > 0;
+  const cooldownLabel = cooldownActive
+    ? (() => {
+        const minutes = Math.floor(cooldownRemaining / 60);
+        const seconds = cooldownRemaining % 60;
+        return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, '0')}` : `${seconds}s`;
+      })()
+    : null;
   const activateLabel = isActivating
-    ? t('memeModal.activating', { defaultValue: 'Sending…' })
+    ? t('memeModal.activating', { defaultValue: 'Sending...' })
+    : cooldownActive
+      ? t('memeModal.cooldownActive', { defaultValue: 'Cooldown {{time}}', time: cooldownLabel })
     : isGuestViewer
       ? t('auth.loginToUse', { defaultValue: 'Log in to use' })
       : walletBalance === undefined
-        ? t('common.loading', { defaultValue: 'Loading…' })
-        : walletBalance < (meme.priceCoins || 0)
+        ? t('common.loading', { defaultValue: 'Loading...' })
+        : walletBalance < (effectivePrice || 0)
           ? t('memeModal.insufficientCoins', {
               defaultValue: 'Insufficient coins (need {{price}})',
-              price: meme.priceCoins,
+              price: effectivePrice,
             })
           : t('dashboard.activate', { defaultValue: 'Activate' });
-  const activateDisabled = (!canActivate && !isGuestViewer) || isActivating;
+  const activateDisabled = (!canActivate && !isGuestViewer) || isActivating || cooldownActive;
 
   return (
     <aside
@@ -219,7 +259,7 @@ export function MemeModalInfo({
               {canViewAi && isAiProcessing ? (
                 <span className="inline-flex items-center gap-2 rounded-full bg-black/5 dark:bg-white/10 px-2.5 py-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
                   <Spinner className="h-3 w-3" />
-                  {t('submissions.aiProcessing', { defaultValue: 'AI: processing…' })}
+                  {t('submissions.aiProcessing', { defaultValue: 'AI: processing...' })}
                 </span>
               ) : null}
             </h2>
@@ -287,7 +327,7 @@ export function MemeModalInfo({
                 disabled={!viewerCanInteract || favoriteLoading}
               >
                 {favoriteLoading
-                  ? t('common.loading', { defaultValue: 'Loading…' })
+                  ? t('common.loading', { defaultValue: 'Loading...' })
                   : isFavorite
                     ? t('memeModal.unfavorite', { defaultValue: 'Remove favorite' })
                     : t('memeModal.favorite', { defaultValue: 'Add to favorites' })}
@@ -300,7 +340,7 @@ export function MemeModalInfo({
                 disabled={!viewerCanInteract || hiddenLoading}
               >
                 {hiddenLoading
-                  ? t('common.loading', { defaultValue: 'Loading…' })
+                  ? t('common.loading', { defaultValue: 'Loading...' })
                   : isHidden
                     ? t('memeModal.unhide', { defaultValue: 'Unhide' })
                     : t('memeModal.hide', { defaultValue: 'Hide' })}
@@ -314,7 +354,7 @@ export function MemeModalInfo({
                   disabled={!viewerCanInteract || channelBlockLoading}
                 >
                   {channelBlockLoading
-                    ? t('common.loading', { defaultValue: 'Loading…' })
+                    ? t('common.loading', { defaultValue: 'Loading...' })
                     : isChannelBlocked
                       ? t('memeModal.unblock', { defaultValue: 'Unblock for channel' })
                       : t('memeModal.block', { defaultValue: 'Block for channel' })}
@@ -393,9 +433,24 @@ export function MemeModalInfo({
                 aria-required="true"
               />
             </div>
+            <div>
+              <label htmlFor="meme-cooldown" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('memeModal.cooldownMinutes', { defaultValue: 'Cooldown (minutes)' })}
+              </label>
+              <Input
+                id="meme-cooldown"
+                type="number"
+                value={cooldownMinutes}
+                onChange={(e) => onCooldownChange(Number.parseInt(e.target.value, 10) || 0)}
+                min="0"
+              />
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t('memeModal.cooldownHint', { defaultValue: '0 = no cooldown. Applies per meme in this channel.' })}
+              </div>
+            </div>
             <div className="flex gap-2 pt-2">
               <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
-                {loading ? t('common.loading', { defaultValue: 'Loading…' }) : t('common.save', { defaultValue: 'Save' })}
+                {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('common.save', { defaultValue: 'Save' })}
               </Button>
               <Button type="button" variant="secondary" className="flex-1" onClick={onCancel} disabled={loading}>
                 {t('common.cancel', { defaultValue: 'Cancel' })}
@@ -409,9 +464,34 @@ export function MemeModalInfo({
                 <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
                   {t('memeModal.price', { defaultValue: 'Price' })}
                 </div>
-                <div className="text-lg font-semibold text-accent">
-                  {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: meme.priceCoins })}
+                <div className="text-lg font-semibold text-accent flex flex-wrap items-center gap-2">
+                  {hasDynamicDiff ? (
+                    <>
+                      <span className="line-through text-gray-400">
+                        {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: basePrice })}
+                      </span>
+                      <span>
+                        {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: effectivePrice })}
+                      </span>
+                      <span
+                        className={`text-xs font-semibold ${
+                          priceTrend === 'rising' ? 'text-rose-500' : priceTrend === 'falling' ? 'text-emerald-500' : 'text-gray-400'
+                        }`}
+                      >
+                        {priceTrend === 'rising' ? '^' : priceTrend === 'falling' ? 'v' : '.'}
+                      </span>
+                    </>
+                  ) : (
+                    <span>
+                      {t('memeModal.priceValue', { defaultValue: '{{price}} coins', price: effectivePrice })}
+                    </span>
+                  )}
                 </div>
+                {hasDynamicDiff ? (
+                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {t('memeModal.dynamicPriceNote', { defaultValue: 'Dynamic price shown (based on recent activity).' })}
+                  </div>
+                ) : null}
               </div>
               {mode === 'admin' && (
                 <>
@@ -485,13 +565,18 @@ export function MemeModalInfo({
                     {t('memeModal.yourBalance', { defaultValue: 'Your balance: {{balance}} coins', balance: walletBalance })}
                   </p>
                 )}
+                {cooldownActive && cooldownLabel ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                    {t('memeModal.cooldownHintActive', { defaultValue: 'Available in {{time}}', time: cooldownLabel })}
+                  </p>
+                ) : null}
               </div>
             )}
 
             {mode === 'admin' && isOwner && !isEditing && (
               <div className="pt-4 border-t border-black/5 dark:border-white/10">
                 <Button type="button" variant="danger" className="w-full" onClick={onDelete} disabled={loading}>
-                  {loading ? t('common.loading', { defaultValue: 'Loading…' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
+                  {loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('memeModal.deleteMeme', { defaultValue: 'Delete Meme' })}
                 </Button>
               </div>
             )}

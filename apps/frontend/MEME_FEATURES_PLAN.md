@@ -1172,11 +1172,11 @@ model ChannelMeme {
 
 ## Чеклист P2
 
-- [ ] Smart Cooldown: миграция + логика + UI
+- [x] Smart Cooldown: миграция + логика + UI
 - [ ] Коллекции: миграция + CRUD API + UI
 - [ ] Закреплённые: миграция + API + UI
 - [ ] Отключение: миграция + API + UI
-- [ ] Leaderboards: API + UI
+- [x] Leaderboards: API + UI
 - [ ] Analytics: API + UI в дашборде
 - [ ] Stream Summary: интеграция в Credits + статистику
 
@@ -1852,9 +1852,9 @@ const AUTO_CLEANUP_CONFIG = {
 - [ ] Детекция дубликатов при загрузке
 
 ## P2 (Средний)
-- [ ] Smart Cooldown
+- [x] Smart Cooldown
 - [ ] Коллекции мемов
-- [ ] Leaderboards за период
+- [x] Leaderboards за период
 - [ ] Meme Analytics
 - [ ] Stream Summary
 - [ ] Закреплённые мемы (Pinned)
@@ -1882,15 +1882,15 @@ const AUTO_CLEANUP_CONFIG = {
 - [x] Frontend: badge S/A/B/C на карточке
 
 ### A3: Smart Pricing
-- [ ] Миграция: поля dynamicPricing в Channel
-- [ ] Backend: `dynamicPricing.ts` — расчёт цен
-- [ ] Backend: endpoint с текущими ценами
-- [ ] Frontend: отображение цены на карточке (↑/↓)
-- [ ] Frontend: toggle для стримера
+- [x] Миграция: поля dynamicPricing в Channel
+- [x] Backend: `dynamicPricing.ts` — расчёт цен
+- [x] Backend: endpoint с текущими ценами
+- [x] Frontend: отображение цены на карточке (↑/↓)
+- [x] Frontend: toggle для стримера
 
 ### A4: Auto-Import Trending (onboarding)
-- [ ] Backend: endpoint `/starter-memes`
-- [ ] Frontend: onboarding flow для новых стримеров
+- [x] Backend: endpoint `/starter-memes`
+- [x] Frontend: onboarding flow для новых стримеров
 
 ### A5: Progressive Spam Ban
 - [x] Миграция: `UserBanState`

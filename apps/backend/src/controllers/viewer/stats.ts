@@ -349,3 +349,18 @@ export const getMemeStats = async (req: MemeStatsRequest, res: Response) => {
 
   return res.json(payload);
 };
+
+export const getChannelLeaderboard = async (req: AuthRequest, res: Response) => {
+  const slug = typeof req.params?.slug === 'string' ? req.params.slug.trim() : '';
+  const query = { ...(req.query ?? {}) } as Record<string, unknown>;
+  if (slug) {
+    query.channelSlug = slug;
+  }
+  if (typeof query.period === 'string' && query.period.toLowerCase() === 'today') {
+    query.period = 'day';
+  }
+
+  // Proxy to the existing stats handler to keep all caching/logic consistent.
+  (req as MemeStatsRequest).query = query;
+  return getMemeStats(req as MemeStatsRequest, res);
+};

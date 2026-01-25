@@ -42,6 +42,15 @@ export type ChannelMemeListItemDto = {
   fileUrl: string | null;
   durationMs: number;
   priceCoins: number;
+  // Dynamic pricing (optional)
+  basePriceCoins?: number;
+  dynamicPriceCoins?: number;
+  priceMultiplier?: number;
+  priceTrend?: 'rising' | 'falling' | 'stable';
+  // Smart cooldown (optional)
+  cooldownMinutes?: number;
+  cooldownSecondsRemaining?: number;
+  cooldownUntil?: string | null;
   status: string;
   deletedAt: null; // always null in listing responses (by filter)
   createdAt: Date;
@@ -92,6 +101,38 @@ export function getSourceType(format: 'webm' | 'mp4' | 'preview'): string {
   }
 }
 
+export function buildCooldownPayload(params: {
+  cooldownMinutes?: number | null;
+  lastActivatedAt?: Date | string | null;
+}): { cooldownMinutes: number; cooldownSecondsRemaining: number; cooldownUntil: string | null } | null {
+  const cooldownMinutesRaw =
+    typeof params.cooldownMinutes === 'number' && Number.isFinite(params.cooldownMinutes)
+      ? Math.max(0, Math.floor(params.cooldownMinutes))
+      : null;
+  if (cooldownMinutesRaw === null) return null;
+
+  const lastActivatedAt =
+    params.lastActivatedAt instanceof Date
+      ? params.lastActivatedAt
+      : typeof params.lastActivatedAt === 'string'
+        ? new Date(params.lastActivatedAt)
+        : params.lastActivatedAt
+          ? new Date(params.lastActivatedAt)
+          : null;
+  const cooldownMs = cooldownMinutesRaw > 0 ? cooldownMinutesRaw * 60_000 : 0;
+  const cooldownUntil =
+    cooldownMs > 0 && lastActivatedAt ? new Date(lastActivatedAt.getTime() + cooldownMs) : null;
+  const cooldownSecondsRemaining = cooldownUntil
+    ? Math.max(0, Math.ceil((cooldownUntil.getTime() - Date.now()) / 1000))
+    : 0;
+
+  return {
+    cooldownMinutes: cooldownMinutesRaw,
+    cooldownSecondsRemaining,
+    cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
+  };
+}
+
 export function toChannelMemeListItemDto(
   req: Request,
   channelId: string,
@@ -101,6 +142,8 @@ export function toChannelMemeListItemDto(
     memeAssetId: string;
     title: string;
     priceCoins: number;
+    cooldownMinutes?: number | null;
+    lastActivatedAt?: Date | null;
     status: string;
     createdAt: Date;
     memeAsset: {
@@ -145,6 +188,10 @@ export function toChannelMemeListItemDto(
     });
 
   const aiAutoTagNames = Array.isArray(row.aiAutoTagNamesJson) ? (row.aiAutoTagNamesJson as string[]) : null;
+  const cooldownPayload = buildCooldownPayload({
+    cooldownMinutes: row.cooldownMinutes,
+    lastActivatedAt: row.lastActivatedAt,
+  });
 
   return {
     id: row.legacyMemeId ?? row.id,
@@ -158,6 +205,7 @@ export function toChannelMemeListItemDto(
     fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.memeAsset.fileUrl ?? null,
     durationMs: row.memeAsset.durationMs,
     priceCoins: row.priceCoins,
+    ...(cooldownPayload ?? {}),
     status: row.status,
     deletedAt: null,
     createdAt: row.createdAt,

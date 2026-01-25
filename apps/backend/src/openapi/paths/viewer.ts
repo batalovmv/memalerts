@@ -79,6 +79,14 @@ export function registerViewerPaths(ctx: OpenApiContext) {
 
   registerJsonPath({
     method: 'get',
+    path: '/channels/:slug/leaderboard',
+    tags: ['Viewer'],
+    request: { params: slugParam },
+    security: [],
+  });
+
+  registerJsonPath({
+    method: 'get',
     path: '/channels/memes/search',
     tags: ['Viewer'],
     security: [],

@@ -92,6 +92,18 @@ export function buildChannelUpdateData(params: {
         : channelRec.submissionsOnlyWhenLive,
     autoApproveEnabled:
       bodyRec.autoApproveEnabled !== undefined ? bodyRec.autoApproveEnabled : channelRec.autoApproveEnabled,
+    dynamicPricingEnabled:
+      bodyRec.dynamicPricingEnabled !== undefined
+        ? bodyRec.dynamicPricingEnabled
+        : channelRec.dynamicPricingEnabled,
+    dynamicPricingMinMult:
+      bodyRec.dynamicPricingMinMult !== undefined
+        ? bodyRec.dynamicPricingMinMult
+        : channelRec.dynamicPricingMinMult,
+    dynamicPricingMaxMult:
+      bodyRec.dynamicPricingMaxMult !== undefined
+        ? bodyRec.dynamicPricingMaxMult
+        : channelRec.dynamicPricingMaxMult,
     primaryColor: body.primaryColor !== undefined ? body.primaryColor : channelRec.primaryColor,
     secondaryColor: body.secondaryColor !== undefined ? body.secondaryColor : channelRec.secondaryColor,
     accentColor: body.accentColor !== undefined ? body.accentColor : channelRec.accentColor,

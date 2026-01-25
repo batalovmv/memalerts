@@ -38,6 +38,7 @@ export function registerBetaAccessMiddleware(app: Router) {
       /^\/channels\/[^\/]+$/.test(req.path) ||
       /^\/channels\/[^\/]+\/wallet$/.test(req.path) ||
       /^\/channels\/[^\/]+\/memes$/.test(req.path) ||
+      /^\/channels\/[^\/]+\/leaderboard$/.test(req.path) ||
       req.path.startsWith('/channels/memes/search') ||
       req.path === '/memes/stats' ||
       (allowDebugIp && req.path === '/debug-ip') ||

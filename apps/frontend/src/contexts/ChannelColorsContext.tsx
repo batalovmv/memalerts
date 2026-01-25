@@ -38,6 +38,9 @@ interface ChannelData {
   rewardCost?: number | null;
   rewardCoins?: number | null;
   rewardOnlyWhenLive?: boolean;
+  dynamicPricingEnabled?: boolean;
+  dynamicPricingMinMult?: number;
+  dynamicPricingMaxMult?: number;
   // Kick rewards → coins
   kickRewardEnabled?: boolean;
   kickRewardIdForCoins?: string | null;

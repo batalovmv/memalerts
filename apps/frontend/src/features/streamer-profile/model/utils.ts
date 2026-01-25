@@ -199,6 +199,15 @@ export function normalizeChannelInfo(raw: unknown, fallbackSlug: string): Channe
     primaryColor: typeof r.primaryColor === 'string' ? r.primaryColor : r.primaryColor === null ? null : null,
     secondaryColor: typeof r.secondaryColor === 'string' ? r.secondaryColor : r.secondaryColor === null ? null : null,
     accentColor: typeof r.accentColor === 'string' ? r.accentColor : r.accentColor === null ? null : null,
+    dynamicPricingEnabled: typeof r.dynamicPricingEnabled === 'boolean' ? r.dynamicPricingEnabled : undefined,
+    dynamicPricingMinMult:
+      typeof r.dynamicPricingMinMult === 'number' && Number.isFinite(r.dynamicPricingMinMult)
+        ? r.dynamicPricingMinMult
+        : undefined,
+    dynamicPricingMaxMult:
+      typeof r.dynamicPricingMaxMult === 'number' && Number.isFinite(r.dynamicPricingMaxMult)
+        ? r.dynamicPricingMaxMult
+        : undefined,
     submissionsEnabled: typeof r.submissionsEnabled === 'boolean' ? r.submissionsEnabled : undefined,
     submissionsOnlyWhenLive: typeof r.submissionsOnlyWhenLive === 'boolean' ? r.submissionsOnlyWhenLive : undefined,
     createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),

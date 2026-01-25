@@ -22,6 +22,12 @@ import {
 } from './shared.js';
 import { toPublicChannelMemeListItemDto } from '../dto/publicChannelMemeListItemDto.js';
 import { loadLegacyTagsById } from '../../viewer/channelMemeListDto.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 
 export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) => {
   const query = req.query as PublicChannelMetaQuery;
@@ -103,6 +109,9 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
       submissionsOnlyWhenLive: true,
       memeCatalogMode: true,
       defaultPriceCoins: true,
+      dynamicPricingEnabled: true,
+      dynamicPricingMinMult: true,
+      dynamicPricingMaxMult: true,
       users: {
         take: 5,
         orderBy: { createdAt: 'asc' },
@@ -188,9 +197,12 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
             take: 1,
             orderBy: { createdAt: 'desc' },
             select: {
+              id: true,
               title: true,
               priceCoins: true,
               legacyMemeId: true,
+              cooldownMinutes: true,
+              lastActivatedAt: true,
               _count: {
                 select: {
                   activations: {
@@ -209,6 +221,18 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         const tags = legacyTagsById.get(legacyId);
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
+      if (response.memes.length > 0) {
+        const dynamicSettings = normalizeDynamicPricingSettings(channel);
+        const snapshot = await loadDynamicPricingSnapshot({
+          channelId: channel.id,
+          channelMemeIds: collectChannelMemeIds(response.memes as Array<Record<string, unknown>>),
+          settings: dynamicSettings,
+        });
+        response.memes = applyDynamicPricingToItems(
+          response.memes as Array<Record<string, unknown>>,
+          snapshot,
+        ) as typeof response.memes;
+      }
       response.memesPage = {
         limit: memesLimit,
         offset: memesOffset,
@@ -227,6 +251,8 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
           memeAssetId: true,
           title: true,
           priceCoins: true,
+          cooldownMinutes: true,
+          lastActivatedAt: true,
           aiAutoTagNamesJson: true,
           status: true,
           createdAt: true,
@@ -264,11 +290,21 @@ export const getPublicChannelBySlug = async (req: AuthRequest, res: Response) =>
         const tags = legacyTagsById.get(row.legacyMemeId ?? '');
         return tags && tags.length > 0 ? { ...item, tags } : item;
       });
-      response.memes = mapped;
+      let items = mapped;
+      if (items.length > 0) {
+        const dynamicSettings = normalizeDynamicPricingSettings(channel);
+        const snapshot = await loadDynamicPricingSnapshot({
+          channelId: channel.id,
+          channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+          settings: dynamicSettings,
+        });
+        items = applyDynamicPricingToItems(items as Array<Record<string, unknown>>, snapshot) as typeof items;
+      }
+      response.memes = items;
       response.memesPage = {
         limit: memesLimit,
         offset: memesOffset,
-        returned: mapped.length,
+        returned: response.memes.length,
         total: channel._count.channelMemes,
       };
     }

@@ -3,12 +3,19 @@ import type { Prisma } from '@prisma/client';
 import type { AuthRequest } from '../../../middleware/auth.js';
 import { prisma } from '../../../lib/prisma.js';
 import {
+  buildCooldownPayload,
   getSourceType,
   loadLegacyTagsById,
   toChannelMemeListItemDto,
   type ChannelMemeListItemDto,
 } from '../channelMemeListDto.js';
 import { applyViewerMemeState, buildChannelMemeVisibilityFilter, buildMemeAssetVisibilityFilter, loadViewerMemeState } from '../memeViewerState.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 import {
   PaginationError,
   buildCursorFilter,
@@ -60,7 +67,15 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
 
   const channel = await prisma.channel.findFirst({
     where: { slug: { equals: slug, mode: 'insensitive' } },
-    select: { id: true, slug: true, memeCatalogMode: true, defaultPriceCoins: true },
+    select: {
+      id: true,
+      slug: true,
+      memeCatalogMode: true,
+      defaultPriceCoins: true,
+      dynamicPricingEnabled: true,
+      dynamicPricingMinMult: true,
+      dynamicPricingMaxMult: true,
+    },
   });
 
   if (!channel) {
@@ -153,7 +168,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
           where: { channelId: channel.id, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { title: true, priceCoins: true, legacyMemeId: true },
+          select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
         },
       },
     });
@@ -174,6 +189,10 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       const channelPrice = ch?.priceCoins;
       const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
       const legacyTags = legacyTagsById.get(ch?.legacyMemeId ?? '');
+      const cooldownPayload = buildCooldownPayload({
+        cooldownMinutes: ch?.cooldownMinutes ?? null,
+        lastActivatedAt: ch?.lastActivatedAt ?? null,
+      });
       const doneVariants = Array.isArray(r.variants)
         ? r.variants.filter((v) => String(v.status || '') === 'done')
         : [];
@@ -193,7 +212,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       return {
         id: r.id,
         channelId: channel.id,
-        channelMemeId: r.id,
+        channelMemeId: ch?.id ?? r.id,
         memeAssetId: r.id,
         title,
         type: r.type,
@@ -202,6 +221,7 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
         fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
         durationMs: r.durationMs,
         priceCoins,
+        ...(cooldownPayload ?? {}),
         status: 'approved',
         deletedAt: null,
         createdAt: r.createdAt,
@@ -211,6 +231,13 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       };
     });
     items = await attachViewerState(items as Array<Record<string, unknown>>);
+    const dynamicSettings = normalizeDynamicPricingSettings(channel);
+    const snapshot = await loadDynamicPricingSnapshot({
+      channelId: channel.id,
+      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+      settings: dynamicSettings,
+    });
+    items = applyDynamicPricingToItems(items as Array<Record<string, unknown>>, snapshot);
   } else {
     const baseWhere = {
       channelId: channel.id,
@@ -241,6 +268,8 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
         memeAssetId: true,
         title: true,
         priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
         status: true,
         createdAt: true,
         memeAsset: {
@@ -278,6 +307,13 @@ export const getChannelMemesPublic = async (req: AuthRequest, res: Response) => 
       return tags && tags.length > 0 ? { ...item, tags } : item;
     });
     items = await attachViewerState(items as Array<Record<string, unknown>>);
+    const dynamicSettings = normalizeDynamicPricingSettings(channel);
+    const snapshot = await loadDynamicPricingSnapshot({
+      channelId: channel.id,
+      channelMemeIds: collectChannelMemeIds(items as Array<Record<string, unknown>>),
+      settings: dynamicSettings,
+    });
+    items = applyDynamicPricingToItems(items as Array<Record<string, unknown>>, snapshot);
   }
 
   const nextCursor = hasMore && items.length > 0 ? encodeCursorFromItem(items[items.length - 1], cursorSchema) : null;

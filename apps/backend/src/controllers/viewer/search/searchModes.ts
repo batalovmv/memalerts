@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../../lib/prisma.js';
-import { getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
+import { buildCooldownPayload, getSourceType, loadLegacyTagsById, toChannelMemeListItemDto } from '../channelMemeListDto.js';
 import { parseTagNames } from '../cache.js';
 import { sendSearchResponse, type ChannelMemeRow, type PoolAssetRow, type SearchContext } from './searchShared.js';
 import { buildSearchTerms } from '../../../shared/utils/searchTerms.js';
@@ -10,6 +10,12 @@ import {
   buildMemeAssetVisibilityFilter,
   loadViewerMemeState,
 } from '../memeViewerState.js';
+import {
+  applyDynamicPricingToItems,
+  collectChannelMemeIds,
+  loadDynamicPricingSnapshot,
+  normalizeDynamicPricingSettings,
+} from '../../../services/meme/dynamicPricing.js';
 
 function defaultPriceCoinsFromChannel(ctx: SearchContext): number {
   const raw = ctx.targetChannel?.defaultPriceCoins ?? null;
@@ -28,6 +34,10 @@ function mapPoolRows(
     const channelPrice = ch?.priceCoins;
     const priceCoins = Number.isFinite(channelPrice) ? (channelPrice as number) : defaultPriceCoins;
     const legacyTags = legacyTagsById?.get(ch?.legacyMemeId ?? '');
+    const cooldownPayload = buildCooldownPayload({
+      cooldownMinutes: ch?.cooldownMinutes ?? null,
+      lastActivatedAt: ch?.lastActivatedAt ?? null,
+    });
     const doneVariants = Array.isArray(r.variants)
       ? r.variants.filter((v) => String(v.status || '') === 'done')
       : [];
@@ -47,16 +57,17 @@ function mapPoolRows(
     return {
       id: r.id,
       channelId,
-      channelMemeId: r.id,
+      channelMemeId: ch?.id ?? r.id,
       memeAssetId: r.id,
       title,
       type: r.type,
       previewUrl: preview?.fileUrl ?? null,
       variants,
-        fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
-        durationMs: r.durationMs,
-        qualityScore: r.qualityScore ?? null,
-        priceCoins,
+      fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? r.fileUrl ?? null,
+      durationMs: r.durationMs,
+      qualityScore: r.qualityScore ?? null,
+      priceCoins,
+      ...(cooldownPayload ?? {}),
       status: 'approved',
       deletedAt: null,
       createdAt: r.createdAt,
@@ -76,7 +87,15 @@ async function attachViewerState(ctx: SearchContext, items: Array<Record<string,
     channelId: ctx.targetChannelId ?? null,
     memeAssetIds,
   });
-  return applyViewerMemeState(items, state);
+  const withState = applyViewerMemeState(items, state);
+  if (!ctx.targetChannelId) return withState;
+  const settings = normalizeDynamicPricingSettings(ctx.targetChannel ?? null);
+  const snapshot = await loadDynamicPricingSnapshot({
+    channelId: ctx.targetChannelId,
+    channelMemeIds: collectChannelMemeIds(withState),
+    settings,
+  });
+  return applyDynamicPricingToItems(withState, snapshot);
 }
 
 function mergeChannelAnd(where: Prisma.ChannelMemeWhereInput, extra: Prisma.ChannelMemeWhereInput) {
@@ -153,7 +172,7 @@ export async function handleChannelListingMode(ctx: SearchContext) {
           where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { title: true, priceCoins: true, legacyMemeId: true },
+          select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
         },
       },
     })) as PoolAssetRow[];
@@ -192,18 +211,20 @@ export async function handleChannelListingMode(ctx: SearchContext) {
     orderBy,
     take: ctx.parsedLimit,
     skip: ctx.parsedOffset,
-    select: {
-      id: true,
-      legacyMemeId: true,
-      memeAssetId: true,
-      title: true,
-      searchText: true,
-      aiAutoDescription: true,
-      aiAutoTagNamesJson: true,
-      priceCoins: true,
-      status: true,
-      createdAt: true,
-      memeAsset: {
+      select: {
+        id: true,
+        legacyMemeId: true,
+        memeAssetId: true,
+        title: true,
+        searchText: true,
+        aiAutoDescription: true,
+        aiAutoTagNamesJson: true,
+        priceCoins: true,
+        cooldownMinutes: true,
+        lastActivatedAt: true,
+        status: true,
+        createdAt: true,
+        memeAsset: {
         select: {
           type: true,
           fileUrl: true,
@@ -317,7 +338,7 @@ export async function handlePoolAllChannelFilterMode(ctx: SearchContext) {
         where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
         take: 1,
         orderBy: { createdAt: 'desc' },
-        select: { title: true, priceCoins: true, legacyMemeId: true },
+        select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
       },
     },
   })) as PoolAssetRow[];
@@ -403,7 +424,7 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
           where: { channelId: ctx.targetChannelId!, status: 'approved', deletedAt: null },
           take: 1,
           orderBy: { createdAt: 'desc' },
-          select: { title: true, priceCoins: true, legacyMemeId: true },
+          select: { id: true, title: true, priceCoins: true, legacyMemeId: true, cooldownMinutes: true, lastActivatedAt: true },
         },
       },
     })) as PoolAssetRow[];
@@ -469,6 +490,8 @@ export async function handleChannelSearchMode(ctx: SearchContext) {
       aiAutoDescription: true,
       aiAutoTagNamesJson: true,
       priceCoins: true,
+      cooldownMinutes: true,
+      lastActivatedAt: true,
       status: true,
       createdAt: true,
       memeAsset: {

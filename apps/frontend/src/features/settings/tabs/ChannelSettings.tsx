@@ -21,6 +21,9 @@ export function ChannelSettings() {
     primaryColor: '',
     secondaryColor: '',
     accentColor: '',
+    dynamicPricingEnabled: false,
+    dynamicPricingMinMult: 0.5,
+    dynamicPricingMaxMult: 2,
   });
   const [loading, setLoading] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
@@ -28,6 +31,15 @@ export function ChannelSettings() {
   const savedPulseTimerRef = useRef<number | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const settingsLoadedRef = useRef<string | null>(null); // Track which channel's settings were loaded
+
+  const normalizePricing = (minRaw: number, maxRaw: number) => {
+    const min = Number.isFinite(minRaw) ? Math.min(Math.max(minRaw, 0.1), 5) : 0.5;
+    const max = Number.isFinite(maxRaw) ? Math.min(Math.max(maxRaw, 0.1), 5) : 2;
+    return {
+      min: Math.min(min, max),
+      max: Math.max(min, max),
+    };
+  };
 
   const loadSettings = useCallback(async () => {
     if (!user?.channel?.slug) return;
@@ -41,15 +53,25 @@ export function ChannelSettings() {
       // Check cache first
       const cached = getCachedChannelData(user.channel.slug);
       if (cached) {
+        const pricing = normalizePricing(
+          typeof cached.dynamicPricingMinMult === 'number' ? cached.dynamicPricingMinMult : 0.5,
+          typeof cached.dynamicPricingMaxMult === 'number' ? cached.dynamicPricingMaxMult : 2,
+        );
         const nextSettings = {
           primaryColor: cached.primaryColor || '',
           secondaryColor: cached.secondaryColor || '',
           accentColor: cached.accentColor || '',
+          dynamicPricingEnabled: cached.dynamicPricingEnabled === true,
+          dynamicPricingMinMult: pricing.min,
+          dynamicPricingMaxMult: pricing.max,
         };
         setSettings({
           primaryColor: nextSettings.primaryColor,
           secondaryColor: nextSettings.secondaryColor,
           accentColor: nextSettings.accentColor,
+          dynamicPricingEnabled: nextSettings.dynamicPricingEnabled,
+          dynamicPricingMinMult: nextSettings.dynamicPricingMinMult,
+          dynamicPricingMaxMult: nextSettings.dynamicPricingMaxMult,
         });
         settingsLoadedRef.current = user.channel.slug;
         // Seed lastSaved to prevent immediate auto-save right after initial load.
@@ -57,6 +79,9 @@ export function ChannelSettings() {
           primaryColor: nextSettings.primaryColor || null,
           secondaryColor: nextSettings.secondaryColor || null,
           accentColor: nextSettings.accentColor || null,
+          dynamicPricingEnabled: nextSettings.dynamicPricingEnabled,
+          dynamicPricingMinMult: nextSettings.dynamicPricingMinMult,
+          dynamicPricingMaxMult: nextSettings.dynamicPricingMaxMult,
         });
         return;
       }
@@ -64,15 +89,25 @@ export function ChannelSettings() {
       // If not in cache, fetch it
       const channelData = await getChannelData(user.channel.slug);
       if (channelData) {
+        const pricing = normalizePricing(
+          typeof channelData.dynamicPricingMinMult === 'number' ? channelData.dynamicPricingMinMult : 0.5,
+          typeof channelData.dynamicPricingMaxMult === 'number' ? channelData.dynamicPricingMaxMult : 2,
+        );
         const nextSettings = {
           primaryColor: channelData.primaryColor || '',
           secondaryColor: channelData.secondaryColor || '',
           accentColor: channelData.accentColor || '',
+          dynamicPricingEnabled: channelData.dynamicPricingEnabled === true,
+          dynamicPricingMinMult: pricing.min,
+          dynamicPricingMaxMult: pricing.max,
         };
         setSettings({
           primaryColor: nextSettings.primaryColor,
           secondaryColor: nextSettings.secondaryColor,
           accentColor: nextSettings.accentColor,
+          dynamicPricingEnabled: nextSettings.dynamicPricingEnabled,
+          dynamicPricingMinMult: nextSettings.dynamicPricingMinMult,
+          dynamicPricingMaxMult: nextSettings.dynamicPricingMaxMult,
         });
         settingsLoadedRef.current = user.channel.slug;
         // Seed lastSaved to prevent immediate auto-save right after initial load.
@@ -80,6 +115,9 @@ export function ChannelSettings() {
           primaryColor: nextSettings.primaryColor || null,
           secondaryColor: nextSettings.secondaryColor || null,
           accentColor: nextSettings.accentColor || null,
+          dynamicPricingEnabled: nextSettings.dynamicPricingEnabled,
+          dynamicPricingMinMult: nextSettings.dynamicPricingMinMult,
+          dynamicPricingMaxMult: nextSettings.dynamicPricingMaxMult,
         });
       }
     } catch (error) {
@@ -114,6 +152,9 @@ export function ChannelSettings() {
       primaryColor: settings.primaryColor || null,
       secondaryColor: settings.secondaryColor || null,
       accentColor: settings.accentColor || null,
+      dynamicPricingEnabled: settings.dynamicPricingEnabled,
+      dynamicPricingMinMult: settings.dynamicPricingMinMult,
+      dynamicPricingMaxMult: settings.dynamicPricingMaxMult,
     });
 
     // Skip if nothing changed from last saved.
@@ -130,6 +171,9 @@ export function ChannelSettings() {
             primaryColor: settings.primaryColor || null,
             secondaryColor: settings.secondaryColor || null,
             accentColor: settings.accentColor || null,
+            dynamicPricingEnabled: settings.dynamicPricingEnabled,
+            dynamicPricingMinMult: settings.dynamicPricingMinMult,
+            dynamicPricingMaxMult: settings.dynamicPricingMaxMult,
           });
           lastSavedRef.current = payload;
         } catch (error: unknown) {
@@ -153,6 +197,9 @@ export function ChannelSettings() {
     settings.primaryColor,
     settings.secondaryColor,
     settings.accentColor,
+    settings.dynamicPricingEnabled,
+    settings.dynamicPricingMinMult,
+    settings.dynamicPricingMaxMult,
     user?.channelId,
     t,
   ]);
@@ -163,7 +210,7 @@ export function ChannelSettings() {
 
   return (
     <div className="relative space-y-6">
-      {loading && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving…' })} />}
+      {loading && <SavingOverlay label={t('admin.saving', { defaultValue: 'Saving...' })} />}
       {savedPulse && !loading && <SavedOverlay label={t('admin.saved', { defaultValue: 'Saved' })} />}
 
       <div>
@@ -196,6 +243,79 @@ export function ChannelSettings() {
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
             </label>
+          </div>
+        </SettingsSection>
+      </div>
+
+      <div className={loading ? 'pointer-events-none opacity-60' : ''}>
+        <SettingsSection
+          title={t('admin.dynamicPricingTitle', { defaultValue: 'Dynamic pricing' })}
+          description={t('admin.dynamicPricingHint', { defaultValue: 'Adjust meme price automatically based on recent activity.' })}
+          contentClassName="space-y-4"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 dark:text-white">
+                {t('admin.dynamicPricingToggle', { defaultValue: 'Enable dynamic pricing' })}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                {t('admin.dynamicPricingToggleHint', { defaultValue: 'Prices will float within the range below.' })}
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={settings.dynamicPricingEnabled}
+                onChange={(e) => setSettings((prev) => ({ ...prev, dynamicPricingEnabled: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('admin.dynamicPricingMin', { defaultValue: 'Minimum multiplier' })}
+              </label>
+              <Input
+                type="number"
+                min="0.1"
+                max="5"
+                step="0.1"
+                value={settings.dynamicPricingMinMult}
+                onChange={(e) => {
+                  const next = Number.parseFloat(e.target.value);
+                  if (!Number.isFinite(next)) return;
+                  setSettings((prev) => {
+                    const normalized = normalizePricing(next, prev.dynamicPricingMaxMult);
+                    return { ...prev, dynamicPricingMinMult: normalized.min, dynamicPricingMaxMult: normalized.max };
+                  });
+                }}
+                disabled={!settings.dynamicPricingEnabled}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('admin.dynamicPricingMax', { defaultValue: 'Maximum multiplier' })}
+              </label>
+              <Input
+                type="number"
+                min="0.1"
+                max="5"
+                step="0.1"
+                value={settings.dynamicPricingMaxMult}
+                onChange={(e) => {
+                  const next = Number.parseFloat(e.target.value);
+                  if (!Number.isFinite(next)) return;
+                  setSettings((prev) => {
+                    const normalized = normalizePricing(prev.dynamicPricingMinMult, next);
+                    return { ...prev, dynamicPricingMinMult: normalized.min, dynamicPricingMaxMult: normalized.max };
+                  });
+                }}
+                disabled={!settings.dynamicPricingEnabled}
+              />
+            </div>
           </div>
         </SettingsSection>
       </div>

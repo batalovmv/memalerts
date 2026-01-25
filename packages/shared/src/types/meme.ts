@@ -43,6 +43,21 @@ export interface Meme {
    */
   memeAssetId?: string | null;
   priceCoins: number;
+  /**
+   * Dynamic pricing snapshot (optional).
+   * basePriceCoins = original price (channel-defined)
+   * dynamicPriceCoins = current price after dynamic pricing
+   */
+  basePriceCoins?: number;
+  dynamicPriceCoins?: number;
+  priceMultiplier?: number;
+  priceTrend?: 'rising' | 'falling' | 'stable';
+  /**
+   * Smart cooldown (optional)
+   */
+  cooldownMinutes?: number;
+  cooldownSecondsRemaining?: number;
+  cooldownUntil?: string | null;
   durationMs: number;
   activationsCount?: number;
   _count?: { activations?: number };

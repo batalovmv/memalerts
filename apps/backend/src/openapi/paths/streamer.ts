@@ -101,6 +101,13 @@ export function registerStreamerPaths(ctx: OpenApiContext) {
   });
 
   registerJsonPath({
+    method: 'get',
+    path: '/streamer/starter-memes',
+    tags: ['Streamer'],
+    responseSchema: genericArraySchema,
+  });
+
+  registerJsonPath({
     method: 'patch',
     path: '/streamer/memes/:id',
     tags: ['Streamer'],

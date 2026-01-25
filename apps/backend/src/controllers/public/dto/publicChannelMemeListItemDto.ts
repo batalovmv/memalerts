@@ -1,3 +1,5 @@
+import { buildCooldownPayload } from '../../viewer/channelMemeListDto.js';
+
 export type PublicChannelMemeListItemDto = {
   // Back-compat id: legacy Meme.id when available, otherwise ChannelMeme.id.
   id: string;
@@ -19,6 +21,15 @@ export type PublicChannelMemeListItemDto = {
   fileUrl: string | null;
   durationMs: number;
   priceCoins: number;
+  // Dynamic pricing (optional)
+  basePriceCoins?: number;
+  dynamicPriceCoins?: number;
+  priceMultiplier?: number;
+  priceTrend?: 'rising' | 'falling' | 'stable';
+  // Smart cooldown (optional)
+  cooldownMinutes?: number;
+  cooldownSecondsRemaining?: number;
+  cooldownUntil?: string | null;
   activationsCount: number;
   createdAt: Date;
   createdBy: { id: string; displayName: string } | null;
@@ -46,6 +57,8 @@ export function toPublicChannelMemeListItemDto(
     memeAssetId: string;
     title: string;
     priceCoins: number;
+    cooldownMinutes?: number | null;
+    lastActivatedAt?: Date | string | null;
     createdAt: Date;
     memeAsset: {
       type: string;
@@ -92,6 +105,10 @@ export function toPublicChannelMemeListItemDto(
         .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
         .map((tag) => tag.trim())
     : null;
+  const cooldownPayload = buildCooldownPayload({
+    cooldownMinutes: row.cooldownMinutes ?? null,
+    lastActivatedAt: row.lastActivatedAt ?? null,
+  });
 
   return {
     id: row.legacyMemeId ?? row.id,
@@ -105,6 +122,7 @@ export function toPublicChannelMemeListItemDto(
     fileUrl: variants[0]?.fileUrl ?? preview?.fileUrl ?? row.memeAsset.fileUrl ?? null,
     durationMs: row.memeAsset.durationMs,
     priceCoins: row.priceCoins,
+    ...(cooldownPayload ?? {}),
     activationsCount,
     createdAt: row.createdAt,
     createdBy: row.memeAsset.createdBy
