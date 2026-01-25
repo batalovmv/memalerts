@@ -31,6 +31,8 @@ describe('prisma migrations', () => {
         'prisma/migrations',
         '--to-schema-datamodel',
         'prisma/schema.prisma',
+        '--shadow-database-url',
+        shadowUrl,
         '--exit-code',
       ],
       {
