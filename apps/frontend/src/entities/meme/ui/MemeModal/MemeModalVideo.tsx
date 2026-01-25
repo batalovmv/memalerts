@@ -59,7 +59,6 @@ export function MemeModalVideo({
   onFullCanPlay,
 }: MemeModalVideoProps) {
   const { t } = useTranslation();
-  const showBackdropVideo = !hasPreview;
   const fullCandidates = useMemo(() => {
     const urls = variants
       .map((variant) => ({
@@ -87,6 +86,8 @@ export function MemeModalVideo({
   }, [meme.id]);
 
   const fullCandidate = fullCandidates[fullIndex];
+  const backdropUrl = hasPreview ? previewUrl : fullCandidate?.url || videoUrl;
+  const showBackdropVideo = Boolean(backdropUrl);
   const handleFullError = () => {
     const next = fullIndex + 1;
     if (next < fullCandidates.length) {
@@ -103,27 +104,20 @@ export function MemeModalVideo({
     >
       {showBackdropVideo ? (
         <video
-          src={variants.length === 0 ? videoUrl : undefined}
+          src={backdropUrl || undefined}
           muted
           loop
           playsInline
-          className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50"
+          className="absolute inset-0 w-full h-full object-cover blur-3xl scale-125 opacity-60 saturate-150"
           preload="metadata"
           aria-hidden="true"
-        >
-          {variants.length > 0
-            ? variants.map((variant) => (
-                <source key={variant.format} src={resolveMediaUrl(variant.fileUrl)} type={variant.sourceType} />
-              ))
-            : null}
-        </video>
-      ) : (
-        <div
-          className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%)]"
-          aria-hidden="true"
         />
-      )}
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+      ) : null}
+      <div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_55%)]"
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-black/45" aria-hidden="true" />
 
       <div className="absolute inset-0 z-10">
         {hasPreview ? (
